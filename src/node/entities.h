@@ -85,7 +85,6 @@ namespace ccf
     // Service information
     static constexpr auto SERVICE = "public:ccf.gov.service";
     static constexpr auto CONFIGURATION = "public:ccf.gov.service.config";
-    static constexpr auto VALUES = "public:ccf.internal.values";
 
     // Governance
     static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
@@ -114,6 +113,7 @@ namespace ccf
     static constexpr auto SNAPSHOT_EVIDENCE =
       "public:ccf.internal.snapshot_evidence";
     static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
+    static constexpr auto VALUES = "public:ccf.internal.values";
 
     // Consensus
     static constexpr auto CONSENSUS = "public:ccf.internal.consensus";
