@@ -34,8 +34,7 @@ namespace nobuiltins
         {
           // SNIPPET_START: get_quote_api_v1
           ccf::QuoteInfo quote_info;
-          result = get_quote_for_this_node_v1(
-            ctx.tx, summary.quote_format, quote_info);
+          result = get_quote_for_this_node_v1(ctx.tx, quote_info);
           if (result != ccf::ApiResult::OK)
           {
             ctx.rpc_ctx->set_error(
