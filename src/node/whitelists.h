@@ -20,9 +20,5 @@ namespace ccf
     MEMBER_CAN_READ = 0,
     // tables members can propose changes to
     MEMBER_CAN_PROPOSE,
-    // tables the user app can read (but not write)
-    USER_APP_CAN_READ_ONLY,
-    // tables the user app can write
-    USER_APP_CAN_WRITE
   };
 }
