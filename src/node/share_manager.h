@@ -377,6 +377,8 @@ namespace ccf
         recovery_ledger_secrets.back().next_version;
       if (!current_ledger_secret_version.has_value())
       {
+        // This should always be set by the recovery hook, which sets this to
+        // the version at which it is called if unset in the store
         throw std::logic_error("Current ledger secret version should be set");
       }
 
