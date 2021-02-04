@@ -6,114 +6,76 @@
 #include "error_string.h"
 #include "hash.h"
 #include "key_pair.h"
-#include "mbedtls/pem.h"
 #include "pem.h"
+#include "rsa_key_pair.h"
+
+#include <mbedtls/pem.h>
+#include <openssl/evp.h>
+#include <openssl/x509.h>
 
 namespace tls
 {
   static constexpr size_t max_pem_cert_size = 4096;
 
-  // As these are not exposed by mbedlts, define them here to allow simple
+  // As these are not exposed by mbedTLS, define them here to allow simple
   // conversion from DER to PEM format
   static constexpr auto PEM_CERTIFICATE_HEADER =
     "-----BEGIN CERTIFICATE-----\n";
   static constexpr auto PEM_CERTIFICATE_FOOTER = "-----END CERTIFICATE-----\n";
 
-  class Verifier
+  class VerifierBase
   {
   protected:
-    mutable mbedtls::X509Crt cert;
+    std::shared_ptr<PublicKeyBase> public_key;
+    MDType md_type = MDType::NONE;
 
   public:
-    /**
-     * Construct from a pre-parsed cert
-     *
-     * @param c Initialised and parsed x509 cert
-     */
-    Verifier(mbedtls::X509Crt&& c) : cert(std::move(c)) {}
+    VerifierBase() : public_key(nullptr) {}
+    virtual ~VerifierBase() {}
 
-    Verifier(const Verifier&) = delete;
+    virtual std::vector<uint8_t> cert_der() = 0;
+    virtual Pem cert_pem() = 0;
 
-    virtual ~Verifier() = default;
-
-    /**
-     * Verify that a signature was produced on a hash with the private key
-     * associated with the public key contained in the certificate.
-     *
-     * @param hash First byte in hash sequence
-     * @param hash_size Number of bytes in hash sequence
-     * @param signature First byte in signature sequence
-     * @param signature_size Number of bytes in signature sequence
-     * @param md_type Digest algorithm to use. Derived from the
-     * public key if MBEDTLS_MD_NONE.
-     *
-     * @return Whether the signature matches the hash and the key
-     */
-    virtual bool verify_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      const uint8_t* signature,
-      size_t signature_size,
-      mbedtls_md_type_t md_type = {}) const
-    {
-      if (md_type == MBEDTLS_MD_NONE)
-        md_type = get_md_for_ec(get_ec_from_context(cert->pk));
-
-      int rc = mbedtls_pk_verify(
-        &cert->pk, md_type, hash, hash_size, signature, signature_size);
-
-      if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature: {}", error_string(rc));
-
-      return rc == 0;
-    }
-
-    /**
-     * Verify that a signature was produced on a hash with the private key
-     * associated with the public key contained in the certificate.
-     *
-     * @param hash Hash produced from contents as a sequence of bytes
-     * @param signature Signature as a sequence of bytes
-     * @param md_type Digest algorithm to use. Derived from the
-     * public key if MBEDTLS_MD_NONE.
-     *
-     * @return Whether the signature matches the hash and the key
-     */
-    bool verify_hash(
-      const std::vector<uint8_t>& hash,
-      const std::vector<uint8_t>& signature,
-      mbedtls_md_type_t md_type = {}) const
-    {
-      return verify_hash(
-        hash.data(), hash.size(), signature.data(), signature.size(), md_type);
-    }
-
-    bool verify_hash(
-      const std::vector<uint8_t>& hash,
+    virtual bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
       const uint8_t* sig,
       size_t sig_size,
-      mbedtls_md_type_t md_type = {}) const
+      MDType md_type)
     {
-      return verify_hash(hash.data(), hash.size(), sig, sig_size, md_type);
+      if (md_type == MDType::NONE)
+        md_type = this->md_type;
+      return public_key->verify(
+        contents, contents_size, sig, sig_size, md_type);
     }
 
-    /**
-     * Verify that a signature was produced on contents with the private key
-     * associated with the public key contained in the certificate.
-     *
-     * @param contents Sequence of bytes that was signed
-     * @param signature Signature as a sequence of bytes
-     * @param md_type Digest algorithm to use. Derived from the
-     * public key if MBEDTLS_MD_NONE.
-     *
-     * @return Whether the signature matches the contents and the key
-     */
-    bool verify(
+    virtual bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* sig,
+      size_t sig_size,
+      MDType md_type,
+      HashBytes& hash_bytes) const
+    {
+      if (md_type == MDType::NONE)
+        md_type = this->md_type;
+      return public_key->verify(
+        contents, contents_size, sig, sig_size, md_type, hash_bytes);
+    }
+
+    virtual bool verify(
+      const std::vector<uint8_t>& contents,
+      const std::vector<uint8_t>& signature) const
+    {
+      return public_key->verify(contents, signature);
+    }
+
+    virtual bool verify(
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature,
-      mbedtls_md_type_t md_type = {}) const
+      MDType md_type) const
     {
-      return verify(
+      return public_key->verify(
         contents.data(),
         contents.size(),
         signature.data(),
@@ -121,12 +83,15 @@ namespace tls
         md_type);
     }
 
-    bool verify(
+    virtual bool verify(
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature,
-      mbedtls_md_type_t md_type,
+      MDType md_type,
       HashBytes& hash_bytes) const
     {
+      if (md_type == MDType::NONE)
+        md_type = this->md_type;
+
       return verify(
         contents.data(),
         contents.size(),
@@ -136,42 +101,111 @@ namespace tls
         hash_bytes);
     }
 
-    bool verify(
-      const uint8_t* contents,
-      size_t contents_size,
+    virtual bool verify_hash(
+      const uint8_t* hash,
+      size_t hash_size,
       const uint8_t* sig,
-      size_t sig_size,
-      mbedtls_md_type_t md_type = {}) const
+      size_t sig_size)
     {
-      HashBytes hash;
-      do_hash(cert->pk, contents, contents_size, hash, md_type);
-
-      return verify_hash(hash, sig, sig_size, md_type);
+      return public_key->verify_hash(hash, hash_size, sig, sig_size, md_type);
     }
 
-    bool verify(
-      const uint8_t* contents,
-      size_t contents_size,
-      const uint8_t* sig,
-      size_t sig_size,
-      mbedtls_md_type_t md_type,
-      HashBytes& hash_bytes) const
+    virtual bool verify_hash(
+      const std::vector<uint8_t>& hash, const std::vector<uint8_t>& signature)
     {
-      do_hash(cert->pk, contents, contents_size, hash_bytes, md_type);
-      return verify_hash(hash_bytes, sig, sig_size, md_type);
+      return public_key->verify_hash(hash, signature);
     }
+
+    virtual CurveID get_curve_id() const
+    {
+      return public_key->get_curve_id();
+    }
+  };
+
+  class Verifier_MBedTLS : public VerifierBase
+  {
+  protected:
+    mutable mbedtls::X509Crt cert;
+
+    inline MDType get_md_type(mbedtls_md_type_t mdt) const
+    {
+      switch (mdt)
+      {
+        case MBEDTLS_MD_NONE:
+          return MDType::NONE;
+        case MBEDTLS_MD_SHA1:
+          return MDType::SHA1;
+        case MBEDTLS_MD_SHA256:
+          return MDType::SHA256;
+        case MBEDTLS_MD_SHA384:
+          return MDType::SHA384;
+        case MBEDTLS_MD_SHA512:
+          return MDType::SHA512;
+        default:
+          return MDType::NONE;
+      }
+      return MDType::NONE;
+    }
+
+  public:
+    /**
+     * Construct from a certificate
+     *
+     * @param c Certificate in DER or PEM format
+     */
+    Verifier_MBedTLS(const std::vector<uint8_t>& c) : VerifierBase()
+    {
+      cert = mbedtls::make_unique<mbedtls::X509Crt>();
+      int rc = mbedtls_x509_crt_parse(cert.get(), c.data(), c.size());
+      if (rc)
+      {
+        throw std::invalid_argument(
+          fmt::format("Failed to parse certificate: {}", error_string(rc)));
+      }
+
+      md_type = get_md_type(cert->sig_md);
+
+      // public_key expects to have unique ownership of the context and so does
+      // `cert`, so we duplicate the key context here.
+      unsigned char buf[2048];
+      rc = mbedtls_pk_write_pubkey_pem(&cert->pk, buf, sizeof(buf));
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          fmt::format("PEM export failed: {}", error_string(rc)));
+      }
+
+      Pem pem(buf, sizeof(buf));
+
+      if (mbedtls_pk_can_do(&cert->pk, MBEDTLS_PK_ECKEY))
+      {
+        public_key = std::make_unique<PublicKey_mbedTLS>(pem);
+      }
+      else if (mbedtls_pk_can_do(&cert->pk, MBEDTLS_PK_RSA))
+      {
+        public_key = std::make_unique<RSAPublicKey_mbedTLS>(pem);
+      }
+      else
+      {
+        throw std::logic_error("unsupported public key type");
+      }
+    }
+
+    Verifier_MBedTLS(const Verifier_MBedTLS&) = delete;
+
+    virtual ~Verifier_MBedTLS() = default;
 
     const mbedtls_x509_crt* raw()
     {
       return cert.get();
     }
 
-    std::vector<uint8_t> der_cert_data()
+    virtual std::vector<uint8_t> cert_der() override
     {
       return {cert->raw.p, cert->raw.p + cert->raw.len};
     }
 
-    Pem cert_pem()
+    virtual Pem cert_pem() override
     {
       unsigned char buf[max_pem_cert_size];
       size_t len;
@@ -195,70 +229,148 @@ namespace tls
     }
   };
 
-  class Verifier_k1Bitcoin : public Verifier
+  class Verifier_k1Bitcoin : public Verifier_MBedTLS
   {
-  protected:
-    BCk1ContextPtr bc_ctx = make_bc_context(SECP256K1_CONTEXT_VERIFY);
-
-    secp256k1_pubkey bc_pub;
-
   public:
     template <typename... Ts>
-    Verifier_k1Bitcoin(Ts... ts) : Verifier(std::forward<Ts>(ts)...)
+    Verifier_k1Bitcoin(Ts... ts) : Verifier_MBedTLS(std::forward<Ts>(ts)...)
     {
-      parse_secp256k_bc(cert->pk, bc_ctx->p, &bc_pub);
-    }
-
-    bool verify_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      const uint8_t* signature,
-      size_t signature_size,
-      mbedtls_md_type_t = {}) const override
-    {
-      bool ok = verify_secp256k_bc(
-        bc_ctx->p, signature, signature_size, hash, hash_size, &bc_pub);
-
-      return ok;
+      public_key = std::make_shared<PublicKey_k1Bitcoin>(
+        std::move(*(PublicKey_mbedTLS*)public_key.get()));
+      md_type = MDType::SHA256;
     }
   };
 
-  using VerifierPtr = std::shared_ptr<Verifier>;
-  using VerifierUniquePtr = std::unique_ptr<Verifier>;
+  class Verifier_OpenSSL : public VerifierBase
+  {
+  protected:
+    mutable X509* cert;
+
+    MDType get_md_type(int mdt) const
+    {
+      switch (mdt)
+      {
+        case NID_undef:
+          return MDType::NONE;
+        case NID_sha1:
+          return MDType::SHA1;
+        case NID_sha256:
+          return MDType::SHA256;
+        case NID_sha384:
+          return MDType::SHA384;
+        case NID_sha512:
+          return MDType::SHA512;
+        default:
+          return MDType::NONE;
+      }
+      return MDType::NONE;
+    }
+
+  public:
+    /**
+     * Construct from a certificate
+     *
+     * @param c Certificate in DER or PEM format
+     */
+    Verifier_OpenSSL(const std::vector<uint8_t>& c) : VerifierBase()
+    {
+      BIO* certbio = BIO_new_mem_buf(c.data(), c.size());
+      if (!(cert = PEM_read_bio_X509(certbio, NULL, 0, NULL)))
+      {
+        throw std::invalid_argument(fmt::format(
+          "OpenSSL error: {}", ERR_error_string(ERR_get_error(), NULL)));
+      }
+
+      int mdnid, pknid, secbits;
+      X509_get_signature_info(cert, &mdnid, &pknid, &secbits, 0);
+      md_type = get_md_type(mdnid);
+
+      EVP_PKEY* pk = X509_get_pubkey(cert);
+
+      BIO* buf = BIO_new(BIO_s_mem());
+      if (!buf)
+        throw std::runtime_error("out of memory");
+
+      OPENSSL_CHECK1(PEM_write_bio_PUBKEY(buf, pk));
+
+      BUF_MEM* bptr;
+      BIO_get_mem_ptr(buf, &bptr);
+      Pem pk_pem = Pem((uint8_t*)bptr->data, bptr->length);
+      BIO_free(buf);
+
+      if (EVP_PKEY_get0_EC_KEY(pk))
+      {
+        public_key = std::make_unique<PublicKey_OpenSSL>(pk_pem);
+      }
+      // else if (mbedtls_pk_can_do(&cert->pk, MBEDTLS_PK_RSA))
+      // {
+      //   public_key = std::make_unique<RSAPublicKey_mbedTLS>(buf);
+      // }
+      else
+      {
+        throw std::logic_error("unsupported public key type");
+      }
+    }
+
+    Verifier_OpenSSL(Verifier_OpenSSL&& v) = default;
+
+    Verifier_OpenSSL(const Verifier_OpenSSL&) = delete;
+
+    virtual ~Verifier_OpenSSL() = default;
+
+    const X509* raw()
+    {
+      return cert;
+    }
+
+    virtual std::vector<uint8_t> cert_der() override
+    {
+      // return {cert->raw.p, cert->raw.p + cert->raw.len};
+      return {};
+    }
+
+    virtual Pem cert_pem() override
+    {
+      return Pem();
+      // unsigned char buf[max_pem_cert_size];
+      // size_t len;
+
+      // auto rc = mbedtls_pem_write_buffer(
+      //   PEM_CERTIFICATE_HEADER,
+      //   PEM_CERTIFICATE_FOOTER,
+      //   cert->raw.p,
+      //   cert->raw.len,
+      //   buf,
+      //   max_pem_cert_size,
+      //   &len);
+
+      // if (rc != 0)
+      // {
+      //   throw std::logic_error(
+      //     "mbedtls_pem_write_buffer failed: " + error_string(rc));
+      // }
+
+      // return Pem(buf, len);
+    }
+  };
+
+  using VerifierPtr = std::shared_ptr<VerifierBase>;
+  using VerifierUniquePtr = std::unique_ptr<VerifierBase>;
+
   /**
    * Construct Verifier from a certificate in DER or PEM format
    *
    * @param cert Sequence of bytes containing the certificate
    */
   inline VerifierUniquePtr make_unique_verifier(
-    const std::vector<uint8_t>& cert,
-    bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
+    const std::vector<uint8_t>& cert)
   {
-    auto x509 = mbedtls::make_unique<mbedtls::X509Crt>();
-    int rc = mbedtls_x509_crt_parse(x509.get(), cert.data(), cert.size());
-    if (rc)
-    {
-      throw std::invalid_argument(
-        fmt::format("Failed to parse certificate: {}", error_string(rc)));
-    }
-
-    if (x509->pk.pk_info == mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY))
-    {
-      const auto curve = get_ec_from_context(x509->pk);
-
-      if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
-      {
-        return std::make_unique<Verifier_k1Bitcoin>(std::move(x509));
-      }
-    }
-
-    return std::make_unique<Verifier>(std::move(x509));
+    return std::make_unique<Verifier_MBedTLS>(cert);
   }
 
-  inline VerifierPtr make_verifier(
-    const Pem& cert, bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
+  inline VerifierPtr make_verifier(const Pem& cert)
   {
-    return make_unique_verifier(cert.raw(), use_bitcoin_impl);
+    return make_unique_verifier(cert.raw());
   }
 
   inline tls::Pem cert_der_to_pem(const std::vector<uint8_t>& der_cert_raw)
@@ -268,6 +380,6 @@ namespace tls
 
   inline std::vector<uint8_t> cert_pem_to_der(const std::string& pem_cert_raw)
   {
-    return make_verifier(pem_cert_raw)->der_cert_data();
+    return make_verifier(pem_cert_raw)->cert_der();
   }
 }

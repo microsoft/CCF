@@ -83,7 +83,7 @@ namespace ccf
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
   {
   public:
-    ProgressTrackerStoreAdapter(kv::AbstractStore& store_, tls::KeyPair& kp_) :
+    ProgressTrackerStoreAdapter(kv::AbstractStore& store_, tls::KeyPairBase& kp_) :
       store(store_),
       kp(kp_),
       nodes(ccf::Tables::NODES),
@@ -283,7 +283,7 @@ namespace ccf
 
   private:
     kv::AbstractStore& store;
-    tls::KeyPair& kp;
+    tls::KeyPairBase& kp;
     ccf::Nodes nodes;
     ccf::BackupSignaturesMap backup_signatures;
     aft::RevealedNoncesMap revealed_nonces;

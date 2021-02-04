@@ -71,7 +71,7 @@ TEST_CASE("Check signature verification")
   ccf::Nodes nodes(ccf::Tables::NODES);
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
 
-  auto kp = tls::make_key_pair();
+  auto kp = std::make_shared<KeyPair_mbedTLS>();
 
   std::shared_ptr<kv::Consensus> consensus =
     std::make_shared<DummyConsensus>(&backup_store);

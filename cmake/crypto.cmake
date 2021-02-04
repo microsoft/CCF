@@ -9,7 +9,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(ccfcrypto.enclave STATIC ${CCFCRYPTO_SRC})
   target_compile_definitions(
     ccfcrypto.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-                              HAVE_OPENSSL
   )
   target_compile_options(ccfcrypto.enclave PRIVATE -nostdinc++)
   target_link_libraries(
@@ -29,7 +28,6 @@ endif()
 
 add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})
 add_san(ccfcrypto.host)
-target_compile_definitions(ccfcrypto.host PRIVATE HAVE_OPENSSL)
 target_compile_options(ccfcrypto.host PRIVATE -stdlib=libc++)
 target_link_libraries(ccfcrypto.host PRIVATE crypto)
 use_client_mbedtls(ccfcrypto.host)

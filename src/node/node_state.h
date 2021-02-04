@@ -1414,9 +1414,8 @@ namespace ccf
 
       request.set_body(&body);
 
-      crypto::Sha256Hash hash;
       const auto contents = node_cert.contents();
-      tls::do_hash(contents.data(), contents.size(), hash.h, MBEDTLS_MD_SHA256);
+      crypto::Sha256Hash hash({contents.data(), contents.size()});
       const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
 
       http::sign_request(request, node_sign_kp, key_id);

@@ -5,20 +5,26 @@
 #include "ds/json.h"
 #include "entities.h"
 #include "kv/map.h"
+#include "tls/hash.h"
 
 #include <mbedtls/md.h>
 #include <msgpack/msgpack.hpp>
 #include <vector>
 
-MSGPACK_ADD_ENUM(mbedtls_md_type_t);
+using namespace tls;
 
-DECLARE_JSON_ENUM(
-  mbedtls_md_type_t,
-  {{MBEDTLS_MD_NONE, "MBEDTLS_MD_NONE"},
-   {MBEDTLS_MD_SHA1, "MBEDTLS_MD_SHA1"},
-   {MBEDTLS_MD_SHA256, "MBEDTLS_MD_SHA256"},
-   {MBEDTLS_MD_SHA384, "MBEDTLS_MD_SHA384"},
-   {MBEDTLS_MD_SHA512, "MBEDTLS_MD_SHA512"}});
+MSGPACK_ADD_ENUM(MDType);
+
+namespace crypto
+{
+  DECLARE_JSON_ENUM(
+    MDType,
+    {{MDType::NONE, "NONE"},
+     {MDType::SHA1, "SHA1"},
+     {MDType::SHA256, "SHA256"},
+     {MDType::SHA384, "SHA384"},
+     {MDType::SHA512, "SHA512"}});
+}
 
 namespace ccf
 {
@@ -33,7 +39,7 @@ namespace ccf
     std::vector<uint8_t> request_body = {};
 
     // signature hashing algorithm used
-    mbedtls_md_type_t md = MBEDTLS_MD_NONE;
+    MDType md = MDType::NONE;
 
     // The key id, if declared in the request
     std::string key_id = {};

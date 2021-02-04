@@ -3,8 +3,12 @@
 #pragma once
 
 #include "ds/logger.h"
+#include "ds/stacktrace_utils.h"
 #include "tls.h"
+#include "hash.h"
 
+#include <openssl/evp.h>
+#include <mbedtls/ecp.h>
 #include <secp256k1/include/secp256k1.h>
 #include <secp256k1/include/secp256k1_recovery.h>
 #include <stdexcept>
@@ -13,65 +17,60 @@
 namespace tls
 {
   // SNIPPET_START: supported_curves
-  enum class CurveImpl
+  enum class CurveID
   {
-    secp384r1 = 1,
-    secp256k1_mbedtls = 2,
-    secp256k1_bitcoin = 3,
-
-    service_identity_curve_choice = secp384r1,
+    NONE = 0,
+    SECP384R1,
+    SECP256K1,
+    SECP256R1
   };
+
+  static constexpr CurveID service_identity_curve_choice = CurveID::SECP384R1;
   // SNIPPET_END: supported_curves
 
-  // 2 implementations of secp256k1 are available - mbedtls and bitcoin. Either
+  // 3 implementations of secp256k1 are available - mbedtls and bitcoin. Either
   // can be asked for explicitly via the CurveImpl enum. For cases where we
   // receive a raw 256k1 key/signature/cert only, this flag determines which
   // implementation is used
   static constexpr bool prefer_bitcoin_secp256k1 = true;
 
   // Helper to access elliptic curve id from context
-  inline mbedtls_ecp_group_id get_ec_from_context(const mbedtls_pk_context& ctx)
+  inline mbedtls_ecp_group_id get_mbedtls_ec_from_context(const mbedtls_pk_context& ctx)
   {
     return mbedtls_pk_ec(ctx)->grp.id;
   }
 
-  // Get mbedtls elliptic curve for given CCF curve implementation
-  inline mbedtls_ecp_group_id get_ec_for_curve_impl(CurveImpl curve)
+  // Get message digest algorithm to use for given elliptic curve
+  inline MDType get_md_for_ec(CurveID ec, bool allow_none = false)
   {
-    switch (curve)
+    switch (ec)
     {
-      case CurveImpl::secp384r1:
-      {
-        return MBEDTLS_ECP_DP_SECP384R1;
-      }
-      case CurveImpl::secp256k1_mbedtls:
-      case CurveImpl::secp256k1_bitcoin:
-      {
-        return MBEDTLS_ECP_DP_SECP256K1;
-      }
+      case CurveID::SECP384R1: return MDType::SHA384;
+      case CurveID::SECP256K1: return MDType::SHA256;
+      case CurveID::SECP256R1: return MDType::SHA256;
       default:
       {
-        throw std::logic_error(
-          "Unhandled curve type: " +
-          std::to_string(static_cast<size_t>(curve)));
+        if (allow_none)
+        {
+          return MDType::NONE;
+        }
+        else
+        {
+          stacktrace::print_stacktrace();
+          const auto error = fmt::format("Unhandled CurveID: {}", ec);
+          throw std::logic_error(error);
+        }
       }
     }
   }
 
-  // Get message digest algorithm to use for given elliptic curve
-  inline mbedtls_md_type_t get_md_for_ec(
-    mbedtls_ecp_group_id ec, bool allow_none = false)
+  inline mbedtls_md_type_t get_mbedtls_md_for_ec(mbedtls_ecp_group_id ec, bool allow_none = false)
   {
     switch (ec)
     {
-      case MBEDTLS_ECP_DP_SECP384R1:
-      {
-        return MBEDTLS_MD_SHA384;
-      }
-      case MBEDTLS_ECP_DP_SECP256K1:
-      {
-        return MBEDTLS_MD_SHA256;
-      }
+      case MBEDTLS_ECP_DP_SECP384R1: return MBEDTLS_MD_SHA384;
+      case MBEDTLS_ECP_DP_SECP256K1: return MBEDTLS_MD_SHA256;
+      case MBEDTLS_ECP_DP_SECP256R1: return MBEDTLS_MD_SHA256;
       default:
       {
         if (allow_none)
@@ -80,11 +79,8 @@ namespace tls
         }
         else
         {
-          const auto curve_info = mbedtls_ecp_curve_info_from_grp_id(ec);
-          const auto error = fmt::format(
-            "Unhandled ecp group id: {}",
-            curve_info ? curve_info->name :
-                         fmt::format("UNKNOWN ({})", (size_t)ec));
+          stacktrace::print_stacktrace();
+          const auto error = fmt::format("Unhandled ecp group id: {}", ec);
           throw std::logic_error(error);
         }
       }

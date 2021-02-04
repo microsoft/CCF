@@ -304,9 +304,7 @@ namespace client
 
         key = tls::Pem(raw_key);
 
-        crypto::Sha256Hash hash;
-        tls::do_hash(
-          raw_cert.data(), raw_cert.size(), hash.h, MBEDTLS_MD_SHA256);
+        crypto::Sha256Hash hash({raw_cert.data(), raw_cert.size()});
         key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
 
         tls_cert = std::make_shared<tls::Cert>(

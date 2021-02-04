@@ -596,8 +596,6 @@ function(add_picobench name)
                     $<BUILD_INTERFACE:merklecpp> crypto
   )
 
-  target_compile_definitions(${name} PRIVATE HAVE_OPENSSL)
-
   # -Wall -Werror catches a number of warnings in picobench
   target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
 

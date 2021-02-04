@@ -109,7 +109,7 @@ namespace ccf
       // The key to a CertDERs table must be a DER, for easy comparison against
       // the DER peer cert retrieved from the connection
       auto member_cert_der =
-        tls::make_verifier(member_pub_info.cert)->der_cert_data();
+        tls::make_verifier(member_pub_info.cert)->cert_der();
 
       auto member_id = mc->get(member_cert_der);
       if (member_id.has_value())
@@ -229,7 +229,7 @@ namespace ccf
       auto ud = tx.rw(tables.user_digests);
       auto v = tx.rw(tables.values);
 
-      auto user_cert_der = tls::make_verifier(user_info.cert)->der_cert_data();
+      auto user_cert_der = tls::make_verifier(user_info.cert)->cert_der();
 
       // Cert should be unique
       auto user_id = uc->get(user_cert_der);
@@ -260,7 +260,7 @@ namespace ccf
       }
 
       auto pem = tls::Pem(user_info.value().cert);
-      auto user_cert_der = tls::make_verifier(pem)->der_cert_data();
+      auto user_cert_der = tls::make_verifier(pem)->cert_der();
 
       u->remove(user_id);
       uc->remove(user_cert_der);
@@ -271,7 +271,7 @@ namespace ccf
     {
       auto node_id = get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
 
-      auto raw_cert = tls::make_verifier(node_info.cert)->der_cert_data();
+      auto raw_cert = tls::make_verifier(node_info.cert)->cert_der();
 
       auto node = tx.rw(tables.nodes);
       node->put(node_id, node_info);

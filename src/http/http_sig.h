@@ -8,6 +8,7 @@
 #include "tls/base64.h"
 #include "tls/hash.h"
 #include "tls/key_pair.h"
+#include "crypto/hash.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -70,18 +71,14 @@ namespace http
   inline void add_digest_header(http::Request& request)
   {
     // Ensure digest is present and up-to-date
-    tls::HashBytes body_digest;
-    tls::do_hash(
-      request.get_content_data(),
-      request.get_content_length(),
-      body_digest,
-      MBEDTLS_MD_SHA256);
+    crypto::Sha256Hash body_digest(
+      {request.get_content_data(), request.get_content_length()});
     request.set_header(
       headers::DIGEST,
       fmt::format(
         "{}={}",
         "SHA-256",
-        tls::b64_from_raw(body_digest.data(), body_digest.size())));
+        tls::b64_from_raw(body_digest.h.data(), body_digest.SIZE)));
   }
 
   inline void sign_request(
@@ -200,16 +197,19 @@ namespace http
       auto raw_digest = tls::raw_from_b64(digest->second.substr(equal_pos + 1));
 
       // Then, hash the request body
-      tls::HashBytes body_digest;
-      tls::do_hash(body.data(), body.size(), body_digest, MBEDTLS_MD_SHA256);
+      crypto::Sha256Hash body_digest({body.data(), body.size()});
 
-      if (raw_digest != body_digest)
+      if (!std::equal(
+            raw_digest.begin(),
+            raw_digest.end(),
+            body_digest.h.begin(),
+            body_digest.h.end()))
       {
         error_reason = fmt::format(
           "Request body does not match {} header, calculated body "
           "digest = {:02x}",
           headers::DIGEST,
-          fmt::join(body_digest, ""));
+          fmt::join(body_digest.h, ""));
         return false;
       }
 
@@ -416,19 +416,20 @@ namespace http
 
         auto sig_raw = tls::raw_from_b64(parsed_sign_params->signature);
 
-        mbedtls_md_type_t signature_digest = MBEDTLS_MD_NONE;
+        crypto::MDType md_type = crypto::MDType::NONE;
         if (
           parsed_sign_params->signature_algorithm ==
           auth::SIGN_ALGORITHM_ECDSA_SHA256)
         {
-          signature_digest = MBEDTLS_MD_SHA256;
+          md_type = crypto::MDType::SHA256;
         }
 
-        ccf::SignedReq ret = {sig_raw,
-                              signed_raw.value(),
-                              body,
-                              signature_digest,
-                              parsed_sign_params->key_id};
+        ccf::SignedReq ret = {
+          sig_raw,
+          signed_raw.value(),
+          body,
+          md_type,
+          parsed_sign_params->key_id};
         return ret;
       }
 

@@ -14,12 +14,37 @@ namespace tls
   static constexpr auto rsa_padding_mode = MBEDTLS_RSA_PKCS_V21;
   static constexpr auto rsa_padding_digest_id = MBEDTLS_MD_SHA256;
 
-  class RSAPublicKey : public PublicKey
+  class RSAPublicKey_mbedTLS : public PublicKey_mbedTLS
   {
   public:
-    RSAPublicKey() = default;
+    RSAPublicKey_mbedTLS() = default;
 
-    RSAPublicKey(mbedtls::PKContext&& c) : PublicKey(std::move(c)) {}
+    RSAPublicKey_mbedTLS(mbedtls::PKContext&& c) :
+      PublicKey_mbedTLS(std::move(c))
+    {}
+
+    /**
+     * Construct from PEM
+     */
+    RSAPublicKey_mbedTLS(const Pem& pem) : PublicKey_mbedTLS(pem)
+    {
+      if (!mbedtls_pk_can_do(ctx.get(), MBEDTLS_PK_RSA))
+      {
+        throw std::logic_error("invalid RSA key");
+      }
+    }
+
+    /**
+     * Construct from DER
+     */
+    RSAPublicKey_mbedTLS(const std::vector<uint8_t>& der) :
+      PublicKey_mbedTLS(der)
+    {
+      if (!mbedtls_pk_can_do(ctx.get(), MBEDTLS_PK_RSA))
+      {
+        throw std::logic_error("invalid RSA key");
+      }
+    }
 
     /**
      * Wrap data using RSA-OAEP-256
@@ -91,7 +116,7 @@ namespace tls
     }
   };
 
-  class RSAKeyPair : public RSAPublicKey
+  class RSAKeyPair_MbedTLS : public RSAPublicKey_mbedTLS
   {
   public:
     static constexpr size_t default_public_key_size = 2048;
@@ -100,7 +125,7 @@ namespace tls
     /**
      * Create a new public / private RSA key pair
      */
-    RSAKeyPair(
+    RSAKeyPair_MbedTLS(
       size_t public_key_size = default_public_key_size,
       size_t public_exponent = default_public_exponent)
     {
@@ -127,9 +152,24 @@ namespace tls
       }
     }
 
-    RSAKeyPair(mbedtls::PKContext&& k) : RSAPublicKey(std::move(k)) {}
+    RSAKeyPair_MbedTLS(mbedtls::PKContext&& k) :
+      RSAPublicKey_mbedTLS(std::move(k))
+    {}
 
-    RSAKeyPair(const RSAKeyPair&) = delete;
+    RSAKeyPair_MbedTLS(const RSAKeyPair_MbedTLS&) = delete;
+
+    RSAKeyPair_MbedTLS(const Pem& pem, CBuffer pw = nullb) :
+      RSAPublicKey_mbedTLS()
+    {
+      // keylen is +1 to include terminating null byte
+      int rc =
+        mbedtls_pk_parse_key(ctx.get(), pem.data(), pem.size(), pw.p, pw.n);
+      if (rc != 0)
+      {
+        throw std::logic_error(
+          "Could not parse private key: " + error_string(rc));
+      }
+    }
 
     /**
      * Unwrap data using RSA-OAEP-256
@@ -180,6 +220,8 @@ namespace tls
     }
   };
 
+  using RSAPublicKey = RSAPublicKey_mbedTLS;
+  using RSAKeyPair = RSAKeyPair_MbedTLS;
   using RSAKeyPairPtr = std::shared_ptr<RSAKeyPair>;
   using RSAPublicKeyPtr = std::shared_ptr<RSAPublicKey>;
 
@@ -198,8 +240,7 @@ namespace tls
    */
   inline RSAKeyPairPtr make_rsa_key_pair(const Pem& pkey, CBuffer pw = nullb)
   {
-    auto key = parse_private_key(pkey, pw);
-    return std::make_shared<RSAKeyPair>(std::move(key));
+    return std::make_shared<RSAKeyPair_MbedTLS>(pkey, pw);
   }
 
   inline RSAPublicKeyPtr make_rsa_public_key(

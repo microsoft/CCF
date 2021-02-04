@@ -1116,7 +1116,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     const auto uid = tx1.rw(network.values)->get(ValueIds::NEXT_USER_ID);
     DOCTEST_CHECK(uid);
     DOCTEST_CHECK(*uid == 1);
-    user_der = tls::make_verifier(user_cert)->der_cert_data();
+    user_der = tls::make_verifier(user_cert)->cert_der();
     const auto uid1 = tx1.rw(network.user_certs)->get(user_der);
     DOCTEST_CHECK(uid1);
     DOCTEST_CHECK(*uid1 == 0);
@@ -1226,7 +1226,7 @@ DOCTEST_TEST_CASE(
     const auto r = parse_response_body<Propose::Out>(frontend_process(
       frontend,
       propose,
-      tls::make_verifier(members[proposer_id])->der_cert_data()));
+      tls::make_verifier(members[proposer_id])->cert_der()));
 
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
 

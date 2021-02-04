@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/hash.h"
 #include "http_parser.h"
 #include "tls/base64.h"
-#include "tls/hash.h"
 
 #include <optional>
 #include <string>
@@ -25,8 +25,9 @@ namespace http
       const auto data = reinterpret_cast<const uint8_t*>(string_to_hash.data());
       const auto size = string_to_hash.size();
 
-      tls::HashBytes accept_string_hash;
-      tls::do_hash(data, size, accept_string_hash, MBEDTLS_MD_SHA1);
+      crypto::HashProvider hp;
+      crypto::HashBytes accept_string_hash =
+        hp.Hash(data, size, crypto::MDType::SHA1);
 
       return tls::b64_from_raw(
         accept_string_hash.data(), accept_string_hash.size());

@@ -270,7 +270,8 @@ namespace ccf
         return false;
       }
 
-      auto network_pubk = tls::make_public_key(network_kp->public_key_pem());
+      auto network_pubk =
+        std::make_shared<tls::PublicKey_mbedTLS>(network_kp->public_key_pem());
 
       auto peer_public_size = serialized::read<size_t>(data, size);
       auto peer_public_start = data;

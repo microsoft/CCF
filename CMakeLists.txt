@@ -513,7 +513,7 @@ if(BUILD_TESTS)
   add_picobench(
     signature_bench
     SRCS src/crypto/test/signature_bench.cpp
-    LINK_LIBS ccfcrypto.host
+    LINK_LIBS ccfcrypto.host secp256k1.host
   )
 
   # Storing signed governance operations

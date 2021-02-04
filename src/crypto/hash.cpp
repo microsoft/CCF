@@ -1,14 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include <mbedtls/sha256.h>
-
-#ifdef HAVE_OPENSSL
-#  include <openssl/sha.h>
-#endif
-
-#include "../tls/mbedtls_wrappers.h"
 #include "hash.h"
 
+#include "../tls/mbedtls_wrappers.h"
+
+#include <mbedtls/sha256.h>
+#include <openssl/sha.h>
 #include <stdexcept>
 using namespace std;
 
@@ -26,20 +23,12 @@ namespace crypto
     mbedtls_sha256_free(&ctx);
   }
 
-#ifdef HAVE_OPENSSL
   void Sha256Hash::openssl_sha256(const CBuffer& data, uint8_t* h)
   {
     SHA256_CTX ctx;
     SHA256_Init(&ctx);
     SHA256_Update(&ctx, data.p, data.rawSize());
     SHA256_Final(h, &ctx);
-  }
-#endif
-
-  Sha256Hash::Sha256Hash() : h{0} {}
-  Sha256Hash::Sha256Hash(const CBuffer& data) : h{0}
-  {
-    mbedtls_sha256(data, h.data());
   }
 
   ISha256MbedTLS::ISha256MbedTLS()
@@ -79,7 +68,6 @@ namespace crypto
       (mbedtls_sha256_context*)ctx, data.p, data.rawSize());
   }
 
-#ifdef HAVE_OPENSSL
   ISha256OpenSSL::ISha256OpenSSL()
   {
     ctx = new SHA256_CTX;
@@ -114,5 +102,4 @@ namespace crypto
     ctx = nullptr;
     return r;
   }
-#endif
 }

@@ -18,9 +18,7 @@
 #include <deque>
 #include <string.h>
 
-#ifndef HAVE_OPENSSL
-#  define HAVE_OPENSSL
-#endif
+#define HAVE_OPENSSL
 #define HAVE_MBEDTLS
 // merklecpp traces are off by default, even when CCF tracing is enabled
 // #include "merklecpp_trace.h"
@@ -119,7 +117,7 @@ namespace ccf
     kv::Term term = 0;
 
   public:
-    NullTxHistory(kv::Store& store_, NodeId id_, tls::KeyPair&) :
+    NullTxHistory(kv::Store& store_, NodeId id_, tls::KeyPairBase&) :
       store(store_),
       id(id_)
     {}
@@ -252,7 +250,7 @@ namespace ccf
     kv::Store& store;
     T& replicated_state_tree;
     NodeId id;
-    tls::KeyPair& kp;
+    tls::KeyPairBase& kp;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -261,7 +259,7 @@ namespace ccf
       kv::Store& store_,
       T& replicated_state_tree_,
       NodeId id_,
-      tls::KeyPair& kp_) :
+      tls::KeyPairBase& kp_) :
       txid(txid_),
       commit_txid(commit_txid_),
       store(store_),
@@ -464,7 +462,7 @@ namespace ccf
     NodeId id;
     T replicated_state_tree;
 
-    tls::KeyPair& kp;
+    tls::KeyPairBase& kp;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
 
@@ -479,7 +477,7 @@ namespace ccf
     HashedTxHistory(
       kv::Store& store_,
       NodeId id_,
-      tls::KeyPair& kp_,
+      tls::KeyPairBase& kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
       bool signature_timer = true) :
