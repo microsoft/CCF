@@ -20,7 +20,7 @@ namespace ccf
      {ccf::State::readingPrivateLedger, "readingPrivateLedger"},
      {ccf::State::verifyingSnapshot, "verifyingSnapshot"}})
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetState::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetState::Out, id, state, last_signed_seqno)
+  DECLARE_JSON_REQUIRED_FIELDS(GetState::Out, node_id, state, last_signed_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(
     GetState::Out, recovery_target_seqno, last_recovered_seqno)
 

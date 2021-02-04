@@ -53,7 +53,7 @@ def test_add_node(network, args):
     )
     with new_node.client() as c:
         s = c.get("/node/state")
-        assert s.body.json()["id"] == new_node.node_id
+        assert s.body.json()["node_id"] == new_node.node_id
     assert new_node
     return network
 
