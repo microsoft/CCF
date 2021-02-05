@@ -433,17 +433,14 @@ void run_csr()
 
   const char* subject_name = "CN=myname";
 
-  auto pk = kpm.public_key_pem();
-  std::cout << "PK:" << std::endl << pk.str() << std::endl;
-
   auto csr = kpm.create_csr(subject_name);
 
-  std::cout << "CSR:" << std::endl << csr.str() << std::endl;
-
   std::vector<SubjectAltName> subject_alternative_names;
-  auto crt = kpm.sign_csr(csr, subject_name, subject_alternative_names);
-
-  std::cout << "CRT:" << std::endl << crt.str() << std::endl;
+  subject_alternative_names.push_back({"email:my-other-name", false});
+  subject_alternative_names.push_back({"DNS:www.microsoft.com", false});
+  // subject_alternative_names.push_back({"IP:192.168.0.1", true}); // mbedTLS
+  // doesn't like IPs?
+  auto crt = kpm.sign_csr(csr, "CN=issuer", subject_alternative_names);
 
   std::vector<uint8_t> content = {0, 1, 2, 3, 4};
   auto signature = kpm.sign(content);
@@ -452,8 +449,10 @@ void run_csr()
   REQUIRE(v->verify(content, signature));
 }
 
-TEST_CASE("Create & sign CRSs")
+TEST_CASE("Create, sign & verify certificates")
 {
-  // run_csr<KeyPair_mbedTLS, Verifier_MBedTLS>();
+  run_csr<KeyPair_mbedTLS, Verifier_MBedTLS>();
   run_csr<KeyPair_mbedTLS, Verifier_OpenSSL>();
+  run_csr<KeyPair_OpenSSL, Verifier_MBedTLS>();
+  run_csr<KeyPair_OpenSSL, Verifier_OpenSSL>();
 }

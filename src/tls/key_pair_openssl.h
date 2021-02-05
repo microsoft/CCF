@@ -9,6 +9,7 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/x509v3.h>
 
 namespace tls
 {
@@ -217,6 +218,25 @@ namespace tls
       return MBEDTLS_ECP_DP_NONE;
     }
 
+    static std::vector<std::pair<std::string, std::string>> parse_name(
+      const std::string& name)
+    {
+      std::vector<std::pair<std::string, std::string>> r;
+
+      char* name_cpy = strdup(name.c_str());
+      char* p = std::strtok(name_cpy, ",");
+      while (p)
+      {
+        char* eq = strchr(p, '=');
+        *eq = '\0';
+        r.push_back(std::make_pair(p, eq + 1));
+        p = std::strtok(NULL, ",");
+      }
+      free(name_cpy);
+
+      return r;
+    }
+
   public:
     /**
      * Generate a fresh key
@@ -383,16 +403,22 @@ namespace tls
 
       OPENSSL_CHECK1(X509_REQ_set_pubkey(req, key));
 
-      X509_NAME* subj_name = X509_REQ_get_subject_name(req);
+      X509_NAME* subj_name = NULL;
+      OPENSSL_CHECKNULL(subj_name = X509_NAME_new());
 
-      OPENSSL_CHECK1(X509_NAME_add_entry_by_txt(
-        subj_name,
-        "CN",
-        MBSTRING_ASC,
-        (unsigned char*)name.c_str(),
-        -1,
-        -1,
-        0));
+      for (auto kv : parse_name(name))
+      {
+        OPENSSL_CHECK1(X509_NAME_add_entry_by_txt(
+          subj_name,
+          kv.first.c_str(),
+          MBSTRING_ASC,
+          (const unsigned char*)kv.second.c_str(),
+          -1,
+          -1,
+          0));
+      }
+
+      OPENSSL_CHECK1(X509_REQ_set_subject_name(req, subj_name));
 
       if (key)
         X509_REQ_sign(req, key, EVP_sha512());
@@ -416,107 +442,131 @@ namespace tls
       const std::vector<SubjectAltName> subject_alt_names,
       bool ca = false) override
     {
-      (void)issuer;
-      (void)subject_alt_names;
-      (void)ca;
       X509_REQ* csr = NULL;
 
       BIO* mem = BIO_new_mem_buf(pem.data(), -1);
-      if (!(csr = PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL)))
-      {
-        std::cout << "PEM:" << std::endl << pem.str() << std::endl;
-        throw std::runtime_error("could not read CSR");
-      }
+      OPENSSL_CHECKNULL(csr = PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL));
       BIO_free(mem);
 
-      // int size = X509_REQ_sign(csr, key, EVP_sha512());
+      X509* crt = NULL;
+      OPENSSL_CHECKNULL(crt = X509_new());
 
-      // auto serial = mbedtls::make_unique<mbedtls::MPI>();
-      // auto crt = mbedtls::make_unique<mbedtls::X509WriteCrt>();
+      X509_set_version(crt, 2);
 
-      // char subject[512];
-      // auto r = mbedtls_x509_dn_gets(subject, sizeof(subject),
-      // &csr->subject);
+      unsigned char rndbytes[16];
+      OPENSSL_CHECK1(RAND_bytes(rndbytes, sizeof(rndbytes)));
+      BIGNUM* bn = BN_new();
+      BN_bin2bn(rndbytes, sizeof(rndbytes), bn);
+      ASN1_INTEGER* serial = ASN1_INTEGER_new();
+      BN_to_ASN1_INTEGER(bn, serial);
+      X509_set_serialNumber(crt, serial);
+      ASN1_INTEGER_free(serial);
 
-      // if (r < 0)
-      //   return {};
+      X509_NAME* issuer_name = NULL;
+      OPENSSL_CHECKNULL(issuer_name = X509_NAME_new());
+      for (auto kv : parse_name(issuer))
+      {
+        OPENSSL_CHECK1(X509_NAME_add_entry_by_txt(
+          issuer_name,
+          kv.first.c_str(),
+          MBSTRING_ASC,
+          (const unsigned char*)kv.second.c_str(),
+          -1,
+          -1,
+          0));
+      }
+      OPENSSL_CHECK1(X509_set_issuer_name(crt, issuer_name));
 
-      // mbedtls_x509write_crt_set_md_alg(
-      //   crt.get(),
-      //   get_mbedtls_md_for_ec(get_mbedtls_ec_from_context(*ctx)));
-      // mbedtls_x509write_crt_set_subject_key(crt.get(), &csr->pk);
-      // mbedtls_x509write_crt_set_issuer_key(crt.get(), ctx.get());
+      // Note: 825-day validity range
+      // https://support.apple.com/en-us/HT210176
+      ASN1_TIME *before = NULL, *after = NULL;
+      OPENSSL_CHECKNULL(before = ASN1_TIME_new());
+      OPENSSL_CHECKNULL(after = ASN1_TIME_new());
+      OPENSSL_CHECK1(ASN1_TIME_set_string(before, "20191101000000Z"));
+      OPENSSL_CHECK1(ASN1_TIME_set_string(after, "20211231235959Z"));
+      X509_set1_notBefore(crt, before);
+      X509_set1_notAfter(crt, after);
+      ASN1_TIME_free(before);
+      ASN1_TIME_free(after);
 
-      // if (
-      //   mbedtls_mpi_fill_random(
-      //     serial.get(), 16, entropy->get_rng(), entropy->get_data()) != 0)
-      //   return {};
+      X509_set_subject_name(crt, X509_REQ_get_subject_name(csr));
+      EVP_PKEY* req_pubkey = X509_REQ_get_pubkey(csr);
+      X509_set_pubkey(crt, req_pubkey);
+      EVP_PKEY_free(req_pubkey);
 
-      // if (mbedtls_x509write_crt_set_subject_name(crt.get(), subject) != 0)
-      //   return {};
+      // Extensions
+      X509V3_CTX v3ctx;
+      X509V3_set_ctx_nodb(&v3ctx);
+      // Self-signed, otherwise we would need an issuer certificate
+      X509V3_set_ctx(&v3ctx, crt, NULL, csr, NULL, 0);
 
-      // if (mbedtls_x509write_crt_set_issuer_name(crt.get(), issuer.c_str())
-      // != 0)
-      //   return {};
+      // Add basic constraints
+      X509_EXTENSION* ext = NULL;
+      OPENSSL_CHECKNULL(
+        ext = X509V3_EXT_conf_nid(
+          NULL, NULL, NID_basic_constraints, ca ? "CA:TRUE" : "CA:FALSE"));
+      OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
+      X509_EXTENSION_free(ext);
 
-      // if (mbedtls_x509write_crt_set_serial(crt.get(), serial.get()) != 0)
-      //   return {};
+      // Add subject key identifier
+      OPENSSL_CHECKNULL(
+        ext = X509V3_EXT_conf_nid(
+          NULL, &v3ctx, NID_subject_key_identifier, "hash"));
+      OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
+      X509_EXTENSION_free(ext);
 
-      // // Note: 825-day validity range
-      // // https://support.apple.com/en-us/HT210176
-      // if (
-      //   mbedtls_x509write_crt_set_validity(
-      //     crt.get(), "20191101000000", "20211231235959") != 0)
-      //   return {};
+      // Add auhtority key identifier
+      OPENSSL_CHECKNULL(
+        ext = X509V3_EXT_conf_nid(
+          NULL, &v3ctx, NID_authority_key_identifier, "keyid,issuer"));
+      OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
+      X509_EXTENSION_free(ext);
 
-      // if (
-      //   mbedtls_x509write_crt_set_basic_constraints(crt.get(), ca ? 1 : 0,
-      //   0)
-      //   != 0) return {};
+      // Subject alternative names (Necessary? Shouldn't they be in the CSR?)
+      if (!subject_alt_names.empty())
+      {
+        std::string all_alt_names;
+        bool first = true;
+        for (auto san : subject_alt_names)
+        {
+          if (first)
+          {
+            first = !first;
+          }
+          else
+          {
+            all_alt_names += ", ";
+          }
 
-      // if (mbedtls_x509write_crt_set_subject_key_identifier(crt.get()) != 0)
-      //   return {};
+          all_alt_names += san.san;
+        }
 
-      // if (mbedtls_x509write_crt_set_authority_key_identifier(crt.get()) !=
-      // 0)
-      //   return {};
+        OPENSSL_CHECKNULL(
+          ext = X509V3_EXT_conf_nid(
+            NULL, &v3ctx, NID_subject_alt_name, all_alt_names.c_str()));
+        OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
+        X509_EXTENSION_free(ext);
+      }
 
-      // // Because mbedtls does not support parsing x509v3 extensions from a
-      // // CSR (https://github.com/ARMmbed/mbedtls/issues/2912), the CA sets
-      // the
-      //   // SAN directly instead of reading it from the CSR
-      //   try
-      // {
-      //   auto rc =
-      //     x509write_crt_set_subject_alt_names(crt.get(),
-      //     subject_alt_names);
-      //   if (rc != 0)
-      //   {
-      //     LOG_FAIL_FMT("Failed to set subject alternative names ({})", rc);
-      //     return {};
-      //   }
-      // }
-      // catch (const std::logic_error& err)
-      // {
-      //   LOG_FAIL_FMT("Error writing SAN: {}", err.what());
-      //   return {};
-      // }
+      // Sign
+      auto md = get_md_type(get_md_for_ec(get_curve_id()));
+      int size = X509_sign(crt, key, md);
+      if (size <= 0)
+        throw std::runtime_error("could not sign CRT");
 
-      // uint8_t buf[4096];
-      // memset(buf, 0, sizeof(buf));
+      mem = BIO_new(BIO_s_mem());
+      OPENSSL_CHECK1(PEM_write_bio_X509(mem, crt));
 
-      // // if (
-      // //   mbedtls_x509write_crt_pem(
-      // //     crt.get(),
-      // //     buf,
-      // //     sizeof(buf),
-      // //     entropy->get_rng(),
-      // //     entropy->get_data()) != 0)
-      // //   return {};
+      // Export
+      BUF_MEM* bptr;
+      BIO_get_mem_ptr(mem, &bptr);
+      Pem result = Pem((uint8_t*)bptr->data, bptr->length);
+      BIO_free(mem);
 
-      // auto len = strlen((char*)buf);
-      // return Pem(buf, len);
-      return Pem();
+      X509_REQ_free(csr);
+      X509_free(crt);
+
+      return result;
     }
   };
 }
