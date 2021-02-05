@@ -829,7 +829,6 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -848,7 +847,6 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_ws
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -868,7 +866,6 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_jwt
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -888,7 +885,6 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_js
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -907,7 +903,6 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_js_jwt
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
