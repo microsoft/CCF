@@ -15,9 +15,7 @@ LOG.add(
 )
 
 if len(sys.argv) < 2:
-    print(
-        "Error: Ledger directory should be specified as first argument"
-    )
+    print("Error: Ledger directory should be specified as first argument")
     sys.exit(1)
 
 ledger_dir = sys.argv[1]

@@ -19,9 +19,7 @@ import ccf.clients
 
 # Load client info file.
 if len(sys.argv) < 2:
-    print(
-        "Error: Common directory should be specified as first argument"
-    )
+    print("Error: Common directory should be specified as first argument")
     sys.exit(1)
 
 common_dir = sys.argv[1]
