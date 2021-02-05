@@ -44,5 +44,5 @@ If you use `Visual Studio Code`_ you can install the `Remote Container`_ extensi
 
 .. _`Visual Studio Code`: https://code.visualstudio.com/
 .. _`Remote Container`: https://code.visualstudio.com/docs/remote/containers
-.. _`devcontainer.json`: https://github.com/microsoft/CCF/blob/master/.devcontainer/devcontainer.json
+.. _`devcontainer.json`: https://github.com/microsoft/CCF/blob/main/.devcontainer/devcontainer.json
 

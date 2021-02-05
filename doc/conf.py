@@ -194,7 +194,7 @@ breathe_default_project = "CCF"
 # Set up multiversion extension
 
 smv_tag_whitelist = r"^ccf-.*$"
-smv_branch_whitelist = r"^master$"
+smv_branch_whitelist = r"^main$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
@@ -211,7 +211,7 @@ html_theme_options = {
 html_context = {
     "github_user": "Microsoft",
     "github_repo": "CCF",
-    "github_version": "master",
+    "github_version": "main",
     "doc_path": "doc/",
 }
 
