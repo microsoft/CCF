@@ -712,16 +712,15 @@ namespace ccfapp
     return m;
   }
 
-  // Assumes that JSHandlers is used as a singleton.
   thread_local JSAutoFreeRuntime runtime;
-  thread_local bool runtime_inited;
+  thread_local bool runtime_inited = false;
 
-  thread_local JSClassDef kv_class_def;
-  thread_local JSClassExoticMethods kv_exotic_methods;
+  thread_local JSClassDef kv_class_def = {};
+  thread_local JSClassExoticMethods kv_exotic_methods = {};
 
-  thread_local JSClassDef kv_map_handle_class_def;
+  thread_local JSClassDef kv_map_handle_class_def = {};
 
-  thread_local JSClassDef body_class_def;
+  thread_local JSClassDef body_class_def = {};
 
   class JSHandlers : public UserEndpointRegistry
   {
