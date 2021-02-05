@@ -11,9 +11,9 @@ to provide a CLA and decorate the PR appropriately (e.g., label, comment). Simpl
 Note that we only accept pull requests from forks so please fork the CCF repository before making any changes. You should contribute your changes on a branch on that fork and create a pull request on the [microsoft/CCF repository](https://github.com/microsoft/CCF/compare) from there.
 
 All pull requests must pass a suite of CI tests before they are merged.
-Test commands are defined in [`test.yml`](https://github.com/microsoft/CCF/blob/master/.azure-pipelines-templates/test.yml), so you can locally repeat any tests which fail.
+Test commands are defined in [`test.yml`](https://github.com/microsoft/CCF/blob/main/.azure-pipelines-templates/test.yml), so you can locally repeat any tests which fail.
 
-Code must also meet format requirements enforced by [`checks.yml`](https://github.com/microsoft/CCF/blob/master/.azure-pipelines-templates/checks.yml), which can be checked locally by running [`scripts/ci-checks.sh`]. Some formatting issues can be fixed automatically by running [`scripts/ci-checks.sh -f`].
+Code must also meet format requirements enforced by [`checks.yml`](https://github.com/microsoft/CCF/blob/main/.azure-pipelines-templates/checks.yml), which can be checked locally by running [`scripts/ci-checks.sh`]. Some formatting issues can be fixed automatically by running [`scripts/ci-checks.sh -f`].
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)

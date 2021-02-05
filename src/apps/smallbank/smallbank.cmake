@@ -55,11 +55,10 @@ if(BUILD_TESTS)
 
   foreach(CONSENSUS ${CONSENSUSES})
     add_perf_test(
-      NAME small_bank_client_test_${CONSENSUS}
+      NAME sb
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
       VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
-      LABEL SB
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS
         --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 250
@@ -68,11 +67,10 @@ if(BUILD_TESTS)
   endforeach()
 
   add_perf_test(
-    NAME small_bank_client_ws_test_cft
+    NAME sb_ws
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
     VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
-    LABEL SB_WS
     CONSENSUS cft
     ADDITIONAL_ARGS
       --transactions
@@ -85,11 +83,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME small_bank_sigs_client_test_cft
+    NAME sb_sig
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
     VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
-    LABEL "SB_sig"
     CONSENSUS cft
     ADDITIONAL_ARGS
       --transactions

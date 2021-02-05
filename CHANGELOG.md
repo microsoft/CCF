@@ -42,13 +42,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- JS endpoints now list their auth policies by name, similar to C++ endpoints. The fields `require_client_identity`, `require_client_signature`, and `require_jwt_authentication` are removed, and should be replaced by `authn_policies`. For example, the previous default `"require_client_identity": true` should be replaced with `"authn_policies": ["user_cert"]`, an endpoint which would like to handle a JWT but will also accept unauthenticated requests would be `"authn_policies": ["jwt", "no_auth"]`, and a fully unauthenticated endpoint would be `"authn_policies": []`. See [docs](https://microsoft.github.io/CCF/master/build_apps/js_app_bundle.html#metadata) for further detail.
+- JS endpoints now list their auth policies by name, similar to C++ endpoints. The fields `require_client_identity`, `require_client_signature`, and `require_jwt_authentication` are removed, and should be replaced by `authn_policies`. For example, the previous default `"require_client_identity": true` should be replaced with `"authn_policies": ["user_cert"]`, an endpoint which would like to handle a JWT but will also accept unauthenticated requests would be `"authn_policies": ["jwt", "no_auth"]`, and a fully unauthenticated endpoint would be `"authn_policies": []`. See [docs](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#metadata) for further detail.
 
 ## [0.17.0]
 
 ### Added
 
-- Versioned APIs for common CCF functionality: `get_status_for_txid_v1`, `get_last_committed_txid_v1`, `generate_openapi_document_v1`, `get_receipt_for_seqno_v1`, `get_quote_for_this_node_v1`. We will aim to support these function signatures long-term, and provide similar functionality with incremental version bumps when this is no longer possible. In particular, this enables building an app which does not expose the [default endpoints](https://microsoft.github.io/CCF/master/build_apps//logging_cpp.html#default-endpoints) but instead exposes similar functionality through its own API.
+- Versioned APIs for common CCF functionality: `get_status_for_txid_v1`, `get_last_committed_txid_v1`, `generate_openapi_document_v1`, `get_receipt_for_seqno_v1`, `get_quote_for_this_node_v1`. We will aim to support these function signatures long-term, and provide similar functionality with incremental version bumps when this is no longer possible. In particular, this enables building an app which does not expose the [default endpoints](https://microsoft.github.io/CCF/main/build_apps//logging_cpp.html#default-endpoints) but instead exposes similar functionality through its own API.
 
 ### Changed
 
@@ -100,13 +100,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - CLI options are printed on every node launch (#1923).
 - JS logging sample app is included in CCF package (#1932).
-- C++ apps can be built using cmake's `find_package(ccf REQUIRED)` (see [cmake sample](https://github.com/microsoft/CCF/blob/master/samples/apps/logging/CMakeLists.txt)) (#1947).
+- C++ apps can be built using cmake's `find_package(ccf REQUIRED)` (see [cmake sample](https://github.com/microsoft/CCF/blob/main/samples/apps/logging/CMakeLists.txt)) (#1947).
 
 ### Changed
 
 - JWT signing keys are auto-refreshed immediately when adding a new issuer instead of waiting until the next auto-refresh event is due (#1978).
 - Snapshots are only committed when proof of snapshot evidence is committed (#1972).
-- Snapshot evidence must be validated before joining/recovering from snapshot (see [doc](https://microsoft.github.io/CCF/master/operations/ledger_snapshot.html#join-recover-from-snapshot)) (#1925).
+- Snapshot evidence must be validated before joining/recovering from snapshot (see [doc](https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#join-recover-from-snapshot)) (#1925).
 
 ### Fixed
 
@@ -147,8 +147,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- [JWT documentation](https://microsoft.github.io/CCF/master/developers/auth/jwt.html#jwt-authentication) (#1875).
-- [Member keys in HSM documentation](https://microsoft.github.io/CCF/master/members/hsm_keys.html) (#1884).
+- [JWT documentation](https://microsoft.github.io/CCF/main/developers/auth/jwt.html#jwt-authentication) (#1875).
+- [Member keys in HSM documentation](https://microsoft.github.io/CCF/main/members/hsm_keys.html) (#1884).
 
 ### Changed
 
@@ -189,7 +189,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Members' recovery shares are now encrypted using [RSA-OAEP-256](https://docs.microsoft.com/en-gb/azure/key-vault/keys/about-keys#wrapkeyunwrapkey-encryptdecrypt) (#1841). This has the following implications:
   - Network's encryption key is no longer output by the first node of a CCF service is no longer required to decrypt recovery shares.
   - The latest version of the `submit_recovery_share.sh` script should be used.
-  - The latest version of the `proposal_generator.py` should be used (please upgrade the [ccf Python package](https://microsoft.github.io/CCF/master/quickstart/install.html#python-package)).
+  - The latest version of the `proposal_generator.py` should be used (please upgrade the [ccf Python package](https://microsoft.github.io/CCF/main/quickstart/install.html#python-package)).
 - `submit_recovery_share.sh` script's `--rpc-address` argument has been removed. The node's address (e.g. `https://127.0.0.1:8000`) should be used directly as the first argument instead (#1841).
 - The constitution's `pass` function now takes an extra argument: `proposer_id`, which contains the `member_id` of the member who submitted the proposal. To adjust for this change, replace `tables, calls, votes = ...` with `tables, calls, votes, proposer_id = ...` at the beginning of the `pass` definition.
 - Bundled votes (ie. the `ballot` entry in `POST /proposals`) have been removed. Votes can either happen explicitly via `POST /proposals/{proposal_id}/votes`, or the constitution may choose to pass a proposal without separate votes by examining its contents and its proposer, as illustrated in the operating member constitution sample. The `--vote-against` flag in `proposal_generator.py`, has also been removed as a consequence.
@@ -206,7 +206,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- The `start_test_network.sh` script has been replaced by [`sandbox.sh`](https://microsoft.github.io/CCF/master/quickstart/test_network.html). Users wishing to override the default network config (a single node on '127.0.0.1:8000') must now explictly specify if they should be started locally (eg. `-n 'local://127.4.4.5:7000'`) or on remote machine via password-less ssh (eg. `-n 'ssh://10.0.0.1:6000'`).
+- The `start_test_network.sh` script has been replaced by [`sandbox.sh`](https://microsoft.github.io/CCF/main/quickstart/test_network.html). Users wishing to override the default network config (a single node on '127.0.0.1:8000') must now explictly specify if they should be started locally (eg. `-n 'local://127.4.4.5:7000'`) or on remote machine via password-less ssh (eg. `-n 'ssh://10.0.0.1:6000'`).
 - `node/quote` endpoint now returns a single JSON object containing the node's quote (#1761).
 - Calling `foreach` on a `TxView` now iterates over the entries which previously existed, ignoring any modifications made by the functor while iterating.
 - JS: `ccf.kv.<map>.get(key)` returns `undefined` instead of throwing an exception if `key` does not exist.
@@ -403,7 +403,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Add clang-format to the application CI container, to facilitate application development (#1340)
 - Websocket handlers are now distinct, and can be defined by passing `ws::Verb::WEBSOCKET` as a verb to `make_endpoint()` (#1333)
-- Custom KV serialisation is [documented](https://microsoft.github.io/CCF/master/developers/kv/kv_serialisation.html#custom-key-and-value-types)
+- Custom KV serialisation is [documented](https://microsoft.github.io/CCF/main/developers/kv/kv_serialisation.html#custom-key-and-value-types)
 
 ### Fixed
 
@@ -413,7 +413,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- CLI tool for managing recovery shares (#1295). [usage](https://microsoft.github.io/CCF/master/members/accept_recovery.html#submitting-recovery-shares)
+- CLI tool for managing recovery shares (#1295). [usage](https://microsoft.github.io/CCF/main/members/accept_recovery.html#submitting-recovery-shares)
 - New standard endpoint `node/ids` for retrieving node ID from IP address (#1319).
 - Support for read-only transactions. Use `tx.get_read_only_view` to retrieve read-only views, and install with `make_read_only_endpoint` if all operations are read-only.
 - Support for distinct handlers on the same URI. Each installed handler/endpoint is now associated with a single HTTP method, so you can install different operations on `POST /foo` and `GET /foo`.
@@ -441,19 +441,19 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 - Improved resiliency of recovery process (#1051)
 - `foreach` early-exit semantics are now consistent (#1222)
 - Third party dependency updates (#1144, #1148, #1149, #1151, #1155, #1255)
-- All logging output now goes to stdout, and can be configured to be either JSON or plain text (#1258) [doc](https://microsoft.github.io/CCF/master/operators/node_output.html#json-formatting)
-- Initial support for historical query handlers (#1207) [sample](https://github.com/microsoft/CCF/blob/master/src/apps/logging/logging.cpp#L262)
-- Implement the equivalent of "log rolling" for the ledger (#1135) [doc](https://microsoft.github.io/CCF/master/operators/ledger.html)
-- Internal RPCs renamed to follow more traditional REST conventions (#968) [doc](https://microsoft.github.io/CCF/master/operators/operator_rpc_api.html)
+- All logging output now goes to stdout, and can be configured to be either JSON or plain text (#1258) [doc](https://microsoft.github.io/CCF/main/operators/node_output.html#json-formatting)
+- Initial support for historical query handlers (#1207) [sample](https://github.com/microsoft/CCF/blob/main/src/apps/logging/logging.cpp#L262)
+- Implement the equivalent of "log rolling" for the ledger (#1135) [doc](https://microsoft.github.io/CCF/main/operators/ledger.html)
+- Internal RPCs renamed to follow more traditional REST conventions (#968) [doc](https://microsoft.github.io/CCF/main/operators/operator_rpc_api.html)
 
 ### Added
 
 - Support for floating point types in default KV serialiser (#1174)
-- The `start_test_network.sh` script now supports recovering an old network with the `--recover` flag (#1095) [doc](https://microsoft.github.io/CCF/master/users/deploy_app.html#recovering-a-service)
+- The `start_test_network.sh` script now supports recovering an old network with the `--recover` flag (#1095) [doc](https://microsoft.github.io/CCF/main/users/deploy_app.html#recovering-a-service)
 - Application CI and runtime containers are now available (#1178)
   1. `ccfciteam/ccf-app-ci:0.11` is recommended to build CCF applications
   2. `ccfciteam/ccf-app-run:0.11` is recommended to run CCF nodes, for example in k8s
-- Initial websockets support (#629) [sample](https://github.com/microsoft/CCF/blob/master/tests/ws_scaffold.py#L21)
+- Initial websockets support (#629) [sample](https://github.com/microsoft/CCF/blob/main/tests/ws_scaffold.py#L21)
 
 ### Removed
 
@@ -464,8 +464,8 @@ CCF now deals internally only with serialised data in its tables, mapping byte-v
 ### Added
 
 - Brand new versioned documentation: https://microsoft.github.io/CCF.
-- New `/tx` endpoint to check that a transaction is committed (#1111). See [docs](https://microsoft.github.io/CCF/master/users/issue_commands.html#checking-for-commit).
-- Disaster recovery is now performed with members key shares (#1101). See [docs](https://microsoft.github.io/CCF/master/members/accept_recovery.html).
+- New `/tx` endpoint to check that a transaction is committed (#1111). See [docs](https://microsoft.github.io/CCF/main/users/issue_commands.html#checking-for-commit).
+- Disaster recovery is now performed with members key shares (#1101). See [docs](https://microsoft.github.io/CCF/main/members/accept_recovery.html).
 - Open Enclave install is included in CCF install (#1125).
 - New `sgxinfo.sh` script (#1081).
 - New `--transaction-rate` flag to performance client (#1071).
