@@ -5,7 +5,7 @@ import sys
 from loguru import logger as LOG
 
 # Note: It is safer to run the ledger tutorial when the service has stopped
-# as all ledger files will have been written to
+# as all ledger files will have been written to.
 
 # Change default log format
 LOG.remove()
