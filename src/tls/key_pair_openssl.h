@@ -544,6 +544,9 @@ namespace tls
             all_alt_names += ", ";
           }
 
+          if (san.is_ip)
+            all_alt_names += "IP:";
+
           all_alt_names += san.san;
         }
 
