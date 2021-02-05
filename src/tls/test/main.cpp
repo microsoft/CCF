@@ -437,7 +437,7 @@ void run_csr()
 
   std::vector<SubjectAltName> subject_alternative_names;
   subject_alternative_names.push_back({"email:my-other-name", false});
-  subject_alternative_names.push_back({"DNS:www.microsoft.com", false});
+  subject_alternative_names.push_back({"www.microsoft.com", false});
   subject_alternative_names.push_back({"192.168.0.1", true});
   auto crt = kpm.sign_csr(csr, "CN=issuer", subject_alternative_names);
 

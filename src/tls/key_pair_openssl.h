@@ -546,6 +546,8 @@ namespace tls
 
           if (san.is_ip)
             all_alt_names += "IP:";
+          else
+            all_alt_names += "DNS:";
 
           all_alt_names += san.san;
         }

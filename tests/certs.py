@@ -32,7 +32,8 @@ def run(cert_test):
     test(
         ["--sn=CN=subject", "--san=iPAddress:1.2.3.4"],
         "Subject: CN = subject\n",
-        "X509v3 Subject Alternative Name: \n" + 16 * " " + "IP Address:1.2.3.4",
+        "X509v3 Subject Alternative Name: \n" + 16 * " ",
+        "IP Address:1.2.3.4",
     )
 
     test(
@@ -43,14 +44,16 @@ def run(cert_test):
         ],
         "Subject: CN = subject\n",
         "X509v3 Subject Alternative Name: \n"
-        + 16 * " "
-        + "IP Address:192.168.200.123, IP Address:1.2.3.4",
+        + 16 * " ",
+        "IP Address:192.168.200.123",
+        "IP Address:1.2.3.4"
     )
 
     test(
         ["--sn=CN=subject", "--san=dNSName:sub.domain.tld"],
         "Subject: CN = subject\n",
-        "X509v3 Subject Alternative Name: \n" + 16 * " " + "DNS:sub.domain.tld",
+        "X509v3 Subject Alternative Name: \n" + 16 * " ",
+        "DNS:sub.domain.tld"
     )
 
     test(
@@ -62,8 +65,10 @@ def run(cert_test):
         ],
         "Subject: CN = subject\n",
         "X509v3 Subject Alternative Name: \n"
-        + 16 * " "
-        + "IP Address:192.168.200.123, DNS:sub.domain.tld, IP Address:1.2.3.4",
+        + 16 * " ",
+        "IP Address:192.168.200.123",
+        "DNS:sub.domain.tld",
+        "IP Address:1.2.3.4",
     )
 
 
