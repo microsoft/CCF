@@ -124,8 +124,6 @@ def run(args):
             else:
                 recovered_network = test(network, args, from_snapshot=False)
             network = recovered_network
-            txs.issue(network, number_txs=1)
-            txs.issue(network, number_txs=1, repeat=True)
             LOG.success("Recovery complete on all nodes")
 
 
