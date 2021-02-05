@@ -280,6 +280,20 @@ TEST_CASE("StateCache")
         return true;
       });
     }
+
+    {
+      INFO("Store remains available for future requests using the same handle");
+      auto store2 = cache.get_store_at(high_handle, high_index);
+      REQUIRE(store2 != nullptr);
+      REQUIRE(store2 == store_at_index);
+    }
+
+    {
+      INFO("Dropping a handle deletes it, and it can no longer be retrieved");
+      cache.drop_request(high_handle);
+      auto store3 = cache.get_store_at(high_handle, high_index);
+      REQUIRE(store3 == nullptr);
+    }
   }
 
   {

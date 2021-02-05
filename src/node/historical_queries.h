@@ -33,6 +33,7 @@ namespace ccf::historical
     struct Request
     {
       consensus::Index target_index;
+      ExpiryDuration time_to_expiry;
       RequestStage current_stage = RequestStage::Fetching;
       crypto::Sha256Hash entry_hash = {};
       StorePtr store = nullptr;
@@ -46,6 +47,8 @@ namespace ccf::historical
     // reverse lookup.
     using HandleSet = std::set<RequestHandle>;
     std::map<consensus::Index, HandleSet> pending_fetches;
+
+    ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
     void fetch_entry_at(const HandleSet& handles, consensus::Index idx)
     {
@@ -128,7 +131,6 @@ namespace ccf::historical
         return false;
       }
 
-      LOG_INFO_FMT("AAAA");
       for (const auto handle : requesting_handles)
       {
         LOG_INFO_FMT("Considering handle {}", handle);
@@ -228,6 +230,7 @@ namespace ccf::historical
       {
         // Record details of this request
         Request new_request;
+        new_request.time_to_expiry = default_expiry_duration;
         new_request.target_index = idx;
         requests[request] = std::move(new_request);
 
@@ -247,18 +250,27 @@ namespace ccf::historical
       return nullptr;
     }
 
-    // TODO: Impl
-    void set_default_expiry_duration(ExpiryDuration duration) override {}
+    void set_default_expiry_duration(ExpiryDuration duration) override
+    {
+      default_expiry_duration = duration;
+    }
 
     bool set_expiry_duration(
       RequestHandle handle, ExpiryDuration duration) override
     {
+      auto it = requests.find(handle);
+      if (it != requests.end())
+      {
+        it->second.time_to_expiry = duration;
+        return true;
+      }
       return false;
     }
 
     bool drop_request(RequestHandle handle) override
     {
-      return false;
+      const auto erased_count = requests.erase(handle);
+      return erased_count > 0;
     }
 
     bool handle_ledger_entry(consensus::Index idx, const LedgerEntry& data)
