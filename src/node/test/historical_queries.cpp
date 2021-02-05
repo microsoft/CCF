@@ -83,7 +83,7 @@ TEST_CASE("StateCache")
   using NumToString = kv::Map<size_t, std::string>;
 
   constexpr size_t low_signature_transaction = 3;
-  constexpr size_t high_signature_transaction = 100;
+  constexpr size_t high_signature_transaction = 20;
 
   constexpr size_t low_index = low_signature_transaction + 2;
   constexpr size_t high_index = high_signature_transaction - 3;
@@ -167,28 +167,31 @@ TEST_CASE("StateCache")
   ccf::historical::StateCache cache(store, rw);
 
   static const ccf::historical::RequestHandle default_handle = 0;
+  static const ccf::historical::RequestHandle low_handle = 1;
+  static const ccf::historical::RequestHandle high_handle = 2;
 
   {
     INFO(
       "Initially, no stores are available, even if they're requested multiple "
       "times");
-    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
-    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
-    REQUIRE(cache.get_store_at(default_handle, high_index) == nullptr);
-    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(high_handle, high_index) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
     REQUIRE(cache.get_store_at(default_handle, unsigned_index) == nullptr);
-    REQUIRE(cache.get_store_at(default_handle, high_index) == nullptr);
-    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(high_handle, high_index) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
   }
 
   {
-    INFO("The host sees one request for each index");
+    INFO("The host sees requests for these indices");
     const auto read = bp.read_n(100, rr);
-    REQUIRE(read == 3);
-    REQUIRE(requested_ledger_entries.size() == 3);
-    REQUIRE(
-      requested_ledger_entries ==
-      std::vector<consensus::Index>{low_index, high_index, unsigned_index});
+    REQUIRE(read == requested_ledger_entries.size());
+    std::set<consensus::Index> expected{low_index, high_index, unsigned_index};
+    std::set<consensus::Index> actual;
+    actual.insert(
+      requested_ledger_entries.begin(), requested_ledger_entries.end());
+    REQUIRE(actual == expected);
   }
 
   auto provide_ledger_entry = [&](size_t i) {
@@ -213,11 +216,11 @@ TEST_CASE("StateCache")
     for (size_t i = high_index + 1; i < high_signature_transaction; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
-      REQUIRE(cache.get_store_at(default_handle, high_index) == nullptr);
+      REQUIRE(cache.get_store_at(high_handle, high_index) == nullptr);
     }
 
     REQUIRE(provide_ledger_entry(high_signature_transaction));
-    REQUIRE(cache.get_store_at(default_handle, high_index) != nullptr);
+    REQUIRE(cache.get_store_at(high_handle, high_index) != nullptr);
   }
 
   {
@@ -228,25 +231,25 @@ TEST_CASE("StateCache")
     // will accept anything that looks quite like a valid entry, even if it
     // never came from a legitimate node - they should all fail at the signature
     // check
-    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
     REQUIRE(cache.handle_ledger_entry(low_index, ledger.at(low_index + 1)));
 
     // Count up to next signature
     for (size_t i = low_index + 1; i < high_signature_transaction; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
-      REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
+      REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
     }
 
     // Signature is good
     REQUIRE(provide_ledger_entry(high_signature_transaction));
     // Junk entry is still not available
-    REQUIRE(cache.get_store_at(default_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
   }
 
   {
     INFO("Historical state can be retrieved from provided entries");
-    auto store_at_index = cache.get_store_at(default_handle, high_index);
+    auto store_at_index = cache.get_store_at(high_handle, high_index);
     REQUIRE(store_at_index != nullptr);
 
     {

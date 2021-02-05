@@ -222,14 +222,16 @@ namespace ccf::historical
     StorePtr get_store_at(RequestHandle request, consensus::Index idx) override
     {
       // TODO: Lock here, and probably everywhere
+      // If this is a new handle, or a new request for an existing handle
       const auto it = requests.find(request);
-      if (it == requests.end())
+      if (it == requests.end() || it->second.target_index != idx)
       {
+        // Record details of this request
         Request new_request;
         new_request.target_index = idx;
-        requests.emplace_hint(it, idx, std::move(new_request));
+        requests[request] = std::move(new_request);
 
-        // Treat this as a hint and start fetching it
+        // Start fetching it
         fetch_entry_at({request}, idx);
 
         return nullptr;
