@@ -85,6 +85,25 @@ namespace ccfapp
     JS_FreeValue(ctx, exception_val);
   }
 
+  struct JSAutoFreeRuntime
+  {
+    JSRuntime* rt;
+
+    JSAutoFreeRuntime() 
+    {
+      rt = JS_NewRuntime();
+      if (rt == nullptr)
+      {
+        throw std::runtime_error("Failed to initialise QuickJS runtime");
+      }
+    }
+
+    ~JSAutoFreeRuntime()
+    {
+      JS_FreeRuntime(rt);
+    }
+  };
+
   struct JSAutoFreeCtx
   {
     JSContext* ctx;
@@ -693,19 +712,21 @@ namespace ccfapp
     return m;
   }
 
+  // Assumes that JSHandlers is used as a singleton.
+  thread_local JSAutoFreeRuntime runtime;
+  thread_local bool runtime_inited;
+
+  thread_local JSClassDef kv_class_def;
+  thread_local JSClassExoticMethods kv_exotic_methods;
+
+  thread_local JSClassDef kv_map_handle_class_def;
+
+  thread_local JSClassDef body_class_def;
+
   class JSHandlers : public UserEndpointRegistry
   {
   private:
     NetworkTables& network;
-
-    JSRuntime* rt = nullptr;
-
-    JSClassDef kv_class_def = {};
-    JSClassExoticMethods kv_exotic_methods = {};
-
-    JSClassDef kv_map_handle_class_def = {};
-
-    JSClassDef body_class_def = {};
 
     metrics::Tracker metrics_tracker;
 
@@ -953,20 +974,24 @@ namespace ccfapp
         }
       }
 
-      // quickjs is not thread-safe and a separate runtime is needed per thread.
-      // TODO create a runtime per thread
-      if (!rt)
+      // TODO check if app hash has changed
+      bool js_app_hash_mismatch = false;
+      if (js_app_hash_mismatch)
       {
-        rt = JS_NewRuntime();
-        if (rt == nullptr)
-        {
-          throw std::runtime_error("Failed to initialise QuickJS runtime");
-        }
+        runtime = JSAutoFreeRuntime();
+        runtime_inited = false;
+      }
 
-        JS_SetMaxStackSize(rt, 1024 * 1024);
+      JSRuntime* rt = runtime.rt;
 
+      if (!runtime_inited)
+      {
         // Register class for KV
         {
+          kv_exotic_methods.get_own_property = js_kv_lookup;
+          kv_class_def.class_name = "KV Tables";
+          kv_class_def.exotic = &kv_exotic_methods;
+
           auto ret = JS_NewClass(rt, kv_class_id, &kv_class_def);
           if (ret != 0)
           {
@@ -977,6 +1002,8 @@ namespace ccfapp
 
         // Register class for KV map views
         {
+          kv_map_handle_class_def.class_name = "KV Map Handle";
+
           auto ret =
             JS_NewClass(rt, kv_map_handle_class_id, &kv_map_handle_class_def);
           if (ret != 0)
@@ -988,6 +1015,8 @@ namespace ccfapp
 
         // Register class for request body
         {
+          body_class_def.class_name = "Body";
+
           auto ret = JS_NewClass(rt, body_class_id, &body_class_def);
           if (ret != 0)
           {
@@ -995,6 +1024,10 @@ namespace ccfapp
               "Failed to register JS class definition for Body");
           }
         }
+
+        JS_SetMaxStackSize(rt, 1024 * 1024);
+
+        runtime_inited = true;
       }
 
       // quickjs checks for stack overflow by comparing against the stack frame address
@@ -1253,15 +1286,8 @@ namespace ccfapp
       network(network)
     {
       JS_NewClassID(&kv_class_id);
-      kv_exotic_methods.get_own_property = js_kv_lookup;
-      kv_class_def.class_name = "KV Tables";
-      kv_class_def.exotic = &kv_exotic_methods;
-
       JS_NewClassID(&kv_map_handle_class_id);
-      kv_map_handle_class_def.class_name = "KV Map Handle";
-
       JS_NewClassID(&body_class_id);
-      body_class_def.class_name = "Body";
 
       auto default_handler = [this](EndpointContext& args) {
         execute_request(
@@ -1271,12 +1297,6 @@ namespace ccfapp
       set_default(default_handler, no_auth_required);
 
       metrics_tracker.install_endpoint(*this);
-    }
-    
-    virtual ~JSHandlers()
-    {
-      if (rt)
-        JS_FreeRuntime(rt);
     }
 
     void instantiate_authn_policies(JSDynamicEndpoint& endpoint)
