@@ -145,12 +145,12 @@ TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
 template <typename T, typename S, CurveID CID>
 void run_alt()
 {
-  auto kp1 = new T(CID);
+  T kp1(CID);
   vector<uint8_t> contents(contents_.begin(), contents_.end());
-  vector<uint8_t> signature = kp1->sign(contents);
+  vector<uint8_t> signature = kp1.sign(contents);
 
-  auto kp2 = new S(kp1->public_key_pem());
-  CHECK(kp2->verify(contents, signature));
+  S kp2(kp1.public_key_pem());
+  CHECK(kp2.verify(contents, signature));
 }
 
 TEST_CASE("Sign, verify with alternate implementation")
@@ -445,8 +445,8 @@ void run_csr()
   std::vector<uint8_t> content = {0, 1, 2, 3, 4};
   auto signature = kpm.sign(content);
 
-  auto v = std::make_unique<S>(crt.raw());
-  REQUIRE(v->verify(content, signature));
+  S v(crt.raw());
+  REQUIRE(v.verify(content, signature));
 }
 
 TEST_CASE("Create, sign & verify certificates")

@@ -53,7 +53,7 @@ static void signature_bench(picobench::state& s)
   s.stop_timer();
 }
 
-const std::vector<int> num_hashes = {1, 10, 100};
+const std::vector<int> num_hashes = {1, 25};
 
 PICOBENCH_SUITE("Signatures");
 

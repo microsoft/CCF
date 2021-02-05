@@ -419,9 +419,10 @@ namespace tls
       }
 
       OPENSSL_CHECK1(X509_REQ_set_subject_name(req, subj_name));
+      X509_NAME_free(subj_name);
 
       if (key)
-        X509_REQ_sign(req, key, EVP_sha512());
+        OPENSSL_CHECK1(X509_REQ_sign(req, key, EVP_sha512()));
 
       BIO* mem = BIO_new(BIO_s_mem());
       OPENSSL_CHECK1(PEM_write_bio_X509_REQ(mem, req));
@@ -453,15 +454,19 @@ namespace tls
 
       X509_set_version(crt, 2);
 
+      // Add serial number
       unsigned char rndbytes[16];
       OPENSSL_CHECK1(RAND_bytes(rndbytes, sizeof(rndbytes)));
-      BIGNUM* bn = BN_new();
+      BIGNUM* bn = NULL;
+      OPENSSL_CHECKNULL(bn = BN_new());
       BN_bin2bn(rndbytes, sizeof(rndbytes), bn);
       ASN1_INTEGER* serial = ASN1_INTEGER_new();
       BN_to_ASN1_INTEGER(bn, serial);
-      X509_set_serialNumber(crt, serial);
+      OPENSSL_CHECK1(X509_set_serialNumber(crt, serial));
       ASN1_INTEGER_free(serial);
+      BN_free(bn);
 
+      // Add issuer name
       X509_NAME* issuer_name = NULL;
       OPENSSL_CHECKNULL(issuer_name = X509_NAME_new());
       for (auto kv : parse_name(issuer))
@@ -476,6 +481,7 @@ namespace tls
           0));
       }
       OPENSSL_CHECK1(X509_set_issuer_name(crt, issuer_name));
+      X509_NAME_free(issuer_name);
 
       // Note: 825-day validity range
       // https://support.apple.com/en-us/HT210176

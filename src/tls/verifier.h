@@ -280,6 +280,7 @@ namespace tls
         throw std::invalid_argument(fmt::format(
           "OpenSSL error: {}", ERR_error_string(ERR_get_error(), NULL)));
       }
+      BIO_free(certbio);
 
       int mdnid, pknid, secbits;
       X509_get_signature_info(cert, &mdnid, &pknid, &secbits, 0);
@@ -310,13 +311,19 @@ namespace tls
       {
         throw std::logic_error("unsupported public key type");
       }
+
+      EVP_PKEY_free(pk);
     }
 
     Verifier_OpenSSL(Verifier_OpenSSL&& v) = default;
 
     Verifier_OpenSSL(const Verifier_OpenSSL&) = delete;
 
-    virtual ~Verifier_OpenSSL() = default;
+    virtual ~Verifier_OpenSSL()
+    {
+      if (cert)
+        X509_free(cert);
+    }
 
     const X509* raw()
     {
