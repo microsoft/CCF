@@ -198,7 +198,7 @@ namespace ccf
           {PreviousLedgerSecretInfo(
              std::move(encrypted_previous_secret),
              version_previous_secret,
-             std::nullopt),
+             encrypted_ls->get_version_of_previous_write(0)),
            latest_ls_version});
       }
       else

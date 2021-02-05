@@ -1638,8 +1638,18 @@ namespace ccf
               encrypted_ledger_secret_info->next_version = version + 1;
             }
 
-            LOG_DEBUG_FMT(
-              "Recovering encrypted ledger secret valid at seqno {}", version);
+            LOG_FAIL_FMT(
+              "Version at which the previous ledger secret was written: {}",
+              encrypted_ledger_secret_info->previous_ledger_secret
+                ->stored_version.value_or(kv::NoVersion));
+
+            if (encrypted_ledger_secret_info->previous_ledger_secret
+                  .has_value())
+            {
+              LOG_DEBUG_FMT(
+                "Recovery encrypted ledger secret valid at seqno {}",
+                encrypted_ledger_secret_info->previous_ledger_secret->version);
+            }
 
             recovery_ledger_secrets.emplace_back(
               std::move(encrypted_ledger_secret_info.value()));
