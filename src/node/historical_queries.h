@@ -32,11 +32,64 @@ namespace ccf::historical
 
     struct Request
     {
-      consensus::Index target_index;
+      struct StoreDetails
+      {
+        RequestStage current_stage = RequestStage::Fetching;
+        crypto::Sha256Hash entry_hash = {};
+        StorePtr store = nullptr;
+      };
+
+      // To avoid duplicating state, range details are determined by length of
+      // stores
+      consensus::Index first_requested_index;
+      std::vector<StoreDetails> stores;
       std::chrono::milliseconds time_to_expiry;
-      RequestStage current_stage = RequestStage::Fetching;
-      crypto::Sha256Hash entry_hash = {};
-      StorePtr store = nullptr;
+
+      Request(consensus::Index start_idx, size_t num_following_indices)
+      {
+        first_requested_index = start_idx;
+        stores.resize(1 + num_following_indices);
+      }
+
+      consensus::Index get_requested_index_end()
+      {
+        // This is an iterator-style end, 1 greater than last()
+        return first_requested_index + stores.size();
+      }
+
+      bool is_index_in_requested_range(consensus::Index idx)
+      {
+        const auto end = get_requested_index_end();
+        return idx >= first_requested_index && idx < end;
+      }
+
+      StoreDetails& get_store_details(consensus::Index idx)
+      {
+        if (!is_index_in_requested_range(idx))
+        {
+          throw std::logic_error(
+            "Asked for details about an index which is not in this request");
+        }
+
+        const auto offset = idx - first_requested_index;
+        return stores[offset];
+      }
+
+      std::set<consensus::Index> adjust_range(
+        consensus::Index start_idx, size_t num_following_indices)
+      {
+        // TODO: Calculate actual overlap. This just drops everything and says
+        // it needs to be refetched
+        stores.clear();
+        first_requested_index = start_idx;
+        stores.resize(1 + num_following_indices);
+        std::set<consensus::Index> ret;
+        for (size_t i = start_idx; i < get_requested_index_end(); ++i)
+        {
+          ret.insert(i);
+        }
+        return ret;
+      }
     };
 
     // Things actually requested by external callers
@@ -133,52 +186,71 @@ namespace ccf::historical
 
       for (const auto handle : requesting_handles)
       {
-        LOG_INFO_FMT("Considering handle {}", handle);
         auto it = requests.find(handle);
         if (it == requests.end())
         {
           continue;
         }
 
-        auto& request = it->second;
-        const auto untrusted_idx = request.target_index;
-        const auto sig_is_requested = (sig_idx == untrusted_idx);
+        Request& request = it->second;
 
-        if (
-          request.current_stage == RequestStage::Untrusted &&
-          (tree.in_range(untrusted_idx) || sig_is_requested))
+        bool signature_invalidates_request = false;
+
+        for (auto requested_idx = request.first_requested_index;
+             requested_idx < request.get_requested_index_end() &&
+             !signature_invalidates_request;
+             ++requested_idx)
         {
-          if (!sig_is_requested)
+          const auto sig_is_requested = (sig_idx == requested_idx);
+          if (tree.in_range(requested_idx) || sig_is_requested)
           {
-            // Compare signed hash, from signature mini-tree, with hash of the
-            // entry which was used to populate the store
-            const auto& untrusted_hash = request.entry_hash;
-            const auto trusted_hash = tree.get_leaf(untrusted_idx);
-            if (trusted_hash != untrusted_hash)
+            auto& details = request.get_store_details(requested_idx);
+            if (details.current_stage == RequestStage::Untrusted)
             {
-              LOG_FAIL_FMT(
-                "Signature at {} has a different transaction at {} than "
-                "previously received",
-                sig_idx,
-                untrusted_idx);
-              // We trust the signature but not the store - delete this
-              // untrusted store. If it is re-requested, maybe the host will
-              // give us a valid pair of transaction+sig next time
-              it = requests.erase(it);
-              continue;
+              if (!sig_is_requested)
+              {
+                // Compare signed hash, from signature mini-tree, with hash of
+                // the entry which was used to populate the store
+                const auto& untrusted_hash = details.entry_hash;
+                const auto trusted_hash = tree.get_leaf(requested_idx);
+                if (trusted_hash != untrusted_hash)
+                {
+                  LOG_FAIL_FMT(
+                    "Signature at {} has a different transaction at {} than "
+                    "previously received",
+                    sig_idx,
+                    requested_idx);
+
+                  signature_invalidates_request = true;
+                  break;
+                }
+              }
+              else
+              {
+                // We already trust this transaction (it contains a signature
+                // written by a node we trust, and nothing else) so don't have
+                // anything further to validate
+              }
+
+              // Move store from untrusted to trusted
+              LOG_DEBUG_FMT(
+                "Now trusting {} due to signature at {}",
+                requested_idx,
+                sig_idx);
+              details.current_stage = RequestStage::Trusted;
             }
           }
-          else
-          {
-            // We already trust this transaction (it contains a signature
-            // written by a node we trust, and nothing else) so don't have
-            // anything further to validate
-          }
+        }
 
-          // Move store from untrusted to trusted
-          LOG_DEBUG_FMT(
-            "Now trusting {} due to signature at {}", untrusted_idx, sig_idx);
-          request.current_stage = RequestStage::Trusted;
+        // We trust the signature (since it comes from a trusted node), and it
+        // disagrees with one of the entries we previously retrieved and
+        // deserialised. This generally means a malicious host gave us a good
+        // transaction but a good signature. Delete the entire original request
+        // - if it is re-requested, maybe the host will give us a valid pair of
+        // transaction+sig next time
+        if (signature_invalidates_request)
+        {
+          it = requests.erase(it);
         }
       }
 
@@ -188,6 +260,7 @@ namespace ccf::historical
     void process_deserialised_store(
       const StorePtr& store,
       const crypto::Sha256Hash& entry_hash,
+      consensus::Index idx,
       const HandleSet& requesting_handles)
     {
       for (const auto handle : requesting_handles)
@@ -195,20 +268,26 @@ namespace ccf::historical
         auto request_it = requests.find(handle);
         if (request_it != requests.end())
         {
-          auto& request = request_it->second;
-          if (request.current_stage == RequestStage::Fetching)
+          Request& request = request_it->second;
+          if (request.is_index_in_requested_range(idx))
           {
-            // We were looking for this entry. Store the produced store
-            request.current_stage = RequestStage::Untrusted;
-            request.entry_hash = entry_hash;
-            request.store = store;
-          }
-          else
-          {
-            LOG_DEBUG_FMT(
-              "Not fetching ledger entry {}: already have it in stage {}",
-              request_it->first,
-              request.current_stage);
+            auto& details = request.get_store_details(idx);
+            if (details.current_stage == RequestStage::Fetching)
+            {
+              // We were looking for this entry. Store the produced store
+              details.current_stage = RequestStage::Untrusted;
+              details.entry_hash = entry_hash;
+              details.store = store;
+            }
+            else
+            {
+              LOG_DEBUG_FMT(
+                "Request {} is not fetching ledger entry {}: already have it "
+                "in stage {}",
+                handle,
+                idx,
+                details.current_stage);
+            }
           }
         }
       }
@@ -221,36 +300,52 @@ namespace ccf::historical
     {}
 
     StorePtr get_store_at(
-      RequestHandle request,
+      RequestHandle handle,
       consensus::Index idx,
       ExpiryDuration expire_after) override
     {
       const auto expire_after_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(expire_after);
 
-      // TODO: Lock here, and probably everywhere
       // If this is a new handle, or a new request for an existing handle
-      const auto it = requests.find(request);
-      if (it == requests.end() || it->second.target_index != idx)
+      auto it = requests.find(handle);
+      if (it == requests.end())
       {
-        // Record details of this request
-        Request new_request;
-        new_request.time_to_expiry = expire_after_ms;
-        new_request.target_index = idx;
-        requests[request] = std::move(new_request);
+        // This is a new handle - create entirely new request object for it
+        Request new_request(idx, 0);
+        it = requests.emplace_hint(it, handle, std::move(new_request));
 
         // Start fetching it
-        fetch_entry_at({request}, idx);
-
-        return nullptr;
+        fetch_entry_at({handle}, idx);
+      }
+      else
+      {
+        // There's an existing request at this handle - modify it if necessary
+        // and ensure all requested indices are being fetched
+        auto& request = it->second;
+        if (!request.is_index_in_requested_range(idx))
+        {
+          // We could just consider this equivalent to the case above, but
+          // instead we retain old StoreDetails where possible in the same
+          // Request, if the previous request and this had some overlap
+          auto new_indices = request.adjust_range(idx, 0);
+          for (const auto new_idx : new_indices)
+          {
+            fetch_entry_at({handle}, new_idx);
+          }
+        }
       }
 
-      it->second.time_to_expiry = expire_after_ms;
+      Request& request = it->second;
 
-      if (it->second.current_stage == RequestStage::Trusted)
+      // In any case, reset the expiry time as this has just been requested
+      request.time_to_expiry = expire_after_ms;
+
+      auto& target_details = request.get_store_details(idx);
+      if (target_details.current_stage == RequestStage::Trusted)
       {
-        // Have this store and trust it
-        return it->second.store;
+        // Have this store and trust it - return it
+        return target_details.store;
       }
 
       // Still fetching this store or don't trust it yet
@@ -314,7 +409,7 @@ namespace ccf::historical
         idx,
         (size_t)deserialise_result);
       const auto entry_hash = crypto::Sha256Hash(data);
-      process_deserialised_store(store, entry_hash, it->second);
+      process_deserialised_store(store, entry_hash, idx, it->second);
 
       if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
       {
