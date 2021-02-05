@@ -622,11 +622,9 @@ if(BUILD_TESTS)
 
   add_e2e_test(
     NAME js_limits_test
-    PYTHON_SCRIPT
-      ${CMAKE_SOURCE_DIR}/tests/js-limits/limits.py
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-limits/limits.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/tests/js-limits
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-limits
   )
 
   add_e2e_test(
