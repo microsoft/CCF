@@ -76,7 +76,7 @@ static void benchmark_verify(picobench::state& s)
   for (auto _ : s)
   {
     (void)_;
-    auto verified = kp->verify(contents, signature);
+    auto verified = pubk->verify(contents, signature);
     do_not_optimize(verified);
     clobber_memory();
   }
@@ -259,29 +259,70 @@ namespace
 PICOBENCH_SUITE("hash");
 namespace
 {
-  auto hash_384_1byte = benchmark_hash<MBedHashProvider, MDType::SHA384, 1>;
-  PICOBENCH(hash_384_1byte).PICO_HASH_SUFFIX();
-  auto hash_256k1_mbed_1byte =
-    benchmark_hash<MBedHashProvider, MDType::SHA256, 1>;
-  PICOBENCH(hash_256k1_mbed_1byte).PICO_HASH_SUFFIX();
-  // TODO: bitcoin hash
-  // auto hash_256k1_bitc_1byte = benchmark_hash<CurveID::secp256k1_bitcoin, 1>;
-  // PICOBENCH(hash_256k1_bitc_1byte).PICO_SUFFIX(CurveID::secp256k1_bitcoin);
+  auto sha_384_mbed_1byte = benchmark_hash<MBedHashProvider, MDType::SHA384, 1>;
+  PICOBENCH(sha_384_mbed_1byte).PICO_HASH_SUFFIX();
+  auto sha_256_mbed_1byte = benchmark_hash<MBedHashProvider, MDType::SHA256, 1>;
+  PICOBENCH(sha_256_mbed_1byte).PICO_HASH_SUFFIX();
+  auto sha_512_mbed_1byte = benchmark_hash<MBedHashProvider, MDType::SHA512, 1>;
+  PICOBENCH(sha_512_mbed_1byte).PICO_HASH_SUFFIX();
 
-  auto hash_384_1k = benchmark_hash<MBedHashProvider, MDType::SHA384, 1024>;
-  PICOBENCH(hash_384_1k).PICO_HASH_SUFFIX();
-  auto hash_256k1_mbed_1k =
-    benchmark_hash<MBedHashProvider, MDType::SHA256, 1024>;
-  PICOBENCH(hash_256k1_mbed_1k).PICO_HASH_SUFFIX();
-  // auto hash_256k1_bitc_1k = benchmark_hash<CurveID::secp256k1_bitcoin, 1024>;
-  // PICOBENCH(hash_256k1_bitc_1k).PICO_SUFFIX(CurveID::secp256k1_bitcoin);
+  auto sha_384_ossl_1byte =
+    benchmark_hash<OpenSSLHashProvider, MDType::SHA384, 1>;
+  PICOBENCH(sha_384_ossl_1byte).PICO_HASH_SUFFIX();
+  auto sha_256_ossl_1byte =
+    benchmark_hash<OpenSSLHashProvider, MDType::SHA256, 1>;
+  PICOBENCH(sha_256_ossl_1byte).PICO_HASH_SUFFIX();
+  auto sha_512_ossl_1byte =
+    benchmark_hash<OpenSSLHashProvider, MDType::SHA512, 1>;
+  PICOBENCH(sha_512_ossl_1byte).PICO_HASH_SUFFIX();
 
-  auto hash_384_100k = benchmark_hash<MBedHashProvider, MDType::SHA384, 102400>;
-  PICOBENCH(hash_384_100k).PICO_HASH_SUFFIX();
-  auto hash_256k1_mbed_100k =
+  auto sha_256_bitc_1byte =
+    benchmark_hash<BitcoinHashProvider, MDType::SHA256, 1>;
+  PICOBENCH(sha_256_bitc_1byte).PICO_HASH_SUFFIX();
+
+  auto sha_384_mbed_1k = benchmark_hash<MBedHashProvider, MDType::SHA384, 1024>;
+  PICOBENCH(sha_384_mbed_1k).PICO_HASH_SUFFIX();
+  auto sha_256_mbed_1k = benchmark_hash<MBedHashProvider, MDType::SHA256, 1024>;
+  PICOBENCH(sha_256_mbed_1k).PICO_HASH_SUFFIX();
+  auto sha_512_mbed_1k = benchmark_hash<MBedHashProvider, MDType::SHA512, 1024>;
+  PICOBENCH(sha_512_mbed_1k).PICO_HASH_SUFFIX();
+
+  auto sha_384_ossl_1k =
+    benchmark_hash<OpenSSLHashProvider, MDType::SHA384, 1024>;
+  PICOBENCH(sha_384_ossl_1k).PICO_HASH_SUFFIX();
+  auto sha_256_ossl_1k =
+    benchmark_hash<OpenSSLHashProvider, MDType::SHA256, 1024>;
+  PICOBENCH(sha_256_ossl_1k).PICO_HASH_SUFFIX();
+  auto sha_512_ossl_1k =
+    benchmark_hash<OpenSSLHashProvider, MDType::SHA512, 1024>;
+  PICOBENCH(sha_512_ossl_1k).PICO_HASH_SUFFIX();
+
+  auto sha_256_bitc_1k =
+    benchmark_hash<BitcoinHashProvider, MDType::SHA256, 1024>;
+  PICOBENCH(sha_256_bitc_1k).PICO_HASH_SUFFIX();
+
+  auto sha_384_mbed_100k =
+    benchmark_hash<MBedHashProvider, MDType::SHA384, 102400>;
+  PICOBENCH(sha_384_mbed_100k).PICO_HASH_SUFFIX();
+  auto sha_256_mbed_100k =
     benchmark_hash<MBedHashProvider, MDType::SHA256, 102400>;
-  PICOBENCH(hash_256k1_mbed_100k).PICO_HASH_SUFFIX();
-  // auto hash_256k1_bitc_100k =
-  //   benchmark_hash<CurveID::secp256k1_bitcoin, 102400>;
-  // PICOBENCH(hash_256k1_bitc_100k).PICO_SUFFIX(CurveID::secp256k1_bitcoin);
+  PICOBENCH(sha_256_mbed_100k).PICO_HASH_SUFFIX();
+  auto sha_512_mbed_100k =
+    benchmark_hash<MBedHashProvider, MDType::SHA512, 102400>;
+  PICOBENCH(sha_512_mbed_100k).PICO_HASH_SUFFIX();
+
+  auto sha_384_ossl_100k =
+    benchmark_hash<OpenSSLHashProvider, MDType::SHA384, 102400>;
+  PICOBENCH(sha_384_ossl_100k).PICO_HASH_SUFFIX();
+  auto sha_256_ossl_100k =
+    benchmark_hash<OpenSSLHashProvider, MDType::SHA256, 102400>;
+  PICOBENCH(sha_256_ossl_100k).PICO_HASH_SUFFIX();
+  auto sha_512_ossl_100k =
+    benchmark_hash<OpenSSLHashProvider, MDType::SHA512, 102400>;
+  PICOBENCH(sha_512_ossl_100k).PICO_HASH_SUFFIX();
+
+  auto sha_256_bitc_100k =
+    benchmark_hash<BitcoinHashProvider, MDType::SHA256, 102400>;
+  PICOBENCH(sha_256_bitc_100k).PICO_HASH_SUFFIX();
+
 }

@@ -1,6 +1,11 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 #pragma once
 
 #include "key_pair_mbedtls.h"
+
+#include <secp256k1/include/secp256k1.h>
+#include <secp256k1/include/secp256k1_recovery.h>
 
 namespace tls
 {

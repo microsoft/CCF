@@ -160,15 +160,18 @@ TEST_CASE("Sign, verify with alternate implementation")
   run_alt<KeyPair_k1Bitcoin, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
 
   run_alt<KeyPair_mbedTLS, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
-  run_alt<KeyPair_k1Bitcoin, PublicKey_mbedTLS, CurveID::SECP256K1>();
-
   run_alt<KeyPair_mbedTLS, PublicKey_OpenSSL, CurveID::SECP256K1>();
-  run_alt<KeyPair_OpenSSL, PublicKey_mbedTLS, CurveID::SECP256K1>();
 
+  run_alt<KeyPair_k1Bitcoin, PublicKey_mbedTLS, CurveID::SECP256K1>();
   run_alt<KeyPair_k1Bitcoin, PublicKey_OpenSSL, CurveID::SECP256K1>();
+
+  run_alt<KeyPair_OpenSSL, PublicKey_mbedTLS, CurveID::SECP256K1>();
   run_alt<KeyPair_OpenSSL, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
 
-  // TODO: More OpenSSL
+  run_alt<KeyPair_OpenSSL, PublicKey_mbedTLS, CurveID::SECP384R1>();
+  run_alt<KeyPair_mbedTLS, PublicKey_OpenSSL, CurveID::SECP384R1>();
+  run_alt<KeyPair_OpenSSL, PublicKey_mbedTLS, CurveID::SECP256R1>();
+  run_alt<KeyPair_mbedTLS, PublicKey_OpenSSL, CurveID::SECP256R1>();
 }
 
 TEST_CASE("Sign, verify with certificate")
