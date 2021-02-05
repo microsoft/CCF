@@ -121,8 +121,11 @@ namespace ccf
     tls::KeyPairPtr node_sign_kp;
     tls::KeyPairPtr node_encrypt_kp;
     tls::Pem node_cert;
-    std::vector<uint8_t> quote;
+    QuoteInfo quote_info;
     CodeDigest node_code_id;
+#ifdef GET_QUOTE
+    EnclaveAttestationProvider enclave_attestation_provider;
+#endif
 
     //
     // kv store, replication, and I/O
@@ -245,6 +248,22 @@ namespace ccf
       share_manager(share_manager)
     {}
 
+    QuoteVerificationResult verify_quote(
+      kv::ReadOnlyTx& tx,
+      const QuoteInfo& quote_info,
+      const tls::Pem& expected_node_public_key) override
+    {
+#ifdef GET_QUOTE
+      return enclave_attestation_provider.verify_quote_against_store(
+        tx, quote_info, expected_node_public_key);
+#else
+      (void)tx;
+      (void)quote_info;
+      (void)expected_node_public_key;
+      return QuoteVerificationResult::Verified;
+#endif
+    }
+
     //
     // funcs in state "uninitialized"
     //
@@ -280,19 +299,9 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      auto quote_opt =
-        QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
-      if (!quote_opt.has_value())
-      {
-        throw std::runtime_error("Quote could not be retrieved");
-      }
-      quote = quote_opt.value();
-      auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
-      if (!node_code_id_opt.has_value())
-      {
-        throw std::runtime_error("Code ID could not be retrieved from quote");
-      }
-      node_code_id = node_code_id_opt.value();
+      quote_info = enclave_attestation_provider.generate_quote(
+        node_sign_kp->public_key_pem());
+      node_code_id = enclave_attestation_provider.get_code_id(quote_info);
 #endif
 
       switch (start_type)
@@ -319,7 +328,7 @@ namespace ccf
           // network
           open_frontend(ActorsType::members);
 
-          if (!create_and_send_request(config, quote))
+          if (!create_and_send_request(config))
           {
             throw std::runtime_error(
               "Genesis transaction could not be committed");
@@ -328,7 +337,8 @@ namespace ccf
           accept_network_tls_connections(config);
           auto_refresh_jwt_keys(config);
 
-          reset_data(quote);
+          reset_data(quote_info.quote);
+          reset_data(quote_info.endorsements);
           sm.advance(State::partOfNetwork);
 
           return {node_cert, network.identity->cert};
@@ -550,7 +560,8 @@ namespace ccf
             }
             else
             {
-              reset_data(quote);
+              reset_data(quote_info.quote);
+              reset_data(quote_info.endorsements);
               sm.advance(State::partOfNetwork);
             }
 
@@ -579,7 +590,7 @@ namespace ccf
       join_params.node_info_network = config.node_info_network;
       join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
-      join_params.quote = quote;
+      join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
 
       LOG_DEBUG_FMT(
@@ -861,7 +872,7 @@ namespace ccf
 
       set_node_id(g.add_node({node_info_network,
                               node_cert,
-                              quote,
+                              quote_info,
                               node_encrypt_kp->public_key_pem().raw(),
                               NodeStatus::PENDING}));
 
@@ -1021,7 +1032,8 @@ namespace ccf
         }
       }
       open_user_frontend();
-      reset_data(quote);
+      reset_data(quote_info.quote);
+      reset_data(quote_info.endorsements);
       sm.advance(State::partOfNetwork);
     }
 
@@ -1373,7 +1385,7 @@ namespace ccf
     }
 
     std::vector<uint8_t> serialize_create_request(
-      const CCFConfig& config, const std::vector<uint8_t>& quote)
+      const CCFConfig& config, const QuoteInfo& quote_info)
     {
       CreateNetworkNodeToNode::In create_params;
 
@@ -1385,7 +1397,7 @@ namespace ccf
       create_params.gov_script = config.genesis.gov_script;
       create_params.node_cert = node_cert;
       create_params.network_cert = network.identity->cert;
-      create_params.quote = quote;
+      create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
@@ -1481,11 +1493,10 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_request(
-      const CCFConfig& config, const std::vector<uint8_t>& quote)
+    bool create_and_send_request(const CCFConfig& config)
     {
       const auto create_success =
-        send_create_request(serialize_create_request(config, quote));
+        send_create_request(serialize_create_request(config, quote_info));
       if (network.consensus_type == ConsensusType::BFT)
       {
         return true;

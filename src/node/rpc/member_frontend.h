@@ -1911,7 +1911,7 @@ namespace ccf
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
-                                  in.quote,
+                                  {in.quote_info},
                                   in.public_encryption_key,
                                   NodeStatus::TRUSTED});
 

@@ -7,6 +7,14 @@
 
 namespace ccf
 {
+  enum class QuoteVerificationResult
+  {
+    Verified = 0,
+    Failed,
+    FailedCodeIdNotFound,
+    FailedInvalidQuotedPublicKey,
+  };
+
   using ExtendedState = std::tuple<
     State,
     std::optional<kv::Version> /* recovery_target_seqno */,
@@ -29,5 +37,9 @@ namespace ccf
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
     virtual ExtendedState state() = 0;
     virtual void open_user_frontend() = 0;
+    virtual QuoteVerificationResult verify_quote(
+      kv::ReadOnlyTx& tx,
+      const QuoteInfo& quote_info,
+      const tls::Pem& expected_node_public_key) = 0;
   };
 }
