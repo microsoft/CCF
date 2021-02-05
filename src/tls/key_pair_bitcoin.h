@@ -62,15 +62,8 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type = MDType::NONE) override
+      size_t sig_size) override
     {
-      if (md_type == MDType::NONE)
-        md_type = MDType::SHA256;
-
-      if (md_type != MDType::SHA256)
-        throw std::logic_error("MDType not supported by BC");
-
       return verify_secp256k_bc(
         bc_ctx->p, sig, sig_size, hash, hash_size, &bc_pub);
     }
@@ -208,13 +201,8 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* signature,
-      size_t signature_size,
-      MDType md_type = MDType::NONE) override
+      size_t signature_size) override
     {
-      if (md_type == MDType::NONE)
-        md_type = MDType::SHA256;
-      if (md_type != MDType::SHA256)
-        throw std::logic_error("MDType not supported by BC");
       return verify_secp256k_bc(
         bc_ctx->p, signature, signature_size, hash, hash_size, &bc_pub);
     }
@@ -223,10 +211,9 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       size_t* sig_size,
-      uint8_t* sig,
-      MDType md_type = MDType::SHA256) const override
+      uint8_t* sig) const override
     {
-      if (hash_size != 32 || md_type != MDType::SHA256)
+      if (hash_size != 32)
         return -1;
 
       secp256k1_ecdsa_signature k1_sig;
@@ -244,14 +231,12 @@ namespace tls
     }
 
     virtual std::vector<uint8_t> sign_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      MDType md_type = MDType::NONE) const override
+      const uint8_t* hash, size_t hash_size) const override
     {
       uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
       size_t written = sizeof(sig);
 
-      if (sign_hash(hash, hash_size, &written, sig, md_type) != 0)
+      if (sign_hash(hash, hash_size, &written, sig) != 0)
       {
         return {};
       }

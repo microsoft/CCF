@@ -58,8 +58,7 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type = MDType::NONE) = 0;
+      size_t sig_size) = 0;
 
     /**
      * Verify that a signature was produced on contents with the private key
@@ -114,16 +113,13 @@ namespace tls
       const std::vector<uint8_t>& signature) = 0;
 
     virtual std::vector<uint8_t> sign_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      MDType md_type = MDType::NONE) const = 0;
+      const uint8_t* hash, size_t hash_size) const = 0;
 
     virtual int sign_hash(
       const uint8_t* hash,
       size_t hash_size,
       size_t* sig_size,
-      uint8_t* sig,
-      MDType md_type = MDType::NONE) const = 0;
+      uint8_t* sig) const = 0;
 
     virtual std::vector<uint8_t> sign(CBuffer d, MDType md_type = {}) const = 0;
 

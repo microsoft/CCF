@@ -143,41 +143,29 @@ namespace tls
       }
       OpenSSLHashProvider hp;
       bytes = hp.Hash(contents, contents_size, md_type);
-      return verify_hash(bytes.data(), bytes.size(), sig, sig_size, md_type);
+      return verify_hash(bytes.data(), bytes.size(), sig, sig_size);
     }
 
     virtual bool verify_hash(
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type = MDType::NONE) override
+      size_t sig_size) override
     {
-      std::cout << "MD:" << (int)md_type << std::endl;
-      const EVP_MD* md = get_md_type(md_type);
+      EVP_PKEY_CTX* pctx = NULL;
+      OPENSSL_CHECKNULL(pctx = EVP_PKEY_CTX_new(key, NULL));
+      OPENSSL_CHECK1(EVP_PKEY_verify_init(pctx));
+      int rc = EVP_PKEY_verify(pctx, sig, sig_size, hash, hash_size);
+      EVP_PKEY_CTX_free(pctx);
 
-      if (md_type == MDType::NONE)
-      {
-        md = get_md_type(get_md_for_ec(get_curve_id()));
-      }
-
-      auto pk = public_key_pem();
-      std::cout << "VPK:" << std::endl << pk.str() << std::endl;
-      hexdump("HASH", hash, hash_size);
-      hexdump("SIG ", sig, sig_size);
-
-      EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
-      OPENSSL_CHECK1(EVP_DigestVerifyInit(mdctx, NULL, md, NULL, key));
-      int rc = EVP_DigestVerify(mdctx, sig, sig_size, hash, hash_size);
       bool ok = rc == 1;
       if (!ok)
       {
         int ec = ERR_get_error();
         LOG_DEBUG_FMT(
-          "OpenSSL digest verification failure: {}",
+          "OpenSSL signature verification failure: {}",
           ERR_error_string(ec, NULL));
       }
-      EVP_MD_CTX_free(mdctx);
 
       return ok;
     }
@@ -316,7 +304,7 @@ namespace tls
       }
       OpenSSLHashProvider hp;
       HashBytes hash = hp.Hash(d.p, d.rawSize(), md_type);
-      return sign_hash(hash.data(), hash.size(), md_type);
+      return sign_hash(hash.data(), hash.size());
     }
 
     /**
@@ -339,7 +327,7 @@ namespace tls
       }
       OpenSSLHashProvider hp;
       HashBytes hash = hp.Hash(d.p, d.rawSize(), md_type);
-      return sign_hash(hash.data(), hash.size(), sig_size, sig, md_type);
+      return sign_hash(hash.data(), hash.size(), sig_size, sig);
     }
 
     /**
@@ -351,14 +339,12 @@ namespace tls
      * @return Signature as a vector
      */
     std::vector<uint8_t> sign_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      MDType md_type = MDType::NONE) const override
+      const uint8_t* hash, size_t hash_size) const override
     {
       std::vector<uint8_t> sig(EVP_PKEY_size(key));
       size_t written = sig.size();
 
-      if (sign_hash(hash, hash_size, &written, sig.data(), md_type) != 0)
+      if (sign_hash(hash, hash_size, &written, sig.data()) != 0)
       {
         return {};
       }
@@ -371,16 +357,13 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       size_t* sig_size,
-      uint8_t* sig,
-      MDType md_type = MDType::NONE) const override
+      uint8_t* sig) const override
     {
-      if (md_type == MDType::NONE)
-        md_type = get_md_for_ec(get_curve_id());
-      EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
-      const EVP_MD* omdt = get_md_type(md_type);
-      OPENSSL_CHECK1(EVP_DigestSignInit(mdctx, NULL, omdt, NULL, key));
-      OPENSSL_CHECK1(EVP_DigestSign(mdctx, sig, sig_size, hash, hash_size));
-      EVP_MD_CTX_free(mdctx);
+      EVP_PKEY_CTX* pctx = NULL;
+      OPENSSL_CHECKNULL(pctx = EVP_PKEY_CTX_new(key, NULL));
+      OPENSSL_CHECK1(EVP_PKEY_sign_init(pctx));
+      OPENSSL_CHECK1(EVP_PKEY_sign(pctx, sig, sig_size, hash, hash_size));
+      EVP_PKEY_CTX_free(pctx);
       return 0;
     }
 

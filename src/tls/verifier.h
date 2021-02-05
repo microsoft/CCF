@@ -107,7 +107,7 @@ namespace tls
       const uint8_t* sig,
       size_t sig_size)
     {
-      return public_key->verify_hash(hash, hash_size, sig, sig_size, md_type);
+      return public_key->verify_hash(hash, hash_size, sig, sig_size);
     }
 
     virtual bool verify_hash(

@@ -122,27 +122,18 @@ namespace tls
       }
       MBedHashProvider hp;
       bytes = hp.Hash(contents, contents_size, md_type);
-      return verify_hash(bytes.data(), bytes.size(), sig, sig_size, md_type);
+      return verify_hash(bytes.data(), bytes.size(), sig, sig_size);
     }
 
     virtual bool verify_hash(
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type = MDType::NONE) override
+      size_t sig_size) override
     {
-      mbedtls_md_type_t mmdt = get_md_type(md_type);
-
-      if (mmdt == MBEDTLS_MD_NONE)
-      {
-        md_type = get_md_for_ec(get_curve_id(), true);
-        if (
-          md_type == MDType::NONE &&
-          mbedtls_pk_can_do(ctx.get(), MBEDTLS_PK_RSA))
-          md_type = MDType::SHA256;
-        mmdt = get_md_type(md_type);
-      }
+      // mbedTLS wants an MD algorithm; even when it doesn't use it, it stil
+      // checks that the hash size matches.
+      const auto mmdt = get_md_type(get_md_for_ec(get_curve_id()));
 
       int rc =
         mbedtls_pk_verify(ctx.get(), mmdt, hash, hash_size, sig, sig_size);
@@ -301,7 +292,7 @@ namespace tls
       }
       MBedHashProvider hp;
       HashBytes hash = hp.Hash(d.p, d.rawSize(), md_type);
-      return sign_hash(hash.data(), hash.size(), md_type);
+      return sign_hash(hash.data(), hash.size());
     }
 
     /**
@@ -328,7 +319,7 @@ namespace tls
       }
       MBedHashProvider hp;
       HashBytes hash = hp.Hash(d.p, d.rawSize(), md_type);
-      return sign_hash(hash.data(), hash.size(), sig_size, sig, md_type);
+      return sign_hash(hash.data(), hash.size(), sig_size, sig);
     }
 
     /**
@@ -340,14 +331,12 @@ namespace tls
      * @return Signature as a vector
      */
     std::vector<uint8_t> sign_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      MDType md_type = MDType::NONE) const override
+      const uint8_t* hash, size_t hash_size) const override
     {
       uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
       size_t written = sizeof(sig);
 
-      if (sign_hash(hash, hash_size, &written, sig, md_type) != 0)
+      if (sign_hash(hash, hash_size, &written, sig) != 0)
       {
         return {};
       }
@@ -359,15 +348,13 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       size_t* sig_size,
-      uint8_t* sig,
-      MDType md_type = MDType::NONE) const override
+      uint8_t* sig) const override
     {
-      std::cout << "MD:" << (int)md_type << std::endl;
       EntropyPtr entropy = create_entropy();
 
-      if (md_type == MDType::NONE)
-        md_type = get_md_for_ec(get_curve_id());
-      const auto mmdt = get_md_type(md_type);
+      // mbedTLS wants an MD algorithm; even when it doesn't use it, it stil
+      // checks that the hash size matches.
+      const auto mmdt = get_md_type(get_md_for_ec(get_curve_id()));
 
       int r = mbedtls_pk_sign(
         ctx.get(),
@@ -378,11 +365,6 @@ namespace tls
         sig_size,
         entropy->get_rng(),
         entropy->get_data());
-
-      auto pk = public_key_pem();
-      std::cout << "SPK:" << std::endl << pk.str() << std::endl;
-      hexdump("HASH", hash, hash_size);
-      hexdump("SIG ", sig, *sig_size);
 
       return r;
     }

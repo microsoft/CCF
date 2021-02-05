@@ -156,7 +156,7 @@ void run_alt()
 TEST_CASE("Sign, verify with alternate implementation")
 {
   run_alt<KeyPair_mbedTLS, PublicKey_mbedTLS, CurveID::SECP256K1>();
-  //  run_alt<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP256K1>();
+  run_alt<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP256K1>();
   run_alt<KeyPair_k1Bitcoin, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
 
   run_alt<KeyPair_mbedTLS, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
