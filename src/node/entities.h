@@ -75,8 +75,6 @@ namespace ccf
     static constexpr auto USER_CERT_DERS =
       "public:ccf.internal.users.certs_der";
     static constexpr auto USER_DIGESTS = "public:ccf.internal.users.digests";
-    static constexpr auto SERVICE_PRINCIPALS =
-      "public:ccf.gov.service_principals";
 
     // Nodes identities and allowed code ids
     static constexpr auto NODES = "public:ccf.gov.nodes.info";
@@ -92,10 +90,11 @@ namespace ccf
     static constexpr auto GOV_HISTORY = "public:ccf.gov.history";
     static constexpr auto WHITELISTS = "public:ccf.gov.whitelists";
 
-    // JS applications
-    static constexpr auto APP_SCRIPTS = "public:ccf.app.scripts";
-    static constexpr auto MODULES = "public:ccf.app.modules";
-    static constexpr auto ENDPOINTS = "public:ccf.app.endpoints";
+    // JS applications, not service specific but writable by governance only
+    static constexpr auto APP_SCRIPTS = "public:gov.scripts";
+    static constexpr auto MODULES = "public:gov.modules";
+    static constexpr auto ENDPOINTS = "public:gov.endpoints";
+    static constexpr auto SERVICE_PRINCIPALS = "public:gov.service_principals";
 
     // JWT issuers
     static constexpr auto CA_CERT_DERS = "public:ccf.gov.jwt.ca_certs_der";
