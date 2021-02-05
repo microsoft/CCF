@@ -36060,9 +36060,6 @@ int JS_SetModuleExportList(JSContext *ctx, JSModuleDef *m,
     return 0;
 }
 
-#include "quickjs-exports.c"
-#include "quickjs-stack.c"
-
 /* Note: 'func_obj' is not necessarily a constructor */
 static void JS_SetConstructor2(JSContext *ctx,
                                JSValueConst func_obj,
@@ -53801,3 +53798,5 @@ void JS_AddIntrinsicTypedArrays(JSContext *ctx)
     JS_AddIntrinsicAtomics(ctx);
 #endif
 }
+
+#include <quickjs-extras/quickjs-extras.c>

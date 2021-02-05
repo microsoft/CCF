@@ -9,8 +9,7 @@
 #include "tls/rsa_key_pair.h"
 
 #include <memory>
-#include <quickjs/quickjs-exports.h>
-#include <quickjs/quickjs-stack.h>
+#include <quickjs-extras/quickjs-extras.h>
 #include <quickjs/quickjs.h>
 #include <vector>
 
