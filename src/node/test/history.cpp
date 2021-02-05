@@ -13,6 +13,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
+#undef FAIL
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
@@ -31,7 +32,7 @@ public:
     {
       REQUIRE(entries.size() == 1);
       return store->apply(*std::get<1>(entries[0]), ConsensusType::CFT)
-        ->execute();
+               ->execute() != kv::ApplyResult::FAIL;
     }
     return true;
   }

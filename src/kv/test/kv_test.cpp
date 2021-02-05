@@ -10,6 +10,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#undef FAIL
 #include <msgpack/msgpack.hpp>
 #include <set>
 #include <string>
@@ -1100,7 +1101,7 @@ TEST_CASE("Deserialising from other Store")
   clone.set_encryptor(encryptor);
 
   REQUIRE(
-    clone.apply(data, ConsensusType::CFT)->execute() == kv::ApplySuccess::PASS);
+    clone.apply(data, ConsensusType::CFT)->execute() == kv::ApplyResult::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -1125,7 +1126,7 @@ TEST_CASE("Deserialise return status")
 
     REQUIRE(
       store.apply(data, ConsensusType::CFT)->execute() ==
-      kv::ApplySuccess::PASS);
+      kv::ApplyResult::PASS);
   }
 
   {
@@ -1138,7 +1139,7 @@ TEST_CASE("Deserialise return status")
 
     REQUIRE(
       store.apply(data, ConsensusType::CFT)->execute() ==
-      kv::ApplySuccess::PASS_SIGNATURE);
+      kv::ApplyResult::PASS_SIGNATURE);
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -1154,7 +1155,7 @@ TEST_CASE("Deserialise return status")
 
     REQUIRE(
       store.apply(data, ConsensusType::CFT)->execute() ==
-      kv::ApplySuccess::FAILED);
+      kv::ApplyResult::FAIL);
   }
 }
 

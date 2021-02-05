@@ -123,7 +123,7 @@ static void apply(picobench::state& s)
   auto rc =
     kv_store2.apply(consensus->get_latest_data().value(), ConsensusType::CFT)
       ->execute();
-  if (rc != kv::ApplySuccess::PASS)
+  if (rc != kv::ApplyResult::PASS)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));
   s.stop_timer();

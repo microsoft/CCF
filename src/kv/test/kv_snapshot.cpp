@@ -7,6 +7,7 @@
 #include "kv/tx.h"
 
 #include <doctest/doctest.h>
+#undef FAIL
 
 struct MapTypes
 {
@@ -59,7 +60,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
       new_store.deserialise_snapshot(first_serialised_snapshot, hooks),
-      kv::ApplySuccess::PASS);
+      kv::ApplyResult::PASS);
     REQUIRE_EQ(new_store.current_version(), first_snapshot_version);
 
     auto tx1 = new_store.create_tx();
