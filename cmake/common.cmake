@@ -532,22 +532,25 @@ function(add_perf_test)
 
   set(TESTS_SUFFIX "")
   if("sgx" IN_LIST COMPILE_TARGETS)
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_SGX")
-  endif()
-  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_CFT")
-  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_BFT")
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
   endif()
 
+  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
+  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_bft")
+  endif()
+
+  set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
+
   if(PARSED_ARGS_LABEL)
-    set(LABEL_ARG "${PARSED_ARGS_LABEL}${TESTS_SUFFIX}^")
+    set(LABEL_ARG "${TEST_NAME}^")
   else()
-    set(LABEL_ARG "${PARSED_ARGS_NAME}${TESTS_SUFFIX}^")
+    set(LABEL_ARG "${TEST_NAME}^")
   endif()
 
   add_test(
-    NAME ${PARSED_ARGS_NAME}
+    NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS} -g
@@ -558,24 +561,24 @@ function(add_perf_test)
 
   # Make python test client framework importable
   set_property(
-    TEST ${PARSED_ARGS_NAME}
+    TEST ${TEST_NAME}
     APPEND
     PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
-      TEST ${PARSED_ARGS_NAME}
+      TEST ${TEST_NAME}
       APPEND
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
   set_property(
-    TEST ${PARSED_ARGS_NAME}
+    TEST ${TEST_NAME}
     APPEND
     PROPERTY LABELS perf
   )
   set_property(
-    TEST ${PARSED_ARGS_NAME}
+    TEST ${TEST_NAME}
     APPEND
     PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
   )
