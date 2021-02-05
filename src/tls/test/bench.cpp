@@ -116,7 +116,9 @@ namespace
   PICOBENCH(sign_384_1byte).PICO_SUFFIX(CurveID::SECP384R1);
   auto sign_256k1_mbed_1byte =
     benchmark_sign<KeyPair_mbedTLS, CurveID::SECP256K1, 1>;
-  PICOBENCH(sign_256k1_mbed_1byte).PICO_SUFFIX(CurveID::SECP256K1);
+  auto sign_256r1_mbed_1byte =
+    benchmark_sign<KeyPair_mbedTLS, CurveID::SECP256R1, 1>;
+  PICOBENCH(sign_256r1_mbed_1byte).PICO_SUFFIX(CurveID::SECP256R1);
   auto sign_256k1_bitc_1byte =
     benchmark_sign<KeyPair_k1Bitcoin, CurveID::SECP256K1, 1>;
   PICOBENCH(sign_256k1_bitc_1byte).PICO_SUFFIX(CurveID::SECP256K1);
@@ -134,7 +136,9 @@ namespace
   PICOBENCH(sign_384_1k).PICO_SUFFIX(CurveID::SECP384R1);
   auto sign_256k1_mbed_1k =
     benchmark_sign<KeyPair_mbedTLS, CurveID::SECP256K1, 1024>;
-  PICOBENCH(sign_256k1_mbed_1k).PICO_SUFFIX(CurveID::SECP256K1);
+  auto sign_256r1_1k =
+    benchmark_sign<KeyPair_mbedTLS, CurveID::SECP256R1, 1024>;
+  PICOBENCH(sign_256r1_1k).PICO_SUFFIX(CurveID::SECP256R1);
   auto sign_256k1_bitc_1k =
     benchmark_sign<KeyPair_k1Bitcoin, CurveID::SECP256K1, 1024>;
   PICOBENCH(sign_256k1_bitc_1k).PICO_SUFFIX(CurveID::SECP256K1);
@@ -154,6 +158,9 @@ namespace
   auto sign_256k1_mbed_100k =
     benchmark_sign<KeyPair_mbedTLS, CurveID::SECP256K1, 102400>;
   PICOBENCH(sign_256k1_mbed_100k).PICO_SUFFIX(CurveID::SECP256K1);
+  auto sign_256r1_mbed_100k =
+    benchmark_sign<KeyPair_mbedTLS, CurveID::SECP256K1, 102400>;
+  PICOBENCH(sign_256r1_mbed_100k).PICO_SUFFIX(CurveID::SECP256R1);
   auto sign_256k1_bitc_100k =
     benchmark_sign<KeyPair_k1Bitcoin, CurveID::SECP256K1, 102400>;
   PICOBENCH(sign_256k1_bitc_100k).PICO_SUFFIX(CurveID::SECP256K1);
@@ -177,6 +184,9 @@ namespace
   auto verify_256k1_mbed_1byte =
     benchmark_verify<KeyPair_mbedTLS, PublicKey_mbedTLS, CurveID::SECP256K1, 1>;
   PICOBENCH(verify_256k1_mbed_1byte).PICO_SUFFIX(CurveID::SECP256K1);
+  auto verify_256r1_mbed_1byte =
+    benchmark_verify<KeyPair_mbedTLS, PublicKey_mbedTLS, CurveID::SECP256R1, 1>;
+  PICOBENCH(verify_256r1_mbed_1byte).PICO_SUFFIX(CurveID::SECP256R1);
   auto verify_256k1_bitc_1byte = benchmark_verify<
     KeyPair_k1Bitcoin,
     PublicKey_k1Bitcoin,
@@ -191,7 +201,7 @@ namespace
   PICOBENCH(verify_256k1_ossl_1byte).PICO_SUFFIX(CurveID::SECP256K1);
   auto verify_256r1_ossl_1byte =
     benchmark_verify<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP256R1, 1>;
-  PICOBENCH(verify_256r1_ossl_1byte).PICO_SUFFIX(CurveID::SECP384R1);
+  PICOBENCH(verify_256r1_ossl_1byte).PICO_SUFFIX(CurveID::SECP256R1);
 
   auto verify_384_1k = benchmark_verify<
     KeyPair_mbedTLS,
@@ -205,12 +215,24 @@ namespace
     CurveID::SECP256K1,
     1024>;
   PICOBENCH(verify_256k1_mbed_1k).PICO_SUFFIX(CurveID::SECP256K1);
+  auto verify_256r1_mbed_1k = benchmark_verify<
+    KeyPair_mbedTLS,
+    PublicKey_mbedTLS,
+    CurveID::SECP256R1,
+    1024>;
+  PICOBENCH(verify_256r1_mbed_1k).PICO_SUFFIX(CurveID::SECP256R1);
   auto verify_256k1_bitc_1k = benchmark_verify<
     KeyPair_k1Bitcoin,
     PublicKey_k1Bitcoin,
     CurveID::SECP256K1,
     1024>;
   PICOBENCH(verify_256k1_bitc_1k).PICO_SUFFIX(CurveID::SECP256K1);
+  auto verify_384_ossl_1k = benchmark_verify<
+    KeyPair_OpenSSL,
+    PublicKey_OpenSSL,
+    CurveID::SECP384R1,
+    1024>;
+  PICOBENCH(verify_384_ossl_1k).PICO_SUFFIX(CurveID::SECP384R1);
   auto verify_256k1_ossl_1k = benchmark_verify<
     KeyPair_OpenSSL,
     PublicKey_OpenSSL,
@@ -222,7 +244,7 @@ namespace
     PublicKey_OpenSSL,
     CurveID::SECP256R1,
     1024>;
-  PICOBENCH(verify_256r1_ossl_1k).PICO_SUFFIX(CurveID::SECP384R1);
+  PICOBENCH(verify_256r1_ossl_1k).PICO_SUFFIX(CurveID::SECP256R1);
 
   auto verify_384_100k = benchmark_verify<
     KeyPair_mbedTLS,
@@ -236,12 +258,24 @@ namespace
     CurveID::SECP256K1,
     102400>;
   PICOBENCH(verify_256k1_mbed_100k).PICO_SUFFIX(CurveID::SECP256K1);
+  auto verify_256r1_mbed_100k = benchmark_verify<
+    KeyPair_mbedTLS,
+    PublicKey_mbedTLS,
+    CurveID::SECP256R1,
+    102400>;
+  PICOBENCH(verify_256r1_mbed_100k).PICO_SUFFIX(CurveID::SECP256R1);
   auto verify_256k1_bitc_100k = benchmark_verify<
     KeyPair_k1Bitcoin,
     PublicKey_k1Bitcoin,
     CurveID::SECP256K1,
     102400>;
   PICOBENCH(verify_256k1_bitc_100k).PICO_SUFFIX(CurveID::SECP256K1);
+  auto verify_384_ossl_100k = benchmark_verify<
+    KeyPair_OpenSSL,
+    PublicKey_OpenSSL,
+    CurveID::SECP384R1,
+    102400>;
+  PICOBENCH(verify_384_ossl_100k).PICO_SUFFIX(CurveID::SECP384R1);
   auto verify_256k1_ossl_100k = benchmark_verify<
     KeyPair_OpenSSL,
     PublicKey_OpenSSL,
@@ -253,7 +287,7 @@ namespace
     PublicKey_OpenSSL,
     CurveID::SECP256R1,
     102400>;
-  PICOBENCH(verify_256r1_ossl_100k).PICO_SUFFIX(CurveID::SECP384R1);
+  PICOBENCH(verify_256r1_ossl_100k).PICO_SUFFIX(CurveID::SECP256R1);
 }
 
 PICOBENCH_SUITE("hash");
