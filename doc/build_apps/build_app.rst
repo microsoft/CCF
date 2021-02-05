@@ -19,7 +19,7 @@ The :term:`Open Enclave` configuration file (``oe_sign.conf``) should be placed 
 
 .. literalinclude:: ../../samples/apps/logging/oe_sign.conf
 
-.. note:: The `Open Enclave documentation <https://github.com/openenclave/openenclave/blob/master/docs/GettingStartedDocs/buildandsign.md#signing-an-SGX-enclave>`_ provides details about the enclave settings in the ``oe_sign.conf`` configuration file.
+.. note:: The `Open Enclave documentation <https://github.com/openenclave/openenclave/blob/main/docs/GettingStartedDocs/buildandsign.md#signing-an-SGX-enclave>`_ provides details about the enclave settings in the ``oe_sign.conf`` configuration file.
 
 Standalone Signing
 ------------------
@@ -56,4 +56,4 @@ It is then possible to inspect the signed enclave library:
 
 For a given application, the ``signature`` field depends on the key used to sign the enclave. See :ref:`governance/common_member_operations:Updating Code Version` for instructions on how members can register new application versions (``mrenclave`` field).
 
-.. note:: The `Open Enclave documentation <https://github.com/openenclave/openenclave/blob/master/docs/GettingStartedDocs/buildandsign.md#signing-an-SGX-enclave>`_. provides further details about how to sign enclave applications using ``oesign``.
+.. note:: The `Open Enclave documentation <https://github.com/openenclave/openenclave/blob/main/docs/GettingStartedDocs/buildandsign.md#signing-an-SGX-enclave>`_. provides further details about how to sign enclave applications using ``oesign``.

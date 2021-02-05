@@ -825,11 +825,10 @@ if(BUILD_TESTS)
   endforeach()
 
   add_perf_test(
-    NAME logging_scenario_perf_test
+    NAME ls
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -844,11 +843,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_ws_perf_test
+    NAME ls_ws
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_ws
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -864,11 +862,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_jwt_perf_test
+    NAME ls_jwt
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_jwt
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -884,11 +881,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_js_perf_test
+    NAME ls_js
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_js
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -903,11 +899,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_js_jwt_perf_test
+    NAME ls_js_jwt
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_js_jwt
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
