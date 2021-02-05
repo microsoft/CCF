@@ -3,6 +3,7 @@
 #include "enclave/app_interface.h"
 #include "formatters.h"
 #include "logging_schema.h"
+#include "node/historical_queries_adapter.h"
 #include "node/quote.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"

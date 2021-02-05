@@ -36,7 +36,8 @@ namespace ccf::historical
       ExpiryDuration expire_after) = 0;
 
     // Uses default expiry duration
-    virtual StorePtr get_store_at(RequestHandle handle, consensus::Index idx) = 0;
+    virtual StorePtr get_store_at(
+      RequestHandle handle, consensus::Index idx) = 0;
 
     // Returns false if the handle is unknown
     virtual bool drop_request(RequestHandle handle) = 0;

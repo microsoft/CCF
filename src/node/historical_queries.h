@@ -188,7 +188,6 @@ namespace ccf::historical
     void process_deserialised_store(
       const StorePtr& store,
       const crypto::Sha256Hash& entry_hash,
-      consensus::Index idx,
       const HandleSet& requesting_handles)
     {
       for (const auto handle : requesting_handles)
@@ -315,7 +314,7 @@ namespace ccf::historical
         idx,
         (size_t)deserialise_result);
       const auto entry_hash = crypto::Sha256Hash(data);
-      process_deserialised_store(store, entry_hash, idx, it->second);
+      process_deserialised_store(store, entry_hash, it->second);
 
       if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
       {
