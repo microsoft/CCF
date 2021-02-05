@@ -51,7 +51,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "id": 100
         }
 
-The C++ implementation of the Logging application is located in the `src/apps <https://github.com/microsoft/CCF/tree/master/src/apps>`_ folder. It is discussed in detail on the following pages:
+The C++ implementation of the Logging application is located in the `src/apps <https://github.com/microsoft/CCF/tree/main/src/apps>`_ folder. It is discussed in detail on the following pages:
 
 .. toctree::
    :maxdepth: 2

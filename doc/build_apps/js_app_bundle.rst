@@ -38,7 +38,7 @@ It consists of :ref:`metadata <build_apps/js_app_bundle:Metadata>` (``app.json``
 JavaScript modules can `import <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import>`_ other modules using relative path names.
 
 You can find an example app bundle in the
-`tests/js-app-bundle <https://github.com/microsoft/CCF/tree/master/tests/js-app-bundle>`_
+`tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_
 folder of the CCF git repository.
 
 Metadata
@@ -92,7 +92,7 @@ Each endpoint object contains the following information:
   types of the endpoint's requests or responses.
 
 You can find an example metadata file at
-`tests/js-app-bundle/app.json <https://github.com/microsoft/CCF/tree/master/tests/js-app-bundle/app.json>`_
+`tests/js-app-bundle/app.json <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle/app.json>`_
 in the CCF git repository.
 
 .. note::
@@ -156,7 +156,7 @@ A ``Response`` object can contain the following fields (all optional):
   The content type in parentheses is the default and can be overridden in ``headers``.
 
 See the following handler from the example app bundle in the
-`tests/js-app-bundle <https://github.com/microsoft/CCF/tree/master/tests/js-app-bundle>`_
+`tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_
 folder of the CCF git repository.
 It validates the request body and returns the result of a mathematical operation:
 
