@@ -184,7 +184,7 @@ namespace tls
 
       BUF_MEM* bptr;
       BIO_get_mem_ptr(buf, &bptr);
-      Pem result = Pem((uint8_t*)bptr->data, bptr->length);
+      Pem result((uint8_t*)bptr->data, bptr->length);
       BIO_free(buf);
 
       return result;
@@ -294,7 +294,7 @@ namespace tls
 
       BUF_MEM* bptr;
       BIO_get_mem_ptr(buf, &bptr);
-      Pem result = Pem((uint8_t*)bptr->data, bptr->length);
+      Pem result((uint8_t*)bptr->data, bptr->length);
       BIO_free(buf);
 
       return result;
@@ -429,7 +429,7 @@ namespace tls
 
       BUF_MEM* bptr;
       BIO_get_mem_ptr(mem, &bptr);
-      Pem result = Pem((uint8_t*)bptr->data, bptr->length);
+      Pem result((uint8_t*)bptr->data, bptr->length);
       BIO_free(mem);
 
       X509_REQ_free(req);
@@ -566,7 +566,7 @@ namespace tls
       // Export
       BUF_MEM* bptr;
       BIO_get_mem_ptr(mem, &bptr);
-      Pem result = Pem((uint8_t*)bptr->data, bptr->length);
+      Pem result((uint8_t*)bptr->data, bptr->length);
       BIO_free(mem);
 
       X509_REQ_free(csr);

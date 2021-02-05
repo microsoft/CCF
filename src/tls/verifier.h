@@ -296,7 +296,7 @@ namespace tls
 
       BUF_MEM* bptr;
       BIO_get_mem_ptr(buf, &bptr);
-      Pem pk_pem = Pem((uint8_t*)bptr->data, bptr->length);
+      Pem pk_pem((uint8_t*)bptr->data, bptr->length);
       BIO_free(buf);
 
       if (EVP_PKEY_get0_EC_KEY(pk))
@@ -332,32 +332,28 @@ namespace tls
 
     virtual std::vector<uint8_t> cert_der() override
     {
-      // return {cert->raw.p, cert->raw.p + cert->raw.len};
-      return {};
+      BIO* mem = BIO_new(BIO_s_mem());
+      OPENSSL_CHECK1(i2d_X509_bio(mem, cert));
+
+      BUF_MEM* bptr;
+      BIO_get_mem_ptr(mem, &bptr);
+      std::vector<uint8_t> result = {(uint8_t*)bptr->data,
+                                     (uint8_t*)bptr->data + bptr->length};
+      BIO_free(mem);
+      return result;
     }
 
     virtual Pem cert_pem() override
     {
-      return Pem();
-      // unsigned char buf[max_pem_cert_size];
-      // size_t len;
+      BIO* mem = BIO_new(BIO_s_mem());
+      OPENSSL_CHECK1(i2d_X509_bio(mem, cert));
 
-      // auto rc = mbedtls_pem_write_buffer(
-      //   PEM_CERTIFICATE_HEADER,
-      //   PEM_CERTIFICATE_FOOTER,
-      //   cert->raw.p,
-      //   cert->raw.len,
-      //   buf,
-      //   max_pem_cert_size,
-      //   &len);
+      BUF_MEM* bptr;
+      BIO_get_mem_ptr(mem, &bptr);
+      Pem result((uint8_t*)bptr->data, bptr->length);
+      BIO_free(mem);
 
-      // if (rc != 0)
-      // {
-      //   throw std::logic_error(
-      //     "mbedtls_pem_write_buffer failed: " + error_string(rc));
-      // }
-
-      // return Pem(buf, len);
+      return result;
     }
   };
 
