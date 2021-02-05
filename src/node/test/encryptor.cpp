@@ -23,7 +23,7 @@ void commit_one(kv::Store& store, StringString& map)
   auto tx = store.create_tx();
   auto m = tx.rw(map);
   m->put("key", "value");
-  REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 }
 
 bool encrypt_round_trip(

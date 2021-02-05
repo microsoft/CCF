@@ -878,7 +878,7 @@ namespace kv
       return compacted;
     }
 
-    CommitSuccess commit(
+    CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) override
@@ -886,7 +886,7 @@ namespace kv
       auto c = get_consensus();
       if (!c)
       {
-        return CommitSuccess::OK;
+        return CommitResult::SUCCESS;
       }
 
       LOG_DEBUG_FMT(
@@ -909,7 +909,7 @@ namespace kv
           LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}", txid.term, term);
 
-          return CommitSuccess::NO_REPLICATE;
+          return CommitResult::FAIL_NO_REPLICATE;
         }
 
         if (globally_committable && txid.version > last_committable)
@@ -939,7 +939,7 @@ namespace kv
           // they did succeed, and signatures cannot conflict because they
           // execute in order with a read_version that's version - 1, so even
           // two contiguous signatures are fine
-          if (success_ != CommitSuccess::OK)
+          if (success_ != CommitResult::SUCCESS)
             LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
 
           if (h)
@@ -956,7 +956,7 @@ namespace kv
         }
 
         if (batch.size() == 0)
-          return CommitSuccess::OK;
+          return CommitResult::SUCCESS;
 
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;
@@ -974,12 +974,12 @@ namespace kv
         {
           last_replicated = next_last_replicated;
         }
-        return CommitSuccess::OK;
+        return CommitResult::SUCCESS;
       }
       else
       {
         LOG_DEBUG_FMT("Failed to replicate");
-        return CommitSuccess::NO_REPLICATE;
+        return CommitResult::FAIL_NO_REPLICATE;
       }
     }
 

@@ -99,7 +99,7 @@ namespace ccf
       evidence->put(0, {snapshot_hash, snapshot_version});
 
       auto rc = tx.commit();
-      if (rc != kv::CommitSuccess::OK)
+      if (rc != kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
           "Could not commit snapshot evidence for seqno {}: {}",

@@ -84,7 +84,7 @@ static void serialise(picobench::state& s)
 
   s.start_timer();
   auto rc = tx.commit();
-  if (rc != kv::CommitSuccess::OK)
+  if (rc != kv::CommitResult::SUCCESS)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
   s.stop_timer();
 }
@@ -156,7 +156,7 @@ static void commit_latency(picobench::state& s)
     }
 
     auto rc = tx.commit();
-    if (rc != kv::CommitSuccess::OK)
+    if (rc != kv::CommitResult::SUCCESS)
     {
       throw std::logic_error(
         "Transaction commit failed: " + std::to_string(rc));
@@ -191,7 +191,7 @@ static void ser_snap(picobench::state& s)
   }
 
   auto rc = tx.commit();
-  if (rc != kv::CommitSuccess::OK)
+  if (rc != kv::CommitResult::SUCCESS)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
 
   s.start_timer();
@@ -226,7 +226,7 @@ static void des_snap(picobench::state& s)
   }
 
   auto rc = tx.commit();
-  if (rc != kv::CommitSuccess::OK)
+  if (rc != kv::CommitResult::SUCCESS)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
 
   auto snap = kv_store.snapshot(tx.commit_version());

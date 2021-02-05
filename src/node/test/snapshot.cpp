@@ -39,7 +39,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto tx = source_store.create_tx();
       auto map = tx.rw(string_map);
       map->put(fmt::format("key#{}", i), "value");
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
   }
 
@@ -129,7 +129,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto tx = source_store.create_tx();
       auto map = tx.rw(string_map);
       map->put("key", "value");
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
       auto serialised_tx = source_consensus->get_latest_data().value();
 

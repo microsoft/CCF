@@ -94,7 +94,7 @@ TEST_CASE("Check signature verification")
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
-    REQUIRE(txs.commit() == kv::CommitSuccess::OK);
+    REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
   INFO("Issue signature, and verify successfully on backup");
@@ -110,7 +110,7 @@ TEST_CASE("Check signature verification")
     ccf::PrimarySignature bogus(0, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
     tx->put(0, bogus);
-    REQUIRE(txs.commit() == kv::CommitSuccess::NO_REPLICATE);
+    REQUIRE(txs.commit() == kv::CommitResult::FAIL_NO_REPLICATE);
   }
 }
 
@@ -149,7 +149,7 @@ TEST_CASE("Check signing works across rollback")
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
-    REQUIRE(txs.commit() == kv::CommitSuccess::OK);
+    REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
   INFO("Transaction that we will roll back");
@@ -158,7 +158,7 @@ TEST_CASE("Check signing works across rollback")
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
     tx->put(1, ni);
-    REQUIRE(txs.commit() == kv::CommitSuccess::OK);
+    REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
   primary_store.rollback(1);
@@ -275,7 +275,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 1);
   }
 
@@ -286,7 +286,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 2);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 1);
 
     store.commit(
@@ -299,7 +299,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 3);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 4);
   }
 }
@@ -376,7 +376,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 1);
   }
 
@@ -385,7 +385,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 2);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 2);
   }
 
@@ -394,7 +394,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 3);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 3);
   }
 }
@@ -414,7 +414,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 1);
   }
 
@@ -423,7 +423,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 2);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 2);
   }
 
@@ -432,7 +432,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 3);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 3);
   }
 }

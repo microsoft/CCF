@@ -99,11 +99,11 @@ namespace kv
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
-  enum CommitSuccess
+  enum CommitResult
   {
-    OK,
-    CONFLICT,
-    NO_REPLICATE
+    SUCCESS = 1,
+    FAIL_CONFLICT = 2,
+    FAIL_NO_REPLICATE = 3
   };
 
   enum SecurityDomain
@@ -367,13 +367,13 @@ namespace kv
 
   struct PendingTxInfo
   {
-    CommitSuccess success;
+    CommitResult success;
     TxHistory::RequestID reqid;
     std::vector<uint8_t> data;
     std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
-      CommitSuccess success_,
+      CommitResult success_,
       TxHistory::RequestID reqid_,
       std::vector<uint8_t>&& data_,
       std::vector<ConsensusHookPtr>&& hooks_) :
@@ -411,7 +411,7 @@ namespace kv
     PendingTxInfo call() override
     {
       return PendingTxInfo(
-        CommitSuccess::OK,
+        CommitResult::SUCCESS,
         std::move(req_id),
         std::move(data),
         std::move(hooks));
@@ -581,7 +581,7 @@ namespace kv
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
-    virtual CommitSuccess commit(
+    virtual CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
