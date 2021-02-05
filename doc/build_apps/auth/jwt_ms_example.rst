@@ -1,7 +1,7 @@
 JWT Authentication example using Microsoft Identity Platform
 ------------------------------------------------------------
 
-The `Forum sample app <https://github.com/microsoft/CCF/blob/master/samples/apps/forum>`_ of CCF uses the `Microsoft Identity Platform <https://aka.ms/IdentityPlatform>`_ for user authentication.
+The `Forum sample app <https://github.com/microsoft/CCF/blob/main/samples/apps/forum>`_ of CCF uses the `Microsoft Identity Platform <https://aka.ms/IdentityPlatform>`_ for user authentication.
 In this sample, users submit opinions for polls without other users seeing their opinions.
 After a certain number of opinions have been submitted, aggregate statistics can be retrieved.
 
@@ -17,7 +17,7 @@ In the Forum sample the redirect URL is ``https://.../app/site``, and particular
     The latter is also called a single-page application in Microsoft terms.
     For simplicity and because both applications are considered public it is sufficient to register only a single application which will represent both the server and the client.
 
-Open `samples/apps/forum/src/authentication.ts <https://github.com/microsoft/CCF/blob/master/samples/apps/forum/src/authentication.ts>`_ and replace the app ID with the one registered earlier.
+Open `samples/apps/forum/src/authentication.ts <https://github.com/microsoft/CCF/blob/main/samples/apps/forum/src/authentication.ts>`_ and replace the app ID with the one registered earlier.
 This file is responsible for validating incoming JWTs and extracting a user id for associating opinions to users.
 
 The Forum sample can now be run in a local sandbox with:
@@ -30,14 +30,14 @@ The Forum sample can now be run in a local sandbox with:
 
 .. note::
 
-    The `start script <https://github.com/microsoft/CCF/blob/master/samples/apps/forum/test/start.ts>`_ automatically downloads the current JWT public signing keys from Microsoft and stores them in the network using the ``--jwt-issuer`` sandbox argument.
+    The `start script <https://github.com/microsoft/CCF/blob/main/samples/apps/forum/test/start.ts>`_ automatically downloads the current JWT public signing keys from Microsoft and stores them in the network using the ``--jwt-issuer`` sandbox argument.
 
 Navigate to `<https://127.0.0.1:8000/app/site>`_ and click the Login button.
 You will be redirected to the Microsoft Identity Platform for authentication and back to the Forum sample.
 After logging in, polls can be created and opinions submitted.
 
 Note that aggregated opinion data is only returned after reaching a certain threshold.
-To simulate multiple different users submitting opinions, the `start script <https://github.com/microsoft/CCF/blob/master/samples/apps/forum/test/start.ts>`_ adds an additional fake JWT issuer based on a locally generated private key and certificate.
+To simulate multiple different users submitting opinions, the `start script <https://github.com/microsoft/CCF/blob/main/samples/apps/forum/test/start.ts>`_ adds an additional fake JWT issuer based on a locally generated private key and certificate.
 Run the following scripts to submit opinions of fake users using the fake issuer:
 
 .. code-block:: bash
