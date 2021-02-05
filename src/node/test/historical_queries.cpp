@@ -14,6 +14,8 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
+using NumToString = kv::Map<size_t, std::string>;
+
 struct StubWriter : public ringbuffer::AbstractWriter
 {
 public:
@@ -100,49 +102,47 @@ TestState create_and_init_state()
   return ts;
 }
 
+kv::Version write_transactions_and_signature(
+  kv::Store& kv_store, size_t tx_count)
+{
+  const auto begin = kv_store.current_version();
+  const auto end = begin + tx_count;
+  for (size_t i = begin; i < end; ++i)
+  {
+    auto tx = kv_store.create_tx();
+    auto public_map = tx.rw<NumToString>("public:data");
+    auto private_map = tx.rw<NumToString>("data");
+    const auto s = std::to_string(i);
+    public_map->put(i, s);
+    private_map->put(i, s);
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  kv_store.get_history()->emit_signature();
+  kv_store.compact(kv_store.current_version());
+
+  return kv_store.current_version();
+}
+
 TEST_CASE("StateCache")
 {
-  using NumToString = kv::Map<size_t, std::string>;
-
-  constexpr size_t low_signature_transaction = 3;
-  constexpr size_t high_signature_transaction = 20;
-
-  constexpr size_t low_index = low_signature_transaction + 2;
-  constexpr size_t high_index = high_signature_transaction - 3;
-  constexpr size_t unsigned_index = high_signature_transaction + 5;
-
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
+  kv::Version low_signature_transaction;
+  kv::Version high_signature_transaction;
+
   {
     INFO("Build some interesting state in the store");
-
-    {
-      for (size_t i = 1; i < high_signature_transaction; ++i)
-      {
-        if (
-          i == low_signature_transaction - 1 ||
-          i == high_signature_transaction - 1)
-        {
-          kv_store.get_history()->emit_signature();
-          kv_store.compact(kv_store.current_version());
-        }
-        else
-        {
-          auto tx = kv_store.create_tx();
-          auto public_map = tx.rw<NumToString>("public:data");
-          auto private_map = tx.rw<NumToString>("data");
-          const auto s = std::to_string(i);
-          public_map->put(i, s);
-          private_map->put(i, s);
-
-          REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-        }
-      }
-    }
-
+    low_signature_transaction = write_transactions_and_signature(kv_store, 3);
+    high_signature_transaction = write_transactions_and_signature(kv_store, 20);
     REQUIRE(kv_store.current_version() == high_signature_transaction);
   }
+
+  size_t low_index = low_signature_transaction + 2;
+  size_t high_index = high_signature_transaction - 3;
+  size_t unsigned_index = high_signature_transaction + 5;
 
   std::map<consensus::Index, std::vector<uint8_t>> ledger;
   {
