@@ -9,4 +9,4 @@ jobs:
 
     steps:
       - run: |
-          curl -s https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Daily?branchName=master | grep succeeded
+          curl -s https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Daily?branchName=main | grep succeeded

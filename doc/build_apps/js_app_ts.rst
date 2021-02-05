@@ -4,7 +4,7 @@ TypeScript Application
 This guide shows how to build a TypeScript application using Node.js and npm.
 
 The source code for the example app can be found in the
-`tests/npm-app <https://github.com/microsoft/CCF/tree/master/tests/npm-app>`_
+`tests/npm-app <https://github.com/microsoft/CCF/tree/main/tests/npm-app>`_
 folder of the CCF git repository.
 
 Prerequisites
@@ -111,8 +111,8 @@ CCF currently does not provide an npm package with TypeScript definitions
 for :ref:`CCF's JavaScript API <build_apps/js_app_bundle:JavaScript API>`.
 
 Instead, the definitions are part of the sample app in
-`src/types/ccf.ts <https://github.com/microsoft/CCF/tree/master/tests/npm-app/src/types/ccf.ts>`_.
-See `src/endpoints <https://github.com/microsoft/CCF/tree/master/tests/npm-app/src/endpoints>`_
+`src/types/ccf.ts <https://github.com/microsoft/CCF/tree/main/tests/npm-app/src/types/ccf.ts>`_.
+See `src/endpoints <https://github.com/microsoft/CCF/tree/main/tests/npm-app/src/endpoints>`_
 on how the types can be imported and used.
 
 Metadata
@@ -157,7 +157,7 @@ A note on CommonJS modules
 --------------------------
 
 The sample project uses the
-`@rollup/plugin-commonjs <https://github.com/rollup/plugins/tree/master/packages/commonjs>`_
+`@rollup/plugin-commonjs <https://github.com/rollup/plugins/tree/main/packages/commonjs>`_
 package to automatically convert npm packages with CommonJS modules to native JavaScript modules
 so that they can be used in CCF.
 

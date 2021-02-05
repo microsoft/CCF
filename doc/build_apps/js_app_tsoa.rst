@@ -10,7 +10,7 @@ Using `tsoa <https://github.com/lukeautry/tsoa>`_ as framework provides the foll
 - App metadata (``app.json``) is auto-generated as much as possible.
 
 The source code for the example app can be found in the
-`samples/apps/forum <https://github.com/microsoft/CCF/tree/master/samples/apps/forum>`_
+`samples/apps/forum <https://github.com/microsoft/CCF/tree/main/samples/apps/forum>`_
 folder of the CCF git repository.
 
 .. note::
@@ -94,7 +94,7 @@ tsoa discovers controllers through a list of search locations specified in ``tso
         ]
     }
 
-As an example, the ``/polls`` route of the sample app is implemented as in `src/controllers/poll.ts <https://github.com/microsoft/CCF/tree/master/samples/apps/forum/src/controllers/poll.ts>`_.
+As an example, the ``/polls`` route of the sample app is implemented as in `src/controllers/poll.ts <https://github.com/microsoft/CCF/tree/main/samples/apps/forum/src/controllers/poll.ts>`_.
 
 For more information on how to write controllers,
 see the `tsoa documentation <https://tsoa-community.github.io/docs/getting-started.html#defining-a-simple-controller>`_.
@@ -117,7 +117,7 @@ Headers and the status code can be set using `Controller methods <https://tsoa-c
 
 Sometimes though it is necessary to access CCF's ``Request`` object, for example when the request body is not JSON.
 In this case, instead of using ``@Body() body: MyType`` as function argument, ``@Request() request: ccf.Request`` can be used.
-See `src/controllers/csv.ts <https://github.com/microsoft/CCF/tree/master/samples/apps/forum/src/controllers/csv.ts>`_
+See `src/controllers/csv.ts <https://github.com/microsoft/CCF/tree/main/samples/apps/forum/src/controllers/csv.ts>`_
 for a concrete example.
 
 .. warning::
