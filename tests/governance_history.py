@@ -22,13 +22,13 @@ def count_governance_operations(ledger):
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
-            if "public:ccf.gov.member_cert_ders" in tables:
-                members_table = tables["public:ccf.gov.member_cert_ders"]
+            if "public:ccf.internal.members.certs_der" in tables:
+                members_table = tables["public:ccf.internal.members.certs_der"]
                 for cert, member_id in members_table.items():
                     members[member_id] = cert
 
-            if "public:ccf.gov.governance.history" in tables:
-                governance_history_table = tables["public:ccf.gov.governance.history"]
+            if "public:ccf.gov.history" in tables:
+                governance_history_table = tables["public:ccf.gov.history"]
                 for member_id, signed_request in governance_history_table.items():
                     assert member_id in members
                     cert = members[member_id]
