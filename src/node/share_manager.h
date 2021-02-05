@@ -47,7 +47,7 @@ namespace ccf
       if (has_wrapped)
       {
         throw std::logic_error(
-          "Ledger Secret wrapping key has already wrapped once");
+          "Ledger secret wrapping key has already wrapped once");
       }
 
       crypto::GcmCipher encrypted_ls(ledger_secret.raw_key.size());
