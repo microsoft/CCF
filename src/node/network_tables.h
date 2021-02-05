@@ -50,6 +50,7 @@ namespace ccf
 
     Scripts gov_scripts;
     Modules modules;
+    ModulesHash modules_hash;
     Proposals proposals;
     Whitelists whitelists;
     CodeIDs node_code_ids;
@@ -116,6 +117,7 @@ namespace ccf
       member_digests(Tables::MEMBER_DIGESTS),
       gov_scripts(Tables::GOV_SCRIPTS),
       modules(Tables::MODULES),
+      modules_hash(Tables::MODULES_HASH),
       proposals(Tables::PROPOSALS),
       whitelists(Tables::WHITELISTS),
       node_code_ids(Tables::NODE_CODE_IDS),
@@ -158,6 +160,7 @@ namespace ccf
         std::ref(member_certs),
         std::ref(gov_scripts),
         std::ref(modules),
+        std::ref(modules_hash),
         std::ref(proposals),
         std::ref(whitelists),
         std::ref(node_code_ids),

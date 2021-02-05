@@ -78,6 +78,7 @@ namespace ccf
     static constexpr auto GOV_SCRIPTS = "public:ccf.gov.governance.scripts";
     static constexpr auto APP_SCRIPTS = "public:ccf.gov.app_scripts";
     static constexpr auto MODULES = "public:ccf.gov.modules";
+    static constexpr auto MODULES_HASH = "public:ccf.gov.modules_hash";
     static constexpr auto SECRETS = "public:ccf.gov.secrets";
     static constexpr auto NODE_CODE_IDS = "public:ccf.gov.nodes.code_ids";
     static constexpr auto GOV_HISTORY = "public:ccf.gov.governance.history";

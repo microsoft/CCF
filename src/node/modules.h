@@ -24,4 +24,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(Module, js)
 
   using Modules = kv::Map<std::string, Module>;
+
+  using ModulesHash = kv::Map<size_t, std::string>;
 }
