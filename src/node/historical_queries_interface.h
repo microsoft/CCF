@@ -39,6 +39,11 @@ namespace ccf::historical
     virtual StorePtr get_store_at(
       RequestHandle handle, consensus::Index idx) = 0;
 
+    // virtual std::vector<StorePtr> get_store_range(
+    //   RequestHandle handle,
+    //   consensus::Index start_idx,
+    //   consensus::Index end_idx) = 0;
+
     // Returns false if the handle is unknown
     virtual bool drop_request(RequestHandle handle) = 0;
   };

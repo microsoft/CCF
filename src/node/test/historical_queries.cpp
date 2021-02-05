@@ -65,21 +65,43 @@ public:
   }
 };
 
-TEST_CASE("StateCache")
+struct TestState
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  std::shared_ptr<kv::Store> kv_store = nullptr;
+  tls::KeyPairPtr kp = nullptr;
+};
 
-  kv::Store store(consensus);
-  store.set_encryptor(encryptor);
+TestState create_and_init_state()
+{
+  TestState ts;
+
+  ts.kv_store =
+    std::make_shared<kv::Store>(std::make_shared<kv::StubConsensus>());
+  ts.kv_store->set_encryptor(std::make_shared<kv::NullTxEncryptor>());
+
+  ts.kp = tls::make_key_pair();
 
   // Make history to produce signatures
   const auto node_id = 0;
-  auto kp = tls::make_key_pair();
-  auto history = std::make_shared<ccf::MerkleTxHistory>(store, node_id, *kp);
+  ts.kv_store->set_history(
+    std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *ts.kp));
 
-  store.set_history(history);
+  {
+    INFO("Store the signing node's key");
+    auto tx = ts.kv_store->create_tx();
+    auto nodes = tx.rw<ccf::Nodes>(ccf::Tables::NODES);
+    ccf::NodeInfo ni;
+    ni.cert = ts.kp->self_sign("CN=Test node");
+    ni.status = ccf::NodeStatus::TRUSTED;
+    nodes->put(node_id, ni);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
 
+  return ts;
+}
+
+TEST_CASE("StateCache")
+{
   using NumToString = kv::Map<size_t, std::string>;
 
   constexpr size_t low_signature_transaction = 3;
@@ -89,19 +111,11 @@ TEST_CASE("StateCache")
   constexpr size_t high_index = high_signature_transaction - 3;
   constexpr size_t unsigned_index = high_signature_transaction + 5;
 
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
   {
     INFO("Build some interesting state in the store");
-
-    {
-      INFO("Store the signing node's key");
-      auto tx = store.create_tx();
-      auto nodes = tx.rw<ccf::Nodes>(ccf::Tables::NODES);
-      ccf::NodeInfo ni;
-      ni.cert = kp->self_sign("CN=Test node");
-      ni.status = ccf::NodeStatus::TRUSTED;
-      nodes->put(node_id, ni);
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    }
 
     {
       for (size_t i = 1; i < high_signature_transaction; ++i)
@@ -110,12 +124,12 @@ TEST_CASE("StateCache")
           i == low_signature_transaction - 1 ||
           i == high_signature_transaction - 1)
         {
-          history->emit_signature();
-          store.compact(store.current_version());
+          kv_store.get_history()->emit_signature();
+          kv_store.compact(kv_store.current_version());
         }
         else
         {
-          auto tx = store.create_tx();
+          auto tx = kv_store.create_tx();
           auto public_map = tx.rw<NumToString>("public:data");
           auto private_map = tx.rw<NumToString>("data");
           const auto s = std::to_string(i);
@@ -127,11 +141,15 @@ TEST_CASE("StateCache")
       }
     }
 
-    REQUIRE(store.current_version() == high_signature_transaction);
+    REQUIRE(kv_store.current_version() == high_signature_transaction);
   }
 
   std::map<consensus::Index, std::vector<uint8_t>> ledger;
   {
+    auto consensus =
+      dynamic_cast<kv::StubConsensus*>(state.kv_store->get_consensus().get());
+    REQUIRE(consensus != nullptr);
+
     INFO("Rebuild ledger as seen by host");
     auto next_ledger_entry = consensus->pop_oldest_entry();
     while (next_ledger_entry.has_value())
@@ -164,7 +182,7 @@ TEST_CASE("StateCache")
   ringbuffer::Reader rr(buffer->bd);
 
   auto rw = std::make_shared<ringbuffer::Writer>(rr);
-  ccf::historical::StateCache cache(store, rw);
+  ccf::historical::StateCache cache(kv_store, rw);
 
   static const ccf::historical::RequestHandle default_handle = 0;
   static const ccf::historical::RequestHandle low_handle = 1;
@@ -385,3 +403,6 @@ TEST_CASE("StateCache")
     }
   }
 }
+
+// TODO: Test range queries
+// TODO: Test multi-threaded access
