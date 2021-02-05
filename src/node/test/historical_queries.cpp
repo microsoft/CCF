@@ -125,6 +125,28 @@ kv::Version write_transactions_and_signature(
   return kv_store.current_version();
 }
 
+std::map<consensus::Index, std::vector<uint8_t>> construct_host_ledger(
+  std::shared_ptr<kv::Consensus> c)
+{
+  auto consensus = dynamic_cast<kv::StubConsensus*>(c.get());
+  REQUIRE(consensus != nullptr);
+
+  INFO("Rebuild ledger as seen by host");
+  std::map<consensus::Index, std::vector<uint8_t>> ledger;
+  
+  auto next_ledger_entry = consensus->pop_oldest_entry();
+  while (next_ledger_entry.has_value())
+  {
+    const auto ib = ledger.insert(std::make_pair(
+      std::get<0>(next_ledger_entry.value()),
+      *std::get<1>(next_ledger_entry.value())));
+    REQUIRE(ib.second);
+    next_ledger_entry = consensus->pop_oldest_entry();
+  }
+
+  return ledger;
+}
+
 TEST_CASE("StateCache")
 {
   auto state = create_and_init_state();
@@ -144,45 +166,12 @@ TEST_CASE("StateCache")
   size_t high_index = high_signature_transaction - 3;
   size_t unsigned_index = high_signature_transaction + 5;
 
-  std::map<consensus::Index, std::vector<uint8_t>> ledger;
-  {
-    auto consensus =
-      dynamic_cast<kv::StubConsensus*>(state.kv_store->get_consensus().get());
-    REQUIRE(consensus != nullptr);
-
-    INFO("Rebuild ledger as seen by host");
-    auto next_ledger_entry = consensus->pop_oldest_entry();
-    while (next_ledger_entry.has_value())
-    {
-      const auto ib = ledger.insert(std::make_pair(
-        std::get<0>(next_ledger_entry.value()),
-        *std::get<1>(next_ledger_entry.value())));
-      REQUIRE(ib.second);
-      next_ledger_entry = consensus->pop_oldest_entry();
-    }
-
-    REQUIRE(ledger.size() == high_signature_transaction);
-  }
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  REQUIRE(ledger.size() == high_signature_transaction);
 
   // Now we actually get to the historical queries
-  std::vector<consensus::Index> requested_ledger_entries = {};
-  messaging::BufferProcessor bp("historical_queries");
-  DISPATCHER_SET_MESSAGE_HANDLER(
-    bp,
-    consensus::ledger_get,
-    [&requested_ledger_entries](const uint8_t* data, size_t size) {
-      auto [idx, purpose] =
-        ringbuffer::read_message<consensus::ledger_get>(data, size);
-      REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
-      requested_ledger_entries.push_back(idx);
-    });
-
-  constexpr size_t buffer_size = 1 << 12;
-  auto buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-  ringbuffer::Reader rr(buffer->bd);
-
-  auto rw = std::make_shared<ringbuffer::Writer>(rr);
-  ccf::historical::StateCache cache(kv_store, rw);
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(kv_store, stub_writer);
 
   static const ccf::historical::RequestHandle default_handle = 0;
   static const ccf::historical::RequestHandle low_handle = 1;
@@ -203,19 +192,23 @@ TEST_CASE("StateCache")
 
   {
     INFO("The host sees requests for these indices");
-    const auto read = bp.read_n(100, rr);
-    REQUIRE(read == requested_ledger_entries.size());
+    REQUIRE(!stub_writer->writes.empty());
     std::set<consensus::Index> expected{low_index, high_index, unsigned_index};
     std::set<consensus::Index> actual;
-    actual.insert(
-      requested_ledger_entries.begin(), requested_ledger_entries.end());
+    for (const auto& write : stub_writer->writes)
+    {
+      const uint8_t* data = write.contents.data();
+      size_t size = write.contents.size();
+      auto [idx, purpose] =
+        ringbuffer::read_message<consensus::ledger_get>(data, size);
+      REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+      actual.insert(idx);
+    }
     REQUIRE(actual == expected);
   }
 
   auto provide_ledger_entry = [&](size_t i) {
     bool accepted = cache.handle_ledger_entry(i, ledger.at(i));
-    // Pump outbound ringbuffer to clear messages
-    bp.read_n(100, rr);
     return accepted;
   };
 
