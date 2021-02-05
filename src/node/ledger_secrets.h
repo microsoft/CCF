@@ -46,6 +46,7 @@ namespace ccf
   }
 
   using LedgerSecretsMap = std::map<kv::Version, LedgerSecret>;
+  using VersionedLedgerSecret = LedgerSecretsMap::value_type;
 
   class LedgerSecrets
   {
@@ -160,7 +161,7 @@ namespace ccf
       self = id;
     }
 
-    LedgerSecretsMap::value_type get_latest(kv::Tx& tx)
+    VersionedLedgerSecret get_latest(kv::Tx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -172,12 +173,10 @@ namespace ccf
           "Could not retrieve latest ledger secret: no secret set");
       }
 
-      const auto& latest_ledger_secret = ledger_secrets.rbegin();
-      return std::make_pair(
-        latest_ledger_secret->first, latest_ledger_secret->second);
+      return *ledger_secrets.rbegin();
     }
 
-    std::pair<LedgerSecret, std::optional<LedgerSecret>>
+    std::pair<VersionedLedgerSecret, std::optional<VersionedLedgerSecret>>
     get_latest_and_penultimate(kv::Tx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);
@@ -193,11 +192,10 @@ namespace ccf
       const auto& latest_ledger_secret = ledger_secrets.rbegin();
       if (ledger_secrets.size() < 2)
       {
-        return std::make_pair(latest_ledger_secret->second, std::nullopt);
+        return std::make_pair(*latest_ledger_secret, std::nullopt);
       }
       return std::make_pair(
-        latest_ledger_secret->second,
-        std::next(ledger_secrets.rbegin())->second);
+        *latest_ledger_secret, *std::next(latest_ledger_secret));
     }
 
     LedgerSecretsMap get(

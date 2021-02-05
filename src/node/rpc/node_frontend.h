@@ -15,13 +15,14 @@ namespace ccf
   {
     NodeId node_id = {};
     std::string raw = {}; // < Hex-encoded
+    std::string endorsements = {}; // < Hex-encoded
     QuoteFormat format;
 
     std::string mrenclave = {}; // < Hex-encoded
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote)
-  DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, format)
+  DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, endorsements, format)
   DECLARE_JSON_OPTIONAL_FIELDS(Quote, mrenclave)
 
   struct GetQuotes
@@ -116,13 +117,10 @@ namespace ccf
       auto pk_pem = public_key_pem_from_cert(caller_pem);
 
       QuoteVerificationResult verify_result =
-        QuoteVerifier::verify_quote_against_store(
-          tx, this->network.node_code_ids, in.quote, pk_pem);
-
-      if (verify_result != QuoteVerificationResult::VERIFIED)
+        this->node.verify_quote(tx, in.quote_info, pk_pem);
+      if (verify_result != QuoteVerificationResult::Verified)
       {
-        const auto [code, message] =
-          QuoteVerifier::quote_verification_error(verify_result);
+        const auto [code, message] = quote_verification_error(verify_result);
         return make_error(code, ccf::errors::InvalidQuote, message);
       }
 #else
@@ -143,7 +141,7 @@ namespace ccf
         joining_node_id,
         {in.node_info_network,
          caller_pem,
-         in.quote,
+         in.quote_info,
          in.public_encryption_key,
          node_status,
          ledger_secret_seqno});
@@ -187,7 +185,8 @@ namespace ccf
 
           if (
             !this->node.is_part_of_network() &&
-            !this->node.is_part_of_public_network())
+            !this->node.is_part_of_public_network() &&
+            !this->node.is_reading_private_ledger())
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -300,7 +299,7 @@ namespace ccf
       auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;
         auto [s, rts, lrs] = this->node.state();
-        result.id = this->node.get_node_id();
+        result.node_id = this->node.get_node_id();
         result.state = s;
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
@@ -325,24 +324,22 @@ namespace ccf
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
-        QuoteFormat format;
-        std::vector<uint8_t> raw_quote;
+        QuoteInfo node_quote_info;
         const auto result =
-          get_quote_for_this_node_v1(args.tx, format, raw_quote);
+          get_quote_for_this_node_v1(args.tx, node_quote_info);
         if (result == ApiResult::OK)
         {
           Quote q;
           q.node_id = node.get_node_id();
-          q.raw = fmt::format("{:02x}", fmt::join(raw_quote, ""));
-          q.format = format;
+          q.raw = fmt::format("{:02x}", fmt::join(node_quote_info.quote, ""));
+          q.endorsements =
+            fmt::format("{:02x}", fmt::join(node_quote_info.endorsements, ""));
+          q.format = node_quote_info.format;
 
 #ifdef GET_QUOTE
-          auto code_id_opt = QuoteGenerator::get_code_id(raw_quote);
-          if (code_id_opt.has_value())
-          {
-            q.mrenclave =
-              fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
-          }
+          auto code_id =
+            EnclaveAttestationProvider::get_code_id(node_quote_info);
+          q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
 #endif
 
           return make_success(q);
@@ -381,18 +378,17 @@ namespace ccf
           {
             Quote q;
             q.node_id = node_id;
-            q.raw = fmt::format("{:02x}", fmt::join(node_info.quote, ""));
+            q.raw =
+              fmt::format("{:02x}", fmt::join(node_info.quote_info.quote, ""));
+            q.endorsements = fmt::format(
+              "{:02x}", fmt::join(node_info.quote_info.endorsements, ""));
             q.format = QuoteFormat::oe_sgx_v1;
 
 #ifdef GET_QUOTE
-            auto code_id_opt = QuoteGenerator::get_code_id(node_info.quote);
-            if (code_id_opt.has_value())
-            {
-              q.mrenclave =
-                fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
-            }
+            auto code_id =
+              EnclaveAttestationProvider::get_code_id(node_info.quote_info);
+            q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
 #endif
-
             quotes.emplace_back(q);
           }
           return true;

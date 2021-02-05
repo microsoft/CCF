@@ -9,6 +9,7 @@ namespace nobuiltins
   {
     ccf::QuoteFormat quote_format;
     std::string quote;
+    std::string endorsements;
 
     kv::Consensus::View committed_view;
     kv::Consensus::SeqNo committed_seqno;
@@ -32,9 +33,8 @@ namespace nobuiltins
 
         {
           // SNIPPET_START: get_quote_api_v1
-          std::vector<uint8_t> raw_quote;
-          result =
-            get_quote_for_this_node_v1(ctx.tx, summary.quote_format, raw_quote);
+          ccf::QuoteInfo quote_info;
+          result = get_quote_for_this_node_v1(ctx.tx, quote_info);
           if (result != ccf::ApiResult::OK)
           {
             ctx.rpc_ctx->set_error(
@@ -45,7 +45,11 @@ namespace nobuiltins
             return;
           }
 
-          summary.quote = fmt::format("{:02x}", fmt::join(raw_quote, ""));
+          summary.quote_format = quote_info.format;
+          summary.quote =
+            fmt::format("{:02x}", fmt::join(quote_info.quote, ""));
+          summary.endorsements =
+            fmt::format("{:02x}", fmt::join(quote_info.endorsements, ""));
           // SNIPPET_END: get_quote_api_v1
         }
 
