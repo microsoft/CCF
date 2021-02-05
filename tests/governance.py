@@ -126,7 +126,7 @@ def test_member_data(network, args):
 
         def member_info(mid):
             return mc.post(
-                "/gov/read", {"table": "public:ccf.gov.members", "key": mid}
+                "/gov/read", {"table": "public:ccf.gov.members.info", "key": mid}
             ).body.json()
 
         md_count = 0

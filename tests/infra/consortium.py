@@ -61,7 +61,7 @@ class Consortium:
                     {
                         "text": """tables = ...
                         non_retired_members = {}
-                        tables["public:ccf.gov.members"]:foreach(function(member_id, info)
+                        tables["public:ccf.gov.members.info"]:foreach(function(member_id, info)
                         if info["status"] ~= "RETIRED" then
                             table.insert(non_retired_members, {member_id, info})
                         end
