@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
+#include <quickjs/quickjs-stack.h>
 #include <quickjs/quickjs.h>
 #include <vector>
 
@@ -923,52 +924,6 @@ namespace ccfapp
       return request;
     }
 
-    void init_runtime()
-    {
-      if (rt)
-      {
-        throw std::runtime_error("QuickJS runtime already initialised");
-      }
-      rt = JS_NewRuntime();
-      if (rt == nullptr)
-      {
-        throw std::runtime_error("Failed to initialise QuickJS runtime");
-      }
-
-      JS_SetMaxStackSize(rt, 1024 * 1024);
-
-      // Register class for KV
-      {
-        auto ret = JS_NewClass(rt, kv_class_id, &kv_class_def);
-        if (ret != 0)
-        {
-          throw std::logic_error(
-            "Failed to register JS class definition for KV");
-        }
-      }
-
-      // Register class for KV map views
-      {
-        auto ret =
-          JS_NewClass(rt, kv_map_handle_class_id, &kv_map_handle_class_def);
-        if (ret != 0)
-        {
-          throw std::logic_error(
-            "Failed to register JS class definition for KVMap");
-        }
-      }
-
-      // Register class for request body
-      {
-        auto ret = JS_NewClass(rt, body_class_id, &body_class_def);
-        if (ret != 0)
-        {
-          throw std::logic_error(
-            "Failed to register JS class definition for Body");
-        }
-      }
-    }
-
     void execute_request(
       const std::string& method,
       const ccf::RESTVerb& verb,
@@ -998,12 +953,55 @@ namespace ccfapp
         }
       }
 
-      // Ideally this should happen in the constructor but that leads
-      // to issues with quick's stack overflow checks.
-      // This is only safe as long as this instance of JSHandlers
-      // is only called from a single persistent thread.
+      // quickjs is not thread-safe and a separate runtime is needed per thread.
+      // TODO create a runtime per thread
       if (!rt)
-        init_runtime();
+      {
+        rt = JS_NewRuntime();
+        if (rt == nullptr)
+        {
+          throw std::runtime_error("Failed to initialise QuickJS runtime");
+        }
+
+        JS_SetMaxStackSize(rt, 1024 * 1024);
+
+        // Register class for KV
+        {
+          auto ret = JS_NewClass(rt, kv_class_id, &kv_class_def);
+          if (ret != 0)
+          {
+            throw std::logic_error(
+              "Failed to register JS class definition for KV");
+          }
+        }
+
+        // Register class for KV map views
+        {
+          auto ret =
+            JS_NewClass(rt, kv_map_handle_class_id, &kv_map_handle_class_def);
+          if (ret != 0)
+          {
+            throw std::logic_error(
+              "Failed to register JS class definition for KVMap");
+          }
+        }
+
+        // Register class for request body
+        {
+          auto ret = JS_NewClass(rt, body_class_id, &body_class_def);
+          if (ret != 0)
+          {
+            throw std::logic_error(
+              "Failed to register JS class definition for Body");
+          }
+        }
+      }
+
+      // quickjs checks for stack overflow by comparing against the stack frame address
+      // stored when the runtime is created. Since this endpoint handler is entered
+      // repeatedly with different associated stacks (and sizes) the stack frame address
+      // has to be reset each time.
+      JS_ResetTopOfStack(rt);
 
       JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
       JS_SetModuleLoaderFunc(
@@ -1273,6 +1271,12 @@ namespace ccfapp
       set_default(default_handler, no_auth_required);
 
       metrics_tracker.install_endpoint(*this);
+    }
+    
+    virtual ~JSHandlers()
+    {
+      if (rt)
+        JS_FreeRuntime(rt);
     }
 
     void instantiate_authn_policies(JSDynamicEndpoint& endpoint)

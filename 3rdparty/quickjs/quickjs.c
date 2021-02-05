@@ -36061,6 +36061,7 @@ int JS_SetModuleExportList(JSContext *ctx, JSModuleDef *m,
 }
 
 #include "quickjs-exports.c"
+#include "quickjs-stack.c"
 
 /* Note: 'func_obj' is not necessarily a constructor */
 static void JS_SetConstructor2(JSContext *ctx,
