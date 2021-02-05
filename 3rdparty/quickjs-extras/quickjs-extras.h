@@ -2,7 +2,7 @@
 
 #include "quickjs.h"
 
-// See quickjs-exports.c for details.
+// See quickjs-extras.c for details.
 
 extern "C" {
 
