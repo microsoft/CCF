@@ -90,12 +90,12 @@ namespace ccf
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto user_id = [this](auto& args, nlohmann::json&& params) {
-        GetUserId::Out out;
+      auto get_caller_id = [this](auto& args, nlohmann::json&& params) {
+        GetCallerId::Out out;
 
         if (!params.is_null())
         {
-          const GetUserId::In in = params;
+          const GetCallerId::In in = params;
           auto certs = args.tx.template ro<CertDERs>(certs_table_name);
           std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
           std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
@@ -139,14 +139,14 @@ namespace ccf
         return make_success(out);
       };
       make_read_only_endpoint(
-        "user_id",
+        "caller_id",
         HTTP_GET,
-        json_read_only_adapter(user_id),
+        json_read_only_adapter(get_caller_id),
         {user_cert_auth_policy,
          user_signature_auth_policy,
          member_cert_auth_policy,
          member_signature_auth_policy})
-        .set_auto_schema<GetUserId::In, GetUserId::Out>()
+        .set_auto_schema<GetCallerId::In, GetCallerId::Out>()
         .install();
 
       auto get_code = [](auto& args, nlohmann::json&&) {

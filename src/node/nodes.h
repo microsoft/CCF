@@ -4,6 +4,7 @@
 #include "entities.h"
 #include "kv/map.h"
 #include "node_info_network.h"
+#include "quote_info.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -31,7 +32,7 @@ namespace ccf
   struct NodeInfo : NodeInfoNetwork
   {
     tls::Pem cert;
-    std::vector<uint8_t> quote;
+    QuoteInfo quote_info;
     tls::Pem encryption_pub_key;
     NodeStatus status = NodeStatus::PENDING;
 
@@ -42,14 +43,14 @@ namespace ccf
     MSGPACK_DEFINE(
       MSGPACK_BASE(NodeInfoNetwork),
       cert,
-      quote,
+      quote_info,
       encryption_pub_key,
       status,
       ledger_secret_seqno);
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfo, cert, quote, encryption_pub_key, status);
+    NodeInfo, cert, quote_info, encryption_pub_key, status);
   DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno);
 
   using Nodes = kv::Map<NodeId, NodeInfo>;

@@ -936,7 +936,7 @@ namespace ccf
            // allocated to each recovery member
            try
            {
-             share_manager.issue_shares(tx);
+             share_manager.issue_recovery_shares(tx);
            }
            catch (const std::logic_error& e)
            {
@@ -975,7 +975,7 @@ namespace ccf
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            try
            {
-             share_manager.issue_shares(tx);
+             share_manager.shuffle_recovery_shares(tx);
            }
            catch (const std::logic_error& e)
            {
@@ -1008,10 +1008,9 @@ namespace ccf
              return false;
            }
 
-           // Update recovery shares (same number of shares)
            try
            {
-             share_manager.issue_shares(tx);
+             share_manager.shuffle_recovery_shares(tx);
            }
            catch (const std::logic_error& e)
            {
@@ -1715,7 +1714,7 @@ namespace ccf
           // member, all recovery members are allocated new recovery shares
           try
           {
-            share_manager.issue_shares(ctx.tx);
+            share_manager.shuffle_recovery_shares(ctx.tx);
           }
           catch (const std::logic_error& e)
           {
@@ -1939,7 +1938,7 @@ namespace ccf
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
-                                  in.quote,
+                                  {in.quote_info},
                                   in.public_encryption_key,
                                   NodeStatus::TRUSTED});
 

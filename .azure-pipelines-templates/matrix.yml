@@ -31,11 +31,11 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|tlstest"'
+      ctest_args: '-LE "benchmark|perf|tlstest|vegeta"'
     SGX:
-      ctest_args: '-LE "benchmark|perf|tlstest"'
+      ctest_args: '-LE "benchmark|perf|tlstest|vegeta"'
     perf:
-      ctest_args: '-L "benchmark|perf"'
+      ctest_args: '-L "benchmark|perf|vegeta"'
     fuzz:
       ctest_args: '-L "zaptest"'
 
