@@ -28,25 +28,17 @@ namespace ccf::historical
   public:
     virtual ~AbstractStateCache() = default;
 
-    virtual StorePtr get_store_at(
-      RequestHandle handle, consensus::Index idx) = 0;
-
     virtual void set_default_expiry_duration(ExpiryDuration duration) = 0;
 
-    // Returns false if the handle is unknown
-    virtual bool set_expiry_duration(
-      RequestHandle handle, ExpiryDuration duration) = 0;
+    virtual StorePtr get_store_at(
+      RequestHandle handle,
+      consensus::Index idx,
+      ExpiryDuration expire_after) = 0;
+
+    // Uses default expiry duration
+    virtual StorePtr get_store_at(RequestHandle handle, consensus::Index idx) = 0;
 
     // Returns false if the handle is unknown
     virtual bool drop_request(RequestHandle handle) = 0;
-  };
-
-  class StubStateCache : public AbstractStateCache
-  {
-  public:
-    StorePtr get_store_at(consensus::Index, RequestHandle) override
-    {
-      return nullptr;
-    }
   };
 }

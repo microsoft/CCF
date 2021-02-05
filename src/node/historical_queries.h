@@ -33,7 +33,7 @@ namespace ccf::historical
     struct Request
     {
       consensus::Index target_index;
-      ExpiryDuration time_to_expiry;
+      std::chrono::milliseconds time_to_expiry;
       RequestStage current_stage = RequestStage::Fetching;
       crypto::Sha256Hash entry_hash = {};
       StorePtr store = nullptr;
@@ -221,8 +221,14 @@ namespace ccf::historical
       to_host(host_writer)
     {}
 
-    StorePtr get_store_at(RequestHandle request, consensus::Index idx) override
+    StorePtr get_store_at(
+      RequestHandle request,
+      consensus::Index idx,
+      ExpiryDuration expire_after) override
     {
+      const auto expire_after_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(expire_after);
+
       // TODO: Lock here, and probably everywhere
       // If this is a new handle, or a new request for an existing handle
       const auto it = requests.find(request);
@@ -230,7 +236,7 @@ namespace ccf::historical
       {
         // Record details of this request
         Request new_request;
-        new_request.time_to_expiry = default_expiry_duration;
+        new_request.time_to_expiry = expire_after_ms;
         new_request.target_index = idx;
         requests[request] = std::move(new_request);
 
@@ -239,6 +245,8 @@ namespace ccf::historical
 
         return nullptr;
       }
+
+      it->second.time_to_expiry = expire_after_ms;
 
       if (it->second.current_stage == RequestStage::Trusted)
       {
@@ -250,21 +258,14 @@ namespace ccf::historical
       return nullptr;
     }
 
+    StorePtr get_store_at(RequestHandle request, consensus::Index idx) override
+    {
+      return get_store_at(request, idx, default_expiry_duration);
+    }
+
     void set_default_expiry_duration(ExpiryDuration duration) override
     {
       default_expiry_duration = duration;
-    }
-
-    bool set_expiry_duration(
-      RequestHandle handle, ExpiryDuration duration) override
-    {
-      auto it = requests.find(handle);
-      if (it != requests.end())
-      {
-        it->second.time_to_expiry = duration;
-        return true;
-      }
-      return false;
     }
 
     bool drop_request(RequestHandle handle) override
@@ -354,6 +355,24 @@ namespace ccf::historical
         //   const auto& [handle, request] = item;
         //   return request.target_index == idx;
         // });
+      }
+    }
+
+    void tick(const std::chrono::milliseconds& elapsed_ms)
+    {
+      auto it = requests.begin();
+      while (it != requests.end())
+      {
+        auto& request = it->second;
+        if (elapsed_ms >= request.time_to_expiry)
+        {
+          it = requests.erase(it);
+        }
+        else
+        {
+          request.time_to_expiry -= elapsed_ms;
+          ++it;
+        }
       }
     }
   };

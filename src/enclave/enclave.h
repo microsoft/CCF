@@ -219,6 +219,7 @@ namespace enclave
               last_tick_time = time_now;
 
               node->tick(elapsed_ms);
+              context.historical_state_cache.tick(elapsed_ms);
               threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read

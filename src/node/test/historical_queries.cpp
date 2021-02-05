@@ -280,20 +280,6 @@ TEST_CASE("StateCache")
         return true;
       });
     }
-
-    {
-      INFO("Store remains available for future requests using the same handle");
-      auto store2 = cache.get_store_at(high_handle, high_index);
-      REQUIRE(store2 != nullptr);
-      REQUIRE(store2 == store_at_index);
-    }
-
-    {
-      INFO("Dropping a handle deletes it, and it can no longer be retrieved");
-      cache.drop_request(high_handle);
-      auto store3 = cache.get_store_at(high_handle, high_index);
-      REQUIRE(store3 == nullptr);
-    }
   }
 
   {
@@ -325,6 +311,77 @@ TEST_CASE("StateCache")
 
       store_at_index = cache.get_store_at(default_handle, i);
       REQUIRE(store_at_index != nullptr);
+    }
+
+    {
+      INFO("Store remains available for future requests using the same handle");
+      const auto store1 =
+        cache.get_store_at(default_handle, high_signature_transaction);
+      REQUIRE(store1 != nullptr);
+
+      const auto store2 =
+        cache.get_store_at(default_handle, high_signature_transaction);
+      REQUIRE(store2 == store1);
+    }
+
+    {
+      INFO("Dropping a handle deletes it, and it can no longer be retrieved");
+      cache.drop_request(default_handle);
+      const auto store =
+        cache.get_store_at(default_handle, high_signature_transaction);
+      REQUIRE(store == nullptr);
+    }
+
+    {
+      INFO("Handles are dropped automatically after their expiry duration");
+
+      // Initial requests - low uses default expiry while high gets custom
+      // expiry
+      cache.set_default_expiry_duration(std::chrono::seconds(60));
+      cache.get_store_at(low_handle, low_signature_transaction);
+      cache.get_store_at(
+        high_handle, high_signature_transaction, std::chrono::seconds(30));
+
+      REQUIRE(provide_ledger_entry(low_signature_transaction));
+      REQUIRE(provide_ledger_entry(high_signature_transaction));
+
+      // NB: Calling get_store_at always resets the expiry time, so it must be
+      // passed on each retrieval attempt
+
+      // No time has passed, both are available
+      REQUIRE(
+        cache.get_store_at(low_handle, low_signature_transaction) != nullptr);
+      REQUIRE(
+        cache.get_store_at(
+          high_handle, high_signature_transaction, std::chrono::seconds(30)) !=
+        nullptr);
+
+      // Some time passes, but not enough for either expiry
+      cache.tick(std::chrono::milliseconds(20'000));
+      REQUIRE(
+        cache.get_store_at(low_handle, low_signature_transaction) != nullptr);
+      REQUIRE(
+        cache.get_store_at(
+          high_handle, high_signature_transaction, std::chrono::seconds(30)) !=
+        nullptr);
+
+      // More time passes, and one request expires
+      cache.tick(std::chrono::milliseconds(40'000));
+      REQUIRE(
+        cache.get_store_at(low_handle, low_signature_transaction) != nullptr);
+      REQUIRE(
+        cache.get_store_at(
+          high_handle, high_signature_transaction, std::chrono::seconds(30)) ==
+        nullptr);
+
+      // More time passes, and both requests expire
+      cache.tick(std::chrono::milliseconds(60'000));
+      REQUIRE(
+        cache.get_store_at(low_handle, low_signature_transaction) == nullptr);
+      REQUIRE(
+        cache.get_store_at(
+          high_handle, high_signature_transaction, std::chrono::seconds(30)) ==
+        nullptr);
     }
   }
 }
