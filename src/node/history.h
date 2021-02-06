@@ -670,7 +670,8 @@ namespace ccf
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
       log_hash(root, VERIFY);
-      bool result = from_cert->verify_hash(root.h, sig_value.sig, MDType::SHA256);
+      bool result =
+        from_cert->verify_hash(root.h, sig_value.sig, MDType::SHA256);
 
       if (!result)
       {
