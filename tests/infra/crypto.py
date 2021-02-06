@@ -35,18 +35,13 @@ import jwt
 RECOMMENDED_RSA_PUBLIC_EXPONENT = 65537
 
 
-# As per mbedtls md_type_t
+# As per tls::MDType
 class CCFDigestType(IntEnum):
     MD_NONE = 0
-    MD_MD2 = 1
-    MD_MD4 = 2
-    MD_MD5 = 3
-    MD_SHA1 = 4
-    MD_SHA224 = 5
-    MD_SHA256 = 6
-    MD_SHA384 = 7
-    MD_SHA512 = 8
-    MD_RIPEMD160 = 9
+    MD_SHA1 = 1
+    MD_SHA256 = 2
+    MD_SHA384 = 3
+    MD_SHA512 = 4
 
 
 # This function calls the native API and does not rely on the
