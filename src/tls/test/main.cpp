@@ -233,9 +233,9 @@ TEST_CASE("Manually hash, sign, verify, with PublicKey")
 
     const auto public_key = kp->public_key_pem();
     auto pubk = make_public_key(public_key);
-    CHECK(pubk->verify_hash(hash, signature));
+    CHECK(pubk->verify_hash(hash, signature, MDType::SHA256));
     corrupt(hash);
-    CHECK_FALSE(pubk->verify_hash(hash, signature));
+    CHECK_FALSE(pubk->verify_hash(hash, signature, MDType::SHA256));
   }
 }
 

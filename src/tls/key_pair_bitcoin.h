@@ -67,7 +67,8 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* sig,
-      size_t sig_size) override
+      size_t sig_size,
+      MDType) override
     {
       return verify_secp256k_bc(
         bc_ctx->p, sig, sig_size, hash, hash_size, &bc_pub);
@@ -206,7 +207,8 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* signature,
-      size_t signature_size) override
+      size_t signature_size,
+      MDType) override
     {
       return verify_secp256k_bc(
         bc_ctx->p, signature, signature_size, hash, hash_size, &bc_pub);

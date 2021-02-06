@@ -184,7 +184,7 @@ namespace ccf
       }
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       return from_cert->verify_hash(
-        root.h.data(), root.h.size(), sig, sig_size);
+        root.h.data(), root.h.size(), sig, sig_size, MDType::SHA256);
     }
 
     void sign_view_change_request(
@@ -214,11 +214,7 @@ namespace ccf
         return false;
       }
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
-      return from_cert->verify_hash(
-        h.h.data(),
-        h.h.size(),
-        view_change.signature.data(),
-        view_change.signature.size());
+      return from_cert->verify_hash(h.h, view_change.signature, MDType::SHA256);
     }
 
     bool verify_view_change_request_confirmation(
@@ -235,11 +231,7 @@ namespace ccf
       }
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       auto h = hash_new_view(new_view);
-      return from_cert->verify_hash(
-        h.h.data(),
-        h.h.size(),
-        new_view.signature.data(),
-        new_view.signature.size());
+      return from_cert->verify_hash(h.h, new_view.signature, MDType::SHA256);
     }
 
     kv::Consensus::SeqNo write_view_change_confirmation(

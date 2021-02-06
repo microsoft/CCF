@@ -41,10 +41,11 @@ namespace tls
       size_t contents_size,
       const uint8_t* sig,
       size_t sig_size,
-      MDType md_type)
+      MDType md_type) const
     {
       if (md_type == MDType::NONE)
         md_type = this->md_type;
+
       return public_key->verify(
         contents, contents_size, sig, sig_size, md_type);
     }
@@ -59,23 +60,17 @@ namespace tls
     {
       if (md_type == MDType::NONE)
         md_type = this->md_type;
+
       return public_key->verify(
         contents, contents_size, sig, sig_size, md_type, hash_bytes);
     }
 
     virtual bool verify(
       const std::vector<uint8_t>& contents,
-      const std::vector<uint8_t>& signature) const
-    {
-      return public_key->verify(contents, signature);
-    }
-
-    virtual bool verify(
-      const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature,
-      MDType md_type) const
+      MDType md_type = MDType::NONE) const
     {
-      return public_key->verify(
+      return verify(
         contents.data(),
         contents.size(),
         signature.data(),
@@ -89,9 +84,6 @@ namespace tls
       MDType md_type,
       HashBytes& hash_bytes) const
     {
-      if (md_type == MDType::NONE)
-        md_type = this->md_type;
-
       return verify(
         contents.data(),
         contents.size(),
@@ -105,15 +97,32 @@ namespace tls
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* sig,
-      size_t sig_size)
+      size_t sig_size,
+      MDType md_type = MDType::NONE)
     {
-      return public_key->verify_hash(hash, hash_size, sig, sig_size);
+      if (md_type == MDType::NONE)
+        md_type = this->md_type;
+
+      return public_key->verify_hash(hash, hash_size, sig, sig_size, md_type);
     }
 
     virtual bool verify_hash(
-      const std::vector<uint8_t>& hash, const std::vector<uint8_t>& signature)
+      const std::vector<uint8_t>& hash,
+      const std::vector<uint8_t>& signature,
+      MDType md_type = MDType::NONE)
     {
-      return public_key->verify_hash(hash, signature);
+      return verify_hash(
+        hash.data(), hash.size(), signature.data(), signature.size(), md_type);
+    }
+
+    template <size_t SIZE>
+    bool verify_hash(
+      const std::array<uint8_t, SIZE>& hash,
+      const std::vector<uint8_t>& signature,
+      MDType md_type = MDType::NONE)
+    {
+      return verify_hash(
+        hash.data(), hash.size(), signature.data(), signature.size(), md_type);
     }
 
     virtual CurveID get_curve_id() const

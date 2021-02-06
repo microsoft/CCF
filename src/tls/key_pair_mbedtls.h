@@ -122,18 +122,24 @@ namespace tls
       }
       MBedHashProvider hp;
       bytes = hp.Hash(contents, contents_size, md_type);
-      return verify_hash(bytes.data(), bytes.size(), sig, sig_size);
+      return verify_hash(bytes.data(), bytes.size(), sig, sig_size, md_type);
     }
 
     virtual bool verify_hash(
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* sig,
-      size_t sig_size) override
+      size_t sig_size,
+      MDType md_type) override
     {
-      // mbedTLS wants an MD algorithm; even when it doesn't use it, it stil
+      if (md_type == MDType::NONE)
+      {
+        md_type = get_md_for_ec(get_curve_id(), true);
+      }
+
+      // mbedTLS wants an MD algorithm; even when it doesn't use it, it still
       // checks that the hash size matches.
-      const auto mmdt = get_md_type(get_md_for_ec(get_curve_id()));
+      const auto mmdt = get_md_type(md_type);
 
       int rc =
         mbedtls_pk_verify(ctx.get(), mmdt, hash, hash_size, sig, sig_size);

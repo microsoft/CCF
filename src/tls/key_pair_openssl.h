@@ -144,14 +144,15 @@ namespace tls
       }
       OpenSSLHashProvider hp;
       bytes = hp.Hash(contents, contents_size, md_type);
-      return verify_hash(bytes.data(), bytes.size(), sig, sig_size);
+      return verify_hash(bytes.data(), bytes.size(), sig, sig_size, md_type);
     }
 
     virtual bool verify_hash(
       const uint8_t* hash,
       size_t hash_size,
       const uint8_t* sig,
-      size_t sig_size) override
+      size_t sig_size,
+      MDType) override
     {
       EVP_PKEY_CTX* pctx = NULL;
       OPENSSL_CHECKNULL(pctx = EVP_PKEY_CTX_new(key, NULL));

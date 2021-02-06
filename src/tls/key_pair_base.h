@@ -22,6 +22,14 @@ namespace tls
   public:
     virtual CurveID get_curve_id() const = 0;
 
+    virtual bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* sig,
+      size_t sig_size,
+      MDType md_type,
+      HashBytes& bytes) = 0;
+
     /**
      * Verify that a signature was produced on contents with the private key
      * associated with the public key held by the object.
@@ -46,20 +54,6 @@ namespace tls
       return verify(contents, contents_size, sig, sig_size, md_type, hash);
     }
 
-    virtual bool verify(
-      const uint8_t* contents,
-      size_t contents_size,
-      const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type,
-      HashBytes& bytes) = 0;
-
-    virtual bool verify_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      const uint8_t* sig,
-      size_t sig_size) = 0;
-
     /**
      * Verify that a signature was produced on contents with the private key
      * associated with the public key held by the object.
@@ -77,21 +71,21 @@ namespace tls
         contents.data(), contents.size(), signature.data(), signature.size());
     }
 
-    /**
-     * Verify that a signature was produced on a hash with the private key
-     * associated with the public key held by the object.
-     *
-     * @param hash Hash produced from contents as a sequence of bytes
-     * @param signature Signature as a sequence of bytes
-     *
-     * @return Whether the signature matches the hash and the key
-     */
     virtual bool verify_hash(
-      const std::vector<uint8_t>& hash, const std::vector<uint8_t>& signature)
+      const std::vector<uint8_t>& hash,
+      const std::vector<uint8_t>& signature,
+      MDType md_type)
     {
       return verify_hash(
-        hash.data(), hash.size(), signature.data(), signature.size());
+        hash.data(), hash.size(), signature.data(), signature.size(), md_type);
     }
+
+    virtual bool verify_hash(
+      const uint8_t* hash,
+      size_t hash_size,
+      const uint8_t* sig,
+      size_t sig_size,
+      MDType md_type) = 0;
 
     /**
      * Get the public key in PEM format
