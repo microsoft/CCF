@@ -3,7 +3,6 @@
 
 import e2e_logging
 import memberclient
-import receipts
 import reconfiguration
 import recovery
 import rekey
@@ -13,7 +12,7 @@ import membership
 
 from inspect import signature, Parameter
 
-suites = dict()
+suites = {}
 
 # This test suite currently fails and is not yet run by the CI
 # https://github.com/microsoft/CCF/issues/1648
@@ -92,7 +91,7 @@ all_tests_suite = [
     memberclient.test_missing_signature_header,
     memberclient.test_corrupted_signature,
     # receipts:
-    receipts.test,
+    e2e_logging.test_receipts,
     # reconfiguration:
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_from_backup,

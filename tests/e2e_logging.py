@@ -766,6 +766,82 @@ def test_memory(network, args):
     return network
 
 
+@reqs.description("Running transactions against logging app")
+@reqs.supports_methods("log/private")
+@reqs.at_least_n_nodes(2)
+def test_ws(network, args):
+    primary, other = network.find_primary_and_any_backup()
+
+    msg = "Hello world"
+    LOG.info("Write on primary")
+    with primary.client("user0", ws=True) as c:
+        for i in [1, 50, 500]:
+            r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
+            assert r.body.json() == True, r
+
+    # Before we start sending transactions to the secondary,
+    # we want to wait for its app frontend to be open, which is
+    # when it's aware that the network is open. Before that,
+    # we will get 404s.
+    end_time = time.time() + 10
+    with other.client("user0") as nc:
+        while time.time() < end_time:
+            r = nc.post("/app/log/private", {"id": 42, "msg": msg * i})
+            if r.status_code == http.HTTPStatus.OK.value:
+                break
+            else:
+                time.sleep(0.1)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+
+    LOG.info("Write on secondary through forwarding")
+    with other.client("user0", ws=True) as c:
+        for i in [1, 50, 500]:
+            r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
+            assert r.body.json() == True, r
+
+    return network
+
+
+@reqs.description("Running transactions against logging app")
+@reqs.supports_methods("receipt", "receipt/verify", "log/private")
+@reqs.at_least_n_nodes(2)
+def test_receipts(network, args):
+    primary, _ = network.find_primary_and_any_backup()
+
+    with primary.client() as mc:
+        check_commit = infra.checker.Checker(mc)
+        check = infra.checker.Checker()
+
+        msg = "Hello world"
+
+        LOG.info("Write/Read on primary")
+        with primary.client("user0") as c:
+            r = c.post("/app/log/private", {"id": 10000, "msg": msg})
+            check_commit(r, result=True)
+            check(c.get("/app/log/private?id=10000"), result={"msg": msg})
+            for _ in range(10):
+                c.post(
+                    "/app/log/private",
+                    {"id": 10001, "msg": "Additional messages"},
+                )
+            check_commit(
+                c.post("/app/log/private", {"id": 10001, "msg": "A final message"}),
+                result=True,
+            )
+            r = c.get(f"/app/receipt?commit={r.seqno}")
+
+            rv = c.post("/app/receipt/verify", {"receipt": r.body.json()["receipt"]})
+            assert rv.body.json() == {"valid": True}
+
+            invalid = r.body.json()["receipt"]
+            invalid[-3] += 1
+
+            rv = c.post("/app/receipt/verify", {"receipt": invalid})
+            assert rv.body.json() == {"valid": False}
+
+    return network
+
+
 def run(args):
     txs = app.LoggingTxs()
     with infra.network.network(
@@ -799,6 +875,9 @@ def run(args):
         network = test_network_node_info(network, args)
         network = test_metrics(network, args)
         network = test_memory(network, args)
+        if args.package == "liblogging":
+            network = test_ws(network, args)
+            network = test_receipts(network, args)
 
 
 if __name__ == "__main__":

@@ -707,12 +707,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME ws_logging_raft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ws_scaffold.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
     NAME member_client_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
     CONSENSUS cft
@@ -740,12 +734,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS --ledger-chunk-bytes 100Mib --snapshot-tx-interval 10000
     )
   endif()
-
-  add_e2e_test(
-    NAME receipts_test_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
-    CONSENSUS cft
-  )
 
   if(TLS_TEST)
     add_e2e_test(
