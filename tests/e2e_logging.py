@@ -842,6 +842,26 @@ def test_receipts(network, args):
     return network
 
 
+@reqs.description("TTest basic app liveness")
+@reqs.at_least_n_nodes(1)
+def test_liveness(network, args):
+    txs = app.LoggingTxs()
+    txs.issue(
+        network=network,
+        number_txs=3,
+    )
+    txs.verify()
+    return network
+
+
+@reqs.description("Rekey the ledger once")
+@reqs.at_least_n_nodes(1)
+def test_rekey(network, args):
+    primary, _ = network.find_primary()
+    network.consortium.rekey_ledger(primary)
+    return network
+
+
 def run(args):
     txs = app.LoggingTxs()
     with infra.network.network(
@@ -875,6 +895,10 @@ def run(args):
         network = test_network_node_info(network, args)
         network = test_metrics(network, args)
         network = test_memory(network, args)
+        if args.consensus == "cft":
+            network = test_liveness(network, args)
+            network = test_rekey(network, args)
+            network = test_liveness(network, args)
         if args.package == "liblogging":
             network = test_ws(network, args)
             network = test_receipts(network, args)

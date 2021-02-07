@@ -18,8 +18,8 @@ suites = {}
 # https://github.com/microsoft/CCF/issues/1648
 historical_recovery_snapshot_failure = [
     e2e_logging.test_historical_query,
-    rekey.test,
-    rekey.test,
+    e2e_logging.rekey,
+    e2e_logging.rekey,
     recovery.test,
 ]
 
@@ -29,10 +29,10 @@ historical_recovery_snapshot_failure = [
 suite_rekey_recovery = [
     recovery.test,
     reconfiguration.test_add_node,
-    rekey.test,
+    e2e_logging.rekey,
     reconfiguration.test_add_node,
     recovery.test,
-    rekey.test,
+    e2e_logging.rekey,
     reconfiguration.test_add_node,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
@@ -55,7 +55,7 @@ suites["membership_recovery"] = suite_membership_recovery
 suite_reconfiguration = [
     reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_retire_primary,
-    rekey.test,
+    e2e_logging.rekey,
     reconfiguration.test_add_node,
     election.test_kill_primary,
     reconfiguration.test_add_node,
@@ -100,7 +100,7 @@ all_tests_suite = [
     # recovery:
     recovery.test,
     # rekey:
-    rekey.test,
+    e2e_logging.rekey,
     # election:
     reconfiguration.test_add_node,
     election.test_kill_primary,

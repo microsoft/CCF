@@ -530,12 +530,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME rekey_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
