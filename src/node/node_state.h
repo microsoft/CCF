@@ -352,7 +352,8 @@ namespace ccf
 
           if (!config.startup_snapshot.empty())
           {
-            setup_history();
+            // No rollback can happen during verifying snapshot
+            setup_history(false);
 
             // It is necessary to give an encryptor to the store for it to
             // deserialise the public domain when recovering the public ledger
@@ -1720,14 +1721,15 @@ namespace ccf
       setup_basic_hooks();
     }
 
-    void setup_history()
+    void setup_history(bool enable_signature_timer = true)
     {
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
         *node_sign_kp,
         sig_tx_interval,
-        sig_ms_interval);
+        sig_ms_interval,
+        enable_signature_timer);
 
       network.tables->set_history(history);
     }
