@@ -5,8 +5,8 @@
 #include "key_pair_base.h"
 
 #include <openssl/ec.h>
-#include <openssl/err.h>
 #include <openssl/engine.h>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>

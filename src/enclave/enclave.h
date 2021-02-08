@@ -148,12 +148,15 @@ namespace enclave
       start_type = start_type_;
       ccf_config = ccf_config_;
 
-      // From https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
-      if (ENGINE_load_rdrand() != 1 ||
-          (rdrand_engine = ENGINE_by_id("rdrand")) == nullptr ||
-          ENGINE_init(rdrand_engine) != 1 ||
-          ENGINE_set_default(rdrand_engine, ENGINE_METHOD_RAND) != 1)
-        throw std::runtime_error("could not initialize RDRAND engine for OpenSSL");
+      // From
+      // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
+      if (
+        ENGINE_load_rdrand() != 1 ||
+        (rdrand_engine = ENGINE_by_id("rdrand")) == nullptr ||
+        ENGINE_init(rdrand_engine) != 1 ||
+        ENGINE_set_default(rdrand_engine, ENGINE_METHOD_RAND) != 1)
+        throw std::runtime_error(
+          "could not initialize RDRAND engine for OpenSSL");
 
       ccf::NodeCreateInfo r;
       try

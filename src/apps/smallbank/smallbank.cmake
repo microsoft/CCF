@@ -14,9 +14,7 @@ add_client_exe(
   small_bank_client
   SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/small_bank_client.cpp
 )
-target_link_libraries(
-  small_bank_client PRIVATE http_parser.host ccfcrypto.host
-)
+target_link_libraries(small_bank_client PRIVATE http_parser.host ccfcrypto.host)
 
 # SmallBank application
 add_ccf_app(smallbank SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp)

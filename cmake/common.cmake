@@ -292,8 +292,8 @@ add_executable(
 )
 use_client_mbedtls(scenario_perf_client)
 target_link_libraries(
-  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-                               http_parser.host ccfcrypto.host
+  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                               ccfcrypto.host
 )
 install(TARGETS scenario_perf_client DESTINATION bin)
 

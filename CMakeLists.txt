@@ -284,9 +284,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp
     )
     target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(
-      raft_enclave_test PRIVATE ${CRYPTO_LIBRARY}
-    )
+    target_link_libraries(raft_enclave_test PRIVATE ${CRYPTO_LIBRARY})
 
     add_unit_test(
       crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
@@ -305,9 +303,7 @@ if(BUILD_TESTS)
       progress_tracker_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/progress_tracker.cpp
     )
-    target_link_libraries(
-      progress_tracker_test PRIVATE ${CRYPTO_LIBRARY}
-    )
+    target_link_libraries(progress_tracker_test PRIVATE ${CRYPTO_LIBRARY})
 
     add_unit_test(
       secret_sharing_test
@@ -326,9 +322,7 @@ if(BUILD_TESTS)
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
     )
-    target_link_libraries(
-      historical_queries_test PRIVATE http_parser.host
-    )
+    target_link_libraries(historical_queries_test PRIVATE http_parser.host)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
@@ -347,14 +341,10 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
-    target_link_libraries(
-      tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-    )
+    target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_test_bin(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
-    target_link_libraries(
-      cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-    )
+    target_link_libraries(cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_unit_test(
       key_exchange_test
@@ -379,8 +369,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                            http_parser.host sss.host
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host
+                            sss.host
     )
 
     add_unit_test(
@@ -428,9 +418,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
     )
     target_include_directories(lua_test PRIVATE ${LUA_DIR})
-    target_link_libraries(
-      lua_test PRIVATE lua.host http_parser.host
-    )
+    target_link_libraries(lua_test PRIVATE lua.host http_parser.host)
 
     add_unit_test(
       merkle_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
@@ -439,9 +427,8 @@ if(BUILD_TESTS)
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_link_libraries(
-      merkle_mem
-      PRIVATE ccfcrypto.host ${CMAKE_THREAD_LIBS_INIT}
-              $<BUILD_INTERFACE:merklecpp> crypto
+      merkle_mem PRIVATE ccfcrypto.host ${CMAKE_THREAD_LIBS_INIT}
+                         $<BUILD_INTERFACE:merklecpp> crypto
     )
     use_client_mbedtls(merkle_mem)
 
