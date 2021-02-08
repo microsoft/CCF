@@ -149,7 +149,9 @@ namespace kv
       return history;
     }
 
-    void set_history(std::shared_ptr<TxHistory> history_)
+    // TODO:
+    // 2. get_history() returns nullptr if the history is temporary
+    void set_history(std::shared_ptr<TxHistory> history_, bool is_temporary = false)
     {
       history = history_;
     }

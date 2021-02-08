@@ -58,7 +58,7 @@ namespace ccf
 
     void update_history()
     {
-      history = tables.get_history().get();
+      history = tables.get_history(true).get();
       endpoints.set_history(history);
     }
 
