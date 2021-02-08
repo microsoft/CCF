@@ -47,16 +47,14 @@ vector<uint8_t> make_contents()
 template <typename P, CurveID Curve, size_t NContents>
 static void benchmark_sign(picobench::state& s)
 {
-  auto kp = std::make_shared<P>(Curve);
+  P kp(Curve);
   auto contents = make_contents<NContents>();
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    for (size_t i = 0; i < contents.size(); i++)
-      contents[i]++;
-    auto signature = kp->sign(contents);
+    auto signature = kp.sign(contents);
     do_not_optimize(signature);
     clobber_memory();
   }
@@ -66,17 +64,17 @@ static void benchmark_sign(picobench::state& s)
 template <typename T, typename S, CurveID CID, size_t NContents>
 static void benchmark_verify(picobench::state& s)
 {
-  auto kp = std::make_shared<T>(CID);
+  T kp(CID);
   const auto contents = make_contents<NContents>();
-  auto pubk = std::make_shared<S>(kp->public_key_pem());
+  S pubk(kp.public_key_pem());
 
-  auto signature = kp->sign(contents);
+  auto signature = kp.sign(contents);
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    auto verified = pubk->verify(contents, signature);
+    auto verified = pubk.verify(contents, signature);
     do_not_optimize(verified);
     clobber_memory();
   }
@@ -259,6 +257,25 @@ namespace SECP256K1
   auto verify_256k1_ossl_1byte =
     benchmark_verify<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP256K1, 1>;
   PICOBENCH(verify_256k1_ossl_1byte).PICO_SUFFIX(CurveID::SECP256K1);
+
+  auto verify_256k1_mbed_64b = benchmark_verify<
+    KeyPair_mbedTLS,
+    PublicKey_mbedTLS,
+    CurveID::SECP256K1,
+    64>;
+  PICOBENCH(verify_256k1_mbed_64b).PICO_SUFFIX(CurveID::SECP256K1);
+  auto verify_256k1_bitc_64b = benchmark_verify<
+    KeyPair_k1Bitcoin,
+    PublicKey_k1Bitcoin,
+    CurveID::SECP256K1,
+    64>;
+  PICOBENCH(verify_256k1_bitc_64b).PICO_SUFFIX(CurveID::SECP256K1);
+  auto verify_256k1_ossl_64b = benchmark_verify<
+    KeyPair_OpenSSL,
+    PublicKey_OpenSSL,
+    CurveID::SECP256K1,
+    64>;
+  PICOBENCH(verify_256k1_ossl_64b).PICO_SUFFIX(CurveID::SECP256K1);
 
   auto verify_256k1_mbed_1k = benchmark_verify<
     KeyPair_mbedTLS,
