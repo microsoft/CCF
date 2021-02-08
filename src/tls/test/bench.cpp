@@ -159,7 +159,7 @@ namespace
     benchmark_sign<KeyPair_mbedTLS, CurveID::SECP256K1, 102400>;
   PICOBENCH(sign_256k1_mbed_100k).PICO_SUFFIX(CurveID::SECP256K1);
   auto sign_256r1_mbed_100k =
-    benchmark_sign<KeyPair_mbedTLS, CurveID::SECP256K1, 102400>;
+    benchmark_sign<KeyPair_mbedTLS, CurveID::SECP256R1, 102400>;
   PICOBENCH(sign_256r1_mbed_100k).PICO_SUFFIX(CurveID::SECP256R1);
   auto sign_256k1_bitc_100k =
     benchmark_sign<KeyPair_k1Bitcoin, CurveID::SECP256K1, 102400>;
