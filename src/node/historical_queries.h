@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
+#include "ds/spin_lock.h"
 #include "kv/store.h"
 #include "node/historical_queries_interface.h"
 #include "node/history.h"
@@ -92,6 +93,8 @@ namespace ccf::historical
         return ret;
       }
     };
+
+    SpinLock requests_lock;
 
     // Things actually requested by external callers
     std::map<RequestHandle, Request> requests;
@@ -235,11 +238,6 @@ namespace ccf::historical
                 // We already trust this transaction (it contains a signature
                 // written by a node we trust, and nothing else) so don't have
                 // anything further to validate
-
-                if (requested_idx == request.last_requested_index)
-                {
-                  request_complete = true;
-                }
               }
 
               // Move store from untrusted to trusted
@@ -248,6 +246,11 @@ namespace ccf::historical
                 requested_idx,
                 sig_idx);
               details.current_stage = RequestStage::Trusted;
+
+              if (sig_idx >= request.last_requested_index)
+              {
+                request_complete = true;
+              }
             }
           }
         }
@@ -323,6 +326,8 @@ namespace ccf::historical
     {
       const auto expire_after_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(expire_after);
+
+      std::lock_guard<SpinLock> guard(requests_lock);
 
       auto it = requests.find(handle);
       if (it == requests.end())
@@ -446,12 +451,14 @@ namespace ccf::historical
 
     bool drop_request(RequestHandle handle) override
     {
+      std::lock_guard<SpinLock> guard(requests_lock);
       const auto erased_count = requests.erase(handle);
       return erased_count > 0;
     }
 
     bool handle_ledger_entry(consensus::Index idx, const LedgerEntry& data)
     {
+      std::lock_guard<SpinLock> guard(requests_lock);
       const auto it = pending_fetches.find(idx);
       if (it == pending_fetches.end())
       {
@@ -506,6 +513,13 @@ namespace ccf::historical
       // fetch the next index
       if (!handles.empty())
       {
+        if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
+        {
+          LOG_INFO_FMT(
+            "Deserialised a signature at {}, but still have handles looking "
+            "for the next index!",
+            idx);
+        }
         fetch_entry_at(handles, idx + 1);
       }
 
@@ -516,30 +530,27 @@ namespace ccf::historical
 
     void handle_no_entry(consensus::Index idx)
     {
-      // TODO: Can do this more efficiently now pending_fetches is a reverse
-      // lookup The host failed or refused to give this entry. Currently just
-      // forget about it - don't have a mechanism for remembering this failure
-      // and reporting it to users.
-      const auto was_fetching = pending_fetches.erase(idx);
+      std::lock_guard<SpinLock> guard(requests_lock);
 
-      if (was_fetching)
+      // The host failed or refused to give this entry. Currently just
+      // forget about it and drop any requests which were looking for it - don't
+      // have a mechanism for remembering this failure and reporting it to
+      // users.
+      const auto fetches_it = pending_fetches.find(idx);
+      if (fetches_it != pending_fetches.end())
       {
-        // To remove requests which were looking for this we need to iterate
-        // through all, so only do this if we were actually fetching
-        // TODO: What do we do in the range-query case, if an entry is missing?
-        // Very tempted to just drop all the work we may have done, assume this
-        // is a malicious host or an uncommitted suffix, and we don't want to
-        // waste any more time retrying. But we leave orphans if deserialise
-        // throws, maybe we need to do that here too? std::erase_if(requests,
-        // [idx](const auto& item) {
-        //   const auto& [handle, request] = item;
-        //   return request.target_index == idx;
-        // });
+        for (auto handle : fetches_it->second)
+        {
+          requests.erase(handle);
+        }
+
+        pending_fetches.erase(fetches_it);
       }
     }
 
     void tick(const std::chrono::milliseconds& elapsed_ms)
     {
+      std::lock_guard<SpinLock> guard(requests_lock);
       auto it = requests.begin();
       while (it != requests.end())
       {

@@ -35,14 +35,6 @@ public:
     return writes[marker.value()];
   }
 
-  Write& get_last_message()
-  {
-    REQUIRE(writes.size() > 0);
-    auto& write = writes.back();
-    REQUIRE(write.finished);
-    return write;
-  }
-
   WriteMarker prepare(
     ringbuffer::Message m,
     size_t size,
@@ -132,6 +124,8 @@ kv::Version write_transactions_and_signature(
 void validate_business_transaction(
   ccf::historical::StorePtr store, consensus::Index idx)
 {
+  REQUIRE(store != nullptr);
+
   auto tx = store->create_read_only_tx();
   auto public_map = tx.ro<NumToString>("public:data");
   auto private_map = tx.ro<NumToString>("data");
@@ -535,7 +529,7 @@ TEST_CASE("StateCache concurrent access")
   const auto end_index = kv_store.current_version();
 
   auto random_index = [&]() {
-    return begin_index + (rand() % (end_index - begin_index));
+    return begin_index + (rand() % (end_index - begin_index - 1));
   };
 
   auto writer = std::make_shared<StubWriter>();
@@ -544,6 +538,11 @@ TEST_CASE("StateCache concurrent access")
   std::atomic<bool> finished = false;
   std::thread host_thread([&]() {
     auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+    std::cout << "Ledger contains " << ledger.size() << " entries" << std::endl;
+    std::cout << fmt::format("begin is {}, end is {}", begin_index, end_index)
+              << std::endl;
+
     size_t last_handled_write = 0;
     while (!finished)
     {
@@ -565,7 +564,9 @@ TEST_CASE("StateCache concurrent access")
           ringbuffer::read_message<consensus::ledger_get>(data, size);
         REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
 
-        cache.handle_ledger_entry(idx, ledger.at(idx));
+        const auto it = ledger.find(idx);
+        REQUIRE(it != ledger.end());
+        cache.handle_ledger_entry(idx, it->second);
       }
 
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
