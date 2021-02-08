@@ -5,7 +5,6 @@ import e2e_logging
 import memberclient
 import reconfiguration
 import recovery
-import rekey
 import election
 import code_update
 import membership
@@ -18,8 +17,8 @@ suites = {}
 # https://github.com/microsoft/CCF/issues/1648
 historical_recovery_snapshot_failure = [
     e2e_logging.test_historical_query,
-    e2e_logging.rekey,
-    e2e_logging.rekey,
+    e2e_logging.test_rekey,
+    e2e_logging.test_rekey,
     recovery.test,
 ]
 
@@ -29,10 +28,10 @@ historical_recovery_snapshot_failure = [
 suite_rekey_recovery = [
     recovery.test,
     reconfiguration.test_add_node,
-    e2e_logging.rekey,
+    e2e_logging.test_rekey,
     reconfiguration.test_add_node,
     recovery.test,
-    e2e_logging.rekey,
+    e2e_logging.test_rekey,
     reconfiguration.test_add_node,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
@@ -55,7 +54,7 @@ suites["membership_recovery"] = suite_membership_recovery
 suite_reconfiguration = [
     reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_retire_primary,
-    e2e_logging.rekey,
+    e2e_logging.test_rekey,
     reconfiguration.test_add_node,
     election.test_kill_primary,
     reconfiguration.test_add_node,
@@ -100,7 +99,7 @@ all_tests_suite = [
     # recovery:
     recovery.test,
     # rekey:
-    e2e_logging.rekey,
+    e2e_logging.test_rekey,
     # election:
     reconfiguration.test_add_node,
     election.test_kill_primary,

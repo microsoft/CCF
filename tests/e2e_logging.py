@@ -895,6 +895,7 @@ def run(args):
         network = test_network_node_info(network, args)
         network = test_metrics(network, args)
         network = test_memory(network, args)
+        # BFT does not handle re-keying yet
         if args.consensus == "cft":
             network = test_liveness(network, args)
             network = test_rekey(network, args)
