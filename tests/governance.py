@@ -183,7 +183,7 @@ def test_service_principals(network, args):
         with primary.client("member0") as mc:
             return mc.post(
                 "/gov/read",
-                {"table": "public:ccf.gov.service_principals", "key": principal_id},
+                {"table": "public:gov.service_principals", "key": principal_id},
             )
 
     # Initially, there is nothing in this table
