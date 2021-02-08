@@ -48,9 +48,7 @@ def verify_request_sig(raw_cert, sig, req, request_body, md):
     h.update(request_body)
     raw_req_digest = h.finalize()
     header_digest = base64.b64decode(req.decode().split("SHA-256=")[1])
-    assert (
-        header_digest == raw_req_digest
-    ), "Digest header does not match request body"
+    assert header_digest == raw_req_digest, "Digest header does not match request body"
 
     pub_key = cert.public_key()
     signature_hash_alg = ec.ECDSA(

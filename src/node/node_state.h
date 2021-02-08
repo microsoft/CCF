@@ -238,7 +238,7 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
-      const CurveID &curve_id) :
+      const CurveID& curve_id) :
       sm(State::uninitialized),
       self(INVALID_ID),
       node_sign_kp(tls::make_key_pair(curve_id)),
