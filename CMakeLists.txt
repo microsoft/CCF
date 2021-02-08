@@ -580,6 +580,7 @@ if(BUILD_TESTS)
     NAME rotation_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
     CONSENSUS cft
+    LABEL rotation
   )
 
   add_e2e_test(

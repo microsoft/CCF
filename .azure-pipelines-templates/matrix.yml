@@ -26,8 +26,6 @@ parameters:
       cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF"
     perf:
       cmake_args: '-DBUILD_UNIT_TESTS=OFF -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
-    fuzz:
-      cmake_args: "-DBUILD_UNIT_TESTS=OFF -DZAP_TEST=ON"
 
   test:
     NoSGX:
@@ -36,8 +34,6 @@ parameters:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta"'
     perf:
       ctest_args: '-L "benchmark|perf|vegeta"'
-    fuzz:
-      ctest_args: '-L "zaptest"'
 
 jobs:
   # Debug
@@ -60,17 +56,6 @@ jobs:
       suffix: "Perf"
       artifact_name: "SGX_Perf"
       ctest_filter: "${{ parameters.test.perf.ctest_args }}"
-
-  # Fuzzing
-  - template: common.yml
-    parameters:
-      target: NoSGX
-      # Perf env to launch a Docker container inside tests.
-      env: ${{ parameters.env.Perf }}
-      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.fuzz.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
-      suffix: "Fuzz"
-      artifact_name: "NoSGX_Fuzz"
-      ctest_filter: "${{ parameters.test.fuzz.ctest_args }}"
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
