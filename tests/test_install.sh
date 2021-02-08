@@ -49,7 +49,7 @@ python3.8 -m venv env
 # shellcheck source=/dev/null
 source env/bin/activate
 python -m pip install ../../../python
-python ../../../python/tutorial.py ./workspace/sandbox_0/0.ledger/ ./workspace/sandbox_common/
+python ../../../python/tutorial.py ./workspace/sandbox_common/
 
 # Test Python package CLI
 ../../../tests/test_python_cli.sh > test_python_cli.out
@@ -59,6 +59,9 @@ while [ "$(service_http_status)" == "200" ]; do
     echo "Waiting for service to close..."
     sleep 1
 done
+
+# Now that the service has been stopped, run ledger tutorial
+python ../../../python/ledger_tutorial.py ./workspace/sandbox_0/0.ledger
 
 # Recover network
 cp -r ./workspace/sandbox_0/0.ledger .
@@ -70,3 +73,4 @@ timeout --signal=SIGINT --kill-after=${recovered_network_live_time}s --preserve-
     --recover \
     --ledger-dir 0.ledger \
     --common-dir ./workspace/sandbox_common/
+
