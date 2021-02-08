@@ -194,8 +194,7 @@ namespace tls
     /**
      * Create a new public / private ECDSA key pair
      */
-    KeyPair_mbedTLS(CurveID cid = service_identity_curve_choice) :
-      PublicKey_mbedTLS()
+    KeyPair_mbedTLS(CurveID cid) : PublicKey_mbedTLS()
     {
       mbedtls_ecp_group_id ec = get_mbedtls_group_id(cid);
       EntropyPtr entropy = create_entropy();

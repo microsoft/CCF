@@ -121,6 +121,7 @@ namespace ccf
     tls::KeyPairPtr node_sign_kp;
     tls::KeyPairPtr node_encrypt_kp;
     tls::Pem node_cert;
+    tls::CurveID curve_id;
     QuoteInfo quote_info;
     CodeDigest node_code_id;
 #ifdef GET_QUOTE
@@ -236,11 +237,12 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
-      ShareManager& share_manager) :
+      ShareManager& share_manager,
+      const CurveID &curve_id) :
       sm(State::uninitialized),
       self(INVALID_ID),
-      node_sign_kp(tls::make_key_pair()),
-      node_encrypt_kp(tls::make_key_pair()),
+      node_sign_kp(tls::make_key_pair(curve_id)),
+      node_encrypt_kp(tls::make_key_pair(curve_id)),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -297,6 +299,8 @@ namespace ccf
 
       create_node_cert(config);
       open_frontend(ActorsType::nodes);
+
+      curve_id = config.curve_id;
 
 #ifdef GET_QUOTE
       quote_info = enclave_attestation_provider.generate_quote(

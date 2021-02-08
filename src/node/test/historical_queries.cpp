@@ -75,7 +75,7 @@ TEST_CASE("StateCache")
 
   // Make history to produce signatures
   const auto node_id = 0;
-  auto kp = std::make_shared<KeyPair_mbedTLS>();
+  auto kp = make_key_pair();
   auto history = std::make_shared<ccf::MerkleTxHistory>(store, node_id, *kp);
 
   store.set_history(history);

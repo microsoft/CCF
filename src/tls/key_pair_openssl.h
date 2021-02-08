@@ -222,7 +222,7 @@ namespace tls
     /**
      * Generate a fresh key
      */
-    KeyPair_OpenSSL(CurveID curve_id = service_identity_curve_choice)
+    KeyPair_OpenSSL(CurveID curve_id)
     {
       int curve_nid = get_openssl_group_id(curve_id);
       key = EVP_PKEY_new();

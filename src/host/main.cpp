@@ -422,6 +422,14 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
+  CurveID curve_id = CurveID::SECP384R1;
+  std::vector<std::pair<std::string, CurveID>> curve_id_map = {
+    {"secp384r1", CurveID::SECP384R1}, {"secp256r1", CurveID::SECP256R1}};
+  app
+    .add_option("--curve-id", curve_id, "Elliptic curve to use for signatures")
+    ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
+    ->capture_default_str();
+
   CLI11_PARSE(app, argc, argv);
 
   if (!(*public_rpc_address_option))
@@ -668,6 +676,8 @@ int main(int argc, char** argv)
     ccf_config.subject_alternative_names = subject_alternative_names;
 
     ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
+
+    ccf_config.curve_id = curve_id;
 
     if (*start)
     {
