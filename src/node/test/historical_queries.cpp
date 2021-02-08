@@ -25,6 +25,7 @@ public:
     bool finished;
     std::vector<uint8_t> contents;
   };
+  std::mutex writes_mutex;
   std::vector<Write> writes;
 
   Write& get_write(const WriteMarker& marker)
@@ -48,6 +49,7 @@ public:
     bool wait = true,
     size_t* identifier = nullptr) override
   {
+    std::lock_guard<std::mutex> guard(writes_mutex);
     const auto index = writes.size();
     writes.push_back(Write{m, false, {}});
     return index;
@@ -55,12 +57,14 @@ public:
 
   void finish(const WriteMarker& marker) override
   {
+    std::lock_guard<std::mutex> guard(writes_mutex);
     get_write(marker).finished = true;
   }
 
   WriteMarker write_bytes(
     const WriteMarker& marker, const uint8_t* bytes, size_t size) override
   {
+    std::lock_guard<std::mutex> guard(writes_mutex);
     auto& write = get_write(marker);
     write.contents.insert(write.contents.end(), bytes, bytes + size);
     return marker;
@@ -125,6 +129,37 @@ kv::Version write_transactions_and_signature(
   return kv_store.current_version();
 }
 
+void validate_business_transaction(
+  ccf::historical::StorePtr store, consensus::Index idx)
+{
+  auto tx = store->create_read_only_tx();
+  auto public_map = tx.ro<NumToString>("public:data");
+  auto private_map = tx.ro<NumToString>("data");
+
+  const auto k = idx - 1;
+  const auto v = std::to_string(k);
+
+  auto public_v = public_map->get(k);
+  REQUIRE(public_v.has_value());
+  REQUIRE(*public_v == v);
+
+  auto private_v = private_map->get(k);
+  REQUIRE(private_v.has_value());
+  REQUIRE(*private_v == v);
+
+  size_t public_count = 0;
+  public_map->foreach([&public_count](const auto& k, const auto& v) {
+    REQUIRE(public_count++ == 0);
+    return true;
+  });
+
+  size_t private_count = 0;
+  private_map->foreach([&private_count](const auto& k, const auto& v) {
+    REQUIRE(private_count++ == 0);
+    return true;
+  });
+}
+
 std::map<consensus::Index, std::vector<uint8_t>> construct_host_ledger(
   std::shared_ptr<kv::Consensus> c)
 {
@@ -133,7 +168,7 @@ std::map<consensus::Index, std::vector<uint8_t>> construct_host_ledger(
 
   INFO("Rebuild ledger as seen by host");
   std::map<consensus::Index, std::vector<uint8_t>> ledger;
-  
+
   auto next_ledger_entry = consensus->pop_oldest_entry();
   while (next_ledger_entry.has_value())
   {
@@ -147,7 +182,7 @@ std::map<consensus::Index, std::vector<uint8_t>> construct_host_ledger(
   return ledger;
 }
 
-TEST_CASE("StateCache")
+TEST_CASE("StateCache point queries")
 {
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
@@ -263,34 +298,7 @@ TEST_CASE("StateCache")
     auto store_at_index = cache.get_store_at(high_handle, high_index);
     REQUIRE(store_at_index != nullptr);
 
-    {
-      auto tx = store_at_index->create_tx();
-      auto public_map = tx.rw<NumToString>("public:data");
-      auto private_map = tx.rw<NumToString>("data");
-
-      const auto k = high_index - 1;
-      const auto v = std::to_string(k);
-
-      auto public_v = public_map->get(k);
-      REQUIRE(public_v.has_value());
-      REQUIRE(*public_v == v);
-
-      auto private_v = private_map->get(k);
-      REQUIRE(private_v.has_value());
-      REQUIRE(*private_v == v);
-
-      size_t public_count = 0;
-      public_map->foreach([&public_count](const auto& k, const auto& v) {
-        REQUIRE(public_count++ == 0);
-        return true;
-      });
-
-      size_t private_count = 0;
-      private_map->foreach([&private_count](const auto& k, const auto& v) {
-        REQUIRE(private_count++ == 0);
-        return true;
-      });
-    }
+    validate_business_transaction(store_at_index, high_index);
   }
 
   {
@@ -397,5 +405,206 @@ TEST_CASE("StateCache")
   }
 }
 
-// TODO: Test range queries
-// TODO: Test multi-threaded access
+TEST_CASE("StateCache range queries")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+  const auto default_handle = 0;
+
+  std::vector<kv::Version> signature_versions;
+
+  const auto begin_index = kv_store.current_version() + 1;
+
+  {
+    INFO("Build some interesting state in the store");
+    for (size_t batch_size : {10, 5, 2, 20, 5})
+    {
+      signature_versions.push_back(
+        write_transactions_and_signature(kv_store, batch_size));
+    }
+  }
+
+  const auto end_index = kv_store.current_version();
+
+  ccf::historical::StateCache cache(kv_store, std::make_shared<StubWriter>());
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+
+  auto provide_ledger_entry = [&](size_t i) {
+    bool accepted = cache.handle_ledger_entry(i, ledger.at(i));
+    return accepted;
+  };
+
+  auto signing_version = [&signature_versions](kv::Version idx) {
+    const auto begin = signature_versions.begin();
+    const auto end = signature_versions.end();
+
+    const auto exact_it = std::find(begin, end, idx);
+    if (exact_it != end)
+    {
+      return idx;
+    }
+
+    const auto next_sig_it = std::upper_bound(begin, end, idx);
+    REQUIRE(next_sig_it != end);
+    return *next_sig_it;
+  };
+
+  auto fetch_and_validate_range =
+    [&](kv::Version range_start, kv::Version range_end) {
+      {
+        auto stores =
+          cache.get_store_range(default_handle, range_start, range_end);
+        REQUIRE(stores.empty());
+      }
+
+      const auto proof_end = signing_version(range_end);
+      for (auto i = range_start; i <= proof_end; ++i)
+      {
+        REQUIRE(provide_ledger_entry(i));
+      }
+
+      {
+        auto stores =
+          cache.get_store_range(default_handle, range_start, range_end);
+
+        const auto range_size = (range_end - range_start) + 1;
+        REQUIRE(stores.size() == range_size);
+        for (size_t i = 0; i < stores.size(); ++i)
+        {
+          auto& store = stores[i];
+          REQUIRE(store != nullptr);
+          const auto idx = range_start + i;
+
+          // Don't validate anything about signature transactions, just the
+          // business transactions between them
+          if (
+            std::find(
+              signature_versions.begin(), signature_versions.end(), idx) ==
+            signature_versions.end())
+          {
+            validate_business_transaction(store, idx);
+          }
+        }
+      }
+    };
+
+  {
+    INFO("Fetch a single explicit range");
+    const auto range_start = 4;
+    const auto range_end = 7;
+
+    fetch_and_validate_range(range_start, range_end);
+  }
+
+  {
+    INFO("Fetch ranges of various sizes, including across multiple signatures");
+    const size_t whole_range = end_index - begin_index;
+    std::vector<size_t> range_sizes{3, 8, whole_range / 2, whole_range};
+    for (const size_t range_size : range_sizes)
+    {
+      for (auto range_start = begin_index;
+           range_start <= (end_index - range_size);
+           ++range_start)
+      {
+        const auto range_end = range_start + range_size;
+        fetch_and_validate_range(range_start, range_end);
+      }
+    }
+  }
+}
+
+TEST_CASE("StateCache concurrent access")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+  const auto default_handle = 0;
+
+  std::vector<kv::Version> signature_versions;
+
+  const auto begin_index = kv_store.current_version() + 1;
+
+  {
+    INFO("Build some interesting state in the store");
+    for (size_t batch_size : {20, 10, 20})
+    {
+      signature_versions.push_back(
+        write_transactions_and_signature(kv_store, batch_size));
+    }
+  }
+
+  const auto end_index = kv_store.current_version();
+
+  auto random_index = [&]() {
+    return begin_index + (rand() % (end_index - begin_index));
+  };
+
+  auto writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(kv_store, writer);
+
+  std::atomic<bool> finished = false;
+  std::thread host_thread([&]() {
+    auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+    size_t last_handled_write = 0;
+    while (!finished)
+    {
+      std::vector<StubWriter::Write> writes;
+      {
+        std::lock_guard<std::mutex> guard(writer->writes_mutex);
+        writes.insert(
+          writes.end(),
+          writer->writes.begin() + last_handled_write,
+          writer->writes.end());
+        last_handled_write = writer->writes.size();
+      }
+
+      for (const auto& write : writes)
+      {
+        auto data = write.contents.data();
+        auto size = write.contents.size();
+        const auto [idx, purpose] =
+          ringbuffer::read_message<consensus::ledger_get>(data, size);
+        REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+
+        cache.handle_ledger_entry(idx, ledger.at(idx));
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  });
+
+  auto query_random = [&](size_t handle) {
+    for (size_t i = 0; i < 10; ++i)
+    {
+      const auto target_idx = random_index();
+
+      ccf::historical::StorePtr store;
+      // Poll to fetch point query
+      while (true)
+      {
+        store = cache.get_store_at(handle, target_idx);
+        if (store != nullptr)
+        {
+          break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+
+      validate_business_transaction(store, target_idx);
+    }
+  };
+
+  std::atomic<size_t> next_handle = 0;
+  std::vector<std::thread> random_queries;
+  for (size_t i = 0; i < 1; ++i)
+  {
+    random_queries.emplace_back(query_random, ++next_handle);
+  }
+
+  for (auto& thread : random_queries)
+  {
+    thread.join();
+  }
+
+  finished = true;
+  host_thread.join();
+}

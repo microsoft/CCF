@@ -42,25 +42,25 @@ namespace ccf::historical
       // To avoid duplicating state, range details are determined by length of
       // stores
       consensus::Index first_requested_index;
+      consensus::Index last_requested_index;
       std::vector<StoreDetails> stores;
       std::chrono::milliseconds time_to_expiry;
 
       Request(consensus::Index start_idx, size_t num_following_indices)
       {
-        first_requested_index = start_idx;
-        stores.resize(1 + num_following_indices);
-      }
-
-      consensus::Index get_requested_index_end()
-      {
-        // This is an iterator-style end, 1 greater than last()
-        return first_requested_index + stores.size();
+        adjust_range(start_idx, num_following_indices);
       }
 
       bool is_index_in_requested_range(consensus::Index idx)
       {
-        const auto end = get_requested_index_end();
-        return idx >= first_requested_index && idx < end;
+        return idx >= first_requested_index && idx <= last_requested_index;
+      }
+
+      bool does_range_match(
+        consensus::Index start_idx, size_t num_following_indices)
+      {
+        return start_idx == first_requested_index &&
+          (stores.size() == num_following_indices + 1);
       }
 
       StoreDetails& get_store_details(consensus::Index idx)
@@ -83,8 +83,9 @@ namespace ccf::historical
         stores.clear();
         first_requested_index = start_idx;
         stores.resize(1 + num_following_indices);
+        last_requested_index = first_requested_index + num_following_indices;
         std::set<consensus::Index> ret;
-        for (size_t i = start_idx; i < get_requested_index_end(); ++i)
+        for (size_t i = start_idx; i <= last_requested_index; ++i)
         {
           ret.insert(i);
         }
@@ -143,11 +144,12 @@ namespace ccf::historical
     }
 
     // Returns true if this is a valid signature that passes our verification
-    // checks
+    // checks. Modifies requesting_handles on successful return to contain only
+    // the handles which are still looking for the next index.
     bool handle_signature_transaction(
       const StorePtr& sig_store,
       consensus::Index sig_idx,
-      const HandleSet& requesting_handles)
+      HandleSet& requesting_handles)
     {
       const auto sig = get_signature(sig_store);
       if (!sig.has_value())
@@ -184,20 +186,23 @@ namespace ccf::historical
         return false;
       }
 
-      for (const auto handle : requesting_handles)
+      auto handle_it = requesting_handles.begin();
+      while (handle_it != requesting_handles.end())
       {
-        auto it = requests.find(handle);
+        auto it = requests.find(*handle_it);
         if (it == requests.end())
         {
+          handle_it = requesting_handles.erase(handle_it);
           continue;
         }
 
         Request& request = it->second;
 
         bool signature_invalidates_request = false;
+        bool request_complete = false;
 
         for (auto requested_idx = request.first_requested_index;
-             requested_idx < request.get_requested_index_end() &&
+             requested_idx <= request.last_requested_index &&
              !signature_invalidates_request;
              ++requested_idx)
         {
@@ -230,6 +235,11 @@ namespace ccf::historical
                 // We already trust this transaction (it contains a signature
                 // written by a node we trust, and nothing else) so don't have
                 // anything further to validate
+
+                if (requested_idx == request.last_requested_index)
+                {
+                  request_complete = true;
+                }
               }
 
               // Move store from untrusted to trusted
@@ -251,6 +261,18 @@ namespace ccf::historical
         if (signature_invalidates_request)
         {
           it = requests.erase(it);
+          request_complete = true;
+        }
+
+        // If this signature terminates the requested range, or has invalidated
+        // the previous range, we can remove it from requesting_handles
+        if (request_complete)
+        {
+          handle_it = requesting_handles.erase(handle_it);
+        }
+        else
+        {
+          ++handle_it;
         }
       }
 
@@ -293,42 +315,42 @@ namespace ccf::historical
       }
     }
 
-  public:
-    StateCache(kv::Store& store, const ringbuffer::WriterPtr& host_writer) :
-      source_store(store),
-      to_host(host_writer)
-    {}
-
-    StorePtr get_store_at(
+    std::vector<StorePtr> get_store_range_internal(
       RequestHandle handle,
-      consensus::Index idx,
-      ExpiryDuration expire_after) override
+      consensus::Index start_idx,
+      size_t num_following_indices,
+      ExpiryDuration expire_after)
     {
       const auto expire_after_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(expire_after);
 
-      // If this is a new handle, or a new request for an existing handle
       auto it = requests.find(handle);
       if (it == requests.end())
       {
         // This is a new handle - create entirely new request object for it
-        Request new_request(idx, 0);
+        Request new_request(start_idx, num_following_indices);
         it = requests.emplace_hint(it, handle, std::move(new_request));
 
-        // Start fetching it
-        fetch_entry_at({handle}, idx);
+        // Start fetching entries
+        for (consensus::Index idx = start_idx;
+             idx <= start_idx + num_following_indices;
+             ++idx)
+        {
+          fetch_entry_at({handle}, idx);
+        }
       }
       else
       {
         // There's an existing request at this handle - modify it if necessary
         // and ensure all requested indices are being fetched
         auto& request = it->second;
-        if (!request.is_index_in_requested_range(idx))
+        if (!request.does_range_match(start_idx, num_following_indices))
         {
           // We could just consider this equivalent to the case above, but
           // instead we retain old StoreDetails where possible in the same
           // Request, if the previous request and this had some overlap
-          auto new_indices = request.adjust_range(idx, 0);
+          auto new_indices =
+            request.adjust_range(start_idx, num_following_indices);
           for (const auto new_idx : new_indices)
           {
             fetch_entry_at({handle}, new_idx);
@@ -341,20 +363,80 @@ namespace ccf::historical
       // In any case, reset the expiry time as this has just been requested
       request.time_to_expiry = expire_after_ms;
 
-      auto& target_details = request.get_store_details(idx);
-      if (target_details.current_stage == RequestStage::Trusted)
+      std::vector<StorePtr> trusted_stores;
+
+      for (consensus::Index idx = start_idx;
+           idx <= start_idx + num_following_indices;
+           ++idx)
       {
-        // Have this store and trust it - return it
-        return target_details.store;
+        auto& target_details = request.get_store_details(idx);
+        if (target_details.current_stage == RequestStage::Trusted)
+        {
+          // Have this store and trust it - add it to return list
+          trusted_stores.push_back(target_details.store);
+        }
+        else
+        {
+          // Still fetching this store or don't trust it yet, so range is
+          // incomplete - return empty vector
+          return {};
+        }
       }
 
-      // Still fetching this store or don't trust it yet
-      return nullptr;
+      return trusted_stores;
     }
 
-    StorePtr get_store_at(RequestHandle request, consensus::Index idx) override
+  public:
+    StateCache(kv::Store& store, const ringbuffer::WriterPtr& host_writer) :
+      source_store(store),
+      to_host(host_writer)
+    {}
+
+    StorePtr get_store_at(
+      RequestHandle handle,
+      consensus::Index idx,
+      ExpiryDuration expire_after) override
     {
-      return get_store_at(request, idx, default_expiry_duration);
+      auto range = get_store_range(handle, idx, idx, expire_after);
+      if (range.empty())
+      {
+        return nullptr;
+      }
+
+      return range[0];
+    }
+
+    StorePtr get_store_at(RequestHandle handle, consensus::Index idx) override
+    {
+      return get_store_at(handle, idx, default_expiry_duration);
+    }
+
+    std::vector<StorePtr> get_store_range(
+      RequestHandle handle,
+      consensus::Index start_idx,
+      consensus::Index end_idx,
+      ExpiryDuration expire_after) override
+    {
+      if (end_idx < start_idx)
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid range for historical query: end {} is before start {}",
+          end_idx,
+          start_idx));
+      }
+
+      const auto tail_length = end_idx - start_idx;
+      return get_store_range_internal(
+        handle, start_idx, tail_length, expire_after);
+    }
+
+    std::vector<StorePtr> get_store_range(
+      RequestHandle handle,
+      consensus::Index start_idx,
+      consensus::Index end_idx) override
+    {
+      return get_store_range(
+        handle, start_idx, end_idx, default_expiry_duration);
     }
 
     void set_default_expiry_duration(ExpiryDuration duration) override
@@ -411,16 +493,20 @@ namespace ccf::historical
       const auto entry_hash = crypto::Sha256Hash(data);
       process_deserialised_store(store, entry_hash, idx, it->second);
 
+      auto handles = it->second;
+
       if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
       {
         // This looks like a valid signature - try to use this signature to
         // move some stores from untrusted to trusted
-        handle_signature_transaction(store, idx, it->second);
+        handle_signature_transaction(store, idx, handles);
       }
-      else
+
+      // If still required to fulfill a range or find the validating signature,
+      // fetch the next index
+      if (!handles.empty())
       {
-        // This is not a signature - try the next transaction
-        fetch_entry_at(it->second, idx + 1);
+        fetch_entry_at(handles, idx + 1);
       }
 
       pending_fetches.erase(it);

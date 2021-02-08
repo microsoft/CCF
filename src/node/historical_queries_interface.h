@@ -30,21 +30,31 @@ namespace ccf::historical
 
     virtual void set_default_expiry_duration(ExpiryDuration duration) = 0;
 
+    // Fetch at point
     virtual StorePtr get_store_at(
       RequestHandle handle,
       consensus::Index idx,
       ExpiryDuration expire_after) = 0;
 
-    // Uses default expiry duration
+    // Fetch at point, using default expire_after
     virtual StorePtr get_store_at(
       RequestHandle handle, consensus::Index idx) = 0;
 
-    // virtual std::vector<StorePtr> get_store_range(
-    //   RequestHandle handle,
-    //   consensus::Index start_idx,
-    //   consensus::Index end_idx) = 0;
+    // Fetch inclusive range
+    virtual std::vector<StorePtr> get_store_range(
+      RequestHandle handle,
+      consensus::Index start_idx,
+      consensus::Index end_idx,
+      ExpiryDuration expire_after) = 0;
 
-    // Returns false if the handle is unknown
+    // Fetch at point, using default expire_after
+    virtual std::vector<StorePtr> get_store_range(
+      RequestHandle handle,
+      consensus::Index start_idx,
+      consensus::Index end_idx) = 0;
+
+    // Delete state associated with this handle. Returns false if the handle is
+    // unknown
     virtual bool drop_request(RequestHandle handle) = 0;
   };
 }
