@@ -17,6 +17,8 @@
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
+#include <openssl/engine.h>
+
 namespace enclave
 {
   class Enclave
@@ -34,6 +36,7 @@ namespace enclave
     std::shared_ptr<ccf::Forwarder<ccf::NodeToNode>> cmd_forwarder;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::milliseconds last_tick_time;
+    ENGINE* rdrand_engine = nullptr;
 
     CCFConfig ccf_config;
     StartType start_type;
@@ -119,6 +122,15 @@ namespace enclave
         signature_intervals.sig_ms_interval);
     }
 
+    ~Enclave()
+    {
+      if (rdrand_engine)
+      {
+        ENGINE_finish(rdrand_engine);
+        ENGINE_free(rdrand_engine);
+      }
+    }
+
     bool create_new_node(
       StartType start_type_,
       const CCFConfig& ccf_config_,
@@ -135,6 +147,13 @@ namespace enclave
 
       start_type = start_type_;
       ccf_config = ccf_config_;
+
+      // From https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
+      if (ENGINE_load_rdrand() != 1 ||
+          (rdrand_engine = ENGINE_by_id("rdrand")) == nullptr ||
+          ENGINE_init(rdrand_engine) != 1 ||
+          ENGINE_set_default(rdrand_engine, ENGINE_METHOD_RAND) != 1)
+        throw std::runtime_error("could not initialize RDRAND engine for OpenSSL");
 
       ccf::NodeCreateInfo r;
       try
