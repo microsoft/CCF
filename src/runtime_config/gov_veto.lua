@@ -28,14 +28,14 @@ return {
   -- count active members
   members_active = 0
 
-  tables["public:ccf.gov.members"]:foreach(function(member, details)
+  tables["public:ccf.gov.members.info"]:foreach(function(member, details)
     if details["status"] == STATE_ACTIVE then
       members_active = members_active + 1
     end
   end)
 
   -- check for raw_puts to sensitive tables
-  SENSITIVE_TABLES = {"public:ccf.gov.whitelists", "public:ccf.gov.governance.scripts"}
+  SENSITIVE_TABLES = {"public:ccf.gov.whitelists", "public:ccf.gov.scripts"}
   for _, call in pairs(calls) do
     if call.func == "raw_puts" then
       for _, sensitive_table in pairs(SENSITIVE_TABLES) do

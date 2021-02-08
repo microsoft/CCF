@@ -27,7 +27,7 @@ Then, import the ledger module:
     :start-after: SNIPPET: import_ledger
     :lines: 1
 
-In this particular example, a target table is set. This is a public table that can be read and audited from the ledger directly. In this example, the target table is the well-known ``public:ccf.gov.nodes`` table that keeps track of all nodes in the network.
+In this particular example, a target table is set. This is a public table that can be read and audited from the ledger directly. In this example, the target table is the well-known ``public:ccf.gov.nodes.info`` table that keeps track of all nodes in the network.
 
 .. literalinclude:: ../../python/ledger_tutorial.py
     :language: py
