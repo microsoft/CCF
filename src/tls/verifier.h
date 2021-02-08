@@ -238,18 +238,6 @@ namespace tls
     }
   };
 
-  class Verifier_k1Bitcoin : public Verifier_MBedTLS
-  {
-  public:
-    template <typename... Ts>
-    Verifier_k1Bitcoin(Ts... ts) : Verifier_MBedTLS(std::forward<Ts>(ts)...)
-    {
-      public_key = std::make_shared<PublicKey_k1Bitcoin>(
-        std::move(*(PublicKey_mbedTLS*)public_key.get()));
-      md_type = MDType::SHA256;
-    }
-  };
-
   class Verifier_OpenSSL : public VerifierBase
   {
   protected:

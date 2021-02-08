@@ -89,7 +89,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            ccfcrypto.enclave
            http_parser.enclave
            lua.enclave
-           secp256k1.enclave
            aft.enclave
            sss.enclave
            $<BUILD_INTERFACE:merklecpp>
@@ -139,7 +138,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            ccfcrypto.host
            http_parser.host
            lua.host
-           secp256k1.host
            aft.virtual
            sss.host
            openenclave::oehostverify
@@ -256,7 +254,7 @@ if(BUILD_TESTS)
     )
     use_client_mbedtls(kv_test)
     target_link_libraries(
-      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host http_parser.host
+      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
     )
 
     add_unit_test(
@@ -279,7 +277,7 @@ if(BUILD_TESTS)
       raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
     )
-    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host)
+    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
 
     add_unit_test(
       raft_enclave_test
@@ -287,7 +285,7 @@ if(BUILD_TESTS)
     )
     target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
     target_link_libraries(
-      raft_enclave_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host
+      raft_enclave_test PRIVATE ${CRYPTO_LIBRARY}
     )
 
     add_unit_test(
@@ -300,7 +298,7 @@ if(BUILD_TESTS)
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
     target_link_libraries(
-      history_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host http_parser.host
+      history_test PRIVATE ${CRYPTO_LIBRARY} http_parser.host
     )
 
     add_unit_test(
@@ -308,7 +306,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/progress_tracker.cpp
     )
     target_link_libraries(
-      progress_tracker_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host
+      progress_tracker_test PRIVATE ${CRYPTO_LIBRARY}
     )
 
     add_unit_test(
@@ -322,26 +320,26 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmetric_key.cpp
     )
     use_client_mbedtls(encryptor_test)
-    target_link_libraries(encryptor_test PRIVATE secp256k1.host)
+    target_link_libraries(encryptor_test PRIVATE)
 
     add_unit_test(
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE secp256k1.host http_parser.host
+      historical_queries_test PRIVATE http_parser.host
     )
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
     )
-    target_link_libraries(snapshot_test PRIVATE secp256k1.host)
+    target_link_libraries(snapshot_test PRIVATE)
 
     add_unit_test(
       snapshotter_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshotter.cpp
     )
-    target_link_libraries(snapshotter_test PRIVATE secp256k1.host)
+    target_link_libraries(snapshotter_test PRIVATE)
 
     add_unit_test(
       msgpack_serialization_test
@@ -350,12 +348,12 @@ if(BUILD_TESTS)
 
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(
-      tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+      tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT}
     )
 
     add_test_bin(cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/cert.cpp)
     target_link_libraries(
-      cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+      cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT}
     )
 
     add_unit_test(
@@ -363,25 +361,25 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
     )
     use_client_mbedtls(key_exchange_test)
-    target_link_libraries(key_exchange_test PRIVATE secp256k1.host)
+    target_link_libraries(key_exchange_test PRIVATE)
 
     add_unit_test(
       channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
     )
     use_client_mbedtls(channels_test)
-    target_link_libraries(channels_test PRIVATE secp256k1.host)
+    target_link_libraries(channels_test PRIVATE)
 
     add_unit_test(
       http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
     )
-    target_link_libraries(http_test PRIVATE http_parser.host secp256k1.host)
+    target_link_libraries(http_test PRIVATE http_parser.host)
 
     add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host secp256k1.host
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
                             http_parser.host sss.host
     )
 
@@ -396,7 +394,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                                 secp256k1.host http_parser.host sss.host
+                                 http_parser.host sss.host
     )
 
     add_unit_test(
@@ -405,7 +403,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                               secp256k1.host http_parser.host sss.host
+                               http_parser.host sss.host
     )
 
     add_unit_test(
@@ -414,7 +412,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                                 secp256k1.host http_parser.host sss.host
+                                 http_parser.host sss.host
     )
 
     if(NOT ENV{RUNTIME_CONFIG_DIR})
@@ -431,7 +429,7 @@ if(BUILD_TESTS)
     )
     target_include_directories(lua_test PRIVATE ${LUA_DIR})
     target_link_libraries(
-      lua_test PRIVATE lua.host http_parser.host secp256k1.host
+      lua_test PRIVATE lua.host http_parser.host
     )
 
     add_unit_test(
@@ -442,7 +440,7 @@ if(BUILD_TESTS)
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_link_libraries(
       merkle_mem
-      PRIVATE ccfcrypto.host secp256k1.host ${CMAKE_THREAD_LIBS_INIT}
+      PRIVATE ccfcrypto.host ${CMAKE_THREAD_LIBS_INIT}
               $<BUILD_INTERFACE:merklecpp> crypto
     )
     use_client_mbedtls(merkle_mem)
@@ -455,7 +453,7 @@ if(BUILD_TESTS)
     add_executable(
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
-    target_link_libraries(raft_driver PRIVATE ccfcrypto.host secp256k1.host)
+    target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
     use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE src/aft)
 
@@ -486,34 +484,29 @@ if(BUILD_TESTS)
   add_picobench(
     tls_bench
     SRCS src/tls/test/bench.cpp
-    LINK_LIBS secp256k1.host
+    LINK_LIBS
   )
   add_picobench(
     merkle_bench
     SRCS src/node/test/merkle_bench.cpp
-    LINK_LIBS ccfcrypto.host secp256k1.host crypto
+    LINK_LIBS ccfcrypto.host crypto
   )
   add_picobench(
     history_bench
     SRCS src/node/test/history_bench.cpp
-    LINK_LIBS ccfcrypto.host secp256k1.host crypto
+    LINK_LIBS ccfcrypto.host crypto
   )
   add_picobench(
     kv_bench
     SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
          src/enclave/thread_local.cpp
-    LINK_LIBS ccfcrypto.host secp256k1.host
+    LINK_LIBS ccfcrypto.host
   )
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
   add_picobench(
     digest_bench
     SRCS src/crypto/test/digest_bench.cpp
-    LINK_LIBS ccfcrypto.host secp256k1.host
-  )
-  add_picobench(
-    signature_bench
-    SRCS src/crypto/test/signature_bench.cpp
-    LINK_LIBS ccfcrypto.host secp256k1.host
+    LINK_LIBS ccfcrypto.host
   )
 
   # Storing signed governance operations

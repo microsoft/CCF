@@ -8,8 +8,6 @@
 #include <mbedtls/pk.h>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
-#include <secp256k1/src/hash.h>
-#include <secp256k1/src/hash_impl.h>
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -108,26 +106,6 @@ namespace crypto
       if (EVP_Digest(data, size, r.data(), &len, o_md_type, NULL) != 1)
         throw std::runtime_error("OpenSSL hash update error");
 
-      return r;
-    }
-  };
-
-  class BitcoinHashProvider : public HashProviderBase
-  {
-  public:
-    BitcoinHashProvider() {}
-    virtual ~BitcoinHashProvider() {}
-
-    virtual HashBytes Hash(
-      const uint8_t* data, size_t size, MDType md_type) const
-    {
-      if (md_type != MDType::SHA256)
-        throw std::logic_error("unsupported hash algorithm");
-      secp256k1_sha256 hash;
-      secp256k1_sha256_initialize(&hash);
-      secp256k1_sha256_write(&hash, data, size);
-      HashBytes r(32);
-      secp256k1_sha256_finalize(&hash, r.data());
       return r;
     }
   };

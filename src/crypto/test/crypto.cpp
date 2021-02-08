@@ -33,18 +33,3 @@ TEST_CASE("ExtendedIv0")
   KeyAesGcm k2(getRawKey());
   REQUIRE(k2.decrypt(h.get_iv(), h.tag, p, nullb, p.p));
 }
-
-TEST_CASE("Bitcoin hash")
-{
-  BitcoinHashProvider hp1;
-  OpenSSLHashProvider hp2;
-
-  std::vector<uint8_t> msg(32);
-  for (size_t i = 0; i < msg.size(); i++)
-    msg[i] = i;
-
-  auto r1 = hp1.Hash(msg.data(), msg.size(), MDType::SHA256);
-  auto r2 = hp2.Hash(msg.data(), msg.size(), MDType::SHA256);
-
-  CHECK(r1 == r2);
-}

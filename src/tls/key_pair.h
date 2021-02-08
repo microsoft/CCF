@@ -9,7 +9,6 @@
 #include "error_string.h"
 #include "hash.h"
 #include "key_pair_base.h"
-#include "key_pair_bitcoin.h"
 #include "key_pair_mbedtls.h"
 #include "key_pair_openssl.h"
 #include "pem.h"

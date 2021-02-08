@@ -32,10 +32,10 @@ void corrupt(T& buf)
   buf[buf.size() - 2]++;
 }
 
-static constexpr CurveID supported_curves[] = {
-  CurveID::SECP384R1, CurveID::SECP256K1, CurveID::SECP256R1};
+static constexpr CurveID supported_curves[] = {CurveID::SECP384R1,
+                                               CurveID::SECP256R1};
 
-static constexpr char const* labels[] = {"secp384r1", "secp256k1", "secp256r1"};
+static constexpr char const* labels[] = {"secp384r1", "secp256r1"};
 
 TEST_CASE("Sign, verify, with KeyPair")
 {
@@ -134,7 +134,7 @@ TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
     vector<uint8_t> signature = kp->sign(contents);
 
     const auto wrong_curve =
-      curve == CurveID::SECP384R1 ? CurveID::SECP256K1 : CurveID::SECP384R1;
+      curve == CurveID::SECP384R1 ? CurveID::SECP256R1 : CurveID::SECP384R1;
     auto kp2 = make_key_pair(wrong_curve);
     const auto public_key = kp2->public_key_pem();
     auto pubk = make_public_key(public_key);
@@ -155,19 +155,8 @@ void run_alt()
 
 TEST_CASE("Sign, verify with alternate implementation")
 {
-  run_alt<KeyPair_mbedTLS, PublicKey_mbedTLS, CurveID::SECP256K1>();
-  run_alt<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP256K1>();
-  run_alt<KeyPair_k1Bitcoin, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
-
-  run_alt<KeyPair_mbedTLS, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
-  run_alt<KeyPair_mbedTLS, PublicKey_OpenSSL, CurveID::SECP256K1>();
-
-  run_alt<KeyPair_k1Bitcoin, PublicKey_mbedTLS, CurveID::SECP256K1>();
-  run_alt<KeyPair_k1Bitcoin, PublicKey_OpenSSL, CurveID::SECP256K1>();
-
-  run_alt<KeyPair_OpenSSL, PublicKey_mbedTLS, CurveID::SECP256K1>();
-  run_alt<KeyPair_OpenSSL, PublicKey_k1Bitcoin, CurveID::SECP256K1>();
-
+  run_alt<KeyPair_mbedTLS, PublicKey_mbedTLS, CurveID::SECP256R1>();
+  run_alt<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP256R1>();
   run_alt<KeyPair_OpenSSL, PublicKey_mbedTLS, CurveID::SECP384R1>();
   run_alt<KeyPair_mbedTLS, PublicKey_OpenSSL, CurveID::SECP384R1>();
   run_alt<KeyPair_OpenSSL, PublicKey_mbedTLS, CurveID::SECP256R1>();
@@ -208,7 +197,7 @@ TEST_CASE("Sign, verify. Fail to verify with bad contents")
 
 crypto::HashBytes bad_manual_hash(const std::vector<uint8_t>& data)
 {
-  // secp256k1 requires 32-byte hashes, other curves don't care. So use 32 for
+  // secp256r1 requires 32-byte hashes, other curves don't care. So use 32 for
   // general hasher
   constexpr auto n = 32;
   crypto::HashBytes hash(n);
@@ -254,88 +243,6 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
     CHECK(verifier->verify_hash(hash, signature));
     corrupt(hash);
     CHECK_FALSE(verifier->verify(hash, signature));
-  }
-}
-
-TEST_CASE("Recoverable signatures")
-{
-  auto kp = KeyPair_k1Bitcoin(CurveID::SECP256K1);
-
-  vector<uint8_t> contents(contents_.begin(), contents_.end());
-  crypto::HashBytes hash = bad_manual_hash(contents);
-
-  auto signature = kp.sign_recoverable_hashed(hash);
-  const auto target_pem = kp.public_key_pem().str();
-
-  auto recovered = PublicKey_k1Bitcoin::recover_key(signature, hash);
-
-  {
-    INFO("Normal recovery");
-    CHECK(target_pem == recovered.public_key_pem().str());
-  }
-
-  // NB: Incorrect arguments _may_ cause the verification to throw with no
-  // recoverable key, but they may simply cause a different key to be returned.
-  // These tests look for either type of failure.
-
-  {
-    INFO("Corrupted hash");
-    auto hash2(hash);
-    corrupt(hash2);
-    bool recovery_failed = false;
-    try
-    {
-      auto r = PublicKey_k1Bitcoin::recover_key(signature, hash2);
-      recovery_failed = target_pem != r.public_key_pem().str();
-    }
-    catch (const std::exception& e)
-    {
-      recovery_failed = true;
-    }
-    CHECK(recovery_failed);
-  }
-
-  {
-    INFO("Corrupted signature");
-    auto signature2(signature);
-    corrupt(signature2.raw);
-    bool recovery_failed = false;
-    try
-    {
-      auto r = PublicKey_k1Bitcoin::recover_key(signature2, hash);
-      recovery_failed = target_pem != r.public_key_pem().str();
-    }
-    catch (const std::exception& e)
-    {
-      recovery_failed = true;
-    }
-    CHECK(recovery_failed);
-  }
-
-  {
-    INFO("Corrupted recovery_id");
-    auto signature3(signature);
-    signature3.recovery_id = (signature3.recovery_id + 1) % 4;
-    bool recovery_failed = false;
-    try
-    {
-      auto r = PublicKey_k1Bitcoin::recover_key(signature3, hash);
-      recovery_failed = target_pem != r.public_key_pem().str();
-    }
-    catch (const std::exception& e)
-    {
-      recovery_failed = true;
-    }
-    CHECK(recovery_failed);
-  }
-
-  {
-    INFO("Recovered key is useable");
-
-    auto norm_sig = kp.sign(contents);
-    CHECK(recovered.verify(contents, norm_sig));
-    corrupt(norm_sig);
-    CHECK_FALSE(recovered.verify(contents, norm_sig));
   }
 }
 

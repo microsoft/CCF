@@ -85,8 +85,6 @@ namespace tls
         {
           case MBEDTLS_ECP_DP_SECP384R1:
             return CurveID::SECP384R1;
-          case MBEDTLS_ECP_DP_SECP256K1:
-            return CurveID::SECP256K1;
           case MBEDTLS_ECP_DP_SECP256R1:
             return CurveID::SECP256R1;
           default:
@@ -185,8 +183,6 @@ namespace tls
           return MBEDTLS_ECP_DP_NONE;
         case CurveID::SECP384R1:
           return MBEDTLS_ECP_DP_SECP384R1;
-        case CurveID::SECP256K1:
-          return MBEDTLS_ECP_DP_SECP256K1;
         case CurveID::SECP256R1:
           return MBEDTLS_ECP_DP_SECP256R1;
         default:

@@ -100,8 +100,6 @@ namespace tls
       {
         case NID_secp384r1:
           return CurveID::SECP384R1;
-        case NID_secp256k1:
-          return CurveID::SECP256K1;
         case NID_X9_62_prime256v1:
           return CurveID::SECP256R1;
         default:
@@ -192,8 +190,6 @@ namespace tls
           return NID_undef;
         case CurveID::SECP384R1:
           return NID_secp384r1;
-        case CurveID::SECP256K1:
-          return NID_secp256k1;
         case CurveID::SECP256R1:
           return NID_X9_62_prime256v1;
         default:

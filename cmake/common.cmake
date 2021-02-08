@@ -183,7 +183,6 @@ set(HTTP_PARSER_SOURCES
 find_library(CRYPTO_LIBRARY crypto)
 
 include(${CCF_DIR}/cmake/crypto.cmake)
-include(${CCF_DIR}/cmake/secp256k1.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 
@@ -293,7 +292,7 @@ add_executable(
 )
 use_client_mbedtls(scenario_perf_client)
 target_link_libraries(
-  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT}
                                http_parser.host ccfcrypto.host
 )
 install(TARGETS scenario_perf_client DESTINATION bin)

@@ -271,11 +271,6 @@ class CurlClient:
         self.signing_auth = signing_auth
 
         ca_curve = get_curve(self.ca)
-        if ca_curve.name == "secp256k1":
-            raise RuntimeError(
-                f"CurlClient cannot perform TLS handshake with {ca_curve.name} ECDH curve. "
-                "Use RequestClient class instead."
-            )
 
     def request(self, request, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         with tempfile.NamedTemporaryFile() as nf:
@@ -355,7 +350,7 @@ class CurlClient:
 
 class TlsAdapter(HTTPAdapter):
     """
-    Support for secp256k1 as node and network identity curve.
+    Support node and network identity curves.
     """
 
     def __init__(self, ca_file):
@@ -514,11 +509,6 @@ class WSClient:
         self.ws = None
 
         ca_curve = get_curve(self.ca)
-        if ca_curve.name == "secp256k1":
-            raise RuntimeError(
-                f"WSClient cannot perform TLS handshake with {ca_curve.name} ECDH curve. "
-                "Use RequestClient class instead."
-            )
 
     def request(
         self,
