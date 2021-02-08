@@ -827,6 +827,8 @@ namespace ccf
       network.tables->clear();
       ledger_truncate(startup_snapshot_info->seqno);
 
+      reset_history();
+
       sm.advance(State::pending);
       start_join_timer(config);
     }
@@ -1720,8 +1722,6 @@ namespace ccf
 
     void setup_history()
     {
-      // This function can be called once the node has started up and before
-      // it has joined the service.
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
@@ -1730,6 +1730,12 @@ namespace ccf
         sig_ms_interval);
 
       network.tables->set_history(history);
+    }
+
+    void reset_history()
+    {
+      history.reset();
+      network.tables->reset_history();
     }
 
     void setup_encryptor()
