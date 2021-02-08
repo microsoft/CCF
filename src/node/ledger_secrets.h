@@ -19,9 +19,12 @@ namespace ccf
     std::vector<uint8_t> raw_key;
     std::shared_ptr<crypto::KeyAesGcm> key;
 
+    std::optional<kv::Version> previous_stored_version = std::nullopt;
+
     bool operator==(const LedgerSecret& other) const
     {
-      return raw_key == other.raw_key;
+      return raw_key == other.raw_key &&
+        previous_stored_version == other.previous_stored_version;
     }
 
     LedgerSecret() = default;
@@ -31,9 +34,11 @@ namespace ccf
     // key.
     LedgerSecret(const LedgerSecret& other) :
       raw_key(other.raw_key),
-      key(std::make_shared<crypto::KeyAesGcm>(other.raw_key))
+      key(std::make_shared<crypto::KeyAesGcm>(other.raw_key)),
+      previous_stored_version(other.previous_stored_version)
     {}
 
+    // TODO: What to do with this constructor???
     LedgerSecret(std::vector<uint8_t>&& raw_key_) :
       raw_key(raw_key_),
       key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_)))

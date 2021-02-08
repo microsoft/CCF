@@ -23,20 +23,21 @@ historical_recovery_snapshot_failure = [
     rekey.test,
     recovery.test,
 ]
+suites["rekey_recovery"] = historical_recovery_snapshot_failure
 
 
-# This suite tests that rekeying, network configuration changes
-# and recoveries can be interleaved
-suite_rekey_recovery = [
-    recovery.test,
-    reconfiguration.test_add_node,
-    rekey.test,
-    reconfiguration.test_add_node,
-    recovery.test,
-    rekey.test,
-    reconfiguration.test_add_node,
-]
-suites["rekey_recovery"] = suite_rekey_recovery
+# # This suite tests that rekeying, network configuration changes
+# # and recoveries can be interleaved
+# suite_rekey_recovery = [
+#     recovery.test,
+#     reconfiguration.test_add_node,
+#     rekey.test,
+#     reconfiguration.test_add_node,
+#     recovery.test,
+#     rekey.test,
+#     reconfiguration.test_add_node,
+# ]
+# suites["rekey_recovery"] = suite_rekey_recovery
 
 # This suite tests that membership changes and recoveries can be interleaved
 suite_membership_recovery = [
