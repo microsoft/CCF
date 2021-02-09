@@ -6,7 +6,6 @@
 #include "client_signatures.h"
 #include "code_id.h"
 #include "config.h"
-#include "consensus.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
 #include "consensus/aft/revealed_nonces.h"
@@ -22,6 +21,7 @@
 #include "scripts.h"
 #include "secrets.h"
 #include "service.h"
+#include "service_principals.h"
 #include "shares.h"
 #include "signatures.h"
 #include "snapshot_evidence.h"
@@ -54,7 +54,8 @@ namespace ccf
     CodeIDs node_code_ids;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
-    Shares shares;
+    RecoveryShares shares;
+    EncryptedLedgerSecretsInfo encrypted_ledger_secrets;
     SubmittedShares submitted_shares;
     Configuration config;
 
@@ -72,13 +73,15 @@ namespace ccf
     CertDERs user_certs;
     CertDigests user_digests;
 
+    ServicePrincipals service_principals;
+
     //
     // Node table
     //
     Nodes nodes;
 
     //
-    // Lua application table
+    // JS application table
     //
     Scripts app_scripts;
 
@@ -89,7 +92,6 @@ namespace ccf
     Values values;
     Secrets secrets;
     Signatures signatures;
-    ConsensusTable consensus;
     SnapshotEvidence snapshot_evidence;
 
     //
@@ -118,6 +120,7 @@ namespace ccf
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
       shares(Tables::SHARES),
+      encrypted_ledger_secrets(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
       submitted_shares(Tables::SUBMITTED_SHARES),
       config(Tables::CONFIGURATION),
       ca_certs(Tables::CA_CERT_DERS),
@@ -127,13 +130,13 @@ namespace ccf
       users(Tables::USERS),
       user_certs(Tables::USER_CERT_DERS),
       user_digests(Tables::USER_DIGESTS),
+      service_principals(Tables::SERVICE_PRINCIPALS),
       nodes(Tables::NODES),
       app_scripts(Tables::APP_SCRIPTS),
       service(Tables::SERVICE),
       values(Tables::VALUES),
-      secrets(Tables::SECRETS),
+      secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
       signatures(Tables::SIGNATURES),
-      consensus(Tables::CONSENSUS),
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
       bft_requests_map(Tables::AFT_REQUESTS),
       backup_signatures_map(Tables::BACKUP_SIGNATURES),
@@ -164,6 +167,7 @@ namespace ccf
         std::ref(jwt_public_signing_key_issuer),
         std::ref(users),
         std::ref(user_certs),
+        std::ref(service_principals),
         std::ref(nodes),
         std::ref(service),
         std::ref(app_scripts),

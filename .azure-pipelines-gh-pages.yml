@@ -2,24 +2,25 @@ trigger:
   batch: true
   branches:
     include:
-      - master
+      - main
       - "refs/tags/ccf-*"
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfciteam/ccf-ci:oe0.13.0
+    container: ccfciteam/ccf-ci:oe0.13.0-xxd
     pool:
       vmImage: ubuntu-18.04
 
     steps:
       - checkout: self
         clean: true
+        fetchDepth: 10000
 
       - script: |
           env
           git status
           git rev-parse HEAD
-          git checkout -b master $(git rev-parse HEAD)
+          git checkout -b main $(git rev-parse HEAD)
         displayName: Prepare repo
 
       # Used to generate setup.py
@@ -65,7 +66,7 @@ jobs:
         displayName: "Publish GitHub Pages"
         condition: |
           and(not(eq(variables['Build.Reason'], 'PullRequest')),
-              eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+              eq(variables['Build.SourceBranch'], 'refs/heads/main'))
         workingDirectory: build/html
 
       - script: rm deploy_key || true

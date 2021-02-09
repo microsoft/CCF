@@ -484,7 +484,7 @@ void prepare_callers(NetworkState& network)
   user_id = g.add_user({user_caller});
   member_id = g.add_member(member_caller);
   invalid_member_id = g.add_member(invalid_caller);
-  CHECK(g.finalize() == kv::CommitSuccess::OK);
+  CHECK(g.finalize() == kv::CommitResult::SUCCESS);
 }
 
 void add_callers_bft_store()
@@ -500,7 +500,7 @@ void add_callers_bft_store()
   g.init_values();
   g.create_service({});
   user_id = g.add_user({user_caller});
-  CHECK(g.finalize() == kv::CommitSuccess::OK);
+  CHECK(g.finalize() == kv::CommitResult::SUCCESS);
 }
 
 TEST_CASE("process_bft")
@@ -970,7 +970,7 @@ TEST_CASE("Explicit commitability")
   {
     auto tx = network.tables->create_tx();
     tx.rw(frontend.values)->put(0, next_value);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   for (const auto status : all_statuses)
@@ -1456,7 +1456,7 @@ public:
         auto tx = this->tables.create_tx();
         auto conflict_map = tx.template rw<Values>("test_values_conflict");
         conflict_map->put(0, 42);
-        REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
         conflict_next = false;
       }
 

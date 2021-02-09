@@ -359,7 +359,7 @@ int main(int argc, char** argv)
       "--gov-script",
       gov_script,
       "Path to Lua file that defines the contents of the "
-      "public:ccf.gov.governance.scripts table")
+      "public:ccf.gov.scripts table")
     ->capture_default_str()
     ->check(CLI::ExistingFile)
     ->required();

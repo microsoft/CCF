@@ -1,0 +1,18 @@
+name: "Format and License Checks"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-18.04
+    container: ccfciteam/ccf-ci:oe0.13.0
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+
+      - run: ./scripts/ci-checks.sh

@@ -94,26 +94,26 @@ namespace ccf
   /** Perform no authentication */
   static std::shared_ptr<EmptyAuthnPolicy> empty_auth_policy =
     std::make_shared<EmptyAuthnPolicy>();
-  /** Authenticate using TLS session identity, and @c public:ccf.gov.users
+  /** Authenticate using TLS session identity, and @c public:ccf.gov.users.info
    * table */
   static std::shared_ptr<UserCertAuthnPolicy> user_cert_auth_policy =
     std::make_shared<UserCertAuthnPolicy>();
-  /** Authenticate using HTTP request signature, and @c public:ccf.gov.users
-   * table */
+  /** Authenticate using HTTP request signature, and
+   * @c public:ccf.gov.users.info table */
   static std::shared_ptr<UserSignatureAuthnPolicy> user_signature_auth_policy =
     std::make_shared<UserSignatureAuthnPolicy>();
-  /** Authenticate using TLS session identity, and @c public:ccf.gov.members
-   * table */
+  /** Authenticate using TLS session identity, and
+   * @c public:ccf.gov.members.info table */
   static std::shared_ptr<MemberCertAuthnPolicy> member_cert_auth_policy =
     std::make_shared<MemberCertAuthnPolicy>();
-  /** Authenticate using HTTP request signature, and @c public:ccf.gov.members
-   * table */
+  /** Authenticate using HTTP request signature, and
+   * @c public:ccf.gov.members.info table */
   static std::shared_ptr<MemberSignatureAuthnPolicy>
     member_signature_auth_policy =
       std::make_shared<MemberSignatureAuthnPolicy>();
   /** Authenticate using JWT, validating the token using the
-   * @c public:ccf.gov.jwt_public_signing_key_issue and
-   * @c public:ccf.gov.jwt_public_signing_keys tables */
+   * @c public:ccf.gov.jwt.public_signing_key_issuer and
+   * @c public:ccf.gov.jwt.public_signing_keys tables */
   static std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
     std::make_shared<JwtAuthnPolicy>();
 
@@ -145,6 +145,7 @@ namespace ccf
       size_t calls = 0;
       size_t errors = 0;
       size_t failures = 0;
+      size_t retries = 0;
     };
 
     struct Endpoint;
@@ -532,6 +533,7 @@ namespace ccf
       std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
 
+    SpinLock metrics_lock;
     std::map<std::string, std::map<std::string, Metrics>> metrics;
 
     kv::Consensus* consensus = nullptr;
@@ -793,20 +795,26 @@ namespace ccf
       }
     }
 
-    virtual void endpoint_metrics(kv::Tx&, EndpointMetrics::Out& out)
+    virtual void endpoint_metrics(EndpointMetrics::Out& out)
     {
+      std::lock_guard<SpinLock> guard(metrics_lock);
       for (const auto& [path, verb_metrics] : metrics)
       {
         for (const auto& [verb, metric] : verb_metrics)
         {
-          out.metrics.push_back(
-            {path, verb, metric.calls, metric.errors, metric.failures});
+          out.metrics.push_back({path,
+                                 verb,
+                                 metric.calls,
+                                 metric.errors,
+                                 metric.failures,
+                                 metric.retries});
         }
       }
     }
 
     Metrics& get_metrics(const EndpointDefinitionPtr& e)
     {
+      std::lock_guard<SpinLock> guard(metrics_lock);
       return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
     }
 

@@ -400,6 +400,15 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      proposal_id_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
+    )
+    target_link_libraries(
+      proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                               secp256k1.host http_parser.host sss.host
+    )
+
+    add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
     )
@@ -517,13 +526,7 @@ if(BUILD_TESTS)
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS cft
-    ADDITIONAL_ARGS
-      --recovery
-      2
-      # Shorten Raft election timeout to speed up test when it kills a node on
-      # purpose to check that a recovery network is robust to a view change.
-      --raft-election-timeout
-      4000
+    ADDITIONAL_ARGS --recovery 3
   )
 
   add_e2e_test(
@@ -552,14 +555,8 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
     LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration
-      200
-      --enforce-reqs
-      --test-suite
-      reconfiguration
-      --raft-election-timeout
-      4000
+    ADDITIONAL_ARGS --test-duration 200 --enforce-reqs --test-suite
+                    reconfiguration
   )
 
   add_e2e_test(
@@ -577,35 +574,42 @@ if(BUILD_TESTS)
       --enforce-reqs
       --test-suite
       all
-      --raft-election-timeout
-      4000
   )
 
   add_e2e_test(
     NAME rotation_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --raft-election-timeout 4000
+    LABEL rotation
   )
 
   add_e2e_test(
     NAME committable_suffix_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --raft-election-timeout 4000 --sig-ms-interval 100
+    ADDITIONAL_ARGS --sig-ms-interval 100
   )
 
   add_e2e_test(
     NAME js_batched_stress_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     CONSENSUS cft
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/src/apps/batched
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/src/apps/batched
+      --raft-election-timeout-ms
+      10000 # Larger election timeout as recording large JS applications may
+            # trigger leadership changes
   )
 
   add_e2e_test(
     NAME modules_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
     CONSENSUS cft
+    ADDITIONAL_ARGS
+      --raft-election-timeout-ms 10000 # Larger election timeout as recording
+                                       # large JS applications may trigger
+                                       # leadership changes
   )
 
   add_e2e_test(
@@ -663,16 +667,14 @@ if(BUILD_TESTS)
       NAME reconfiguration_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --raft-election-timeout 4000
     )
 
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS cft
-      ADDITIONAL_ARGS
-        --oe-binary ${OE_BINDIR} --raft-election-timeout 4000 --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
   endif()
 
@@ -780,8 +782,9 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL tutorial
     CURL_CLIENT TRUE
-    ADDITIONAL_ARGS -p liblogging --tutorial
-                    ${CMAKE_SOURCE_DIR}/python/tutorial.py
+    ADDITIONAL_ARGS
+      -p liblogging --client-tutorial ${CMAKE_SOURCE_DIR}/python/tutorial.py
+      --ledger-tutorial ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
   )
 
   add_e2e_sandbox_test(
@@ -802,7 +805,6 @@ if(BUILD_TESTS)
       NAME election_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
       CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS "--raft-election-timeout" "4000"
     )
 
     add_e2e_test(
@@ -825,11 +827,10 @@ if(BUILD_TESTS)
   endforeach()
 
   add_perf_test(
-    NAME logging_scenario_perf_test
+    NAME ls
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -844,11 +845,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_ws_perf_test
+    NAME ls_ws
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_ws
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -864,11 +864,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_jwt_perf_test
+    NAME ls_jwt
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_jwt
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -884,11 +883,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_js_perf_test
+    NAME ls_js
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_js
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -903,11 +901,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_js_jwt_perf_test
+    NAME ls_js_jwt
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_js_jwt
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js

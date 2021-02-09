@@ -2,6 +2,22 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+// AFT supports multithreaded execution of append entries and the follows the
+// following pseudocode
+//
+// func run_next_message:
+// if async_exec_in_progress then
+//   queue_message
+// if message == append_entry and thread_count > 1:
+//   exec_on_async_thread
+//   return_to_home_thread
+// else:
+//   exec_on_current_thread
+// if queued_messages > 0:
+//   run_next_message
+//
+
+#include "async_execution.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/spin_lock.h"
@@ -31,7 +47,7 @@ namespace aft
   using Configuration = kv::Configuration;
 
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
-  class Aft : public kv::ConfigurableConsensus
+  class Aft : public kv::ConfigurableConsensus, public AbstractConsensusCallback
   {
   private:
     enum ReplicaState
@@ -83,6 +99,8 @@ namespace aft
     // or even previous terms, and can therefore not meaningfully sign
     // over the commit level.
     kv::Version election_index = 0;
+    bool is_execution_pending = false;
+    std::list<std::unique_ptr<AbstractMsgCallback>> pending_executions;
 
     // BFT
     std::shared_ptr<aft::State> state;
@@ -505,59 +523,151 @@ namespace aft
 
     void recv_message(OArray&& d)
     {
+      std::unique_ptr<AbstractMsgCallback> aee;
       const uint8_t* data = d.data();
       size_t size = d.size();
-      // The host does a CALLIN to this when a Aft message
-      // is received. Invalid or malformed messages are ignored
-      // without informing the host. Messages are idempotent,
-      // so it is not necessary to defend against replay attacks.
-      switch (serialized::peek<RaftMsgType>(data, size))
+      RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
+
+      try
       {
-        case raft_append_entries:
-          recv_append_entries(data, size);
-          break;
-
-        case raft_append_entries_response:
-          recv_append_entries_response(data, size);
-          break;
-
-        case raft_append_entries_signed_response:
-          recv_append_entries_signed_response(data, size);
-          break;
-
-        case raft_request_vote:
-          recv_request_vote(data, size);
-          break;
-
-        case raft_request_vote_response:
-          recv_request_vote_response(data, size);
-          break;
-
-        case bft_signature_received_ack:
-          recv_signature_received_ack(data, size);
-          break;
-
-        case bft_nonce_reveal:
-          recv_nonce_reveal(data, size);
-          break;
-
-        case bft_view_change:
-          recv_view_change(data, size);
-          break;
-
-        case bft_view_change_evidence:
-          recv_view_change_evidence(data, size);
-          break;
-
-        default:
+        switch (type)
         {
+          case raft_append_entries:
+          {
+            AppendEntries r =
+              channels->template recv_authenticated<AppendEntries>(data, size);
+            aee = std::make_unique<AppendEntryCallback>(
+              *this, std::move(r), data, size, std::move(d));
+            break;
+          }
+          case raft_append_entries_response:
+          {
+            AppendEntriesResponse r =
+              channels->template recv_authenticated<AppendEntriesResponse>(
+                data, size);
+            aee = std::make_unique<AppendEntryResponseCallback>(
+              *this, std::move(r));
+            break;
+          }
+          case raft_append_entries_signed_response:
+          {
+            SignedAppendEntriesResponse r =
+              channels
+                ->template recv_authenticated<SignedAppendEntriesResponse>(
+                  data, size);
+            aee = std::make_unique<SignedAppendEntryResponseCallback>(
+              *this, std::move(r));
+            break;
+          }
+
+          case raft_request_vote:
+          {
+            RequestVote r =
+              channels->template recv_authenticated<RequestVote>(data, size);
+            aee = std::make_unique<RequestVoteCallback>(*this, std::move(r));
+            break;
+          }
+
+          case raft_request_vote_response:
+          {
+            RequestVoteResponse r =
+              channels->template recv_authenticated<RequestVoteResponse>(
+                data, size);
+            aee = std::make_unique<RequestVoteResponseCallback>(
+              *this, std::move(r));
+            break;
+          }
+
+          case bft_signature_received_ack:
+          {
+            SignaturesReceivedAck r =
+              channels->template recv_authenticated<SignaturesReceivedAck>(
+                data, size);
+            aee = std::make_unique<SignatureAckCallback>(*this, std::move(r));
+            break;
+          }
+
+          case bft_nonce_reveal:
+          {
+            NonceRevealMsg r =
+              channels->template recv_authenticated<NonceRevealMsg>(data, size);
+            aee = std::make_unique<NonceRevealCallback>(*this, std::move(r));
+            break;
+          }
+          case bft_view_change:
+          {
+            RequestViewChangeMsg r =
+              channels
+                ->template recv_authenticated_with_load<RequestViewChangeMsg>(
+                  data, size);
+            aee = std::make_unique<ViewChangeCallback>(
+              *this, std::move(r), data, size, std::move(d));
+            break;
+          }
+
+          case bft_view_change_evidence:
+          {
+            ViewChangeEvidenceMsg r =
+              channels
+                ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
+                  data, size);
+
+            aee = std::make_unique<ViewChangeEvidenceCallback>(
+              *this, std::move(r), data, size, std::move(d));
+            break;
+          }
+
+          default:
+          {
+          }
         }
+
+        if (!is_execution_pending)
+        {
+          aee->execute();
+        }
+        else
+        {
+          pending_executions.push_back(std::move(aee));
+        }
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_EXC(err.what());
+      }
+
+      try_execute_pending();
+    }
+
+    void try_execute_pending()
+    {
+      if (threading::ThreadMessaging::thread_count > 1)
+      {
+        periodic(std::chrono::milliseconds(0));
+        while (!is_execution_pending && !pending_executions.empty())
+        {
+          auto pe = std::move(pending_executions.front());
+          pending_executions.pop_front();
+          pe->execute();
+        }
+      }
+      else
+      {
+        CCF_ASSERT_FMT(
+          pending_executions.empty(),
+          "No message should be run asynchronously");
       }
     }
 
     void periodic(std::chrono::milliseconds elapsed)
     {
       std::unique_lock<SpinLock> guard(state->lock);
+      timeout_elapsed += elapsed;
+      if (is_execution_pending)
+      {
+        return;
+      }
+
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
@@ -626,8 +736,6 @@ namespace aft
         }
       }
 
-      timeout_elapsed += elapsed;
-
       if (replica_state == Leader)
       {
         if (timeout_elapsed >= request_timeout)
@@ -653,21 +761,9 @@ namespace aft
       }
     }
 
-    void recv_view_change(const uint8_t* data, size_t size)
+    void recv_view_change(
+      RequestViewChangeMsg r, const uint8_t* data, size_t size)
     {
-      RequestViewChangeMsg r;
-      try
-      {
-        r =
-          channels->template recv_authenticated_with_load<RequestViewChangeMsg>(
-            data, size);
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_EXC(err.what());
-        return;
-      }
-
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
       {
@@ -701,21 +797,9 @@ namespace aft
       }
     }
 
-    void recv_view_change_evidence(const uint8_t* data, size_t size)
+    void recv_view_change_evidence(
+      ViewChangeEvidenceMsg r, const uint8_t* data, size_t size)
     {
-      ViewChangeEvidenceMsg r;
-      try
-      {
-        r = channels
-              ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
-                data, size);
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_EXC(err.what());
-        return;
-      }
-
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
       {
@@ -897,21 +981,32 @@ namespace aft
       node.sent_idx = end_idx;
     }
 
-    void recv_append_entries(const uint8_t* data, size_t size)
+    struct AsyncExecution
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      AsyncExecution(
+        Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self_,
+        std::vector<std::tuple<
+          std::unique_ptr<kv::AbstractExecutionWrapper>,
+          kv::Version>>&& append_entries_,
+        AppendEntries&& r_,
+        bool confirm_evidence_) :
+        self(self_),
+        append_entries(std::move(append_entries_)),
+        r(std::move(r_)),
+        confirm_evidence(confirm_evidence_)
+      {}
+
+      Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
+      std::vector<
+        std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
+        append_entries;
       AppendEntries r;
+      bool confirm_evidence;
+    };
 
-      try
-      {
-        r = channels->template recv_authenticated<AppendEntries>(data, size);
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_EXC(err.what());
-        return;
-      }
-
+    void recv_append_entries(AppendEntries r, const uint8_t* data, size_t size)
+    {
+      std::unique_lock<SpinLock> guard(state->lock);
       LOG_DEBUG_FMT(
         "Received pt: {} pi: {} t: {} i: {} toi: {}",
         r.prev_term,
@@ -1117,13 +1212,68 @@ namespace aft
         append_entries.push_back(std::make_tuple(std::move(ds), i));
       }
 
+      is_execution_pending = true;
+      auto msg = std::make_unique<threading::Tmsg<AsyncExecution>>(
+        execute_append_entries_cb,
+        this,
+        std::move(append_entries),
+        std::move(r),
+        confirm_evidence);
+      if (threading::ThreadMessaging::thread_count > 1)
+      {
+        threading::ThreadMessaging::thread_messaging.add_task(
+          threading::ThreadMessaging::get_execution_thread(
+            threading::MAIN_THREAD_ID),
+          std::move(msg));
+      }
+      else
+      {
+        guard.unlock();
+        msg->cb(std::move(msg));
+      }
+    }
+
+    static void execute_append_entries_cb(
+      std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
+    {
+      msg->data.self->execute_append_entries(
+        msg->data.append_entries, msg->data.r, msg->data.confirm_evidence);
+      msg->cb =
+        reinterpret_cast<void (*)(std::unique_ptr<threading::ThreadMsg>)>(
+          continue_execution);
+      if (threading::ThreadMessaging::thread_count > 1)
+      {
+        threading::ThreadMessaging::thread_messaging.add_task(
+          threading::MAIN_THREAD_ID, std::move(msg));
+      }
+      else
+      {
+        msg->cb(std::move(msg));
+      }
+    }
+
+    static void continue_execution(
+      std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
+    {
+      msg->data.self->is_execution_pending = false;
+      msg->data.self->try_execute_pending();
+    }
+
+    void execute_append_entries(
+      std::vector<
+        std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
+        append_entries,
+      AppendEntries& r,
+      bool confirm_evidence)
+    {
+      std::lock_guard<SpinLock> guard(state->lock);
       for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
         state->last_idx = i;
 
-        kv::ApplySuccess apply_success = ds->execute();
-        if (apply_success == kv::ApplySuccess::FAILED)
+        kv::ApplyResult apply_success = ds->execute();
+        if (apply_success == kv::ApplyResult::FAIL)
         {
           // Setting last_idx to i-1 is a work around that should be fixed
           // shortly. In BFT mode when we deserialize and realize we need to
@@ -1148,7 +1298,7 @@ namespace aft
         }
 
         bool globally_committable =
-          (apply_success == kv::ApplySuccess::PASS_SIGNATURE);
+          (apply_success == kv::ApplyResult::PASS_SIGNATURE);
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
@@ -1160,7 +1310,7 @@ namespace aft
 
         switch (apply_success)
         {
-          case kv::ApplySuccess::FAILED:
+          case kv::ApplyResult::FAIL:
           {
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
@@ -1170,7 +1320,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_SIGNATURE:
+          case kv::ApplyResult::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
@@ -1199,11 +1349,11 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE:
+          case kv::ApplyResult::PASS_BACKUP_SIGNATURE:
           {
             break;
           }
-          case kv::ApplySuccess::PASS_NEW_VIEW:
+          case kv::ApplyResult::PASS_NEW_VIEW:
           {
             view_change_tracker->clear(
               get_primary(ds->get_term()) == id(), ds->get_term());
@@ -1211,7 +1361,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+          case kv::ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK:
           {
             try_send_sig_ack(
               {ds->get_term(), ds->get_index()},
@@ -1219,7 +1369,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_NONCES:
+          case kv::ApplyResult::PASS_NONCES:
           {
             request_tracker->insert_signed_request(
               state->last_idx,
@@ -1228,7 +1378,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS:
+          case kv::ApplyResult::PASS:
           {
             if (consensus_type == ConsensusType::BFT)
             {
@@ -1238,14 +1388,14 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE:
+          case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
           {
             break;
           }
 
           default:
           {
-            throw std::logic_error("Unknown ApplySuccess value");
+            throw std::logic_error("Unknown ApplyResult value");
           }
         }
       }
@@ -1347,21 +1497,8 @@ namespace aft
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
 
-    void recv_append_entries_signed_response(const uint8_t* data, size_t size)
+    void recv_append_entries_signed_response(SignedAppendEntriesResponse r)
     {
-      SignedAppendEntriesResponse r;
-
-      try
-      {
-        r = channels->template recv_authenticated<SignedAppendEntriesResponse>(
-          data, size);
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_EXC(err.what());
-        return;
-      }
-
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
       {
@@ -1426,21 +1563,8 @@ namespace aft
       }
     }
 
-    void recv_signature_received_ack(const uint8_t* data, size_t size)
+    void recv_signature_received_ack(SignaturesReceivedAck r)
     {
-      SignaturesReceivedAck r;
-
-      try
-      {
-        r = channels->template recv_authenticated<SignaturesReceivedAck>(
-          data, size);
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_EXC(err.what());
-        return;
-      }
-
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
       {
@@ -1505,20 +1629,8 @@ namespace aft
       }
     }
 
-    void recv_nonce_reveal(const uint8_t* data, size_t size)
+    void recv_nonce_reveal(NonceRevealMsg r)
     {
-      NonceRevealMsg r;
-
-      try
-      {
-        r = channels->template recv_authenticated<NonceRevealMsg>(data, size);
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_EXC(err.what());
-        return;
-      }
-
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
       {
@@ -1543,25 +1655,12 @@ namespace aft
       update_commit();
     }
 
-    void recv_append_entries_response(const uint8_t* data, size_t size)
+    void recv_append_entries_response(AppendEntriesResponse r)
     {
       std::lock_guard<SpinLock> guard(state->lock);
       // Ignore if we're not the leader.
       if (replica_state != Leader)
         return;
-
-      AppendEntriesResponse r;
-
-      try
-      {
-        r = channels->template recv_authenticated<AppendEntriesResponse>(
-          data, size);
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_EXC(err.what());
-        return;
-      }
 
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
@@ -1669,20 +1768,9 @@ namespace aft
       channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
 
-    void recv_request_vote(const uint8_t* data, size_t size)
+    void recv_request_vote(RequestVote r)
     {
       std::lock_guard<SpinLock> guard(state->lock);
-      RequestVote r;
-
-      try
-      {
-        r = channels->template recv_authenticated<RequestVote>(data, size);
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_EXC(err.what());
-        return;
-      }
 
       // Ignore if we don't recognise the node.
       auto node = nodes.find(r.from_node);
@@ -1772,26 +1860,13 @@ namespace aft
         ccf::NodeMsgType::consensus_msg, to, response);
     }
 
-    void recv_request_vote_response(const uint8_t* data, size_t size)
+    void recv_request_vote_response(RequestVoteResponse r)
     {
       if (replica_state != Candidate)
       {
         LOG_INFO_FMT(
           "Recv request vote response to {}: we aren't a candidate",
           state->my_node_id);
-        return;
-      }
-
-      RequestVoteResponse r;
-
-      try
-      {
-        r = channels->template recv_authenticated<RequestVoteResponse>(
-          data, size);
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_EXC(err.what());
         return;
       }
 

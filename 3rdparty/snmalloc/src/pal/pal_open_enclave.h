@@ -39,7 +39,7 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = 0;
 
-    static constexpr size_t page_size = 0x1000;
+    static constexpr size_t page_size = Aal::smallest_page_size;
 
     [[noreturn]] static void error(const char* const str)
     {
@@ -62,7 +62,7 @@ namespace snmalloc
     }
 
     template<bool page_aligned = false>
-    void zero(void* p, size_t size) noexcept
+    static void zero(void* p, size_t size) noexcept
     {
       oe_memset_s(p, size, 0, size);
     }

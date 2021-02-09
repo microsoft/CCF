@@ -1,242 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define DOCTEST_CONFIG_IMPLEMENT
-#define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
-#define DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
-#include "ds/files.h"
-#include "ds/logger.h"
-#include "enclave/app_interface.h"
-#include "kv/test/null_encryptor.h"
-#include "node/client_signatures.h"
-#include "node/genesis_gen.h"
-#include "node/rpc/member_frontend.h"
-#include "node/rpc/serdes.h"
-#include "node/rpc/user_frontend.h"
-#include "node_stub.h"
-#include "runtime_config/default_whitelists.h"
-#include "tls/rsa_key_pair.h"
-
-#include <doctest/doctest.h>
-#include <iostream>
-#include <string>
-
-using namespace ccfapp;
-using namespace ccf;
-using namespace std;
-using namespace serdes;
-using namespace nlohmann;
-
-using TResponse = http::SimpleResponseProcessor::Response;
-
-// used throughout
-auto kp = tls::make_key_pair();
-auto member_cert = kp -> self_sign("CN=name_member");
-auto verifier_mem = tls::make_verifier(member_cert);
-auto member_caller = verifier_mem -> der_cert_data();
-auto user_cert = kp -> self_sign("CN=name_user");
-auto dummy_enc_pubk = tls::make_rsa_key_pair() -> public_key_pem();
-
-auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-
-constexpr auto default_pack = serdes::Pack::Text;
-
-string get_script_path(string name)
-{
-  auto default_dir = "../src/runtime_config";
-  auto dir = getenv("RUNTIME_CONFIG_DIR");
-  stringstream ss;
-  ss << (dir ? dir : default_dir) << "/" << name;
-  return ss.str();
-}
-const auto gov_script_file = files::slurp_string(get_script_path("gov.lua"));
-const auto gov_veto_script_file =
-  files::slurp_string(get_script_path("gov_veto.lua"));
-const auto operator_gov_script_file =
-  files::slurp_string(get_script_path("operator_gov.lua"));
-
-template <typename T>
-T parse_response_body(const TResponse& r)
-{
-  nlohmann::json body_j;
-  try
-  {
-    body_j = serdes::unpack(r.body, serdes::Pack::Text);
-  }
-  catch (const nlohmann::json::parse_error& e)
-  {
-    LOG_FAIL_FMT("RPC error: {}", e.what());
-    LOG_FAIL_FMT("RPC error: {}", std::string(r.body.begin(), r.body.end()));
-  }
-
-  return body_j.get<T>();
-}
-
-std::string parse_response_body(const TResponse& r)
-{
-  return std::string(r.body.begin(), r.body.end());
-}
-
-void check_error(const TResponse& r, http_status expected)
-{
-  DOCTEST_CHECK(r.status == expected);
-}
-
-void check_result_state(const TResponse& r, ProposalState expected)
-{
-  DOCTEST_CHECK(r.status == HTTP_STATUS_OK);
-  const auto result = parse_response_body<ProposalInfo>(r);
-  DOCTEST_CHECK(result.state == expected);
-}
-
-void set_whitelists(GenesisGenerator& gen)
-{
-  for (const auto& wl : default_whitelists)
-    gen.set_whitelist(wl.first, wl.second);
-}
-
-std::vector<uint8_t> create_request(
-  const json& params, const string& method_name, llhttp_method verb = HTTP_POST)
-{
-  http::Request r(method_name, verb);
-  const auto body = params.is_null() ? std::vector<uint8_t>() :
-                                       serdes::pack(params, default_pack);
-  r.set_body(&body);
-  return r.build_request();
-}
-
-std::vector<uint8_t> create_signed_request(
-  const json& params,
-  const string& method_name,
-  const tls::KeyPairPtr& kp_,
-  const tls::Pem& caller,
-  llhttp_method verb = HTTP_POST)
-{
-  http::Request r(method_name, verb);
-
-  const auto body = params.is_null() ? std::vector<uint8_t>() :
-                                       serdes::pack(params, default_pack);
-  r.set_body(&body);
-
-  crypto::Sha256Hash hash;
-  const auto contents = caller.contents();
-  tls::do_hash(contents.data(), contents.size(), hash.h, MBEDTLS_MD_SHA256);
-  const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
-
-  http::sign_request(r, kp_, key_id);
-
-  return r.build_request();
-}
-
-template <typename T>
-auto query_params(T script, bool compile)
-{
-  json params;
-  if (compile)
-    params["bytecode"] = lua::compile(script);
-  else
-    params["text"] = script;
-  return params;
-}
-
-template <typename T>
-auto read_params(const T& key, const string& table_name)
-{
-  json params;
-  params["key"] = key;
-  params["table"] = table_name;
-  return params;
-}
-
-auto frontend_process(
-  MemberRpcFrontend& frontend,
-  const std::vector<uint8_t>& serialized_request,
-  const tls::Pem& caller)
-{
-  auto session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, tls::make_verifier(caller)->der_cert_data());
-  auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
-  auto serialized_response = frontend.process(rpc_ctx);
-
-  DOCTEST_CHECK(serialized_response.has_value());
-
-  http::SimpleResponseProcessor processor;
-  http::ResponseParser parser(processor);
-
-  parser.execute(serialized_response->data(), serialized_response->size());
-  DOCTEST_REQUIRE(processor.received.size() == 1);
-
-  return processor.received.front();
-}
-
-auto get_proposal(
-  MemberRpcFrontend& frontend,
-  const ProposalId& proposal_id,
-  const tls::Pem& caller)
-{
-  const auto getter =
-    create_request(nullptr, fmt::format("proposals/{}", proposal_id), HTTP_GET);
-
-  return parse_response_body<Proposal>(
-    frontend_process(frontend, getter, caller));
-}
-
-auto get_vote(
-  MemberRpcFrontend& frontend,
-  ProposalId proposal_id,
-  MemberId voter,
-  const tls::Pem& caller)
-{
-  const auto getter = create_request(
-    nullptr,
-    fmt::format("proposals/{}/votes/{}", proposal_id, voter),
-    HTTP_GET);
-
-  return parse_response_body<Script>(
-    frontend_process(frontend, getter, caller));
-}
-
-auto activate(
-  MemberRpcFrontend& frontend,
-  const tls::KeyPairPtr& kp,
-  const tls::Pem& caller)
-{
-  const auto state_digest_req =
-    create_request(nullptr, "ack/update_state_digest");
-  const auto ack = parse_response_body<StateDigest>(
-    frontend_process(frontend, state_digest_req, caller));
-
-  StateDigest params;
-  params.state_digest = ack.state_digest;
-  const auto ack_req = create_signed_request(params, "ack", kp, caller);
-  return frontend_process(frontend, ack_req, caller);
-}
-
-auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
-{
-  return kp_mem->self_sign("CN=new member" + to_string(member_id));
-}
-
-auto init_frontend(
-  NetworkState& network,
-  GenesisGenerator& gen,
-  StubNodeState& node,
-  ShareManager& share_manager,
-  const int n_members,
-  std::vector<tls::Pem>& member_certs)
-{
-  // create members
-  for (uint8_t i = 0; i < n_members; i++)
-  {
-    member_certs.push_back(get_cert(i, kp));
-    gen.activate_member(gen.add_member(member_certs.back()));
-  }
-
-  set_whitelists(gen);
-  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.finalize();
-
-  return MemberRpcFrontend(network, node, share_manager);
-}
+#include "node/rpc/test/frontend_test_infra.h"
 
 DOCTEST_TEST_CASE("Member query/read")
 {
@@ -261,11 +25,11 @@ DOCTEST_TEST_CASE("Member query/read")
   constexpr auto value = 456;
   auto tx = network.tables->create_tx();
   tx.rw(network.values)->put(key, value);
-  DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+  DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
   static constexpr auto query = R"xxx(
   local tables = ...
-  return tables["public:ccf.gov.values"]:get(123)
+  return tables["public:ccf.internal.values"]:get(123)
   )xxx";
 
   DOCTEST_SUBCASE("Query: bytecode/script allowed access")
@@ -273,7 +37,7 @@ DOCTEST_TEST_CASE("Member query/read")
     // set member ACL so that the VALUES table is accessible
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
     bool compile = true;
     do
@@ -291,7 +55,7 @@ DOCTEST_TEST_CASE("Member query/read")
     // set member ACL so that no table is accessible
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto req = create_request(query_params(query, true), "query");
     const auto response = frontend_process(frontend, req, member_cert);
@@ -303,7 +67,7 @@ DOCTEST_TEST_CASE("Member query/read")
   {
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto read_call =
       create_request(read_params<int>(key, Tables::VALUES), "read");
@@ -317,20 +81,20 @@ DOCTEST_TEST_CASE("Member query/read")
     constexpr auto wrong_key = 321;
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto read_call =
       create_request(read_params<int>(wrong_key, Tables::VALUES), "read");
     const auto response = frontend_process(frontend, read_call, member_cert);
 
-    check_error(response, HTTP_STATUS_BAD_REQUEST);
+    check_error(response, HTTP_STATUS_NOT_FOUND);
   }
 
   DOCTEST_SUBCASE("Read: access not allowed")
   {
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto read_call =
       create_request(read_params<int>(key, Tables::VALUES), "read");
@@ -343,7 +107,7 @@ DOCTEST_TEST_CASE("Member query/read")
 DOCTEST_TEST_CASE("Proposer ballot")
 {
   NetworkState network;
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -363,6 +127,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
   ShareManager share_manager(network);
   StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
+
   frontend.open();
 
   ProposalId proposal_id;
@@ -448,7 +213,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
 DOCTEST_TEST_CASE("Reject duplicate vote")
 {
   NetworkState network;
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -539,11 +304,12 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   NodeId node_id = 0;
   network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
   network.ledger_secrets->init();
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
+  gen.init_configuration({1});
   ShareManager share_manager(network);
   StubNodeState node;
   // add three initial active members
@@ -561,7 +327,6 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.set_recovery_threshold(1);
   gen.open_service();
   gen.finalize();
   MemberRpcFrontend frontend(network, node, share_manager);
@@ -633,7 +398,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       R"xxx(
         local tables, calls = ...
         local n = 0
-        tables["public:ccf.gov.members"]:foreach( function(k, v) n = n + 1 end )
+        tables["public:ccf.gov.members.info"]:foreach( function(k, v) n = n + 1 end )
         if n < {} then
           return true
         else
@@ -711,7 +476,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
         auto signatures = tx.rw(network.signatures);
         PrimarySignature sig_value;
         signatures->put(0, sig_value);
-        DOCTEST_REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+        DOCTEST_REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
       }
 
       // (2) ask for a fresher digest of state
@@ -761,7 +526,7 @@ DOCTEST_TEST_CASE("Accept node")
   NodeId node_id = 0;
   network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
   network.ledger_secrets->init();
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1052,7 +817,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
     {
       const bool should_succeed = pro_votes > n_members / 2;
       NetworkState network;
-      network.tables->set_encryptor(encryptor);
+      init_network(network);
       auto gen_tx = network.tables->create_tx();
       GenesisGenerator gen(network, gen_tx);
       gen.init_values();
@@ -1075,7 +840,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
         {R"xxx(
         local tables, recovery_threshold = ...
         local p = Puts:new()
-        p:put("public:ccf.gov.config", 0, {recovery_threshold = recovery_threshold})
+        p:put("public:ccf.gov.service.config", 0, {recovery_threshold = recovery_threshold, consensus = "CFT"})
         return Calls:call("raw_puts", p)
       )xxx"s,
          4},
@@ -1108,7 +873,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
         for (const auto& sensitive_table : sensitive_tables)
         {
           NetworkState network;
-          network.tables->set_encryptor(encryptor);
+          init_network(network);
           auto gen_tx = network.tables->create_tx();
           GenesisGenerator gen(network, gen_tx);
           gen.init_values();
@@ -1146,7 +911,7 @@ DOCTEST_TEST_CASE("Remove proposal")
   caller.cert = v->cert_pem();
 
   NetworkState network;
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1245,7 +1010,7 @@ DOCTEST_TEST_CASE("Remove proposal")
 DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
 {
   NetworkState network;
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1302,7 +1067,7 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
 DOCTEST_TEST_CASE("Add and remove user via proposed calls")
 {
   NetworkState network;
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1405,7 +1170,7 @@ DOCTEST_TEST_CASE(
   // Members pass a ballot with a constitution that includes an operator
   // Operator votes, but is _not_ taken into consideration
   NetworkState network;
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1538,7 +1303,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   NodeId node_id = 0;
   network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
   network.ledger_secrets->init();
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1720,7 +1485,7 @@ DOCTEST_TEST_CASE(
   NodeId node_id = 0;
   network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
   network.ledger_secrets->init();
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1853,7 +1618,7 @@ DOCTEST_TEST_CASE(
 DOCTEST_TEST_CASE("User data")
 {
   NetworkState network;
-  network.tables->set_encryptor(encryptor);
+  init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -2018,8 +1783,8 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       gen.activate_member(id);
       members[id] = {cert, enc_kp};
     }
-    gen.set_recovery_threshold(recovery_threshold);
-    share_manager.issue_shares(gen_tx);
+    gen.init_configuration({recovery_threshold});
+    share_manager.issue_recovery_shares(gen_tx);
     gen.finalize();
     frontend.open();
   }
@@ -2159,7 +1924,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  gen.set_recovery_threshold(1);
+  gen.init_configuration({1});
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
 
@@ -2237,7 +2002,7 @@ DOCTEST_TEST_CASE("Open network sequence")
       auto id = gen.add_member({cert, dummy_enc_pubk});
       members[id] = {cert, {}};
     }
-    gen.set_recovery_threshold(recovery_threshold);
+    gen.init_configuration({recovery_threshold});
     gen.finalize();
     frontend.open();
   }

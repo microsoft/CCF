@@ -54,7 +54,7 @@ Snapshots are generated at regular intervals by the current primary node and sto
 
 .. note:: Because the generation of a snapshot requires a new ledger chunk to be created (see :ref:`operations/ledger_snapshot:File Layout`), all nodes in the network must be started with the same ``--snapshot-tx-interval`` value.
 
-To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the ``public:ccf.gov.snapshot_evidence`` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/start_network:Signature Interval`).
+To guarantee that the identity of the primary node that generated the snapshot can be verified offline, the SHA-256 digest of the snapshot (i.e. evidence) is recorded in the ``public:ccf.internal.snapshot_evidence`` table. The snapshot evidence will be signed by the primary node on the next signature transaction (see :ref:`operations/start_network:Signature Interval`).
 
 Committed snapshot files are named ``snapshot_<seqno>_<evidence_seqno>.commited_<evidence_commit_seqno>``, with ``<seqno>`` the sequence number of the state of the key-value store at which they were generated, ``<evidence_seqno>`` the sequence number at which the snapshot evidence was recorded and ``<evidence_commit_seqno>`` the sequence number at which the snapsot evidence was committed.
 

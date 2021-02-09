@@ -100,7 +100,7 @@ namespace ccf
     CallerId caller_id;
   };
 
-  struct GetUserId
+  struct GetCallerId
   {
     struct In
     {
@@ -124,6 +124,7 @@ namespace ccf
       size_t calls = 0;
       size_t errors = 0;
       size_t failures = 0;
+      size_t retries = 0;
     };
 
     struct Out

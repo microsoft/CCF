@@ -193,23 +193,6 @@ namespace ccf
       return *s;
     }
 
-    void set_app_scripts(kv::Tx& tx, std::map<std::string, std::string> scripts)
-    {
-      auto tx_scripts = tx.rw(network.app_scripts);
-
-      // First, remove all existing handlers
-      tx_scripts->foreach(
-        [&tx_scripts](const std::string& name, const Script&) {
-          tx_scripts->remove(name);
-          return true;
-        });
-
-      for (auto& rs : scripts)
-      {
-        tx_scripts->put(rs.first, lua::compile(rs.second));
-      }
-    }
-
     void set_js_scripts(kv::Tx& tx, std::map<std::string, std::string> scripts)
     {
       auto tx_scripts = tx.rw(network.app_scripts);
@@ -936,7 +919,7 @@ namespace ccf
            // allocated to each recovery member
            try
            {
-             share_manager.issue_shares(tx);
+             share_manager.issue_recovery_shares(tx);
            }
            catch (const std::logic_error& e)
            {
@@ -975,7 +958,7 @@ namespace ccf
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            try
            {
-             share_manager.issue_shares(tx);
+             share_manager.shuffle_recovery_shares(tx);
            }
            catch (const std::logic_error& e)
            {
@@ -1008,10 +991,9 @@ namespace ccf
              return false;
            }
 
-           // Update recovery shares (same number of shares)
            try
            {
-             share_manager.issue_shares(tx);
+             share_manager.shuffle_recovery_shares(tx);
            }
            catch (const std::logic_error& e)
            {
@@ -1284,7 +1266,7 @@ namespace ccf
         if (value.empty())
         {
           return make_error(
-            HTTP_STATUS_BAD_REQUEST,
+            HTTP_STATUS_NOT_FOUND,
             ccf::errors::KeyNotFound,
             fmt::format(
               "Key {} does not exist in table {}.", in.key.dump(), in.table));
@@ -1332,12 +1314,60 @@ namespace ccf
         }
 
         const auto in = params.get<Propose::In>();
-        const auto proposal_id =
-          fmt::format("{:02x}", fmt::join(caller_identity.request_digest, ""));
+
+        if (!consensus)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No consensus available.");
+        }
+
+        std::string proposal_id;
+
+        if (consensus->type() == ConsensusType::CFT)
+        {
+          auto root_at_read = ctx.tx.get_root_at_read_version();
+          if (!root_at_read.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Proposal failed to bind to state.");
+          }
+
+          // caller_identity.request_digest is set when getting the
+          // MemberSignatureAuthnIdentity identity. The proposal id is a digest
+          // of the root of the state tree at the read version and the request
+          // digest.
+          std::vector<uint8_t> acc(
+            root_at_read.value().h.begin(), root_at_read.value().h.end());
+          acc.insert(
+            acc.end(),
+            caller_identity.request_digest.begin(),
+            caller_identity.request_digest.end());
+          const crypto::Sha256Hash proposal_digest(acc);
+          proposal_id = proposal_digest.hex_str();
+        }
+        else
+        {
+          proposal_id = fmt::format(
+            "{:02x}", fmt::join(caller_identity.request_digest, ""));
+        }
 
         Proposal proposal(in.script, in.parameter, caller_identity.member_id);
-
         auto proposals = ctx.tx.rw(this->network.proposals);
+        // Introduce a read dependency, so that if identical proposal creations
+        // are in-flight and reading at the same version, all except the first
+        // conflict and are re-executed. If we ever produce a proposal ID which
+        // already exists, we must have a hash collision.
+        if (proposals->has(proposal_id))
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Proposal ID collision.");
+        }
         proposals->put(proposal_id, proposal);
 
         record_voting_history(
@@ -1667,7 +1697,7 @@ namespace ccf
           // member, all recovery members are allocated new recovery shares
           try
           {
-            share_manager.issue_shares(ctx.tx);
+            share_manager.shuffle_recovery_shares(ctx.tx);
           }
           catch (const std::logic_error& e)
           {
@@ -1877,21 +1907,11 @@ namespace ccf
         // Note that it is acceptable to start a network without any member
         // having a recovery share. The service will check that at least one
         // recovery member is added before the service is opened.
-        if (!g.set_recovery_threshold(in.recovery_threshold, true))
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format(
-              "Could not set recovery threshold to {}.",
-              in.recovery_threshold));
-        }
-
-        g.add_consensus(in.consensus_type);
+        g.init_configuration(in.configuration);
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
-                                  in.quote,
+                                  {in.quote_info},
                                   in.public_encryption_key,
                                   NodeStatus::TRUSTED});
 

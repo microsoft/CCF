@@ -113,6 +113,8 @@ namespace ccf
   {
     kv::Store& store;
     NodeId id;
+    kv::Version version = 0;
+    kv::Term term = 0;
 
   public:
     NullTxHistory(kv::Store& store_, NodeId id_, tls::KeyPair&) :
@@ -120,7 +122,10 @@ namespace ccf
       id(id_)
     {}
 
-    void append(const std::vector<uint8_t>&) override {}
+    void append(const std::vector<uint8_t>&) override
+    {
+      version++;
+    }
 
     kv::TxHistory::Result verify_and_sign(PrimarySignature&, kv::Term*) override
     {
@@ -132,9 +137,16 @@ namespace ccf
       return true;
     }
 
-    void set_term(kv::Term) override {}
+    void set_term(kv::Term t) override
+    {
+      term = t;
+    }
 
-    void rollback(kv::Version, kv::Term) override {}
+    void rollback(kv::Version v, kv::Term t) override
+    {
+      version = v;
+      term = t;
+    }
 
     void compact(kv::Version) override {}
 
@@ -151,15 +163,12 @@ namespace ccf
     void emit_signature() override
     {
       auto txid = store.next_txid();
-      LOG_INFO_FMT("Issuing signature at {}.{}", txid.term, txid.version);
+      LOG_DEBUG_FMT("Issuing signature at {}.{}", txid.term, txid.version);
       store.commit(
         txid, std::make_unique<NullTxHistoryPendingTx>(txid, store, id), true);
     }
 
-    void try_emit_signature() override
-    {
-      emit_signature();
-    }
+    void try_emit_signature() override {}
 
     bool add_request(
       kv::TxHistory::RequestID,
@@ -170,15 +179,15 @@ namespace ccf
       return true;
     }
 
-    void add_result(
-      kv::TxHistory::RequestID, kv::Version, const std::vector<uint8_t>&)
-    {}
-
-    virtual void add_result(RequestID, kv::Version, const uint8_t*, size_t) {}
-
     crypto::Sha256Hash get_replicated_state_root() override
     {
-      return crypto::Sha256Hash();
+      return crypto::Sha256Hash(std::to_string(version));
+    }
+
+    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
+      override
+    {
+      return {{term, version}, crypto::Sha256Hash(std::to_string(version))};
     }
 
     std::vector<uint8_t> get_receipt(kv::Version) override
@@ -587,6 +596,15 @@ namespace ccf
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return replicated_state_tree.get_root();
+    }
+
+    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
+      override
+    {
+      std::lock_guard<SpinLock> tguard(term_lock);
+      return {
+        {term, static_cast<kv::Version>(replicated_state_tree.end_index())},
+        replicated_state_tree.get_root()};
     }
 
     kv::TxHistory::Result verify_and_sign(

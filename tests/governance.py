@@ -11,20 +11,15 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
-import ssl
-import hashlib
 import json
 import urllib.parse
 
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
 from loguru import logger as LOG
 
 
 @reqs.description("Test quotes")
-@reqs.supports_methods("quote", "quotes")
-def test_quote(network, args, verify=True):
+@reqs.supports_methods("quotes/self", "quotes")
+def test_quote(network, args):
     primary, _ = network.find_nodes()
     with primary.client() as c:
         oed = subprocess.run(
@@ -44,7 +39,7 @@ def test_quote(network, args, verify=True):
         ]
         expected_mrenclave = lines[0].strip().split("=")[1]
 
-        r = c.get("/node/quote")
+        r = c.get("/node/quotes/self")
         primary_quote_info = r.body.json()
         assert primary_quote_info["node_id"] == 0
         primary_mrenclave = primary_quote_info["mrenclave"]
@@ -55,43 +50,33 @@ def test_quote(network, args, verify=True):
 
         r = c.get("/node/quotes")
         quotes = r.body.json()["quotes"]
-        assert len(quotes) == len(network.find_nodes())
+        assert len(quotes) == len(network.get_joined_nodes())
 
         for quote in quotes:
             mrenclave = quote["mrenclave"]
             assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
-            qpath = os.path.join(network.common_dir, f"quote{quote['node_id']}")
-
-            with open(qpath, "wb") as q:
-                q.write(bytes.fromhex(quote["raw"]))
-                oed = subprocess.run(
-                    [
-                        os.path.join(args.oe_binary, "oeverify"),
-                        "-r",
-                        qpath,
-                        "-f",
-                        "LEGACY_REPORT_REMOTE",
-                    ],
-                    capture_output=True,
-                    check=True,
-                )
-                out = oed.stdout.decode().split(os.linesep)
-                for line in out:
-                    if line.startswith("Enclave sgx_report_data:"):
-                        report_digest = line.split(" ")[-1][2:]
-                assert "Evidence verification succeeded (0)." in out
-
-            node = network.nodes[quote["node_id"]]
-            node_cert = ssl.get_server_certificate((node.pubhost, node.pubport))
-            public_key = x509.load_pem_x509_certificate(
-                node_cert.encode(), default_backend()
-            ).public_key()
-            pub_key = public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            quote_path = os.path.join(network.common_dir, f"quote{quote['node_id']}")
+            endorsements_path = os.path.join(
+                network.common_dir, f"endorsements{quote['node_id']}"
             )
-            key_digest = hashlib.sha256(pub_key).hexdigest()
-            assert report_digest[: len(key_digest)] == key_digest
+
+            with open(quote_path, "wb") as q:
+                q.write(bytes.fromhex(quote["raw"]))
+
+            with open(endorsements_path, "wb") as e:
+                e.write(bytes.fromhex(quote["endorsements"]))
+
+            cafile = os.path.join(network.common_dir, "networkcert.pem")
+            assert (
+                infra.proc.ccall(
+                    "verify_quote.sh",
+                    f"https://{primary.pubhost}:{primary.pubport}",
+                    "--cacert",
+                    f"{cafile}",
+                    log_output=True,
+                ).returncode
+                == 0
+            ), f"Quote verification for node {quote['node_id']} failed"
 
     return network
 
@@ -128,7 +113,7 @@ def test_no_quote(network, args):
     with untrusted_node.client(
         ca=os.path.join(untrusted_node.common_dir, f"{untrusted_node.node_id}.pem")
     ) as uc:
-        r = uc.get("/node/quote")
+        r = uc.get("/node/quotes/self")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
     return network
 
@@ -141,7 +126,7 @@ def test_member_data(network, args):
 
         def member_info(mid):
             return mc.post(
-                "/gov/read", {"table": "public:ccf.gov.members", "key": mid}
+                "/gov/read", {"table": "public:ccf.gov.members.info", "key": mid}
             ).body.json()
 
         md_count = 0
@@ -158,15 +143,15 @@ def test_member_data(network, args):
     return network
 
 
-@reqs.description("Check user_id")
-def test_user_id(network, args):
+@reqs.description("Check caller_id")
+def test_caller_id(network, args):
     primary, _ = network.find_nodes()
     with primary.client("user0") as uc:
         with open(network.consortium.user_cert_path(1), "r") as ucert:
             pem = ucert.read()
         json_pem = json.dumps(pem)
-        r = uc.get(f"/app/user_id?cert={urllib.parse.quote_plus(json_pem)}")
-        assert r.status_code == 200
+        r = uc.get(f"/app/caller_id?cert={urllib.parse.quote_plus(json_pem)}")
+        assert r.status_code == http.HTTPStatus.OK.value
         assert r.body.json()["caller_id"] == 1
     return network
 
@@ -179,12 +164,69 @@ def test_node_ids(network, args):
             r = c.get(
                 f'/node/network/nodes?host="{node.pubhost}"&port="{node.pubport}"'
             )
-            assert r.status_code == 200
+            assert r.status_code == http.HTTPStatus.OK.value
             info = r.body.json()["nodes"]
             assert len(info) == 1
             assert info[0]["node_id"] == node.node_id
             assert info[0]["status"] == "TRUSTED"
         return network
+
+
+@reqs.description("Checking service principals proposals")
+def test_service_principals(network, args):
+    primary, _ = network.find_nodes()
+
+    principal_id = "0xdeadbeef"
+    ballot = {"ballot": {"text": "return true"}}
+
+    def read_service_principal():
+        with primary.client("member0") as mc:
+            return mc.post(
+                "/gov/read",
+                {"table": "public:gov.service_principals", "key": principal_id},
+            )
+
+    # Initially, there is nothing in this table
+    r = read_service_principal()
+    assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+
+    # Create and accept a proposal which populates an entry in this table
+    principal_data = {"name": "Bob", "roles": ["Fireman", "Zookeeper"]}
+    proposal = {
+        "script": {
+            "text": 'tables, args = ...\nreturn Calls:call("set_service_principal", args)'
+        },
+        "parameter": {
+            "id": principal_id,
+            "data": principal_data,
+        },
+    }
+    proposal = network.consortium.get_any_active_member().propose(primary, proposal)
+    network.consortium.vote_using_majority(primary, proposal, ballot)
+
+    # Confirm it can be read
+    r = read_service_principal()
+    assert r.status_code == http.HTTPStatus.OK.value
+    j = r.body.json()
+    assert j == principal_data
+
+    # Create and accept a proposal which removes an entry from this table
+    proposal = {
+        "script": {
+            "text": 'tables, args = ...\nreturn Calls:call("remove_service_principal", args)'
+        },
+        "parameter": {
+            "id": principal_id,
+        },
+    }
+    proposal = network.consortium.get_any_active_member().propose(primary, proposal)
+    network.consortium.vote_using_majority(primary, proposal, ballot)
+
+    # Confirm it is gone
+    r = read_service_principal()
+    assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+
+    return network
 
 
 def run(args):
@@ -197,7 +239,8 @@ def run(args):
         network = test_quote(network, args)
         network = test_user(network, args)
         network = test_no_quote(network, args)
-        network = test_user_id(network, args)
+        network = test_caller_id(network, args)
+        network = test_service_principals(network, args)
 
 
 if __name__ == "__main__":

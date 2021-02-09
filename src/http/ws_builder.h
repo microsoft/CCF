@@ -66,7 +66,6 @@ namespace ws
     size_t code,
     kv::Version seqno,
     kv::Consensus::View view,
-    kv::Version global_commit,
     const std::vector<uint8_t>& body)
   {
     size_t out_frame_size = ws::OUT_CCF_HEADER_SIZE + body.size();
@@ -78,7 +77,6 @@ namespace ws
     serialized::write<uint16_t>(p, s, code);
     serialized::write<size_t>(p, s, seqno);
     serialized::write<size_t>(p, s, view);
-    serialized::write<size_t>(p, s, global_commit);
     assert(s == body.size());
     ::memcpy(p, body.data(), s);
     return frame;

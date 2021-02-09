@@ -6,9 +6,9 @@ Overview
 
 CCF pairs strong confidentiality guarantees with `very high performance <TR_>`_. CCF can sustain high transaction throughput, while also reaching consensus over global commits with low latency.
 
-.. _TR: https://github.com/microsoft/CCF/blob/master/CCF-TECHNICAL-REPORT.pdf
+.. _TR: https://github.com/microsoft/CCF/blob/main/CCF-TECHNICAL-REPORT.pdf
 
-There are several performance metrics in the CI test suite to ensure this, ranging from micro-benchmarks of critical systems to end-to-end tests measuring peak throughput. These are run against every PR and commit to the master branch. You can also run these locally to test the configuration of your machines, and use them as a basis for creating performance tests of your own CCF application.
+There are several performance metrics in the CI test suite to ensure this, ranging from micro-benchmarks of critical systems to end-to-end tests measuring peak throughput. These are run against every PR and commit to the main branch. You can also run these locally to test the configuration of your machines, and use them as a basis for creating performance tests of your own CCF application.
 
 Micro-benchmarks
 ----------------
@@ -118,4 +118,4 @@ These plots can also be used over longer tests to gauge outlier severity and fre
 .. image:: ../img/200k_signed.png
 
 .. _bitcoin_256k1: https://github.com/bitcoin-core/secp256k1
-.. _SmallBank: https://github.com/microsoft/CCF/tree/master/samples/apps/smallbank
+.. _SmallBank: https://github.com/microsoft/CCF/tree/main/samples/apps/smallbank

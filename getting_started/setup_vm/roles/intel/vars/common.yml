@@ -20,6 +20,8 @@ intel_sgx_dev_packages:
 intel_dcap_packages:
   - "libsgx-dcap-ql"
   - "libsgx-urts"
+  - "libsgx-quote-ex"
 
 intel_dcap_dev_packages:
   - "libsgx-dcap-ql-dev"
+  - "sgx-aesm-service"

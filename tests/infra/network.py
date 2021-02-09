@@ -47,10 +47,6 @@ class CodeIdNotFound(Exception):
     pass
 
 
-class CodeIdRetired(Exception):
-    pass
-
-
 class NodeShutdownError(Exception):
     pass
 
@@ -67,8 +63,8 @@ class Network:
         "host_log_level",
         "sig_tx_interval",
         "sig_ms_interval",
-        "raft_election_timeout",
-        "bft_view_change_timeout",
+        "raft_election_timeout_ms",
+        "bft_view_change_timeout_ms",
         "consensus",
         "memory_reserve_startup",
         "log_format_json",
@@ -316,9 +312,9 @@ class Network:
                 raise
 
         self.election_duration = (
-            args.bft_view_change_timeout / 1000
+            args.bft_view_change_timeout_ms / 1000
             if args.consensus == "bft"
-            else args.raft_election_timeout / 1000
+            else args.raft_election_timeout_ms / 1000
         ) * 2
 
         LOG.info("All nodes started")
@@ -588,10 +584,8 @@ class Network:
             if errors:
                 # Throw accurate exceptions if known errors found in
                 for error in errors:
-                    if "CODE_ID_NOT_FOUND" in error:
+                    if "Quote does not contain known enclave measurement" in error:
                         raise CodeIdNotFound from e
-                    if "CODE_ID_RETIRED" in error:
-                        raise CodeIdRetired from e
             raise
 
         return new_node
@@ -857,7 +851,7 @@ class Network:
                         # that is app agnostic
                         r = nc.post("/gov/ack/update_state_digest")
                         assert (
-                            r.status_code == 200
+                            r.status_code == http.HTTPStatus.OK.value
                         ), f"Error ack/update_state_digest: {r}"
                         c.wait_for_commit(r)
                         return True
