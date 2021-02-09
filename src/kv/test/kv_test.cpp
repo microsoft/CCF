@@ -10,6 +10,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#undef FAIL
 #include <msgpack/msgpack.hpp>
 #include <set>
 #include <string>
@@ -63,7 +64,7 @@ TEST_CASE("Reads/writes and deletions")
   INFO("Start empty transaction");
   {
     auto tx = kv_store.create_tx();
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE_THROWS_AS(tx.commit(), std::logic_error);
   }
 
@@ -81,7 +82,7 @@ TEST_CASE("Reads/writes and deletions")
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
     REQUIRE(!handle->get_version_of_previous_write(k).has_value());
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   const auto commit_v = kv_store.current_version();
@@ -97,7 +98,7 @@ TEST_CASE("Reads/writes and deletions")
     const auto ver = handle->get_version_of_previous_write(k);
     REQUIRE(ver.has_value());
     REQUIRE(ver.value() == commit_v);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   INFO("Remove keys");
@@ -120,7 +121,7 @@ TEST_CASE("Reads/writes and deletions")
       REQUIRE(!va.has_value());
 
       handle->put(k, v1);
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
 
     {
@@ -139,7 +140,7 @@ TEST_CASE("Reads/writes and deletions")
       handle->put(k, v1);
       auto va = handle->get_globally_committed(k);
       REQUIRE(!va.has_value());
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
 
     {
@@ -148,7 +149,7 @@ TEST_CASE("Reads/writes and deletions")
       REQUIRE(handle2->has(k));
       REQUIRE(handle2->remove(k));
       REQUIRE(!handle2->has(k));
-      REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
     }
 
     {
@@ -180,7 +181,7 @@ TEST_CASE("get_version_of_previous_write")
     handle->put(k1, v1);
     handle->put(k2, v1);
 
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   const auto first_version = kv_store.current_version();
@@ -191,7 +192,7 @@ TEST_CASE("get_version_of_previous_write")
     handle->put(k1, v2);
     handle->remove(k2);
 
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   const auto second_version = kv_store.current_version();
@@ -263,7 +264,7 @@ TEST_CASE("get_version_of_previous_write")
       }
 
       // This conflicts with tx_other so is not committed
-      REQUIRE(tx.commit() == kv::CommitSuccess::CONFLICT);
+      REQUIRE(tx.commit() == kv::CommitResult::FAIL_CONFLICT);
     }
   }
 
@@ -334,7 +335,7 @@ TEST_CASE("foreach")
     auto handle = tx.rw(map);
     handle->put("key1", "value1");
     handle->put("key2", "value2");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto tx2 = kv_store.create_tx();
     auto handle2 = tx2.rw(map);
@@ -350,7 +351,7 @@ TEST_CASE("foreach")
     auto handle = tx.rw(map);
     handle->put("key1", "value1");
     handle->put("key2", "value2");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto tx2 = kv_store.create_tx();
     auto handle2 = tx2.rw(map);
@@ -371,14 +372,14 @@ TEST_CASE("foreach")
       handle->put("key1", "value1");
       handle->put("key2", "value2");
       handle->put("key3", "value3");
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
 
     {
       auto tx = kv_store.create_tx();
       auto handle = tx.rw(map);
       handle->remove("key1");
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
 
     {
@@ -423,7 +424,7 @@ TEST_CASE("foreach")
                         // never see the third)
       });
       REQUIRE(ctr == 2);
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
 
     {
@@ -482,7 +483,7 @@ TEST_CASE("Modifications during foreach iteration")
       handle->put(i, value1);
     }
 
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   auto tx = kv_store.create_tx();
@@ -742,7 +743,7 @@ TEST_CASE("Read-only tx")
     auto va = handle->get(k);
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   INFO("Do only reads with an overpowered Tx");
@@ -810,13 +811,13 @@ TEST_CASE("Rollback and compact")
     auto tx2 = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put(k, v1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     kv_store.rollback(0);
     auto handle2 = tx2.rw(map);
     auto v = handle2->get(k);
     REQUIRE(!v.has_value());
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
   }
 
   INFO("Read committed key");
@@ -825,7 +826,7 @@ TEST_CASE("Rollback and compact")
     auto tx2 = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put(k, v1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
     auto handle2 = tx2.rw(map);
@@ -840,7 +841,7 @@ TEST_CASE("Rollback and compact")
     auto tx2 = kv_store.create_tx();
     auto handle = tx.rw(map);
     REQUIRE(handle->remove(k));
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
     auto handle2 = tx2.rw(map);
@@ -876,7 +877,7 @@ TEST_CASE("Local commit hooks")
     handle->put("key1", "value1");
     handle->put("key2", "value2");
     handle->remove("key2");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     REQUIRE(global_writes.size() == 0);
     REQUIRE(local_writes.size() == 1);
@@ -898,7 +899,7 @@ TEST_CASE("Local commit hooks")
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put("key2", "value2");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     REQUIRE(local_writes.size() == 0);
     REQUIRE(global_writes.size() == 0);
@@ -913,7 +914,7 @@ TEST_CASE("Local commit hooks")
     auto handle = tx.rw(map);
     handle->remove("key2");
     handle->put("key3", "value3");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     REQUIRE(global_writes.size() == 0);
     REQUIRE(local_writes.size() == 1);
@@ -970,7 +971,7 @@ TEST_CASE("Global commit hooks")
     auto tx1 = kv_store.create_tx();
     auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
-    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
 
     kv_store.compact(1);
 
@@ -990,11 +991,11 @@ TEST_CASE("Global commit hooks")
     auto tx3 = kv_store.create_tx();
     auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
-    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
 
     handle_hook = tx2.rw(map_with_hook);
     handle_hook->put("key2", "value2");
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
 
     const auto compact_version = kv_store.current_version();
 
@@ -1002,7 +1003,7 @@ TEST_CASE("Global commit hooks")
     // version of the store
     auto handle_no_hook = tx3.rw(map_no_hook);
     handle_no_hook->put("key3", "value3");
-    REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx3.commit() == kv::CommitResult::SUCCESS);
 
     kv_store.compact(compact_version);
 
@@ -1027,19 +1028,19 @@ TEST_CASE("Global commit hooks")
     auto tx3 = kv_store.create_tx();
     auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
-    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
 
     // This does not affect map_with_hook but still increments the current
     // version of the store
     auto handle_no_hook = tx2.rw(map_no_hook);
     handle_no_hook->put("key2", "value2");
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
 
     const auto compact_version = kv_store.current_version();
 
     handle_hook = tx3.rw(map_with_hook);
     handle_hook->put("key3", "value3");
-    REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx3.commit() == kv::CommitResult::SUCCESS);
 
     kv_store.compact(compact_version);
 
@@ -1059,14 +1060,14 @@ TEST_CASE("Global commit hooks")
     auto tx2 = kv_store.create_tx();
     auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
-    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
 
     kv_store.compact(kv_store.current_version());
     global_writes.clear();
 
     handle_hook = tx2.rw(map_with_hook);
     handle_hook->put("key2", "value2");
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
 
     kv_store.compact(kv_store.current_version());
 
@@ -1094,13 +1095,13 @@ TEST_CASE("Deserialising from other Store")
   handle1->put(42, "aardvark");
   handle2->put(14, "alligator");
   auto [success, reqid, data, hooks] = tx1.commit_reserved();
-  REQUIRE(success == kv::CommitSuccess::OK);
+  REQUIRE(success == kv::CommitResult::SUCCESS);
 
   kv::Store clone;
   clone.set_encryptor(encryptor);
 
   REQUIRE(
-    clone.apply(data, ConsensusType::CFT)->execute() == kv::ApplySuccess::PASS);
+    clone.apply(data, ConsensusType::CFT)->execute() == kv::ApplyResult::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -1121,11 +1122,11 @@ TEST_CASE("Deserialise return status")
     auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
-    REQUIRE(success == kv::CommitSuccess::OK);
+    REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
       store.apply(data, ConsensusType::CFT)->execute() ==
-      kv::ApplySuccess::PASS);
+      kv::ApplyResult::PASS);
   }
 
   {
@@ -1134,11 +1135,11 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(0, 2);
     sig_handle->put(0, sigv);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
-    REQUIRE(success == kv::CommitSuccess::OK);
+    REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
       store.apply(data, ConsensusType::CFT)->execute() ==
-      kv::ApplySuccess::PASS_SIGNATURE);
+      kv::ApplyResult::PASS_SIGNATURE);
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -1150,11 +1151,11 @@ TEST_CASE("Deserialise return status")
     sig_handle->put(0, sigv);
     data_handle->put(43, 43);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
-    REQUIRE(success == kv::CommitSuccess::OK);
+    REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
       store.apply(data, ConsensusType::CFT)->execute() ==
-      kv::ApplySuccess::FAILED);
+      kv::ApplyResult::FAIL);
   }
 }
 
@@ -1174,14 +1175,14 @@ TEST_CASE("Map swap between stores")
     auto tx = s1.create_tx();
     auto v = tx.rw(d);
     v->put(42, 42);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   {
     auto tx = s1.create_tx();
     auto v = tx.rw(pd);
     v->put(14, 14);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   const auto target_version = s1.current_version();
@@ -1190,7 +1191,7 @@ TEST_CASE("Map swap between stores")
     auto tx = s2.create_tx();
     auto v = tx.rw(d);
     v->put(41, 41);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   s2.swap_private_maps(s1);
@@ -1380,7 +1381,7 @@ TEST_CASE("Conflict resolution")
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put("foo", "initial");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
@@ -1426,14 +1427,14 @@ TEST_CASE("Conflict resolution")
     // A second transaction is committed, conflicting with the first
     try_write(tx2, "baz");
     const auto res2 = tx2.commit();
-    REQUIRE(res2 == kv::CommitSuccess::OK);
+    REQUIRE(res2 == kv::CommitResult::SUCCESS);
 
     confirm_state({"baz"}, {"bar"});
   }
 
   // Trying to commit first transaction produces a conflict
   auto res1 = tx1.commit();
-  REQUIRE(res1 == kv::CommitSuccess::CONFLICT);
+  REQUIRE(res1 == kv::CommitResult::FAIL_CONFLICT);
   confirm_state({"baz"}, {"bar"});
 
   // A third transaction just wants to read the value
@@ -1446,13 +1447,13 @@ TEST_CASE("Conflict resolution")
 
   // Expected results are committed
   res1 = tx1.commit();
-  REQUIRE(res1 == kv::CommitSuccess::OK);
+  REQUIRE(res1 == kv::CommitResult::SUCCESS);
   confirm_state({"baz", "buzz"}, {"bar"});
 
   // Third transaction completes later, has no conflicts but reports the earlier
   // version it read
   auto res3 = tx3.commit();
-  REQUIRE(res3 == kv::CommitSuccess::OK);
+  REQUIRE(res3 == kv::CommitResult::SUCCESS);
 
   REQUIRE(tx1.commit_version() > tx2.commit_version());
   REQUIRE(tx2.get_read_version() >= tx2.get_read_version());
@@ -1487,7 +1488,7 @@ TEST_CASE("Mid-tx compaction")
     handle_b->put(key_b, new_val);
 
     const auto result = tx.commit();
-    REQUIRE(result == kv::CommitSuccess::OK);
+    REQUIRE(result == kv::CommitResult::SUCCESS);
   };
 
   increment_vals();
@@ -1508,7 +1509,7 @@ TEST_CASE("Mid-tx compaction")
     REQUIRE(a_opt == b_opt);
 
     const auto result = tx.commit();
-    REQUIRE(result == kv::CommitSuccess::OK);
+    REQUIRE(result == kv::CommitResult::SUCCESS);
   }
 
   {
@@ -1526,7 +1527,7 @@ TEST_CASE("Mid-tx compaction")
     REQUIRE(a_opt == b_opt);
 
     const auto result = tx.commit();
-    REQUIRE(result == kv::CommitSuccess::OK);
+    REQUIRE(result == kv::CommitResult::SUCCESS);
   }
 
   {
@@ -1556,7 +1557,7 @@ TEST_CASE("Mid-tx compaction")
       REQUIRE(a_opt == b_opt);
 
       const auto result = tx.commit();
-      REQUIRE(result == kv::CommitSuccess::OK);
+      REQUIRE(result == kv::CommitResult::SUCCESS);
     }
     catch (const kv::CompactedVersionConflict& e)
     {
@@ -1590,7 +1591,7 @@ TEST_CASE("Store clear")
 
       handle_a->put("key" + std::to_string(i), 42);
       handle_b->put("key" + std::to_string(i), 42);
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
 
     auto current_version = kv_store.current_version();
