@@ -539,10 +539,6 @@ TEST_CASE("StateCache concurrent access")
   std::thread host_thread([&]() {
     auto ledger = construct_host_ledger(state.kv_store->get_consensus());
 
-    std::cout << "Ledger contains " << ledger.size() << " entries" << std::endl;
-    std::cout << fmt::format("begin is {}, end is {}", begin_index, end_index)
-              << std::endl;
-
     size_t last_handled_write = 0;
     while (!finished)
     {
