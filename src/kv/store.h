@@ -87,7 +87,7 @@ namespace kv
     // If true, use historical ledger secrets to deserialise entries
     const bool is_historical = false;
 
-    ApplyResult commit_deserialised(
+    bool commit_deserialised(
       OrderedChanges& changes,
       Version& v,
       const MapCollection& new_maps,
@@ -98,14 +98,14 @@ namespace kv
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
-        return ApplyResult::FAIL;
+        return false;
       }
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         version = v;
         last_replicated = version;
       }
-      return ApplyResult::PASS;
+      return true;
     }
 
     bool has_map_internal(const std::string& name)
@@ -644,7 +644,7 @@ namespace kv
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
-        return ApplyResult::FAIL;
+        return false;
       }
       std::tie(v, std::ignore) = v_.value();
 
@@ -660,7 +660,7 @@ namespace kv
         {
           LOG_FAIL_FMT(
             "Tried to deserialise {} but current_version is {}", v, cv);
-          return ApplyResult::FAIL;
+          return false;
         }
       }
 

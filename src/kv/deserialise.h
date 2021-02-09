@@ -23,7 +23,7 @@ namespace kv
       kv::MapCollection& new_maps,
       bool ignore_strict_versions = false) = 0;
 
-    virtual ApplyResult commit_deserialised(
+    virtual bool commit_deserialised(
       kv::OrderedChanges& changes,
       kv::Version& v,
       const MapCollection& new_maps,
@@ -103,12 +103,11 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      ApplyResult success =
-        store->commit_deserialised(changes, v, new_maps, hooks);
-      if (success == ApplyResult::FAIL)
+      if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
-        return success;
+        return ApplyResult::FAIL;
       }
+      auto success = ApplyResult::PASS;
 
       auto search = changes.find(ccf::Tables::SIGNATURES);
       if (search != changes.end())
@@ -278,11 +277,9 @@ namespace kv
              kv::ConsensusHookPtrs& hooks) -> ApplyResult
 
     {
-      ApplyResult success =
-        store->commit_deserialised(changes, v, new_maps, hooks);
-      if (success == ApplyResult::FAIL)
+      if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
-        return success;
+        return ApplyResult::FAIL;
       }
 
       bool result = true;
@@ -379,14 +376,13 @@ namespace kv
              OrderedChanges& changes,
              MapCollection& new_maps,
              kv::ConsensusHookPtrs& hooks) -> ApplyResult {
-      ApplyResult success =
-        store->commit_deserialised(changes, v, new_maps, hooks);
-      if (success == ApplyResult::FAIL)
+      if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
-        return success;
+        return ApplyResult::FAIL;
       }
 
       kv::TxID tx_id;
+      auto success = ApplyResult::PASS;
 
       auto r = progress_tracker->receive_backup_signatures(
         tx_id, consensus->node_count(), consensus->is_primary());
@@ -463,11 +459,9 @@ namespace kv
              OrderedChanges& changes,
              MapCollection& new_maps,
              kv::ConsensusHookPtrs& hooks) -> ApplyResult {
-      ApplyResult success =
-        store->commit_deserialised(changes, v, new_maps, hooks);
-      if (success == ApplyResult::FAIL)
+      if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
-        return success;
+        return ApplyResult::FAIL;
       }
 
       auto r = progress_tracker->receive_nonces();
@@ -550,11 +544,9 @@ namespace kv
              MapCollection& new_maps,
              kv::ConsensusHookPtrs& hooks) -> ApplyResult {
       LOG_INFO_FMT("Applying new view");
-      ApplyResult success =
-        store->commit_deserialised(changes, v, new_maps, hooks);
-      if (success == ApplyResult::FAIL)
+      if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
-        return success;
+        return ApplyResult::FAIL;
       }
 
       if (!progress_tracker->apply_new_view(

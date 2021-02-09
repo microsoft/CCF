@@ -1,3 +1,4 @@
+
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -389,9 +390,9 @@ TEST_CASE("KV integrity verification")
   std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
   REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
 
-  REQUIRE(
-    backup_store.apply(latest_data.value(), ConsensusType::CFT)->execute() ==
-    kv::ApplyResult::FAIL);
+  auto r = backup_store.apply(latest_data.value(), ConsensusType::CFT);
+  auto rr = r->execute();
+  REQUIRE(rr == kv::ApplyResult::FAIL);
 }
 
 TEST_CASE("Encryptor rollback")
