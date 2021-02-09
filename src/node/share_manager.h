@@ -383,8 +383,13 @@ namespace ccf
         throw std::logic_error("Current ledger secret version should be set");
       }
 
+      // TODO: Is this always safe? Only if previous ledger secret exists!
       restored_ledger_secrets.emplace(
-        current_ledger_secret_version.value(), std::move(restored_ls));
+        current_ledger_secret_version.value(),
+        LedgerSecret(
+          std::move(restored_ls.raw_key),
+          recovery_ledger_secrets.back()
+            .previous_ledger_secret->stored_version));
 
       for (auto it = recovery_ledger_secrets.rbegin();
            it != recovery_ledger_secrets.rend();
@@ -414,8 +419,24 @@ namespace ccf
         }
 
         decryption_key = decrypted_ls;
+
+        std::optional<kv::Version> previous_secret_stored_version =
+          std::nullopt;
+        if (std::next(it) != recovery_ledger_secrets.rend())
+        {
+          previous_secret_stored_version =
+            std::next(it)->previous_ledger_secret->stored_version;
+        }
+
+        LOG_FAIL_FMT(
+          "Restoring ledger secret at {}, with previous secret stored at {}",
+          it->previous_ledger_secret->version,
+          previous_secret_stored_version.value_or(kv::NoVersion));
+
         restored_ledger_secrets.emplace(
-          it->previous_ledger_secret->version, std::move(decrypted_ls));
+          it->previous_ledger_secret->version,
+          LedgerSecret(
+            std::move(decrypted_ls), previous_secret_stored_version));
       }
 
       recovery_ledger_secrets.clear();

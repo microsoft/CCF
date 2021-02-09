@@ -1653,6 +1653,11 @@ namespace ccf
               LOG_DEBUG_FMT(
                 "Recovery encrypted ledger secret valid at seqno {}",
                 encrypted_ledger_secret_info->previous_ledger_secret->version);
+
+              LOG_FAIL_FMT(
+                "Stored at {}",
+                encrypted_ledger_secret_info->previous_ledger_secret
+                  ->stored_version.value_or(kv::NoVersion));
             }
 
             recovery_ledger_secrets.emplace_back(

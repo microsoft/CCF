@@ -272,7 +272,7 @@ namespace ccf
     void set_secret(
       kv::Version version,
       std::vector<uint8_t>&& raw_secret,
-      const std::optional<kv::Version>& previous_secret_stored_version)
+      std::optional<kv::Version> previous_secret_stored_version)
     {
       std::lock_guard<SpinLock> guard(lock);
 
