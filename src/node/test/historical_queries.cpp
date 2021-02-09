@@ -100,7 +100,7 @@ TEST_CASE("StateCache")
       ni.cert = kp->self_sign("CN=Test node");
       ni.status = ccf::NodeStatus::TRUSTED;
       nodes->put(node_id, ni);
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
 
     {
@@ -122,7 +122,7 @@ TEST_CASE("StateCache")
           public_map->put(i, s);
           private_map->put(i, s);
 
-          REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
         }
       }
     }

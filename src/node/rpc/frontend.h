@@ -280,7 +280,7 @@ namespace ccf
 
           switch (tx.commit())
           {
-            case kv::CommitSuccess::OK:
+            case kv::CommitResult::SUCCESS:
             {
               auto cv = tx.commit_version();
               if (cv == 0)
@@ -303,14 +303,14 @@ namespace ccf
               return ctx->serialise_response();
             }
 
-            case kv::CommitSuccess::CONFLICT:
+            case kv::CommitResult::FAIL_CONFLICT:
             {
               set_root_on_proposals(*ctx, tx);
               metrics.retries++;
               break;
             }
 
-            case kv::CommitSuccess::NO_REPLICATE:
+            case kv::CommitResult::FAIL_NO_REPLICATE:
             {
               ctx->set_error(
                 HTTP_STATUS_SERVICE_UNAVAILABLE,

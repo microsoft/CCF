@@ -7,6 +7,7 @@
 #include "kv/tx.h"
 
 #include <doctest/doctest.h>
+#undef FAIL
 
 struct MapTypes
 {
@@ -31,7 +32,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     handle_1s->put("baz", "hello");
     auto handle_1n = tx1.rw(num_map);
     handle_1n->put(42, 100);
-    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
     first_snapshot_version = tx1.commit_version();
 
     auto tx2 = store.create_tx();
@@ -39,7 +40,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     handle_2s->remove("baz");
     auto handle_2n = tx2.rw(num_map);
     handle_2n->put(42, 123);
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
     second_snapshot_version = tx2.commit_version();
 
     auto tx3 = store.create_tx();
@@ -59,7 +60,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
       new_store.deserialise_snapshot(first_serialised_snapshot, hooks),
-      kv::ApplySuccess::PASS);
+      kv::ApplyResult::PASS);
     REQUIRE_EQ(new_store.current_version(), first_snapshot_version);
 
     auto tx1 = new_store.create_tx();
@@ -164,12 +165,12 @@ TEST_CASE(
     auto tx1 = store.create_tx();
     auto handle_1 = tx1.rw<MapTypes::StringString>("public:string_map");
     handle_1->put("foo", "foo");
-    REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
+    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS); // Committed at 1
 
     auto tx2 = store.create_tx();
     auto handle_2 = tx2.rw<MapTypes::StringString>("public:string_map");
     handle_2->put("bar", "bar");
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK); // Committed at 2
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS); // Committed at 2
     snapshot_version = tx2.commit_version();
   }
 
@@ -190,13 +191,13 @@ TEST_CASE(
 
     // Transaction conflicts as snapshot was applied while transaction was in
     // flight
-    REQUIRE(tx.commit() == kv::CommitSuccess::CONFLICT);
+    REQUIRE(tx.commit() == kv::CommitResult::FAIL_CONFLICT);
 
     // Try again
     auto tx2 = new_store.create_tx();
     auto handle2 = tx2.rw<MapTypes::StringString>("public:string_map");
     handle2->put("baz", "baz");
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
   }
 }
 
@@ -212,14 +213,14 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     auto handle_1 = tx1.rw<MapTypes::StringString>(string_map);
     handle_1->put("foo", "foo");
     handle_1->put("bar", "bar");
-    REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
+    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS); // Committed at 1
 
     // New transaction, deleting content from the previous transaction
     auto tx2 = store.create_tx();
     auto handle_2 = tx2.rw<MapTypes::StringString>(string_map);
     handle_2->put("baz", "baz");
     handle_2->remove("bar");
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK); // Committed at 2
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS); // Committed at 2
     snapshot_version = tx2.commit_version();
   }
 
