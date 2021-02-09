@@ -573,7 +573,7 @@ namespace kv
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history(
-      bool ignore_temp_history = false) = 0;
+      bool ignore_temporary = false) = 0;
     virtual EncryptorPtr get_encryptor() = 0;
     virtual std::unique_ptr<AbstractExecutionWrapper> apply(
       const std::vector<uint8_t> data,

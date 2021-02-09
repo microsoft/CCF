@@ -70,6 +70,8 @@ namespace kv
     MapHooks map_hooks;
 
     std::shared_ptr<Consensus> consensus = nullptr;
+
+    bool is_history_temporary = false;
     std::shared_ptr<TxHistory> history = nullptr;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker = nullptr;
     EncryptorPtr encryptor = nullptr;
@@ -144,16 +146,23 @@ namespace kv
       consensus = consensus_;
     }
 
-    std::shared_ptr<TxHistory> get_history() override
+    std::shared_ptr<TxHistory> get_history(
+      bool ignore_temporary = false) override
     {
+      if (ignore_temporary && is_history_temporary)
+      {
+        LOG_FAIL_FMT("Returning nullptr instead of history");
+        return nullptr;
+      }
+
       return history;
     }
 
-    // TODO:
-    // 2. get_history() returns nullptr if the history is temporary
-    void set_history(std::shared_ptr<TxHistory> history_, bool is_temporary = false)
+    void set_history(
+      std::shared_ptr<TxHistory> history_, bool is_temporary = false)
     {
       history = history_;
+      is_history_temporary = is_temporary;
     }
 
     void reset_history()

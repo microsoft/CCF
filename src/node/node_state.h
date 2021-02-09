@@ -352,8 +352,11 @@ namespace ccf
 
           if (!config.startup_snapshot.empty())
           {
-            // No rollback can happen during verifying snapshot
-            setup_history(false);
+            // The store and associated history used during snapshot
+            // verification are temporary and will be reset once the snapshot
+            // has been successfully verified. During this time, the history
+            // should not be retrievable from the store (e.g. from the frontend)
+            setup_history(true);
 
             // It is necessary to give an encryptor to the store for it to
             // deserialise the public domain when recovering the public ledger
@@ -1721,17 +1724,18 @@ namespace ccf
       setup_basic_hooks();
     }
 
-    void setup_history(bool enable_signature_timer = true)
+    void setup_history(bool is_temporary = false)
     {
+      // Signature generation is disabled on temporary history
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
         *node_sign_kp,
         sig_tx_interval,
         sig_ms_interval,
-        enable_signature_timer);
+        !is_temporary);
 
-      network.tables->set_history(history);
+      network.tables->set_history(history, is_temporary);
     }
 
     void reset_history()
