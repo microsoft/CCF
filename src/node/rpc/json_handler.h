@@ -237,6 +237,10 @@ namespace ccf
       {
         params = get_params_from_query(ctx);
       }
+      else
+      {
+        params = nlohmann::json::object();
+      }
 
       return std::make_pair(pack, params);
     }
