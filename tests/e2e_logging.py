@@ -17,7 +17,6 @@ import tempfile
 import base64
 import json
 import ccf.clients
-import pprint
 
 from loguru import logger as LOG
 
