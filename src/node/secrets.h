@@ -18,11 +18,16 @@ namespace ccf
     // Encrypted secret for each backup
     std::vector<uint8_t> encrypted_secret = {};
 
-    MSGPACK_DEFINE(version, encrypted_secret);
+    // Version at which the previous secret is stored at
+    std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
+
+    MSGPACK_DEFINE(version, encrypted_secret, previous_secret_stored_version);
   };
 
-  DECLARE_JSON_TYPE(EncryptedLedgerSecret)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EncryptedLedgerSecret)
   DECLARE_JSON_REQUIRED_FIELDS(EncryptedLedgerSecret, version, encrypted_secret)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    EncryptedLedgerSecret, previous_secret_stored_version)
 
   struct EncryptedLedgerSecrets
   {

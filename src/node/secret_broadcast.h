@@ -37,6 +37,7 @@ namespace ccf
     }
 
   public:
+    // TODO: Pass version of previous secret here as well??!!
     static void broadcast_some(
       NetworkState& network,
       tls::KeyPairPtr encryption_key,
@@ -87,7 +88,8 @@ namespace ccf
            encrypt_ledger_secret(
              encryption_key,
              tls::make_public_key(ni.encryption_pub_key),
-             std::move(new_ledger_secret.raw_key))});
+             std::move(new_ledger_secret.raw_key)),
+           new_ledger_secret.previous_secret_stored_version});
 
         secrets->put(
           nid,

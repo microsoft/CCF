@@ -6,6 +6,7 @@
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "secrets.h"
+#include "shares.h"
 #include "tls/entropy.h"
 
 #include <algorithm>
@@ -19,12 +20,12 @@ namespace ccf
     std::vector<uint8_t> raw_key;
     std::shared_ptr<crypto::KeyAesGcm> key;
 
-    std::optional<kv::Version> previous_stored_version = std::nullopt;
+    std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
 
     bool operator==(const LedgerSecret& other) const
     {
       return raw_key == other.raw_key &&
-        previous_stored_version == other.previous_stored_version;
+        previous_secret_stored_version == other.previous_secret_stored_version;
     }
 
     LedgerSecret() = default;
@@ -35,23 +36,41 @@ namespace ccf
     LedgerSecret(const LedgerSecret& other) :
       raw_key(other.raw_key),
       key(std::make_shared<crypto::KeyAesGcm>(other.raw_key)),
-      previous_stored_version(other.previous_stored_version)
+      previous_secret_stored_version(other.previous_secret_stored_version)
     {}
 
-    // TODO: What to do with this constructor???
-    LedgerSecret(std::vector<uint8_t>&& raw_key_) :
+    LedgerSecret(
+      std::vector<uint8_t>&& raw_key_,
+      std::optional<kv::Version> previous_secret_stored_version_ =
+        std::nullopt) :
       raw_key(raw_key_),
-      key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_)))
-    {}
+      key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_))),
+      previous_secret_stored_version(previous_secret_stored_version_)
+    {
+      LOG_FAIL_FMT(
+        "Ledger secret copy, previous version: {}",
+        previous_secret_stored_version_.value_or(kv::NoVersion));
+    }
   };
-
-  inline LedgerSecret make_ledger_secret()
-  {
-    return LedgerSecret(tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
-  }
 
   using LedgerSecretsMap = std::map<kv::Version, LedgerSecret>;
   using VersionedLedgerSecret = LedgerSecretsMap::value_type;
+
+  inline std::vector<uint8_t> generate_raw_secret()
+  {
+    return tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+  }
+
+  inline LedgerSecret make_ledger_secret(kv::ReadOnlyTx& tx)
+  {
+    LOG_FAIL_FMT("Making ledger secret!");
+
+    auto encrypted_ls =
+      tx.ro<EncryptedLedgerSecretsInfo>(Tables::ENCRYPTED_LEDGER_SECRETS);
+
+    return LedgerSecret(
+      generate_raw_secret(), encrypted_ls->get_version_of_previous_write(0));
+  }
 
   class LedgerSecrets
   {
@@ -152,7 +171,7 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      ledger_secrets.emplace(initial_version, make_ledger_secret());
+      ledger_secrets.emplace(initial_version, generate_raw_secret());
     }
 
     void set_node_id(NodeId id)
@@ -166,7 +185,7 @@ namespace ccf
       self = id;
     }
 
-    VersionedLedgerSecret get_latest(kv::Tx& tx)
+    VersionedLedgerSecret get_latest(kv::ReadOnlyTx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -182,7 +201,7 @@ namespace ccf
     }
 
     std::pair<VersionedLedgerSecret, std::optional<VersionedLedgerSecret>>
-    get_latest_and_penultimate(kv::Tx& tx)
+    get_latest_and_penultimate(kv::ReadOnlyTx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -204,7 +223,7 @@ namespace ccf
     }
 
     LedgerSecretsMap get(
-      kv::Tx& tx, std::optional<kv::Version> up_to = std::nullopt)
+      kv::ReadOnlyTx& tx, std::optional<kv::Version> up_to = std::nullopt)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -250,7 +269,10 @@ namespace ccf
       return get_secret_for_version(version, historical_hint).key;
     }
 
-    void set_secret(kv::Version version, LedgerSecret&& secret)
+    void set_secret(
+      kv::Version version,
+      std::vector<uint8_t>&& raw_secret,
+      const std::optional<kv::Version>& previous_secret_stored_version)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -259,7 +281,9 @@ namespace ccf
         "Ledger secret at seqno {} already exists",
         version);
 
-      ledger_secrets.emplace(version, std::move(secret));
+      ledger_secrets.emplace(
+        version,
+        LedgerSecret(std::move(raw_secret), previous_secret_stored_version));
 
       LOG_INFO_FMT("Added new ledger secret at seqno {}", version);
     }
