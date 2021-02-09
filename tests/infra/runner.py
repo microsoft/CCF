@@ -199,9 +199,10 @@ def run(get_command, args):
                         tx_rates.insert_metrics(**results)
 
                         # Construct name for heap metric, removing ^ suffix if present
-                        heap_peak_metric = f"Mem_{args.label}"
+                        heap_peak_metric = args.label
                         if heap_peak_metric.endswith("^"):
                             heap_peak_metric = heap_peak_metric[:-1]
+                        heap_peak_metric += "_mem"
 
                         peak_value = results["peak_allocated_heap_size"]
                         metrics.put(heap_peak_metric, peak_value)

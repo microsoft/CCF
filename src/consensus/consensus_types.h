@@ -9,7 +9,7 @@
 
 namespace consensus
 {
-  struct Config
+  struct Configuration
   {
     size_t raft_request_timeout;
     size_t raft_election_timeout;

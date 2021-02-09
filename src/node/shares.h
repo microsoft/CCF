@@ -39,8 +39,7 @@ namespace ccf
     // Version at which the ledger secret is applicable from
     kv::Version version = kv::NoVersion;
 
-    // Version at which the ledger secret was written to the store (unused for
-    // now)
+    // Version at which the ledger secret was written to the store
     std::optional<kv::Version> stored_version = std::nullopt;
 
     PreviousLedgerSecretInfo() = default;

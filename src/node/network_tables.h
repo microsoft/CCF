@@ -6,7 +6,6 @@
 #include "client_signatures.h"
 #include "code_id.h"
 #include "config.h"
-#include "consensus.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
 #include "consensus/aft/revealed_nonces.h"
@@ -82,7 +81,7 @@ namespace ccf
     Nodes nodes;
 
     //
-    // Lua application table
+    // JS application table
     //
     Scripts app_scripts;
 
@@ -93,7 +92,6 @@ namespace ccf
     Values values;
     Secrets secrets;
     Signatures signatures;
-    ConsensusTable consensus;
     SnapshotEvidence snapshot_evidence;
 
     //
@@ -122,7 +120,7 @@ namespace ccf
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
       shares(Tables::SHARES),
-      encrypted_ledger_secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
+      encrypted_ledger_secrets(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
       submitted_shares(Tables::SUBMITTED_SHARES),
       config(Tables::CONFIGURATION),
       ca_certs(Tables::CA_CERT_DERS),
@@ -137,9 +135,8 @@ namespace ccf
       app_scripts(Tables::APP_SCRIPTS),
       service(Tables::SERVICE),
       values(Tables::VALUES),
-      secrets(Tables::SECRETS),
+      secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
       signatures(Tables::SIGNATURES),
-      consensus(Tables::CONSENSUS),
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
       bft_requests_map(Tables::AFT_REQUESTS),
       backup_signatures_map(Tables::BACKUP_SIGNATURES),
