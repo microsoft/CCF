@@ -355,7 +355,8 @@ namespace ccf
             // The store and associated history used during snapshot
             // verification are temporary and will be reset once the snapshot
             // has been successfully verified. During this time, the history
-            // should not be retrievable from the store (e.g. from the frontend)
+            // should not be retrievable from the store (e.g. from the
+            // frontend). https://github.com/microsoft/CCF/issues/2186
             setup_history(true);
 
             // It is necessary to give an encryptor to the store for it to
