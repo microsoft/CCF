@@ -470,9 +470,6 @@ namespace ccf
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
-    // Prevents multiple history instances to emit signatures
-    static bool has_signature_timer;
-
     SpinLock term_lock;
     kv::Term term = 0;
 
@@ -492,13 +489,7 @@ namespace ccf
     {
       if (signature_timer)
       {
-        // if (has_signature_timer)
-        {
-          // throw std::logic_error("Only one history can emit signatures");
-        }
-
         start_signature_emit_timer();
-        // has_signature_timer = true;
       }
     }
 
