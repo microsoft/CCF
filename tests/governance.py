@@ -126,7 +126,7 @@ def test_member_data(network, args):
 
         def member_info(mid):
             return mc.post(
-                "/gov/read", {"table": "public:ccf.gov.members", "key": mid}
+                "/gov/read", {"table": "public:ccf.gov.members.info", "key": mid}
             ).body.json()
 
         md_count = 0
@@ -183,7 +183,7 @@ def test_service_principals(network, args):
         with primary.client("member0") as mc:
             return mc.post(
                 "/gov/read",
-                {"table": "public:ccf.gov.service_principals", "key": principal_id},
+                {"table": "public:gov.service_principals", "key": principal_id},
             )
 
     # Initially, there is nothing in this table

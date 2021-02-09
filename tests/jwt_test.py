@@ -84,7 +84,7 @@ def test_jwt_without_key_policy(network, args):
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post(
-            "/gov/read", {"table": "public:ccf.gov.jwt_public_signing_keys", "key": kid}
+            "/gov/read", {"table": "public:ccf.gov.jwt.public_signing_keys", "key": kid}
         )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         # Note that /gov/read returns all data as JSON.
@@ -104,7 +104,7 @@ def test_jwt_without_key_policy(network, args):
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post(
-            "/gov/read", {"table": "public:ccf.gov.jwt_public_signing_keys", "key": kid}
+            "/gov/read", {"table": "public:ccf.gov.jwt.public_signing_keys", "key": kid}
         )
         assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
 
@@ -119,7 +119,7 @@ def test_jwt_without_key_policy(network, args):
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post(
-            "/gov/read", {"table": "public:ccf.gov.jwt_public_signing_keys", "key": kid}
+            "/gov/read", {"table": "public:ccf.gov.jwt.public_signing_keys", "key": kid}
         )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         cert_kv_der = bytes(r.body.json())
@@ -247,12 +247,12 @@ def test_jwt_with_sgx_key_filter(network, args):
     ) as c:
         r = c.post(
             "/gov/read",
-            {"table": "public:ccf.gov.jwt_public_signing_keys", "key": non_oe_kid},
+            {"table": "public:ccf.gov.jwt.public_signing_keys", "key": non_oe_kid},
         )
         assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
         r = c.post(
             "/gov/read",
-            {"table": "public:ccf.gov.jwt_public_signing_keys", "key": oe_kid},
+            {"table": "public:ccf.gov.jwt.public_signing_keys", "key": oe_kid},
         )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
@@ -318,7 +318,7 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
     ) as c:
         r = c.post(
             "/gov/read",
-            {"table": "public:ccf.gov.jwt_public_signing_keys", "key": kid},
+            {"table": "public:ccf.gov.jwt.public_signing_keys", "key": kid},
         )
         if cert_pem is None:
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code

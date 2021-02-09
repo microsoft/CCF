@@ -580,6 +580,7 @@ if(BUILD_TESTS)
     NAME rotation_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
     CONSENSUS cft
+    LABEL rotation
   )
 
   add_e2e_test(
@@ -781,8 +782,9 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL tutorial
     CURL_CLIENT TRUE
-    ADDITIONAL_ARGS -p liblogging --tutorial
-                    ${CMAKE_SOURCE_DIR}/python/tutorial.py
+    ADDITIONAL_ARGS
+      -p liblogging --client-tutorial ${CMAKE_SOURCE_DIR}/python/tutorial.py
+      --ledger-tutorial ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
   )
 
   add_e2e_sandbox_test(

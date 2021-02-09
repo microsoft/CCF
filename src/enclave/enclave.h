@@ -63,7 +63,7 @@ namespace enclave
       const EnclaveConfig& ec,
       const CCFConfig::SignatureIntervals& signature_intervals,
       const ConsensusType& consensus_type_,
-      const consensus::Config& consensus_config) :
+      const consensus::Configuration& consensus_config) :
       circuit(
         ringbuffer::BufferDef{ec.to_enclave_buffer_start,
                               ec.to_enclave_buffer_size,
