@@ -237,7 +237,7 @@ namespace ccf
        *
        * tables_writable, tables_readable, a, b, c = ...
        * -- read members table
-       * local member_0 = tables_readable["public:ccf.gov.members"]:get(0)
+       * local member_0 = tables_readable["public:ccf.gov.members.info"]:get(0)
        *
        * Further, subclasses of this class may add custom tables by overriding
        * the add_custom_tables() method.
