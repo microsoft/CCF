@@ -67,7 +67,7 @@ namespace ccf
       REQUIRE(res1.has_value());
       REQUIRE(res1.value() == b);
 
-      REQUIRE(txs.commit() == kv::CommitSuccess::OK);
+      REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
     }
 
     SUBCASE("all methods")
@@ -121,7 +121,7 @@ namespace ccf
       INFO("Transaction is committed");
       {
         table->put(k, s0);
-        REQUIRE(txs.commit() == kv::CommitSuccess::OK);
+        REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
       }
 
       INFO("get_commit from lua");
@@ -148,7 +148,7 @@ namespace ccf
             nullptr);
         }
 
-        REQUIRE(next_txs.commit() == kv::CommitSuccess::OK);
+        REQUIRE(next_txs.commit() == kv::CommitResult::SUCCESS);
       }
 
       INFO("Errors caught in foreach");
@@ -218,7 +218,7 @@ namespace ccf
     expect_result(6, "46656", true);
     expect_result(7, "823543", false);
 
-    REQUIRE(txs.commit() == kv::CommitSuccess::OK);
+    REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
   TEST_CASE("vector as index")

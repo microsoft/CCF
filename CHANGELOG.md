@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.18.1]
 
 ### Changed
 
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Nodes' quotes format updated to Open Enclave's `SGX_ECDSA`. Quote endorsements are also stored in CCF and can be retrieved via the `quotes/self` and `quotes` endpoints (#2161).
 - `get_quote_for_this_node_v1()` takes a `QuoteInfo` structure (containing the format, raw quote and corresponding endorsements) as out parameter instead of the distinct format and raw quote as two out paramters (#2161).
 - Several internal tables are renamed (#2166).
+- `/node/network/nodes` correctly returns all nodes if no filter is specified (#2188).
 
 ## [0.18.0]
 
@@ -675,6 +676,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.18.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.1
 [0.18.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.0
 [0.17.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.17.2
 [0.17.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.17.1

@@ -25,7 +25,7 @@ DOCTEST_TEST_CASE("Member query/read")
   constexpr auto value = 456;
   auto tx = network.tables->create_tx();
   tx.rw(network.values)->put(key, value);
-  DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+  DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
   static constexpr auto query = R"xxx(
   local tables = ...
@@ -37,7 +37,7 @@ DOCTEST_TEST_CASE("Member query/read")
     // set member ACL so that the VALUES table is accessible
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
     bool compile = true;
     do
@@ -55,7 +55,7 @@ DOCTEST_TEST_CASE("Member query/read")
     // set member ACL so that no table is accessible
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto req = create_request(query_params(query, true), "query");
     const auto response = frontend_process(frontend, req, member_cert);
@@ -67,7 +67,7 @@ DOCTEST_TEST_CASE("Member query/read")
   {
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto read_call =
       create_request(read_params<int>(key, Tables::VALUES), "read");
@@ -81,7 +81,7 @@ DOCTEST_TEST_CASE("Member query/read")
     constexpr auto wrong_key = 321;
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto read_call =
       create_request(read_params<int>(wrong_key, Tables::VALUES), "read");
@@ -94,7 +94,7 @@ DOCTEST_TEST_CASE("Member query/read")
   {
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
-    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto read_call =
       create_request(read_params<int>(key, Tables::VALUES), "read");
@@ -476,7 +476,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
         auto signatures = tx.rw(network.signatures);
         PrimarySignature sig_value;
         signatures->put(0, sig_value);
-        DOCTEST_REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+        DOCTEST_REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
       }
 
       // (2) ask for a fresher digest of state

@@ -216,18 +216,18 @@ namespace ccf::historical
 
       switch (deserialise_result)
       {
-        case kv::ApplySuccess::FAILED:
+        case kv::ApplyResult::FAIL:
         {
           throw std::logic_error("Deserialise failed!");
           break;
         }
-        case kv::ApplySuccess::PASS:
-        case kv::ApplySuccess::PASS_SIGNATURE:
-        case kv::ApplySuccess::PASS_BACKUP_SIGNATURE:
-        case kv::ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
-        case kv::ApplySuccess::PASS_NONCES:
-        case kv::ApplySuccess::PASS_NEW_VIEW:
-        case kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE:
+        case kv::ApplyResult::PASS:
+        case kv::ApplyResult::PASS_SIGNATURE:
+        case kv::ApplyResult::PASS_BACKUP_SIGNATURE:
+        case kv::ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK:
+        case kv::ApplyResult::PASS_NONCES:
+        case kv::ApplyResult::PASS_NEW_VIEW:
+        case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
         {
           LOG_DEBUG_FMT("Processed transaction at {}", idx);
 
@@ -251,7 +251,7 @@ namespace ccf::historical
             }
           }
 
-          if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
+          if (deserialise_result == kv::ApplyResult::PASS_SIGNATURE)
           {
             // This looks like a valid signature - try to use this signature to
             // move some stores from untrusted to trusted
