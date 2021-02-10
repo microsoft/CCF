@@ -1019,6 +1019,7 @@ namespace ccf
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
+
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -1030,7 +1031,12 @@ namespace ccf
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
         }
+
+        // TODO: What about on the backups!?? Should this be a hook instead??
+        network.ledger_secrets->adjust_previous_secret_stored_version(
+          tx.get_version());
       }
+
       open_user_frontend();
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
@@ -1275,17 +1281,16 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
 
-      // Because submitted recovery shares are encrypted with the latest
-      // ledger secret, it is not possible to rekey the ledger if the service
-      // is in that state.
+      // The ledger should not be re-keyed when the service is not open because:
+      // - While waiting for recovery shares, the submitted shares are stored
+      // in a public table, encrypted with the ledger secret generated at
+      // startup of the first recovery node
+      // - On recovery, historical ledger secrets can only be looked up in the
+      // ledger once all ledger secrets have been restored
       GenesisGenerator g(network, tx);
-      if (
-        g.get_service_status().value() ==
-        ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+      if (g.get_service_status().value() != ServiceStatus::OPEN)
       {
-        LOG_FAIL_FMT(
-          "Cannot rekey ledger while the service is waiting for recovery "
-          "shares");
+        LOG_FAIL_FMT("Cannot rekey ledger while the service is not open");
         return false;
       }
 

@@ -167,6 +167,20 @@ namespace ccf
       ledger_secrets(std::move(ledger_secrets_))
     {}
 
+    // TODO: delete
+    void dump()
+    {
+      LOG_FAIL_FMT("**** Ledger secrets: ");
+      for (auto const& s : ledger_secrets)
+      {
+        LOG_FAIL_FMT(
+          "LS valid from {} (prev at {})",
+          s.first,
+          s.second.previous_secret_stored_version.value_or(kv::NoVersion));
+      }
+      LOG_FAIL_FMT("*****");
+    }
+
     void init(kv::Version initial_version = 1)
     {
       std::lock_guard<SpinLock> guard(lock);
@@ -183,6 +197,26 @@ namespace ccf
       }
 
       self = id;
+    }
+
+    void adjust_previous_secret_stored_version(kv::Version version)
+    {
+      // To be able to lookup the last active ledger secret before the service
+      // crashed, the ledger secret created after the public recovery is
+      // complete should point to the version at which the past ledger secret
+      // has just been written to the store. This can only be done once the
+      // private recovery is complete.
+      std::lock_guard<SpinLock> guard(lock);
+
+      if (ledger_secrets.empty())
+      {
+        throw std::logic_error(
+          "There should be at least one ledger secret to adjust");
+      }
+
+      ledger_secrets.rbegin()->second.previous_secret_stored_version = version;
+
+      dump();
     }
 
     VersionedLedgerSecret get_latest(kv::ReadOnlyTx& tx)
@@ -259,7 +293,13 @@ namespace ccf
           ledger_secrets.begin()->first));
       }
 
+      LOG_FAIL_FMT("Before restore");
+      dump();
+
       ledger_secrets.merge(restored_ledger_secrets);
+
+      LOG_FAIL_FMT("After restore");
+      dump();
     }
 
     auto get_encryption_key_for(
