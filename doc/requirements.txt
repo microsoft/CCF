@@ -4,7 +4,7 @@ sphinx_rtd_theme
 pygments-style-solarized
 bottle
 sphinx-autobuild
-sphinxcontrib-mermaid
+sphinxcontrib-mermaid==0.6.0
 sphinx-multiversion
 pydata-sphinx-theme
 sphinx-copybutton

@@ -241,16 +241,17 @@ namespace kv
 
     /** Commit transaction
      *
-     * A transaction can either succeed and replicate (`kv::CommitSuccess::OK`),
-     * fail because of a conflict with other transactions
-     * (`kv::CommitSuccess::CONFLICT`), or succeed locally, but fail to
-     * replicate (`kv::CommitSuccess::NO_REPLICATE`).
+     * A transaction can either succeed and replicate
+     * (`kv::CommitResult::SUCCESS`), fail because of a conflict with other
+     * transactions
+     * (`kv::CommitResult::FAIL_CONFLICT`), or succeed locally, but fail to
+     * replicate (`kv::CommitResult::FAIL_NO_REPLICATE`).
      *
      * Transactions that fail are rolled back, no matter the reason.
      *
      * @return transaction outcome
      */
-    CommitSuccess commit()
+    CommitResult commit()
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -259,7 +260,7 @@ namespace kv
       {
         committed = true;
         success = true;
-        return CommitSuccess::OK;
+        return CommitResult::SUCCESS;
       }
 
       auto store = all_changes.begin()->second.map->get_store();
@@ -290,7 +291,7 @@ namespace kv
         reset();
 
         LOG_TRACE_FMT("Could not commit transaction due to conflict");
-        return CommitSuccess::CONFLICT;
+        return CommitResult::FAIL_CONFLICT;
       }
       else
       {
@@ -306,7 +307,7 @@ namespace kv
 
           if (data.empty())
           {
-            return CommitSuccess::OK;
+            return CommitResult::SUCCESS;
           }
 
           return store->commit(
@@ -598,7 +599,7 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       committed = true;
-      return {CommitSuccess::OK, {0, 0}, serialise(), std::move(hooks)};
+      return {CommitResult::SUCCESS, {0, 0}, serialise(), std::move(hooks)};
     }
   };
 }

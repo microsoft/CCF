@@ -87,7 +87,7 @@ namespace kv
     // If true, use historical ledger secrets to deserialise entries
     const bool is_historical = false;
 
-    ApplySuccess commit_deserialised(
+    bool commit_deserialised(
       OrderedChanges& changes,
       Version& v,
       const MapCollection& new_maps,
@@ -98,14 +98,14 @@ namespace kv
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
-        return ApplySuccess::FAILED;
+        return false;
       }
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         version = v;
         last_replicated = version;
       }
-      return ApplySuccess::PASS;
+      return true;
     }
 
     bool has_map_internal(const std::string& name)
@@ -349,7 +349,7 @@ namespace kv
       return snapshot->serialise(e);
     }
 
-    ApplySuccess deserialise_snapshot(
+    ApplyResult deserialise_snapshot(
       const std::vector<uint8_t>& data,
       kv::ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
@@ -365,7 +365,7 @@ namespace kv
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
-        return ApplySuccess::FAILED;
+        return ApplyResult::FAIL;
       }
       auto [v, _] = v_.value();
 
@@ -423,7 +423,7 @@ namespace kv
         {
           LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
           LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
-          return ApplySuccess::FAILED;
+          return ApplyResult::FAIL;
         }
 
         auto deserialised_snapshot_changes =
@@ -443,7 +443,7 @@ namespace kv
       if (!d.end())
       {
         LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
-        return ApplySuccess::FAILED;
+        return ApplyResult::FAIL;
       }
 
       // Each map is committed at a different version, independently of the
@@ -454,7 +454,7 @@ namespace kv
       if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
-        return ApplySuccess::FAILED;
+        return ApplyResult::FAIL;
       }
 
       {
@@ -468,7 +468,7 @@ namespace kv
       {
         if (!h->init_from_snapshot(hash_at_snapshot))
         {
-          return ApplySuccess::FAILED;
+          return ApplyResult::FAIL;
         }
       }
 
@@ -477,7 +477,7 @@ namespace kv
         *view_history = std::move(view_history_);
       }
 
-      return ApplySuccess::PASS;
+      return ApplyResult::PASS;
     }
 
     void compact(Version v) override
@@ -644,7 +644,7 @@ namespace kv
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
-        return ApplySuccess::FAILED;
+        return false;
       }
       std::tie(v, std::ignore) = v_.value();
 
@@ -660,7 +660,7 @@ namespace kv
         {
           LOG_FAIL_FMT(
             "Tried to deserialise {} but current_version is {}", v, cv);
-          return ApplySuccess::FAILED;
+          return false;
         }
       }
 
@@ -878,7 +878,7 @@ namespace kv
       return compacted;
     }
 
-    CommitSuccess commit(
+    CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) override
@@ -886,7 +886,7 @@ namespace kv
       auto c = get_consensus();
       if (!c)
       {
-        return CommitSuccess::OK;
+        return CommitResult::SUCCESS;
       }
 
       LOG_DEBUG_FMT(
@@ -909,7 +909,7 @@ namespace kv
           LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}", txid.term, term);
 
-          return CommitSuccess::NO_REPLICATE;
+          return CommitResult::FAIL_NO_REPLICATE;
         }
 
         if (globally_committable && txid.version > last_committable)
@@ -939,7 +939,7 @@ namespace kv
           // they did succeed, and signatures cannot conflict because they
           // execute in order with a read_version that's version - 1, so even
           // two contiguous signatures are fine
-          if (success_ != CommitSuccess::OK)
+          if (success_ != CommitResult::SUCCESS)
             LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
 
           if (h)
@@ -956,7 +956,7 @@ namespace kv
         }
 
         if (batch.size() == 0)
-          return CommitSuccess::OK;
+          return CommitResult::SUCCESS;
 
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;
@@ -974,12 +974,12 @@ namespace kv
         {
           last_replicated = next_last_replicated;
         }
-        return CommitSuccess::OK;
+        return CommitResult::SUCCESS;
       }
       else
       {
         LOG_DEBUG_FMT("Failed to replicate");
-        return CommitSuccess::NO_REPLICATE;
+        return CommitResult::FAIL_NO_REPLICATE;
       }
     }
 

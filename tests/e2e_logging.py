@@ -687,6 +687,20 @@ def test_network_node_info(network, args):
 
     all_nodes = [primary, *backups]
 
+    with primary.client() as c:
+        r = c.get("/node/network/nodes", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.OK
+        nodes = r.body.json()["nodes"]
+        nodes_by_id = {node["node_id"]: node for node in nodes}
+        for n in all_nodes:
+            node = nodes_by_id[n.node_id]
+            assert node["host"] == n.pubhost
+            assert node["port"] == str(n.pubport)
+            assert node["primary"] == (n == primary)
+            del nodes_by_id[n.node_id]
+
+        assert nodes_by_id == {}
+
     # Populate node_infos by calling self
     node_infos = {}
     for node in all_nodes:

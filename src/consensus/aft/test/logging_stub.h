@@ -196,13 +196,13 @@ namespace aft
 #endif
     }
 
-    virtual kv::ApplySuccess apply(
+    virtual kv::ApplyResult apply(
       const std::vector<uint8_t>& data,
       kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term = nullptr)
     {
-      return kv::ApplySuccess::PASS;
+      return kv::ApplyResult::PASS;
     }
 
     kv::Version current_version()
@@ -210,7 +210,7 @@ namespace aft
       return kv::NoVersion;
     }
 
-    virtual kv::ApplySuccess deserialise_views(
+    virtual kv::ApplyResult deserialise_views(
       const std::vector<uint8_t>& data,
       kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
@@ -219,7 +219,7 @@ namespace aft
       kv::Tx* tx = nullptr,
       ccf::PrimarySignature* sig = nullptr)
     {
-      return kv::ApplySuccess::PASS;
+      return kv::ApplyResult::PASS;
     }
 
     class ExecutionWrapper : public kv::AbstractExecutionWrapper
@@ -227,9 +227,9 @@ namespace aft
     public:
       ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
 
-      kv::ApplySuccess execute() override
+      kv::ApplyResult execute() override
       {
-        return kv::ApplySuccess::PASS;
+        return kv::ApplyResult::PASS;
       }
 
       kv::ConsensusHookPtrs& get_hooks() override
@@ -290,13 +290,13 @@ namespace aft
   public:
     LoggingStubStoreSig(aft::NodeId id) : LoggingStubStore(id) {}
 
-    kv::ApplySuccess apply(
+    kv::ApplyResult apply(
       const std::vector<uint8_t>& data,
       kv::ConsensusHookPtrs& hooks,
       bool public_only = false,
       Term* term = nullptr) override
     {
-      return kv::ApplySuccess::PASS_SIGNATURE;
+      return kv::ApplyResult::PASS_SIGNATURE;
     }
   };
 

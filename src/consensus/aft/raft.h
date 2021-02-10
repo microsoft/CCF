@@ -1272,8 +1272,8 @@ namespace aft
         auto& [ds, i] = ae;
         state->last_idx = i;
 
-        kv::ApplySuccess apply_success = ds->execute();
-        if (apply_success == kv::ApplySuccess::FAILED)
+        kv::ApplyResult apply_success = ds->execute();
+        if (apply_success == kv::ApplyResult::FAIL)
         {
           // Setting last_idx to i-1 is a work around that should be fixed
           // shortly. In BFT mode when we deserialize and realize we need to
@@ -1298,7 +1298,7 @@ namespace aft
         }
 
         bool globally_committable =
-          (apply_success == kv::ApplySuccess::PASS_SIGNATURE);
+          (apply_success == kv::ApplyResult::PASS_SIGNATURE);
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
@@ -1310,7 +1310,7 @@ namespace aft
 
         switch (apply_success)
         {
-          case kv::ApplySuccess::FAILED:
+          case kv::ApplyResult::FAIL:
           {
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
@@ -1320,7 +1320,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_SIGNATURE:
+          case kv::ApplyResult::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
@@ -1349,11 +1349,11 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE:
+          case kv::ApplyResult::PASS_BACKUP_SIGNATURE:
           {
             break;
           }
-          case kv::ApplySuccess::PASS_NEW_VIEW:
+          case kv::ApplyResult::PASS_NEW_VIEW:
           {
             view_change_tracker->clear(
               get_primary(ds->get_term()) == id(), ds->get_term());
@@ -1361,7 +1361,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+          case kv::ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK:
           {
             try_send_sig_ack(
               {ds->get_term(), ds->get_index()},
@@ -1369,7 +1369,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_NONCES:
+          case kv::ApplyResult::PASS_NONCES:
           {
             request_tracker->insert_signed_request(
               state->last_idx,
@@ -1378,7 +1378,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS:
+          case kv::ApplyResult::PASS:
           {
             if (consensus_type == ConsensusType::BFT)
             {
@@ -1388,14 +1388,14 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE:
+          case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
           {
             break;
           }
 
           default:
           {
-            throw std::logic_error("Unknown ApplySuccess value");
+            throw std::logic_error("Unknown ApplyResult value");
           }
         }
       }
