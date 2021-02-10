@@ -24,12 +24,20 @@ namespace ccf
     // encryption key
     EncryptedSharesMap encrypted_shares;
 
-    MSGPACK_DEFINE(wrapped_latest_ledger_secret, encrypted_shares);
+    // Version at which the previous ledger secret was written to the store
+    std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
+
+    MSGPACK_DEFINE(
+      wrapped_latest_ledger_secret,
+      encrypted_shares,
+      previous_secret_stored_version);
   };
 
-  DECLARE_JSON_TYPE(RecoverySharesInfo)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoverySharesInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
     RecoverySharesInfo, wrapped_latest_ledger_secret, encrypted_shares)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    RecoverySharesInfo, previous_secret_stored_version)
 
   struct PreviousLedgerSecretInfo
   {

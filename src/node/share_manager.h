@@ -153,7 +153,10 @@ namespace ccf
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
       auto recovery_shares = tx.rw(network.shares);
       recovery_shares->put(
-        0, {wrapped_latest_ls, compute_encrypted_shares(tx, ls_wrapping_key)});
+        0,
+        {wrapped_latest_ls,
+         compute_encrypted_shares(tx, ls_wrapping_key),
+         latest_ledger_secret.previous_secret_stored_version});
     }
 
     void set_recovery_shares_info(
@@ -383,11 +386,18 @@ namespace ccf
         throw std::logic_error("Current ledger secret version should be set");
       }
 
+      LOG_FAIL_FMT(
+        "Latest secret, previous secret stored at {}",
+        recovery_shares_info->previous_secret_stored_version.value_or(
+          kv::NoVersion));
+
       // TODO: Set the version of the previous ledger secret here, but that
       // needs to be set in the ccf.shares table, for the latest secret
       restored_ledger_secrets.emplace(
         current_ledger_secret_version.value(),
-        LedgerSecret(std::move(restored_ls.raw_key)));
+        LedgerSecret(
+          std::move(restored_ls.raw_key),
+          recovery_shares_info->previous_secret_stored_version));
 
       for (auto it = recovery_ledger_secrets.rbegin();
            it != recovery_ledger_secrets.rend();
