@@ -62,8 +62,7 @@ namespace ccf
     public_encryption_key,
     code_digest,
     node_info_network,
-    consensus_type,
-    recovery_threshold)
+    configuration)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, view, seqno)

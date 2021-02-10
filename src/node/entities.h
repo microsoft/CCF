@@ -60,52 +60,70 @@ namespace ccf
 
   struct Tables
   {
-    // Governance tables
-    static constexpr auto MEMBERS = "public:ccf.gov.members";
-    static constexpr auto MEMBER_ACKS = "public:ccf.gov.member_acks";
-    static constexpr auto MEMBER_CERT_DERS = "public:ccf.gov.member_cert_ders";
-    static constexpr auto MEMBER_DIGESTS = "public:ccf.gov.member_digests";
-    static constexpr auto USERS = "public:ccf.gov.users";
-    static constexpr auto USER_CERT_DERS = "public:ccf.gov.user_cert_ders";
-    static constexpr auto USER_DIGESTS = "public:ccf.gov.user_digests";
-    static constexpr auto SERVICE_PRINCIPALS =
-      "public:ccf.gov.service_principals";
-    static constexpr auto NODES = "public:ccf.gov.nodes";
-    static constexpr auto VALUES = "public:ccf.gov.values";
-    static constexpr auto CONSENSUS = "public:ccf.gov.consensus";
-    static constexpr auto WHITELISTS = "public:ccf.gov.whitelists";
-    static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
-    static constexpr auto GOV_SCRIPTS = "public:ccf.gov.governance.scripts";
-    static constexpr auto APP_SCRIPTS = "public:ccf.gov.app_scripts";
-    static constexpr auto MODULES = "public:ccf.gov.modules";
-    static constexpr auto SECRETS = "public:ccf.gov.secrets";
+    // Service tables
+
+    // Member identities
+    static constexpr auto MEMBERS = "public:ccf.gov.members.info";
+    static constexpr auto MEMBER_ACKS = "public:ccf.gov.members.acks";
+    static constexpr auto MEMBER_CERT_DERS =
+      "public:ccf.internal.members.certs_der";
+    static constexpr auto MEMBER_DIGESTS =
+      "public:ccf.internal.members.digests";
+
+    // User identities
+    static constexpr auto USERS = "public:ccf.gov.users.info";
+    static constexpr auto USER_CERT_DERS =
+      "public:ccf.internal.users.certs_der";
+    static constexpr auto USER_DIGESTS = "public:ccf.internal.users.digests";
+
+    // Nodes identities and allowed code ids
+    static constexpr auto NODES = "public:ccf.gov.nodes.info";
     static constexpr auto NODE_CODE_IDS = "public:ccf.gov.nodes.code_ids";
-    static constexpr auto GOV_HISTORY = "public:ccf.gov.governance.history";
-    static constexpr auto SERVICE = "public:ccf.gov.service";
-    static constexpr auto SHARES = "public:ccf.gov.shares";
+
+    // Service information
+    static constexpr auto SERVICE = "public:ccf.gov.service.info";
+    static constexpr auto CONFIGURATION = "public:ccf.gov.service.config";
+
+    // Governance
+    static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
+    static constexpr auto GOV_SCRIPTS = "public:ccf.gov.scripts";
+    static constexpr auto GOV_HISTORY = "public:ccf.gov.history";
+    static constexpr auto WHITELISTS = "public:ccf.gov.whitelists";
+
+    // JS applications, not service specific but writable by governance only
+    static constexpr auto APP_SCRIPTS = "public:gov.scripts";
+    static constexpr auto MODULES = "public:gov.modules";
+    static constexpr auto ENDPOINTS = "public:gov.endpoints";
+    static constexpr auto SERVICE_PRINCIPALS = "public:gov.service_principals";
+
+    // JWT issuers
+    static constexpr auto CA_CERT_DERS = "public:ccf.gov.jwt.ca_certs_der";
+    static constexpr auto JWT_ISSUERS = "public:ccf.gov.jwt.issuers";
+    static constexpr auto JWT_PUBLIC_SIGNING_KEYS =
+      "public:ccf.gov.jwt.public_signing_keys";
+    static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
+      "public:ccf.gov.jwt.public_signing_key_issuer";
+
+    // Internal only
+    static constexpr auto ENCRYPTED_PAST_LEDGER_SECRET =
+      "public:ccf.internal.historical_encrypted_ledger_secret";
     static constexpr auto ENCRYPTED_LEDGER_SECRETS =
       "public:ccf.internal.encrypted_ledger_secrets";
-    static constexpr auto CONFIGURATION = "public:ccf.gov.config";
-    static constexpr auto SUBMITTED_SHARES = "public:ccf.gov.submitted_shares";
+    static constexpr auto SHARES = "public:ccf.internal.recovery_shares";
+    static constexpr auto SUBMITTED_SHARES =
+      "public:ccf.internal.encrypted_submitted_shares";
     static constexpr auto SNAPSHOT_EVIDENCE =
-      "public:ccf.gov.snapshot_evidence";
-    static constexpr auto CA_CERT_DERS = "public:ccf.gov.ca_cert_ders";
-    static constexpr auto JWT_ISSUERS = "public:ccf.gov.jwt_issuers";
-    static constexpr auto JWT_PUBLIC_SIGNING_KEYS =
-      "public:ccf.gov.jwt_public_signing_keys";
-    static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
-      "public:ccf.gov.jwt_public_signing_key_issuer";
-    static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
-
+      "public:ccf.internal.snapshot_evidence";
     static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
+    static constexpr auto VALUES = "public:ccf.internal.values";
 
+    // Consensus
+    static constexpr auto AFT_REQUESTS =
+      "public:ccf.internal.consensus.requests";
+    static constexpr auto NEW_VIEWS = "public:ccf.internal.consensus.new_views";
     static constexpr auto BACKUP_SIGNATURES =
-      "public:ccf.internal.backup_signatures";
-    static constexpr auto NONCES = "public:ccf.internal.nonces";
-
-    // Consensus specific tables
-    static constexpr auto AFT_REQUESTS = "public:ccf.gov.aft.requests";
-    static constexpr auto NEW_VIEWS = "public:ccf.internal.new_views";
+      "public:ccf.internal.consensus.backup_signatures";
+    static constexpr auto NONCES = "public:ccf.internal.consensus.nonces";
   };
 
 }

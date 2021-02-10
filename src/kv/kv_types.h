@@ -99,11 +99,11 @@ namespace kv
     bool,
     std::shared_ptr<ConsensusHookPtrs>>>;
 
-  enum CommitSuccess
+  enum CommitResult
   {
-    OK,
-    CONFLICT,
-    NO_REPLICATE
+    SUCCESS = 1,
+    FAIL_CONFLICT = 2,
+    FAIL_NO_REPLICATE = 3
   };
 
   enum SecurityDomain
@@ -166,19 +166,16 @@ namespace kv
     return {security_domain, access_category};
   }
 
-  // Note that failed = 0, and all other values are variants of PASS, which
-  // allows ApplySuccess to be used as a boolean in code that does not
-  // need any detail about what happened on success
-  enum ApplySuccess
+  enum ApplyResult
   {
-    FAILED = 0,
     PASS = 1,
     PASS_SIGNATURE = 2,
     PASS_BACKUP_SIGNATURE = 3,
     PASS_BACKUP_SIGNATURE_SEND_ACK = 4,
     PASS_NONCES = 5,
     PASS_NEW_VIEW = 6,
-    PASS_SNAPSHOT_EVIDENCE = 7
+    PASS_SNAPSHOT_EVIDENCE = 7,
+    FAIL = 8
   };
 
   enum ReplicateType
@@ -367,13 +364,13 @@ namespace kv
 
   struct PendingTxInfo
   {
-    CommitSuccess success;
+    CommitResult success;
     TxHistory::RequestID reqid;
     std::vector<uint8_t> data;
     std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
-      CommitSuccess success_,
+      CommitResult success_,
       TxHistory::RequestID reqid_,
       std::vector<uint8_t>&& data_,
       std::vector<ConsensusHookPtr>&& hooks_) :
@@ -411,7 +408,7 @@ namespace kv
     PendingTxInfo call() override
     {
       return PendingTxInfo(
-        CommitSuccess::OK,
+        CommitResult::SUCCESS,
         std::move(req_id),
         std::move(data),
         std::move(hooks));
@@ -531,7 +528,7 @@ namespace kv
   {
   public:
     virtual ~AbstractExecutionWrapper() = default;
-    virtual kv::ApplySuccess execute() = 0;
+    virtual kv::ApplyResult execute() = 0;
     virtual kv::ConsensusHookPtrs& get_hooks() = 0;
     virtual const std::vector<uint8_t>& get_entry() = 0;
     virtual kv::Term get_term() = 0;
@@ -581,7 +578,7 @@ namespace kv
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
-    virtual CommitSuccess commit(
+    virtual CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
       bool globally_committable) = 0;
@@ -589,7 +586,7 @@ namespace kv
     virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
     virtual std::vector<uint8_t> serialise_snapshot(
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
-    virtual ApplySuccess deserialise_snapshot(
+    virtual ApplyResult deserialise_snapshot(
       const std::vector<uint8_t>& data,
       ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,

@@ -27,7 +27,7 @@ import ccf.ledger
 ledger = ccf.ledger.Ledger(ledger_dir)
 
 # SNIPPET: target_table
-target_table = "public:ccf.gov.nodes"
+target_table = "public:ccf.gov.nodes.info"
 
 # SNIPPET_START: iterate_over_ledger
 target_table_changes = 0  # Simple counter

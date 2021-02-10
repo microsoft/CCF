@@ -132,7 +132,7 @@ namespace ccf
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
-    consensus::Config consensus_config;
+    consensus::Configuration consensus_config;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -207,7 +207,7 @@ namespace ccf
       kv::ConsensusHookPtrs hooks;
       auto rc = network.tables->deserialise_snapshot(
         config.startup_snapshot, hooks, &view_history, true);
-      if (rc != kv::ApplySuccess::PASS)
+      if (rc != kv::ApplyResult::PASS)
       {
         throw std::logic_error(
           fmt::format("Failed to apply public snapshot: {}", rc));
@@ -268,7 +268,7 @@ namespace ccf
     // funcs in state "uninitialized"
     //
     void initialize(
-      const consensus::Config& consensus_config_,
+      const consensus::Configuration& consensus_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_,
@@ -512,7 +512,7 @@ namespace ccf
                 hooks,
                 &view_history,
                 resp.network_info.public_only);
-              if (rc != kv::ApplySuccess::PASS)
+              if (rc != kv::ApplyResult::PASS)
               {
                 throw std::logic_error(
                   fmt::format("Failed to apply snapshot on join: {}", rc));
@@ -717,7 +717,7 @@ namespace ccf
       // When reading the public ledger, deserialise in the real store
       auto r = network.tables->apply(ledger_entry, ConsensusType::CFT, true);
       auto result = r->execute();
-      if (result == kv::ApplySuccess::FAILED)
+      if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
         network.tables->rollback(ledger_idx - 1);
@@ -737,7 +737,7 @@ namespace ccf
       }
 
       // If the ledger entry is a signature, it is safe to compact the store
-      if (result == kv::ApplySuccess::PASS_SIGNATURE)
+      if (result == kv::ApplyResult::PASS_SIGNATURE)
       {
         // If the ledger entry is a signature, it is safe to compact the store
         network.tables->compact(ledger_idx);
@@ -785,7 +785,7 @@ namespace ccf
         snapshotter->commit(ledger_idx);
       }
       else if (
-        result == kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE &&
+        result == kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE &&
         startup_snapshot_info)
       {
         auto tx = network.tables->create_read_only_tx();
@@ -927,7 +927,7 @@ namespace ccf
       g.trust_node_code_id(node_code_id);
 #endif
 
-      if (g.finalize() != kv::CommitSuccess::OK)
+      if (g.finalize() != kv::CommitResult::SUCCESS)
       {
         throw std::logic_error(
           "Could not commit transaction when starting recovered public "
@@ -953,7 +953,7 @@ namespace ccf
       // When reading the private ledger, deserialise in the recovery store
       auto result =
         recovery_store->apply(ledger_entry, ConsensusType::CFT)->execute();
-      if (result == kv::ApplySuccess::FAILED)
+      if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
         recovery_store->rollback(ledger_idx - 1);
@@ -961,7 +961,7 @@ namespace ccf
         return;
       }
 
-      if (result == kv::ApplySuccess::PASS_SIGNATURE)
+      if (result == kv::ApplyResult::PASS_SIGNATURE)
       {
         recovery_store->compact(ledger_idx);
       }
@@ -1025,7 +1025,7 @@ namespace ccf
           throw std::logic_error("Service could not be opened");
         }
 
-        if (g.finalize() != kv::CommitSuccess::OK)
+        if (g.finalize() != kv::CommitResult::SUCCESS)
         {
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
@@ -1100,7 +1100,7 @@ namespace ccf
         kv::ConsensusHookPtrs hooks;
         auto rc = recovery_store->deserialise_snapshot(
           startup_snapshot_info->raw, hooks, &view_history);
-        if (rc != kv::ApplySuccess::PASS)
+        if (rc != kv::ApplyResult::PASS)
         {
           throw std::logic_error(fmt::format(
             "Could not deserialise snapshot in recovery store: {}", rc));
@@ -1402,8 +1402,8 @@ namespace ccf
       create_params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
       create_params.node_info_network = config.node_info_network;
-      create_params.consensus_type = network.consensus_type;
-      create_params.recovery_threshold = config.genesis.recovery_threshold;
+      create_params.configuration = {config.genesis.recovery_threshold,
+                                     network.consensus_type};
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
