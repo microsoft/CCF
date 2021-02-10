@@ -219,6 +219,20 @@ namespace ccf
       dump();
     }
 
+    // TODO: Need a tx here??
+    VersionedLedgerSecret get_first()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      if (ledger_secrets.empty())
+      {
+        throw std::logic_error(
+          "Could not retrieve first ledger secret: no secret set");
+      }
+
+      return *ledger_secrets.begin();
+    }
+
     VersionedLedgerSecret get_latest(kv::ReadOnlyTx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);

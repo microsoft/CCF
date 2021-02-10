@@ -3,9 +3,9 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
-#include "kv/store.h"
 #include "node/historical_queries_interface.h"
 #include "node/history.h"
+#include "node/network_state.h"
 #include "node/rpc/node_interface.h"
 
 #include <list>
@@ -18,11 +18,12 @@ namespace ccf::historical
   class StateCache : public AbstractStateCache
   {
   protected:
-    kv::Store& source_store;
+    ccf::NetworkState& network;
     ringbuffer::WriterPtr to_host;
 
     enum class RequestStage
     {
+      RecoveringLedgerSecret,
       Fetching,
       Untrusted,
       Trusted,
@@ -64,12 +65,46 @@ namespace ccf::historical
         requests.erase(old_idx);
       }
 
+      consensus::Index first_fetched_idx = idx;
+      RequestStage request_stage = RequestStage::Fetching;
+
+      auto first_known_ledger_secret = network.ledger_secrets->get_first();
+      if (idx < static_cast<consensus::Index>(first_known_ledger_secret.first))
+      {
+        LOG_FAIL_FMT(
+          "Requesting historical entry at {} but first known ledger secret is "
+          "at {}",
+          idx,
+          first_known_ledger_secret.first);
+
+        LOG_FAIL_FMT(
+          "Requesting entry at {}",
+          first_known_ledger_secret.second.previous_secret_stored_version
+            .value_or(kv::NoVersion));
+
+        auto previous_secret_stored_version =
+          first_known_ledger_secret.second.previous_secret_stored_version;
+        if (!previous_secret_stored_version.has_value())
+        {
+          throw std::logic_error(
+            "First known ledger secret has no previous secret stored version!");
+        }
+
+        first_fetched_idx = previous_secret_stored_version.value();
+        request_stage = RequestStage::RecoveringLedgerSecret;
+      }
+
+      // TODO:
+      // 1. Compare first known ledger secret with `idx`. If >, search last
+      // known idx in KV until known
+
       // Try to insert new request
-      const auto ib = requests.insert(std::make_pair(idx, Request{}));
+      const auto ib = requests.insert(
+        std::make_pair(first_fetched_idx, Request{request_stage}));
       if (ib.second)
       {
         // If its a new request, begin fetching it
-        fetch_entry_at(idx);
+        fetch_entry_at(first_fetched_idx);
       }
     }
 
@@ -88,13 +123,14 @@ namespace ccf::historical
         to_host,
         idx,
         consensus::LedgerRequestPurpose::HistoricalQuery);
+
       pending_fetches.insert(idx);
     }
 
     std::optional<ccf::PrimarySignature> get_signature(
       const StorePtr& sig_store)
     {
-      auto tx = sig_store->create_tx();
+      auto tx = sig_store->create_read_only_tx();
       auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       return signatures->get(0);
     }
@@ -105,7 +141,7 @@ namespace ccf::historical
       // This only works while entries are never deleted from this table, and
       // makes no check that the signing node was active at the point it
       // produced this signature
-      auto tx = source_store.create_tx();
+      auto tx = network.tables->create_tx();
       auto nodes = tx.ro<ccf::Nodes>(ccf::Tables::NODES);
       return nodes->get(node_id);
     }
@@ -206,11 +242,70 @@ namespace ccf::historical
     void deserialise_ledger_entry(
       consensus::Index idx, const LedgerEntry& entry)
     {
+      LOG_FAIL_FMT("Deserialising historical entry at: {}", idx);
+
       StorePtr store = std::make_shared<kv::Store>(
         false /* Do not start from very first idx */,
         true /* Make use of historical secrets */);
 
-      store->set_encryptor(source_store.get_encryptor());
+      store->set_encryptor(network.tables->get_encryptor());
+
+      auto request_it = requests.find(idx);
+      if (request_it != requests.end())
+      {
+        auto& request = request_it->second;
+        if (request.current_stage == RequestStage::RecoveringLedgerSecret)
+        {
+          LOG_FAIL_FMT("Recovering ledger secret! Deserialising public...");
+          const auto deserialise_result =
+            store->apply(entry, ConsensusType::CFT, true)->execute();
+          if (deserialise_result == kv::ApplyResult::FAIL)
+          {
+            throw std::logic_error("Could not deserialise entry");
+          }
+
+          // TODO: Verify that we indeed deserialised a ledger secret
+          auto tx = store->create_read_only_tx();
+          auto encrypted_previous_ledger_secret =
+            tx.ro<ccf::EncryptedLedgerSecretsInfo>(
+              ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET);
+
+          if (!encrypted_previous_ledger_secret)
+          {
+            throw std::logic_error("This isn't a valid ledger secret!");
+          }
+
+          LOG_FAIL_FMT("Version of store now: {}", store->current_version());
+
+          // TODO: Decrypt secret with current secret
+
+          auto previous_ledger_secret =
+            encrypted_previous_ledger_secret->get(0)->previous_ledger_secret;
+
+          LOG_FAIL_FMT(
+            "Fetched ledger secret at {}", previous_ledger_secret->version);
+
+          auto TARGET_IDX = 0; // TODO: Store this in the request, somewhere
+
+          if (
+            previous_ledger_secret.has_value() &&
+            previous_ledger_secret->version < TARGET_IDX)
+          {
+            LOG_FAIL_FMT("We're done, let's fetch the target idx");
+            request.current_stage = RequestStage::Fetching;
+            fetch_entry_at(TARGET_IDX);
+          }
+          else
+          {
+            LOG_FAIL_FMT("Let's continue fetching entries...");
+            fetch_entry_at(
+              previous_ledger_secret->previous_secret_stored_version.value());
+          }
+
+          return;
+        }
+      }
+
       const auto deserialise_result =
         store->apply(entry, ConsensusType::CFT)->execute();
 
@@ -272,8 +367,9 @@ namespace ccf::historical
     }
 
   public:
-    StateCache(kv::Store& store, const ringbuffer::WriterPtr& host_writer) :
-      source_store(store),
+    StateCache(
+      ccf::NetworkState& network_, const ringbuffer::WriterPtr& host_writer) :
+      network(network_),
       to_host(host_writer)
     {}
 
