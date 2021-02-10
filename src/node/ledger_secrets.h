@@ -66,7 +66,7 @@ namespace ccf
     LOG_FAIL_FMT("Making ledger secret!");
 
     auto encrypted_ls =
-      tx.ro<EncryptedLedgerSecretsInfo>(Tables::ENCRYPTED_LEDGER_SECRETS);
+      tx.ro<EncryptedLedgerSecretsInfo>(Tables::ENCRYPTED_PAST_LEDGER_SECRET);
 
     return LedgerSecret(
       generate_raw_secret(), encrypted_ls->get_version_of_previous_write(0));

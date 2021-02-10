@@ -11,7 +11,7 @@ from loguru import logger as LOG
 
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
-def test(network, args, from_snapshot=True):
+def test(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
     snapshot_dir = None
