@@ -1655,9 +1655,9 @@ namespace ccf
                 encrypted_ledger_secret_info->previous_ledger_secret->version);
 
               LOG_FAIL_FMT(
-                "Stored at {}",
+                "Previous is stored at {}",
                 encrypted_ledger_secret_info->previous_ledger_secret
-                  ->stored_version.value_or(kv::NoVersion));
+                  ->previous_secret_stored_version.value_or(kv::NoVersion));
             }
 
             recovery_ledger_secrets.emplace_back(

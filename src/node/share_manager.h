@@ -199,7 +199,7 @@ namespace ccf
              std::move(encrypted_previous_secret),
              version_previous_secret,
              //  encrypted_ls->get_version_of_previous_write(0)),
-             latest_ledger_secret.previous_secret_stored_version),
+             previous_ledger_secret->second.previous_secret_stored_version),
            latest_ls_version});
       }
       else
@@ -389,7 +389,7 @@ namespace ccf
         LedgerSecret(
           std::move(restored_ls.raw_key),
           recovery_ledger_secrets.back()
-            .previous_ledger_secret->stored_version));
+            .previous_ledger_secret->previous_secret_stored_version));
 
       for (auto it = recovery_ledger_secrets.rbegin();
            it != recovery_ledger_secrets.rend();
@@ -425,7 +425,8 @@ namespace ccf
         if (std::next(it) != recovery_ledger_secrets.rend())
         {
           previous_secret_stored_version =
-            std::next(it)->previous_ledger_secret->stored_version;
+            std::next(it)
+              ->previous_ledger_secret->previous_secret_stored_version;
         }
 
         LOG_FAIL_FMT(

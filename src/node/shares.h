@@ -39,8 +39,9 @@ namespace ccf
     // Version at which the ledger secret is applicable from
     kv::Version version = kv::NoVersion;
 
-    // Version at which the ledger secret was written to the store
-    std::optional<kv::Version> stored_version = std::nullopt;
+    // Version at which the ledger secret _before_ this one was written to the
+    // store
+    std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
 
     PreviousLedgerSecretInfo() = default;
 
@@ -50,13 +51,14 @@ namespace ccf
       std::optional<kv::Version> stored_version_) :
       encrypted_data(std::move(encrypted_data_)),
       version(version_),
-      stored_version(stored_version_)
+      previous_secret_stored_version(stored_version_)
     {}
 
     bool operator==(const PreviousLedgerSecretInfo& other) const
     {
       return encrypted_data == other.encrypted_data &&
-        version == other.version && stored_version == other.stored_version;
+        version == other.version &&
+        previous_secret_stored_version == other.previous_secret_stored_version;
     }
 
     bool operator!=(const PreviousLedgerSecretInfo& other) const
@@ -64,13 +66,14 @@ namespace ccf
       return !(*this == other);
     }
 
-    MSGPACK_DEFINE(encrypted_data, version, stored_version)
+    MSGPACK_DEFINE(encrypted_data, version, previous_secret_stored_version)
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(PreviousLedgerSecretInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
     PreviousLedgerSecretInfo, encrypted_data, version)
-  DECLARE_JSON_OPTIONAL_FIELDS(PreviousLedgerSecretInfo, stored_version)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    PreviousLedgerSecretInfo, previous_secret_stored_version)
 
   struct EncryptedLedgerSecretInfo
   {
