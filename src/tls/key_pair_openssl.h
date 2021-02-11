@@ -371,7 +371,7 @@ namespace tls
      * loaded from a private key, there will be no public key available for
      * this call.
      */
-    virtual Pem create_csr(const std::string& name) override
+    virtual Pem create_csr(const std::string& name) const override
     {
       X509_REQ* req = NULL;
 
@@ -417,21 +417,22 @@ namespace tls
     }
 
     virtual Pem sign_csr(
-      const Pem& pem,
-      const std::string& issuer,
+      const Pem& issuer_cert,
+      const Pem& signing_request,
       const std::vector<SubjectAltName> subject_alt_names,
-      bool ca = false) override
+      bool ca = false) const override
     {
+      X509* icrt = NULL;
       X509_REQ* csr = NULL;
 
-      BIO* mem = BIO_new_mem_buf(pem.data(), -1);
+      BIO* mem = BIO_new_mem_buf(signing_request.data(), -1);
       OPENSSL_CHECKNULL(csr = PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL));
       BIO_free(mem);
 
       X509* crt = NULL;
       OPENSSL_CHECKNULL(crt = X509_new());
 
-      X509_set_version(crt, 2);
+      OPENSSL_CHECK1(X509_set_version(crt, 2));
 
       // Add serial number
       unsigned char rndbytes[16];
@@ -446,21 +447,15 @@ namespace tls
       BN_free(bn);
 
       // Add issuer name
-      X509_NAME* issuer_name = NULL;
-      OPENSSL_CHECKNULL(issuer_name = X509_NAME_new());
-      for (auto kv : parse_name(issuer))
-      {
-        OPENSSL_CHECK1(X509_NAME_add_entry_by_txt(
-          issuer_name,
-          kv.first.c_str(),
-          MBSTRING_ASC,
-          (const unsigned char*)kv.second.c_str(),
-          -1,
-          -1,
-          0));
+      if (!issuer_cert.empty()) {
+        mem = BIO_new_mem_buf(issuer_cert.data(), -1);
+        OPENSSL_CHECKNULL(icrt = PEM_read_bio_X509(mem, NULL, NULL, NULL));
+        BIO_free(mem);
+        OPENSSL_CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
       }
-      OPENSSL_CHECK1(X509_set_issuer_name(crt, issuer_name));
-      X509_NAME_free(issuer_name);
+      else {
+        OPENSSL_CHECK1(X509_set_issuer_name(crt, X509_REQ_get_subject_name(csr)));
+      }
 
       // Note: 825-day validity range
       // https://support.apple.com/en-us/HT210176
@@ -482,8 +477,7 @@ namespace tls
       // Extensions
       X509V3_CTX v3ctx;
       X509V3_set_ctx_nodb(&v3ctx);
-      // Self-signed, otherwise we would need an issuer certificate
-      X509V3_set_ctx(&v3ctx, crt, NULL, csr, NULL, 0);
+      X509V3_set_ctx(&v3ctx, icrt ? icrt : crt, NULL, csr, NULL, 0);
 
       // Add basic constraints
       X509_EXTENSION* ext = NULL;
@@ -500,10 +494,10 @@ namespace tls
       OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
       X509_EXTENSION_free(ext);
 
-      // Add auhtority key identifier
+      // Add authority key identifier
       OPENSSL_CHECKNULL(
         ext = X509V3_EXT_conf_nid(
-          NULL, &v3ctx, NID_authority_key_identifier, "keyid,issuer"));
+          NULL, &v3ctx, NID_authority_key_identifier, "keyid"));
       OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
       X509_EXTENSION_free(ext);
 
@@ -555,6 +549,9 @@ namespace tls
 
       X509_REQ_free(csr);
       X509_free(crt);
+
+      if (icrt)
+        X509_free(icrt);
 
       return result;
     }

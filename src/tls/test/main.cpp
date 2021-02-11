@@ -346,7 +346,9 @@ void run_csr()
   subject_alternative_names.push_back({"email:my-other-name", false});
   subject_alternative_names.push_back({"www.microsoft.com", false});
   subject_alternative_names.push_back({"192.168.0.1", true});
-  auto crt = kpm.sign_csr(csr, "CN=issuer", subject_alternative_names);
+
+  auto icrt = kpm.self_sign("CN=issuer");
+  auto crt = kpm.sign_csr(icrt, csr, subject_alternative_names);
 
   std::vector<uint8_t> content = {0, 1, 2, 3, 4};
   auto signature = kpm.sign(content);

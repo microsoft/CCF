@@ -117,33 +117,33 @@ namespace tls
 
     virtual std::vector<uint8_t> sign(CBuffer d, MDType md_type = {}) const = 0;
 
-    virtual Pem create_csr(const std::string& name) = 0;
+    virtual Pem create_csr(const std::string& name) const = 0;
 
     virtual Pem sign_csr(
-      const Pem& pem,
-      const std::string& issuer,
+      const Pem& issuer_cert,
+      const Pem& signing_request,
       const std::vector<SubjectAltName> subject_alt_names,
-      bool ca = false) = 0;
+      bool ca = false) const = 0;
 
     Pem self_sign(
       const std::string& name,
       const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
-      bool ca = true)
+      bool ca = true) const
     {
       std::vector<SubjectAltName> sans;
       if (subject_alt_name.has_value())
         sans.push_back(subject_alt_name.value());
       auto csr = create_csr(name);
-      return sign_csr(csr, name, sans, ca);
+      return sign_csr(Pem(0), csr, sans, ca);
     }
 
     Pem self_sign(
       const std::string& name,
       const std::vector<SubjectAltName> subject_alt_names,
-      bool ca = true)
+      bool ca = true) const
     {
       auto csr = create_csr(name);
-      return sign_csr(csr, name, subject_alt_names, ca);
+      return sign_csr(Pem(0), csr, subject_alt_names, ca);
     }
   };
 }

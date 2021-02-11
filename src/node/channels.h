@@ -468,7 +468,7 @@ namespace ccf
       const tls::Pem& network_pkey,
       NodeId self_) :
       writer_factory(writer_factory_),
-      network_kp(tls::make_key_pair(network_pkey)),
+      network_kp(std::make_shared<tls::KeyPair_mbedTLS>(network_pkey)),
       self(self_)
     {}
 

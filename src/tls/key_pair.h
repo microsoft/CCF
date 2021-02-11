@@ -21,8 +21,8 @@
 
 namespace tls
 {
-  using PublicKey = PublicKey_mbedTLS;
-  using PublicKeyPtr = std::shared_ptr<PublicKey_mbedTLS>;
+  using PublicKey = PublicKey_OpenSSL;
+  using PublicKeyPtr = std::shared_ptr<PublicKeyBase>;
 
   /**
    * Construct PublicKey from a raw public key in PEM format
@@ -44,8 +44,8 @@ namespace tls
     return std::make_shared<PublicKey>(public_der);
   }
 
-  using KeyPair = KeyPair_mbedTLS;
-  using KeyPairPtr = std::shared_ptr<KeyPair_mbedTLS>;
+  using KeyPair = KeyPair_OpenSSL;
+  using KeyPairPtr = std::shared_ptr<KeyPairBase>;
 
   /**
    * Create a new public / private ECDSA key pair on specified curve and

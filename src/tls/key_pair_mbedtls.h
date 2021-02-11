@@ -375,7 +375,7 @@ namespace tls
      * loaded from a private key, there will be no public key available for
      * this call.
      */
-    virtual Pem create_csr(const std::string& name) override
+    virtual Pem create_csr(const std::string& name) const override
     {
       auto csr = mbedtls::make_unique<mbedtls::X509WriteCsr>();
       mbedtls_x509write_csr_set_md_alg(csr.get(), MBEDTLS_MD_SHA512);
@@ -402,75 +402,71 @@ namespace tls
       return Pem(buf, len);
     }
 
+    void MCHK(int rc) const
+    {
+      if (rc != 0)
+      {
+        throw std::logic_error(fmt::format("mbedTLS error: {}", error_string(rc)));
+      }
+    }
+
     virtual Pem sign_csr(
-      const Pem& pem,
-      const std::string& issuer,
+      const Pem& issuer_cert,
+      const Pem& signing_request,
       const std::vector<SubjectAltName> subject_alt_names,
-      bool ca = false) override
+      bool ca = false) const override
     {
       auto entropy = create_entropy();
       auto csr = mbedtls::make_unique<mbedtls::X509Csr>();
       auto serial = mbedtls::make_unique<mbedtls::MPI>();
       auto crt = mbedtls::make_unique<mbedtls::X509WriteCrt>();
+      auto icrt = mbedtls::make_unique<mbedtls::X509Crt>();
 
-      if (mbedtls_x509_csr_parse(csr.get(), pem.data(), pem.size()) != 0)
-        return {};
+      std::cout << "CSR:" << std::endl << signing_request.str() << std::endl;
+
+      MCHK(mbedtls_x509_csr_parse(csr.get(), signing_request.data(), signing_request.size()));
 
       char subject[512];
-      auto r = mbedtls_x509_dn_gets(subject, sizeof(subject), &csr->subject);
-
-      if (r < 0)
-        return {};
+      mbedtls_x509_dn_gets(subject, sizeof(subject), &csr->subject);
 
       mbedtls_x509write_crt_set_md_alg(
         crt.get(), get_mbedtls_md_for_ec(get_mbedtls_ec_from_context(*ctx)));
       mbedtls_x509write_crt_set_subject_key(crt.get(), &csr->pk);
-      mbedtls_x509write_crt_set_issuer_key(crt.get(), ctx.get());
 
-      if (
-        mbedtls_mpi_fill_random(
-          serial.get(), 16, entropy->get_rng(), entropy->get_data()) != 0)
-        return {};
+      if (!issuer_cert.empty()) {
+        MCHK(mbedtls_x509_crt_parse(icrt.get(), issuer_cert.data(), issuer_cert.size()));
+        mbedtls_x509write_crt_set_issuer_key(crt.get(), ctx.get());
+        char issuer_name[512];
+        mbedtls_x509_dn_gets(issuer_name, sizeof(issuer_name), &icrt->subject);
+        MCHK(mbedtls_x509write_crt_set_issuer_name(crt.get(), issuer_name));
+      }
+      else {
+        mbedtls_x509write_crt_set_issuer_key(crt.get(), ctx.get());
+        MCHK(mbedtls_x509write_crt_set_issuer_name(crt.get(), subject));
+      }
 
-      if (mbedtls_x509write_crt_set_subject_name(crt.get(), subject) != 0)
-        return {};
-
-      if (mbedtls_x509write_crt_set_issuer_name(crt.get(), issuer.c_str()) != 0)
-        return {};
-
-      if (mbedtls_x509write_crt_set_serial(crt.get(), serial.get()) != 0)
-        return {};
+      MCHK(mbedtls_mpi_fill_random(
+          serial.get(), 16, entropy->get_rng(), entropy->get_data()));
+      MCHK(mbedtls_x509write_crt_set_subject_name(crt.get(), subject));
+      MCHK(mbedtls_x509write_crt_set_serial(crt.get(), serial.get()));
 
       // Note: 825-day validity range
       // https://support.apple.com/en-us/HT210176
-      if (
+      MCHK(
         mbedtls_x509write_crt_set_validity(
-          crt.get(), "20191101000000", "20211231235959") != 0)
-        return {};
+          crt.get(), "20191101000000", "20211231235959"));
 
-      if (
-        mbedtls_x509write_crt_set_basic_constraints(crt.get(), ca ? 1 : 0, 0) !=
-        0)
-        return {};
-
-      if (mbedtls_x509write_crt_set_subject_key_identifier(crt.get()) != 0)
-        return {};
-
-      if (mbedtls_x509write_crt_set_authority_key_identifier(crt.get()) != 0)
-        return {};
+      MCHK(mbedtls_x509write_crt_set_basic_constraints(crt.get(), ca ? 1 : 0, 0));
+      MCHK(mbedtls_x509write_crt_set_subject_key_identifier(crt.get()));
+      MCHK(mbedtls_x509write_crt_set_authority_key_identifier(crt.get()));
 
       // Because mbedtls does not support parsing x509v3 extensions from a
       // CSR (https://github.com/ARMmbed/mbedtls/issues/2912), the CA sets the
       // SAN directly instead of reading it from the CSR
       try
       {
-        auto rc =
-          x509write_crt_set_subject_alt_names(crt.get(), subject_alt_names);
-        if (rc != 0)
-        {
-          LOG_FAIL_FMT("Failed to set subject alternative names ({})", rc);
-          return {};
-        }
+        MCHK(
+          x509write_crt_set_subject_alt_names(crt.get(), subject_alt_names));
       }
       catch (const std::logic_error& err)
       {
@@ -481,14 +477,13 @@ namespace tls
       uint8_t buf[4096];
       memset(buf, 0, sizeof(buf));
 
-      if (
+      MCHK(
         mbedtls_x509write_crt_pem(
           crt.get(),
           buf,
           sizeof(buf),
           entropy->get_rng(),
-          entropy->get_data()) != 0)
-        return {};
+          entropy->get_data()));
 
       auto len = strlen((char*)buf);
       return Pem(buf, len);
