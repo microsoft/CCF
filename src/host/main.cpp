@@ -364,6 +364,17 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile)
     ->required();
 
+  std::string constitution_path = "constitution.js";
+  start
+    ->add_option(
+      "--constitution",
+      constitution_path,
+      "Path to JS file that defines the contents of the "
+      "public:ccf.gov.constitution table")
+    ->capture_default_str()
+    ->check(CLI::ExistingFile)
+    ->required();
+
   std::vector<cli::ParsedMemberInfo> members_info;
   cli::add_member_info_option(
     *start,

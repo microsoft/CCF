@@ -124,6 +124,9 @@ namespace ccf
     static constexpr auto BACKUP_SIGNATURES =
       "public:ccf.internal.consensus.backup_signatures";
     static constexpr auto NONCES = "public:ccf.internal.consensus.nonces";
+
+    // JS Governance
+    static constexpr auto CONSTITUTION = "public:ccf.gov.constitution";
   };
 
 }
