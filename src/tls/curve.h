@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ds/logger.h"
-#include "ds/stacktrace_utils.h"
 #include "hash.h"
 #include "tls.h"
 
@@ -72,7 +71,6 @@ namespace tls
         }
         else
         {
-          stacktrace::print_stacktrace();
           const auto error = fmt::format("Unhandled ecp group id: {}", ec);
           throw std::logic_error(error);
         }

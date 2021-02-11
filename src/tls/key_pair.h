@@ -4,7 +4,6 @@
 
 #include "asn1_san.h"
 #include "curve.h"
-#include "ds/stacktrace_utils.h"
 #include "entropy.h"
 #include "error_string.h"
 #include "hash.h"
