@@ -423,8 +423,6 @@ namespace tls
       auto crt = mbedtls::make_unique<mbedtls::X509WriteCrt>();
       auto icrt = mbedtls::make_unique<mbedtls::X509Crt>();
 
-      std::cout << "CSR:" << std::endl << signing_request.str() << std::endl;
-
       MCHK(mbedtls_x509_csr_parse(
         csr.get(), signing_request.data(), signing_request.size()));
 
