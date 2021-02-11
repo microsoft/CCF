@@ -447,14 +447,17 @@ namespace tls
       BN_free(bn);
 
       // Add issuer name
-      if (!issuer_cert.empty()) {
+      if (!issuer_cert.empty())
+      {
         mem = BIO_new_mem_buf(issuer_cert.data(), -1);
         OPENSSL_CHECKNULL(icrt = PEM_read_bio_X509(mem, NULL, NULL, NULL));
         BIO_free(mem);
         OPENSSL_CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
       }
-      else {
-        OPENSSL_CHECK1(X509_set_issuer_name(crt, X509_REQ_get_subject_name(csr)));
+      else
+      {
+        OPENSSL_CHECK1(
+          X509_set_issuer_name(crt, X509_REQ_get_subject_name(csr)));
       }
 
       // Note: 825-day validity range

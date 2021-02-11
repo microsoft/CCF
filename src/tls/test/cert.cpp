@@ -26,8 +26,7 @@ int main(int argc, char** argv)
   auto kp = tls::make_key_pair();
   auto icrt = kp->self_sign("CN=issuer");
   auto csr = kp->create_csr(subject_name);
-  auto cert = kp->sign_csr(
-    icrt, csr, subject_alternative_names);
+  auto cert = kp->sign_csr(icrt, csr, subject_alternative_names);
 
   std::cout << cert.str() << std::endl;
   return 0;

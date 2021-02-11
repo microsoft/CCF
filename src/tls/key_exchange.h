@@ -57,7 +57,9 @@ namespace tls
       ctx = std::move(tmp_ctx);
     }
 
-    KeyExchangeContext(std::shared_ptr<KeyPair_mbedTLS> own_kp, std::shared_ptr<PublicKey_mbedTLS> peer_pubk) :
+    KeyExchangeContext(
+      std::shared_ptr<KeyPair_mbedTLS> own_kp,
+      std::shared_ptr<PublicKey_mbedTLS> peer_pubk) :
       entropy(create_entropy())
     {
       auto tmp_ctx = mbedtls::make_unique<mbedtls::ECDHContext>();

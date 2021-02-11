@@ -406,7 +406,8 @@ namespace tls
     {
       if (rc != 0)
       {
-        throw std::logic_error(fmt::format("mbedTLS error: {}", error_string(rc)));
+        throw std::logic_error(
+          fmt::format("mbedTLS error: {}", error_string(rc)));
       }
     }
 
@@ -424,7 +425,8 @@ namespace tls
 
       std::cout << "CSR:" << std::endl << signing_request.str() << std::endl;
 
-      MCHK(mbedtls_x509_csr_parse(csr.get(), signing_request.data(), signing_request.size()));
+      MCHK(mbedtls_x509_csr_parse(
+        csr.get(), signing_request.data(), signing_request.size()));
 
       char subject[512];
       mbedtls_x509_dn_gets(subject, sizeof(subject), &csr->subject);
@@ -433,30 +435,33 @@ namespace tls
         crt.get(), get_mbedtls_md_for_ec(get_mbedtls_ec_from_context(*ctx)));
       mbedtls_x509write_crt_set_subject_key(crt.get(), &csr->pk);
 
-      if (!issuer_cert.empty()) {
-        MCHK(mbedtls_x509_crt_parse(icrt.get(), issuer_cert.data(), issuer_cert.size()));
+      if (!issuer_cert.empty())
+      {
+        MCHK(mbedtls_x509_crt_parse(
+          icrt.get(), issuer_cert.data(), issuer_cert.size()));
         mbedtls_x509write_crt_set_issuer_key(crt.get(), ctx.get());
         char issuer_name[512];
         mbedtls_x509_dn_gets(issuer_name, sizeof(issuer_name), &icrt->subject);
         MCHK(mbedtls_x509write_crt_set_issuer_name(crt.get(), issuer_name));
       }
-      else {
+      else
+      {
         mbedtls_x509write_crt_set_issuer_key(crt.get(), ctx.get());
         MCHK(mbedtls_x509write_crt_set_issuer_name(crt.get(), subject));
       }
 
       MCHK(mbedtls_mpi_fill_random(
-          serial.get(), 16, entropy->get_rng(), entropy->get_data()));
+        serial.get(), 16, entropy->get_rng(), entropy->get_data()));
       MCHK(mbedtls_x509write_crt_set_subject_name(crt.get(), subject));
       MCHK(mbedtls_x509write_crt_set_serial(crt.get(), serial.get()));
 
       // Note: 825-day validity range
       // https://support.apple.com/en-us/HT210176
-      MCHK(
-        mbedtls_x509write_crt_set_validity(
-          crt.get(), "20191101000000", "20211231235959"));
+      MCHK(mbedtls_x509write_crt_set_validity(
+        crt.get(), "20191101000000", "20211231235959"));
 
-      MCHK(mbedtls_x509write_crt_set_basic_constraints(crt.get(), ca ? 1 : 0, 0));
+      MCHK(
+        mbedtls_x509write_crt_set_basic_constraints(crt.get(), ca ? 1 : 0, 0));
       MCHK(mbedtls_x509write_crt_set_subject_key_identifier(crt.get()));
       MCHK(mbedtls_x509write_crt_set_authority_key_identifier(crt.get()));
 
@@ -465,8 +470,7 @@ namespace tls
       // SAN directly instead of reading it from the CSR
       try
       {
-        MCHK(
-          x509write_crt_set_subject_alt_names(crt.get(), subject_alt_names));
+        MCHK(x509write_crt_set_subject_alt_names(crt.get(), subject_alt_names));
       }
       catch (const std::logic_error& err)
       {
@@ -477,13 +481,8 @@ namespace tls
       uint8_t buf[4096];
       memset(buf, 0, sizeof(buf));
 
-      MCHK(
-        mbedtls_x509write_crt_pem(
-          crt.get(),
-          buf,
-          sizeof(buf),
-          entropy->get_rng(),
-          entropy->get_data()));
+      MCHK(mbedtls_x509write_crt_pem(
+        crt.get(), buf, sizeof(buf), entropy->get_rng(), entropy->get_data()));
 
       auto len = strlen((char*)buf);
       return Pem(buf, len);
