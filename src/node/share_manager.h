@@ -412,22 +412,9 @@ namespace ccf
           break;
         }
 
-        crypto::GcmCipher encrypted_ls;
-        encrypted_ls.deserialise(it->previous_ledger_secret->encrypted_data);
-        std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
-
-        if (!crypto::KeyAesGcm(decryption_key)
-               .decrypt(
-                 encrypted_ls.hdr.get_iv(),
-                 encrypted_ls.hdr.tag,
-                 encrypted_ls.cipher,
-                 nullb,
-                 decrypted_ls.data()))
-        {
-          throw std::logic_error(fmt::format(
-            "Decryption of ledger secret at {} failed",
-            it->previous_ledger_secret->version));
-        }
+        auto decrypted_ls = decrypt_previous_ledger_secret(
+          decryption_key,
+          std::move(it->previous_ledger_secret->encrypted_data));
 
         decryption_key = decrypted_ls;
 

@@ -15,6 +15,29 @@
 
 namespace ccf
 {
+  inline std::vector<uint8_t> decrypt_previous_ledger_secret(
+    const std::vector<uint8_t>& raw_ledger_secret,
+    std::vector<uint8_t>&& raw_encrypted_previous_secret)
+  {
+    crypto::GcmCipher encrypted_ls;
+    encrypted_ls.deserialise(raw_encrypted_previous_secret);
+    std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
+
+    // TODO: No need to create a key again! Just use `key` from ledger_secret
+    if (!crypto::KeyAesGcm(raw_ledger_secret)
+           .decrypt(
+             encrypted_ls.hdr.get_iv(),
+             encrypted_ls.hdr.tag,
+             encrypted_ls.cipher,
+             nullb,
+             decrypted_ls.data()))
+    {
+      throw std::logic_error("Decryption of previous ledger secret failed");
+    }
+
+    return decrypted_ls;
+  }
+
   struct LedgerSecret
   {
     std::vector<uint8_t> raw_key;
