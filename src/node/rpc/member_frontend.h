@@ -1941,6 +1941,8 @@ namespace ccf
         g.set_gov_scripts(
           lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
 
+        tx.rw(this->network.constitution)->put(0, in.constitution);
+
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };

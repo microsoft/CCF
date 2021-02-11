@@ -9,6 +9,7 @@
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
 #include "consensus/aft/revealed_nonces.h"
+#include "constitution.h"
 #include "entities.h"
 #include "governance_history.h"
 #include "jwt.h"
@@ -102,6 +103,9 @@ namespace ccf
     aft::RevealedNoncesMap revealed_nonces_map;
     NewViewsMap new_views_map;
 
+    // JS Constitution
+    Constitution constitution;
+
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(
         (consensus_type == ConsensusType::CFT) ?
@@ -141,7 +145,8 @@ namespace ccf
       bft_requests_map(Tables::AFT_REQUESTS),
       backup_signatures_map(Tables::BACKUP_SIGNATURES),
       revealed_nonces_map(Tables::NONCES),
-      new_views_map(Tables::NEW_VIEWS)
+      new_views_map(Tables::NEW_VIEWS),
+      constitution(Tables::CONSTITUTION)
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts

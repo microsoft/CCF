@@ -1395,6 +1395,7 @@ namespace ccf
       }
 
       create_params.gov_script = config.genesis.gov_script;
+      create_params.constitution = config.genesis.constitution;
       create_params.node_cert = node_cert;
       create_params.network_cert = network.identity->cert;
       create_params.quote_info = quote_info;

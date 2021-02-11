@@ -568,6 +568,7 @@ class CCFRemote(object):
         worker_threads=0,
         memory_reserve_startup=0,
         gov_script=None,
+        constitution=None,
         ledger_dir=None,
         read_only_ledger_dir=None,  # Read-only ledger dir to copy to node director
         common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
@@ -680,8 +681,10 @@ class CCFRemote(object):
                 "start",
                 "--network-cert-file=networkcert.pem",
                 f"--gov-script={os.path.basename(gov_script)}",
+                f"--constitution={os.path.basename(constitution)}",
             ]
             data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
+            data_files += [os.path.join(os.path.basename(self.common_dir), constitution)]
             if members_info is None:
                 raise ValueError(
                     "Starting node should be given at least one member info"
