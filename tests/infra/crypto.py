@@ -7,7 +7,6 @@ from enum import IntEnum
 import secrets
 import datetime
 
-from cryptography.exceptions import InvalidSignature
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.x509 import (

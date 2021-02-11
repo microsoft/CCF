@@ -269,8 +269,7 @@ class CurlClient:
         self.ca = ca
         self.session_auth = session_auth
         self.signing_auth = signing_auth
-
-        ca_curve = get_curve(self.ca)
+        self.ca_curve = get_curve(self.ca)
 
     def request(self, request, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         with tempfile.NamedTemporaryFile() as nf:
@@ -507,8 +506,7 @@ class WSClient:
         self.ca = ca
         self.session_auth = session_auth
         self.ws = None
-
-        ca_curve = get_curve(self.ca)
+        self.ca_curve = get_curve(self.ca)
 
     def request(
         self,
