@@ -1297,7 +1297,7 @@ namespace ccf
       // Effects of ledger rekey are only observed from the next transaction,
       // once the local hook on the secrets table has been triggered.
 
-      auto new_ledger_secret = make_ledger_secret(tx);
+      auto new_ledger_secret = make_ledger_secret();
       share_manager.issue_recovery_shares(tx, new_ledger_secret);
       LedgerSecretsBroadcast::broadcast_new(
         network, node_encrypt_kp, tx, std::move(new_ledger_secret));
@@ -1589,10 +1589,12 @@ namespace ccf
                     encrypted_ledger_secret.previous_secret_stored_version
                       .value_or(kv::NoVersion));
 
+                  LOG_FAIL_FMT("Rekey at {}", hook_version);
+
                   network.ledger_secrets->set_secret(
                     ledger_secret_version + 1,
                     std::move(plain_ledger_secret),
-                    encrypted_ledger_secret.previous_secret_stored_version);
+                    hook_version);
                 }
               }
             }

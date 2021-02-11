@@ -36,6 +36,8 @@ namespace ccf::historical
       RequestStage current_stage = RequestStage::Fetching;
       crypto::Sha256Hash entry_hash = {};
       StorePtr store = nullptr;
+
+      std::optional<consensus::Index> continue_idx = std::nullopt;
     };
 
     // These constitute a simple LRU, where only user queries will refresh an
@@ -67,6 +69,7 @@ namespace ccf::historical
 
       consensus::Index first_fetched_idx = idx;
       RequestStage request_stage = RequestStage::Fetching;
+      std::optional<consensus::Index> continue_idx = std::nullopt;
 
       auto first_known_ledger_secret = network.ledger_secrets->get_first();
       if (idx < static_cast<consensus::Index>(first_known_ledger_secret.first))
@@ -92,6 +95,7 @@ namespace ccf::historical
 
         first_fetched_idx = previous_secret_stored_version.value();
         request_stage = RequestStage::RecoveringLedgerSecret;
+        continue_idx = idx;
       }
 
       // TODO:
@@ -99,8 +103,8 @@ namespace ccf::historical
       // known idx in KV until known
 
       // Try to insert new request
-      const auto ib = requests.insert(
-        std::make_pair(first_fetched_idx, Request{request_stage}));
+      const auto ib = requests.insert(std::make_pair(
+        first_fetched_idx, Request{request_stage, {}, nullptr, continue_idx}));
       if (ib.second)
       {
         // If its a new request, begin fetching it
@@ -285,15 +289,16 @@ namespace ccf::historical
           LOG_FAIL_FMT(
             "Fetched ledger secret at {}", previous_ledger_secret->version);
 
-          auto TARGET_IDX = 0; // TODO: Store this in the request, somewhere
-
           if (
             previous_ledger_secret.has_value() &&
-            previous_ledger_secret->version < TARGET_IDX)
+            previous_ledger_secret->version <
+              static_cast<kv::Version>(request.continue_idx.value()))
           {
-            LOG_FAIL_FMT("We're done, let's fetch the target idx");
+            LOG_FAIL_FMT(
+              "We're done, let's fetch the target idx at {}",
+              request.continue_idx.value());
             request.current_stage = RequestStage::Fetching;
-            fetch_entry_at(TARGET_IDX);
+            fetch_entry_at(request.continue_idx.value());
           }
           else
           {

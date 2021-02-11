@@ -61,15 +61,11 @@ namespace ccf
     return tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
   }
 
-  inline LedgerSecret make_ledger_secret(kv::ReadOnlyTx& tx)
+  inline LedgerSecret make_ledger_secret()
   {
     LOG_FAIL_FMT("Making ledger secret!");
 
-    auto encrypted_ls =
-      tx.ro<EncryptedLedgerSecretsInfo>(Tables::ENCRYPTED_PAST_LEDGER_SECRET);
-
-    return LedgerSecret(
-      generate_raw_secret(), encrypted_ls->get_version_of_previous_write(0));
+    return LedgerSecret(generate_raw_secret());
   }
 
   class LedgerSecrets
@@ -326,7 +322,7 @@ namespace ccf
     void set_secret(
       kv::Version version,
       std::vector<uint8_t>&& raw_secret,
-      std::optional<kv::Version> previous_secret_stored_version)
+      kv::Version previous_secret_stored_version)
     {
       std::lock_guard<SpinLock> guard(lock);
 

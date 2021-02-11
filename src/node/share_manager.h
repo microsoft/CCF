@@ -201,8 +201,8 @@ namespace ccf
           {PreviousLedgerSecretInfo(
              std::move(encrypted_previous_secret),
              version_previous_secret,
-             //  encrypted_ls->get_version_of_previous_write(0)),
-             previous_ledger_secret->second.previous_secret_stored_version),
+             encrypted_ls->get_version_of_previous_write(0)),
+           //  previous_ledger_secret->second.previous_secret_stored_version),
            latest_ls_version});
       }
       else
@@ -386,10 +386,13 @@ namespace ccf
         throw std::logic_error("Current ledger secret version should be set");
       }
 
+      auto encrypted_previous_ledger_secret =
+        tx.ro(network.encrypted_ledger_secrets);
+
       LOG_FAIL_FMT(
         "Latest secret, previous secret stored at {}",
-        recovery_shares_info->previous_secret_stored_version.value_or(
-          kv::NoVersion));
+        encrypted_previous_ledger_secret->get_version_of_previous_write(0)
+          .value_or(kv::NoVersion));
 
       // TODO: Set the version of the previous ledger secret here, but that
       // needs to be set in the ccf.shares table, for the latest secret
@@ -397,7 +400,7 @@ namespace ccf
         current_ledger_secret_version.value(),
         LedgerSecret(
           std::move(restored_ls.raw_key),
-          recovery_shares_info->previous_secret_stored_version));
+          encrypted_previous_ledger_secret->get_version_of_previous_write(0)));
 
       for (auto it = recovery_ledger_secrets.rbegin();
            it != recovery_ledger_secrets.rend();
