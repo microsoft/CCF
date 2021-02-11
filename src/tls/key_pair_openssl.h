@@ -486,7 +486,7 @@ namespace tls
       X509_EXTENSION* ext = NULL;
       OPENSSL_CHECKNULL(
         ext = X509V3_EXT_conf_nid(
-          NULL, NULL, NID_basic_constraints, ca ? "CA:TRUE" : "CA:FALSE"));
+          NULL, &v3ctx, NID_basic_constraints, ca ? "CA:TRUE" : "CA:FALSE"));
       OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
       X509_EXTENSION_free(ext);
 
@@ -500,7 +500,7 @@ namespace tls
       // Add authority key identifier
       OPENSSL_CHECKNULL(
         ext = X509V3_EXT_conf_nid(
-          NULL, &v3ctx, NID_authority_key_identifier, "keyid"));
+          NULL, &v3ctx, NID_authority_key_identifier, "keyid:always"));
       OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
       X509_EXTENSION_free(ext);
 

@@ -1359,8 +1359,7 @@ namespace ccf
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
 
-      auto nw =
-        std::make_shared<tls::KeyPair_mbedTLS>(network.identity->priv_key);
+      auto nw = tls::make_key_pair(network.identity->priv_key);
       auto csr = node_sign_kp->create_csr(config.subject_name);
       auto sans = get_subject_alternative_names(config);
       auto endorsed_node_cert = nw->sign_csr(network.identity->cert, csr, sans);
