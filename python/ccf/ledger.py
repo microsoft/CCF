@@ -30,9 +30,9 @@ LEDGER_HEADER_SIZE = 8
 UNPACK_ARGS = {"raw": True, "strict_map_key": False}
 
 # Public table names as defined in CCF
-# https://github.com/microsoft/CCF/blob/master/src/node/entities.h#L96
+# https://github.com/microsoft/CCF/blob/main/src/node/entities.h#L96
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
-# https://github.com/microsoft/CCF/blob/master/src/node/entities.h#L71
+# https://github.com/microsoft/CCF/blob/main/src/node/entities.h#L71
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 
 
@@ -170,25 +170,26 @@ class LedgerValidator:
     Ledger Validator contains the logic to verify that the ledger hasn't been tampered with.
     It has the ability to take transactions and it maintains a MerkleTree data structure similar to CCF.
 
-    Ledger is valid and hasn't been tampered with if:
+    Ledger is valid and hasn't been tampered with if following conditions are met:
         1) The merkle proof is signed by a TRUSTED node in the given network
         2) The merkle root and signature are verified with the node cert
         3) The merkle proof is correct for each set of transactions
+        4) The last transaction in the LedgerChunk should be that of merkle tree signing
     """
 
     # The node that is expected to sign the signature transaction
     # The certificate used to sign the signature transaction
-    # https://github.com/microsoft/CCF/blob/master/src/node/nodes.h#L42
+    # https://github.com/microsoft/CCF/blob/main/src/node/nodes.h#L42
     EXPECTED_NODE_CERT_INDEX = 1
     # The current network trust status of the Node at the time of the current transaction
     EXPECTED_NODE_STATUS_INDEX = 4
 
     # Signature table contains PrimarySignature which extends NodeSignature. NodeId should be at index 1 in the serialized Node
-    # https://github.com/microsoft/CCF/blob/master/src/node/signatures.h#L23
+    # https://github.com/microsoft/CCF/blob/main/src/node/signatures.h#L23
     EXPECTED_NODE_SIGNATURE_INDEX = 0
     EXPECTED_NODE_VIEW_INDEX = 2
     EXPECTED_ROOT_INDEX = 5
-    # https://github.com/microsoft/CCF/blob/master/src/node/node_signature.h#L76
+    # https://github.com/microsoft/CCF/blob/main/src/node/node_signature.h#L76
     EXPECTED_SIGNING_NODE_ID_INDEX = 1
     EXPECTED_SIGNATURE_INDEX = 0
     # Constant for the size of a hashed transaction
@@ -268,6 +269,11 @@ class LedgerValidator:
         self.merkle.add_leaf(transaction.get_public_tx())
 
     def verify_ending(self) -> bool:
+        """
+        Verify the ledger ends in a signature transaction and has at least 1 signature.
+        These two conditions are prerequisite for the creation of .committed files
+        This verifies the 4th condition.
+        """
         if self.signature_count == 0:
             LOG.error(
                 "Found 0 signatures. This usually means that the ledger is invalid")
@@ -278,19 +284,19 @@ class LedgerValidator:
             raise SignatureEndingException
 
     def _verify_tx_set(self, tx_info: tuple) -> bool:
-        """Verify items 2, 3, and 4 for a the transactions up until a signature"""
-        # 2) The merkle proof is signed by a TRUSTED node in the given network
+        """Verify items 1, 2, and 3 for a the transactions up until a signature"""
+        # 1) The merkle proof is signed by a TRUSTED node in the given network
         if self._verify_node_status(tx_info):
-            # 3) The merkle root and signature are verified with the node cert
+            # 2) The merkle root and signature are verified with the node cert
             if self._verify_root_signature(tx_info):
-                # 4) The merkle proof is correct for the set of transactions
+                # 3) The merkle proof is correct for the set of transactions
                 if self._verify_merkle_root(tx_info.merkle_tree, tx_info.existing_root):
                     return True
         return False
 
     @staticmethod
     def _verify_node_status(tx_info: NamedTuple) -> bool:
-        """Verify item 2, The merkle proof is signed by a TRUSTED node in the given network"""
+        """Verify item 1, The merkle proof is signed by a TRUSTED node in the given network"""
         if tx_info.node_activity[tx_info.signing_node] is NodeStatus.trusted:
             return True
         LOG.error(
@@ -299,7 +305,7 @@ class LedgerValidator:
         raise UntrustedNodeException
 
     def _verify_root_signature(self, tx_info: NamedTuple) -> bool:
-        """Verify item 3, that the Merkle root signature validates against the node certificate"""
+        """Verify item 2, that the Merkle root signature validates against the node certificate"""
         try:
             cert = load_pem_x509_certificate(
                 tx_info.node_cert, default_backend())
@@ -320,7 +326,7 @@ class LedgerValidator:
     def _verify_merkle_root(
         self, merkletree: MerkleTree, existing_root: bytes
     ) -> bool:
-        """Verify item 4, by comparing the roots from the ledger and tree"""
+        """Verify item 3, by comparing the roots from the ledger and tree"""
         root = bytearray(self.SHA_256_HASH_SIZE)
         root = merkletree.get_merkle_root()
         if root == existing_root:
