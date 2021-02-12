@@ -1014,12 +1014,13 @@ namespace aft
     {
       std::unique_lock<SpinLock> guard(state->lock);
       LOG_DEBUG_FMT(
-        "Received pt: {} pi: {} t: {} i: {} toi: {}",
+        "Received append entries: {}.{} to {}.{} (primary is {} in term {})",
         r.prev_term,
         r.prev_idx,
-        r.term,
+        r.term_of_idx,
         r.idx,
-        r.term_of_idx);
+        r.from_node,
+        r.term);
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
@@ -1190,7 +1191,6 @@ namespace aft
         }
         is_new_follower = false;
       }
-
 
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
@@ -1449,9 +1449,13 @@ namespace aft
       // The term may have changed, and we have not have seen a signature yet.
       auto lci = last_committable_index();
       if (r.term_of_idx == aft::ViewHistory::InvalidView)
+      {
         state->view_history.update(1, r.term);
+      }
       else
+      {
         state->view_history.update(lci + 1, r.term_of_idx);
+      }
 
       send_append_entries_response(r.from_node, AppendEntriesResponseType::OK);
     }
