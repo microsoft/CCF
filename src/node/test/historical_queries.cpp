@@ -66,11 +66,11 @@ public:
 
 TEST_CASE("StateCache")
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::NetworkState network;
   auto consensus = std::make_shared<kv::StubConsensus>();
 
-  kv::Store store(consensus);
-  store.set_encryptor(encryptor);
+  network.tables->set_consensus(consensus);
+  auto& store = *network.tables.get();
 
   // Make history to produce signatures
   const auto node_id = 0;
@@ -78,6 +78,13 @@ TEST_CASE("StateCache")
   auto history = std::make_shared<ccf::MerkleTxHistory>(store, node_id, *kp);
 
   store.set_history(history);
+
+  // Make ledger secrets to rekey ledger
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
+  network.ledger_secrets->init();
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(network.ledger_secrets);
+
+  store.set_encryptor(encryptor);
 
   using NumToString = kv::Map<size_t, std::string>;
 
@@ -163,7 +170,7 @@ TEST_CASE("StateCache")
   ringbuffer::Reader rr(buffer->bd);
 
   auto rw = std::make_shared<ringbuffer::Writer>(rr);
-  ccf::historical::StateCache cache(store, rw);
+  ccf::historical::StateCache cache(network, rw);
 
   {
     INFO(
