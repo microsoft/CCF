@@ -11,8 +11,6 @@ import tempfile
 from dataclasses import dataclass
 from http.client import HTTPResponse
 from io import BytesIO
-from requests.adapters import HTTPAdapter
-from urllib3.util.ssl_ import create_urllib3_context  # type: ignore
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
@@ -347,26 +345,6 @@ class CurlClient:
             return Response.from_raw(rc.stdout)
 
 
-class TlsAdapter(HTTPAdapter):
-    """
-    Support node and network identity curves.
-    """
-
-    def __init__(self, ca_file):
-        self.ca_curve = None
-        if ca_file is not None:
-            self.ca_curve = get_curve(ca_file)
-        super().__init__()
-
-    # pylint: disable=signature-differs
-    def init_poolmanager(self, *args, **kwargs):
-        if self.ca_curve is not None:
-            context = create_urllib3_context()
-            context.set_ecdh_curve(self.ca_curve.name)
-            kwargs["ssl_context"] = context
-        return super(TlsAdapter, self).init_poolmanager(*args, **kwargs)
-
-
 class HTTPSignatureAuth_AlwaysDigest(HTTPSignatureAuth):
     """
     Support for HTTP signatures with empty body.
@@ -411,7 +389,6 @@ class RequestClient:
         if self.signing_auth:
             with open(self.signing_auth.cert) as cert_file:
                 self.key_id = hashlib.sha256(cert_file.read().encode()).hexdigest()
-        self.session.mount("https://", TlsAdapter(self.ca))
 
     def request(
         self,
