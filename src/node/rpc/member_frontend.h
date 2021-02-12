@@ -215,6 +215,7 @@ namespace ccf
       std::string module_prefix = "/";
       remove_modules(tx, module_prefix);
       set_modules(tx, module_prefix, bundle.modules);
+      update_modules_hash(tx);
 
       remove_endpoints(tx);
 
@@ -320,6 +321,30 @@ namespace ccf
     {
       auto tx_modules = tx.rw(network.modules);
       return tx_modules->remove(name);
+    }
+
+    void update_modules_hash(kv::Tx& tx)
+    {
+      auto modules_view = tx.ro(network.modules);
+      auto modules_hash_view = tx.rw(network.modules_hash);
+
+      std::vector<std::string> module_names;
+      modules_view->foreach(
+        [&module_names](const std::string& name, const Module&) {
+          module_names.push_back(name);
+          return true;
+        });
+      std::sort(module_names.begin(), module_names.end());
+      
+      crypto::CSha256Hash ch;
+      for (auto& module_name : module_names)
+      {
+        auto content = modules_view->get(module_name).value().js;
+        ch.update(content.data());
+      }
+      auto hash = ch.finalize().hex_str();
+
+      modules_hash_view->put(0, hash);
     }
 
     void remove_jwt_keys(kv::Tx& tx, std::string issuer)

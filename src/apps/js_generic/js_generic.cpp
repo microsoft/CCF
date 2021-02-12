@@ -711,8 +711,9 @@ namespace ccfapp
     return m;
   }
 
-  thread_local JSAutoFreeRuntime runtime;
+  thread_local std::unique_ptr<JSAutoFreeRuntime> runtime = nullptr;
   thread_local bool runtime_inited = false;
+  thread_local std::string modules_hash;
 
   thread_local JSClassDef kv_class_def = {};
   thread_local JSClassExoticMethods kv_exotic_methods = {};
@@ -972,15 +973,21 @@ namespace ccfapp
         }
       }
 
-      // TODO check if app hash has changed
-      bool js_app_hash_mismatch = false;
-      if (js_app_hash_mismatch)
+      const auto hash_view = args.tx.ro(this->network.modules_hash);
+      auto hash = hash_view->get(0);
+      if (!hash.has_value())
       {
-        runtime = JSAutoFreeRuntime();
+        throw std::logic_error(
+          "JS app hash not found");
+      }
+      if (hash.value() != modules_hash)
+      {
+        runtime = std::make_unique<JSAutoFreeRuntime>();
         runtime_inited = false;
+        modules_hash = hash.value();
       }
 
-      JSRuntime* rt = runtime.rt;
+      JSRuntime* rt = runtime->rt;
 
       if (!runtime_inited)
       {
