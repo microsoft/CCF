@@ -93,6 +93,10 @@ namespace ccf::historical
       std::unique_ptr<LedgerSecretRecoveryInfo> ledger_secret_recovery_info =
         nullptr;
 
+      // TODO:
+      // 1. Get historical ledger secrets out of LedgerSecrets and pulls them
+      // from there instead (as a cache)
+
       auto first_known_ledger_secret = network.ledger_secrets->get_first();
       if (idx < static_cast<consensus::Index>(first_known_ledger_secret.first))
       {

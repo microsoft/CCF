@@ -1003,7 +1003,6 @@ namespace ccf
       network.tables->swap_private_maps(*recovery_store.get());
       recovery_history.reset();
       recovery_store.reset();
-      reset_recovery_hook();
 
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
@@ -1014,6 +1013,7 @@ namespace ccf
       // Open the service
       if (consensus->is_primary())
       {
+        setup_one_off_secret_hook();
         auto tx = network.tables->create_tx();
 
         // Shares for the new ledger secret can only be issued now, once the
@@ -1031,16 +1031,52 @@ namespace ccf
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
         }
-
-        // TODO: What about on the backups!?? Should this be a hook instead??
-        network.ledger_secrets->adjust_previous_secret_stored_version(
-          tx.get_version());
       }
 
       open_user_frontend();
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
       sm.advance(State::partOfNetwork);
+    }
+
+    void setup_one_off_secret_hook()
+    {
+      // This hook is necessary to adjust the version at which the ledger secret
+      // just before the post-recovery ledger secret is recorded in the store.
+      // This can only be fired once, after the recovery shares for the
+      // post-recovery ledger secret are issued.
+      network.tables->set_map_hook(
+        network.encrypted_ledger_secrets.get_name(),
+        network.encrypted_ledger_secrets.wrap_map_hook(
+          [this](
+            kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
+            -> kv::ConsensusHookPtr {
+            if (w.size() > 1)
+            {
+              throw std::logic_error(fmt::format(
+                "Transaction contains {} writes to map {}, expected one",
+                w.size(),
+                network.encrypted_ledger_secrets.get_name()));
+            }
+
+            auto encrypted_ledger_secret_info = w.at(0);
+            if (!encrypted_ledger_secret_info.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Removal from {} table",
+                network.encrypted_ledger_secrets.get_name()));
+            }
+
+            LOG_FAIL_FMT("One off hook on encrypted secrets table!!");
+
+            network.ledger_secrets->adjust_previous_secret_stored_version(
+              version);
+
+            network.tables->unset_map_hook(
+              network.encrypted_ledger_secrets.get_name());
+
+            return kv::ConsensusHookPtr(nullptr);
+          }));
     }
 
     //
@@ -1154,6 +1190,7 @@ namespace ccf
       history->emit_signature();
 
       setup_private_recovery_store();
+      reset_recovery_hook();
 
       // Start reading private security domain of ledger
       ledger_idx = recovery_store->current_version();
@@ -1512,7 +1549,7 @@ namespace ccf
       }
     }
 
-    void backup_finish_recovery()
+    void backup_initiate_private_recovery()
     {
       if (!consensus->is_backup())
         return;
@@ -1522,6 +1559,9 @@ namespace ccf
       LOG_INFO_FMT("Initiating end of recovery (backup)");
 
       setup_private_recovery_store();
+
+      reset_recovery_hook();
+      setup_one_off_secret_hook();
 
       // Start reading private security domain of ledger
       ledger_idx = recovery_store->current_version();
@@ -1608,7 +1648,7 @@ namespace ccf
               // recovery protocol (backup only)
               network.ledger_secrets->restore_historical(
                 std::move(restored_ledger_secrets));
-              backup_finish_recovery();
+              backup_initiate_private_recovery();
             }
 
             return kv::ConsensusHookPtr(nullptr);

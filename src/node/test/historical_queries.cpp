@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/historical_queries.h"
-
 #include "ds/messaging.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/historical_queries.h"
 #include "node/history.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -308,4 +307,10 @@ TEST_CASE("StateCache")
       REQUIRE(store_at_index != nullptr);
     }
   }
+
+  {
+    INFO("TODO: Add rekey here and ask for an entry covered by the old secret");
+  }
 }
+
+// TODO: Add rekey to the test case above
