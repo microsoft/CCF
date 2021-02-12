@@ -98,7 +98,7 @@ def run(args):
 
         # Replace primary repeatedly and check the network still operates
         LOG.info(f"Retiring primary {args.rotation_retirements} times")
-        for _ in range(args.rotation_retirements):
+        for i in range(args.rotation_retirements):
             LOG.warning(f"Retirement {i}")
             reconfiguration.test_add_node(network, args)
             reconfiguration.test_retire_primary(network, args)
