@@ -412,7 +412,6 @@ namespace aft
       if (consensus_type == ConsensusType::BFT && is_follower())
       {
         guard.lock();
-        LOG_INFO_FMT("UUUUUUUUUUU locking");
       }
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, std::move(conf)});
@@ -681,21 +680,17 @@ namespace aft
             this,
             std::move(aee));
 
-          if (threading::ThreadMessaging::thread_count == 1)
-          {
-            {
-              std::unique_lock<SpinLock> guard(state->lock);
-              //LOG_INFO_FMT("ZZZZZZZZZZZZZZZZ");
-              msg_aaaa->data.pending_execution->async_execute();
-            }
-              fn_foobar(std::move(msg_aaaa));
-          }
-          else
+          if (threading::ThreadMessaging::thread_count > 1)
           {
             threading::ThreadMessaging::thread_messaging.add_task(
               threading::ThreadMessaging::get_execution_thread(
                 ++next_exec_thread),
               std::move(msg_aaaa));
+          }
+          else
+          {
+            msg_aaaa->data.pending_execution->async_execute();
+            fn_foobar(std::move(msg_aaaa));
           }
         }
         else if (!is_execution_pending)
@@ -1482,7 +1477,6 @@ namespace aft
           return false;
         }
 
-        // TODO: do not use before_start_idx we need to make sure that we are less than the most recent running
         if (!run_sync && std::get<0>(append_entries.front())->support_asyc_execution() && std::get<0>(append_entries.front())->get_max_conflict_version() >= before_state_idx)
         {
           if (!pending_requests.empty())
@@ -1497,8 +1491,6 @@ namespace aft
 
             return false;
           }
-          // TODO: i think this is wrong, we should not reset this
-          //before_state_idx = state->last_idx;
         }
 
         is_first = false;
@@ -1508,7 +1500,6 @@ namespace aft
         append_entries.pop_front();
         auto& [ds, i] = ae;
         state->last_idx = i;
-        //uint64_t max_conflict_version = ds->get_max_conflict_version();
 
         kv::ApplyResult apply_success = ds->execute();
         if (apply_success == kv::ApplyResult::FAIL)
@@ -1560,6 +1551,7 @@ namespace aft
 
           case kv::ApplyResult::PASS_SIGNATURE:
           {
+            LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
             committable_indices.push_back(i);
 
@@ -1661,15 +1653,12 @@ namespace aft
                 auto cb = tmsg->cb;
                 cb(std::move(tmsg));
               }
-              // TODO: release lock here
-
-              //tmsg->cb(std::move(tmsg));
-              //return false;
             }
             break;
           }
 
-          case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE: {
+          case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
+          {
             break;
           }
 
@@ -1694,8 +1683,6 @@ namespace aft
       }
       return false;
     }
-
-    void async_execution_complete(std::shared_ptr<AsyncExecutionCtx>& /*ctx*/) {}
 
     bool execute_append_entries_finish(bool confirm_evidence, AppendEntries& r)
     {

@@ -21,7 +21,7 @@ using StoreSig = aft::LoggingStubStoreSig;
 using Adaptor = aft::Adaptor<Store>;
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 std::vector<uint8_t> cert;
 
