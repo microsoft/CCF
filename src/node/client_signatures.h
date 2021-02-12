@@ -5,13 +5,14 @@
 #include "ds/json.h"
 #include "entities.h"
 #include "kv/map.h"
-#include "tls/hash.h"
+#include "crypto/hash.h"
 
 #include <mbedtls/md.h>
 #include <msgpack/msgpack.hpp>
 #include <vector>
 
 using namespace tls;
+using namespace crypto;
 
 MSGPACK_ADD_ENUM(MDType);
 

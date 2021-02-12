@@ -4,7 +4,7 @@
 
 #include "curve.h"
 #include "error_string.h"
-#include "hash.h"
+#include "crypto/hash.h"
 #include "key_pair.h"
 #include "pem.h"
 #include "rsa_key_pair.h"
@@ -12,6 +12,8 @@
 #include <mbedtls/pem.h>
 #include <openssl/evp.h>
 #include <openssl/x509.h>
+
+using namespace crypto;
 
 namespace tls
 {

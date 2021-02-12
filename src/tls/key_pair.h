@@ -6,7 +6,6 @@
 #include "curve.h"
 #include "entropy.h"
 #include "error_string.h"
-#include "hash.h"
 #include "key_pair_base.h"
 #include "key_pair_mbedtls.h"
 #include "key_pair_openssl.h"
@@ -20,7 +19,11 @@
 
 namespace tls
 {
-  using PublicKey = PublicKey_OpenSSL;
+#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
+    using PublicKey = PublicKey_mbedTLS;
+#else
+    using PublicKey = PublicKey_OpenSSL;
+#endif
   using PublicKeyPtr = std::shared_ptr<PublicKeyBase>;
 
   /**
@@ -43,7 +46,11 @@ namespace tls
     return std::make_shared<PublicKey>(public_der);
   }
 
-  using KeyPair = KeyPair_OpenSSL;
+#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
+    using KeyPair = KeyPair_mbedTLS;
+#else
+    using KeyPair = KeyPair_OpenSSL;
+#endif
   using KeyPairPtr = std::shared_ptr<KeyPairBase>;
 
   /**

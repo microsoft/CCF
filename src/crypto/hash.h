@@ -119,16 +119,7 @@ namespace crypto
     Sha256Hash() : h{0} {}
     Sha256Hash(const CBuffer& data) : h{0}
     {
-      // const auto info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-      // assert(mbedtls_md_get_size(info) == SIZE);
-      // mbedtls_md(info, data.p, data.rawSize(), h.data());
-
       ::SHA256(data.p, data.rawSize(), h.data());
-
-      // Check if this is slower?
-      // HashProvider hp;
-      // auto hash = hp.Hash(data.data(), data.size(), MDType::SHA256);
-      // std::copy(h.data());
     }
 
     std::array<uint8_t, SIZE> h;

@@ -4,7 +4,7 @@
 #include "backup_signatures.h"
 #include "consensus/aft/revealed_nonces.h"
 #include "node_signature.h"
-#include "tls/hash.h"
+#include "crypto/hash.h"
 #include "tls/tls.h"
 #include "tls/verifier.h"
 #include "view_change.h"

@@ -3,13 +3,15 @@
 #pragma once
 
 #include "ds/logger.h"
-#include "hash.h"
+#include "crypto/hash.h"
 #include "tls.h"
 
 #include <mbedtls/ecp.h>
 #include <openssl/evp.h>
 #include <stdexcept>
 #include <string>
+
+using namespace crypto;
 
 namespace tls
 {

@@ -7,7 +7,6 @@
 #include "http_parser.h"
 #include "node/client_signatures.h"
 #include "tls/base64.h"
-#include "tls/hash.h"
 #include "tls/key_pair.h"
 
 #define FMT_HEADER_ONLY
