@@ -1,15 +1,25 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import io
+import struct
+import os
+import re
+import hashlib
+
+from typing import BinaryIO, NamedTuple, Optional, Set
+from enum import IntEnum
 
 # Default implementation has buggy interaction between read_bytes and tell, so use fallback
 import msgpack.fallback as msgpack  # type: ignore
-import struct
-import os
 
 from loguru import logger as LOG  # type: ignore
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric import utils, ec
 
-from typing import BinaryIO, Optional, Set
+from merkletree import MerkleTree
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -18,6 +28,12 @@ LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
 UNPACK_ARGS = {"raw": True, "strict_map_key": False}
+
+# Public table names as defined in CCF
+# https://github.com/microsoft/CCF/blob/master/src/node/entities.h#L96
+SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
+# https://github.com/microsoft/CCF/blob/master/src/node/entities.h#L71
+NODES_TABLE_NAME = "public:ccf.gov.nodes"
 
 
 def to_uint_32(buffer):
@@ -33,14 +49,14 @@ def is_ledger_chunk_committed(file_name):
 
 
 class GcmHeader:
-
     _gcm_tag = ["\0"] * GCM_SIZE_TAG
     _gcm_iv = ["\0"] * GCM_SIZE_IV
 
     def __init__(self, buffer):
         if len(buffer) < GcmHeader.size():
             raise ValueError("Corrupt GCM header")
-        self._gcm_tag = struct.unpack(f"@{GCM_SIZE_TAG}B", buffer[:GCM_SIZE_TAG])
+        self._gcm_tag = struct.unpack(
+            f"@{GCM_SIZE_TAG}B", buffer[:GCM_SIZE_TAG])
         self._gcm_iv = struct.unpack(f"@{GCM_SIZE_IV}B", buffer[GCM_SIZE_TAG:])
 
     @staticmethod
@@ -68,15 +84,14 @@ class PublicDomain:
         self._unpacker = msgpack.Unpacker(self._buffer, **UNPACK_ARGS)
         self._is_snapshot = self._read_next()
         self._version = self._read_next()
-        self._max_conflict_version = self._read_next()
         self._tables = {}
         # Keys and Values may have custom serialisers.
         # Store most as raw bytes, only decode a few which we know are msgpack.
         self._msgpacked_tables = {
-            "public:ccf.internal.members.certs_der",
-            "public:ccf.gov.history",
-            "public:ccf.internal.signatures",
-            "public:ccf.gov.nodes.info",
+            "public:ccf.gov.member_cert_ders",
+            "public:ccf.gov.governance.history",
+            SIGNATURE_TX_TABLE_NAME,
+            NODES_TABLE_NAME
         }
         self._read()
 
@@ -149,6 +164,174 @@ def _byte_read_safe(file, num_of_bytes):
     return ret
 
 
+class LedgerValidator:
+    """
+    Validation object for CCF ledger integrity.
+    A ledger is considered a directory with all of the ledger chunks inside
+    A ledger chunk may have multiple transaction sets
+    A transacton set consists of each transaction before a merkle root/signature transaction
+    A valid chunk with 2 sets of transactions would look like:
+    Tx1|Tx2|Tx3|SignatureTx1|Tx4|Tx5|SignatureTx2
+    https://github.com/microsoft/CCF/blob/master/python/ccf/ledger.py#L235
+    """
+
+    # The expected result of appending each Tx together reported by the ledger
+    # The node that is expected to sign the signature transaction
+    # The certificate used to sign the signature transaction
+    # https://github.com/microsoft/CCF/blob/master/src/node/nodes.h#L42
+    EXPECTED_NODE_CERT_INDEX = 1
+    # The current network trust status of the Node at the time of the current transaction
+    EXPECTED_NODE_STATUS_INDEX = 4
+
+    # Signature table contains PrimarySignature which extends NodeSignature. NodeId should be at index 1 in the serialized Node
+    # https://github.com/microsoft/CCF/blob/master/src/node/signatures.h#L23
+    EXPECTED_NODE_SIGNATURE_INDEX = 0
+    EXPECTED_NODE_VIEW_INDEX = 2
+    EXPECTED_ROOT_INDEX = 5
+    # https://github.com/microsoft/CCF/blob/master/src/node/node_signature.h#L76
+    EXPECTED_SIGNING_NODE_ID_INDEX = 1
+    EXPECTED_SIGNATURE_INDEX = 0
+    # Constant for the size of a hashed transaction
+    SHA_256_HASH_SIZE = 32
+
+    def __init__(self):
+        self.node_certificates = {}
+        self.node_activity_status = {}
+        self.signature_count = 0
+        self.signature_ending = False
+        self.chosen_hash = ec.ECDSA(utils.Prehashed(hashes.SHA256()))
+
+        # Initialize the Merkle tree with an empty transaction.
+        self.merkle = MerkleTree()
+        empty_bytes_array = bytearray(32)
+        self.merkle.add_leaf(empty_bytes_array, do_hash=False)
+
+    def add_transaction(self, transaction):
+        """
+        Iterate through transactions of every chunk, validating items 2, 3, and 4 as we go.
+        The file chunks must be in order to ensure proper validation.
+        The iterator for the ledger returns a Transaction object for every Tx in every chunk.
+        If the last transaction of a chunk is reached, the Ledger iterator points to the next chunk.
+        When no more chunks are left, the iterator will stop and we can finish validation.
+        A merkle proof is built from 'Tx1|Tx2|Tx3|Signature1|Tx4|Signature2'
+        By appending Tx1, 2, and 3 together we can construct our merkle proof.
+        If the merke root is equal to the ledger root, it is valid.
+        The Tx bytes from Sig1 will start the next tree, appending Tx4 and validating again
+        Ledger file sequence is important, as the chaining of a next chunk
+        requires the last chunks final signature
+        """
+        # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of it's merkle tree.
+        # Don't hash empty bytes array.
+        # This iterator returns the transactions for every chunk
+        # We need to separate chunks to ensure proper validation on each
+        # For now, we only check the last committed chunk for a signature ending
+        self.signature_ending = False
+        transaction_public_domain = transaction.get_public_domain()
+        tables = transaction_public_domain.get_tables()
+
+        # Add contributing nodes certs and update nodes network trust status for verification
+        if NODES_TABLE_NAME in tables:
+            node_table = tables[NODES_TABLE_NAME]
+            for nodeid, values in node_table.items():
+                # Add the nodes certificate
+                self.node_certificates[nodeid] = values[
+                    self.EXPECTED_NODE_CERT_INDEX
+                ]
+                # Update node trust status
+                self.node_activity_status[nodeid] = NodeStatus(
+                    values[self.EXPECTED_NODE_STATUS_INDEX]
+                )
+
+        # This is a merkle root/signature tx if the table exists
+        if SIGNATURE_TX_TABLE_NAME in tables:
+            self.signature_ending = True
+            self.signature_count += 1
+            signature_table = tables[SIGNATURE_TX_TABLE_NAME]
+
+            for nodeid, values in signature_table.items():
+                signing_node = int(
+                    values[self.EXPECTED_NODE_SIGNATURE_INDEX][self.EXPECTED_SIGNING_NODE_ID_INDEX])
+                # Get binary representations for the cert, existing root, and signature
+                cert = b"".join(self.node_certificates[signing_node])
+                existing_root = b"".join(
+                    values[self.EXPECTED_ROOT_INDEX])
+                signature = values[self.EXPECTED_NODE_SIGNATURE_INDEX][self.EXPECTED_SIGNATURE_INDEX]
+
+                tx_info = TxBundleInfo(
+                    self.merkle,
+                    existing_root,
+                    cert,
+                    signature,
+                    self.node_activity_status,
+                    signing_node,
+                )
+                # validations for 2, 3, and 4gg
+                if self._verify_tx_set(tx_info):
+                    continue
+
+        # Checks complete, add this transaction to tree
+        self.merkle.add_leaf(transaction.get_public_tx())
+
+    def _verify_tx_set(self, tx_info: tuple) -> bool:
+        """Verify items 2, 3, and 4 for a the transactions up until a signature"""
+        # 2) The merkle proof is signed by a TRUSTED node in the given network
+        if self._verify_node_status(tx_info):
+            # 3) The merkle root and signature are verified with the node cert
+            if self._verify_root_signature(tx_info):
+                # 4) The merkle proof is correct for the set of transactions
+                if self._verify_merkle_root(tx_info.merkle_tree, tx_info.existing_root):
+                    return True
+        return False
+
+    @staticmethod
+    def _verify_node_status(tx_info: NamedTuple) -> bool:
+        """Verify item 2, The merkle proof is signed by a TRUSTED node in the given network"""
+        if tx_info.node_activity[tx_info.signing_node] is NodeStatus.trusted:
+            return True
+        LOG.error(
+            f"The signing node {tx_info.signing_node} is not trusted by the network"
+        )
+        raise UntrustedNodeException
+
+    def _verify_root_signature(self, tx_info: NamedTuple) -> bool:
+        """Verify item 3, that the Merkle root signature validates against the node certificate"""
+        try:
+            cert = load_pem_x509_certificate(
+                tx_info.node_cert, default_backend())
+            pub_key = cert.public_key()
+            pub_key.verify(tx_info.signature,
+                           tx_info.existing_root, self.chosen_hash)
+            return True
+        # This exception is thrown from x509, catch for logging and raise our own
+        except InvalidSignature:
+            LOG.error(
+                "Signature verification failed:"
+                + f"\nCertificate: {tx_info.node_cert}"
+                + f"\nSignature: {tx_info.signature}"
+                + f"\nRoot: {tx_info.existing_root}"
+            )
+            raise InvalidRootSignatureException
+
+    def _verify_merkle_root(
+        self, merkletree: MerkleTree, existing_root: bytes
+    ) -> bool:
+        """Verify item 4, by comparing the roots from the ledger and tree"""
+        root = bytearray(self.SHA_256_HASH_SIZE)
+        root = merkletree.get_merkle_root()
+        if root == existing_root:
+            return True
+        LOG.error(
+            f"\nRoot: {root.hex()} \nExisting root from ledger: {existing_root.hex()}"
+        )
+        raise InvalidRootException
+
+    @staticmethod
+    def _hash_tx(transaction: bytes) -> bytes:
+        """Hashing function for ledger transactions"""
+        hashed = hashlib.sha256(transaction)
+        return hashed.digest()
+
+
 class Transaction:
     """
     A transaction represents one entry in the CCF ledger.
@@ -162,8 +345,10 @@ class Transaction:
     _file_size: int = 0
     gcm_header: Optional[GcmHeader] = None
     _tx_offset: int = 0
+    _ledger_validator: LedgerValidator
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, ledger_validator: LedgerValidator):
+        self._ledger_validator = ledger_validator
         self._file = open(filename, mode="rb")
         if self._file is None:
             raise RuntimeError(f"Ledger file {filename} could not be opened")
@@ -208,7 +393,8 @@ class Transaction:
         :return: :py:class:`ccf.ledger.PublicDomain`
         """
         if self._public_domain == None:
-            buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
+            buffer = io.BytesIO(_byte_read_safe(
+                self._file, self._public_domain_size))
             self._public_domain = PublicDomain(buffer)
         return self._public_domain
 
@@ -241,9 +427,14 @@ class Transaction:
         try:
             self._complete_read()
             self._read_header()
+
+            # Adds every transaction to the ledger validator
+            # LedgerValidator does verification for every added transaction and throws when it finds any anamoly.
+            self._ledger_validator.add_transaction(self)
+
             return self
-        except Exception as e:
-            raise StopIteration() from e
+        except Exception as exception:
+            raise StopIteration() from exception
 
 
 class LedgerChunk:
@@ -255,9 +446,11 @@ class LedgerChunk:
 
     _current_tx: Transaction
     _filename: str
+    _ledger_validator: LedgerValidator
 
-    def __init__(self, name: str):
-        self._current_tx = Transaction(name)
+    def __init__(self, name: str, ledger_validator: LedgerValidator):
+        self._ledger_validator = ledger_validator
+        self._current_tx = Transaction(name, ledger_validator)
         self._filename = name
 
     def __next__(self) -> Transaction:
@@ -278,9 +471,12 @@ class Ledger:
     :param str name: Ledger directory for a single CCF node.
     """
 
+    LEDGER_COMMITTED_FILE_NAME_REGEX = r"ledger_([0-9]*)-([0-9]*)\.committed"
+
     _filenames: list
     _fileindex: int
     _current_chunk: LedgerChunk
+    _ledger_validator: LedgerValidator
 
     def __init__(self, directory: str):
 
@@ -293,9 +489,13 @@ class Ledger:
         sorted_ledgers = sorted(
             ledgers,
             key=lambda x: int(
-                x.replace(".committed", "").replace("ledger_", "").split("-")[0]
+                x.replace(".committed", "").replace(
+                    "ledger_", "").split("-")[0]
             ),
         )
+
+        # Verifies there are no missing ledger chunks
+        self._verify_commited_files(sorted_ledgers)
 
         for chunk in sorted_ledgers:
             if os.path.isfile(os.path.join(directory, chunk)):
@@ -303,13 +503,90 @@ class Ledger:
                     LOG.warning(f"The file {chunk} has not been committed")
                 self._filenames.append(os.path.join(directory, chunk))
 
+        # Initialize LedgerValidator isntance which will be passed to LedgerChunks.
+        self._ledger_validator = LedgerValidator()
+
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1
         if len(self._filenames) > self._fileindex:
-            self._current_chunk = LedgerChunk(self._filenames[self._fileindex])
+            self._current_chunk = LedgerChunk(
+                self._filenames[self._fileindex], self._ledger_validator)
             return self._current_chunk
         else:
             raise StopIteration
 
     def __iter__(self):
         return self
+
+    def _verify_commited_files(self, sorted_ledgers: list):
+        """
+        Verify that there are no missing ledger chunks.
+        Throws if there are missing files.
+        """
+
+        # First commit should always be 1
+        expected_commit = 1
+
+        # initialize end commit id to 1
+        end_commit_id = -1
+
+        for filename in sorted_ledgers:
+            match = re.search(self.LEDGER_COMMITTED_FILE_NAME_REGEX, filename)
+            if match:
+                start_commit_id = match.group(1)
+                if(len(match.group(2))) > 0:
+                    end_commit_id = match.group(2)
+            if expected_commit == int(start_commit_id):
+                expected_commit = int(end_commit_id) + 1
+            else:
+                LOG.error(
+                    f"Expected next commit to be {expected_commit}, but was {start_commit_id}"
+                )
+                raise ValueError("Ledger chunks are missing.")
+
+
+def extract_msgpacked_data(data: bytes):
+    return msgpack.unpackb(data, **UNPACK_ARGS)
+
+
+class NodeStatus(IntEnum):
+    """These are the corresponding status meanings from the ccf.nodes table"""
+
+    pending = 0
+    trusted = 1
+    retired = 2
+
+
+class TxBundleInfo(NamedTuple):
+    """Bundle for transaction information required for validation """
+
+    merkle_tree: MerkleTree
+    existing_root: bytes
+    node_cert: bytes
+    signature: bytes
+    node_activity: dict
+    signing_node: int
+
+
+class InvalidRootException(Exception):
+    """When the transactions don't add up to the ledger signature root"""
+
+
+class SignatureCountException(Exception):
+    """When a ledger has no signature transactions"""
+
+
+class SignatureEndingException(Exception):
+    """When a signature transaction is not the last transaction of a ledger"""
+
+
+class InvalidRootSignatureException(Exception):
+    """When a signature transactions certificate cannot be validated against the node signature"""
+
+
+class CommitIdRangeException(Exception):
+    """There was a missing chunk in the ledger directory"""
+
+
+class UntrustedNodeException(Exception):
+    """The signing node was not verified by the network"""
