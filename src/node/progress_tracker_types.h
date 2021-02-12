@@ -101,7 +101,7 @@ namespace ccf
       auto r = tx.commit();
       LOG_TRACE_FMT("Adding signatures to ledger, result:{}", r);
       CCF_ASSERT_FMT(
-        r == kv::CommitSuccess::OK,
+        r == kv::CommitResult::SUCCESS,
         "Commiting backup signatures failed r:{}",
         r);
     }
@@ -139,7 +139,7 @@ namespace ccf
 
       nonces_tv->put(0, nonces);
       auto r = tx.commit();
-      if (r != kv::CommitSuccess::OK)
+      if (r != kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
           "Failed to write nonces, view:{}, seqno:{}",
@@ -252,7 +252,7 @@ namespace ccf
 
       new_views_tv->put(0, new_view);
       auto r = tx.commit();
-      if (r != kv::CommitSuccess::OK)
+      if (r != kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
           "Failed to write new_view, view:{}, seqno:{}",

@@ -33,7 +33,7 @@ namespace ccf
    * ./src/runtime_config/gov.lua.)
    *
    *  local tables, param = ...
-   *  local value = tables["public:ccf.gov.values"]:get(param)
+   *  local value = tables["public:ccf.internal.values"]:get(param)
    *  local c = Calls:new()
    *  local p = Puts:new()
    *  -- propose writing store["table"]["key"] = value
@@ -45,7 +45,7 @@ namespace ccf
    *
    *  local tables, param = ...
    *  return Calls:call(Puts:put("table", "key",
-   *    tables["public:ccf.gov.values"]:get(param))
+   *    tables["public:ccf.internal.values"]:get(param))
    */
   enum class ProposalState
   {

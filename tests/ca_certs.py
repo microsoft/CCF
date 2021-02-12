@@ -58,7 +58,7 @@ def test_cert_store(network, args):
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post(
-            "/gov/read", {"table": "public:ccf.gov.ca_cert_ders", "key": cert_name}
+            "/gov/read", {"table": "public:ccf.gov.jwt.ca_certs_der", "key": cert_name}
         )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         cert_ref = x509.load_pem_x509_certificate(
@@ -82,7 +82,7 @@ def test_cert_store(network, args):
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post(
-            "/gov/read", {"table": "public:ccf.gov.ca_cert_ders", "key": cert_name}
+            "/gov/read", {"table": "public:ccf.gov.jwt.ca_certs_der", "key": cert_name}
         )
         assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
 

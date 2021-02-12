@@ -51,7 +51,7 @@ export function jwt(
 
   // Get the stored signing key to validate the token.
   const keysMap = new ccf.TypedKVMap(
-    ccf.kv["public:ccf.gov.jwt_public_signing_keys"],
+    ccf.kv["public:ccf.gov.jwt.public_signing_keys"],
     ccf.string,
     ccf.typedArray(Uint8Array)
   );
