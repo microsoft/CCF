@@ -11,8 +11,6 @@ import tempfile
 from dataclasses import dataclass
 from http.client import HTTPResponse
 from io import BytesIO
-from requests.adapters import HTTPAdapter
-from urllib3.util.ssl_ import create_urllib3_context  # type: ignore
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
