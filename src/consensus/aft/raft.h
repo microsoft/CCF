@@ -102,6 +102,12 @@ namespace aft
     bool is_execution_pending = false;
     std::list<std::unique_ptr<AbstractMsgCallback>> pending_executions;
 
+    // When we receive append entries from a new primary, we should rollback
+    // to the index they're telling us about, and replay from here. However
+    // for complex reasons we want to do this once only, and expect to be
+    // correct without doing this thereafter.
+    bool is_new_follower = false;
+
     // BFT
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
@@ -1167,6 +1173,25 @@ namespace aft
         r.idx,
         r.prev_idx);
 
+      if (is_new_follower)
+      {
+        if (state->last_idx != r.prev_idx)
+        {
+          LOG_DEBUG_FMT(
+            "New follower received first append entries with mismatch - "
+            "rolling back from {} to {}",
+            state->last_idx,
+            r.prev_idx);
+          rollback(r.prev_idx);
+        }
+        else
+        {
+          LOG_DEBUG_FMT("New follower agrees with prev_idx == {}", r.prev_idx);
+        }
+        is_new_follower = false;
+      }
+
+
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
         append_entries;
@@ -2014,6 +2039,8 @@ namespace aft
       votes_for_me.clear();
 
       rollback(last_committable_index());
+
+      is_new_follower = true;
 
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
