@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/app_interface.h"
+#include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
 #include "node/rpc/metrics_tracker.h"
@@ -28,136 +29,6 @@ namespace ccfapp
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
-  static JSValue js_print(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    int i;
-    const char* str;
-    std::stringstream ss;
-
-    for (i = 0; i < argc; i++)
-    {
-      if (i != 0)
-        ss << ' ';
-      if (!JS_IsError(ctx, argv[i]) && JS_IsObject(argv[i]))
-      {
-        JSValue rval = JS_JSONStringify(ctx, argv[i], JS_NULL, JS_NULL);
-        str = JS_ToCString(ctx, rval);
-        JS_FreeValue(ctx, rval);
-      }
-      else
-        str = JS_ToCString(ctx, argv[i]);
-      if (!str)
-        return JS_EXCEPTION;
-      ss << str;
-      JS_FreeCString(ctx, str);
-    }
-    LOG_INFO << ss.str() << std::endl;
-    return JS_UNDEFINED;
-  }
-
-  void js_dump_error(JSContext* ctx)
-  {
-    JSValue exception_val = JS_GetException(ctx);
-
-    JSValue val;
-    const char* stack;
-    bool is_error;
-
-    is_error = JS_IsError(ctx, exception_val);
-    if (!is_error)
-      LOG_INFO_FMT("Throw: ");
-    js_print(ctx, JS_NULL, 1, (JSValueConst*)&exception_val);
-    if (is_error)
-    {
-      val = JS_GetPropertyStr(ctx, exception_val, "stack");
-      if (!JS_IsUndefined(val))
-      {
-        stack = JS_ToCString(ctx, val);
-        LOG_INFO_FMT("{}", stack);
-
-        JS_FreeCString(ctx, stack);
-      }
-      JS_FreeValue(ctx, val);
-    }
-
-    JS_FreeValue(ctx, exception_val);
-  }
-
-  struct JSAutoFreeRuntime
-  {
-    JSRuntime* rt;
-
-    JSAutoFreeRuntime(JSRuntime* rt) : rt(rt) {}
-    ~JSAutoFreeRuntime()
-    {
-      JS_FreeRuntime(rt);
-    }
-  };
-
-  struct JSAutoFreeCtx
-  {
-    JSContext* ctx;
-
-    JSAutoFreeCtx(JSContext* ctx) : ctx(ctx) {}
-    ~JSAutoFreeCtx()
-    {
-      JS_FreeContext(ctx);
-    }
-
-    struct JSWrappedValue
-    {
-      JSWrappedValue(JSContext* ctx, JSValue&& val) :
-        ctx(ctx),
-        val(std::move(val))
-      {}
-      ~JSWrappedValue()
-      {
-        JS_FreeValue(ctx, val);
-      }
-      operator const JSValue&() const
-      {
-        return val;
-      }
-      JSContext* ctx;
-      JSValue val;
-    };
-
-    struct JSWrappedCString
-    {
-      JSWrappedCString(JSContext* ctx, const char* cstr) : ctx(ctx), cstr(cstr)
-      {}
-      ~JSWrappedCString()
-      {
-        JS_FreeCString(ctx, cstr);
-      }
-      operator const char*() const
-      {
-        return cstr;
-      }
-      operator std::string() const
-      {
-        return std::string(cstr);
-      }
-      operator std::string_view() const
-      {
-        return std::string_view(cstr);
-      }
-      JSContext* ctx;
-      const char* cstr;
-    };
-
-    JSWrappedValue operator()(JSValue&& val)
-    {
-      return JSWrappedValue(ctx, std::move(val));
-    };
-
-    JSWrappedCString operator()(const char* cstr)
-    {
-      return JSWrappedCString(ctx, cstr);
-    };
-  };
-
   static JSValue js_generate_aes_key(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
@@ -168,14 +39,14 @@ namespace ccfapp
     int32_t key_size;
     if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
     {
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
     // Supported key sizes for AES.
     if (key_size != 128 && key_size != 192 && key_size != 256)
     {
       JS_ThrowRangeError(ctx, "invalid key size");
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
@@ -198,7 +69,7 @@ namespace ccfapp
     uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
     if (!key)
     {
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
@@ -206,12 +77,12 @@ namespace ccfapp
     uint8_t* wrapping_key = JS_GetArrayBuffer(ctx, &wrapping_key_size, argv[1]);
     if (!wrapping_key)
     {
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
     void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    JSAutoFreeCtx& auto_free = *(JSAutoFreeCtx*)auto_free_ptr;
+    js::JSAutoFreeCtx& auto_free = *(js::JSAutoFreeCtx*)auto_free_ptr;
 
     JSValue wrap_algo = argv[2];
     auto wrap_algo_name_val =
@@ -220,7 +91,7 @@ namespace ccfapp
 
     if (!wrap_algo_name_cstr)
     {
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
@@ -228,7 +99,7 @@ namespace ccfapp
     {
       JS_ThrowRangeError(
         ctx, "unsupported key wrapping algorithm, supported: RSA-OAEP");
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
@@ -265,7 +136,7 @@ namespace ccfapp
 
     if (!str)
     {
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
@@ -273,7 +144,7 @@ namespace ccfapp
       ctx, (uint8_t*)str, str_size, js_free_arraybuffer_cstring, ctx, false);
 
     if (JS_IsException(buf))
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
 
     return buf;
   }
@@ -294,7 +165,7 @@ namespace ccfapp
     JSValue str = JS_NewStringLen(ctx, (char*)buf, buf_size);
 
     if (JS_IsException(str))
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
 
     return str;
   }
@@ -310,7 +181,7 @@ namespace ccfapp
 
     if (JS_IsException(str))
     {
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return str;
     }
 
@@ -340,10 +211,12 @@ namespace ccfapp
       JS_ParseJSON(ctx, (char*)buf_null_terminated.data(), buf_size, "<json>");
 
     if (JS_IsException(obj))
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
 
     return obj;
   }
+
+  // KV
 
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -391,7 +264,7 @@ namespace ccfapp
       JS_NewArrayBufferCopy(ctx, val.value().data(), val.value().size());
 
     if (JS_IsException(buf))
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
 
     return buf;
   }
@@ -486,7 +359,7 @@ namespace ccfapp
 
         if (JS_IsException(val))
         {
-          js_dump_error(ctx);
+          js::js_dump_error(ctx);
           failed = true;
           return false;
         }
@@ -597,6 +470,10 @@ namespace ccfapp
     return true;
   }
 
+  // END KV
+
+  // Request
+
   static JSValue js_body_text(
     JSContext* ctx,
     JSValueConst this_val,
@@ -654,6 +531,10 @@ namespace ccfapp
     JS_CFUNC_DEF("arrayBuffer", 0, js_body_array_buffer),
   };
 
+  // END request
+
+  // Modules
+
   struct JSModuleLoaderArg
   {
     ccf::NetworkTables* network;
@@ -693,7 +574,7 @@ namespace ccfapp
       JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
     if (JS_IsException(func_val))
     {
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return nullptr;
     }
 
@@ -702,6 +583,8 @@ namespace ccfapp
     JS_FreeValue(ctx, func_val);
     return m;
   }
+
+  // END modules
 
   class JSHandlers : public UserEndpointRegistry
   {
@@ -766,7 +649,7 @@ namespace ccfapp
       auto console = JS_NewObject(ctx);
 
       JS_SetPropertyStr(
-        ctx, console, "log", JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
+        ctx, console, "log", JS_NewCFunction(ctx, js::js_print, "log", 1));
 
       return console;
     }
@@ -966,7 +849,7 @@ namespace ccfapp
       {
         throw std::runtime_error("Failed to initialise QuickJS runtime");
       }
-      JSAutoFreeRuntime auto_free_rt(rt);
+      js::JSAutoFreeRuntime auto_free_rt(rt);
 
       JS_SetMaxStackSize(rt, 1024 * 1024);
 
@@ -1010,7 +893,7 @@ namespace ccfapp
       {
         throw std::runtime_error("Failed to initialise QuickJS context");
       }
-      JSAutoFreeCtx auto_free(ctx);
+      js::JSAutoFreeCtx auto_free(ctx);
       JS_SetContextOpaque(ctx, &auto_free);
 
       // Set prototype for request body class
@@ -1040,7 +923,7 @@ namespace ccfapp
 
       if (JS_IsException(module))
       {
-        js_dump_error(ctx);
+        js::js_dump_error(ctx);
 
         args.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1053,7 +936,7 @@ namespace ccfapp
       auto eval_val = JS_EvalFunction(ctx, module);
       if (JS_IsException(eval_val))
       {
-        js_dump_error(ctx);
+        js::js_dump_error(ctx);
         args.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
@@ -1088,7 +971,7 @@ namespace ccfapp
 
       if (JS_IsException(val))
       {
-        js_dump_error(ctx);
+        js::js_dump_error(ctx);
         args.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
@@ -1154,7 +1037,7 @@ namespace ccfapp
               JS_JSONStringify(ctx, response_body_js, JS_NULL, JS_NULL);
             if (JS_IsException(rval))
             {
-              js_dump_error(ctx);
+              js::js_dump_error(ctx);
               args.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
@@ -1167,7 +1050,7 @@ namespace ccfapp
           }
           if (!cstr)
           {
-            js_dump_error(ctx);
+            js::js_dump_error(ctx);
             args.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,

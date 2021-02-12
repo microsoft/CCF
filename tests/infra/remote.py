@@ -684,7 +684,9 @@ class CCFRemote(object):
                 f"--constitution={os.path.basename(constitution)}",
             ]
             data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
-            data_files += [os.path.join(os.path.basename(self.common_dir), constitution)]
+            data_files += [
+                os.path.join(os.path.basename(self.common_dir), constitution)
+            ]
             if members_info is None:
                 raise ValueError(
                     "Starting node should be given at least one member info"
