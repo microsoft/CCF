@@ -270,8 +270,7 @@ namespace ccf
         return false;
       }
 
-      auto network_pubk =
-        std::make_shared<tls::PublicKey_mbedTLS>(network_kp->public_key_pem());
+      auto network_pubk = tls::make_public_key(network_kp->public_key_pem());
 
       auto peer_public_size = serialized::read<size_t>(data, size);
       auto peer_public_start = data;
@@ -468,7 +467,7 @@ namespace ccf
       const tls::Pem& network_pkey,
       NodeId self_) :
       writer_factory(writer_factory_),
-      network_kp(std::make_shared<tls::KeyPair_mbedTLS>(network_pkey)),
+      network_kp(tls::make_key_pair(network_pkey)),
       self(self_)
     {}
 
