@@ -20,9 +20,9 @@
 namespace tls
 {
 #ifdef CRYPTO_PROVIDER_IS_MBEDTLS
-    using PublicKey = PublicKey_mbedTLS;
+  using PublicKey = PublicKey_mbedTLS;
 #else
-    using PublicKey = PublicKey_OpenSSL;
+  using PublicKey = PublicKey_OpenSSL;
 #endif
   using PublicKeyPtr = std::shared_ptr<PublicKeyBase>;
 
@@ -47,9 +47,9 @@ namespace tls
   }
 
 #ifdef CRYPTO_PROVIDER_IS_MBEDTLS
-    using KeyPair = KeyPair_mbedTLS;
+  using KeyPair = KeyPair_mbedTLS;
 #else
-    using KeyPair = KeyPair_OpenSSL;
+  using KeyPair = KeyPair_OpenSSL;
 #endif
   using KeyPairPtr = std::shared_ptr<KeyPairBase>;
 

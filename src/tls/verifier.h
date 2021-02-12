@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/hash.h"
 #include "curve.h"
 #include "error_string.h"
-#include "crypto/hash.h"
 #include "key_pair.h"
 #include "pem.h"
 #include "rsa_key_pair.h"

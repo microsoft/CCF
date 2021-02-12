@@ -3,8 +3,8 @@
 #pragma once
 #include "backup_signatures.h"
 #include "consensus/aft/revealed_nonces.h"
-#include "node_signature.h"
 #include "crypto/hash.h"
+#include "node_signature.h"
 #include "tls/tls.h"
 #include "tls/verifier.h"
 #include "view_change.h"
