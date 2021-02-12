@@ -43,7 +43,7 @@ for chunk in ledger:
                 target_table_changes += 1  # A key was changed
 
         # extracting transactions on a sample table
-        # ledger.ledger() does ledger verification implicitly
+        # Ledger verification is happening implicitly in ccf.ledger.Ledger()
         if "public:sample.logs" in public_tables:
             public_tpal_table = public_tables["public:sample.logs"]
             for key_value in public_tpal_table.items():
