@@ -93,6 +93,7 @@ class LoggingTxs:
             )
 
         nodes = self.network.get_joined_nodes() if node is None else [node]
+        # nodes = [self.network.find_primary()[0]]
         for node in nodes:
             for pub_idx, pub_value in self.pub.items():
                 # As public records do not yet handle historical queries,

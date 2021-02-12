@@ -1576,7 +1576,10 @@ namespace ccf
                   // TODO: Set previous ls stored version here too!
                   // On recovery, accumulate restored ledger secrets
                   restored_ledger_secrets.emplace(
-                    ledger_secret_version, std::move(plain_ledger_secret));
+                    ledger_secret_version,
+                    LedgerSecret(
+                      std::move(plain_ledger_secret),
+                      encrypted_ledger_secret.previous_secret_stored_version));
                 }
                 else
                 {

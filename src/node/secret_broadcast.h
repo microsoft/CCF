@@ -61,7 +61,8 @@ namespace ccf
              encrypt_ledger_secret(
                encryption_key,
                tls::make_public_key(ni.encryption_pub_key),
-               std::move(s.second.raw_key))});
+               std::move(s.second.raw_key)),
+             s.second.previous_secret_stored_version});
         }
 
         secrets->put(

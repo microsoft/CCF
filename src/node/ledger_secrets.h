@@ -15,6 +15,7 @@
 
 namespace ccf
 {
+  // TODO: We should change this and make it a member on `LedgerSecret` maybe?
   inline std::vector<uint8_t> decrypt_previous_ledger_secret(
     const std::vector<uint8_t>& raw_ledger_secret,
     std::vector<uint8_t>&& raw_encrypted_previous_secret)
@@ -79,6 +80,9 @@ namespace ccf
   using LedgerSecretsMap = std::map<kv::Version, LedgerSecret>;
   using VersionedLedgerSecret = LedgerSecretsMap::value_type;
 
+  using HistoricalLedgerSecretsMap =
+    std::map<kv::Version, std::shared_ptr<LedgerSecret>>;
+
   inline std::vector<uint8_t> generate_raw_secret()
   {
     return tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
@@ -98,6 +102,10 @@ namespace ccf
 
     SpinLock lock;
     LedgerSecretsMap ledger_secrets;
+
+    // TODO: Limit its size
+    // Populated during historical queries
+    LedgerSecretsMap historical_ledger_secrets;
 
     std::optional<LedgerSecretsMap::iterator> last_used_secret_it =
       std::nullopt;
@@ -140,10 +148,22 @@ namespace ccf
         version,
         [](auto a, const auto& b) { return b.first > a; });
 
-      if (search == ledger_secrets.begin())
+      if (search == ledger_secrets.begin()) // TODO: Only if historical?
       {
-        throw std::logic_error(
-          fmt::format("Could not find ledger secret for seqno {}", version));
+        LOG_FAIL_FMT("Looking for historical queries at {}", version);
+        auto historical_search = std::upper_bound(
+          historical_ledger_secrets.begin(),
+          historical_ledger_secrets.end(),
+          version,
+          [](auto a, const auto& b) { return b.first > a; });
+
+        if (historical_search == historical_ledger_secrets.begin())
+        {
+          throw std::logic_error(fmt::format(
+            "Could not find historical ledger secret for seqno {}", version));
+        }
+
+        return std::prev(historical_search)->second;
       }
 
       if (!historical_hint)
@@ -184,7 +204,9 @@ namespace ccf
     LedgerSecrets(NodeId self_, LedgerSecretsMap&& ledger_secrets_) :
       self(self_),
       ledger_secrets(std::move(ledger_secrets_))
-    {}
+    {
+      dump();
+    }
 
     // TODO: delete
     void dump()
@@ -218,6 +240,7 @@ namespace ccf
       self = id;
     }
 
+    // TODO: How does this work on backups??
     void adjust_previous_secret_stored_version(kv::Version version)
     {
       // To be able to lookup the last active ledger secret before the service
@@ -243,13 +266,21 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      if (ledger_secrets.empty())
+      if (ledger_secrets.empty() && historical_ledger_secrets.empty())
       {
         throw std::logic_error(
           "Could not retrieve first ledger secret: no secret set");
       }
 
-      return *ledger_secrets.begin();
+      if (historical_ledger_secrets.empty())
+      {
+        LOG_FAIL_FMT("Returning first ledger secret");
+        return *ledger_secrets.begin();
+      }
+
+      LOG_FAIL_FMT("Returning first historical ledger secret");
+
+      return *historical_ledger_secrets.begin();
     }
 
     VersionedLedgerSecret get_latest(kv::ReadOnlyTx& tx)
@@ -359,6 +390,29 @@ namespace ccf
         LedgerSecret(std::move(raw_secret), previous_secret_stored_version));
 
       LOG_INFO_FMT("Added new ledger secret at seqno {}", version);
+    }
+
+    // TODO: Should probably return a shared_ptr!
+    LedgerSecret set_historical_secret(
+      kv::Version version,
+      std::vector<uint8_t>&& raw_secret,
+      std::optional<kv::Version> previous_secret_stored_version = std::nullopt)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      CCF_ASSERT_FMT(
+        historical_ledger_secrets.find(version) ==
+          historical_ledger_secrets.end(),
+        "Historical ledger secret at seqno {} already exists",
+        version);
+
+      auto s = historical_ledger_secrets.emplace(
+        version,
+        LedgerSecret(std::move(raw_secret), previous_secret_stored_version));
+
+      LOG_INFO_FMT("Added new historical ledger secret at seqno {}", version);
+
+      return s.first->second;
     }
 
     void rollback(kv::Version version)

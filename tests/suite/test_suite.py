@@ -19,6 +19,9 @@ historical_recovery_snapshot_failure = [
     e2e_logging.test_historical_query,
     e2e_logging.test_rekey,
     e2e_logging.test_rekey,
+    e2e_logging.test_rekey,
+    e2e_logging.test_rekey,
+    e2e_logging.test_rekey,
     recovery.test,
 ]
 suites["rekey_recovery"] = historical_recovery_snapshot_failure

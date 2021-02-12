@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
+#include "node/encryptor.h"
 #include "node/historical_queries_interface.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
@@ -31,12 +32,6 @@ namespace ccf::historical
     };
 
     using LedgerEntry = std::vector<uint8_t>;
-
-    // TODO:
-    // 1. Should be usable from encryptor
-    // 2. Should be thread safe
-    // 3. Should be cleared if it becomes too large
-    LedgerSecretsMap historical_ledger_secrets;
 
     struct LedgerSecretRecoveryInfo
     {
@@ -273,12 +268,15 @@ namespace ccf::historical
     void deserialise_ledger_entry(
       consensus::Index idx, const LedgerEntry& entry)
     {
-      LOG_FAIL_FMT("Deserialising historical entry at: {}", idx);
+      LOG_FAIL_FMT(
+        "Deserialising historical entry at: {}, size {}", idx, entry.size());
 
       StorePtr store = std::make_shared<kv::Store>(
         false /* Do not start from very first idx */,
         true /* Make use of historical secrets */);
 
+      // TODO: Setting an encryptor is necessary here!! Otherwise the GCM
+      // header isn't skipped!
       store->set_encryptor(network.tables->get_encryptor());
 
       auto request_it = requests.find(idx);
@@ -311,14 +309,12 @@ namespace ccf::historical
           auto previous_ledger_secret =
             encrypted_previous_ledger_secret->get(0)->previous_ledger_secret;
 
-          // TODO: Store first known ledger secret in request, and replace every
-          // time!
-          auto first_known_ledger_secret =
-            request.ledger_secret_recovery_info->last_ledger_secret;
-
-          auto ledger_secret = decrypt_previous_ledger_secret(
-            first_known_ledger_secret.raw_key,
+          // Store first known ledger secret in request, so that we can
+          // deserialise the next fetched encrypted ledger secret
+          auto recovered_ledger_secret_raw = decrypt_previous_ledger_secret(
+            request.ledger_secret_recovery_info->last_ledger_secret.raw_key,
             std::move(previous_ledger_secret->encrypted_data));
+          // previous_ledger_secret->previous_secret_stored_version);
 
           LOG_FAIL_FMT(
             "Restoring ledger secret valid from {}, and previous one stored at "
@@ -327,11 +323,15 @@ namespace ccf::historical
             previous_ledger_secret->previous_secret_stored_version.value_or(
               kv::NoVersion));
 
-          historical_ledger_secrets.emplace(
-            previous_ledger_secret->version,
-            LedgerSecret(
-              std::move(ledger_secret),
-              previous_ledger_secret->previous_secret_stored_version));
+          // TODO: Thread safety!
+          // historical_ledger_secrets.insert(std::make_pair(
+          //   previous_ledger_secret->version, recovered_ledger_secret));
+
+          auto recovered_historical_secret =
+            network.ledger_secrets->set_historical_secret(
+              previous_ledger_secret->version,
+              std::move(recovered_ledger_secret_raw),
+              previous_ledger_secret->previous_secret_stored_version);
 
           LOG_FAIL_FMT(
             "Decrypted and fetched ledger secret at {}",
@@ -347,12 +347,34 @@ namespace ccf::historical
               "We're done, let's fetch the target idx at {}",
               request.ledger_secret_recovery_info->target_idx);
 
-            request.current_stage = RequestStage::Fetching;
-            fetch_entry_at(request.ledger_secret_recovery_info->target_idx);
+            auto new_request = requests.insert(std::make_pair(
+              request.ledger_secret_recovery_info->target_idx,
+              Request{RequestStage::Fetching,
+                      {},
+                      nullptr,
+                      std::move(request.ledger_secret_recovery_info)}));
+
+            requests.erase(request_it);
+
+            fetch_entry_at(new_request.first->first);
           }
           else
           {
-            LOG_FAIL_FMT("Let's continue fetching entries...");
+            LOG_FAIL_FMT("Let's continue fetching ledger secret entries...");
+
+            request.ledger_secret_recovery_info->last_ledger_secret =
+              recovered_historical_secret;
+
+            // TODO: Create a new request and fetch it
+            requests.insert(std::make_pair(
+              previous_ledger_secret->previous_secret_stored_version.value(),
+              Request{RequestStage::RecoveringLedgerSecret,
+                      {},
+                      nullptr,
+                      std::move(request.ledger_secret_recovery_info)}));
+
+            requests.erase(request_it);
+
             fetch_entry_at(
               previous_ledger_secret->previous_secret_stored_version.value());
           }
@@ -360,6 +382,8 @@ namespace ccf::historical
           return;
         }
       }
+
+      LOG_FAIL_FMT("Deserialising historical entry normally...");
 
       const auto deserialise_result =
         store->apply(entry, ConsensusType::CFT)->execute();
@@ -387,6 +411,7 @@ namespace ccf::historical
             auto& request = request_it->second;
             if (request.current_stage == RequestStage::Fetching)
             {
+              LOG_FAIL_FMT("Fetching entries...");
               // We were looking for this entry. Store the produced store
               request.current_stage = RequestStage::Untrusted;
               request.entry_hash = crypto::Sha256Hash(entry);
