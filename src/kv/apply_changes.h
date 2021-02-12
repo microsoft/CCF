@@ -137,8 +137,11 @@ namespace kv
       for (auto it = views.begin(); it != views.end(); ++it)
       {
         bool skip_max_conflict =
-          (it->first.compare("public:ccf.gov.aft.requests") == 0);
+          (it->first.compare("public:ccf.internal.consensus.requests") == 0);
+        //LOG_INFO_FMT("BBBBBB:{}", it->first);
         it->second->commit(version, max_conflict_version, skip_max_conflict);
+        //LOG_INFO_FMT(
+        //  "version:{}, max_conflict:{}", version, max_conflict_version);
       }
 
       // Collect ConsensusHooks

@@ -1453,6 +1453,7 @@ namespace aft
       {
         if (!run_sync && must_break)
         {
+          LOG_INFO_FMT("AAAAAA:{}", pending_requests.size());
           for (auto& tmsg : pending_requests)
           {
             threading::ThreadMessaging::thread_messaging.add_task(
@@ -1466,6 +1467,7 @@ namespace aft
 
         if (!run_sync && !std::get<0>(append_entries.front())->support_asyc_execution() && !is_first && (async_exec->pending_cbs > 0))
         {
+          LOG_INFO_FMT("AAAAAA:{}", pending_requests.size());
           for (auto& tmsg : pending_requests)
           {
             threading::ThreadMessaging::thread_messaging.add_task(
@@ -1479,6 +1481,7 @@ namespace aft
 
         if (!run_sync && std::get<0>(append_entries.front())->support_asyc_execution() && std::get<0>(append_entries.front())->get_max_conflict_version() >= before_state_idx)
         {
+          LOG_INFO_FMT("AAAAAA:{}", pending_requests.size());
           if (!pending_requests.empty())
           {
             for (auto& tmsg : pending_requests)
@@ -1669,6 +1672,7 @@ namespace aft
         }
       }
 
+      LOG_INFO_FMT("AAAAAA:{}", pending_requests.size());
       for (auto& tmsg : pending_requests)
       {
           threading::ThreadMessaging::thread_messaging.add_task(

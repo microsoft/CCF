@@ -184,8 +184,9 @@ namespace kv::untyped
         bool track_commit = consensus != nullptr && map.store->get_consensus()->type() == ConsensusType::BFT;
 
         // If we have iterated over the map, check for a global version match.
+        //LOG_INFO_FMT("CCCCCCCC - {}", skip_max_conflict);
 
-        if (!skip_max_conflict && !track_commit)
+        if (!skip_max_conflict && track_commit)
         {
           for (auto it = change_set.reads.begin(); it != change_set.reads.end();
                ++it)
