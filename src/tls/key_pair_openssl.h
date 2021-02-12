@@ -25,11 +25,9 @@ namespace tls
 
   inline void OPENSSL_CHECKNULL(void* ptr)
   {
-    unsigned long ec = ERR_get_error();
-    if (ptr == NULL && ec != 0)
+    if (ptr == NULL)
     {
-      throw std::runtime_error(
-        fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
+      throw std::runtime_error("OpenSSL error: missing object");
     }
   }
 
@@ -61,6 +59,8 @@ namespace tls
     }
 
   public:
+    PublicKey_OpenSSL(PublicKey_OpenSSL&& key) = default;
+
     /**
      * Construct from PEM
      */
@@ -85,6 +85,11 @@ namespace tls
         throw new std::runtime_error("Could not read DER");
       }
     }
+
+    /**
+     * Construct from a pre-initialised pk context
+     */
+    PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
 
     virtual ~PublicKey_OpenSSL()
     {

@@ -276,8 +276,12 @@ namespace tls
       BIO* certbio = BIO_new_mem_buf(c.data(), c.size());
       if (!(cert = PEM_read_bio_X509(certbio, NULL, 0, NULL)))
       {
-        throw std::invalid_argument(fmt::format(
-          "OpenSSL error: {}", ERR_error_string(ERR_get_error(), NULL)));
+        BIO_reset(certbio);
+        if (!(cert = d2i_X509_bio(certbio, NULL)))
+        {
+          throw std::invalid_argument(fmt::format(
+            "OpenSSL error: {}", ERR_error_string(ERR_get_error(), NULL)));
+        }
       }
       BIO_free(certbio);
 
@@ -345,7 +349,7 @@ namespace tls
     virtual Pem cert_pem() override
     {
       BIO* mem = BIO_new(BIO_s_mem());
-      OPENSSL_CHECK1(i2d_X509_bio(mem, cert));
+      OPENSSL_CHECK1(PEM_write_bio_X509(mem, cert));
 
       BUF_MEM* bptr;
       BIO_get_mem_ptr(mem, &bptr);
