@@ -3,7 +3,6 @@
 
 import sys
 from loguru import logger as LOG
-import ccf.ledger
 
 # Note: It is safer to run the ledger tutorial when the service has stopped
 # as all ledger files will have been written to.
@@ -22,6 +21,7 @@ if len(sys.argv) < 2:
 ledger_dir = sys.argv[1]
 
 # SNIPPET: import_ledger
+import ccf.ledger
 
 # SNIPPET: create_ledger
 ledger = ccf.ledger.Ledger(ledger_dir)
