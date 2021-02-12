@@ -51,8 +51,7 @@ namespace ccf
     APPEND,
     VERIFY,
     ROLLBACK,
-    COMPACT,
-    ROOT
+    COMPACT
   };
 
   constexpr int MAX_HISTORY_LEN = 1000;
@@ -75,10 +74,6 @@ namespace ccf
 
       case COMPACT:
         os << "compact";
-        break;
-
-      case ROOT:
-        os << "root";
         break;
     }
 
@@ -281,7 +276,6 @@ namespace ccf
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
-      log_hash(root, VERIFY);
 
       Nonce hashed_nonce;
       std::vector<uint8_t> primary_sig;
@@ -677,14 +671,12 @@ namespace ccf
 
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
-      log_hash(root, ROOT);
       log_hash(root, VERIFY);
       bool result =
         from_cert->verify_hash(root.h, sig_value.sig, MDType::SHA256);
 
       if (!result)
       {
-        LOG_INFO_FMT("failed to verify root");
         return false;
       }
 

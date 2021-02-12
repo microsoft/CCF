@@ -209,7 +209,6 @@ namespace ccf
 
     void set_status(ChannelStatus status_)
     {
-      LOG_INFO_FMT("EEEEEEEE set status , peer_id:{}, status:{}", peer_id, status_);
       status = status_;
     }
 
@@ -333,7 +332,6 @@ namespace ccf
       auto shared_secret = ctx.compute_shared_secret();
       key = std::make_unique<crypto::KeyAesGcm>(shared_secret);
       ctx.free_ctx();
-      LOG_INFO_FMT("EEEEEEEE established, peer_id:{}", peer_id);
       status = ESTABLISHED;
 
       if (outgoing_msg.has_value())

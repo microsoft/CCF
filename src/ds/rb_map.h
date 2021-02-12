@@ -60,7 +60,7 @@ public:
   {
     auto v = getp(key);
 
-    if (v != nullptr)
+    if (v)
       return *v;
     else
       return {};

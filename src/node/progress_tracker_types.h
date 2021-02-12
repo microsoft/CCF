@@ -146,15 +146,15 @@ namespace ccf
 
         nonces_tv->put(0, nonces);
         r = tx.commit();
-      if (r == kv::CommitResult::FAIL_NO_REPLICATE)
-      {
-        LOG_FAIL_FMT(
-          "Failed to write nonces, view:{}, seqno:{}, r:{}, version:{}",
-          nonces.tx_id.term,
-          nonces.tx_id.version,
-          r,
-          tx.get_version());
-      }
+        if (r == kv::CommitResult::FAIL_NO_REPLICATE)
+        {
+          LOG_FAIL_FMT(
+            "Failed to write nonces, view:{}, seqno:{}, r:{}, version:{}",
+            nonces.tx_id.term,
+            nonces.tx_id.version,
+            r,
+            tx.get_version());
+        }
       }
       if (r == kv::CommitResult::FAIL_CONFLICT)
       {

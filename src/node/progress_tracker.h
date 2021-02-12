@@ -105,7 +105,6 @@ namespace ccf
         // verify the signatures
         auto& cert = it->second;
         cert.root = root;
-        //BftNodeSignature bft_node_sig(sig, node_id, hashed_nonce, root);
         BftNodeSignature bft_node_sig({}, node_id, hashed_nonce, root);
         bft_node_sig.is_primary = true;
         try_match_unmatched_nonces(
@@ -114,18 +113,7 @@ namespace ccf
         cert.have_primary_signature = true;
         for (auto& sig : cert.sigs)
         {
-          if (
-            !sig.second.is_primary &&
-            cert.root != sig.second.root
-            /*
-            !store->verify_signature(
-              sig.second.node,
-              cert.root,
-              sig.second.sig.size(),
-              sig.second.sig.data())
-              */
-              )
-
+          if (!sig.second.is_primary && cert.root != sig.second.root)
           {
             // NOTE: We need to handle this case but for now having this make a
             // test fail will be very handy
@@ -304,8 +292,7 @@ namespace ccf
             revealed_nonce.node_id,
             nonces_value.tx_id.term,
             nonces_value.tx_id.version);
-          //return kv::TxHistory::Result::FAIL;
-          continue;
+          return kv::TxHistory::Result::FAIL;
         }
 
         BftNodeSignature& commit_cert = it->second;
@@ -682,12 +669,6 @@ namespace ccf
       else
       {
         if (node_id != id && it->second.have_primary_signature && it->second.root != root)
-        /*
-        if (
-          node_id != id && it->second.have_primary_signature &&
-          !store->verify_signature(
-            node_id, it->second.root, signature_size, sig.data()))
-            */
         {
           // NOTE: We need to handle this case but for now having this make a
           // test fail will be very handy
@@ -876,7 +857,7 @@ namespace ccf
         highest_commit_level = seqno;
         if (should_clear_old_entries)
         {
-          //LOG_INFO_FMT("Removing all entries upto:{}", seqno);
+          LOG_DEBUG_FMT("Removing all entries upto:{}", seqno);
           for (auto it = certificates.begin();;)
           {
             CCF_ASSERT(

@@ -481,13 +481,7 @@ namespace aft
         bool globally_committable = is_globally_committable;
 
         if (index != state->last_idx + 1)
-        {
-          LOG_FAIL_FMT(
-            "Failed to replicate index:{} state->last_idx(+1):{}",
-            index,
-            state->last_idx + 1);
           return false;
-        }
 
         LOG_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
@@ -1426,6 +1420,16 @@ namespace aft
 
     uint64_t next_exec_thread = 0;
 
+    void run_async_execution(std::vector<std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>>>& pending_requests)
+    {
+      for (auto& tmsg : pending_requests)
+      {
+        threading::ThreadMessaging::thread_messaging.add_task(
+          threading::ThreadMessaging::get_execution_thread(++next_exec_thread),
+          std::move(tmsg));
+      }
+    }
+
     bool execute_append_entries(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
@@ -1451,53 +1455,39 @@ namespace aft
 
       while(!append_entries.empty())
       {
-        if (!run_sync && must_break)
+        std::unique_ptr<kv::AbstractExecutionWrapper>& wrapper =
+          std::get<0>(append_entries.front());
+        if (!run_sync)
         {
-          LOG_INFO_FMT("AAAAAA:{}", pending_requests.size());
-          for (auto& tmsg : pending_requests)
+          if (must_break)
           {
-            threading::ThreadMessaging::thread_messaging.add_task(
-              threading::ThreadMessaging::get_execution_thread(
-                ++next_exec_thread),
-              std::move(tmsg));
-          }
-
-          return false;
-        }
-
-        if (!run_sync && !std::get<0>(append_entries.front())->support_asyc_execution() && !is_first && (async_exec->pending_cbs > 0))
-        {
-          LOG_INFO_FMT("AAAAAA:{}", pending_requests.size());
-          for (auto& tmsg : pending_requests)
-          {
-            threading::ThreadMessaging::thread_messaging.add_task(
-              threading::ThreadMessaging::get_execution_thread(
-                ++next_exec_thread),
-              std::move(tmsg));
-          }
-
-          return false;
-        }
-
-        if (!run_sync && std::get<0>(append_entries.front())->support_asyc_execution() && std::get<0>(append_entries.front())->get_max_conflict_version() >= before_state_idx)
-        {
-          LOG_INFO_FMT("AAAAAA:{}", pending_requests.size());
-          if (!pending_requests.empty())
-          {
-            for (auto& tmsg : pending_requests)
-            {
-              threading::ThreadMessaging::thread_messaging.add_task(
-                threading::ThreadMessaging::get_execution_thread(
-                  ++next_exec_thread),
-                std::move(tmsg));
-            }
-
+            run_async_execution(pending_requests);
             return false;
+          }
+
+          if (
+            !wrapper->support_asyc_execution() &&
+            !is_first && (async_exec->pending_cbs > 0))
+          {
+            run_async_execution(pending_requests);
+            return false;
+          }
+
+          if (
+            wrapper->support_asyc_execution() &&
+            wrapper->get_max_conflict_version() >=
+              before_state_idx)
+          {
+            if (!pending_requests.empty())
+            {
+              run_async_execution(pending_requests);
+              return false;
+            }
           }
         }
 
         is_first = false;
-        must_break = !std::get<0>(append_entries.front())->support_asyc_execution() && (async_exec->pending_cbs > 0);
+        must_break = !wrapper->support_asyc_execution() && (async_exec->pending_cbs > 0);
 
         auto ae = std::move(append_entries.front());
         append_entries.pop_front();
@@ -1672,14 +1662,7 @@ namespace aft
         }
       }
 
-      LOG_INFO_FMT("AAAAAA:{}", pending_requests.size());
-      for (auto& tmsg : pending_requests)
-      {
-          threading::ThreadMessaging::thread_messaging.add_task(
-            threading::ThreadMessaging::get_execution_thread(
-              ++next_exec_thread),
-            std::move(tmsg));
-      }
+      run_async_execution(pending_requests);
 
       if (async_exec->pending_cbs == 0)
       {
