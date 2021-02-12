@@ -302,10 +302,10 @@ namespace tls
       {
         public_key = std::make_unique<PublicKey_OpenSSL>(pk_pem);
       }
-      // else if (mbedtls_pk_can_do(&cert->pk, MBEDTLS_PK_RSA))
-      // {
-      //   public_key = std::make_unique<RSAPublicKey_mbedTLS>(buf);
-      // }
+      else if (EVP_PKEY_get0_RSA(pk))
+      {
+        public_key = std::make_unique<RSAPublicKey_mbedTLS>(pk_pem);
+      }
       else
       {
         throw std::logic_error("unsupported public key type");
@@ -367,7 +367,7 @@ namespace tls
   inline VerifierUniquePtr make_unique_verifier(
     const std::vector<uint8_t>& cert)
   {
-    return std::make_unique<Verifier_MBedTLS>(cert);
+    return std::make_unique<Verifier_OpenSSL>(cert);
   }
 
   inline VerifierPtr make_verifier(const Pem& cert)
