@@ -426,7 +426,7 @@ int main(int argc, char** argv)
   std::vector<std::pair<std::string, CurveID>> curve_id_map = {
     {"secp384r1", CurveID::SECP384R1}, {"secp256r1", CurveID::SECP256R1}};
   app
-    .add_option("--curve-id", curve_id, "Elliptic curve to use for signatures")
+    .add_option("--curve-id", curve_id, "Elliptic curve to use for node's certificate (used for TLS and ledger signatures")
     ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
     ->capture_default_str();
 
