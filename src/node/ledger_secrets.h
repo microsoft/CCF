@@ -104,6 +104,7 @@ namespace ccf
     LedgerSecretsMap ledger_secrets;
 
     // TODO: Limit its size
+    // TODO: Move this out of here!!
     // Populated during historical queries
     LedgerSecretsMap historical_ledger_secrets;
 
@@ -347,8 +348,9 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
 
       if (
+        !ledger_secrets.empty() &&
         restored_ledger_secrets.rbegin()->first >=
-        ledger_secrets.begin()->first)
+          ledger_secrets.begin()->first)
       {
         throw std::logic_error(fmt::format(
           "Last restored version {} is greater than first existing version "

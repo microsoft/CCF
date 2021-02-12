@@ -1613,7 +1613,6 @@ namespace ccf
 
                 if (is_part_of_public_network())
                 {
-                  // TODO: Set previous ls stored version here too!
                   // On recovery, accumulate restored ledger secrets
                   restored_ledger_secrets.emplace(
                     ledger_secret_version,

@@ -202,7 +202,6 @@ namespace ccf
              std::move(encrypted_previous_secret),
              version_previous_secret,
              encrypted_ls->get_version_of_previous_write(0)),
-           //  previous_ledger_secret->second.previous_secret_stored_version),
            latest_ls_version});
       }
       else

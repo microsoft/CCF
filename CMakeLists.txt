@@ -329,7 +329,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE secp256k1.host http_parser.host
+      historical_queries_test PRIVATE secp256k1.host http_parser.host sss.host
     )
 
     add_unit_test(
