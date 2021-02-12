@@ -48,7 +48,18 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
       suffix: "Instrumented"
       artifact_name: "NoSGX_Instrumented"
-      ctest_filter: '-LE "benchmark|perf|rotation"'
+      ctest_filter: '-LE "benchmark|perf"'
+      ctest_timeout: "300"
+
+  # TODO: This is a temporary job to run rotation_test many times - remove before commit
+  - template: common.yml
+    parameters:
+      target: NoSGX
+      env: "${{ parameters.env.NoSGX }}"
+      cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
+      suffix: "Instrumented_RotationRepeats"
+      artifact_name: "NoSGX_Instrumented_RotationRepeats"
+      ctest_filter: '-LE "benchmark|perf" -R rotation_test --repeat-until-failure 20'
       ctest_timeout: "300"
 
   - template: common.yml
