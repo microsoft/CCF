@@ -33,7 +33,7 @@ UNPACK_ARGS = {"raw": True, "strict_map_key": False}
 # https://github.com/microsoft/CCF/blob/master/src/node/entities.h#L96
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 # https://github.com/microsoft/CCF/blob/master/src/node/entities.h#L71
-NODES_TABLE_NAME = "public:ccf.gov.nodes"
+NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 
 
 def to_uint_32(buffer):
@@ -84,12 +84,13 @@ class PublicDomain:
         self._unpacker = msgpack.Unpacker(self._buffer, **UNPACK_ARGS)
         self._is_snapshot = self._read_next()
         self._version = self._read_next()
+        self._max_conflict_version = self._read_next()
         self._tables = {}
         # Keys and Values may have custom serialisers.
         # Store most as raw bytes, only decode a few which we know are msgpack.
         self._msgpacked_tables = {
-            "public:ccf.gov.member_cert_ders",
-            "public:ccf.gov.governance.history",
+            "public:ccf.internal.members.certs_der",
+            "public:ccf.gov.history",
             SIGNATURE_TX_TABLE_NAME,
             NODES_TABLE_NAME
         }
@@ -166,16 +167,15 @@ def _byte_read_safe(file, num_of_bytes):
 
 class LedgerValidator:
     """
-    Validation object for CCF ledger integrity.
-    A ledger is considered a directory with all of the ledger chunks inside
-    A ledger chunk may have multiple transaction sets
-    A transacton set consists of each transaction before a merkle root/signature transaction
-    A valid chunk with 2 sets of transactions would look like:
-    Tx1|Tx2|Tx3|SignatureTx1|Tx4|Tx5|SignatureTx2
-    https://github.com/microsoft/CCF/blob/master/python/ccf/ledger.py#L235
+    Ledger Validator contains the logic to verify that the ledger hasn't been tampered with.
+    It has the ability to take transactions and it maintains a MerkleTree data structure similar to CCF.
+
+    Ledger is valid and hasn't been tampered with if:
+        1) The merkle proof is signed by a TRUSTED node in the given network
+        2) The merkle root and signature are verified with the node cert
+        3) The merkle proof is correct for each set of transactions
     """
 
-    # The expected result of appending each Tx together reported by the ledger
     # The node that is expected to sign the signature transaction
     # The certificate used to sign the signature transaction
     # https://github.com/microsoft/CCF/blob/master/src/node/nodes.h#L42
@@ -208,23 +208,14 @@ class LedgerValidator:
 
     def add_transaction(self, transaction):
         """
-        Iterate through transactions of every chunk, validating items 2, 3, and 4 as we go.
-        The file chunks must be in order to ensure proper validation.
-        The iterator for the ledger returns a Transaction object for every Tx in every chunk.
-        If the last transaction of a chunk is reached, the Ledger iterator points to the next chunk.
-        When no more chunks are left, the iterator will stop and we can finish validation.
-        A merkle proof is built from 'Tx1|Tx2|Tx3|Signature1|Tx4|Signature2'
-        By appending Tx1, 2, and 3 together we can construct our merkle proof.
-        If the merke root is equal to the ledger root, it is valid.
-        The Tx bytes from Sig1 will start the next tree, appending Tx4 and validating again
-        Ledger file sequence is important, as the chaining of a next chunk
-        requires the last chunks final signature
+        To validate the ledger, ledger transactions need to be added via this method.
+        Depending on the tables that were part of the transaction, it does different things.
+        When transaction contains signature table, it starts the verification process and verifies that the root of merkle tree was signed by a node which was part of the network.
+        It also matches the root of the merkle tree that this class maintains with the one extracted from the ledger.
+        If any of the above checks fail, this method throws.
         """
         # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of it's merkle tree.
         # Don't hash empty bytes array.
-        # This iterator returns the transactions for every chunk
-        # We need to separate chunks to ensure proper validation on each
-        # For now, we only check the last committed chunk for a signature ending
         self.signature_ending = False
         transaction_public_domain = transaction.get_public_domain()
         tables = transaction_public_domain.get_tables()
@@ -265,12 +256,26 @@ class LedgerValidator:
                     self.node_activity_status,
                     signing_node,
                 )
-                # validations for 2, 3, and 4gg
+
+                # validations for 1, 2 and 3
+                # throws if ledger validation failed.
                 if self._verify_tx_set(tx_info):
                     continue
+                else:
+                    raise ValueError("Ledger validation failed")
 
         # Checks complete, add this transaction to tree
         self.merkle.add_leaf(transaction.get_public_tx())
+
+    def verify_ending(self) -> bool:
+        if self.signature_count == 0:
+            LOG.error(
+                "Found 0 signatures. This usually means that the ledger is invalid")
+            raise SignatureCountException
+        if not self.signature_ending:
+            LOG.error(
+                "The last transaction in the ledger chunk wasn't a signature transaction which is unexpected.")
+            raise SignatureEndingException
 
     def _verify_tx_set(self, tx_info: tuple) -> bool:
         """Verify items 2, 3, and 4 for a the transactions up until a signature"""
@@ -434,7 +439,8 @@ class Transaction:
 
             return self
         except Exception as exception:
-            raise StopIteration() from exception
+            LOG.exception(f"Encountered exception: {exception}")
+            raise
 
 
 class LedgerChunk:
@@ -457,6 +463,7 @@ class LedgerChunk:
         try:
             return next(self._current_tx)
         except StopIteration:
+            self._ledger_validator.verify_ending()
             LOG.debug(f"Completed verifying Txns in {self._filename}.")
             raise
 

@@ -1,7 +1,7 @@
 """Tamper Verification Tool for CCF Ledger checking"""
 import argparse
 import os
-from ledger import Ledger
+import ledger
 
 
 def dir_path(string):
@@ -20,20 +20,27 @@ def bool_string(string) -> bool:
     raise ValueError(f"{string} is not of type boolean")
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--ledger-path", type=dir_path, required=True, help="Path to the directory containing Ledger chunks"
-)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--ledger-path", type=dir_path, required=True, help="Path to the directory containing Ledger chunks"
+    )
 
-args = parser.parse_args()
-ledgers_dir = args.ledger_path
+    args = parser.parse_args()
+    ledgers_dir = args.ledger_path
 
-ccf_ledger = Ledger(ledgers_dir)
-for chunk in ccf_ledger:
-    for transaction in chunk:
-        transaction_public_domain = transaction.get_public_domain()
-        tables = transaction_public_domain.get_tables()
-        if "public:tpal.logs" in tables:
-            public_tpal_table = tables["public:tpal.logs"]
-            for key_value in public_tpal_table.items():
-                print(f"{key_value[0]} = {key_value[1]}")
+    ccf_ledger = ledger.Ledger(ledgers_dir)
+    for chunk in ccf_ledger:
+        for transaction in chunk:
+            transaction_public_domain = transaction.get_public_domain()
+            tables = transaction_public_domain.get_tables()
+
+            # Extracting transactions on a sample table
+            # ledger.Ledger() does ledger verification implicitly
+            if "public:sample.logs" in tables:
+                public_tpal_table = tables["public:sample.logs"]
+                for key_value in public_tpal_table.items():
+                    # Knowledger of the serialization scheme is important to read the values from the table.
+                    # If the table was serialized using msgpack, following code can be used to extract transaction key and value.
+                    print(
+                        f"{ledger.extract_msgpacked_data(key_value[0])} = {ledger.extract_msgpacked_data(key_value[1]).decode()}")
