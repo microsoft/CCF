@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import utils, ec
 
-from merkletree import MerkleTree
+from ccf.merkletree import MerkleTree
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -288,7 +288,7 @@ class LedgerValidator:
         # Checks complete, add this transaction to tree
         self.merkle.add_leaf(transaction.get_public_tx())
 
-    def verify_ending(self) -> bool:
+    def verify_ending(self):
         """
         Verify the ledger ends in a signature transaction and has at least 1 signature.
         These two conditions are prerequisite for the creation of .committed files.
@@ -305,7 +305,7 @@ class LedgerValidator:
             )
             raise SignatureEndingException
 
-    def _verify_tx_set(self, tx_info: tuple) -> bool:
+    def _verify_tx_set(self, tx_info: TxBundleInfo) -> bool:
         """Verify items 1, 2, and 3 for a the transactions up until a signature"""
         # 1) The merkle root is signed by a TRUSTED node in the given network
         if self._verify_node_status(tx_info):
@@ -317,7 +317,7 @@ class LedgerValidator:
         return False
 
     @staticmethod
-    def _verify_node_status(tx_info: NamedTuple) -> bool:
+    def _verify_node_status(tx_info: TxBundleInfo) -> bool:
         """Verify item 1, The merkle root is signed by a TRUSTED node in the given network"""
         if tx_info.node_activity[tx_info.signing_node] is NodeStatus.trusted:
             return True
@@ -326,26 +326,29 @@ class LedgerValidator:
         )
         raise UntrustedNodeException
 
-    def _verify_root_signature(self, tx_info: NamedTuple) -> bool:
+    def _verify_root_signature(self, tx_info: TxBundleInfo) -> bool:
         """Verify item 2, that the Merkle root signature validates against the node certificate"""
         try:
             cert = load_pem_x509_certificate(tx_info.node_cert, default_backend())
             pub_key = cert.public_key()
-            pub_key.verify(tx_info.signature, tx_info.existing_root, self.chosen_hash)
+
+            assert isinstance(pub_key, ec.EllipticCurvePublicKey)
+            pub_key.verify(
+                tx_info.signature, tx_info.existing_root, self.chosen_hash
+            )  # type: ignore[override]
             return True
         # This exception is thrown from x509, catch for logging and raise our own
         except InvalidSignature:
             LOG.error(
                 "Signature verification failed:"
-                + f"\nCertificate: {tx_info.node_cert}"
-                + f"\nSignature: {tx_info.signature}"
-                + f"\nRoot: {tx_info.existing_root}"
+                + r"\nCertificate: {tx_info.node_cert}"
+                + r"\nSignature: {tx_info.signature}"
+                + r"\nRoot: {tx_info.existing_root}"
             )
             raise InvalidRootSignatureException from InvalidSignature
 
     def _verify_merkle_root(self, merkletree: MerkleTree, existing_root: bytes) -> bool:
         """Verify item 3, by comparing the roots from the merkle tree that's maintained by this class and from the one extracted from the ledger"""
-        root = bytearray(self.SHA_256_HASH_SIZE)
         root = merkletree.get_merkle_root()
         if root == existing_root:
             return True
