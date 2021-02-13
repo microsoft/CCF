@@ -50,5 +50,6 @@ for chunk in ledger:
                 # knowledge of the serialization scheme is important to read the values from the table.
                 # if the table was serialized using msgpack, following code can be used to extract transaction key and value.
                 print(
-                    f"{ccf.ledger.extract_msgpacked_data(key_value[0])} = {ccf.ledger.extract_msgpacked_data(key_value[1]).decode()}")
-# snippet_end: iterate_over_ledger
+                    f"{ccf.ledger.extract_msgpacked_data(key_value[0])} = {ccf.ledger.extract_msgpacked_data(key_value[1]).decode()}"
+                )
+# SNIPPET_END: iterate_over_ledger

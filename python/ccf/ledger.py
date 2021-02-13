@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+
 import io
 import struct
 import os
@@ -55,8 +56,7 @@ class GcmHeader:
     def __init__(self, buffer):
         if len(buffer) < GcmHeader.size():
             raise ValueError("Corrupt GCM header")
-        self._gcm_tag = struct.unpack(
-            f"@{GCM_SIZE_TAG}B", buffer[:GCM_SIZE_TAG])
+        self._gcm_tag = struct.unpack(f"@{GCM_SIZE_TAG}B", buffer[:GCM_SIZE_TAG])
         self._gcm_iv = struct.unpack(f"@{GCM_SIZE_IV}B", buffer[GCM_SIZE_TAG:])
 
     @staticmethod
@@ -92,7 +92,7 @@ class PublicDomain:
             "public:ccf.internal.members.certs_der",
             "public:ccf.gov.history",
             SIGNATURE_TX_TABLE_NAME,
-            NODES_TABLE_NAME
+            NODES_TABLE_NAME,
         }
         self._read()
 
@@ -245,9 +245,7 @@ class LedgerValidator:
             node_table = tables[NODES_TABLE_NAME]
             for nodeid, values in node_table.items():
                 # Add the nodes certificate
-                self.node_certificates[nodeid] = values[
-                    self.EXPECTED_NODE_CERT_INDEX
-                ]
+                self.node_certificates[nodeid] = values[self.EXPECTED_NODE_CERT_INDEX]
                 # Update node trust status
                 self.node_activity_status[nodeid] = NodeStatus(
                     values[self.EXPECTED_NODE_STATUS_INDEX]
@@ -261,12 +259,16 @@ class LedgerValidator:
 
             for nodeid, values in signature_table.items():
                 signing_node = int(
-                    values[self.EXPECTED_NODE_SIGNATURE_INDEX][self.EXPECTED_SIGNING_NODE_ID_INDEX])
+                    values[self.EXPECTED_NODE_SIGNATURE_INDEX][
+                        self.EXPECTED_SIGNING_NODE_ID_INDEX
+                    ]
+                )
                 # Get binary representations for the cert, existing root, and signature
                 cert = b"".join(self.node_certificates[signing_node])
-                existing_root = b"".join(
-                    values[self.EXPECTED_ROOT_INDEX])
-                signature = values[self.EXPECTED_NODE_SIGNATURE_INDEX][self.EXPECTED_SIGNATURE_INDEX]
+                existing_root = b"".join(values[self.EXPECTED_ROOT_INDEX])
+                signature = values[self.EXPECTED_NODE_SIGNATURE_INDEX][
+                    self.EXPECTED_SIGNATURE_INDEX
+                ]
 
                 tx_info = TxBundleInfo(
                     self.merkle,
@@ -295,11 +297,13 @@ class LedgerValidator:
         """
         if self.signature_count == 0:
             LOG.error(
-                "Found 0 signatures. This usually means that the ledger is invalid")
+                "Found 0 signatures. This usually means that the ledger is invalid"
+            )
             raise SignatureCountException
         if not self.signature_ending:
             LOG.error(
-                "The last transaction in the ledger chunk wasn't a signature transaction which is unexpected.")
+                "The last transaction in the ledger chunk wasn't a signature transaction which is unexpected."
+            )
             raise SignatureEndingException
 
     def _verify_tx_set(self, tx_info: tuple) -> bool:
@@ -326,11 +330,9 @@ class LedgerValidator:
     def _verify_root_signature(self, tx_info: NamedTuple) -> bool:
         """Verify item 2, that the Merkle root signature validates against the node certificate"""
         try:
-            cert = load_pem_x509_certificate(
-                tx_info.node_cert, default_backend())
+            cert = load_pem_x509_certificate(tx_info.node_cert, default_backend())
             pub_key = cert.public_key()
-            pub_key.verify(tx_info.signature,
-                           tx_info.existing_root, self.chosen_hash)
+            pub_key.verify(tx_info.signature, tx_info.existing_root, self.chosen_hash)
             return True
         # This exception is thrown from x509, catch for logging and raise our own
         except InvalidSignature:
@@ -342,9 +344,7 @@ class LedgerValidator:
             )
             raise InvalidRootSignatureException
 
-    def _verify_merkle_root(
-        self, merkletree: MerkleTree, existing_root: bytes
-    ) -> bool:
+    def _verify_merkle_root(self, merkletree: MerkleTree, existing_root: bytes) -> bool:
         """Verify item 3, by comparing the roots from the merkle tree that's maintained by this class and from the one extracted from the ledger"""
         root = bytearray(self.SHA_256_HASH_SIZE)
         root = merkletree.get_merkle_root()
@@ -417,8 +417,7 @@ class Transaction:
         :return: :py:class:`ccf.ledger.PublicDomain`
         """
         if self._public_domain == None:
-            buffer = io.BytesIO(_byte_read_safe(
-                self._file, self._public_domain_size))
+            buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
             self._public_domain = PublicDomain(buffer)
         return self._public_domain
 
@@ -515,8 +514,7 @@ class Ledger:
         sorted_ledgers = sorted(
             ledgers,
             key=lambda x: int(
-                x.replace(".committed", "").replace(
-                    "ledger_", "").split("-")[0]
+                x.replace(".committed", "").replace("ledger_", "").split("-")[0]
             ),
         )
 
@@ -536,7 +534,8 @@ class Ledger:
         self._fileindex += 1
         if len(self._filenames) > self._fileindex:
             self._current_chunk = LedgerChunk(
-                self._filenames[self._fileindex], self._ledger_validator)
+                self._filenames[self._fileindex], self._ledger_validator
+            )
             return self._current_chunk
         else:
             raise StopIteration
@@ -560,7 +559,7 @@ class Ledger:
             match = re.search(self.LEDGER_COMMITTED_FILE_NAME_REGEX, filename)
             if match:
                 start_commit_id = match.group(1)
-                if(len(match.group(2))) > 0:
+                if (len(match.group(2))) > 0:
                     end_commit_id = match.group(2)
             if expected_commit == int(start_commit_id):
                 expected_commit = int(end_commit_id) + 1
