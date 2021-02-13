@@ -5,7 +5,6 @@ import io
 import struct
 import os
 import re
-import hashlib
 
 from typing import BinaryIO, NamedTuple, Optional, Set
 from enum import IntEnum
@@ -342,7 +341,7 @@ class LedgerValidator:
                 + f"\nSignature: {tx_info.signature}"
                 + f"\nRoot: {tx_info.existing_root}"
             )
-            raise InvalidRootSignatureException
+            raise InvalidRootSignatureException from InvalidSignature
 
     def _verify_merkle_root(self, merkletree: MerkleTree, existing_root: bytes) -> bool:
         """Verify item 3, by comparing the roots from the merkle tree that's maintained by this class and from the one extracted from the ledger"""

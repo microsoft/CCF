@@ -10,6 +10,7 @@ class MerkleTree(object):
     """
 
     def __init__(self):
+        self.levels = None
         self.reset_tree()
 
     def reset_tree(self):
