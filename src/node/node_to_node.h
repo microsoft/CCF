@@ -130,6 +130,7 @@ namespace ccf
     NodeId self;
     std::unique_ptr<ChannelManager> channels;
     ringbuffer::AbstractWriterFactory& writer_factory;
+    SpinLock lock;
 
   public:
     NodeToNodeImpl(ringbuffer::AbstractWriterFactory& writer_factory_) :
@@ -138,6 +139,7 @@ namespace ccf
 
     void initialize(NodeId self_id, const tls::Pem& network_pkey) override
     {
+      std::unique_lock<SpinLock> guard(lock);
       self = self_id;
       channels =
         std::make_unique<ChannelManager>(writer_factory, network_pkey, self);
@@ -153,6 +155,7 @@ namespace ccf
         return;
       }
 
+      std::unique_lock<SpinLock> guard(lock);
       channels->create_channel(peer_id, hostname, service);
     }
 
@@ -163,16 +166,19 @@ namespace ccf
         return;
       }
 
+      std::unique_lock<SpinLock> guard(lock);
       channels->destroy_channel(peer_id);
     }
 
     void close_all_outgoing() override
     {
+      std::unique_lock<SpinLock> guard(lock);
       channels->close_all_outgoing();
     }
 
     void destroy_all_channels() override
     {
+      std::unique_lock<SpinLock> guard(lock);
       channels->destroy_all_channels();
     }
 
@@ -182,15 +188,23 @@ namespace ccf
       const uint8_t* data,
       size_t size) override
     {
-      auto& n2n_channel = channels->get(to);
-      return n2n_channel.send(msg_type, {data, size});
+      ccf::Channel* n2n_channel;
+      {
+        std::unique_lock<SpinLock> guard(lock);
+        n2n_channel = &channels->get(to);
+      }
+      return n2n_channel->send(msg_type, {data, size});
     }
 
     bool recv_authenticated(
       NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) override
     {
-      auto& n2n_channel = channels->get(from_node);
-      return n2n_channel.recv_authenticated(cb, data, size);
+      ccf::Channel* n2n_channel;
+      {
+        std::unique_lock<SpinLock> guard(lock);
+        n2n_channel = &channels->get(from_node);
+      }
+      return n2n_channel->recv_authenticated(cb, data, size);
     }
 
     bool send_encrypted(
@@ -199,23 +213,35 @@ namespace ccf
       NodeId to,
       const std::vector<uint8_t>& data) override
     {
-      auto& n2n_channel = channels->get(to);
-      return n2n_channel.send(msg_type, cb, data);
+      ccf::Channel* n2n_channel;
+      {
+        std::unique_lock<SpinLock> guard(lock);
+        n2n_channel = &channels->get(to);
+      }
+      return n2n_channel->send(msg_type, cb, data);
     }
 
     bool recv_authenticated_with_load(
       NodeId from_node, const uint8_t*& data, size_t& size) override
     {
-      auto& n2n_channel = channels->get(from_node);
-      return n2n_channel.recv_authenticated_with_load(data, size);
+      ccf::Channel* n2n_channel;
+      {
+        std::unique_lock<SpinLock> guard(lock);
+        n2n_channel = &channels->get(from_node);
+      }
+      return n2n_channel->recv_authenticated_with_load(data, size);
     }
 
     std::vector<uint8_t> recv_encrypted(
       NodeId from_node, CBuffer cb, const uint8_t* data, size_t size) override
     {
-      auto& n2n_channel = channels->get(from_node);
+      ccf::Channel* n2n_channel;
+      {
+        std::unique_lock<SpinLock> guard(lock);
+        n2n_channel = &channels->get(from_node);
+      }
 
-      auto plain = n2n_channel.recv_encrypted(cb, data, size);
+      auto plain = n2n_channel->recv_encrypted(cb, data, size);
       if (!plain.has_value())
       {
         throw std::logic_error(fmt::format(
@@ -231,8 +257,13 @@ namespace ccf
       // the initiator
       const auto& ke = serialized::overlay<ChannelHeader>(data, size);
 
-      auto& n2n_channel = channels->get(ke.from_node);
-      n2n_channel.load_peer_signed_public(false, data, size);
+      ccf::Channel* n2n_channel;
+      {
+        std::unique_lock<SpinLock> guard(lock);
+        n2n_channel = &channels->get(ke.from_node);
+      }
+
+      n2n_channel->load_peer_signed_public(false, data, size);
     }
 
     void complete_key_exchange(const uint8_t* data, size_t size)
@@ -241,8 +272,12 @@ namespace ccf
       // received from the target
       const auto& ke = serialized::overlay<ChannelHeader>(data, size);
 
-      auto& n2n_channel = channels->get(ke.from_node);
-      n2n_channel.load_peer_signed_public(true, data, size);
+      ccf::Channel* n2n_channel;
+      {
+        std::unique_lock<SpinLock> guard(lock);
+        n2n_channel = &channels->get(ke.from_node);
+      }
+      n2n_channel->load_peer_signed_public(true, data, size);
     }
 
     void recv_message(OArray&& oa) override
