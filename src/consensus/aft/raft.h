@@ -102,10 +102,14 @@ namespace aft
     bool is_execution_pending = false;
     std::list<std::unique_ptr<AbstractMsgCallback>> pending_executions;
 
-    // When we receive append entries from a new primary, we should rollback
-    // to the index they're telling us about, and replay from here. However
-    // for complex reasons we want to do this once only, and expect to be
-    // correct without doing this thereafter.
+    // When this node receives append entries from a new primary, it may need to
+    // roll back an uncommitted suffix it holds. It must trust the new primary
+    // to dictate this index, and trust it to be honest about its approximation
+    // of committed state. To minimise the window where a malicious node could
+    // manipulate this, and to avoid retransmission of a suffix already hold,
+    // this node only executes this rollback rollback instruction on the first
+    // append entries after it became a follower. An honest primary must repeat
+    // this instruction in any append entries it sends us until we ack it.
     bool is_new_follower = false;
 
     // BFT
@@ -1176,7 +1180,7 @@ namespace aft
 
       if (is_new_follower)
       {
-        if (state->last_idx != r.prev_idx)
+        if (state->last_idx > r.prev_idx)
         {
           LOG_DEBUG_FMT(
             "New follower received first append entries with mismatch - "
@@ -1187,7 +1191,8 @@ namespace aft
         }
         else
         {
-          LOG_DEBUG_FMT("New follower agrees with prev_idx == {}", r.prev_idx);
+          LOG_DEBUG_FMT(
+            "New follower has no conflict with prev_idx {}", r.prev_idx);
         }
         is_new_follower = false;
       }
@@ -2240,6 +2245,16 @@ namespace aft
 
     void rollback(Index idx)
     {
+      if (idx < state->commit_idx)
+      {
+        LOG_FAIL_FMT(
+          "Asked to rollback to {} but committed to {} - ignoring rollback "
+          "request",
+          idx,
+          state->commit_idx);
+        return;
+      }
+
       snapshotter->rollback(idx);
       store->rollback(idx, state->current_view);
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
