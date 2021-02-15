@@ -27,7 +27,7 @@ Then, to get a VM up and running in the UK South region, run the following comma
 
     $ ./make_vm.sh $AZURE_SUBSCRIPTION_NAME [path_to_ssh_public_key]
 
-After signing in to your Azure account, the script will create an SGX-ensabled VM under a ``ccf-dev-rg`` resource group), with a `ccf` user authenticated by the public key specified by ``path_to_ssh_public_key`` (defaults to ``~/.ssh/id_rsa.pub``).
+After signing in to your Azure account, the script will create an SGX-enabled VM under a ``ccf-dev-rg`` resource group), with a `ccf` user authenticated by the public key specified by ``path_to_ssh_public_key`` (defaults to ``~/.ssh/id_rsa.pub``).
 
 .. _`Marketplace App`: https://aka.ms/accmarketplace
 .. _`Azure CLI`: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli
