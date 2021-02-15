@@ -4,8 +4,10 @@
 
 #include "key_pair.h"
 
+#include <algorithm>
 #include <openssl/bn.h>
 #include <openssl/pem.h>
+#include <openssl/evp.h>
 #include <openssl/rsa.h>
 #include <optional>
 #include <vector>
@@ -179,17 +181,24 @@ namespace tls
 
       if (label)
       {
-        unsigned char* openssl_label = (unsigned char*)malloc(label_size);
-        memcpy(openssl_label, label, label_size);
+        unsigned char* openssl_label =
+          (unsigned char*)OPENSSL_malloc(label_size);
+        std::copy(label, label + label_size, openssl_label);
         EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
       }
+      else
+        EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, NULL, 0);
 
-      size_t olen = EVP_PKEY_size(key);
-      std::vector<uint8_t> output_buf(olen);
+      size_t olen;
       OPENSSL_CHECK1(
-        EVP_PKEY_encrypt(ctx, output_buf.data(), &olen, input, input_size));
+        EVP_PKEY_encrypt(ctx, NULL, &olen, input, input_size));
 
-      return output_buf;
+      std::vector<uint8_t> output(olen);
+      OPENSSL_CHECK1(
+        EVP_PKEY_encrypt(ctx, output.data(), &olen, input, input_size));
+
+      output.resize(olen);
+      return output;
     }
 
     /**
@@ -384,17 +393,22 @@ namespace tls
 
       if (label_)
       {
-        unsigned char* openssl_label = (unsigned char*)malloc(label_size);
-        memcpy(openssl_label, label_, label_size);
+        unsigned char* openssl_label =
+          (unsigned char*)OPENSSL_malloc(label_size);
+        std::copy(label_, label_ + label_size, openssl_label);
         EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
       }
+      else
+        EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, NULL, 0);
 
-      size_t olen = EVP_PKEY_size(key);
-      std::vector<uint8_t> output_buf(olen);
-      OPENSSL_CHECK1(EVP_PKEY_decrypt(
-        ctx, output_buf.data(), &olen, input.data(), input.size()));
+      size_t olen;
+      OPENSSL_CHECK1(EVP_PKEY_decrypt(ctx, NULL, &olen, input.data(), input.size()));
 
-      return output_buf;
+      std::vector<uint8_t> output(olen);
+      OPENSSL_CHECK1(EVP_PKEY_decrypt(ctx, output.data(), &olen, input.data(), input.size()));
+
+      output.resize(olen);
+      return output;
     }
   };
 
