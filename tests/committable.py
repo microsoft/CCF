@@ -63,7 +63,8 @@ def run(args):
         with backups[0].client() as bc:
             wait_for_pending(bc, sig_view, sig_seqno)
 
-        # Suspend the final backup and run some transactions which only the partitioned primary hears, which should be discarded by the new primary
+        # Suspend the final backup and run some transactions which only the partitioned
+        # primary hears, which should be discarded by the new primary
         backups[0].suspend()
         post_partition_txs = []
         with primary.client("user0") as uc:
