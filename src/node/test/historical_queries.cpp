@@ -446,12 +446,18 @@ TEST_CASE("Recover historical ledger secrets")
     INFO("Retrieve second index, requiring one historical ledger secret");
     REQUIRE(cache.get_store_at(second_index) == nullptr);
 
+    // Request is always in flight
+    REQUIRE(cache.get_store_at(second_index) == nullptr);
+
     const auto read = bp.read_n(100, rr);
     REQUIRE(read == 1);
 
     // The encrypted ledger secret applicable for second_index was recorded in
     // the store at the next rekey
     REQUIRE(provide_ledger_entry(third_rekey_index));
+
+    // Ledger secret has already been fetched
+    REQUIRE_FALSE(provide_ledger_entry(third_rekey_index));
 
     // Provide target and subsequent entries until next signature
     for (size_t i = second_index; i <= high_signature_index; ++i)
