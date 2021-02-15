@@ -33,9 +33,6 @@ namespace ccf::historical
 
     using LedgerEntry = std::vector<uint8_t>;
 
-    // Note: We do not verify the following signature following a recovered
-    // ledger secret as if we ledger secret was bogus, the decryption of the
-    // ledger entries would fail
     struct LedgerSecretRecoveryInfo
     {
       consensus::Index target_idx = 0;
@@ -67,7 +64,9 @@ namespace ccf::historical
     // These constitute a simple LRU, where only user queries will refresh an
     // entry's priority
     static constexpr size_t MAX_ACTIVE_REQUESTS = 10;
-    std::map<consensus::Index, Request> requests;
+
+    using Requests = std::map<consensus::Index, Request>;
+    Requests requests;
     std::list<consensus::Index> recent_requests;
 
     // To trust an index, we currently need to fetch a sequence of entries
@@ -95,10 +94,6 @@ namespace ccf::historical
       RequestStage request_stage = RequestStage::Fetching;
       std::unique_ptr<LedgerSecretRecoveryInfo> ledger_secret_recovery_info =
         nullptr;
-
-      // TODO:
-      // 1. Get historical ledger secrets out of LedgerSecrets and pulls them
-      // from there instead (as a cache)
 
       auto first_known_ledger_secret = network.ledger_secrets->get_first();
       if (idx < static_cast<consensus::Index>(first_known_ledger_secret.first))
@@ -274,18 +269,74 @@ namespace ccf::historical
       }
     }
 
+    Requests::value_type handle_encrypted_past_ledger_secret(
+      consensus::Index idx, Request& request, const StorePtr& store)
+    {
+      auto tx = store->create_read_only_tx();
+      auto encrypted_past_ledger_secret =
+        tx.ro<ccf::EncryptedLedgerSecretsInfo>(
+          ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET);
+      if (!encrypted_past_ledger_secret)
+      {
+        throw std::logic_error(
+          fmt::format("No encrypted ledger secret to read at {}", idx));
+      }
+
+      auto previous_ledger_secret =
+        encrypted_past_ledger_secret->get(0)->previous_ledger_secret;
+
+      auto recovered_ledger_secret_raw = decrypt_previous_ledger_secret(
+        request.ledger_secret_recovery_info->last_ledger_secret.raw_key,
+        std::move(previous_ledger_secret->encrypted_data));
+
+      // TODO: Change encryptor/historical ledger secret API!
+      auto recovered_historical_secret =
+        network.ledger_secrets->set_historical_secret(
+          previous_ledger_secret->version,
+          std::move(recovered_ledger_secret_raw),
+          previous_ledger_secret->previous_secret_stored_version);
+
+      Request next_request;
+      consensus::Index next_idx;
+
+      if (
+        previous_ledger_secret.has_value() &&
+        previous_ledger_secret->version <=
+          static_cast<kv::Version>(
+            request.ledger_secret_recovery_info->target_idx))
+      {
+        // All ledger secrets required to deserialise the target index have
+        // been fetched so fetch the target entry.
+
+        next_request.current_stage = RequestStage::Fetching;
+        next_idx = request.ledger_secret_recovery_info->target_idx;
+      }
+      else
+      {
+        // The previous ledger secret still needs to be fetched.
+
+        // Store first known ledger secret in request, so that
+        // we can deserialise the next fetched encrypted ledger secret
+        request.ledger_secret_recovery_info->last_ledger_secret =
+          recovered_historical_secret;
+
+        next_request.current_stage = RequestStage::RecoveringLedgerSecret;
+        next_idx =
+          previous_ledger_secret->previous_secret_stored_version.value();
+        next_request.ledger_secret_recovery_info =
+          std::move(request.ledger_secret_recovery_info);
+      }
+
+      return std::make_pair(next_idx, std::move(next_request));
+    }
+
     void deserialise_ledger_entry(
       consensus::Index idx, const LedgerEntry& entry)
     {
-      LOG_FAIL_FMT(
-        "Deserialising historical entry at: {}, size {}", idx, entry.size());
-
       StorePtr store = std::make_shared<kv::Store>(
         false /* Do not start from very first idx */,
         true /* Make use of historical secrets */);
 
-      // TODO: Setting an encryptor is necessary here!! Otherwise the GCM
-      // header isn't skipped!
       store->set_encryptor(network.tables->get_encryptor());
 
       auto request_it = requests.find(idx);
@@ -294,105 +345,39 @@ namespace ccf::historical
         auto& request = request_it->second;
         if (request.current_stage == RequestStage::RecoveringLedgerSecret)
         {
-          LOG_FAIL_FMT("Recovering ledger secret! Deserialising public...");
+          // Encrypted ledger secrets are deserialised in public-only mode.
+          // Their Merkle tree integrity is not verified since even if the
+          // recovered ledger secret was bogus, the deserialisation of
+          // subsequent ledger entries would fail.
           const auto deserialise_result =
             store->apply(entry, ConsensusType::CFT, true)->execute();
           if (deserialise_result == kv::ApplyResult::FAIL)
           {
-            throw std::logic_error("Could not deserialise entry");
+            throw std::logic_error(fmt::format(
+              "Could not deserialise recovered ledger secret entry at {}",
+              idx));
           }
-
-          // TODO: Verify that we indeed deserialised a ledger secret
-
-          auto tx = store->create_read_only_tx();
-          auto encrypted_previous_ledger_secret =
-            tx.ro<ccf::EncryptedLedgerSecretsInfo>(
-              ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET);
-          if (!encrypted_previous_ledger_secret)
-          {
-            throw std::logic_error("This isn't a valid ledger secret!");
-          }
-
-          LOG_FAIL_FMT("Version of store now: {}", store->current_version());
-
-          auto previous_ledger_secret =
-            encrypted_previous_ledger_secret->get(0)->previous_ledger_secret;
-
-          // Store first known ledger secret in request, so that we can
-          // deserialise the next fetched encrypted ledger secret
-          auto recovered_ledger_secret_raw = decrypt_previous_ledger_secret(
-            request.ledger_secret_recovery_info->last_ledger_secret.raw_key,
-            std::move(previous_ledger_secret->encrypted_data));
-          // previous_ledger_secret->previous_secret_stored_version);
-
-          LOG_FAIL_FMT(
-            "Restoring ledger secret valid from {}, and previous one stored at "
-            "{}",
-            previous_ledger_secret->version,
-            previous_ledger_secret->previous_secret_stored_version.value_or(
-              kv::NoVersion));
-
-          // TODO: Thread safety!
-          // historical_ledger_secrets.insert(std::make_pair(
-          //   previous_ledger_secret->version, recovered_ledger_secret));
-
-          auto recovered_historical_secret =
-            network.ledger_secrets->set_historical_secret(
-              previous_ledger_secret->version,
-              std::move(recovered_ledger_secret_raw),
-              previous_ledger_secret->previous_secret_stored_version);
-
-          LOG_FAIL_FMT(
-            "Decrypted and fetched ledger secret at {}",
-            previous_ledger_secret->version);
 
           if (
-            previous_ledger_secret.has_value() &&
-            previous_ledger_secret->version <=
-              static_cast<kv::Version>(
-                request.ledger_secret_recovery_info->target_idx))
+            deserialise_result !=
+            kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET)
           {
-            LOG_FAIL_FMT(
-              "We're done, let's fetch the target idx at {}",
-              request.ledger_secret_recovery_info->target_idx);
-
-            auto new_request = requests.insert(std::make_pair(
-              request.ledger_secret_recovery_info->target_idx,
-              Request{RequestStage::Fetching,
-                      {},
-                      nullptr,
-                      std::move(request.ledger_secret_recovery_info)}));
-
-            requests.erase(request_it);
-
-            fetch_entry_at(new_request.first->first);
-          }
-          else
-          {
-            LOG_FAIL_FMT("Let's continue fetching ledger secret entries...");
-
-            request.ledger_secret_recovery_info->last_ledger_secret =
-              recovered_historical_secret;
-
-            // TODO: Create a new request and fetch it
-            requests.insert(std::make_pair(
-              previous_ledger_secret->previous_secret_stored_version.value(),
-              Request{RequestStage::RecoveringLedgerSecret,
-                      {},
-                      nullptr,
-                      std::move(request.ledger_secret_recovery_info)}));
-
-            requests.erase(request_it);
-
-            fetch_entry_at(
-              previous_ledger_secret->previous_secret_stored_version.value());
+            throw std::logic_error(fmt::format(
+              "Recovered ledger entry at {} is not an encrypted ledger secret",
+              idx));
           }
 
+          auto new_request =
+            handle_encrypted_past_ledger_secret(idx, request, store);
+          const auto ib = requests.emplace(std::move(new_request));
+          if (ib.second)
+          {
+            requests.erase(request_it);
+            fetch_entry_at(ib.first->first);
+          }
           return;
         }
       }
-
-      LOG_FAIL_FMT("Deserialising historical entry normally...");
 
       const auto deserialise_result =
         store->apply(entry, ConsensusType::CFT)->execute();
@@ -411,6 +396,7 @@ namespace ccf::historical
         case kv::ApplyResult::PASS_NONCES:
         case kv::ApplyResult::PASS_NEW_VIEW:
         case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
+        case kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
         {
           LOG_DEBUG_FMT("Processed transaction at {}", idx);
 
@@ -437,8 +423,8 @@ namespace ccf::historical
 
           if (deserialise_result == kv::ApplyResult::PASS_SIGNATURE)
           {
-            // This looks like a valid signature - try to use this signature to
-            // move some stores from untrusted to trusted
+            // This looks like a valid signature - try to use this signature
+            // to move some stores from untrusted to trusted
             handle_signature_transaction(idx, store);
           }
           else
