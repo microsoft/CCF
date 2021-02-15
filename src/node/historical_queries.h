@@ -459,6 +459,7 @@ namespace ccf::historical
 
     StorePtr get_store_at(consensus::Index idx) override
     {
+      LOG_FAIL_FMT("get_store_at: {}", idx);
       const auto it = requests.find(idx);
       if (it == requests.end())
       {
