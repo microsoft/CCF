@@ -33,6 +33,9 @@ namespace ccf::historical
 
     using LedgerEntry = std::vector<uint8_t>;
 
+    // Note: We do not verify the following signature following a recovered
+    // ledger secret as if we ledger secret was bogus, the decryption of the
+    // ledger entries would fail
     struct LedgerSecretRecoveryInfo
     {
       consensus::Index target_idx = 0;
@@ -140,6 +143,8 @@ namespace ccf::historical
 
     void fetch_entry_at(consensus::Index idx)
     {
+      LOG_FAIL_FMT("fetch_entry_at: {}", idx);
+
       const auto it =
         std::find(pending_fetches.begin(), pending_fetches.end(), idx);
       if (it != pending_fetches.end())
@@ -343,7 +348,7 @@ namespace ccf::historical
 
           if (
             previous_ledger_secret.has_value() &&
-            previous_ledger_secret->version <
+            previous_ledger_secret->version <=
               static_cast<kv::Version>(
                 request.ledger_secret_recovery_info->target_idx))
           {
