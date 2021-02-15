@@ -171,7 +171,7 @@ namespace ccf::historical
       // This only works while entries are never deleted from this table, and
       // makes no check that the signing node was active at the point it
       // produced this signature
-      auto tx = network.tables->create_tx();
+      auto tx = network.tables->create_read_only_tx();
       auto nodes = tx.ro<ccf::Nodes>(ccf::Tables::NODES);
       return nodes->get(node_id);
     }
