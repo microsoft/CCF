@@ -183,9 +183,6 @@ namespace kv::untyped
         auto consensus = map.store->get_consensus();
         bool track_commit = consensus != nullptr && map.store->get_consensus()->type() == ConsensusType::BFT;
 
-        // If we have iterated over the map, check for a global version match.
-        //LOG_INFO_FMT("CCCCCCCC - {}", skip_max_conflict);
-
         if (!skip_max_conflict && track_commit)
         {
           for (auto it = change_set.reads.begin(); it != change_set.reads.end();
@@ -225,11 +222,9 @@ namespace kv::untyped
                ++it)
           {
             auto search = state.get(it->first);
-            //search->version = v;
             if (!search.has_value())
             {
               continue;
-              //throw std::logic_error("should have value");
             }
             state =
               state.put(it->first, VersionV{search->version, v, search->value});
@@ -384,13 +379,22 @@ namespace kv::untyped
 
       if (include_reads)
       {
+        auto consensus = store->get_consensus();
         s.serialise_entry_version(change_set.read_version);
 
         s.serialise_count_header(change_set.reads.size());
         for (auto it = change_set.reads.begin(); it != change_set.reads.end();
              ++it)
         {
-          s.serialise_read(it->first, std::get<0>(it->second), std::get<1>(it->second));
+          if (consensus->type() == ConsensusType::CFT)
+          {
+            s.serialise_read(it->first, std::get<0>(it->second));
+          }
+          else
+          {
+            s.serialise_read(
+              it->first, std::get<0>(it->second), std::get<1>(it->second));
+          }
         }
       }
       else
@@ -531,10 +535,11 @@ namespace kv::untyped
         change_set.read_version = rv;
       }
 
+      auto consensus = store->get_consensus();
       ctr = d.deserialise_read_header();
       for (size_t i = 0; i < ctr; ++i)
       {
-        auto r = d.deserialise_read();
+        auto r = d.deserialise_read(consensus->type() == ConsensusType::BFT);
         change_set.reads[std::get<0>(r)] = std::make_tuple(std::get<1>(r), std::get<2>(r));
       }
 

@@ -5,7 +5,6 @@
 #include "ds/buffer.h"
 #include "kv_types.h"
 #include "serialised_entry.h"
-#include "ds/logger.h"
 
 #include <optional>
 
@@ -103,7 +102,6 @@ namespace kv
       serialise_internal(is_snapshot);
       serialise_internal(tx_id.version);
       serialise_internal(max_conflict_version);
-      //serialise_internal(0);
     }
 
     void start_map(const std::string& name, SecurityDomain domain)
@@ -142,11 +140,19 @@ namespace kv
       serialise_internal(ctr);
     }
 
-    void serialise_read(const SerialisedKey& k, const Version& version, const Version& read_version)
+    void serialise_read(
+      const SerialisedKey& k,
+      const Version& version,
+      const Version& read_version)
+    {
+      serialise_read(k, version);
+      serialise_internal(read_version);
+    }
+
+    void serialise_read(const SerialisedKey& k, const Version& version)
     {
       serialise_internal_pre_serialised(k);
       serialise_internal(version);
-      serialise_internal(read_version);
     }
 
     void serialise_write(const SerialisedKey& k, const SerialisedValue& v)
@@ -399,12 +405,12 @@ namespace kv
       return current_reader->template read_next<uint64_t>();
     }
 
-    std::tuple<SerialisedKey, Version, Version> deserialise_read()
+    std::tuple<SerialisedKey, Version, Version> deserialise_read(bool include_read_version)
     {
       return {
         current_reader->template read_next_pre_serialised<SerialisedKey>(),
         current_reader->template read_next<Version>(),
-        current_reader->template read_next<Version>()};
+        include_read_version ? current_reader->template read_next<Version>() : NoVersion};
     }
 
     uint64_t deserialise_write_header()
