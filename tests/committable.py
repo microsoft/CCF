@@ -63,12 +63,12 @@ def run(args):
         with backups[0].client() as bc:
             wait_for_pending(bc, sig_view, sig_seqno)
 
-        # Suspend the final backup and run some transactions which only the primary hears, which should be discarded by the new primary
+        # Suspend the final backup and run some transactions which only the partitioned primary hears, which should be discarded by the new primary
         backups[0].suspend()
-        uncommittable_txs = []
+        post_partition_txs = []
         with primary.client("user0") as uc:
             for i in range(3):
-                uncommittable_txs.append(
+                post_partition_txs.append(
                     uc.post("/app/log/private", {"id": 100 + i, "msg": "Hello world"})
                 )
 
@@ -94,8 +94,8 @@ def run(args):
             for tx in committable_txs:
                 check_commit(tx)
 
-            # Check that uncommittable suffix was lost
-            for tx in uncommittable_txs:
+            # Check that suffix received after partition is lost
+            for tx in post_partition_txs:
                 r = uc.get(f"/node/tx?view={tx.view}&seqno={tx.seqno}")
                 assert (
                     r.status_code == http.HTTPStatus.OK
