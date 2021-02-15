@@ -1790,9 +1790,12 @@ namespace aft
 
     void send_request_vote(NodeId to)
     {
-      LOG_INFO_FMT("Send request vote from {} to {}", state->my_node_id, to);
-
       auto last_committable_idx = last_committable_index();
+      LOG_INFO_FMT(
+        "Send request vote from {} to {} at {}",
+        state->my_node_id,
+        to,
+        last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
       RequestVote rv = {{raft_request_vote, state->my_node_id},
@@ -1857,11 +1860,11 @@ namespace aft
       // If the candidate's committable log is at least as up-to-date as ours,
       // vote yes
 
-      auto last_committable_idx = last_committable_index();
-      auto term_of_last_committable_index =
+      const auto last_committable_idx = last_committable_index();
+      const auto term_of_last_committable_index =
         get_term_internal(last_committable_idx);
 
-      auto answer =
+      const auto answer =
         (r.term_of_last_committable_idx > term_of_last_committable_index) ||
         ((r.term_of_last_committable_idx == term_of_last_committable_index) &&
          (r.last_committable_idx >= last_committable_idx));
@@ -1873,6 +1876,15 @@ namespace aft
         restart_election_timeout();
         leader_id = NoNode;
         voted_for = r.from_node;
+      }
+      else
+      {
+        LOG_INFO_FMT(
+          "Voting against candidate at {}.{} because I'm at {}.{}",
+          r.term_of_last_committable_idx,
+          r.last_committable_idx,
+          term_of_last_committable_idx,
+          last_committable_idx);
       }
 
       send_request_vote_response(r.from_node, answer);
