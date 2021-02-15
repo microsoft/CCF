@@ -140,7 +140,7 @@ namespace ccf
     void initialize(NodeId self_id, const tls::Pem& network_pkey) override
     {
       CCF_ASSERT_FMT(
-        self_id == INVALID_ID,
+        self == INVALID_ID,
         "Calling initialize more than once, previous id:{}, new id:{}",
         self,
         self_id);
