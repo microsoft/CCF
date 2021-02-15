@@ -290,6 +290,8 @@ namespace ccf
 
           if (reserved != -1)
           {
+            CCF_ASSERT(
+              consensus->type() == ConsensusType::BFT, "Wrong consensus type");
             auto f = [&]() {
               tables.next_version();
               return reserved;
@@ -300,10 +302,6 @@ namespace ccf
           {
             commit_success = tx.commit();
           }
-          LOG_DEBUG_FMT(
-            "2. AAAAAAA commit_success:{}, version:{}",
-            commit_success,
-            tx.get_version());
 
           switch (commit_success)
           {

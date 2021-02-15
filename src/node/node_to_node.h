@@ -130,7 +130,6 @@ namespace ccf
     NodeId self;
     std::unique_ptr<ChannelManager> channels;
     ringbuffer::AbstractWriterFactory& writer_factory;
-    SpinLock lock;
 
   public:
     NodeToNodeImpl(ringbuffer::AbstractWriterFactory& writer_factory_) :
@@ -160,7 +159,6 @@ namespace ccf
         return;
       }
 
-      std::unique_lock<SpinLock> guard(lock);
       channels->create_channel(peer_id, hostname, service);
     }
 
@@ -171,19 +169,16 @@ namespace ccf
         return;
       }
 
-      std::unique_lock<SpinLock> guard(lock);
       channels->destroy_channel(peer_id);
     }
 
     void close_all_outgoing() override
     {
-      std::unique_lock<SpinLock> guard(lock);
       channels->close_all_outgoing();
     }
 
     void destroy_all_channels() override
     {
-      std::unique_lock<SpinLock> guard(lock);
       channels->destroy_all_channels();
     }
 

@@ -8,12 +8,17 @@
 // func run_next_message:
 // if async_exec_in_progress then
 //   queue_message
-// if message == append_entry and thread_count > 1:
-//   exec_on_async_thread
-//   return_to_home_thread
-// else:
+// if message == append_entry and thread_count > 1 then
+//   if consensus = cft then
+//     exec_on_async_thread
+//     return_to_home_thread
+//   else
+//     loop until no more pending tx
+//       schedule next executable block of tx
+//       run scheduled block of tx concurrently
+// else
 //   exec_on_current_thread
-// if queued_messages > 0:
+// if queued_messages > 0 then
 //   run_next_message
 //
 
@@ -664,12 +669,12 @@ namespace aft
         if (always_execute_async)
         {
           auto async_pending_msg = std::make_unique<threading::Tmsg<AsyncPendingExec>>(
-            [](std::unique_ptr<threading::Tmsg<AsyncPendingExec>> msg_bbbb) {
-              msg_bbbb->data.pending_execution->async_execute();
+            [](std::unique_ptr<threading::Tmsg<AsyncPendingExec>> msg) {
+              msg->data.pending_execution->async_execute();
 
-              msg_bbbb->reset_cb(add_to_pending_execution_cb);
+              msg->reset_cb(add_to_pending_execution_cb);
               threading::ThreadMessaging::thread_messaging.add_task(
-                threading::MAIN_THREAD_ID, std::move(msg_bbbb));
+                threading::MAIN_THREAD_ID, std::move(msg));
             },
             this,
             std::move(aee));
@@ -1331,7 +1336,6 @@ namespace aft
       }
     }
     
-
     struct AsyncExecutionRet
     {
       AsyncExecutionRet(
@@ -1440,7 +1444,7 @@ namespace aft
     bool execute_append_entries_cft(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
-      //std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
+      std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
       std::list<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries = msg->data.append_entries;
@@ -1457,16 +1461,6 @@ namespace aft
         kv::ApplyResult apply_success = ds->execute();
         if (apply_success == kv::ApplyResult::FAIL)
         {
-          // Setting last_idx to i-1 is a work around that should be fixed
-          // shortly. In BFT mode when we deserialize and realize we need to
-          // create a new map we remember this. If we need to create the same
-          // map multiple times (for tx in the same group of append entries) the
-          // first create successes but the second fails because the map is
-          // already there. This works around the problem by stopping just
-          // before the 2nd create (which failed at this point) and when the
-          // primary resends the append entries we will succeed as the map is
-          // already there. This will only occur on BFT startup so not a perf
-          // problem but still need to be resolved.
           state->last_idx = i - 1;
           ledger->truncate(state->last_idx);
           send_append_entries_response(
@@ -1554,6 +1548,10 @@ namespace aft
     bool execute_append_entries_bft(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
+      // This function is responsible for selection the next batch of
+      // transactions we can execute concurrently and then starting said
+      // execution. If the are more pending entries after we select the batch we
+      // will return to this function.
       std::list<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries = msg->data.append_entries;
@@ -1906,15 +1904,18 @@ namespace aft
 
       if (is_pre_exec)
       {
-        auto node = nodes.find(r.from_node);
-        if (node == nodes.end())
         {
-          // Ignore if we don't recognise the node.
-          LOG_FAIL_FMT(
-            "Recv signed append entries response to {} from {}: unknown node",
-            state->my_node_id,
-            r.from_node);
-          return false;
+          std::lock_guard<SpinLock> guard(state->lock);
+          auto node = nodes.find(r.from_node);
+          if (node == nodes.end())
+          {
+            // Ignore if we don't recognise the node.
+            LOG_FAIL_FMT(
+              "Recv signed append entries response to {} from {}: unknown node",
+              state->my_node_id,
+              r.from_node);
+            return false;
+          }
         }
 
         bool res = progress_tracker->verify_signature(

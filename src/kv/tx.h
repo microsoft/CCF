@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+// TODO: explain how dependency tracking works here
+
 #include "apply_changes.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_deprecated.h"

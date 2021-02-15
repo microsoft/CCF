@@ -4,6 +4,7 @@
 
 #include "kv_types.h"
 #include "untyped_map_handle.h"
+#include "node/entities.h"
 
 #include <functional>
 #include <map>
@@ -137,11 +138,8 @@ namespace kv
       for (auto it = views.begin(); it != views.end(); ++it)
       {
         bool skip_max_conflict =
-          (it->first.compare("public:ccf.internal.consensus.requests") == 0);
-        //LOG_INFO_FMT("BBBBBB:{}", it->first);
+          (it->first.compare(ccf::Tables::AFT_REQUESTS) == 0);
         it->second->commit(version, max_conflict_version, skip_max_conflict);
-        //LOG_INFO_FMT(
-        //  "version:{}, max_conflict:{}", version, max_conflict_version);
       }
 
       // Collect ConsensusHooks

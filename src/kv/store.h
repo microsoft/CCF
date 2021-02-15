@@ -909,7 +909,7 @@ namespace kv
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
-          LOG_INFO_FMT(
+          LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}", txid.term, term);
 
           return CommitResult::FAIL_NO_REPLICATE;
@@ -929,9 +929,7 @@ namespace kv
         {
           auto search = pending_txs.find(last_replicated + offset);
           if (search == pending_txs.end())
-          {
             break;
-          }
 
           auto& [pending_tx_, committable_] = search->second;
           auto [success_, reqid, data_, hooks_] = pending_tx_->call();
