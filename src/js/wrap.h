@@ -9,7 +9,6 @@
 
 namespace js
 {
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
@@ -73,13 +72,13 @@ namespace js
   {
     JSRuntime* rt;
 
-    public:
+  public:
     JSAutoFreeRuntime()
     {
       rt = JS_NewRuntime();
       if (rt == nullptr)
       {
-        throw std::runtime_error("Failed to initialise QuickJS runtime"); 
+        throw std::runtime_error("Failed to initialise QuickJS runtime");
       }
     }
 
@@ -88,7 +87,8 @@ namespace js
       JS_FreeRuntime(rt);
     }
 
-    operator JSRuntime*() const {
+    operator JSRuntime*() const
+    {
       return rt;
     }
   };
@@ -97,8 +97,9 @@ namespace js
   {
     JSContext* ctx;
 
-    public:
-    JSAutoFreeCtx(JSRuntime* rt) {
+  public:
+    JSAutoFreeCtx(JSRuntime* rt)
+    {
       ctx = JS_NewContext(rt);
       if (ctx == nullptr)
       {
@@ -112,7 +113,8 @@ namespace js
       JS_FreeContext(ctx);
     }
 
-    operator JSContext*() const {
+    operator JSContext*() const
+    {
       return ctx;
     }
 

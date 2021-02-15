@@ -1056,8 +1056,7 @@ namespace ccfapp
 
       // Response headers
       {
-        auto response_headers_js =
-          ctx(JS_GetPropertyStr(ctx, val, "headers"));
+        auto response_headers_js = ctx(JS_GetPropertyStr(ctx, val, "headers"));
         if (JS_IsObject(response_headers_js))
         {
           uint32_t prop_count = 0;
@@ -1093,8 +1092,7 @@ namespace ccfapp
       // Response status code
       {
         int response_status_code = HTTP_STATUS_OK;
-        auto status_code_js =
-          ctx(JS_GetPropertyStr(ctx, val, "statusCode"));
+        auto status_code_js = ctx(JS_GetPropertyStr(ctx, val, "statusCode"));
         if (!JS_IsUndefined(status_code_js) && !JS_IsNull(status_code_js))
         {
           if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)

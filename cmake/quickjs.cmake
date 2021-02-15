@@ -44,6 +44,13 @@ target_compile_options(
 )
 add_san(quickjs.host)
 set_property(TARGET quickjs.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_include_directories(quickjs.host PUBLIC ${QUICKJS_INC})
+target_include_directories(
+  quickjs.host PUBLIC $<BUILD_INTERFACE:${CCF_DIR}/3rdparty/quickjs>
+                      $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+)
 
-install(TARGETS quickjs.host DESTINATION lib)
+install(
+  TARGETS quickjs.host
+  EXPORT ccf
+  DESTINATION lib
+)

@@ -3,6 +3,7 @@
 #pragma once
 #include "ds/nonstd.h"
 #include "frontend.h"
+#include "js/wrap.h"
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
@@ -2128,6 +2129,10 @@ namespace ccf
           }
           proposals->put(proposal_id, proposal);
           */
+
+          js::JSAutoFreeRuntime rt;
+          js::JSAutoFreeCtx c(rt);
+          ctx.tx.ro(network.constitution);
 
           record_voting_history(
             ctx.tx, caller_identity.member_id, caller_identity.signed_request);
