@@ -289,33 +289,7 @@ namespace tls
       X509_get_signature_info(cert, &mdnid, &pknid, &secbits, 0);
       md_type = get_md_type(mdnid);
 
-      EVP_PKEY* pk = X509_get_pubkey(cert);
-
-      BIO* buf = BIO_new(BIO_s_mem());
-      if (!buf)
-        throw std::runtime_error("out of memory");
-
-      OPENSSL_CHECK1(PEM_write_bio_PUBKEY(buf, pk));
-
-      BUF_MEM* bptr;
-      BIO_get_mem_ptr(buf, &bptr);
-      Pem pk_pem((uint8_t*)bptr->data, bptr->length);
-      BIO_free(buf);
-
-      if (EVP_PKEY_get0_EC_KEY(pk))
-      {
-        public_key = std::make_unique<PublicKey_OpenSSL>(pk_pem);
-      }
-      else if (EVP_PKEY_get0_RSA(pk))
-      {
-        public_key = std::make_unique<RSAPublicKey_mbedTLS>(pk_pem);
-      }
-      else
-      {
-        throw std::logic_error("unsupported public key type");
-      }
-
-      EVP_PKEY_free(pk);
+      public_key = std::make_unique<PublicKey_OpenSSL>(X509_get_pubkey(cert));
     }
 
     Verifier_OpenSSL(Verifier_OpenSSL&& v) = default;
