@@ -1861,12 +1861,12 @@ namespace aft
       // vote yes
 
       const auto last_committable_idx = last_committable_index();
-      const auto term_of_last_committable_index =
+      const auto term_of_last_committable_idx =
         get_term_internal(last_committable_idx);
 
       const auto answer =
-        (r.term_of_last_committable_idx > term_of_last_committable_index) ||
-        ((r.term_of_last_committable_idx == term_of_last_committable_index) &&
+        (r.term_of_last_committable_idx > term_of_last_committable_idx) ||
+        ((r.term_of_last_committable_idx == term_of_last_committable_idx) &&
          (r.last_committable_idx >= last_committable_idx));
 
       if (answer)
