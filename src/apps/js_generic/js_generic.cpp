@@ -844,13 +844,7 @@ namespace ccfapp
         }
       }
 
-      JSRuntime* rt = JS_NewRuntime();
-      if (rt == nullptr)
-      {
-        throw std::runtime_error("Failed to initialise QuickJS runtime");
-      }
-      js::JSAutoFreeRuntime auto_free_rt(rt);
-
+      js::JSAutoFreeRuntime rt;
       JS_SetMaxStackSize(rt, 1024 * 1024);
 
       JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
@@ -888,13 +882,7 @@ namespace ccfapp
         }
       }
 
-      JSContext* ctx = JS_NewContext(rt);
-      if (ctx == nullptr)
-      {
-        throw std::runtime_error("Failed to initialise QuickJS context");
-      }
-      js::JSAutoFreeCtx auto_free(ctx);
-      JS_SetContextOpaque(ctx, &auto_free);
+      js::JSAutoFreeCtx ctx(rt);
 
       // Set prototype for request body class
       JSValue body_proto = JS_NewObject(ctx);
@@ -965,7 +953,7 @@ namespace ccfapp
       auto request = create_request_obj(args, ctx);
       int argc = 1;
       JSValueConst* argv = (JSValueConst*)&request;
-      auto val = auto_free(JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv));
+      auto val = ctx(JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv));
       JS_FreeValue(ctx, request);
       JS_FreeValue(ctx, export_func);
 
@@ -991,7 +979,7 @@ namespace ccfapp
 
       // Response body (also sets a default response content-type header)
       {
-        auto response_body_js = auto_free(JS_GetPropertyStr(ctx, val, "body"));
+        auto response_body_js = ctx(JS_GetPropertyStr(ctx, val, "body"));
         std::vector<uint8_t> response_body;
         size_t buf_size;
         size_t buf_offset;
@@ -1069,7 +1057,7 @@ namespace ccfapp
       // Response headers
       {
         auto response_headers_js =
-          auto_free(JS_GetPropertyStr(ctx, val, "headers"));
+          ctx(JS_GetPropertyStr(ctx, val, "headers"));
         if (JS_IsObject(response_headers_js))
         {
           uint32_t prop_count = 0;
@@ -1083,9 +1071,9 @@ namespace ccfapp
           for (size_t i = 0; i < prop_count; i++)
           {
             auto prop_name = props[i].atom;
-            auto prop_name_cstr = auto_free(JS_AtomToCString(ctx, prop_name));
+            auto prop_name_cstr = ctx(JS_AtomToCString(ctx, prop_name));
             auto prop_val =
-              auto_free(JS_GetProperty(ctx, response_headers_js, prop_name));
+              ctx(JS_GetProperty(ctx, response_headers_js, prop_name));
             auto prop_val_cstr = JS_ToCString(ctx, prop_val);
             if (!prop_val_cstr)
             {
@@ -1106,7 +1094,7 @@ namespace ccfapp
       {
         int response_status_code = HTTP_STATUS_OK;
         auto status_code_js =
-          auto_free(JS_GetPropertyStr(ctx, val, "statusCode"));
+          ctx(JS_GetPropertyStr(ctx, val, "statusCode"));
         if (!JS_IsUndefined(status_code_js) && !JS_IsNull(status_code_js))
         {
           if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)

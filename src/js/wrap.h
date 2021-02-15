@@ -69,25 +69,51 @@ namespace js
     JS_FreeValue(ctx, exception_val);
   }
 
-  struct JSAutoFreeRuntime
+  class JSAutoFreeRuntime
   {
     JSRuntime* rt;
 
-    JSAutoFreeRuntime(JSRuntime* rt) : rt(rt) {}
+    public:
+    JSAutoFreeRuntime()
+    {
+      rt = JS_NewRuntime();
+      if (rt == nullptr)
+      {
+        throw std::runtime_error("Failed to initialise QuickJS runtime"); 
+      }
+    }
+
     ~JSAutoFreeRuntime()
     {
       JS_FreeRuntime(rt);
     }
+
+    operator JSRuntime*() const {
+      return rt;
+    }
   };
 
-  struct JSAutoFreeCtx
+  class JSAutoFreeCtx
   {
     JSContext* ctx;
 
-    JSAutoFreeCtx(JSContext* ctx) : ctx(ctx) {}
+    public:
+    JSAutoFreeCtx(JSRuntime* rt) {
+      ctx = JS_NewContext(rt);
+      if (ctx == nullptr)
+      {
+        throw std::runtime_error("Failed to initialise QuickJS context");
+      }
+      JS_SetContextOpaque(ctx, this);
+    }
+
     ~JSAutoFreeCtx()
     {
       JS_FreeContext(ctx);
+    }
+
+    operator JSContext*() const {
+      return ctx;
     }
 
     struct JSWrappedValue
