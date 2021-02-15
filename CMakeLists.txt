@@ -64,8 +64,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   # enclave version
   add_library(
     ccf.enclave STATIC
-    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
-    ${CCF_GENERATED_DIR}/ccf_t.cpp
+    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/js/wrap.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
   target_compile_definitions(
@@ -113,8 +113,9 @@ endif()
 if("virtual" IN_LIST COMPILE_TARGETS)
   # virtual version
   add_library(
-    ccf.virtual STATIC ${CCF_DIR}/src/enclave/main.cpp
-                       ${CCF_DIR}/src/enclave/thread_local.cpp
+    ccf.virtual STATIC
+    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/js/wrap.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp
   )
 
   target_compile_definitions(
