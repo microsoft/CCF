@@ -1065,9 +1065,6 @@ namespace ccf
                 network.encrypted_ledger_secrets.get_name()));
             }
 
-            // TODO: Delete
-            LOG_FAIL_FMT("One off hook on encrypted secrets table!!");
-
             network.ledger_secrets->adjust_previous_secret_stored_version(
               version);
 

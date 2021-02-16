@@ -147,7 +147,7 @@ namespace ccf
     }
 
     void shuffle_recovery_shares(
-      kv::Tx& tx, LedgerSecretPtr latest_ledger_secret)
+      kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
     {
       auto ls_wrapping_key = LedgerSecretWrappingKey();
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
@@ -161,7 +161,7 @@ namespace ccf
 
     void set_recovery_shares_info(
       kv::Tx& tx,
-      LedgerSecretPtr latest_ledger_secret,
+      const LedgerSecretPtr& latest_ledger_secret,
       const std::optional<VersionedLedgerSecret>& previous_ledger_secret =
         std::nullopt,
       std::optional<kv::Version> latest_ls_version = std::nullopt)
@@ -212,7 +212,7 @@ namespace ccf
 
     std::vector<uint8_t> encrypt_submitted_share(
       const std::vector<uint8_t>& submitted_share,
-      LedgerSecretPtr&& current_ledger_secret)
+      const LedgerSecretPtr& current_ledger_secret)
     {
       // Submitted recovery shares are encrypted with the latest ledger secret.
       crypto::GcmCipher encrypted_submitted_share(submitted_share.size());

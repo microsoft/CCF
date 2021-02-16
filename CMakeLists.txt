@@ -540,8 +540,8 @@ if(BUILD_TESTS)
       --enforce-reqs
       --test-suite
       rekey_recovery
-      # --test-suite
-      # membership_recovery
+      --test-suite
+      membership_recovery
   )
 
   add_e2e_test(
