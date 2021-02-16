@@ -387,18 +387,12 @@ namespace ccf
       auto encrypted_previous_ledger_secret =
         tx.ro(network.encrypted_ledger_secrets);
 
-      LOG_FAIL_FMT(
-        "Latest secret, previous secret stored at {}",
-        encrypted_previous_ledger_secret->get_version_of_previous_write(0)
-          .value_or(kv::NoVersion));
-
-      // TODO: Set the version of the previous ledger secret here, but that
-      // needs to be set in the ccf.shares table, for the latest secret
-      restored_ledger_secrets.emplace(
+      auto s = restored_ledger_secrets.emplace(
         current_ledger_secret_version.value(),
         std::make_shared<LedgerSecret>(
           std::move(restored_ls->raw_key),
           encrypted_previous_ledger_secret->get_version_of_previous_write(0)));
+      auto latest_ls = s.first->second;
 
       for (auto it = recovery_ledger_secrets.rbegin();
            it != recovery_ledger_secrets.rend();
@@ -410,11 +404,8 @@ namespace ccf
           break;
         }
 
-        auto decrypted_ls = decrypt_previous_ledger_secret(
-          decryption_key,
-          std::move(it->previous_ledger_secret->encrypted_data));
-
-        decryption_key = decrypted_ls;
+        auto decrypted_ls_raw = decrypt_previous_ledger_secret_raw(
+          latest_ls, std::move(it->previous_ledger_secret->encrypted_data));
 
         LOG_FAIL_FMT(
           "Restoring ledger secret at {}, with previous secret stored at {}",
@@ -422,11 +413,12 @@ namespace ccf
           it->previous_ledger_secret->previous_secret_stored_version.value_or(
             kv::NoVersion));
 
-        restored_ledger_secrets.emplace(
+        auto s = restored_ledger_secrets.emplace(
           it->previous_ledger_secret->version,
           std::make_shared<LedgerSecret>(
-            std::move(decrypted_ls),
+            std::move(decrypted_ls_raw),
             it->previous_ledger_secret->previous_secret_stored_version));
+        latest_ls = s.first->second;
       }
 
       recovery_ledger_secrets.clear();

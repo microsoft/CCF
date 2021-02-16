@@ -1639,8 +1639,8 @@ namespace ccf
 
                   network.ledger_secrets->set_secret(
                     ledger_secret_version + 1,
-                    std::move(plain_ledger_secret),
-                    hook_version);
+                    std::make_shared<LedgerSecret>(
+                      std::move(plain_ledger_secret), hook_version));
                 }
               }
             }

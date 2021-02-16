@@ -25,9 +25,6 @@ namespace ccf
     SpinLock lock;
     LedgerSecretsMap ledger_secrets;
 
-    // TODO: Remove
-    LedgerSecretsMap historical_ledger_secrets;
-
     std::optional<LedgerSecretsMap::iterator> last_used_secret_it =
       std::nullopt;
 
@@ -69,22 +66,10 @@ namespace ccf
         version,
         [](auto a, const auto& b) { return b.first > a; });
 
-      if (search == ledger_secrets.begin()) // TODO: Only if historical?
+      if (search == ledger_secrets.begin())
       {
-        LOG_FAIL_FMT("Looking for historical queries at {}", version);
-        auto historical_search = std::upper_bound(
-          historical_ledger_secrets.begin(),
-          historical_ledger_secrets.end(),
-          version,
-          [](auto a, const auto& b) { return b.first > a; });
-
-        if (historical_search == historical_ledger_secrets.begin())
-        {
-          throw std::logic_error(fmt::format(
-            "Could not find historical ledger secret for seqno {}", version));
-        }
-
-        return std::prev(historical_search)->second;
+        throw std::logic_error(
+          fmt::format("Could not find ledger secret for seqno {}", version));
       }
 
       if (!historical_hint)
@@ -189,26 +174,26 @@ namespace ccf
       dump();
     }
 
+    bool is_empty()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      return ledger_secrets.empty();
+    }
+
     // TODO: Need a tx here??
     VersionedLedgerSecret get_first()
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      if (ledger_secrets.empty() && historical_ledger_secrets.empty())
+      if (ledger_secrets.empty())
       {
         throw std::logic_error(
           "Could not retrieve first ledger secret: no secret set");
       }
 
-      if (historical_ledger_secrets.empty())
-      {
-        LOG_FAIL_FMT("Returning first ledger secret");
-        return *ledger_secrets.begin();
-      }
-
-      LOG_FAIL_FMT("Returning first historical ledger secret");
-
-      return *historical_ledger_secrets.begin();
+      LOG_FAIL_FMT("Returning first ledger secret");
+      return *ledger_secrets.begin();
     }
 
     VersionedLedgerSecret get_latest(kv::ReadOnlyTx& tx)
@@ -309,10 +294,7 @@ namespace ccf
       return get_secret_for_version(version, true);
     }
 
-    void set_secret(
-      kv::Version version,
-      std::vector<uint8_t>&& raw_secret,
-      std::optional<kv::Version> previous_secret_stored_version = std::nullopt)
+    void set_secret(kv::Version version, LedgerSecretPtr&& secret)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -321,35 +303,9 @@ namespace ccf
         "Ledger secret at seqno {} already exists",
         version);
 
-      ledger_secrets.emplace(
-        version,
-        std::make_shared<LedgerSecret>(
-          std::move(raw_secret), previous_secret_stored_version));
+      ledger_secrets.emplace(version, std::move(secret));
 
       LOG_INFO_FMT("Added new ledger secret at seqno {}", version);
-    }
-
-    LedgerSecretPtr set_historical_secret(
-      kv::Version version,
-      std::vector<uint8_t>&& raw_secret,
-      std::optional<kv::Version> previous_secret_stored_version = std::nullopt)
-    {
-      std::lock_guard<SpinLock> guard(lock);
-
-      CCF_ASSERT_FMT(
-        historical_ledger_secrets.find(version) ==
-          historical_ledger_secrets.end(),
-        "Historical ledger secret at seqno {} already exists",
-        version);
-
-      auto s = historical_ledger_secrets.emplace(
-        version,
-        std::make_shared<LedgerSecret>(
-          std::move(raw_secret), previous_secret_stored_version));
-
-      LOG_INFO_FMT("Added new historical ledger secret at seqno {}", version);
-
-      return s.first->second;
     }
 
     void rollback(kv::Version version)

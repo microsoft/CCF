@@ -33,7 +33,7 @@ namespace kv
     }
 
   public:
-    TxEncryptor(std::shared_ptr<T> secrets) : ledger_secrets(secrets) {}
+    TxEncryptor(const std::shared_ptr<T>& secrets) : ledger_secrets(secrets) {}
 
     size_t get_header_length() override
     {

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
+#include "ds/spin_lock.h"
 #include "node/encryptor.h"
 #include "node/historical_queries_interface.h"
 #include "node/history.h"
@@ -22,7 +23,9 @@ namespace ccf::historical
   protected:
     ccf::NetworkState& network;
     ringbuffer::WriterPtr to_host;
-    ccf::LedgerSecrets historical_ledger_secrets;
+
+    std::shared_ptr<ccf::LedgerSecrets> historical_ledger_secrets;
+    std::shared_ptr<ccf::NodeEncryptor> historical_encryptor;
 
     enum class RequestStage
     {
@@ -38,11 +41,6 @@ namespace ccf::historical
     {
       consensus::Index target_idx = 0;
       LedgerSecretPtr last_ledger_secret;
-
-      LedgerSecretRecoveryInfo(const LedgerSecretRecoveryInfo& other) :
-        target_idx(other.target_idx),
-        last_ledger_secret(other.last_ledger_secret)
-      {}
 
       LedgerSecretRecoveryInfo(
         consensus::Index target_idx_, LedgerSecretPtr last_ledger_secret_) :
@@ -75,6 +73,17 @@ namespace ccf::historical
     // need to distinguish things-we-asked-for from junk-from-the-host
     std::set<consensus::Index> pending_fetches;
 
+    ccf::VersionedLedgerSecret get_first_known_ledger_secret()
+    {
+      // TODO: Add assertion
+      if (historical_ledger_secrets->is_empty())
+      {
+        return network.ledger_secrets->get_first();
+      }
+
+      return historical_ledger_secrets->get_first();
+    }
+
     void request_entry_at(consensus::Index idx)
     {
       // To avoid duplicates, remove index if it was already requested
@@ -95,11 +104,10 @@ namespace ccf::historical
       request.current_stage = RequestStage::Fetching;
       consensus::Index first_idx_to_fetch = idx;
 
-      // If the target historical entry cannot be deserialised with the oldest
-      // ledger secret, record the target idx and fetch the previous
+      // If the target historical entry cannot be deserialised with the first
+      // known ledger secret, record the target idx and fetch the previous
       // historical ledger secret.
-      // TODO: Thread-safety?
-      auto first_known_ledger_secret = network.ledger_secrets->get_first();
+      auto first_known_ledger_secret = get_first_known_ledger_secret();
       if (idx < static_cast<consensus::Index>(first_known_ledger_secret.first))
       {
         LOG_TRACE_FMT(
@@ -284,16 +292,16 @@ namespace ccf::historical
       auto previous_ledger_secret =
         encrypted_past_ledger_secret->get(0)->previous_ledger_secret;
 
-      auto recovered_ledger_secret_raw = decrypt_previous_ledger_secret(
-        ledger_secret_recovery_info->last_ledger_secret->raw_key,
+      auto recovered_ledger_secret_raw = decrypt_previous_ledger_secret_raw(
+        ledger_secret_recovery_info->last_ledger_secret,
         std::move(previous_ledger_secret->encrypted_data));
 
-      // TODO: Change encryptor/historical ledger secret API!
-      auto recovered_historical_secret =
-        network.ledger_secrets->set_historical_secret(
-          previous_ledger_secret->version,
-          std::move(recovered_ledger_secret_raw),
-          previous_ledger_secret->previous_secret_stored_version);
+      auto recovered_ledger_secret = std::make_shared<LedgerSecret>(
+        std::move(recovered_ledger_secret_raw),
+        previous_ledger_secret->previous_secret_stored_version);
+
+      // historical_ledger_secrets.set_secret(
+      //   previous_ledger_secret->version, std::move(recovered_ledger_secret));
 
       Request next_request;
       consensus::Index next_idx;
@@ -316,7 +324,7 @@ namespace ccf::historical
         // Store first known ledger secret in request, so that
         // we can deserialise the next fetched encrypted ledger secret
         ledger_secret_recovery_info->last_ledger_secret =
-          recovered_historical_secret;
+          recovered_ledger_secret;
 
         next_request.current_stage = RequestStage::RecoveringLedgerSecret;
         next_idx =
@@ -324,6 +332,10 @@ namespace ccf::historical
         next_request.ledger_secret_recovery_info =
           std::move(ledger_secret_recovery_info);
       }
+
+      // TODO: Is it safe to move here?
+      historical_ledger_secrets->set_secret(
+        previous_ledger_secret->version, std::move(recovered_ledger_secret));
 
       return std::make_pair(next_idx, std::move(next_request));
     }
@@ -335,7 +347,18 @@ namespace ccf::historical
         false /* Do not start from very first idx */,
         true /* Make use of historical secrets */);
 
-      store->set_encryptor(network.tables->get_encryptor());
+      if (
+        idx < static_cast<consensus::Index>(
+                network.ledger_secrets->get_first().first))
+      {
+        LOG_FAIL_FMT("Historical encryptor");
+        store->set_encryptor(historical_encryptor);
+      }
+      else
+      {
+        LOG_FAIL_FMT("Current encryptor");
+        store->set_encryptor(network.tables->get_encryptor());
+      }
 
       auto request_it = requests.find(idx);
       if (
@@ -344,7 +367,7 @@ namespace ccf::historical
           RequestStage::RecoveringLedgerSecret)
       {
         // Encrypted ledger secrets are deserialised in public-only mode.
-        // Their Merkle tree integrity is not verified since even if the
+        // Their Merkle tree integrity is not verified: even if the
         // recovered ledger secret was bogus, the deserialisation of
         // subsequent ledger entries would fail.
         const auto deserialise_result =
@@ -398,7 +421,6 @@ namespace ccf::historical
         {
           LOG_DEBUG_FMT("Processed transaction at {}", idx);
 
-          auto request_it = requests.find(idx);
           if (request_it != requests.end())
           {
             auto& request = request_it->second;
@@ -442,7 +464,10 @@ namespace ccf::historical
     StateCache(
       ccf::NetworkState& network_, const ringbuffer::WriterPtr& host_writer) :
       network(network_),
-      to_host(host_writer)
+      to_host(host_writer),
+      historical_ledger_secrets(std::make_shared<ccf::LedgerSecrets>()),
+      historical_encryptor(
+        std::make_shared<ccf::NodeEncryptor>(historical_ledger_secrets))
     {}
 
     StorePtr get_store_at(consensus::Index idx) override

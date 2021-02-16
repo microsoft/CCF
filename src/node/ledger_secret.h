@@ -11,30 +11,6 @@
 
 namespace ccf
 {
-  // TODO: We should change this and make it a member on `LedgerSecret` maybe?
-  inline std::vector<uint8_t> decrypt_previous_ledger_secret(
-    const std::vector<uint8_t>& raw_ledger_secret,
-    std::vector<uint8_t>&& raw_encrypted_previous_secret)
-  {
-    crypto::GcmCipher encrypted_ls;
-    encrypted_ls.deserialise(raw_encrypted_previous_secret);
-    std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
-
-    // TODO: No need to create a key again! Just use `key` from ledger_secret
-    if (!crypto::KeyAesGcm(raw_ledger_secret)
-           .decrypt(
-             encrypted_ls.hdr.get_iv(),
-             encrypted_ls.hdr.tag,
-             encrypted_ls.cipher,
-             nullb,
-             decrypted_ls.data()))
-    {
-      throw std::logic_error("Decryption of previous ledger secret failed");
-    }
-
-    return decrypted_ls;
-  }
-
   struct LedgerSecret
   {
     std::vector<uint8_t> raw_key;
@@ -81,16 +57,33 @@ namespace ccf
 
   using LedgerSecretPtr = std::shared_ptr<LedgerSecret>;
 
-  inline std::vector<uint8_t> generate_raw_secret()
-  {
-    return tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
-  }
-
   inline LedgerSecretPtr make_ledger_secret()
   {
     LOG_FAIL_FMT("Making ledger secret!");
 
-    return std::make_shared<LedgerSecret>(generate_raw_secret());
+    return std::make_shared<LedgerSecret>(
+      tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  }
+
+  inline std::vector<uint8_t> decrypt_previous_ledger_secret_raw(
+    const LedgerSecretPtr& ledger_secret,
+    std::vector<uint8_t>&& encrypted_previous_secret_raw)
+  {
+    crypto::GcmCipher encrypted_ls;
+    encrypted_ls.deserialise(encrypted_previous_secret_raw);
+    std::vector<uint8_t> decrypted_ls_raw(encrypted_ls.cipher.size());
+
+    if (!ledger_secret->key->decrypt(
+          encrypted_ls.hdr.get_iv(),
+          encrypted_ls.hdr.tag,
+          encrypted_ls.cipher,
+          nullb,
+          decrypted_ls_raw.data()))
+    {
+      throw std::logic_error("Decryption of previous ledger secret failed");
+    }
+
+    return decrypted_ls_raw;
   }
 }
 
@@ -119,6 +112,8 @@ namespace nlohmann
       }
       else
       {
+        // TODO: This seems that the following doesn't work. Investigate.
+        // s = std::make_shared<ccf::LedgerSecret>(j);
         std::optional<kv::Version> previous_version;
         auto it = j.find("previous_secret_stored_version");
         if (it != j.end())

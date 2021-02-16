@@ -327,28 +327,26 @@ TEST_CASE("Recover historical ledger secrets")
 
   store.set_encryptor(encryptor);
 
-  // TODO: Do we need to issue recovery shares for the very first ledger
-  // secret??
-
   initialise_store(store, true);
 
-  constexpr size_t low_signature_index = 10;
-  constexpr size_t high_signature_index = 50;
+  // Only one signature, valid with the latest ledger secret
+  constexpr size_t signature_index = 50;
 
   // Rekey ledger every 10 transactions
-  constexpr size_t first_rekey_index = low_signature_index + 10;
+  constexpr size_t first_rekey_index = 10;
   constexpr size_t second_rekey_index = first_rekey_index + 10;
   constexpr size_t third_rekey_index = second_rekey_index + 10;
 
+  constexpr size_t first_index = 1;
   constexpr size_t second_index = second_rekey_index + 1;
   constexpr size_t third_index = third_rekey_index + 1;
 
   {
     INFO("Create entries and populate ledger");
 
-    for (size_t i = store.current_version(); i < high_signature_index; ++i)
+    for (size_t i = store.current_version(); i < signature_index; ++i)
     {
-      if (i == low_signature_index - 1 || i == high_signature_index - 1)
+      if (i == signature_index - 1)
       {
         history->emit_signature();
         store.compact(store.current_version());
@@ -363,8 +361,11 @@ TEST_CASE("Recover historical ledger secrets")
         REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
         auto tx_version = tx.commit_version();
+
         network.ledger_secrets->set_secret(
-          tx_version + 1, std::move(new_ledger_secret->raw_key), tx_version);
+          tx_version + 1,
+          std::make_shared<ccf::LedgerSecret>(
+            std::move(new_ledger_secret->raw_key), tx_version));
       }
       else
       {
@@ -375,7 +376,7 @@ TEST_CASE("Recover historical ledger secrets")
 
   Ledger ledger;
   initialise_ledger(ledger, consensus);
-  REQUIRE(ledger.size() == high_signature_index);
+  REQUIRE(ledger.size() == signature_index);
 
   ccf::NetworkState recovered_network;
 
@@ -430,7 +431,7 @@ TEST_CASE("Recover historical ledger secrets")
     REQUIRE(requested_ledger_entries.size() == 1);
 
     // Provide target and subsequent entries until next signature
-    for (size_t i = third_index; i <= high_signature_index; ++i)
+    for (size_t i = third_index; i <= signature_index; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
     }
@@ -460,7 +461,7 @@ TEST_CASE("Recover historical ledger secrets")
     REQUIRE_FALSE(provide_ledger_entry(third_rekey_index));
 
     // Provide target and subsequent entries until next signature
-    for (size_t i = second_index; i <= high_signature_index; ++i)
+    for (size_t i = second_index; i <= signature_index; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
     }
@@ -474,9 +475,7 @@ TEST_CASE("Recover historical ledger secrets")
 
   {
     INFO("Retrieve first index, requiring all historical ledger secrets");
-    auto target_index = 1;
-
-    REQUIRE(cache.get_store_at(target_index) == nullptr);
+    REQUIRE(cache.get_store_at(first_index) == nullptr);
     const auto read = bp.read_n(100, rr);
     REQUIRE(read == 1);
 
@@ -485,7 +484,7 @@ TEST_CASE("Recover historical ledger secrets")
     REQUIRE(provide_ledger_entry(first_rekey_index));
 
     // Provide target and subsequent entries until next signature
-    for (size_t i = target_index; i <= low_signature_index; ++i)
+    for (size_t i = first_index; i <= signature_index; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
     }
@@ -497,21 +496,19 @@ TEST_CASE("Recover historical ledger secrets")
     read_historical_entry(historical_store, second_index);
   }
 
-  // {
-  //   INFO(
-  //     "The host sees request for historical ledger secret preceding target "
-  //     "idx");
+  {
+    INFO("All historical secrets have been fetched");
+    size_t target_index = first_index + 1;
+    REQUIRE(cache.get_store_at(target_index) == nullptr);
 
-  //   size_t request_count = 0;
-  //   const auto read = bp.read_n(100, rr);
-  //   REQUIRE(read == 1);
-  //   REQUIRE(requested_ledger_entries.size() == 1);
+    // Provide target and subsequent entries until next signature
+    for (size_t i = target_index; i <= signature_index; ++i)
+    {
+      REQUIRE(provide_ledger_entry(i));
+    }
 
-  //   REQUIRE(provide_ledger_entry(requested_ledger_entries[request_count++]));
-  // }
-
-  // TODO: Write rest of test...
-  // TODO:
-  // 1. Provide ledger entry with historical secret twice
-  // 2. Target idx is a rekey index
+    auto historical_store = cache.get_store_at(target_index);
+    REQUIRE(historical_store != nullptr);
+    read_historical_entry(historical_store, target_index);
+  }
 }
