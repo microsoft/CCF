@@ -2,7 +2,21 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// TODO: explain how dependency tracking works here
+// The transaction engine supports producing a transaction dependencies. This is
+// materialized by providing a sequence number after which the current
+// transaction must be run. The current use case for dependency tracking is to
+// enable parallel execution of transactions on the backup, and as such we only
+// track dependencies when running BFT consensus protocol.
+//
+// Depency tracking follows the following pseudocode
+//
+// OnTxCommit:
+//   MaxSeenReadVersion = -1
+//   foreach Accessed Key-Value pair:
+//     MaxSeenReadVersion = max(MaxSeenReadVersion, pair.last_read_version)
+//     pair.last_read_version = pair.seqno
+//
+//   TxSerialize(pairs, MaxSeenReadVersion)
 
 #include "apply_changes.h"
 #include "ds/ccf_assert.h"
@@ -269,7 +283,8 @@ namespace kv
 
       auto store = all_changes.begin()->second.map->get_store();
       auto consensus = store->get_consensus();
-      bool track_conflicts = (consensus != nullptr && consensus->type() == ConsensusType::BFT);
+      bool track_conflicts =
+        (consensus != nullptr && consensus->type() == ConsensusType::BFT);
 
       // If this transaction creates any maps, ensure that commit gets a
       // consistent snapshot of the existing maps
@@ -278,7 +293,7 @@ namespace kv
 
       kv::ConsensusHookPtrs hooks;
 
-    std::optional<Version> new_maps_conflict_version = std::nullopt; 
+      std::optional<Version> new_maps_conflict_version = std::nullopt;
 
       auto c = apply_changes(
         all_changes,
@@ -308,6 +323,16 @@ namespace kv
         committed = true;
         std::tie(version, max_conflict_version) = c.value();
 
+        // This is meant to be executed on the backup and deals with the case
+        // that for any set of transactions there may be several valid
+        // serializations that do not violate the linearizability guarantees of
+        // the total order. This check validates that this tx
+        // does not read a key at a higher version than it's version (i.e.
+        // does not break linearizability). After ensuring we maintain
+        // linearizability on the backup we set max_conflict_version to be the
+        // same as the primary so that when this value is inserted into the
+        // Merkle tree we will have the same root between the primary and
+        // backups.
         if (
           version > max_conflict_version &&
           version > replicated_max_conflict_version &&

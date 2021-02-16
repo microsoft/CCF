@@ -124,13 +124,16 @@ namespace aft
     kv::Consensus::SeqNo committed_seqno,
     kv::Consensus::SeqNo max_conflict_version)
   {
-
     auto ctx = create_request_ctx(request);
 
     auto request_message = RequestMessage::deserialize(
       std::move(request.raw), request.rid, std::move(ctx), nullptr);
 
     return execute_request(
-      std::move(request_message), state->commit_idx == 0, last_idx, request_tracker, max_conflict_version);
+      std::move(request_message),
+      state->commit_idx == 0,
+      last_idx,
+      request_tracker,
+      max_conflict_version);
   }
 }

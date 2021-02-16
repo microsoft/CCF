@@ -174,14 +174,18 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version v, kv::Version& max_conflict_version, bool skip_max_conflict) override
+      void commit(
+        Version v,
+        kv::Version& max_conflict_version,
+        bool skip_max_conflict) override
       {
         auto& roll = map.get_roll();
         auto current = roll.commits->get_tail();
         auto state = current->state;
         bool is_writing_to_new_key = false;
         auto consensus = map.store->get_consensus();
-        bool track_commit = consensus != nullptr && map.store->get_consensus()->type() == ConsensusType::BFT;
+        bool track_commit = consensus != nullptr &&
+          map.store->get_consensus()->type() == ConsensusType::BFT;
 
         if (!skip_max_conflict && track_commit)
         {
@@ -204,7 +208,8 @@ namespace kv::untyped
             {
               max_conflict_version = search->version;
             }
-            if (max_conflict_version < search->read_version && search.has_value())
+            if (
+              max_conflict_version < search->read_version && search.has_value())
             {
               max_conflict_version = search->read_version;
             }
@@ -231,15 +236,14 @@ namespace kv::untyped
           }
         }
 
-
         if (change_set.writes.empty())
         {
           commit_version = change_set.start_version;
 
           if (track_commit)
           {
-          map.roll.commits->insert_back(map.roll.create_new_local_commit(
-            commit_version, std::move(state), change_set.writes));
+            map.roll.commits->insert_back(map.roll.create_new_local_commit(
+              commit_version, std::move(state), change_set.writes));
           }
           return;
         }
@@ -530,7 +534,8 @@ namespace kv::untyped
       for (size_t i = 0; i < ctr; ++i)
       {
         auto r = d.deserialise_read();
-        change_set.reads[std::get<0>(r)] = std::make_tuple(std::get<1>(r), NoVersion);
+        change_set.reads[std::get<0>(r)] =
+          std::make_tuple(std::get<1>(r), NoVersion);
       }
 
       ctr = d.deserialise_write_header();

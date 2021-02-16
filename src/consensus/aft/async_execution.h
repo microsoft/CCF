@@ -13,8 +13,7 @@ namespace aft
       AppendEntries r, const uint8_t* data, size_t size) = 0;
     virtual void recv_append_entries_response(AppendEntriesResponse r) = 0;
     virtual bool recv_append_entries_signed_response(
-      SignedAppendEntriesResponse r,
-      bool is_pre_exec) = 0;
+      SignedAppendEntriesResponse r, bool is_pre_exec) = 0;
     virtual void recv_request_vote(RequestVote r) = 0;
     virtual void recv_request_vote_response(RequestVoteResponse r) = 0;
     virtual void recv_signature_received_ack(SignaturesReceivedAck r) = 0;

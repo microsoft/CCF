@@ -732,7 +732,14 @@ namespace kv
         kv::Version max_conflict_version;
         OrderedChanges changes;
         MapCollection new_maps;
-        if (!fill_maps(data, public_only, v, max_conflict_version, changes, new_maps, true))
+        if (!fill_maps(
+              data,
+              public_only,
+              v,
+              max_conflict_version,
+              changes,
+              new_maps,
+              true))
         {
           return nullptr;
         }

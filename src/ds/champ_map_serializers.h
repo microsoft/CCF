@@ -25,7 +25,9 @@ namespace champ
       read_version(std::numeric_limits<Version>::min())
     {}
     VersionV(Version ver, Version read_ver, V val) :
-      version(ver), read_version(read_ver), value(val)
+      version(ver),
+      read_version(read_ver),
+      value(val)
     {}
   };
 

@@ -102,12 +102,14 @@ namespace kv::untyped
       const auto search = tx_changes.state.getp(key);
       if (search == nullptr)
       {
-        tx_changes.reads.insert(std::make_pair(key, std::make_tuple(NoVersion, NoVersion)));
+        tx_changes.reads.insert(
+          std::make_pair(key, std::make_tuple(NoVersion, NoVersion)));
         return std::nullopt;
       }
 
       // Record the version that we depend on.
-      tx_changes.reads.insert(std::make_pair(key, std::make_tuple(search->version, search->read_version)));
+      tx_changes.reads.insert(std::make_pair(
+        key, std::make_tuple(search->version, search->read_version)));
 
       // If the key has been deleted, return empty. NB: We still depend on this
       // version with the call above, but we don't distinguish deleted from

@@ -27,7 +27,9 @@ namespace ccf
       NodeId node_,
       Nonce hashed_nonce_,
       crypto::Sha256Hash& root_) :
-      NodeSignature(sig_, node_, hashed_nonce_), is_primary(false), root(root_)
+      NodeSignature(sig_, node_, hashed_nonce_),
+      is_primary(false),
+      root(root_)
     {}
   };
 

@@ -47,7 +47,15 @@ namespace ccf
       bool is_primary)
     {
       std::unique_lock<SpinLock> guard(lock);
-      return add_signature_(tx_id, node_id, signature_size, sig, root, hashed_nonce, node_count, is_primary);
+      return add_signature_(
+        tx_id,
+        node_id,
+        signature_size,
+        sig,
+        root,
+        hashed_nonce,
+        node_count,
+        is_primary);
     }
 
     kv::TxHistory::Result record_primary(
@@ -202,7 +210,8 @@ namespace ccf
             cert.root.h.begin(), cert.root.h.end(), sigs_value.root.h.begin()))
       {
         LOG_FAIL_FMT(
-          "Roots do not match at view:{}, seqno:{}, cert.root:{}, sigs_value.root:{}",
+          "Roots do not match at view:{}, seqno:{}, cert.root:{}, "
+          "sigs_value.root:{}",
           sigs_value.view,
           sigs_value.seqno,
           cert.root,
@@ -533,7 +542,8 @@ namespace ccf
               sig.node, it->second.root, sig.sig.size(), sig.sig.data()))
         {
           LOG_FAIL_FMT(
-            "signatures do not match, view-change from:{}, view:{}, seqno:{}, node_id:{}, root:{}, sig:{}, sig.size:{}",
+            "signatures do not match, view-change from:{}, view:{}, seqno:{}, "
+            "node_id:{}, root:{}, sig:{}, sig.size:{}",
             from,
             view,
             seqno,
@@ -668,7 +678,9 @@ namespace ccf
       }
       else
       {
-        if (node_id != id && it->second.have_primary_signature && it->second.root != root)
+        if (
+          node_id != id && it->second.have_primary_signature &&
+          it->second.root != root)
         {
           // NOTE: We need to handle this case but for now having this make a
           // test fail will be very handy
@@ -713,7 +725,8 @@ namespace ccf
             get_my_hashed_nonce_(tx_id).h.begin()),
         "hashed_nonce does not match my nonce");
 
-      BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce, root);
+      BftNodeSignature bft_node_sig(
+        std::move(sig_vec), node_id, hashed_nonce, root);
       try_match_unmatched_nonces(
         cert, bft_node_sig, tx_id.term, tx_id.version, node_id);
       cert.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(

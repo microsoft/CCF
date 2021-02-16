@@ -106,7 +106,14 @@ namespace kv
              MapCollection& new_maps,
              kv::ConsensusHookPtrs& hooks) -> ApplyResult {
       kv::Version max_conflict_version;
-      if (!store->fill_maps(data, public_only, v, max_conflict_version, changes, new_maps, true))
+      if (!store->fill_maps(
+            data,
+            public_only,
+            v,
+            max_conflict_version,
+            changes,
+            new_maps,
+            true))
       {
         return ApplyResult::FAIL;
       }
@@ -617,7 +624,8 @@ namespace kv
         public_only_,
         v_,
         std::move(changes_),
-        std::move(new_maps_)), max_conflict_version(max_conflict_version_)
+        std::move(new_maps_)),
+      max_conflict_version(max_conflict_version_)
     {
       tx = std::move(tx_);
     }
@@ -628,9 +636,15 @@ namespace kv
     }
 
     std::function<ApplyResult(
-      std::unique_ptr<Tx>& tx, Term term, OrderedChanges& changes, aft::Request& req_)>
-      fn = [](std::unique_ptr<Tx>& tx, Term term, OrderedChanges& changes, aft::Request& req_)
-      -> ApplyResult {
+      std::unique_ptr<Tx>& tx,
+      Term term,
+      OrderedChanges& changes,
+      aft::Request& req_)>
+      fn = [](
+             std::unique_ptr<Tx>& tx,
+             Term term,
+             OrderedChanges& changes,
+             aft::Request& req_) -> ApplyResult {
       tx->set_change_list(std::move(changes), term);
 
       auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);

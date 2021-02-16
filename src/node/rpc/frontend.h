@@ -286,24 +286,18 @@ namespace ccf
             return ctx->serialise_response();
           }
 
-          kv::CommitResult commit_success;
-
+          std::function<kv::Version()> f = nullptr;
           if (reserved != -1)
           {
             CCF_ASSERT(
               consensus->type() == ConsensusType::BFT, "Wrong consensus type");
-            auto f = [&]() {
+            f = [&]() {
               tables.next_version();
               return reserved;
             };
-            commit_success = tx.commit(f, max_conflict_version);
-          }
-          else
-          {
-            commit_success = tx.commit();
           }
 
-          switch (commit_success)
+          switch (tx.commit(f, max_conflict_version))
           {
             case kv::CommitResult::SUCCESS:
             {
