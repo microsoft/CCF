@@ -21,6 +21,69 @@ struct MapTypes
   using StringNum = kv::Map<std::string, size_t>;
 };
 
+struct TestStruct
+{
+  int a = 5;
+  bool b = true;
+};
+
+DECLARE_JSON_TYPE(TestStruct)
+DECLARE_JSON_REQUIRED_FIELDS(TestStruct, a, b)
+
+namespace nlohmann
+{
+  template <>
+  struct adl_serializer<std::shared_ptr<TestStruct>>
+  {
+    static void to_json(json& j, const std::shared_ptr<TestStruct>& opt)
+    {
+      if (opt.get())
+      {
+        j = *opt;
+      }
+      else
+      {
+        j = nullptr;
+      }
+    }
+
+    static void from_json(const json& j, std::shared_ptr<TestStruct>& opt)
+    {
+      if (j.is_null())
+      {
+        opt = nullptr;
+      }
+      else
+      {
+        opt = std::make_shared<TestStruct>();
+        // j.get<TestStruct>()); // same as above, but with
+        // adl_serializer<T>::from_json
+      }
+    }
+  };
+}
+
+using TestMap = std::map<size_t, std::shared_ptr<TestStruct>>;
+
+struct ParentStruct
+{
+  // bool b;
+  TestMap map;
+};
+
+DECLARE_JSON_TYPE(ParentStruct)
+DECLARE_JSON_REQUIRED_FIELDS(ParentStruct, map)
+
+TEST_CASE("Delete me")
+{
+  ParentStruct parent;
+  parent.map.emplace(1, std::make_shared<TestStruct>());
+  parent.map.emplace(2, std::make_shared<TestStruct>());
+  nlohmann::json j = parent;
+
+  LOG_DEBUG_FMT("Struct: {}", j.dump());
+}
+
 TEST_CASE(
   "Serialise/deserialise public map only" *
   doctest::test_suite("serialisation"))
@@ -546,8 +609,8 @@ TEST_CASE_TEMPLATE(
     auto tx2 = kv_store2.create_tx();
     auto handle2 = tx2.rw(map2);
 
-    // operator== does not need to be defined for custom types. In this case it
-    // is not, and we check each member manually
+    // operator== does not need to be defined for custom types. In this case
+    // it is not, and we check each member manually
     auto va = handle2->get(k1);
     REQUIRE(va.has_value());
     REQUIRE(va->s == v1.s);

@@ -3,7 +3,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "kv/encryptor.h"
-
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
@@ -85,13 +84,13 @@ TEST_CASE("Simple encryption/decryption")
   REQUIRE(encrypt_round_trip(encryptor, plain, 1));
   REQUIRE(encrypt_round_trip(encryptor, plain, 2));
 
-  ledger_secrets->set_secret(3, ccf::make_ledger_secret());
+  ledger_secrets->set_secret(3, ccf::generate_raw_secret());
   REQUIRE(encrypt_round_trip(encryptor, plain, 1));
   REQUIRE(encrypt_round_trip(encryptor, plain, 2));
   REQUIRE(encrypt_round_trip(encryptor, plain, 3));
   REQUIRE(encrypt_round_trip(encryptor, plain, 4));
 
-  ledger_secrets->set_secret(5, ccf::make_ledger_secret());
+  ledger_secrets->set_secret(5, ccf::generate_raw_secret());
   REQUIRE(encrypt_round_trip(encryptor, plain, 1));
   REQUIRE(encrypt_round_trip(encryptor, plain, 2));
   REQUIRE(encrypt_round_trip(encryptor, plain, 3));
@@ -277,7 +276,7 @@ TEST_CASE("KV encryption/decryption")
     {
       // The primary and caught-up backup always encrypt/decrypt with the latest
       // available ledger secret
-      auto new_ledger_secret = ccf::make_ledger_secret();
+      auto new_ledger_secret = ccf::generate_raw_secret();
 
       // In practice, rekey is done via local commit hooks on the secrets table.
       auto ledger_secret_for_backup = new_ledger_secret;
@@ -324,7 +323,7 @@ TEST_CASE("Backup catchup from many ledger secrets")
     {
       commit_one(primary_store, map);
       primary_ledger_secrets->set_secret(
-        current_version + i, ccf::make_ledger_secret());
+        current_version + i, ccf::generate_raw_secret());
     }
   }
 
@@ -410,7 +409,7 @@ TEST_CASE("Encryptor rollback")
   // Assumes tx at seqno 2 rekeys. Txs from seqno 3 will be encrypted with new
   // secret
   commit_one(store, map);
-  ledger_secrets->set_secret(3, ccf::make_ledger_secret());
+  ledger_secrets->set_secret(3, ccf::generate_raw_secret());
 
   commit_one(store, map);
 
@@ -422,7 +421,7 @@ TEST_CASE("Encryptor rollback")
   // Assumes tx at seqno 3 rekeys. Txs from seqno 4 will be encrypted with new
   // secret
   commit_one(store, map);
-  ledger_secrets->set_secret(4, ccf::make_ledger_secret());
+  ledger_secrets->set_secret(4, ccf::generate_raw_secret());
 
   commit_one(store, map);
   commit_one(store, map);
@@ -430,7 +429,7 @@ TEST_CASE("Encryptor rollback")
   // Assumes tx at seqno 6 rekeys. Txs from seqno 7 will be encrypted with new
   // secret
   commit_one(store, map);
-  ledger_secrets->set_secret(7, ccf::make_ledger_secret());
+  ledger_secrets->set_secret(7, ccf::generate_raw_secret());
 
   commit_one(store, map);
   commit_one(store, map);

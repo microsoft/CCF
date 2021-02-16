@@ -2,12 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
+#include "ledger_secret.h"
 #include "secrets.h"
 #include "shares.h"
-#include "tls/entropy.h"
 
 #include <algorithm>
 #include <map>
@@ -15,85 +14,8 @@
 
 namespace ccf
 {
-  // TODO: We should change this and make it a member on `LedgerSecret` maybe?
-  inline std::vector<uint8_t> decrypt_previous_ledger_secret(
-    const std::vector<uint8_t>& raw_ledger_secret,
-    std::vector<uint8_t>&& raw_encrypted_previous_secret)
-  {
-    crypto::GcmCipher encrypted_ls;
-    encrypted_ls.deserialise(raw_encrypted_previous_secret);
-    std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
-
-    // TODO: No need to create a key again! Just use `key` from ledger_secret
-    if (!crypto::KeyAesGcm(raw_ledger_secret)
-           .decrypt(
-             encrypted_ls.hdr.get_iv(),
-             encrypted_ls.hdr.tag,
-             encrypted_ls.cipher,
-             nullb,
-             decrypted_ls.data()))
-    {
-      throw std::logic_error("Decryption of previous ledger secret failed");
-    }
-
-    return decrypted_ls;
-  }
-
-  struct LedgerSecret
-  {
-    std::vector<uint8_t> raw_key;
-    std::shared_ptr<crypto::KeyAesGcm> key;
-
-    std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
-
-    bool operator==(const LedgerSecret& other) const
-    {
-      return raw_key == other.raw_key &&
-        previous_secret_stored_version == other.previous_secret_stored_version;
-    }
-
-    LedgerSecret() = default;
-
-    // The copy construtor is used for serialising a LedgerSecret. However, only
-    // the raw_key is serialised and other.key is nullptr so use raw_key to seed
-    // key.
-    LedgerSecret(const LedgerSecret& other) :
-      raw_key(other.raw_key),
-      key(std::make_shared<crypto::KeyAesGcm>(other.raw_key)),
-      previous_secret_stored_version(other.previous_secret_stored_version)
-    {}
-
-    LedgerSecret(
-      std::vector<uint8_t>&& raw_key_,
-      std::optional<kv::Version> previous_secret_stored_version_ =
-        std::nullopt) :
-      raw_key(raw_key_),
-      key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_))),
-      previous_secret_stored_version(previous_secret_stored_version_)
-    {
-      LOG_FAIL_FMT(
-        "Ledger secret copy, previous version: {}",
-        previous_secret_stored_version_.value_or(kv::NoVersion));
-    }
-  };
-
-  using LedgerSecretsMap = std::map<kv::Version, LedgerSecret>;
+  using LedgerSecretsMap = std::map<kv::Version, LedgerSecretPtr>;
   using VersionedLedgerSecret = LedgerSecretsMap::value_type;
-
-  using HistoricalLedgerSecretsMap =
-    std::map<kv::Version, std::shared_ptr<LedgerSecret>>;
-
-  inline std::vector<uint8_t> generate_raw_secret()
-  {
-    return tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
-  }
-
-  inline LedgerSecret make_ledger_secret()
-  {
-    LOG_FAIL_FMT("Making ledger secret!");
-
-    return LedgerSecret(generate_raw_secret());
-  }
 
   class LedgerSecrets
   {
@@ -103,15 +25,13 @@ namespace ccf
     SpinLock lock;
     LedgerSecretsMap ledger_secrets;
 
-    // TODO: Limit its size
-    // TODO: Move this out of here!!
-    // Populated during historical queries
+    // TODO: Remove
     LedgerSecretsMap historical_ledger_secrets;
 
     std::optional<LedgerSecretsMap::iterator> last_used_secret_it =
       std::nullopt;
 
-    const LedgerSecret& get_secret_for_version(
+    LedgerSecretPtr get_secret_for_version(
       kv::Version version, bool historical_hint = false)
     {
       if (ledger_secrets.empty())
@@ -218,7 +138,15 @@ namespace ccf
         LOG_FAIL_FMT(
           "LS valid from {} (prev at {})",
           s.first,
-          s.second.previous_secret_stored_version.value_or(kv::NoVersion));
+          s.second->previous_secret_stored_version.value_or(kv::NoVersion));
+        if (s.second->key)
+        {
+          LOG_FAIL_FMT("Has key!");
+        }
+        else
+        {
+          LOG_FAIL_FMT("Hasn't got key!");
+        }
       }
       LOG_FAIL_FMT("*****");
     }
@@ -227,7 +155,7 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      ledger_secrets.emplace(initial_version, generate_raw_secret());
+      ledger_secrets.emplace(initial_version, make_ledger_secret());
     }
 
     void set_node_id(NodeId id)
@@ -241,7 +169,6 @@ namespace ccf
       self = id;
     }
 
-    // TODO: How does this work on backups??
     void adjust_previous_secret_stored_version(kv::Version version)
     {
       // To be able to lookup the last active ledger secret before the service
@@ -257,7 +184,7 @@ namespace ccf
           "There should be at least one ledger secret to adjust");
       }
 
-      ledger_secrets.rbegin()->second.previous_secret_stored_version = version;
+      ledger_secrets.rbegin()->second->previous_secret_stored_version = version;
 
       dump();
     }
@@ -372,13 +299,20 @@ namespace ccf
       kv::Version version, bool historical_hint = false)
     {
       std::lock_guard<SpinLock> guard(lock);
-      return get_secret_for_version(version, historical_hint).key;
+      return get_secret_for_version(version, historical_hint)->key;
+    }
+
+    // TODO: Should this return a shared_ptr?
+    LedgerSecretPtr get_historical_secret_for(kv::Version version)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      return get_secret_for_version(version, true);
     }
 
     void set_secret(
       kv::Version version,
       std::vector<uint8_t>&& raw_secret,
-      kv::Version previous_secret_stored_version)
+      std::optional<kv::Version> previous_secret_stored_version = std::nullopt)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -389,13 +323,13 @@ namespace ccf
 
       ledger_secrets.emplace(
         version,
-        LedgerSecret(std::move(raw_secret), previous_secret_stored_version));
+        std::make_shared<LedgerSecret>(
+          std::move(raw_secret), previous_secret_stored_version));
 
       LOG_INFO_FMT("Added new ledger secret at seqno {}", version);
     }
 
-    // TODO: Should probably return a shared_ptr!
-    LedgerSecret set_historical_secret(
+    LedgerSecretPtr set_historical_secret(
       kv::Version version,
       std::vector<uint8_t>&& raw_secret,
       std::optional<kv::Version> previous_secret_stored_version = std::nullopt)
@@ -410,7 +344,8 @@ namespace ccf
 
       auto s = historical_ledger_secrets.emplace(
         version,
-        LedgerSecret(std::move(raw_secret), previous_secret_stored_version));
+        std::make_shared<LedgerSecret>(
+          std::move(raw_secret), previous_secret_stored_version));
 
       LOG_INFO_FMT("Added new historical ledger secret at seqno {}", version);
 

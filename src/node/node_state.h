@@ -472,6 +472,10 @@ namespace ccf
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
+            LOG_FAIL_FMT(
+              "Joining with {} ledger secrets",
+              resp.network_info.ledger_secrets.size());
+
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
               self, std::move(resp.network_info.ledger_secrets));
 
@@ -1616,7 +1620,7 @@ namespace ccf
                   // On recovery, accumulate restored ledger secrets
                   restored_ledger_secrets.emplace(
                     ledger_secret_version,
-                    LedgerSecret(
+                    std::make_shared<LedgerSecret>(
                       std::move(plain_ledger_secret),
                       encrypted_ledger_secret.previous_secret_stored_version));
                 }

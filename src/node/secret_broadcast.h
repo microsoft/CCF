@@ -37,7 +37,6 @@ namespace ccf
     }
 
   public:
-    // TODO: Pass version of previous secret here as well??!!
     static void broadcast_some(
       NetworkState& network,
       tls::KeyPairPtr encryption_key,
@@ -61,8 +60,8 @@ namespace ccf
              encrypt_ledger_secret(
                encryption_key,
                tls::make_public_key(ni.encryption_pub_key),
-               std::move(s.second.raw_key)),
-             s.second.previous_secret_stored_version});
+               std::move(s.second->raw_key)),
+             s.second->previous_secret_stored_version});
         }
 
         secrets->put(
@@ -76,7 +75,7 @@ namespace ccf
       NetworkState& network,
       tls::KeyPairPtr encryption_key,
       kv::Tx& tx,
-      LedgerSecret&& new_ledger_secret)
+      LedgerSecretPtr&& new_ledger_secret)
     {
       GenesisGenerator g(network, tx);
       auto secrets = tx.rw(network.secrets);
@@ -89,8 +88,8 @@ namespace ccf
            encrypt_ledger_secret(
              encryption_key,
              tls::make_public_key(ni.encryption_pub_key),
-             std::move(new_ledger_secret.raw_key)),
-           new_ledger_secret.previous_secret_stored_version});
+             std::move(new_ledger_secret->raw_key)),
+           new_ledger_secret->previous_secret_stored_version});
 
         secrets->put(
           nid,

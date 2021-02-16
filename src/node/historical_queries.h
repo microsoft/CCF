@@ -22,6 +22,7 @@ namespace ccf::historical
   protected:
     ccf::NetworkState& network;
     ringbuffer::WriterPtr to_host;
+    ccf::LedgerSecrets historical_ledger_secrets;
 
     enum class RequestStage
     {
@@ -36,7 +37,7 @@ namespace ccf::historical
     struct LedgerSecretRecoveryInfo
     {
       consensus::Index target_idx = 0;
-      LedgerSecret last_ledger_secret;
+      LedgerSecretPtr last_ledger_secret;
 
       LedgerSecretRecoveryInfo(const LedgerSecretRecoveryInfo& other) :
         target_idx(other.target_idx),
@@ -44,7 +45,7 @@ namespace ccf::historical
       {}
 
       LedgerSecretRecoveryInfo(
-        consensus::Index target_idx_, const LedgerSecret& last_ledger_secret_) :
+        consensus::Index target_idx_, LedgerSecretPtr last_ledger_secret_) :
         target_idx(target_idx_),
         last_ledger_secret(last_ledger_secret_)
       {}
@@ -94,13 +95,13 @@ namespace ccf::historical
       request.current_stage = RequestStage::Fetching;
       consensus::Index first_idx_to_fetch = idx;
 
+      // If the target historical entry cannot be deserialised with the oldest
+      // ledger secret, record the target idx and fetch the previous
+      // historical ledger secret.
       // TODO: Thread-safety?
       auto first_known_ledger_secret = network.ledger_secrets->get_first();
       if (idx < static_cast<consensus::Index>(first_known_ledger_secret.first))
       {
-        // If the target historical entry cannot be deserialised with the oldest
-        // ledger secret, record the target idx and fetch the previous
-        // historical ledger secret.
         LOG_TRACE_FMT(
           "Requesting historical entry at {} but first known ledger secret is "
           "applicable from {}",
@@ -108,7 +109,7 @@ namespace ccf::historical
           first_known_ledger_secret.first);
 
         auto previous_secret_stored_version =
-          first_known_ledger_secret.second.previous_secret_stored_version;
+          first_known_ledger_secret.second->previous_secret_stored_version;
         if (!previous_secret_stored_version.has_value())
         {
           throw std::logic_error(fmt::format(
@@ -284,7 +285,7 @@ namespace ccf::historical
         encrypted_past_ledger_secret->get(0)->previous_ledger_secret;
 
       auto recovered_ledger_secret_raw = decrypt_previous_ledger_secret(
-        ledger_secret_recovery_info->last_ledger_secret.raw_key,
+        ledger_secret_recovery_info->last_ledger_secret->raw_key,
         std::move(previous_ledger_secret->encrypted_data));
 
       // TODO: Change encryptor/historical ledger secret API!

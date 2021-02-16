@@ -35,10 +35,6 @@ namespace ccf
   DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LedgerSecret)
-  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecret, raw_key)
-  DECLARE_JSON_OPTIONAL_FIELDS(LedgerSecret, previous_secret_stored_version)
-
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo,

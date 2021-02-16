@@ -364,7 +364,7 @@ TEST_CASE("Recover historical ledger secrets")
 
         auto tx_version = tx.commit_version();
         network.ledger_secrets->set_secret(
-          tx_version + 1, std::move(new_ledger_secret.raw_key), tx_version);
+          tx_version + 1, std::move(new_ledger_secret->raw_key), tx_version);
       }
       else
       {
