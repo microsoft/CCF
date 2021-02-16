@@ -1719,50 +1719,47 @@ namespace aft
 
           case kv::ApplyResult::PASS:
           {
-            if (consensus_type == ConsensusType::BFT)
+            auto tmsg = std::make_unique<threading::Tmsg<AsyncExecTxMsg>>(
+              [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
+                auto self = msg->data.self;
+                self->executor->commit_replayed_request(
+                  msg->data.ds->get_request(),
+                  self->request_tracker,
+                  msg->data.last_idx,
+                  msg->data.commit_idx,
+                  msg->data.ds->get_max_conflict_version());
+
+                msg->reset_cb(
+                  [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
+                    auto self = msg->data.self;
+                    --msg->data.ctx->pending_cbs;
+                    if (msg->data.ctx->pending_cbs == 0)
+                    {
+                      self->execute_append_entries(
+                        std::move(msg->data.ctx->msg));
+                    }
+                  });
+                uint16_t home_thread = msg->data.home_thread;
+                threading::ThreadMessaging::thread_messaging.add_task(
+                  home_thread, std::move(msg));
+              },
+              this,
+              std::move(ds),
+              std::move(msg),
+              state->last_idx,
+              state->commit_idx,
+              threading::get_current_thread_id(),
+              async_exec);
+
+            if (!run_sync)
             {
-              auto tmsg = std::make_unique<threading::Tmsg<AsyncExecTxMsg>>(
-                [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
-                  auto self = msg->data.self;
-                  self->executor->commit_replayed_request(
-                    msg->data.ds->get_request(),
-                    self->request_tracker,
-                    msg->data.last_idx,
-                    msg->data.commit_idx,
-                    msg->data.ds->get_max_conflict_version());
-
-                  msg->reset_cb(
-                    [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
-                      auto self = msg->data.self;
-                      --msg->data.ctx->pending_cbs;
-                      if (msg->data.ctx->pending_cbs == 0)
-                      {
-                        self->execute_append_entries(
-                          std::move(msg->data.ctx->msg));
-                      }
-                    });
-                  uint16_t home_thread = msg->data.home_thread;
-                  threading::ThreadMessaging::thread_messaging.add_task(
-                    home_thread, std::move(msg));
-                },
-                this,
-                std::move(ds),
-                std::move(msg),
-                state->last_idx,
-                state->commit_idx,
-                threading::get_current_thread_id(),
-                async_exec);
-
-              if (!run_sync)
-              {
-                pending_requests.push_back(std::move(tmsg));
-                ++async_exec->pending_cbs;
-              }
-              else
-              {
-                auto cb = tmsg->cb;
-                cb(std::move(tmsg));
-              }
+              pending_requests.push_back(std::move(tmsg));
+              ++async_exec->pending_cbs;
+            }
+            else
+            {
+              auto cb = tmsg->cb;
+              cb(std::move(tmsg));
             }
             break;
           }

@@ -480,6 +480,17 @@ namespace kv
       return ApplyResult::PASS;
     }
 
+    void append_to_history(const std::vector<uint8_t>& data) override
+    {
+      std::lock_guard<SpinLock> vguard(version_lock);
+
+      auto h = get_history();
+      if (h)
+      {
+        h->append(data);
+      }
+    }
+
     void compact(Version v) override
     {
       // This is called when the store will never be rolled back to any
