@@ -283,6 +283,11 @@ namespace kv
       }
     }
 
+    bool should_track_dependencies(const std::string& name) override
+    {
+      return name.compare(ccf::Tables::AFT_REQUESTS) != 0;
+    }
+
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
     {
       if (v < commit_version())
@@ -406,7 +411,8 @@ namespace kv
             this,
             map_name,
             get_security_domain(map_name),
-            is_map_replicated(map_name));
+            is_map_replicated(map_name),
+            should_track_dependencies(map_name));
           new_maps[map_name] = map;
           LOG_DEBUG_FMT(
             "Creating map {} while deserialising snapshot at version {}",
@@ -693,7 +699,8 @@ namespace kv
             this,
             map_name,
             get_security_domain(map_name),
-            is_map_replicated(map_name));
+            is_map_replicated(map_name),
+            should_track_dependencies(map_name));
           map = new_map;
           new_maps[map_name] = new_map;
           LOG_DEBUG_FMT(
@@ -1112,7 +1119,11 @@ namespace kv
           auto new_map = std::make_pair(
             NoVersion,
             std::make_shared<kv::untyped::Map>(
-              this, name, SecurityDomain::PRIVATE, is_map_replicated(name)));
+              this,
+              name,
+              SecurityDomain::PRIVATE,
+              is_map_replicated(name),
+              should_track_dependencies(name)));
           maps[name] = new_map;
           map = new_map.second;
         }

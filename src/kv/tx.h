@@ -159,7 +159,8 @@ namespace kv
           store,
           map_name,
           kv::get_security_domain(map_name),
-          store->is_map_replicated(map_name));
+          store->is_map_replicated(map_name),
+          store->should_track_dependencies(map_name));
         created_maps[map_name] = new_map;
 
         abstract_map = new_map;

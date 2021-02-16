@@ -463,7 +463,7 @@ namespace kv
     virtual bool has_writes() = 0;
     virtual bool prepare() = 0;
     virtual void commit(
-      Version v, Version& max_conflict_version, bool skip_max_conflict) = 0;
+      Version v, Version& max_conflict_version) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
@@ -576,6 +576,7 @@ namespace kv
     virtual void add_dynamic_map(
       Version v, const std::shared_ptr<AbstractMap>& map) = 0;
     virtual bool is_map_replicated(const std::string& map_name) = 0;
+    virtual bool should_track_dependencies(const std::string& name) = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;

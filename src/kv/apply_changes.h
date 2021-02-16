@@ -137,9 +137,7 @@ namespace kv
 
       for (auto it = views.begin(); it != views.end(); ++it)
       {
-        bool skip_max_conflict =
-          (it->first.compare(ccf::Tables::AFT_REQUESTS) == 0);
-        it->second->commit(version, max_conflict_version, skip_max_conflict);
+        it->second->commit(version, max_conflict_version);
       }
 
       // Collect ConsensusHooks

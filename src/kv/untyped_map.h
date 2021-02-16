@@ -83,6 +83,7 @@ namespace kv::untyped
     SpinLock sl;
     const SecurityDomain security_domain;
     const bool replicated;
+    const bool include_conflict_read_version;
 
   public:
     class HandleCommitter : public AbstractCommitter
@@ -160,11 +161,6 @@ namespace kv::untyped
               std::get<0>(it->second) != search.value().version ||
               (track_conflicts &&
                std::get<1>(it->second) != search.value().read_version))
-            /*if (
-              !search.has_value() ||
-              std::get<0>(it->second) != search.value().version)
-              */
-
             {
               LOG_DEBUG_FMT("Read depends on invalid version of entry");
               return false;
@@ -174,10 +170,7 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(
-        Version v,
-        kv::Version& max_conflict_version,
-        bool skip_max_conflict) override
+      void commit(Version v, kv::Version& max_conflict_version) override
       {
         auto& roll = map.get_roll();
         auto current = roll.commits->get_tail();
@@ -187,7 +180,7 @@ namespace kv::untyped
         bool track_commit = consensus != nullptr &&
           map.store->get_consensus()->type() == ConsensusType::BFT;
 
-        if (!skip_max_conflict && track_commit)
+        if (map.include_conflict_read_version && track_commit)
         {
           for (auto it = change_set.reads.begin(); it != change_set.reads.end();
                ++it)
@@ -347,12 +340,14 @@ namespace kv::untyped
       AbstractStore* store_,
       const std::string& name_,
       SecurityDomain security_domain_,
-      bool replicated_) :
+      bool replicated_,
+      bool include_conflict_read_version_) :
       AbstractMap(name_),
       store(store_),
       roll{std::make_unique<LocalCommits>(), 0, {}},
       security_domain(security_domain_),
-      replicated(replicated_)
+      replicated(replicated_),
+      include_conflict_read_version(include_conflict_read_version_)
     {
       roll.reset_commits();
     }
@@ -361,7 +356,12 @@ namespace kv::untyped
 
     virtual AbstractMap* clone(AbstractStore* other) override
     {
-      return new Map(other, name, security_domain, replicated);
+      return new Map(
+        other,
+        name,
+        security_domain,
+        replicated,
+        include_conflict_read_version);
     }
 
     void serialise_changes(
@@ -458,7 +458,7 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version, kv::Version&, bool) override
+      void commit(Version, kv::Version&) override
       {
         // Version argument is ignored. The version of the roll after the
         // snapshot is applied depends on the version of the map at which the

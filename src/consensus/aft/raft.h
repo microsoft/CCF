@@ -1437,6 +1437,8 @@ namespace aft
       std::vector<std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>>>&
         pending_requests)
     {
+      LOG_TRACE_FMT(
+        "executioning batch with {} elements", pending_requests.size());
       for (auto& tmsg : pending_requests)
       {
         threading::ThreadMessaging::thread_messaging.add_task(
