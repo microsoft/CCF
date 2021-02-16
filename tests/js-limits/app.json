@@ -1,0 +1,26 @@
+{
+  "endpoints": {
+    "/recursive": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "recursive",
+        "forwarding_required": "never",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {}
+      }
+    },
+    "/alloc": {
+      "post": {
+        "js_module": "limits.js",
+        "js_function": "alloc",
+        "forwarding_required": "never",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {}
+      }
+    }
+  }
+}
