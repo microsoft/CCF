@@ -358,7 +358,11 @@ namespace tls
   inline VerifierUniquePtr make_unique_verifier(
     const std::vector<uint8_t>& cert)
   {
+#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
+    return std::make_unique<Verifier_mbedTLS>(cert);
+#else
     return std::make_unique<Verifier_OpenSSL>(cert);
+#endif
   }
 
   inline VerifierPtr make_verifier(const Pem& cert)
