@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import ccf.ledger
 import sys
 from loguru import logger as LOG
 
@@ -21,7 +22,6 @@ if len(sys.argv) < 2:
 ledger_dir = sys.argv[1]
 
 # SNIPPET: import_ledger
-import ccf.ledger
 
 # SNIPPET: create_ledger
 ledger = ccf.ledger.Ledger(ledger_dir)
@@ -39,17 +39,12 @@ for chunk in ledger:
 
         # If target_table was changed, count the number of keys changed
         if target_table in public_tables:
+            # Ledger verification is happening implicitly in ccf.ledger.Ledger()
             for key, value in public_tables[target_table].items():
                 target_table_changes += 1  # A key was changed
-
-        # extracting transactions on a sample table
-        # Ledger verification is happening implicitly in ccf.ledger.Ledger()
-        if "public:sample.logs" in public_tables:
-            public_tpal_table = public_tables["public:sample.logs"]
-            for key_value in public_tpal_table.items():
-                # knowledge of the serialization scheme is important to read the values from the table.
-                # if the table was serialized using msgpack, following code can be used to extract transaction key and value.
-                print(
-                    f"{ccf.ledger.extract_msgpacked_data(key_value[0])} = {ccf.ledger.extract_msgpacked_data(key_value[1]).decode()}"
-                )
+                # Log the key and value for the transaction on the target table
+                # The target_table: 'public:ccf.gov.nodes.info' has already been decoded in ledger.py
+                # For other tables knowledge of serialization scheme used is important.
+                # If the table was using msgpack, use ccf.ledger.extract_msgpacked_data(data)
+                LOG.info(f"{key} : {value}")
 # SNIPPET_END: iterate_over_ledger
