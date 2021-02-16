@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
+#include "ds/ccf_assert.h"
 #include "ds/spin_lock.h"
 #include "node/encryptor.h"
 #include "node/historical_queries_interface.h"
@@ -75,13 +76,18 @@ namespace ccf::historical
 
     ccf::VersionedLedgerSecret get_first_known_ledger_secret()
     {
-      // TODO: Add assertion
+      auto tx = network.tables->create_read_only_tx();
       if (historical_ledger_secrets->is_empty())
       {
-        return network.ledger_secrets->get_first();
+        return network.ledger_secrets->get_first(tx);
       }
 
-      return historical_ledger_secrets->get_first();
+      CCF_ASSERT_FMT(
+        historical_ledger_secrets->get_latest(tx).first <
+          network.ledger_secrets->get_first(tx).first,
+        "Historical ledger secrets are not older than main ledger secrets");
+
+      return historical_ledger_secrets->get_first(tx);
     }
 
     void request_entry_at(consensus::Index idx)
@@ -143,8 +149,6 @@ namespace ccf::historical
 
     void fetch_entry_at(consensus::Index idx)
     {
-      LOG_FAIL_FMT("fetch_entry_at: {}", idx);
-
       const auto it =
         std::find(pending_fetches.begin(), pending_fetches.end(), idx);
       if (it != pending_fetches.end())
@@ -300,9 +304,6 @@ namespace ccf::historical
         std::move(recovered_ledger_secret_raw),
         previous_ledger_secret->previous_secret_stored_version);
 
-      // historical_ledger_secrets.set_secret(
-      //   previous_ledger_secret->version, std::move(recovered_ledger_secret));
-
       Request next_request;
       consensus::Index next_idx;
 
@@ -333,7 +334,6 @@ namespace ccf::historical
           std::move(ledger_secret_recovery_info);
       }
 
-      // TODO: Is it safe to move here?
       historical_ledger_secrets->set_secret(
         previous_ledger_secret->version, std::move(recovered_ledger_secret));
 
@@ -347,16 +347,15 @@ namespace ccf::historical
         false /* Do not start from very first idx */,
         true /* Make use of historical secrets */);
 
+      auto tx = network.tables->create_read_only_tx();
       if (
         idx < static_cast<consensus::Index>(
-                network.ledger_secrets->get_first().first))
+                network.ledger_secrets->get_first(tx).first))
       {
-        LOG_FAIL_FMT("Historical encryptor");
         store->set_encryptor(historical_encryptor);
       }
       else
       {
-        LOG_FAIL_FMT("Current encryptor");
         store->set_encryptor(network.tables->get_encryptor());
       }
 
@@ -465,14 +464,14 @@ namespace ccf::historical
       ccf::NetworkState& network_, const ringbuffer::WriterPtr& host_writer) :
       network(network_),
       to_host(host_writer),
-      historical_ledger_secrets(std::make_shared<ccf::LedgerSecrets>()),
+      historical_ledger_secrets(std::make_shared<ccf::LedgerSecrets>(
+        network.ledger_secrets->get_node_id())),
       historical_encryptor(
         std::make_shared<ccf::NodeEncryptor>(historical_ledger_secrets))
     {}
 
     StorePtr get_store_at(consensus::Index idx) override
     {
-      LOG_FAIL_FMT("get_store_at: {}", idx);
       const auto it = requests.find(idx);
       if (it == requests.end())
       {

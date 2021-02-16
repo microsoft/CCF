@@ -110,31 +110,7 @@ namespace ccf
     LedgerSecrets(NodeId self_, LedgerSecretsMap&& ledger_secrets_) :
       self(self_),
       ledger_secrets(std::move(ledger_secrets_))
-    {
-      dump();
-    }
-
-    // TODO: delete
-    void dump()
-    {
-      LOG_FAIL_FMT("**** Ledger secrets: ");
-      for (auto const& s : ledger_secrets)
-      {
-        LOG_FAIL_FMT(
-          "LS valid from {} (prev at {})",
-          s.first,
-          s.second->previous_secret_stored_version.value_or(kv::NoVersion));
-        if (s.second->key)
-        {
-          LOG_FAIL_FMT("Has key!");
-        }
-        else
-        {
-          LOG_FAIL_FMT("Hasn't got key!");
-        }
-      }
-      LOG_FAIL_FMT("*****");
-    }
+    {}
 
     void init(kv::Version initial_version = 1)
     {
@@ -154,6 +130,11 @@ namespace ccf
       self = id;
     }
 
+    std::optional<NodeId> get_node_id()
+    {
+      return self;
+    }
+
     void adjust_previous_secret_stored_version(kv::Version version)
     {
       // To be able to lookup the last active ledger secret before the service
@@ -170,8 +151,6 @@ namespace ccf
       }
 
       ledger_secrets.rbegin()->second->previous_secret_stored_version = version;
-
-      dump();
     }
 
     bool is_empty()
@@ -181,10 +160,11 @@ namespace ccf
       return ledger_secrets.empty();
     }
 
-    // TODO: Need a tx here??
-    VersionedLedgerSecret get_first()
+    VersionedLedgerSecret get_first(kv::ReadOnlyTx& tx)
     {
       std::lock_guard<SpinLock> guard(lock);
+
+      take_dependency_on_secrets(tx);
 
       if (ledger_secrets.empty())
       {
@@ -192,7 +172,6 @@ namespace ccf
           "Could not retrieve first ledger secret: no secret set");
       }
 
-      LOG_FAIL_FMT("Returning first ledger secret");
       return *ledger_secrets.begin();
     }
 
@@ -271,13 +250,7 @@ namespace ccf
           ledger_secrets.begin()->first));
       }
 
-      LOG_FAIL_FMT("Before restore");
-      dump();
-
       ledger_secrets.merge(restored_ledger_secrets);
-
-      LOG_FAIL_FMT("After restore");
-      dump();
     }
 
     auto get_encryption_key_for(
