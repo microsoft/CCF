@@ -462,8 +462,7 @@ namespace kv
 
     virtual bool has_writes() = 0;
     virtual bool prepare() = 0;
-    virtual void commit(
-      Version v, Version& max_conflict_version) = 0;
+    virtual void commit(Version v, Version& max_conflict_version) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
