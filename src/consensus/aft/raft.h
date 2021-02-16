@@ -414,7 +414,9 @@ namespace aft
     void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
       std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
-      if (consensus_type == ConsensusType::BFT && is_follower())
+      if (
+        consensus_type == ConsensusType::BFT && is_follower() &&
+        threading::ThreadMessaging::thread_count > 1)
       {
         guard.lock();
       }
