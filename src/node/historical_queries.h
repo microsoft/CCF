@@ -472,7 +472,7 @@ namespace ccf::historical
         true /* Make use of historical secrets */);
       store->set_encryptor(source_store.get_encryptor());
 
-      kv::ApplySuccess deserialise_result;
+      kv::ApplyResult deserialise_result;
 
       try
       {
@@ -484,10 +484,10 @@ namespace ccf::historical
           "Exception while attempting to deserialise entry {}: {}",
           idx,
           e.what());
-        deserialise_result = kv::ApplySuccess::FAILED;
+        deserialise_result = kv::ApplyResult::FAILED;
       }
 
-      if (deserialise_result == kv::ApplySuccess::FAILED)
+      if (deserialise_result == kv::ApplyResult::FAILED)
       {
         pending_fetches.erase(it);
         return false;
@@ -502,7 +502,7 @@ namespace ccf::historical
 
       auto handles = it->second;
 
-      if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
+      if (deserialise_result == kv::ApplyResult::PASS_SIGNATURE)
       {
         // This looks like a valid signature - try to use this signature to
         // move some stores from untrusted to trusted
@@ -513,7 +513,7 @@ namespace ccf::historical
       // fetch the next index
       if (!handles.empty())
       {
-        if (deserialise_result == kv::ApplySuccess::PASS_SIGNATURE)
+        if (deserialise_result == kv::ApplyResult::PASS_SIGNATURE)
         {
           LOG_INFO_FMT(
             "Deserialised a signature at {}, but still have handles looking "
