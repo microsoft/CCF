@@ -1332,8 +1332,7 @@ namespace aft
       }
       else
       {
-        guard.unlock();
-        msg->cb(std::move(msg));
+        execute_append_entries(std::move(msg));
       }
     }
 
@@ -1351,10 +1350,11 @@ namespace aft
       std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
     {
       auto self = msg->data.self;
-      self->execute_append_entries_cb_aaa(std::move(msg));
+      std::unique_lock<SpinLock> guard(self->state->lock);
+      self->execute_append_entries(std::move(msg));
     }
 
-    void execute_append_entries_cb_aaa(
+    void execute_append_entries(
       std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
     {
       auto self = msg->data.self;
@@ -1448,7 +1448,6 @@ namespace aft
     bool execute_append_entries_cft(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
       std::list<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries = msg->data.append_entries;
@@ -1570,12 +1569,6 @@ namespace aft
 
       std::vector<std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>>>
         pending_requests;
-
-      std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
-      if (!run_sync)
-      {
-        guard.lock();
-      }
 
       while (!append_entries.empty())
       {
@@ -1744,7 +1737,7 @@ namespace aft
                       --msg->data.ctx->pending_cbs;
                       if (msg->data.ctx->pending_cbs == 0)
                       {
-                        self->execute_append_entries_cb_aaa(
+                        self->execute_append_entries(
                           std::move(msg->data.ctx->msg));
                       }
                     });
