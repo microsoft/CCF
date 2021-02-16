@@ -350,16 +350,16 @@ class Node:
         return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
 
     def suspend(self):
-        if not self.suspended:
-            self.remote.suspend()
-            self.suspended = True
-            LOG.info(f"Node {self.node_id} suspended...")
+        assert not self.suspended
+        self.suspended = True
+        self.remote.suspend()
+        LOG.info(f"Node {self.node_id} suspended...")
 
     def resume(self):
-        if self.suspended:
-            self.remote.resume()
-            self.suspended = False
-            LOG.info(f"Node {self.node_id} has resumed from suspension.")
+        assert self.suspended
+        self.suspended = False
+        self.remote.resume()
+        LOG.info(f"Node {self.node_id} has resumed from suspension.")
 
 
 @contextmanager
