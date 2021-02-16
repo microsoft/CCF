@@ -260,7 +260,6 @@ namespace ccf
       return get_secret_for_version(version, historical_hint)->key;
     }
 
-    // TODO: Should this return a shared_ptr?
     LedgerSecretPtr get_historical_secret_for(kv::Version version)
     {
       std::lock_guard<SpinLock> guard(lock);

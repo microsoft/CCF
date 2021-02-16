@@ -18,10 +18,13 @@ suites = {}
 historical_recovery_snapshot_failure = [
     e2e_logging.test_historical_query,
     e2e_logging.test_rekey,
+    membership.test_set_recovery_threshold,
     e2e_logging.test_rekey,
+    membership.test_set_recovery_threshold,
     e2e_logging.test_rekey,
+    membership.test_set_recovery_threshold,
     e2e_logging.test_rekey,
-    e2e_logging.test_rekey,
+    membership.test_set_recovery_threshold,
     recovery.test,
 ]
 suites["rekey_recovery"] = historical_recovery_snapshot_failure

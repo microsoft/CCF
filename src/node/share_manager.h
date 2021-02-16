@@ -42,7 +42,7 @@ namespace ccf
       return ret;
     }
 
-    std::vector<uint8_t> wrap(LedgerSecretPtr ledger_secret)
+    std::vector<uint8_t> wrap(const LedgerSecretPtr& ledger_secret)
     {
       if (has_wrapped)
       {
@@ -406,12 +406,6 @@ namespace ccf
 
         auto decrypted_ls_raw = decrypt_previous_ledger_secret_raw(
           latest_ls, std::move(it->previous_ledger_secret->encrypted_data));
-
-        LOG_FAIL_FMT(
-          "Restoring ledger secret at {}, with previous secret stored at {}",
-          it->previous_ledger_secret->version,
-          it->previous_ledger_secret->previous_secret_stored_version.value_or(
-            kv::NoVersion));
 
         auto s = restored_ledger_secrets.emplace(
           it->previous_ledger_secret->version,

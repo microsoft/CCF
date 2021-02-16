@@ -44,11 +44,7 @@ namespace ccf
       raw_key(raw_key_),
       key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_))),
       previous_secret_stored_version(previous_secret_stored_version_)
-    {
-      LOG_FAIL_FMT(
-        "Ledger secret copy, previous version: {}",
-        previous_secret_stored_version_.value_or(kv::NoVersion));
-    }
+    {}
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LedgerSecret)
@@ -59,8 +55,6 @@ namespace ccf
 
   inline LedgerSecretPtr make_ledger_secret()
   {
-    LOG_FAIL_FMT("Making ledger secret!");
-
     return std::make_shared<LedgerSecret>(
       tls::create_entropy()->random(crypto::GCM_SIZE_KEY));
   }

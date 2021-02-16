@@ -472,10 +472,6 @@ namespace ccf
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
-            LOG_FAIL_FMT(
-              "Joining with {} ledger secrets",
-              resp.network_info.ledger_secrets.size());
-
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
               self, std::move(resp.network_info.ledger_secrets));
 
@@ -1023,7 +1019,6 @@ namespace ccf
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
-
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -1036,7 +1031,6 @@ namespace ccf
             "Could not commit transaction when finishing network recovery");
         }
       }
-
       open_user_frontend();
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
@@ -1045,10 +1039,10 @@ namespace ccf
 
     void setup_one_off_secret_hook()
     {
-      // This hook is necessary to adjust the version at which the ledger secret
-      // just before the post-recovery ledger secret is recorded in the store.
-      // This can only be fired once, after the recovery shares for the
-      // post-recovery ledger secret are issued.
+      // This hook is necessary to adjust the version at which the last ledger
+      // secret before recovery is recorded in the store. This can only be fired
+      // once, after the recovery shares for the post-recovery ledger secret are
+      // issued.
       network.tables->set_map_hook(
         network.encrypted_ledger_secrets.get_name(),
         network.encrypted_ledger_secrets.wrap_map_hook(
@@ -1071,6 +1065,7 @@ namespace ccf
                 network.encrypted_ledger_secrets.get_name()));
             }
 
+            // TODO: Delete
             LOG_FAIL_FMT("One off hook on encrypted secrets table!!");
 
             network.ledger_secrets->adjust_previous_secret_stored_version(
@@ -1629,14 +1624,6 @@ namespace ccf
                   // When rekeying, set the encryption key for the next version
                   // onward (backups deserialise this transaction with the
                   // previous ledger secret)
-
-                  LOG_FAIL_FMT(
-                    "Rekey, previous stored version: {}",
-                    encrypted_ledger_secret.previous_secret_stored_version
-                      .value_or(kv::NoVersion));
-
-                  LOG_FAIL_FMT("Rekey at {}", hook_version);
-
                   network.ledger_secrets->set_secret(
                     ledger_secret_version + 1,
                     std::make_shared<LedgerSecret>(
@@ -1706,11 +1693,6 @@ namespace ccf
               LOG_DEBUG_FMT(
                 "Recovery encrypted ledger secret valid at seqno {}",
                 encrypted_ledger_secret_info->previous_ledger_secret->version);
-
-              LOG_FAIL_FMT(
-                "Previous is stored at {}",
-                encrypted_ledger_secret_info->previous_ledger_secret
-                  ->previous_secret_stored_version.value_or(kv::NoVersion));
             }
 
             recovery_ledger_secrets.emplace_back(
