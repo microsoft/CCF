@@ -1,10 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "node/historical_queries.h"
+
 #include "ds/messaging.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/historical_queries.h"
 #include "node/history.h"
 #include "node/share_manager.h"
 #include "tls/rsa_key_pair.h"

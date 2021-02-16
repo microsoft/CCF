@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "symmetric_key.h"
+
 #include "ds/logger.h"
 #include "ds/thread_messaging.h"
-#include "symmetric_key.h"
 #include "tls/error_string.h"
 
 #include <mbedtls/aes.h>
