@@ -137,9 +137,12 @@ namespace tls
     /**
      * Construct from PEM
      */
-    RSAPublicKey_OpenSSL(const Pem& pem) : PublicKey_OpenSSL(pem)
+    RSAPublicKey_OpenSSL(const Pem& pem)
     {
-      if (!EVP_PKEY_get0_RSA(key))
+      BIO* mem = BIO_new_mem_buf(pem.data(), -1);
+      key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
+      BIO_free(mem);
+      if (!key || !EVP_PKEY_get0_RSA(key))
       {
         throw std::logic_error("invalid RSA key");
       }
@@ -148,13 +151,21 @@ namespace tls
     /**
      * Construct from DER
      */
-    RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der) :
-      PublicKey_OpenSSL(der)
+    RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der)
     {
-      if (!EVP_PKEY_get0_RSA(key))
+      const unsigned char* pp = der.data();
+      RSA* rsa = NULL;
+      if (((rsa = d2i_RSA_PUBKEY(NULL, &pp, der.size())) == NULL) && // "SubjectPublicKeyInfo structure" format
+          ((rsa = d2i_RSAPublicKey(NULL, &pp, der.size())) == NULL)) // PKCS#1 structure format
       {
-        throw std::logic_error("invalid RSA key");
+        unsigned long ec = ERR_get_error();
+        const char *msg = ERR_error_string(ec, NULL);
+        throw new std::runtime_error(fmt::format("OpenSSL error: {}", msg));
       }
+
+      key = EVP_PKEY_new();
+      OPENSSL_CHECK1(EVP_PKEY_set1_RSA(key, rsa));
+      RSA_free(rsa);
     }
 
     /**
@@ -187,7 +198,9 @@ namespace tls
         EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
       }
       else
+      {
         EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, NULL, 0);
+      }
 
       size_t olen;
       OPENSSL_CHECK1(
@@ -342,11 +355,13 @@ namespace tls
       size_t public_key_size = default_public_key_size,
       size_t public_exponent = default_public_exponent)
     {
-      BIGNUM* big_exp = BN_new();
+      RSA *rsa = NULL;
+      BIGNUM* big_exp = NULL;
+      OPENSSL_CHECKNULL(big_exp = BN_new());
       OPENSSL_CHECK1(BN_set_word(big_exp, public_exponent));
-      RSA* rsa = RSA_new();
+      OPENSSL_CHECKNULL(rsa = RSA_new());
       OPENSSL_CHECK1(RSA_generate_key_ex(rsa, public_key_size, big_exp, NULL));
-      key = EVP_PKEY_new();
+      OPENSSL_CHECKNULL(key = EVP_PKEY_new());
       OPENSSL_CHECK1(EVP_PKEY_set1_RSA(key, rsa));
       BN_free(big_exp);
       RSA_free(rsa);
@@ -362,7 +377,9 @@ namespace tls
       key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
       BIO_free(mem);
       if (!key)
+      {
         throw std::runtime_error("could not parse PEM");
+      }
     }
 
     /**
@@ -435,11 +452,23 @@ namespace tls
     return std::make_shared<RSAKeyPair>(pkey, pw);
   }
 
-  inline RSAPublicKeyPtr make_rsa_public_key(
-    const uint8_t* public_pem_data, size_t public_pem_size)
+  inline RSAPublicKeyPtr make_rsa_public_key(const std::vector<uint8_t>& der)
   {
-    Pem pem(public_pem_data, public_pem_size);
-    return std::make_shared<RSAPublicKey>(pem);
+    return std::make_shared<RSAPublicKey>(der);
+  }
+
+  inline RSAPublicKeyPtr make_rsa_public_key(const uint8_t* data, size_t size)
+  {
+    if (size < 10 || strncmp("-----BEGIN", (char*)data, 10) != 0)
+    {
+      std::vector<uint8_t> der = {data, data + size};
+      return std::make_shared<RSAPublicKey>(der);
+    }
+    else
+    {
+      Pem pem(data, size);
+      return std::make_shared<RSAPublicKey>(pem);
+    }
   }
 
   inline RSAPublicKeyPtr make_rsa_public_key(const Pem& public_pem)
