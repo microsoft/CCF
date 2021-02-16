@@ -476,14 +476,10 @@ namespace ccf
     {
       if (ctx.get_request_path() == "/gov/proposals")
       {
-        update_history();
-        if (history)
-        {
-          const auto& [txid, root] =
-            tables.get_replicated_state_txid_and_root();
-          tx.set_read_version_and_term(txid.version, txid.term);
-          tx.set_root_at_read_version(root);
-        }
+        const auto& [txid, root] =
+          tables.get_replicated_state_txid_and_root();
+        tx.set_read_version_and_term(txid.version, txid.term);
+        tx.set_root_at_read_version(root);
       }
     }
 
