@@ -476,18 +476,25 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
       auto search = channels.find(peer_id);
-      if (search != channels.end() && !search->second->is_outgoing())
+      if (search == channels.end())
+      {
+        LOG_DEBUG_FMT(
+          "Creating new outbound channel to {} ({}:{})",
+          peer_id,
+          hostname,
+          service);
+        auto channel = std::make_shared<Channel>(
+          writer_factory, network_kp, self, peer_id, hostname, service);
+        channels.emplace_hint(search, peer_id, std::move(channel));
+      }
+      else if (!search->second->is_outgoing())
       {
         // Channel with peer already exists but is incoming. Create host
         // outgoing connection.
+        LOG_DEBUG_FMT("Setting existing channel to {} as outgoing", peer_id);
         search->second->set_outgoing(hostname, service);
         return;
       }
-
-      channels.try_emplace(
-        peer_id,
-        std::make_shared<Channel>(
-          writer_factory, network_kp, self, peer_id, hostname, service));
     }
 
     void destroy_channel(NodeId peer_id)

@@ -48,7 +48,7 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
       suffix: "Instrumented"
       artifact_name: "NoSGX_Instrumented"
-      ctest_filter: '-LE "benchmark|perf|rotation"'
+      ctest_filter: '-LE "benchmark|perf"'
       ctest_timeout: "300"
 
   - template: common.yml
