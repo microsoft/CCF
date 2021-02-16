@@ -12,6 +12,7 @@ namespace ccf
   {
     std::unique_ptr<NetworkIdentity> identity;
     std::shared_ptr<LedgerSecrets> ledger_secrets;
+    std::shared_ptr<LedgerSecrets> historical_ledger_secrets;
 
     // default set to Raft
     ConsensusType consensus_type = ConsensusType::CFT;

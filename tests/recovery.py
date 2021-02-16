@@ -38,7 +38,7 @@ def test(network, args, from_snapshot=True):
 
 @reqs.description("Recovering a network, kill one node while submitting shares")
 @reqs.recover(number_txs=2)
-def test_share_resilience(network, args, from_snapshot=False):
+def test_share_resilience(network, args, from_snapshot=True):
     old_primary, _ = network.find_primary()
 
     snapshot_dir = None
@@ -103,7 +103,6 @@ def test_share_resilience(network, args, from_snapshot=False):
 
 def run(args):
     txs = app.LoggingTxs()
-
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -115,6 +114,11 @@ def run(args):
         network.start_and_join(args)
 
         for i in range(args.recovery):
+            # Issue transactions which will required historical ledger queries recovery
+            # when the network is shutdown
+            network.txs.issue(network, number_txs=1)
+            network.txs.issue(network, number_txs=1, repeat=True)
+
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
             if i % 2 == 0:

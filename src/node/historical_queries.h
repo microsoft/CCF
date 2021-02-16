@@ -25,7 +25,6 @@ namespace ccf::historical
     ccf::NetworkState& network;
     ringbuffer::WriterPtr to_host;
 
-    std::shared_ptr<ccf::LedgerSecrets> historical_ledger_secrets;
     std::shared_ptr<ccf::NodeEncryptor> historical_encryptor;
 
     enum class RequestStage
@@ -77,17 +76,17 @@ namespace ccf::historical
     ccf::VersionedLedgerSecret get_first_known_ledger_secret()
     {
       auto tx = network.tables->create_read_only_tx();
-      if (historical_ledger_secrets->is_empty())
+      if (network.historical_ledger_secrets->is_empty())
       {
         return network.ledger_secrets->get_first(tx);
       }
 
       CCF_ASSERT_FMT(
-        historical_ledger_secrets->get_latest(tx).first <
+        network.historical_ledger_secrets->get_latest(tx).first <
           network.ledger_secrets->get_first(tx).first,
         "Historical ledger secrets are not older than main ledger secrets");
 
-      return historical_ledger_secrets->get_first(tx);
+      return network.historical_ledger_secrets->get_first(tx);
     }
 
     void request_entry_at(consensus::Index idx)
@@ -334,7 +333,7 @@ namespace ccf::historical
           std::move(ledger_secret_recovery_info);
       }
 
-      historical_ledger_secrets->set_secret(
+      network.historical_ledger_secrets->set_secret(
         previous_ledger_secret->version, std::move(recovered_ledger_secret));
 
       return std::make_pair(next_idx, std::move(next_request));
@@ -463,12 +462,13 @@ namespace ccf::historical
     StateCache(
       ccf::NetworkState& network_, const ringbuffer::WriterPtr& host_writer) :
       network(network_),
-      to_host(host_writer),
-      historical_ledger_secrets(std::make_shared<ccf::LedgerSecrets>(
-        network.ledger_secrets->get_node_id())),
-      historical_encryptor(
-        std::make_shared<ccf::NodeEncryptor>(historical_ledger_secrets))
-    {}
+      to_host(host_writer)
+    {
+      network.historical_ledger_secrets =
+        std::make_shared<ccf::LedgerSecrets>();
+      historical_encryptor =
+        std::make_shared<ccf::NodeEncryptor>(network.historical_ledger_secrets);
+    }
 
     StorePtr get_store_at(consensus::Index idx) override
     {

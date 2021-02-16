@@ -130,11 +130,6 @@ namespace ccf
       self = id;
     }
 
-    std::optional<NodeId> get_node_id()
-    {
-      return self;
-    }
-
     void adjust_previous_secret_stored_version(kv::Version version)
     {
       // To be able to lookup the last active ledger secret before the service

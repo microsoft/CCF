@@ -41,7 +41,7 @@ suite_rekey_recovery = [
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
 ]
-# suites["rekey_recovery"] = suite_rekey_recovery
+suites["rekey_recovery"] = suite_rekey_recovery
 
 # This suite tests that membership changes and recoveries can be interleaved
 suite_membership_recovery = [

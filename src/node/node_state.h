@@ -1357,6 +1357,7 @@ namespace ccf
       }
 
       self = n;
+      network.historical_ledger_secrets->set_node_id(self);
     }
 
     tls::SubjectAltName get_subject_alt_name(const CCFConfig& config)
