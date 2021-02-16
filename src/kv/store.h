@@ -497,6 +497,18 @@ namespace kv
       }
     }
 
+    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
+    {
+      std::lock_guard<SpinLock> vguard(version_lock);
+
+      auto h = get_history();
+      if (h)
+      {
+        return h->get_replicated_state_txid_and_root();
+      }
+      return {};
+    }
+
     void compact(Version v) override
     {
       // This is called when the store will never be rolled back to any
