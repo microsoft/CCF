@@ -1448,7 +1448,7 @@ namespace aft
     bool execute_append_entries_cft(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
-      std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
+      std::lock_guard<SpinLock> guard(state->lock);
       std::list<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries = msg->data.append_entries;
