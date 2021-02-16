@@ -28,7 +28,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::In,
     node_info_network,
-    quote,
+    quote_info,
     public_encryption_key,
     consensus_type)
 
@@ -58,12 +58,11 @@ namespace ccf
     gov_script,
     node_cert,
     network_cert,
-    quote,
+    quote_info,
     public_encryption_key,
     code_digest,
     node_info_network,
-    consensus_type,
-    recovery_threshold)
+    configuration)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, view, seqno)

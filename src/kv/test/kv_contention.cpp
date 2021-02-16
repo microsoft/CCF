@@ -102,7 +102,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 
           // Try to commit
           const auto result = tx.commit();
-          if (result == kv::CommitSuccess::OK)
+          if (result == kv::CommitResult::SUCCESS)
           {
             break;
           }
@@ -247,13 +247,13 @@ DOCTEST_TEST_CASE(
       h->put(k, j);
 
       const auto result = tx.commit();
-      if (result == kv::CommitSuccess::OK)
+      if (result == kv::CommitResult::SUCCESS)
       {
         // Succeeded
         break;
       }
 
-      DOCTEST_REQUIRE(result == kv::CommitSuccess::CONFLICT);
+      DOCTEST_REQUIRE(result == kv::CommitResult::FAIL_CONFLICT);
       ++conflict_count;
 
       // Sleep before retrying

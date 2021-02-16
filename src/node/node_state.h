@@ -121,15 +121,18 @@ namespace ccf
     tls::KeyPairPtr node_sign_kp;
     tls::KeyPairPtr node_encrypt_kp;
     tls::Pem node_cert;
-    std::vector<uint8_t> quote;
+    QuoteInfo quote_info;
     CodeDigest node_code_id;
+#ifdef GET_QUOTE
+    EnclaveAttestationProvider enclave_attestation_provider;
+#endif
 
     //
     // kv store, replication, and I/O
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
-    consensus::Config consensus_config;
+    consensus::Configuration consensus_config;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -204,7 +207,7 @@ namespace ccf
       kv::ConsensusHookPtrs hooks;
       auto rc = network.tables->deserialise_snapshot(
         config.startup_snapshot, hooks, &view_history, true);
-      if (rc != kv::ApplySuccess::PASS)
+      if (rc != kv::ApplyResult::PASS)
       {
         throw std::logic_error(
           fmt::format("Failed to apply public snapshot: {}", rc));
@@ -245,11 +248,27 @@ namespace ccf
       share_manager(share_manager)
     {}
 
+    QuoteVerificationResult verify_quote(
+      kv::ReadOnlyTx& tx,
+      const QuoteInfo& quote_info,
+      const tls::Pem& expected_node_public_key) override
+    {
+#ifdef GET_QUOTE
+      return enclave_attestation_provider.verify_quote_against_store(
+        tx, quote_info, expected_node_public_key);
+#else
+      (void)tx;
+      (void)quote_info;
+      (void)expected_node_public_key;
+      return QuoteVerificationResult::Verified;
+#endif
+    }
+
     //
     // funcs in state "uninitialized"
     //
     void initialize(
-      const consensus::Config& consensus_config_,
+      const consensus::Configuration& consensus_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_,
@@ -280,19 +299,9 @@ namespace ccf
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      auto quote_opt =
-        QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
-      if (!quote_opt.has_value())
-      {
-        throw std::runtime_error("Quote could not be retrieved");
-      }
-      quote = quote_opt.value();
-      auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
-      if (!node_code_id_opt.has_value())
-      {
-        throw std::runtime_error("Code ID could not be retrieved from quote");
-      }
-      node_code_id = node_code_id_opt.value();
+      quote_info = enclave_attestation_provider.generate_quote(
+        node_sign_kp->public_key_pem());
+      node_code_id = enclave_attestation_provider.get_code_id(quote_info);
 #endif
 
       switch (start_type)
@@ -319,7 +328,7 @@ namespace ccf
           // network
           open_frontend(ActorsType::members);
 
-          if (!create_and_send_request(config, quote))
+          if (!create_and_send_request(config))
           {
             throw std::runtime_error(
               "Genesis transaction could not be committed");
@@ -328,7 +337,8 @@ namespace ccf
           accept_network_tls_connections(config);
           auto_refresh_jwt_keys(config);
 
-          reset_data(quote);
+          reset_data(quote_info.quote);
+          reset_data(quote_info.endorsements);
           sm.advance(State::partOfNetwork);
 
           return {node_cert, network.identity->cert};
@@ -502,7 +512,7 @@ namespace ccf
                 hooks,
                 &view_history,
                 resp.network_info.public_only);
-              if (rc != kv::ApplySuccess::PASS)
+              if (rc != kv::ApplyResult::PASS)
               {
                 throw std::logic_error(
                   fmt::format("Failed to apply snapshot on join: {}", rc));
@@ -550,7 +560,8 @@ namespace ccf
             }
             else
             {
-              reset_data(quote);
+              reset_data(quote_info.quote);
+              reset_data(quote_info.endorsements);
               sm.advance(State::partOfNetwork);
             }
 
@@ -579,7 +590,7 @@ namespace ccf
       join_params.node_info_network = config.node_info_network;
       join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
-      join_params.quote = quote;
+      join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
 
       LOG_DEBUG_FMT(
@@ -706,7 +717,7 @@ namespace ccf
       // When reading the public ledger, deserialise in the real store
       auto r = network.tables->apply(ledger_entry, ConsensusType::CFT, true);
       auto result = r->execute();
-      if (result == kv::ApplySuccess::FAILED)
+      if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
         network.tables->rollback(ledger_idx - 1);
@@ -726,7 +737,7 @@ namespace ccf
       }
 
       // If the ledger entry is a signature, it is safe to compact the store
-      if (result == kv::ApplySuccess::PASS_SIGNATURE)
+      if (result == kv::ApplyResult::PASS_SIGNATURE)
       {
         // If the ledger entry is a signature, it is safe to compact the store
         network.tables->compact(ledger_idx);
@@ -774,7 +785,7 @@ namespace ccf
         snapshotter->commit(ledger_idx);
       }
       else if (
-        result == kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE &&
+        result == kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE &&
         startup_snapshot_info)
       {
         auto tx = network.tables->create_read_only_tx();
@@ -861,7 +872,7 @@ namespace ccf
 
       set_node_id(g.add_node({node_info_network,
                               node_cert,
-                              quote,
+                              quote_info,
                               node_encrypt_kp->public_key_pem().raw(),
                               NodeStatus::PENDING}));
 
@@ -916,7 +927,7 @@ namespace ccf
       g.trust_node_code_id(node_code_id);
 #endif
 
-      if (g.finalize() != kv::CommitSuccess::OK)
+      if (g.finalize() != kv::CommitResult::SUCCESS)
       {
         throw std::logic_error(
           "Could not commit transaction when starting recovered public "
@@ -942,7 +953,7 @@ namespace ccf
       // When reading the private ledger, deserialise in the recovery store
       auto result =
         recovery_store->apply(ledger_entry, ConsensusType::CFT)->execute();
-      if (result == kv::ApplySuccess::FAILED)
+      if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
         recovery_store->rollback(ledger_idx - 1);
@@ -950,7 +961,7 @@ namespace ccf
         return;
       }
 
-      if (result == kv::ApplySuccess::PASS_SIGNATURE)
+      if (result == kv::ApplyResult::PASS_SIGNATURE)
       {
         recovery_store->compact(ledger_idx);
       }
@@ -1014,14 +1025,15 @@ namespace ccf
           throw std::logic_error("Service could not be opened");
         }
 
-        if (g.finalize() != kv::CommitSuccess::OK)
+        if (g.finalize() != kv::CommitResult::SUCCESS)
         {
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
         }
       }
       open_user_frontend();
-      reset_data(quote);
+      reset_data(quote_info.quote);
+      reset_data(quote_info.endorsements);
       sm.advance(State::partOfNetwork);
     }
 
@@ -1088,7 +1100,7 @@ namespace ccf
         kv::ConsensusHookPtrs hooks;
         auto rc = recovery_store->deserialise_snapshot(
           startup_snapshot_info->raw, hooks, &view_history);
-        if (rc != kv::ApplySuccess::PASS)
+        if (rc != kv::ApplyResult::PASS)
         {
           throw std::logic_error(fmt::format(
             "Could not deserialise snapshot in recovery store: {}", rc));
@@ -1373,7 +1385,7 @@ namespace ccf
     }
 
     std::vector<uint8_t> serialize_create_request(
-      const CCFConfig& config, const std::vector<uint8_t>& quote)
+      const CCFConfig& config, const QuoteInfo& quote_info)
     {
       CreateNetworkNodeToNode::In create_params;
 
@@ -1385,13 +1397,13 @@ namespace ccf
       create_params.gov_script = config.genesis.gov_script;
       create_params.node_cert = node_cert;
       create_params.network_cert = network.identity->cert;
-      create_params.quote = quote;
+      create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
       create_params.node_info_network = config.node_info_network;
-      create_params.consensus_type = network.consensus_type;
-      create_params.recovery_threshold = config.genesis.recovery_threshold;
+      create_params.configuration = {config.genesis.recovery_threshold,
+                                     network.consensus_type};
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
@@ -1481,11 +1493,10 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_request(
-      const CCFConfig& config, const std::vector<uint8_t>& quote)
+    bool create_and_send_request(const CCFConfig& config)
     {
       const auto create_success =
-        send_create_request(serialize_create_request(config, quote));
+        send_create_request(serialize_create_request(config, quote_info));
       if (network.consensus_type == ConsensusType::BFT)
       {
         return true;
@@ -1627,8 +1638,13 @@ namespace ccf
               encrypted_ledger_secret_info->next_version = version + 1;
             }
 
-            LOG_DEBUG_FMT(
-              "Recovering encrypted ledger secret valid at seqno {}", version);
+            if (encrypted_ledger_secret_info->previous_ledger_secret
+                  .has_value())
+            {
+              LOG_DEBUG_FMT(
+                "Recovery encrypted ledger secret valid at seqno {}",
+                encrypted_ledger_secret_info->previous_ledger_secret->version);
+            }
 
             recovery_ledger_secrets.emplace_back(
               std::move(encrypted_ledger_secret_info.value()));

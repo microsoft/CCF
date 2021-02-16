@@ -67,6 +67,7 @@ class Node:
         self.remote = None
         self.network_state = NodeNetworkState.stopped
         self.common_dir = None
+        self.suspended = False
 
         if host.startswith("local://"):
             self.remote_impl = infra.remote.LocalRemote
@@ -254,6 +255,8 @@ class Node:
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
+            if self.suspended:
+                self.resume()
             self.network_state = NodeNetworkState.stopped
             return self.remote.stop()
         return [], []
@@ -347,10 +350,14 @@ class Node:
         return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
 
     def suspend(self):
+        assert not self.suspended
+        self.suspended = True
         self.remote.suspend()
         LOG.info(f"Node {self.node_id} suspended...")
 
     def resume(self):
+        assert self.suspended
+        self.suspended = False
         self.remote.resume()
         LOG.info(f"Node {self.node_id} has resumed from suspension.")
 

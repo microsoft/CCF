@@ -27,21 +27,7 @@ Then, to get a VM up and running in the UK South region, run the following comma
 
     $ ./make_vm.sh $AZURE_SUBSCRIPTION_NAME [path_to_ssh_public_key]
 
-After signing in to your Azure account, the script will create a default ``ccf`` user on the ``ccf-dev-vm`` VM (part of ``ccf-dev-rg`` resource group), authenticated by the public key specified by ``path_to_ssh_public_key`` (defaults to ``~/.ssh/id_rsa.pub``).
+After signing in to your Azure account, the script will create an SGX-enabled VM under a ``ccf-dev-rg`` resource group, with a `ccf` user authenticated by the public key specified by ``path_to_ssh_public_key`` (defaults to ``~/.ssh/id_rsa.pub``).
 
-Deletion
---------
-
-.. warning::
-    - Make sure that all your changes are committed and pushed to GitHub before destroying the VM.
-    - The destroy script will destroy all resources in the ``ccf-dev-rg`` resource group previously created by the ``make_vm.sh`` script.
-
-Once the development on the Azure SGX VM is complete, the VM can be destroyed as follows:
-
-.. code-block:: bash
-
-    $ cd CCF/getting_started/create_vm
-    $ ./destroy_vm.sh $AZURE_SUBSCRIPTION_NAME
-
-.. _`Marketplace App`: https://aka.ms/ccvm
+.. _`Marketplace App`: https://aka.ms/accmarketplace
 .. _`Azure CLI`: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli

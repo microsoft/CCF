@@ -11,20 +11,15 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
-import ssl
-import hashlib
 import json
 import urllib.parse
 
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
 from loguru import logger as LOG
 
 
 @reqs.description("Test quotes")
 @reqs.supports_methods("quotes/self", "quotes")
-def test_quote(network, args, verify=True):
+def test_quote(network, args):
     primary, _ = network.find_nodes()
     with primary.client() as c:
         oed = subprocess.run(
@@ -55,43 +50,33 @@ def test_quote(network, args, verify=True):
 
         r = c.get("/node/quotes")
         quotes = r.body.json()["quotes"]
-        assert len(quotes) == len(network.find_nodes())
+        assert len(quotes) == len(network.get_joined_nodes())
 
         for quote in quotes:
             mrenclave = quote["mrenclave"]
             assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
-            qpath = os.path.join(network.common_dir, f"quote{quote['node_id']}")
-
-            with open(qpath, "wb") as q:
-                q.write(bytes.fromhex(quote["raw"]))
-                oed = subprocess.run(
-                    [
-                        os.path.join(args.oe_binary, "oeverify"),
-                        "-r",
-                        qpath,
-                        "-f",
-                        "LEGACY_REPORT_REMOTE",
-                    ],
-                    capture_output=True,
-                    check=True,
-                )
-                out = oed.stdout.decode().split(os.linesep)
-                for line in out:
-                    if line.startswith("Enclave sgx_report_data:"):
-                        report_digest = line.split(" ")[-1][2:]
-                assert "Evidence verification succeeded (0)." in out
-
-            node = network.nodes[quote["node_id"]]
-            node_cert = ssl.get_server_certificate((node.pubhost, node.pubport))
-            public_key = x509.load_pem_x509_certificate(
-                node_cert.encode(), default_backend()
-            ).public_key()
-            pub_key = public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            quote_path = os.path.join(network.common_dir, f"quote{quote['node_id']}")
+            endorsements_path = os.path.join(
+                network.common_dir, f"endorsements{quote['node_id']}"
             )
-            key_digest = hashlib.sha256(pub_key).hexdigest()
-            assert report_digest[: len(key_digest)] == key_digest
+
+            with open(quote_path, "wb") as q:
+                q.write(bytes.fromhex(quote["raw"]))
+
+            with open(endorsements_path, "wb") as e:
+                e.write(bytes.fromhex(quote["endorsements"]))
+
+            cafile = os.path.join(network.common_dir, "networkcert.pem")
+            assert (
+                infra.proc.ccall(
+                    "verify_quote.sh",
+                    f"https://{primary.pubhost}:{primary.pubport}",
+                    "--cacert",
+                    f"{cafile}",
+                    log_output=True,
+                ).returncode
+                == 0
+            ), f"Quote verification for node {quote['node_id']} failed"
 
     return network
 
@@ -141,7 +126,7 @@ def test_member_data(network, args):
 
         def member_info(mid):
             return mc.post(
-                "/gov/read", {"table": "public:ccf.gov.members", "key": mid}
+                "/gov/read", {"table": "public:ccf.gov.members.info", "key": mid}
             ).body.json()
 
         md_count = 0
@@ -198,7 +183,7 @@ def test_service_principals(network, args):
         with primary.client("member0") as mc:
             return mc.post(
                 "/gov/read",
-                {"table": "public:ccf.gov.service_principals", "key": principal_id},
+                {"table": "public:gov.service_principals", "key": principal_id},
             )
 
     # Initially, there is nothing in this table

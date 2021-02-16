@@ -530,12 +530,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME rekey_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
@@ -576,10 +570,16 @@ if(BUILD_TESTS)
       all
   )
 
+  if(LONG_TESTS)
+    set(ROTATION_TEST_ARGS --rotation-retirements 10 --rotation-suspensions 10)
+  endif()
+
   add_e2e_test(
     NAME rotation_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
     CONSENSUS cft
+    LABEL rotation
+    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
   )
 
   add_e2e_test(
@@ -706,12 +706,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME ws_logging_raft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ws_scaffold.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
     NAME member_client_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
     CONSENSUS cft
@@ -739,12 +733,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS --ledger-chunk-bytes 100Mib --snapshot-tx-interval 10000
     )
   endif()
-
-  add_e2e_test(
-    NAME receipts_test_cft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
-    CONSENSUS cft
-  )
 
   if(TLS_TEST)
     add_e2e_test(
@@ -781,8 +769,9 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL tutorial
     CURL_CLIENT TRUE
-    ADDITIONAL_ARGS -p liblogging --tutorial
-                    ${CMAKE_SOURCE_DIR}/python/tutorial.py
+    ADDITIONAL_ARGS
+      -p liblogging --client-tutorial ${CMAKE_SOURCE_DIR}/python/tutorial.py
+      --ledger-tutorial ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
   )
 
   add_e2e_sandbox_test(
@@ -825,11 +814,10 @@ if(BUILD_TESTS)
   endforeach()
 
   add_perf_test(
-    NAME logging_scenario_perf_test
+    NAME ls
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -844,11 +832,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_ws_perf_test
+    NAME ls_ws
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_ws
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -864,11 +851,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_jwt_perf_test
+    NAME ls_jwt
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_jwt
     ADDITIONAL_ARGS
       --package
       liblogging
@@ -884,11 +870,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_js_perf_test
+    NAME ls_js
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_js
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
@@ -903,11 +888,10 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME logging_scenario_js_jwt_perf_test
+    NAME ls_js_jwt
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft
     CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario_js_jwt
     ADDITIONAL_ARGS
       --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js

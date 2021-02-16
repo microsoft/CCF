@@ -92,7 +92,7 @@ TestState create_and_init_state()
     ni.cert = ts.kp->self_sign("CN=Test node");
     ni.status = ccf::NodeStatus::TRUSTED;
     nodes->put(node_id, ni);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::OK);
   }
 
   return ts;
@@ -112,7 +112,7 @@ kv::Version write_transactions_and_signature(
     public_map->put(i, s);
     private_map->put(i, s);
 
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::OK);
   }
 
   kv_store.get_history()->emit_signature();

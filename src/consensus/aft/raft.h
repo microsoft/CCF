@@ -102,6 +102,17 @@ namespace aft
     bool is_execution_pending = false;
     std::list<std::unique_ptr<AbstractMsgCallback>> pending_executions;
 
+    // When this node receives append entries from a new primary, it may need to
+    // roll back a committable but uncommitted suffix it holds. The
+    // new primary dictates the index where this suffix begins, which
+    // following the Raft election rules must be at least as high as the highest
+    // commit index reported by the previous primary. The window in which this
+    // rollback could be accepted is minimised to avoid unnecessary
+    // retransmissions - this node only executes this rollback instruction on
+    // the first append entries after it became a follower. As with any append
+    // entries, the initial index will not advance until this node acks.
+    bool is_new_follower = false;
+
     // BFT
     std::shared_ptr<aft::State> state;
     std::shared_ptr<Executor> executor;
@@ -1008,12 +1019,13 @@ namespace aft
     {
       std::unique_lock<SpinLock> guard(state->lock);
       LOG_DEBUG_FMT(
-        "Received pt: {} pi: {} t: {} i: {} toi: {}",
+        "Received append entries: {}.{} to {}.{} (primary is {} in term {})",
         r.prev_term,
         r.prev_idx,
-        r.term,
+        r.term_of_idx,
         r.idx,
-        r.term_of_idx);
+        r.from_node,
+        r.term);
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
@@ -1167,6 +1179,25 @@ namespace aft
         r.idx,
         r.prev_idx);
 
+      if (is_new_follower)
+      {
+        if (state->last_idx > r.prev_idx)
+        {
+          LOG_DEBUG_FMT(
+            "New follower received first append entries with mismatch - "
+            "rolling back from {} to {}",
+            state->last_idx,
+            r.prev_idx);
+          rollback(r.prev_idx);
+        }
+        else
+        {
+          LOG_DEBUG_FMT(
+            "New follower has no conflict with prev_idx {}", r.prev_idx);
+        }
+        is_new_follower = false;
+      }
+
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
         append_entries;
@@ -1272,8 +1303,8 @@ namespace aft
         auto& [ds, i] = ae;
         state->last_idx = i;
 
-        kv::ApplySuccess apply_success = ds->execute();
-        if (apply_success == kv::ApplySuccess::FAILED)
+        kv::ApplyResult apply_success = ds->execute();
+        if (apply_success == kv::ApplyResult::FAIL)
         {
           // Setting last_idx to i-1 is a work around that should be fixed
           // shortly. In BFT mode when we deserialize and realize we need to
@@ -1298,7 +1329,7 @@ namespace aft
         }
 
         bool globally_committable =
-          (apply_success == kv::ApplySuccess::PASS_SIGNATURE);
+          (apply_success == kv::ApplyResult::PASS_SIGNATURE);
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
@@ -1310,7 +1341,7 @@ namespace aft
 
         switch (apply_success)
         {
-          case kv::ApplySuccess::FAILED:
+          case kv::ApplyResult::FAIL:
           {
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
@@ -1320,7 +1351,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_SIGNATURE:
+          case kv::ApplyResult::PASS_SIGNATURE:
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
@@ -1349,11 +1380,11 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE:
+          case kv::ApplyResult::PASS_BACKUP_SIGNATURE:
           {
             break;
           }
-          case kv::ApplySuccess::PASS_NEW_VIEW:
+          case kv::ApplyResult::PASS_NEW_VIEW:
           {
             view_change_tracker->clear(
               get_primary(ds->get_term()) == id(), ds->get_term());
@@ -1361,7 +1392,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_BACKUP_SIGNATURE_SEND_ACK:
+          case kv::ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK:
           {
             try_send_sig_ack(
               {ds->get_term(), ds->get_index()},
@@ -1369,7 +1400,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_NONCES:
+          case kv::ApplyResult::PASS_NONCES:
           {
             request_tracker->insert_signed_request(
               state->last_idx,
@@ -1378,7 +1409,7 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS:
+          case kv::ApplyResult::PASS:
           {
             if (consensus_type == ConsensusType::BFT)
             {
@@ -1388,14 +1419,14 @@ namespace aft
             break;
           }
 
-          case kv::ApplySuccess::PASS_SNAPSHOT_EVIDENCE:
+          case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
           {
             break;
           }
 
           default:
           {
-            throw std::logic_error("Unknown ApplySuccess value");
+            throw std::logic_error("Unknown ApplyResult value");
           }
         }
       }
@@ -1424,9 +1455,13 @@ namespace aft
       // The term may have changed, and we have not have seen a signature yet.
       auto lci = last_committable_index();
       if (r.term_of_idx == aft::ViewHistory::InvalidView)
+      {
         state->view_history.update(1, r.term);
+      }
       else
+      {
         state->view_history.update(lci + 1, r.term_of_idx);
+      }
 
       send_append_entries_response(r.from_node, AppendEntriesResponseType::OK);
     }
@@ -1755,9 +1790,12 @@ namespace aft
 
     void send_request_vote(NodeId to)
     {
-      LOG_INFO_FMT("Send request vote from {} to {}", state->my_node_id, to);
-
       auto last_committable_idx = last_committable_index();
+      LOG_INFO_FMT(
+        "Send request vote from {} to {} at {}",
+        state->my_node_id,
+        to,
+        last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
       RequestVote rv = {{raft_request_vote, state->my_node_id},
@@ -1822,13 +1860,13 @@ namespace aft
       // If the candidate's committable log is at least as up-to-date as ours,
       // vote yes
 
-      auto last_committable_idx = last_committable_index();
-      auto term_of_last_committable_index =
+      const auto last_committable_idx = last_committable_index();
+      const auto term_of_last_committable_idx =
         get_term_internal(last_committable_idx);
 
-      auto answer =
-        (r.term_of_last_committable_idx > term_of_last_committable_index) ||
-        ((r.term_of_last_committable_idx == term_of_last_committable_index) &&
+      const auto answer =
+        (r.term_of_last_committable_idx > term_of_last_committable_idx) ||
+        ((r.term_of_last_committable_idx == term_of_last_committable_idx) &&
          (r.last_committable_idx >= last_committable_idx));
 
       if (answer)
@@ -1838,6 +1876,15 @@ namespace aft
         restart_election_timeout();
         leader_id = NoNode;
         voted_for = r.from_node;
+      }
+      else
+      {
+        LOG_INFO_FMT(
+          "Voting against candidate at {}.{} because I'm at {}.{}",
+          r.term_of_last_committable_idx,
+          r.last_committable_idx,
+          term_of_last_committable_idx,
+          last_committable_idx);
       }
 
       send_request_vote_response(r.from_node, answer);
@@ -2014,6 +2061,8 @@ namespace aft
       votes_for_me.clear();
 
       rollback(last_committable_index());
+
+      is_new_follower = true;
 
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
@@ -2209,6 +2258,16 @@ namespace aft
 
     void rollback(Index idx)
     {
+      if (idx < state->commit_idx)
+      {
+        LOG_FAIL_FMT(
+          "Asked to rollback to {} but committed to {} - ignoring rollback "
+          "request",
+          idx,
+          state->commit_idx);
+        return;
+      }
+
       snapshotter->rollback(idx);
       store->rollback(idx, state->current_view);
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);

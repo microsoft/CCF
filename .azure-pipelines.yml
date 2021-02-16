@@ -2,14 +2,14 @@ trigger:
   batch: true
   branches:
     include:
-      - master
+      - main
       - "refs/tags/ccf-*"
 
 pr:
   autoCancel: true
   branches:
     include:
-      - master
+      - main
   paths:
     include:
       - "*"
@@ -19,17 +19,17 @@ schedules:
     displayName: Daily morning build
     branches:
       include:
-        - master
+        - main
     always: true
 
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci:oe0.13.0-quote-ex
+      image: ccfciteam/ccf-ci:oe0.13.0-xxd
       options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.13.0-quote-ex
+      image: ccfciteam/ccf-ci:oe0.13.0-xxd
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
 variables:

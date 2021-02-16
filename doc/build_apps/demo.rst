@@ -34,7 +34,7 @@ The following command will run a simple one node test network on a single machin
     [16:14:10.011]   Node [0] = https://127.0.0.1:8000
     [16:14:10.011] You can now issue business transactions to the ./liblogging.virtual.so application.
     [16:14:10.011] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/sandbox_common
-    [16:14:10.011] See https://microsoft.github.io/CCF/master/use_apps/issue_commands.html for more information.
+    [16:14:10.011] See https://microsoft.github.io/CCF/main/use_apps/issue_commands.html for more information.
     [16:14:10.011] Press Ctrl+C to shutdown the network.
 
 The command output shows the addresses of the CCF nodes where commands may be submitted (eg, in this case, via ``curl https://127.0.0.1:8000/...``).

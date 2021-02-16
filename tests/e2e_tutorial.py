@@ -14,20 +14,32 @@ def run(args):
 
         cmd = [
             "python",
-            args.tutorial,
-            primary.get_ledger()[1],
+            args.client_tutorial,
             network.common_dir,
         ]
         rc = infra.proc.ccall(*cmd).returncode
         assert rc == 0, f"Failed to run tutorial script: {rc}"
+
+    cmd = [
+        "python",
+        args.ledger_tutorial,
+        primary.get_ledger()[1],
+    ]
+    rc = infra.proc.ccall(*cmd).returncode
+    assert rc == 0, f"Failed to run tutorial script: {rc}"
 
 
 if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument(
-            "--tutorial",
-            help="Path to tutorial file",
+            "--client-tutorial",
+            help="Path to client tutorial file",
+            type=str,
+        )
+        parser.add_argument(
+            "--ledger-tutorial",
+            help="Path to ledger tutorial file",
             type=str,
         )
 

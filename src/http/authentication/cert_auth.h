@@ -13,11 +13,11 @@ namespace ccf
 {
   struct UserCertAuthnIdentity : public AuthnIdentity
   {
-    /** CCF user ID, as defined in @c public:ccf.gov.users table */
+    /** CCF user ID, as defined in @c public:ccf.gov.users.info table */
     UserId user_id;
     /** User certificate, as established by TLS */
     tls::Pem user_cert;
-    /** Additional user data, as defined in @c public:ccf.gov.users */
+    /** Additional user data, as defined in @c public:ccf.gov.users.info */
     nlohmann::json user_data;
   };
 

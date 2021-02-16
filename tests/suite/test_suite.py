@@ -3,24 +3,22 @@
 
 import e2e_logging
 import memberclient
-import receipts
 import reconfiguration
 import recovery
-import rekey
 import election
 import code_update
 import membership
 
 from inspect import signature, Parameter
 
-suites = dict()
+suites = {}
 
 # This test suite currently fails and is not yet run by the CI
 # https://github.com/microsoft/CCF/issues/1648
 historical_recovery_snapshot_failure = [
     e2e_logging.test_historical_query,
-    rekey.test,
-    rekey.test,
+    e2e_logging.test_rekey,
+    e2e_logging.test_rekey,
     recovery.test,
 ]
 
@@ -30,10 +28,10 @@ historical_recovery_snapshot_failure = [
 suite_rekey_recovery = [
     recovery.test,
     reconfiguration.test_add_node,
-    rekey.test,
+    e2e_logging.test_rekey,
     reconfiguration.test_add_node,
     recovery.test,
-    rekey.test,
+    e2e_logging.test_rekey,
     reconfiguration.test_add_node,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
@@ -56,7 +54,7 @@ suites["membership_recovery"] = suite_membership_recovery
 suite_reconfiguration = [
     reconfiguration.test_add_node_from_snapshot,
     reconfiguration.test_retire_primary,
-    rekey.test,
+    e2e_logging.test_rekey,
     reconfiguration.test_add_node,
     election.test_kill_primary,
     reconfiguration.test_add_node,
@@ -92,7 +90,7 @@ all_tests_suite = [
     memberclient.test_missing_signature_header,
     memberclient.test_corrupted_signature,
     # receipts:
-    receipts.test,
+    e2e_logging.test_receipts,
     # reconfiguration:
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_from_backup,
@@ -101,7 +99,7 @@ all_tests_suite = [
     # recovery:
     recovery.test,
     # rekey:
-    rekey.test,
+    e2e_logging.test_rekey,
     # election:
     reconfiguration.test_add_node,
     election.test_kill_primary,

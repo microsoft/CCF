@@ -79,6 +79,14 @@ namespace ccf
     }
 
     void open_user_frontend() override{};
+
+    QuoteVerificationResult verify_quote(
+      kv::ReadOnlyTx& tx,
+      const QuoteInfo& quote_info,
+      const tls::Pem& expected_node_public_key) override
+    {
+      return QuoteVerificationResult::Verified;
+    }
   };
 
   class StubRecoverableNodeState : public StubNodeState

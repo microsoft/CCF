@@ -50,7 +50,7 @@ void issue_transactions(ccf::NetworkState& network, size_t tx_count)
     auto tx = network.tables->create_tx();
     auto map = tx.rw<StringString>("public:map");
     map->put("foo", "bar");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 }
 
