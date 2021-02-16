@@ -297,20 +297,7 @@ namespace tls
       }
       else if (EVP_PKEY_get0_RSA(pk))
       {
-        BIO* buf = BIO_new(BIO_s_mem());
-        if (!buf)
-          throw std::runtime_error("out of memory");
-
-        OPENSSL_CHECK1(PEM_write_bio_PUBKEY(buf, pk));
-
-        BUF_MEM* bptr;
-        BIO_get_mem_ptr(buf, &bptr);
-        Pem pk_pem((uint8_t*)bptr->data, bptr->length);
-        BIO_free(buf);
-
-        public_key = std::make_unique<RSAPublicKey_mbedTLS>(pk_pem);
-
-        EVP_PKEY_free(pk);
+        public_key = std::make_unique<RSAPublicKey_OpenSSL>(pk);
       }
       else
       {

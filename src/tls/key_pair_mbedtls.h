@@ -135,8 +135,6 @@ namespace tls
         md_type = get_md_for_ec(get_curve_id(), true);
       }
 
-      // mbedTLS wants an MD algorithm; even when it doesn't use it, it still
-      // checks that the hash size matches.
       const auto mmdt = get_md_type(md_type);
 
       int rc =

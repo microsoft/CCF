@@ -139,11 +139,19 @@ namespace tls
       size_t hash_size,
       const uint8_t* sig,
       size_t sig_size,
-      MDType) override
+      MDType md_type) override
     {
+      if (md_type == MDType::NONE)
+      {
+        md_type = get_md_for_ec(get_curve_id(), true);
+      }
+
       EVP_PKEY_CTX* pctx = NULL;
       OPENSSL_CHECKNULL(pctx = EVP_PKEY_CTX_new(key, NULL));
       OPENSSL_CHECK1(EVP_PKEY_verify_init(pctx));
+      if (md_type != MDType::NONE) {
+        OPENSSL_CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+      }
       int rc = EVP_PKEY_verify(pctx, sig, sig_size, hash, hash_size);
       EVP_PKEY_CTX_free(pctx);
 
