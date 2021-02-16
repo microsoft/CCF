@@ -13,22 +13,6 @@ from inspect import signature, Parameter
 
 suites = {}
 
-# This test suite currently fails and is not yet run by the CI
-# https://github.com/microsoft/CCF/issues/1648
-historical_recovery_snapshot_failure = [
-    e2e_logging.test_historical_query,
-    e2e_logging.test_rekey,
-    membership.test_set_recovery_threshold,
-    e2e_logging.test_rekey,
-    membership.test_set_recovery_threshold,
-    e2e_logging.test_rekey,
-    membership.test_set_recovery_threshold,
-    e2e_logging.test_rekey,
-    membership.test_set_recovery_threshold,
-    recovery.test,
-]
-suites["rekey_recovery"] = historical_recovery_snapshot_failure
-
 
 # This suite tests that rekeying, network configuration changes
 # and recoveries can be interleaved
