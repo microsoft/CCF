@@ -484,10 +484,10 @@ namespace ccf::historical
           "Exception while attempting to deserialise entry {}: {}",
           idx,
           e.what());
-        deserialise_result = kv::ApplyResult::FAILED;
+        deserialise_result = kv::ApplyResult::FAIL;
       }
 
-      if (deserialise_result == kv::ApplyResult::FAILED)
+      if (deserialise_result == kv::ApplyResult::FAIL)
       {
         pending_fetches.erase(it);
         return false;
