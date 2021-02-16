@@ -3,23 +3,27 @@
 #pragma once
 
 #include "ds/json.h"
+#include "enclave/consensus_type.h"
 #include "entities.h"
 
 #include <msgpack/msgpack.hpp>
 
 namespace ccf
 {
-  struct Config
+  struct ServiceConfiguration
   {
-    // Number of required shares to decrypt ledger secrets (recovery)
+    // Number of recovery shares required to decrypt the latest ledger secret
     size_t recovery_threshold = 0;
 
-    MSGPACK_DEFINE(recovery_threshold)
+    ConsensusType consensus = ConsensusType::CFT;
+
+    MSGPACK_DEFINE(recovery_threshold, consensus)
   };
-  DECLARE_JSON_TYPE(Config)
-  DECLARE_JSON_REQUIRED_FIELDS(Config, recovery_threshold)
+  DECLARE_JSON_TYPE(ServiceConfiguration)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ServiceConfiguration, recovery_threshold, consensus)
 
   // The key for this table is always 0 as there is always only one active
   // configuration.
-  using Configuration = kv::Map<size_t, Config>;
+  using Configuration = kv::Map<size_t, ServiceConfiguration>;
 }

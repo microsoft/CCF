@@ -8,6 +8,7 @@
 #include "kv/tx.h"
 
 #include <doctest/doctest.h>
+#undef FAIL
 #include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
@@ -49,7 +50,7 @@ TEST_CASE(
     handle0->put(k1, v1);
     handle0->put(k2, v1);
     handle0->put(k3, v1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   const auto first_version = kv_store.current_version();
@@ -64,7 +65,7 @@ TEST_CASE(
     // no change to k1, write to k2, remove k3
     handle0->put(k2, v2);
     handle0->remove(k3);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   const auto second_version = kv_store.current_version();
@@ -76,7 +77,7 @@ TEST_CASE(
     INFO("Deserialise first transaction in target store");
     REQUIRE(
       kv_store_target.apply(first_tx_serialised.value(), ConsensusType::CFT)
-        ->execute() == kv::ApplySuccess::PASS);
+        ->execute() == kv::ApplyResult::PASS);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target = tx_target.ro(map);
@@ -101,7 +102,7 @@ TEST_CASE(
     INFO("Deserialise second transaction in target store");
     REQUIRE(
       kv_store_target.apply(second_tx_serialised.value(), ConsensusType::CFT)
-        ->execute() == kv::ApplySuccess::PASS);
+        ->execute() == kv::ApplyResult::PASS);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target = tx_target.ro(map);
@@ -151,7 +152,7 @@ TEST_CASE(
       auto tx = kv_store.create_tx();
       auto handle0 = tx.rw<MapTypes::StringString>("priv_map");
       handle0->put("privk1", "privv1");
-      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
 
     INFO("Deserialise transaction in target store");
@@ -160,7 +161,7 @@ TEST_CASE(
       REQUIRE(latest_data.has_value());
       REQUIRE(
         kv_store_target.apply(latest_data.value(), ConsensusType::CFT)
-          ->execute() == kv::ApplySuccess::PASS);
+          ->execute() == kv::ApplyResult::PASS);
 
       auto tx_target = kv_store_target.create_tx();
       auto handle_target = tx_target.rw<MapTypes::StringString>("priv_map");
@@ -194,7 +195,7 @@ TEST_CASE(
     handle_priv->put("privk1", "privv1");
     handle_pub->put("pubk1", "pubv1");
 
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   INFO("Deserialise transaction in target store");
@@ -203,7 +204,7 @@ TEST_CASE(
     REQUIRE(latest_data.has_value());
     REQUIRE(
       kv_store_target.apply(latest_data.value(), ConsensusType::CFT)
-        ->execute() != kv::ApplySuccess::FAILED);
+        ->execute() != kv::ApplyResult::FAIL);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);
@@ -234,13 +235,13 @@ TEST_CASE(
     handle->put("key1", "value1");
     handle2->put("key2", "value2");
     handle2->put("key3", "value3");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(
       kv_store_target.apply(latest_data.value(), ConsensusType::CFT)
-        ->execute() != kv::ApplySuccess::FAILED);
+        ->execute() != kv::ApplyResult::FAIL);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target = tx_target.rw<MapTypes::StringString>("map");
@@ -274,7 +275,7 @@ TEST_CASE(
     REQUIRE(handle_->remove("key3"));
     handle_->put("key3", "value3");
 
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     // Make sure keys have been marked as deleted in source store
     auto tx2 = kv_store.create_tx();
@@ -289,7 +290,7 @@ TEST_CASE(
     REQUIRE(latest_data.has_value());
     REQUIRE(
       kv_store_target.apply(latest_data.value(), ConsensusType::CFT)
-        ->execute() != kv::ApplySuccess::FAILED);
+        ->execute() != kv::ApplyResult::FAIL);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target = tx_target.rw<MapTypes::StringString>("map");
@@ -536,12 +537,12 @@ TEST_CASE_TEMPLATE(
     handle->put(k2, v2);
 
     auto [success, reqid, data, hooks] = tx.commit_reserved();
-    REQUIRE(success == kv::CommitSuccess::OK);
+    REQUIRE(success == kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
     REQUIRE(
       kv_store2.apply(data, ConsensusType::CFT)->execute() ==
-      kv::ApplySuccess::PASS);
+      kv::ApplyResult::PASS);
     auto tx2 = kv_store2.create_tx();
     auto handle2 = tx2.rw(map2);
 
@@ -576,13 +577,13 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
     auto tx = s0.create_tx();
     tx.rw(t)->put(k1, v1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(
       s1.apply(latest_data.value(), ConsensusType::CFT)->execute() !=
-      kv::ApplySuccess::FAILED);
+      kv::ApplyResult::FAIL);
   }
 
   SUBCASE("nlohmann")
@@ -595,13 +596,13 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto tx = s0.create_tx();
     tx.rw(t)->put(k0, v0);
     tx.rw(t)->put(k1, v1);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(
       s1.apply(latest_data.value(), ConsensusType::CFT)->execute() !=
-      kv::ApplySuccess::FAILED);
+      kv::ApplyResult::FAIL);
   }
 }
 
@@ -638,16 +639,16 @@ TEST_CASE(
     data_handle_d_p->put(47, 47);
 
     auto [success, reqid, data, hooks] = tx.commit_reserved();
-    REQUIRE(success == kv::CommitSuccess::OK);
+    REQUIRE(success == kv::CommitResult::SUCCESS);
     REQUIRE(
       store.apply(data, ConsensusType::CFT)->execute() ==
-      kv::ApplySuccess::PASS);
+      kv::ApplyResult::PASS);
 
     INFO("check that second store derived data is not populated");
     {
       REQUIRE(
         kv_store_target.apply(data, ConsensusType::CFT)->execute() ==
-        kv::ApplySuccess::PASS);
+        kv::ApplyResult::PASS);
       auto tx = kv_store_target.create_tx();
       auto data_handle_r = tx.rw<T>(data_replicated);
       auto data_handle_r_p = tx.rw<T>(data_replicated_private);

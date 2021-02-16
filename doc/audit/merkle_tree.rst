@@ -11,7 +11,7 @@ The following diagram demonstrates how the integrity of the ledger can be verifi
   :width: 1000
   :align: center
 
-Auditors of the CCF ledger can reconstruct the Merkle Tree by walking through the ledger, hashing the transactions recorded in the ledger and appending them to a fresh Merkle Tree. On every signature transaction, the reconstituted root can be compared to the one recorded in the signature transaction. The signature can be verified using the public signing key of the primary node at the time (also recorded in the ledger -- see ``public:ccf.gov.nodes`` map). If the signature and root match, the integrity of the ledger so far is guaranteed.
+Auditors of the CCF ledger can reconstruct the Merkle Tree by walking through the ledger, hashing the transactions recorded in the ledger and appending them to a fresh Merkle Tree. On every signature transaction, the reconstituted root can be compared to the one recorded in the signature transaction. The signature can be verified using the public signing key of the primary node at the time (also recorded in the ledger -- see ``public:ccf.gov.nodes.info`` map). If the signature and root match, the integrity of the ledger so far is guaranteed.
 
 .. note:: The signature transaction also contains the hash of the transactions signed since the last signature. This allows CCF to efficiently issue receipts for historical transactions by only reading the signature transaction that follows the target transaction in the ledger.
 
