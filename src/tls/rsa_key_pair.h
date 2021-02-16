@@ -6,8 +6,8 @@
 
 #include <algorithm>
 #include <openssl/bn.h>
-#include <openssl/pem.h>
 #include <openssl/evp.h>
+#include <openssl/pem.h>
 #include <openssl/rsa.h>
 #include <optional>
 #include <vector>
@@ -155,11 +155,14 @@ namespace tls
     {
       const unsigned char* pp = der.data();
       RSA* rsa = NULL;
-      if (((rsa = d2i_RSA_PUBKEY(NULL, &pp, der.size())) == NULL) && // "SubjectPublicKeyInfo structure" format
-          ((rsa = d2i_RSAPublicKey(NULL, &pp, der.size())) == NULL)) // PKCS#1 structure format
+      if (
+        ((rsa = d2i_RSA_PUBKEY(NULL, &pp, der.size())) ==
+         NULL) && // "SubjectPublicKeyInfo structure" format
+        ((rsa = d2i_RSAPublicKey(NULL, &pp, der.size())) ==
+         NULL)) // PKCS#1 structure format
       {
         unsigned long ec = ERR_get_error();
-        const char *msg = ERR_error_string(ec, NULL);
+        const char* msg = ERR_error_string(ec, NULL);
         throw new std::runtime_error(fmt::format("OpenSSL error: {}", msg));
       }
 
@@ -203,8 +206,7 @@ namespace tls
       }
 
       size_t olen;
-      OPENSSL_CHECK1(
-        EVP_PKEY_encrypt(ctx, NULL, &olen, input, input_size));
+      OPENSSL_CHECK1(EVP_PKEY_encrypt(ctx, NULL, &olen, input, input_size));
 
       std::vector<uint8_t> output(olen);
       OPENSSL_CHECK1(
@@ -355,7 +357,7 @@ namespace tls
       size_t public_key_size = default_public_key_size,
       size_t public_exponent = default_public_exponent)
     {
-      RSA *rsa = NULL;
+      RSA* rsa = NULL;
       BIGNUM* big_exp = NULL;
       OPENSSL_CHECKNULL(big_exp = BN_new());
       OPENSSL_CHECK1(BN_set_word(big_exp, public_exponent));
@@ -419,10 +421,12 @@ namespace tls
         EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, NULL, 0);
 
       size_t olen;
-      OPENSSL_CHECK1(EVP_PKEY_decrypt(ctx, NULL, &olen, input.data(), input.size()));
+      OPENSSL_CHECK1(
+        EVP_PKEY_decrypt(ctx, NULL, &olen, input.data(), input.size()));
 
       std::vector<uint8_t> output(olen);
-      OPENSSL_CHECK1(EVP_PKEY_decrypt(ctx, output.data(), &olen, input.data(), input.size()));
+      OPENSSL_CHECK1(EVP_PKEY_decrypt(
+        ctx, output.data(), &olen, input.data(), input.size()));
 
       output.resize(olen);
       return output;
