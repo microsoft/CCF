@@ -379,7 +379,7 @@ if(BUILD_TESTS)
     target_link_libraries(http_test PRIVATE http_parser.host secp256k1.host)
 
     add_unit_test(
-      frontend_test
+      frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
@@ -393,7 +393,7 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      member_voting_test
+      member_voting_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
     )
     target_link_libraries(
@@ -403,7 +403,7 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      proposal_id_test
+      proposal_id_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
     )
     target_link_libraries(

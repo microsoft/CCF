@@ -2131,13 +2131,117 @@ namespace ccf
           */
 
           js::JSAutoFreeRuntime rt;
-          js::JSAutoFreeCtx c(rt);
-          ctx.tx.ro(network.constitution);
+          js::JSAutoFreeCtx context(rt);
+          auto constitution = ctx.tx.ro(network.constitution)->get(0);
+          if (!constitution.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "No constitution is set - proposals cannot be evaluated");
+          }
+
+          auto code = constitution.value();
+          JSValue module = JS_Eval(
+            context,
+            code.c_str(),
+            code.size(),
+            "public:ccf.gov.constitution[0]",
+            JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+
+          if (JS_IsException(module))
+          {
+            js::js_dump_error(context);
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Failed to compile constitution");
+          }
+
+          // Evaluate module
+          auto eval_val = JS_EvalFunction(context, module);
+          if (JS_IsException(eval_val))
+          {
+            js::js_dump_error(context);
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Failed to evaluate constitution");
+          }
+          JS_FreeValue(context, eval_val);
+
+          assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
+          auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
+          if (JS_GetModuleExportEntriesCount(module_def) != 1)
+          {
+            throw std::runtime_error(
+              "Endpoint module exports more than one function");
+          }
+          auto export_func = JS_GetModuleExportEntry(context, module_def, 0);
+          if (!JS_IsFunction(context, export_func))
+          {
+            JS_FreeValue(context, export_func);
+            throw std::runtime_error(
+              "Endpoint module exports something that is not a function");
+          }
+
+          auto body = reinterpret_cast<const char*>(
+            ctx.rpc_ctx->get_request_body().data());
+          auto body_len = ctx.rpc_ctx->get_request_body().size();
+
+          auto proposal = JS_NewStringLen(context, body, body_len);
+          JSValueConst* argv = (JSValueConst*)&proposal;
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-extensions"
+
+          auto val =
+            context(JS_Call(context, export_func, JS_UNDEFINED, 1, argv));
+
+#pragma clang diagnostic pop
+
+          JS_FreeValue(context, proposal);
+          JS_FreeValue(context, export_func);
+
+          if (JS_IsException(val))
+          {
+            js::js_dump_error(context);
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Failed to execute validation");
+          }
+
+          if (!JS_IsObject(val))
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Validation failed to return an object");
+          }
+
+          std::string description;
+          auto desc = context(JS_GetPropertyStr(context, val, "description"));
+          if (JS_IsString(desc))
+          {
+            auto cstr = JS_ToCString(context, desc);
+            description = std::string(cstr);
+            JS_FreeCString(context, cstr);
+          }
+
+          auto valid = context(JS_GetPropertyStr(context, val, "valid"));
+          if (!JS_ToBool(context, valid))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::ProposalFailedToValidate,
+              fmt::format("Proposal failed to validate: {}", description));
+          }
 
           record_voting_history(
             ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
-          return make_success(true);
+          return make_success(description);
         };
       make_endpoint(
         "proposals.js",

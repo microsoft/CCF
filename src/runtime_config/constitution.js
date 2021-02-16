@@ -1,3 +1,3 @@
 export function validate(proposal) {
-  return true;
+  return { valid: true, description: "N/A" };
 }
