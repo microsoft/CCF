@@ -170,7 +170,9 @@ namespace aft
       std::multiset<Request*, RequestComp>& requests_,
       snmalloc::DLList<Request, std::nullptr_t, true>& requests_list_)
     {
-      if (requests_list_.get_tail() != nullptr && requests_list_.get_tail()->time > time)
+      if (
+        requests_list_.get_tail() != nullptr &&
+        requests_list_.get_tail()->time > time)
       {
         // Time is an not a precise measurement and can be different be
         // on different threads.
