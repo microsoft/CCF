@@ -170,12 +170,12 @@ namespace aft
       std::multiset<Request*, RequestComp>& requests_,
       snmalloc::DLList<Request, std::nullptr_t, true>& requests_list_)
     {
-      CCF_ASSERT_FMT(
-        requests_list_.get_tail() == nullptr ||
-          requests_list_.get_tail()->time <= time,
-        "items not entered in the correct order. last:{}, time:{}",
-        requests_list_.get_tail()->time,
-        time);
+      if (requests_list_.get_tail() != nullptr && requests_list_.get_tail()->time > time)
+      {
+        // Time is an not a precise measurement and can be different be
+        // on different threads.
+        time = requests_list_.get_tail()->time;
+      }
       auto r = std::make_unique<Request>(hash, time);
       requests_.insert(r.get());
       requests_list_.insert_back(r.release());
