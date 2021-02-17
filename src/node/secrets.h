@@ -29,20 +29,24 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(
     EncryptedLedgerSecret, previous_secret_stored_version)
 
-  struct EncryptedLedgerSecrets
+  using EncryptedLedgerSecrets = std::vector<EncryptedLedgerSecret>;
+  using SecretsForNodes = std::map<NodeId, EncryptedLedgerSecrets>;
+
+  struct EncryptedLedgerSecretsNodesInfo
   {
     std::vector<uint8_t> primary_public_encryption_key = {};
 
-    std::vector<EncryptedLedgerSecret> encrypted_secrets = {};
+    SecretsForNodes secrets_for_nodes = {};
 
-    MSGPACK_DEFINE(primary_public_encryption_key, encrypted_secrets);
+    MSGPACK_DEFINE(primary_public_encryption_key, secrets_for_nodes)
   };
-
-  DECLARE_JSON_TYPE(EncryptedLedgerSecrets)
+  DECLARE_JSON_TYPE(EncryptedLedgerSecretsNodesInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    EncryptedLedgerSecrets, primary_public_encryption_key, encrypted_secrets)
+    EncryptedLedgerSecretsNodesInfo,
+    primary_public_encryption_key,
+    secrets_for_nodes)
 
   // This map is used to communicate encrypted ledger secrets from the primary
   // to the backups during recovery (past secrets) and re-keying (new secret)
-  using Secrets = kv::Map<NodeId, EncryptedLedgerSecrets>;
+  using Secrets = kv::Map<size_t, EncryptedLedgerSecretsNodesInfo>;
 }

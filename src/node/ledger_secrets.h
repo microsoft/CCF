@@ -20,8 +20,6 @@ namespace ccf
   class LedgerSecrets
   {
   private:
-    std::optional<NodeId> self = std::nullopt;
-
     SpinLock lock;
     LedgerSecretsMap ledger_secrets;
 
@@ -93,22 +91,13 @@ namespace ccf
       // require access to a tx object, which must take a dependency on the
       // secrets table.
       auto secrets = tx.ro<Secrets>(Tables::ENCRYPTED_LEDGER_SECRETS);
-
-      // Taking a read dependency on the key at self, which would get updated
-      // on rekey
-      if (!self.has_value())
-      {
-        throw std::logic_error(
-          "Node id should be set before taking dependency on secrets table");
-      }
-      secrets->get(self.value());
+      secrets->get(0);
     }
 
   public:
-    LedgerSecrets(std::optional<NodeId> self_ = std::nullopt) : self(self_) {}
+    LedgerSecrets() = default;
 
-    LedgerSecrets(NodeId self_, LedgerSecretsMap&& ledger_secrets_) :
-      self(self_),
+    LedgerSecrets(LedgerSecretsMap&& ledger_secrets_) :
       ledger_secrets(std::move(ledger_secrets_))
     {}
 
@@ -117,17 +106,6 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
 
       ledger_secrets.emplace(initial_version, make_ledger_secret());
-    }
-
-    void set_node_id(NodeId id)
-    {
-      if (self.has_value())
-      {
-        throw std::logic_error(
-          "Node id has already been set on ledger secrets");
-      }
-
-      self = id;
     }
 
     void adjust_previous_secret_stored_version(kv::Version version)

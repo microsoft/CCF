@@ -49,6 +49,8 @@ namespace ccf
 
       auto trusted_nodes = g.get_trusted_nodes(self);
 
+      SecretsForNodes secrets_for_nodes;
+
       for (auto [nid, ni] : trusted_nodes)
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
@@ -64,11 +66,16 @@ namespace ccf
              s.second->previous_secret_stored_version});
         }
 
-        secrets->put(
-          nid,
-          {encryption_key->public_key_pem().raw(),
-           std::move(ledger_secrets_for_node)});
+        secrets_for_nodes.emplace(nid, std::move(ledger_secrets_for_node));
+
+        // secrets->put(
+        //   nid,
+        //   {encryption_key->public_key_pem().raw(),
+        //    std::move(ledger_secrets_for_node)});
       }
+
+      secrets->put(
+        0, {encryption_key->public_key_pem().raw(), secrets_for_nodes});
     }
 
     static void broadcast_new(
@@ -80,9 +87,12 @@ namespace ccf
       GenesisGenerator g(network, tx);
       auto secrets = tx.rw(network.secrets);
 
+      SecretsForNodes secrets_for_nodes;
+
       for (auto [nid, ni] : g.get_trusted_nodes())
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
+
         ledger_secrets_for_node.push_back(
           {std::nullopt,
            encrypt_ledger_secret(
@@ -91,11 +101,11 @@ namespace ccf
              std::move(new_ledger_secret->raw_key)),
            new_ledger_secret->previous_secret_stored_version});
 
-        secrets->put(
-          nid,
-          {encryption_key->public_key_pem().raw(),
-           std::move(ledger_secrets_for_node)});
+        secrets_for_nodes.emplace(nid, std::move(ledger_secrets_for_node));
       }
+
+      secrets->put(
+        0, {encryption_key->public_key_pem().raw(), secrets_for_nodes});
     }
 
     static std::vector<uint8_t> decrypt(

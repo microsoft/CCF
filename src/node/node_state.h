@@ -312,7 +312,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
-          network.ledger_secrets = std::make_shared<LedgerSecrets>(self);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>();
           network.ledger_secrets->init();
 
           setup_snapshotter(config.snapshot_tx_interval);
@@ -473,7 +473,7 @@ namespace ccf
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
-              self, std::move(resp.network_info.ledger_secrets));
+              std::move(resp.network_info.ledger_secrets));
 
             if (resp.network_info.consensus_type != network.consensus_type)
             {
@@ -879,7 +879,6 @@ namespace ccf
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
-      network.ledger_secrets->set_node_id(self);
       setup_encryptor();
 
       // Initialise snapshotter after public recovery
@@ -1354,7 +1353,6 @@ namespace ccf
       }
 
       self = n;
-      network.historical_ledger_secrets->set_node_id(self);
     }
 
     tls::SubjectAltName get_subject_alt_name(const CCFConfig& config)
@@ -1576,30 +1574,39 @@ namespace ccf
             -> kv::ConsensusHookPtr {
             LedgerSecretsMap restored_ledger_secrets;
 
-            for (const auto& [node_id, opt_ledger_secret_set] : w)
+            if (w.size() > 1)
             {
-              if (!opt_ledger_secret_set.has_value())
-              {
-                throw std::logic_error(fmt::format(
-                  "Unexpected: removal from secrets table for node ({})",
-                  node_id));
-              }
+              throw std::logic_error(fmt::format(
+                "Transaction contains {} writes to map {}, expected one",
+                w.size(),
+                network.secrets.get_name()));
+            }
 
+            auto encrypted_ledger_secrets = w.at(0);
+            if (!encrypted_ledger_secrets.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Removal from {} table", network.secrets.get_name()));
+            }
+
+            auto primary_public_encryption_key =
+              encrypted_ledger_secrets->primary_public_encryption_key;
+
+            for (const auto& [node_id, encrypted_ledger_secrets] :
+                 encrypted_ledger_secrets->secrets_for_nodes)
+            {
               if (node_id != self)
               {
                 // Only consider ledger secrets for this node
                 continue;
               }
 
-              const auto& ledger_secret_set = opt_ledger_secret_set.value();
-
               for (const auto& encrypted_ledger_secret :
-                   ledger_secret_set.encrypted_secrets)
+                   encrypted_ledger_secrets)
               {
                 auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
                   node_encrypt_kp,
-                  tls::make_public_key(
-                    ledger_secret_set.primary_public_encryption_key),
+                  tls::make_public_key(primary_public_encryption_key),
                   encrypted_ledger_secret.encrypted_secret);
 
                 // On rekey, the version is inferred from the version at which

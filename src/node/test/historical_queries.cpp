@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/historical_queries.h"
-
 #include "ds/messaging.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/historical_queries.h"
 #include "node/history.h"
 #include "node/share_manager.h"
 #include "tls/rsa_key_pair.h"
@@ -146,7 +145,7 @@ TEST_CASE("StateCache")
 
   store.set_history(history);
 
-  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
   auto encryptor = std::make_shared<ccf::NodeEncryptor>(network.ledger_secrets);
 
@@ -321,7 +320,7 @@ TEST_CASE("Recover historical ledger secrets")
 
   // Make ledger secrets and share manager to rekey ledger and record previous
   // encrypted ledger secret
-  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
   auto encryptor = std::make_shared<ccf::NodeEncryptor>(network.ledger_secrets);
   ccf::ShareManager share_manager(network);
@@ -387,8 +386,7 @@ TEST_CASE("Recover historical ledger secrets")
     // Initially, the new service has only access to the very latest ledger
     // secret. The historical ledger secrets will be recovered from the
     // ledger before fetching historical entries.
-    recovered_network.ledger_secrets =
-      std::make_shared<ccf::LedgerSecrets>(node_id);
+    recovered_network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
 
     auto tx = recovered_network.tables->create_read_only_tx();
     ccf::LedgerSecretsMap recovered_ledger_secrets;
