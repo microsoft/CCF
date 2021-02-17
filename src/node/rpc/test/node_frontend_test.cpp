@@ -70,6 +70,17 @@ T parse_response_body(const TResponse& r)
   return body_j.get<T>();
 }
 
+void require_ledger_secrets_equal(
+  const LedgerSecretsMap& first, const LedgerSecretsMap& second)
+{
+  REQUIRE(first.size() == second.size());
+  REQUIRE(std::equal(
+    first.begin(),
+    first.end(),
+    second.begin(),
+    [](const auto& a, const auto& b) { return (*a.second == *b.second); }));
+}
+
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
@@ -141,8 +152,8 @@ TEST_CASE("Add a node to an opening service")
     const auto response =
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
-    CHECK(
-      response.network_info.ledger_secrets == network.ledger_secrets->get(tx));
+    require_ledger_secrets_equal(
+      response.network_info.ledger_secrets, network.ledger_secrets->get(tx));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == false);
@@ -172,8 +183,8 @@ TEST_CASE("Add a node to an opening service")
     const auto response =
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
-    CHECK(
-      response.network_info.ledger_secrets ==
+    require_ledger_secrets_equal(
+      response.network_info.ledger_secrets,
       network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
@@ -302,8 +313,8 @@ TEST_CASE("Add a node to an open service")
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     auto tx = network.tables->create_tx();
-    CHECK(
-      response.network_info.ledger_secrets ==
+    require_ledger_secrets_equal(
+      response.network_info.ledger_secrets,
       network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
