@@ -846,6 +846,7 @@ namespace ccfapp
 
       js::JSAutoFreeRuntime rt;
       JS_SetMaxStackSize(rt, 1024 * 1024);
+      JS_SetMemoryLimit(rt, 100 * 1024 * 1024);
 
       JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
       JS_SetModuleLoaderFunc(
