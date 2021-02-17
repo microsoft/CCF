@@ -1435,20 +1435,6 @@ namespace aft
 
     uint64_t next_exec_thread = 0;
 
-    void run_async_execution(
-      std::vector<std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>>>&
-        pending_requests)
-    {
-      LOG_TRACE_FMT(
-        "executioning batch with {} elements", pending_requests.size());
-      for (auto& tmsg : pending_requests)
-      {
-        threading::ThreadMessaging::thread_messaging.add_task(
-          threading::ThreadMessaging::get_execution_thread(++next_exec_thread),
-          std::move(tmsg));
-      }
-    }
-
     bool execute_append_entries_sync(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
@@ -1571,9 +1557,6 @@ namespace aft
       uint64_t before_state_idx = state->last_idx;
       bool run_sync = threading::ThreadMessaging::thread_count == 1;
 
-      std::vector<std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>>>
-        pending_requests;
-
       while (!append_entries.empty())
       {
         std::unique_ptr<kv::AbstractExecutionWrapper>& wrapper =
@@ -1582,25 +1565,20 @@ namespace aft
         {
           if (must_break)
           {
-            run_async_execution(pending_requests);
             return false;
           }
 
-          if (
-            !wrapper->support_async_execution() && !is_first &&
-            (async_exec->pending_cbs > 0))
+          if (async_exec->pending_cbs > 0)
           {
-            run_async_execution(pending_requests);
-            return false;
-          }
-
-          if (
-            wrapper->support_async_execution() &&
-            wrapper->get_max_conflict_version() >= before_state_idx)
-          {
-            if (!pending_requests.empty())
+            if (!wrapper->support_async_execution() && !is_first)
             {
-              run_async_execution(pending_requests);
+              return false;
+            }
+
+            if (
+              wrapper->support_async_execution() &&
+              wrapper->get_max_conflict_version() >= before_state_idx)
+            {
               return false;
             }
           }
@@ -1757,8 +1735,11 @@ namespace aft
 
             if (!run_sync)
             {
-              pending_requests.push_back(std::move(tmsg));
               ++async_exec->pending_cbs;
+              threading::ThreadMessaging::thread_messaging.add_task(
+                threading::ThreadMessaging::get_execution_thread(
+                  ++next_exec_thread),
+                std::move(tmsg));
             }
             else
             {
@@ -1779,8 +1760,6 @@ namespace aft
           }
         }
       }
-
-      run_async_execution(pending_requests);
 
       if (async_exec->pending_cbs == 0)
       {
