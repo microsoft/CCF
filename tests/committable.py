@@ -69,7 +69,7 @@ def run(args):
         # what order the queued actions occur in after resuming, they may be appended
         # before an election is called. They key assertion is that this primary is able
         # to rejoin the network whatever happens, even when (in the usual case) they
-        # hold a suffix which has been discarded. 
+        # hold a suffix which has been discarded.
         backups[0].suspend()
         post_partition_txs = []
         with primary.client("user0") as uc:
