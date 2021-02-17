@@ -569,7 +569,7 @@ TEST_CASE("StateCache concurrent access")
     }
   });
 
-  auto query_random = [&](size_t handle) {
+  auto query_random_point = [&](size_t handle) {
     for (size_t i = 0; i < 10; ++i)
     {
       const auto target_idx = random_index();
@@ -586,15 +586,68 @@ TEST_CASE("StateCache concurrent access")
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
 
-      validate_business_transaction(store, target_idx);
+      if (
+        std::find(
+          signature_versions.begin(), signature_versions.end(), target_idx) ==
+        signature_versions.end())
+      {
+        validate_business_transaction(store, target_idx);
+      }
+    }
+  };
+
+  auto query_random_range = [&](size_t handle) {
+    for (size_t i = 0; i < 10; ++i)
+    {
+      auto range_start = random_index();
+      auto range_end = random_index();
+
+      if (range_start > range_end)
+      {
+        std::swap(range_start, range_end);
+      }
+
+      std::vector<ccf::historical::StorePtr> stores;
+      while (true)
+      {
+        stores = cache.get_store_range(handle, range_start, range_end);
+        if (!stores.empty())
+        {
+          break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+
+      REQUIRE(stores.size() == range_end - range_start + 1);
+      for (size_t i = 0; i < stores.size(); ++i)
+      {
+        auto& store = stores[i];
+        REQUIRE(store != nullptr);
+        const auto idx = range_start + i;
+        if (
+          std::find(
+            signature_versions.begin(), signature_versions.end(), idx) ==
+          signature_versions.end())
+        {
+          validate_business_transaction(store, idx);
+        }
+      }
     }
   };
 
   std::atomic<size_t> next_handle = 0;
   std::vector<std::thread> random_queries;
-  for (size_t i = 0; i < 1; ++i)
+  for (size_t i = 0; i < 20; ++i)
   {
-    random_queries.emplace_back(query_random, ++next_handle);
+    // TODO: This is still unsafe?
+    // if (i % 3 == 0)
+    // {
+    //   random_queries.emplace_back(query_random_range, ++next_handle);
+    // }
+    // else
+    {
+      random_queries.emplace_back(query_random_point, ++next_handle);
+    }
   }
 
   for (auto& thread : random_queries)

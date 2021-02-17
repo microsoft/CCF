@@ -16,6 +16,14 @@
 
 namespace ccf::historical
 {
+  static std::optional<ccf::PrimarySignature> get_signature(
+    const StorePtr& sig_store)
+  {
+    auto tx = sig_store->create_tx();
+    auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+    return signatures->get(0);
+  }
+
   class StateCache : public AbstractStateCache
   {
   protected:
@@ -31,21 +39,25 @@ namespace ccf::historical
 
     using LedgerEntry = std::vector<uint8_t>;
 
+    struct StoreDetails
+    {
+      RequestStage current_stage = RequestStage::Fetching;
+      crypto::Sha256Hash entry_digest = {};
+      StorePtr store = nullptr;
+      bool is_signature = false;
+    };
+    using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
+
     struct Request
     {
-      struct StoreDetails
-      {
-        RequestStage current_stage = RequestStage::Fetching;
-        crypto::Sha256Hash entry_hash = {};
-        StorePtr store = nullptr;
-      };
-
-      // To avoid duplicating state, range details are determined by length of
-      // stores
       consensus::Index first_requested_index;
       consensus::Index last_requested_index;
-      std::vector<StoreDetails> stores;
+      std::vector<StoreDetailsPtr> requested_stores;
       std::chrono::milliseconds time_to_expiry;
+
+      // An entry from outside the requested range containing the next signature
+      // may be needed to trust this range. It is stored here, distinct from user-requested stores.
+      std::optional<std::pair<consensus::Index, StoreDetailsPtr>> supporting_signature;
 
       Request(consensus::Index start_idx, size_t num_following_indices)
       {
@@ -61,19 +73,23 @@ namespace ccf::historical
         consensus::Index start_idx, size_t num_following_indices)
       {
         return start_idx == first_requested_index &&
-          (stores.size() == num_following_indices + 1);
+          (requested_stores.size() == num_following_indices + 1);
       }
 
-      StoreDetails& get_store_details(consensus::Index idx)
+      StoreDetailsPtr get_store_details(consensus::Index idx) const
       {
-        if (!is_index_in_requested_range(idx))
+        if (idx >= first_requested_index && idx <= last_requested_index)
         {
-          throw std::logic_error(
-            "Asked for details about an index which is not in this request");
+          const auto offset = idx - first_requested_index;
+          return requested_stores[offset];
         }
 
-        const auto offset = idx - first_requested_index;
-        return stores[offset];
+        if (supporting_signature.has_value() && supporting_signature->first == idx)
+        {
+          return supporting_signature->second;
+        }
+
+        return nullptr;
       }
 
       std::set<consensus::Index> adjust_range(
@@ -81,58 +97,165 @@ namespace ccf::historical
       {
         // TODO: Calculate actual overlap. This just drops everything and says
         // it needs to be refetched
-        stores.clear();
+        requested_stores.clear();
         first_requested_index = start_idx;
-        stores.resize(1 + num_following_indices);
+        requested_stores.resize(1 + num_following_indices);
         last_requested_index = first_requested_index + num_following_indices;
         std::set<consensus::Index> ret;
         for (size_t i = start_idx; i <= last_requested_index; ++i)
         {
+          requested_stores[i - start_idx] = std::make_shared<StoreDetails>();
           ret.insert(i);
         }
         return ret;
       }
+
+      bool is_interested_in(consensus::Index idx)
+      {
+        return get_store_details(idx) != nullptr;
+      }
+
+      enum class UpdateTrustedResult
+      {
+        // TODO: Document these
+        Continue,
+        Invalidated,
+        FetchNext,
+      };
+
+      UpdateTrustedResult update_trusted(consensus::Index new_idx)
+      {
+        auto new_details = get_store_details(new_idx);
+        if (new_details->is_signature)
+        {
+          // Iterate through earlier indices. If this signature covers them (and the digests match), move them to Trusted
+          const auto sig = get_signature(new_details->store);
+          ccf::MerkleTreeHistory tree(sig->tree);
+
+          for (auto idx = first_requested_index; idx < new_idx; ++idx)
+          {
+            if (tree.in_range(idx))
+            {
+              auto details = get_store_details(idx);
+              if (details != nullptr)
+              {
+                if (details->current_stage == RequestStage::Untrusted)
+                {
+                  // Compare signed digest, from signature mini-tree, with digest of
+                  // the entry which was used to construct this store
+                  const auto& untrusted_digest = details->entry_digest;
+                  const auto trusted_digest = tree.get_leaf(idx);
+                  if (trusted_digest != untrusted_digest)
+                  {
+                    LOG_FAIL_FMT(
+                      "Signature at {} has a different transaction at {} than "
+                      "previously received",
+                      new_idx,
+                      idx);
+
+                    // We trust the signature (since it comes from a trusted node), and it
+                    // disagrees with one of the entries we previously retrieved and
+                    // deserialised. This generally means a malicious host gave us a bad
+                    // transaction but a good signature. Delete the entire original request
+                    // - if it is re-requested, maybe the host will give us a valid pair of
+                    // transaction+sig next time
+                    return UpdateTrustedResult::Invalidated;
+                  }
+
+                  details->current_stage = RequestStage::Trusted;
+                }
+              }
+            }
+          }
+        }
+        else if (new_details->current_stage == RequestStage::Untrusted)
+        {
+          // Iterate through later indices, see if there's a signature that covers this one
+          const auto& untrusted_digest = new_details->entry_digest;
+          bool sig_seen = false;
+          for (auto idx = new_idx + 1; idx <= last_requested_index; ++idx)
+          {
+            auto details = get_store_details(idx);
+            if (details != nullptr)
+            {
+              if (details->store != nullptr && details->is_signature)
+              {
+                const auto sig = get_signature(details->store);
+                ccf::MerkleTreeHistory tree(sig->tree);
+                if (tree.in_range(idx))
+                {
+                  const auto trusted_digest = tree.get_leaf(idx);
+                  if (trusted_digest != untrusted_digest)
+                  {
+                    return UpdateTrustedResult::Invalidated;
+                  }
+
+                  new_details->current_stage = RequestStage::Trusted;
+                }
+
+                // Break here - if this signature doesn't cover us, no later one can
+                sig_seen = true;
+                break;
+              }
+            }
+          }
+
+          if (!sig_seen && supporting_signature.has_value())
+          {
+            const auto& [idx, details] = *supporting_signature;
+            if (details->store != nullptr && details->is_signature)
+            {
+              const auto sig = get_signature(details->store);
+              ccf::MerkleTreeHistory tree(sig->tree);
+              if (tree.in_range(idx))
+              {
+                const auto trusted_digest = tree.get_leaf(idx);
+                if (trusted_digest != untrusted_digest)
+                {
+                  return UpdateTrustedResult::Invalidated;
+                }
+
+                new_details->current_stage = RequestStage::Trusted;
+              }
+            }
+          }
+
+          // If still untrusted, and this non-signature is the last requested index, or previous attempt at finding supporting signature, request the _next_ index to find supporting signature
+          if (new_details->current_stage == RequestStage::Untrusted)
+          {
+            if (new_idx == last_requested_index || (supporting_signature.has_value() && supporting_signature->first == new_idx))
+            {
+              return UpdateTrustedResult::FetchNext;
+            }
+          }
+        }
+
+        return UpdateTrustedResult::Continue;
+      }
     };
 
+    // Guard all access to internal state with this lock
     SpinLock requests_lock;
 
-    // Things actually requested by external callers
+    // Track all things currently requested by external callers
     std::map<RequestHandle, Request> requests;
 
-    // Outstanding requested indices. Some will be targets of requests, some
-    // will just be surrounding supporting evidence. Stored to enable efficient
-    // reverse lookup.
-    using HandleSet = std::set<RequestHandle>;
-    std::map<consensus::Index, HandleSet> pending_fetches;
+    std::set<consensus::Index> pending_fetches;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
-    void fetch_entry_at(const HandleSet& handles, consensus::Index idx)
+    void fetch_entry_at(consensus::Index idx)
     {
-      auto it = pending_fetches.find(idx);
-      if (it != pending_fetches.end())
+      const auto ib = pending_fetches.insert(idx);
+      if (ib.second)
       {
-        // Already fetching this index - record all _new_ handles which are
-        // waiting for it
-        it->second.insert(handles.begin(), handles.end());
-        return;
+        // Newly requested index
+        RINGBUFFER_WRITE_MESSAGE(
+          consensus::ledger_get,
+          to_host,
+          idx,
+          consensus::LedgerRequestPurpose::HistoricalQuery);
       }
-
-      // Begin fetching, and record who we're fetching for
-      pending_fetches.emplace_hint(it, idx, handles);
-      RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_get,
-        to_host,
-        idx,
-        consensus::LedgerRequestPurpose::HistoricalQuery);
-    }
-
-    std::optional<ccf::PrimarySignature> get_signature(
-      const StorePtr& sig_store)
-    {
-      auto tx = sig_store->create_tx();
-      auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      return signatures->get(0);
     }
 
     std::optional<ccf::NodeInfo> get_node_info(ccf::NodeId node_id)
@@ -147,12 +270,8 @@ namespace ccf::historical
     }
 
     // Returns true if this is a valid signature that passes our verification
-    // checks. Modifies requesting_handles on successful return to contain only
-    // the handles which are still looking for the next index.
-    bool handle_signature_transaction(
-      const StorePtr& sig_store,
-      consensus::Index sig_idx,
-      HandleSet& requesting_handles)
+    // checks
+    bool verify_signature(const StorePtr& sig_store, consensus::Index sig_idx)
     {
       const auto sig = get_signature(sig_store);
       if (!sig.has_value())
@@ -189,131 +308,69 @@ namespace ccf::historical
         return false;
       }
 
-      auto handle_it = requesting_handles.begin();
-      while (handle_it != requesting_handles.end())
-      {
-        auto it = requests.find(*handle_it);
-        if (it == requests.end())
-        {
-          handle_it = requesting_handles.erase(handle_it);
-          continue;
-        }
-
-        Request& request = it->second;
-
-        bool signature_invalidates_request = false;
-        bool request_complete = false;
-
-        for (auto requested_idx = request.first_requested_index;
-             requested_idx <= request.last_requested_index &&
-             !signature_invalidates_request;
-             ++requested_idx)
-        {
-          const auto sig_is_requested = (sig_idx == requested_idx);
-          if (tree.in_range(requested_idx) || sig_is_requested)
-          {
-            auto& details = request.get_store_details(requested_idx);
-            if (details.current_stage == RequestStage::Untrusted)
-            {
-              if (!sig_is_requested)
-              {
-                // Compare signed hash, from signature mini-tree, with hash of
-                // the entry which was used to populate the store
-                const auto& untrusted_hash = details.entry_hash;
-                const auto trusted_hash = tree.get_leaf(requested_idx);
-                if (trusted_hash != untrusted_hash)
-                {
-                  LOG_FAIL_FMT(
-                    "Signature at {} has a different transaction at {} than "
-                    "previously received",
-                    sig_idx,
-                    requested_idx);
-
-                  signature_invalidates_request = true;
-                  break;
-                }
-              }
-              else
-              {
-                // We already trust this transaction (it contains a signature
-                // written by a node we trust, and nothing else) so don't have
-                // anything further to validate
-              }
-
-              // Move store from untrusted to trusted
-              LOG_DEBUG_FMT(
-                "Now trusting {} due to signature at {}",
-                requested_idx,
-                sig_idx);
-              details.current_stage = RequestStage::Trusted;
-
-              if (sig_idx >= request.last_requested_index)
-              {
-                request_complete = true;
-              }
-            }
-          }
-        }
-
-        // We trust the signature (since it comes from a trusted node), and it
-        // disagrees with one of the entries we previously retrieved and
-        // deserialised. This generally means a malicious host gave us a good
-        // transaction but a good signature. Delete the entire original request
-        // - if it is re-requested, maybe the host will give us a valid pair of
-        // transaction+sig next time
-        if (signature_invalidates_request)
-        {
-          it = requests.erase(it);
-          request_complete = true;
-        }
-
-        // If this signature terminates the requested range, or has invalidated
-        // the previous range, we can remove it from requesting_handles
-        if (request_complete)
-        {
-          handle_it = requesting_handles.erase(handle_it);
-        }
-        else
-        {
-          ++handle_it;
-        }
-      }
-
       return true;
     }
 
     void process_deserialised_store(
       const StorePtr& store,
-      const crypto::Sha256Hash& entry_hash,
+      const crypto::Sha256Hash& entry_digest,
       consensus::Index idx,
-      const HandleSet& requesting_handles)
+      bool is_signature)
     {
-      for (const auto handle : requesting_handles)
+      auto request_it = requests.begin();
+      while (request_it != requests.end())
       {
-        auto request_it = requests.find(handle);
-        if (request_it != requests.end())
+        auto& [handle, request] = *request_it;
+        auto details = request.get_store_details(idx);
+        if (details != nullptr && details->current_stage == RequestStage::Fetching)
         {
-          Request& request = request_it->second;
-          if (request.is_index_in_requested_range(idx))
+          if (is_signature)
           {
-            auto& details = request.get_store_details(idx);
-            if (details.current_stage == RequestStage::Fetching)
-            {
-              // We were looking for this entry. Store the produced store
-              details.current_stage = RequestStage::Untrusted;
-              details.entry_hash = entry_hash;
-              details.store = store;
-            }
-            else
-            {
-              LOG_DEBUG_FMT(
-                "Request {} is not fetching ledger entry {}: already have it "
-                "in stage {}",
-                handle,
-                idx,
-                details.current_stage);
-            }
+            // Signatures have already been verified by the time we get here, so we trust them already
+            details->current_stage = RequestStage::Trusted;
           }
+          else
+          {
+            details->current_stage = RequestStage::Untrusted;
+          }
+
+          details->entry_digest = entry_digest;
+
+          CCF_ASSERT_FMT(
+            details->store == nullptr,
+            "Request {} already has store for index {}",
+            handle,
+            idx);
+          details->store = store;
+
+          details->is_signature = is_signature;
+
+          const auto result = request.update_trusted(idx);
+          switch (result)
+          {
+              case (Request::UpdateTrustedResult::Continue):
+              {
+                ++request_it;
+                break;
+              }
+              case (Request::UpdateTrustedResult::Invalidated):
+              {
+                request_it = requests.erase(request_it);
+                break;
+              }
+              case (Request::UpdateTrustedResult::FetchNext):
+              {
+                const auto next_idx = idx + 1;
+                fetch_entry_at(next_idx);
+                request.supporting_signature = std::make_pair(next_idx, std::make_shared<StoreDetails>());
+                ++request_it;
+                break;
+              }
+          }
+        }
+        else
+        {
+          ++request_it;
         }
       }
     }
@@ -324,10 +381,10 @@ namespace ccf::historical
       size_t num_following_indices,
       ExpiryDuration expire_after)
     {
+      std::lock_guard<SpinLock> guard(requests_lock);
+
       const auto expire_after_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(expire_after);
-
-      std::lock_guard<SpinLock> guard(requests_lock);
 
       auto it = requests.find(handle);
       if (it == requests.end())
@@ -341,7 +398,7 @@ namespace ccf::historical
              idx <= start_idx + num_following_indices;
              ++idx)
         {
-          fetch_entry_at({handle}, idx);
+          fetch_entry_at(idx);
         }
       }
       else
@@ -358,7 +415,7 @@ namespace ccf::historical
             request.adjust_range(start_idx, num_following_indices);
           for (const auto new_idx : new_indices)
           {
-            fetch_entry_at({handle}, new_idx);
+            fetch_entry_at(new_idx);
           }
         }
       }
@@ -374,11 +431,11 @@ namespace ccf::historical
            idx <= start_idx + num_following_indices;
            ++idx)
       {
-        auto& target_details = request.get_store_details(idx);
-        if (target_details.current_stage == RequestStage::Trusted)
+        auto target_details = request.get_store_details(idx);
+        if (target_details->current_stage == RequestStage::Trusted)
         {
           // Have this store and trust it - add it to return list
-          trusted_stores.push_back(target_details.store);
+          trusted_stores.push_back(target_details->store);
         }
         else
         {
@@ -466,6 +523,8 @@ namespace ccf::historical
         return false;
       }
 
+      pending_fetches.erase(it);
+
       // Create a new store and try to deserialise this entry into it
       StorePtr store = std::make_shared<kv::Store>(
         false /* Do not start from very first idx */,
@@ -489,41 +548,28 @@ namespace ccf::historical
 
       if (deserialise_result == kv::ApplyResult::FAIL)
       {
-        pending_fetches.erase(it);
         return false;
+      }
+
+      const auto is_signature = deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
+      if (is_signature)
+      {
+        // This looks like a signature - check that we trust it
+        if (!verify_signature(store, idx))
+        {
+          LOG_FAIL_FMT("Bad signature at {}", idx);
+          // TODO: Re-request it? Invalidate any request that was asking for it?
+          // Hmmm
+          return false;
+        }
       }
 
       LOG_DEBUG_FMT(
         "Processing historical store at {} ({})",
         idx,
         (size_t)deserialise_result);
-      const auto entry_hash = crypto::Sha256Hash(data);
-      process_deserialised_store(store, entry_hash, idx, it->second);
-
-      auto handles = it->second;
-
-      if (deserialise_result == kv::ApplyResult::PASS_SIGNATURE)
-      {
-        // This looks like a valid signature - try to use this signature to
-        // move some stores from untrusted to trusted
-        handle_signature_transaction(store, idx, handles);
-      }
-
-      // If still required to fulfill a range or find the validating signature,
-      // fetch the next index
-      if (!handles.empty())
-      {
-        if (deserialise_result == kv::ApplyResult::PASS_SIGNATURE)
-        {
-          LOG_INFO_FMT(
-            "Deserialised a signature at {}, but still have handles looking "
-            "for the next index!",
-            idx);
-        }
-        fetch_entry_at(handles, idx + 1);
-      }
-
-      pending_fetches.erase(it);
+      const auto entry_digest = crypto::Sha256Hash(data);
+      process_deserialised_store(store, entry_digest, idx, is_signature);
 
       return true;
     }
@@ -539,9 +585,17 @@ namespace ccf::historical
       const auto fetches_it = pending_fetches.find(idx);
       if (fetches_it != pending_fetches.end())
       {
-        for (auto handle : fetches_it->second)
+        auto request_it = requests.begin();
+        while (request_it != requests.end())
         {
-          requests.erase(handle);
+          if (request_it->second.is_interested_in(idx))
+          {
+            request_it = requests.erase(request_it);
+          }
+          else
+          {
+            ++request_it;
+          }
         }
 
         pending_fetches.erase(fetches_it);
