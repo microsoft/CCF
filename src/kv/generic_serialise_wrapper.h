@@ -204,13 +204,17 @@ namespace kv
       std::vector<uint8_t> encrypted_private_domain(
         serialised_private_domain.size());
 
-      crypto_util->encrypt(
-        serialised_private_domain,
-        serialised_public_domain,
-        serialised_hdr,
-        encrypted_private_domain,
-        tx_id,
-        is_snapshot);
+      if (!crypto_util->encrypt(
+            serialised_private_domain,
+            serialised_public_domain,
+            serialised_hdr,
+            encrypted_private_domain,
+            tx_id,
+            is_snapshot))
+      {
+        throw KvSerialiserException(fmt::format(
+          "Could not serialise transaction at seqno {}", tx_id.version));
+      }
 
       // Serialise entire tx
       // Format: gcm hdr (iv + tag) + len of public domain + public domain +

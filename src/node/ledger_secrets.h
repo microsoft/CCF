@@ -31,7 +31,8 @@ namespace ccf
     {
       if (ledger_secrets.empty())
       {
-        throw std::logic_error("Ledger secrets map is empty");
+        LOG_FAIL_FMT("Ledger secrets map is empty");
+        return nullptr;
       }
 
       if (!historical_hint && last_used_secret_it.has_value())
@@ -66,8 +67,8 @@ namespace ccf
 
       if (search == ledger_secrets.begin())
       {
-        throw std::logic_error(
-          fmt::format("Could not find ledger secret for seqno {}", version));
+        LOG_FAIL_FMT("Could not find ledger secret for seqno {}", version);
+        return nullptr;
       }
 
       if (!historical_hint)
@@ -226,11 +227,16 @@ namespace ccf
       ledger_secrets.merge(restored_ledger_secrets);
     }
 
-    auto get_encryption_key_for(
+    std::shared_ptr<crypto::KeyAesGcm> get_encryption_key_for(
       kv::Version version, bool historical_hint = false)
     {
       std::lock_guard<SpinLock> guard(lock);
-      return get_secret_for_version(version, historical_hint)->key;
+      auto ls = get_secret_for_version(version, historical_hint);
+      if (ls == nullptr)
+      {
+        return nullptr;
+      }
+      return ls->key;
     }
 
     void set_secret(kv::Version version, LedgerSecretPtr&& secret)

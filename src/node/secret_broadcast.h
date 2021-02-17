@@ -67,11 +67,6 @@ namespace ccf
         }
 
         secrets_for_nodes.emplace(nid, std::move(ledger_secrets_for_node));
-
-        // secrets->put(
-        //   nid,
-        //   {encryption_key->public_key_pem().raw(),
-        //    std::move(ledger_secrets_for_node)});
       }
 
       secrets->put(
