@@ -91,6 +91,7 @@ def run(args):
         new_primary, new_term = network.wait_for_new_primary(
             primary.node_id, timeout_multiplier=6
         )
+        assert new_primary == backups[0]
         LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
 
         with new_primary.client("user0") as uc:
