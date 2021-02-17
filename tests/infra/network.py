@@ -480,7 +480,7 @@ class Network:
         self.ignoring_shutdown_errors = True
 
     def stop_all_nodes(self):
-        # Verify that all apps that all app txs committed on the service can be read
+        # Verify that all txs committed on the service can be read
         if self.txs is not None:
             self.txs.verify(self)
 
