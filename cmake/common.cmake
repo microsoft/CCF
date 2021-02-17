@@ -339,7 +339,7 @@ install(
 
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
-    2
+    0
     CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
