@@ -113,30 +113,30 @@ namespace ccf::historical
       // If the target historical entry cannot be deserialised with the first
       // known ledger secret, record the target idx and fetch the previous
       // historical ledger secret.
-      auto first_known_ledger_secret = get_first_known_ledger_secret();
-      if (idx < static_cast<consensus::Index>(first_known_ledger_secret.first))
+      auto [first_ledger_secret_idx, first_ledger_secret] =
+        get_first_known_ledger_secret();
+      if (idx < static_cast<consensus::Index>(first_ledger_secret_idx))
       {
         LOG_TRACE_FMT(
           "Requesting historical entry at {} but first known ledger secret is "
           "applicable from {}",
           idx,
-          first_known_ledger_secret.first);
+          first_ledger_secret_idx);
 
         auto previous_secret_stored_version =
-          first_known_ledger_secret.second->previous_secret_stored_version;
+          first_ledger_secret->previous_secret_stored_version;
         if (!previous_secret_stored_version.has_value())
         {
           throw std::logic_error(fmt::format(
             "First known ledger secret at {} has no previous secret stored "
             "version",
-            first_known_ledger_secret.first));
+            first_ledger_secret_idx));
         }
 
         first_idx_to_fetch = previous_secret_stored_version.value();
         request.current_stage = RequestStage::RecoveringLedgerSecret;
         request.ledger_secret_recovery_info =
-          std::make_unique<LedgerSecretRecoveryInfo>(
-            idx, first_known_ledger_secret.second);
+          std::make_unique<LedgerSecretRecoveryInfo>(idx, first_ledger_secret);
       }
 
       const auto ib = requests.emplace(first_idx_to_fetch, std::move(request));
