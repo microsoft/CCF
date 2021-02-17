@@ -133,7 +133,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
       auto serialised_tx = source_consensus->get_latest_data().value();
 
-      target_store.apply(serialised_tx, ConsensusType::CFT)->execute();
+      target_store.apply(serialised_tx, ConsensusType::CFT)->apply();
 
       REQUIRE(
         target_history->get_replicated_state_root() ==

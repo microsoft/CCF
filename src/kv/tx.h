@@ -269,7 +269,7 @@ namespace kv
      * @return transaction outcome
      */
     CommitResult commit(
-      std::function<Version()> f = nullptr,
+      std::function<Version()> version_resolver = nullptr,
       kv::Version replicated_max_conflict_version = -1)
     {
       if (committed)
@@ -298,7 +298,9 @@ namespace kv
 
       auto c = apply_changes(
         all_changes,
-        f == nullptr ? [store]() { return store->next_version(); } : f,
+        version_resolver == nullptr ?
+          [store]() { return store->next_version(); } :
+          version_resolver,
         hooks,
         created_maps,
         new_maps_conflict_version,

@@ -46,7 +46,7 @@ namespace kv
       public_only(public_only_)
     {}
 
-    ApplyResult execute() override
+    ApplyResult apply() override
     {
       return fn(
         store, data, history, public_only, v, &term, changes, new_maps, hooks);
@@ -161,7 +161,7 @@ namespace kv
       return success;
     };
 
-    bool support_asyc_execution() override
+    bool support_async_execution() override
     {
       return false;
     }
@@ -241,7 +241,7 @@ namespace kv
       return req;
     }
 
-    virtual bool support_asyc_execution() override
+    virtual bool support_async_execution() override
     {
       return false;
     }
@@ -291,7 +291,7 @@ namespace kv
         std::move(new_maps_))
     {}
 
-    ApplyResult execute() override
+    ApplyResult apply() override
     {
       return fn(store, data, history, v, &term, &sig, changes, new_maps, hooks);
     }
@@ -377,7 +377,7 @@ namespace kv
         std::move(new_maps_))
     {}
 
-    ApplyResult execute() override
+    ApplyResult apply() override
     {
       return fn(
         store,
@@ -476,7 +476,7 @@ namespace kv
         std::move(new_maps_))
     {}
 
-    ApplyResult execute() override
+    ApplyResult apply() override
     {
       return fn(
         store, data, history, progress_tracker, v, changes, new_maps, hooks);
@@ -544,7 +544,7 @@ namespace kv
         std::move(new_maps_))
     {}
 
-    ApplyResult execute() override
+    ApplyResult apply() override
     {
       return fn(
         store,
@@ -631,7 +631,7 @@ namespace kv
       tx = std::move(tx_);
     }
 
-    ApplyResult execute() override
+    ApplyResult apply() override
     {
       return fn(tx, term, changes, req);
     }
@@ -658,7 +658,7 @@ namespace kv
       return ApplyResult::PASS;
     };
 
-    virtual bool support_asyc_execution() override
+    virtual bool support_async_execution() override
     {
       return true;
     }

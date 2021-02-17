@@ -209,7 +209,7 @@ namespace ccf::historical
 
       store->set_encryptor(source_store.get_encryptor());
       const auto deserialise_result =
-        store->apply(entry, ConsensusType::CFT)->execute();
+        store->apply(entry, ConsensusType::CFT)->apply();
 
       switch (deserialise_result)
       {

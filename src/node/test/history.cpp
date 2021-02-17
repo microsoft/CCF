@@ -32,7 +32,7 @@ public:
     {
       REQUIRE(entries.size() == 1);
       return store->apply(*std::get<1>(entries[0]), ConsensusType::CFT)
-               ->execute() != kv::ApplyResult::FAIL;
+               ->apply() != kv::ApplyResult::FAIL;
     }
     return true;
   }

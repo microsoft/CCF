@@ -227,7 +227,7 @@ namespace aft
     public:
       ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
 
-      kv::ApplyResult execute() override
+      kv::ApplyResult apply() override
       {
         return kv::ApplyResult::PASS;
       }
@@ -261,7 +261,7 @@ namespace aft
         throw std::logic_error("Not Implemented");
       }
 
-      bool support_asyc_execution() override
+      bool support_async_execution() override
       {
         return true;
         throw std::logic_error("Not Implemented");

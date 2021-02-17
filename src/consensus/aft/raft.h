@@ -571,7 +571,7 @@ namespace aft
       const uint8_t* data = d.data();
       size_t size = d.size();
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
-      bool always_execute_async = false;
+      bool execute_async = false;
 
       try
       {
@@ -602,7 +602,7 @@ namespace aft
                   data, size);
             aee = std::make_unique<SignedAppendEntryResponseCallback>(
               *this, std::move(r));
-            always_execute_async = true;
+            execute_async = true;
             break;
           }
 
@@ -668,7 +668,7 @@ namespace aft
           }
         }
 
-        if (always_execute_async)
+        if (execute_async)
         {
           auto async_pending_msg =
             std::make_unique<threading::Tmsg<AsyncPendingExec>>(
@@ -1362,11 +1362,11 @@ namespace aft
       auto self = msg->data.self;
       if (self->consensus_type == ConsensusType::CFT)
       {
-        self->execute_append_entries_cft(msg);
+        self->execute_append_entries_sync(msg);
       }
       else
       {
-        bool result = self->execute_append_entries_bft(msg);
+        bool result = self->execute_append_entries_async(msg);
         if (!result)
         {
           return;
@@ -1449,7 +1449,7 @@ namespace aft
       }
     }
 
-    bool execute_append_entries_cft(
+    bool execute_append_entries_sync(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
       std::list<
@@ -1465,7 +1465,7 @@ namespace aft
         auto& [ds, i] = ae;
         state->last_idx = i;
 
-        kv::ApplyResult apply_success = ds->execute();
+        kv::ApplyResult apply_success = ds->apply();
         if (apply_success == kv::ApplyResult::FAIL)
         {
           state->last_idx = i - 1;
@@ -1552,7 +1552,7 @@ namespace aft
       return execute_append_entries_finish(confirm_evidence, r);
     }
 
-    bool execute_append_entries_bft(
+    bool execute_append_entries_async(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
       // This function is responsible for selection the next batch of
@@ -1587,7 +1587,7 @@ namespace aft
           }
 
           if (
-            !wrapper->support_asyc_execution() && !is_first &&
+            !wrapper->support_async_execution() && !is_first &&
             (async_exec->pending_cbs > 0))
           {
             run_async_execution(pending_requests);
@@ -1595,7 +1595,7 @@ namespace aft
           }
 
           if (
-            wrapper->support_asyc_execution() &&
+            wrapper->support_async_execution() &&
             wrapper->get_max_conflict_version() >= before_state_idx)
           {
             if (!pending_requests.empty())
@@ -1608,14 +1608,14 @@ namespace aft
 
         is_first = false;
         must_break =
-          !wrapper->support_asyc_execution() && (async_exec->pending_cbs > 0);
+          !wrapper->support_async_execution() && (async_exec->pending_cbs > 0);
 
         auto ae = std::move(append_entries.front());
         append_entries.pop_front();
         auto& [ds, i] = ae;
         state->last_idx = i;
 
-        kv::ApplyResult apply_success = ds->execute();
+        kv::ApplyResult apply_success = ds->apply();
         if (apply_success == kv::ApplyResult::FAIL)
         {
           // Setting last_idx to i-1 is a work around that should be fixed
