@@ -144,10 +144,10 @@ class LoggingTxs:
             with node.client(self.user) as c:
                 rep = c.get(f"{cmd}?id={idx}", headers=headers)
                 if rep.status_code == http.HTTPStatus.OK:
-                    infra.checker.Checker(c)(
-                        rep,
-                        result={"msg": msg},
-                    )
+                    expected_result = {"msg": msg}
+                    assert (
+                        rep.body.json() == expected_result
+                    ), "Expected {}, got {}".format(expected_result, rep.body)
                     found = True
                     break
                 elif rep.status_code == http.HTTPStatus.NOT_FOUND:
