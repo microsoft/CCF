@@ -251,6 +251,7 @@ namespace ccf
     kv::Consensus::SignableTxIndices commit_txid;
     kv::Store& store;
     T& replicated_state_tree;
+    SpinLock& state_lock;
     NodeId id;
     tls::KeyPairBase& kp;
 
@@ -260,18 +261,21 @@ namespace ccf
       kv::Consensus::SignableTxIndices commit_txid_,
       kv::Store& store_,
       T& replicated_state_tree_,
+      SpinLock& state_lock_,
       NodeId id_,
       tls::KeyPairBase& kp_) :
       txid(txid_),
       commit_txid(commit_txid_),
       store(store_),
       replicated_state_tree(replicated_state_tree_),
+      state_lock(state_lock_),
       id(id_),
       kp(kp_)
     {}
 
     kv::PendingTxInfo call() override
     {
+      std::lock_guard<SpinLock> guard(state_lock);
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
@@ -768,7 +772,7 @@ namespace ccf
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid, commit_txid, store, replicated_state_tree, id, kp),
+          txid, commit_txid, store, replicated_state_tree, state_lock, id, kp),
         true);
     }
 
