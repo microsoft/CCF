@@ -506,11 +506,18 @@ class Ledger:
             self.LEDGER_COMMITTED_FILE_NAME_REGEX_PATTERN
         )
 
+        # It's possible that some of the ledger chunks exist in non-committed state in the ledger directory.
+        # We'll only consider committed ledger chunks for Ledger Verification.
+        commited_ledger_chunks = list()
         ledgers = os.listdir(directory)
+        for ledger_chunk in ledgers:
+            if ledger_chunk.endswith(".committed"):
+                commited_ledger_chunks.append(ledger_chunk)
+
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
         sorted_ledgers = sorted(
-            ledgers,
+            commited_ledger_chunks,
             key=lambda x: int(
                 x.replace(".committed", "").replace("ledger_", "").split("-")[0]
             ),
