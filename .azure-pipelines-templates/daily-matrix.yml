@@ -69,4 +69,3 @@ jobs:
       suffix: "Fuzz"
       artifact_name: "NoSGX_Fuzz"
       ctest_filter: "${{ parameters.test.fuzz.ctest_args }}"
-

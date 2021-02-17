@@ -670,7 +670,11 @@ namespace ccf
       }
 
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
-      crypto::Sha256Hash root = replicated_state_tree.get_root();
+      crypto::Sha256Hash root;
+      {
+        std::lock_guard<SpinLock> guard(state_lock);
+        root = replicated_state_tree.get_root();
+      }
       log_hash(root, VERIFY);
       bool result =
         from_cert->verify_hash(root.h, sig_value.sig, MDType::SHA256);
