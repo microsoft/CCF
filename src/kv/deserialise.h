@@ -30,8 +30,6 @@ namespace kv
       kv::Version& v,
       const MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks) = 0;
-
-    virtual void append_to_history(const std::vector<uint8_t>& data) = 0;
   };
 
   class CFTExecutionWrapper : public AbstractExecutionWrapper
@@ -156,7 +154,10 @@ namespace kv
         success = ApplyResult::PASS_SNAPSHOT_EVIDENCE;
       }
 
-      store->append_to_history(data);
+      if (history)
+      {
+        history->append(data);
+      }
       return success;
     };
 
@@ -346,7 +347,7 @@ namespace kv
           "Failed to verify signature, view-changes not implemented");
         return ApplyResult::FAIL;
       }
-      store->append_to_history(data);
+      history->append(data);
       return ApplyResult::PASS_SIGNATURE;
     };
   };
@@ -407,7 +408,7 @@ namespace kv
       fn = [](
              ExecutionWrapperStore* store,
              const std::vector<uint8_t>& data,
-             std::shared_ptr<TxHistory>,
+             std::shared_ptr<TxHistory> history,
              std::shared_ptr<ccf::ProgressTracker> progress_tracker,
              std::shared_ptr<Consensus> consensus,
              kv::Version& v,
@@ -436,6 +437,7 @@ namespace kv
       }
       else
       {
+        LOG_FAIL_FMT("receive_backup_signatures Failed");
         LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
         throw std::logic_error(
           "Failed to verify signature, view-changes not implemented");
@@ -445,7 +447,7 @@ namespace kv
       *term_ = tx_id.term;
       *index_ = tx_id.version;
 
-      store->append_to_history(data);
+      history->append(data);
       return success;
     };
   };
@@ -492,7 +494,7 @@ namespace kv
       fn = [](
              ExecutionWrapperStore* store,
              const std::vector<uint8_t>& data,
-             std::shared_ptr<TxHistory>,
+             std::shared_ptr<TxHistory> history,
              std::shared_ptr<ccf::ProgressTracker> progress_tracker,
              kv::Version& v,
              OrderedChanges& changes,
@@ -512,7 +514,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      store->append_to_history(data);
+      history->append(data);
       return ApplyResult::PASS_NONCES;
     };
   };
@@ -573,7 +575,7 @@ namespace kv
       fn = [](
              ExecutionWrapperStore* store,
              const std::vector<uint8_t>& data,
-             std::shared_ptr<TxHistory>,
+             std::shared_ptr<TxHistory> history,
              std::shared_ptr<ccf::ProgressTracker> progress_tracker,
              std::shared_ptr<Consensus> consensus,
              kv::Version& v,
@@ -596,7 +598,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      store->append_to_history(data);
+      history->append(data);
       return ApplyResult::PASS_NEW_VIEW;
     };
   };
