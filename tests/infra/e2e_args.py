@@ -255,9 +255,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=None,
     )
     parser.add_argument(
-        "--long-tests", help="Enable extended tests", action="store_true"
-    )
-    parser.add_argument(
         "--disable-member-session-auth",
         help="Disable session auth for members",
         action="store_true",

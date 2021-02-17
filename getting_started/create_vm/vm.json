@@ -6,7 +6,7 @@
         "osType": "Linux",
         "vmSize": "Standard_DC8_v2",
         "ports": [22],
-        "hasDNSName": true,
+        "hasDNSName": false,
         "isVanilla": true,
         "osDiskType": "StandardSSD_LRS"
       }
