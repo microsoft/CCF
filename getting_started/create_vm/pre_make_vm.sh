@@ -8,7 +8,7 @@ OE_ENGINE_URL=https://oejenkinsciartifacts.blob.core.windows.net/oe-engine/lates
 OE_ENGINE_PATH=/usr/local/bin
 
 if ! type az > /dev/null; then
-    echo "Installng Azure CLI..."
+    echo "Installing Azure CLI..."
     curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
     echo "Azure CLI installed"
 fi

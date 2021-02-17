@@ -4,6 +4,7 @@
 
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
+#include "ds/spin_lock.h"
 #include "entities.h"
 #include "node_types.h"
 #include "tls/key_exchange.h"
@@ -454,10 +455,11 @@ namespace ccf
   class ChannelManager
   {
   private:
-    std::unordered_map<NodeId, Channel> channels;
+    std::unordered_map<NodeId, std::shared_ptr<Channel>> channels;
     ringbuffer::AbstractWriterFactory& writer_factory;
     tls::KeyPairPtr network_kp;
     NodeId self;
+    SpinLock lock;
 
   public:
     ChannelManager(
@@ -472,21 +474,32 @@ namespace ccf
     void create_channel(
       NodeId peer_id, const std::string& hostname, const std::string& service)
     {
+      std::lock_guard<SpinLock> guard(lock);
       auto search = channels.find(peer_id);
-      if (search != channels.end() && !search->second.is_outgoing())
+      if (search == channels.end())
+      {
+        LOG_DEBUG_FMT(
+          "Creating new outbound channel to {} ({}:{})",
+          peer_id,
+          hostname,
+          service);
+        auto channel = std::make_shared<Channel>(
+          writer_factory, network_kp, self, peer_id, hostname, service);
+        channels.emplace_hint(search, peer_id, std::move(channel));
+      }
+      else if (!search->second->is_outgoing())
       {
         // Channel with peer already exists but is incoming. Create host
         // outgoing connection.
-        search->second.set_outgoing(hostname, service);
+        LOG_DEBUG_FMT("Setting existing channel to {} as outgoing", peer_id);
+        search->second->set_outgoing(hostname, service);
         return;
       }
-
-      channels.try_emplace(
-        peer_id, writer_factory, network_kp, self, peer_id, hostname, service);
     }
 
     void destroy_channel(NodeId peer_id)
     {
+      std::lock_guard<SpinLock> guard(lock);
       auto search = channels.find(peer_id);
       if (search == channels.end())
       {
@@ -501,22 +514,25 @@ namespace ccf
 
     void destroy_all_channels()
     {
+      std::lock_guard<SpinLock> guard(lock);
       channels.clear();
     }
 
     void close_all_outgoing()
     {
+      std::lock_guard<SpinLock> guard(lock);
       for (auto& c : channels)
       {
-        if (c.second.is_outgoing())
+        if (c.second->is_outgoing())
         {
-          c.second.reset_outgoing();
+          c.second->reset_outgoing();
         }
       }
     }
 
-    Channel& get(NodeId peer_id)
+    std::shared_ptr<Channel> get(NodeId peer_id)
     {
+      std::lock_guard<SpinLock> guard(lock);
       auto search = channels.find(peer_id);
       if (search != channels.end())
       {
@@ -524,7 +540,9 @@ namespace ccf
       }
 
       // Creating temporary channel that is not outgoing (at least for now)
-      channels.try_emplace(peer_id, writer_factory, network_kp, self, peer_id);
+      channels.try_emplace(
+        peer_id,
+        std::make_shared<Channel>(writer_factory, network_kp, self, peer_id));
       return channels.at(peer_id);
     }
   };
