@@ -21,6 +21,7 @@
 #include "apply_changes.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_deprecated.h"
+#include "ds/thread_messaging.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
@@ -285,7 +286,8 @@ namespace kv
       auto store = all_changes.begin()->second.map->get_store();
       auto consensus = store->get_consensus();
       bool track_conflicts =
-        (consensus != nullptr && consensus->type() == ConsensusType::BFT);
+        (consensus != nullptr && consensus->type() == ConsensusType::BFT &&
+         threading::ThreadMessaging::thread_count > 1);
 
       // If this transaction creates any maps, ensure that commit gets a
       // consistent snapshot of the existing maps

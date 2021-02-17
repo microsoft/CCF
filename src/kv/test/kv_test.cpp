@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
+
 struct MapTypes
 {
   using StringString = kv::Map<std::string, std::string>;

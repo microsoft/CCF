@@ -16,6 +16,8 @@
 #include <random>
 #include <string>
 
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
+
 kv::ConsensusHookPtrs hooks;
 using StringString = kv::Map<std::string, std::string>;
 

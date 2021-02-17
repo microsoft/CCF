@@ -10,6 +10,8 @@
 
 #include <doctest/doctest.h>
 
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
+
 using namespace ccf::lua;
 using namespace ccfapp;
 using namespace std;
