@@ -17,8 +17,25 @@ def test_proposals(network, args):
     primary, _ = network.find_nodes()
     add_member = [action("add_member", cert="", enc_pubk="", member_data={})]
 
+    valid_set_recovery_threshold = [action("set_recovery_threshold", threshold=5)]
+    no_args_set_recovery_threshold = [action("set_recovery_threshold")]
+    bad_arg_set_recovery_threshold = [action("set_recovery_threshold", threshold=5000)]
+
     with primary.client(None, "member0") as c:
-        c.post("/gov/proposals.js", add_member)
+        r = c.post("/gov/proposals.js", valid_set_recovery_threshold)
+        assert r.status_code == 200, r.body.text()
+
+    with primary.client(None, "member0") as c:
+        r = c.post("/gov/proposals.js", valid_set_recovery_threshold * 2)
+        assert r.status_code == 200, r.body.text()
+
+    with primary.client(None, "member0") as c:
+        r = c.post("/gov/proposals.js", no_args_set_recovery_threshold)
+        assert r.status_code == 400 and r.body.json()["error"]["code"] == "ProposalFailedToValidate", r.body.text()
+
+    with primary.client(None, "member0") as c:
+        r = c.post("/gov/proposals.js", no_args_set_recovery_threshold + bad_arg_set_recovery_threshold)
+        assert r.status_code == 400 and r.body.json()["error"]["code"] == "ProposalFailedToValidate", r.body.text()
 
     return network
 

@@ -2,7 +2,7 @@ const actions = new Map([
   [
     "set_recovery_threshold",
     function (args) {
-      return Integer.isInteger(args.threshold) && args.threshold > 0 && args.threshold < 255 
+      return Number.isInteger(args.threshold) && args.threshold > 0 && args.threshold < 255 
     }
   ]
 ])
@@ -10,17 +10,20 @@ const actions = new Map([
 export function validate(input) {
   let proposal = JSON.parse(input)
   let errors = []
-  for (const action of actions)
+  for (const action of proposal)
   {
     const validator = actions.get(action.name);
-    if (validator && !validator(action.args))
+    if (validator)
     {
-      errors.push(action.name + " failed validation")
+      if (!validator(action.args))
+      {
+        errors.push(action.name + " failed validation")
+      }
     }
     else
     {
       errors.push(action.name + ": no such action")
     }
   }
-  return { valid: errors, description: errors.join("\n") }
+  return { valid: errors.length == 0, description: errors.join("\n") }
 }
