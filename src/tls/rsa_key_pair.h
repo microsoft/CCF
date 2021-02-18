@@ -213,6 +213,7 @@ namespace tls
         EVP_PKEY_encrypt(ctx, output.data(), &olen, input, input_size));
 
       output.resize(olen);
+      EVP_PKEY_CTX_free(ctx);
       return output;
     }
 
@@ -418,7 +419,9 @@ namespace tls
         EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
       }
       else
+      {
         EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, NULL, 0);
+      }
 
       size_t olen;
       OPENSSL_CHECK1(
@@ -429,6 +432,7 @@ namespace tls
         ctx, output.data(), &olen, input.data(), input.size()));
 
       output.resize(olen);
+      EVP_PKEY_CTX_free(ctx);
       return output;
     }
   };
@@ -445,7 +449,7 @@ namespace tls
     size_t public_key_size = RSAKeyPair::default_public_key_size,
     size_t public_exponent = RSAKeyPair::default_public_exponent)
   {
-    return RSAKeyPairPtr(new RSAKeyPair(public_key_size, public_exponent));
+    return std::make_shared<RSAKeyPair>(public_key_size, public_exponent);
   }
 
   /**
