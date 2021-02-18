@@ -44,9 +44,9 @@ Algorithms and Curves
 
 Authenticated encryption in CCF relies on AES256-GCM. Ledger authentication relies on Merkle trees using SHA2-256.
 
-Public-key certificates, signatures, and ephemeral Diffie-Hellman key exchanges all rely on elliptic curves. The supported curves are listed in `tls/curve.h`:
+Public-key certificates, signatures, and ephemeral Diffie-Hellman key exchanges all rely on elliptic curves. The supported curves are listed in `crypto/curve.h`:
 
-    .. literalinclude:: ../../src/tls/curve.h
+    .. literalinclude:: ../../src/crypto/curve.h
         :language: cpp
         :start-after: SNIPPET_START: supported_curves
         :end-before: SNIPPET_END: supported_curves

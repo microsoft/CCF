@@ -40,6 +40,6 @@ namespace ccf
     virtual QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
-      const tls::Pem& expected_node_public_key) = 0;
+      const crypto::Pem& expected_node_public_key) = 0;
   };
 }

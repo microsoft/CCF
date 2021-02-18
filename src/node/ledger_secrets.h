@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/entropy.h"
+#include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "ledger_secret.h"
@@ -14,6 +16,37 @@
 
 namespace ccf
 {
+  struct LedgerSecret
+  {
+    std::vector<uint8_t> raw_key;
+    std::shared_ptr<crypto::KeyAesGcm> key;
+
+    bool operator==(const LedgerSecret& other) const
+    {
+      return raw_key == other.raw_key;
+    }
+
+    LedgerSecret() = default;
+
+    // The copy construtor is used for serialising a LedgerSecret. However, only
+    // the raw_key is serialised and other.key is nullptr so use raw_key to seed
+    // key.
+    LedgerSecret(const LedgerSecret& other) :
+      raw_key(other.raw_key),
+      key(std::make_shared<crypto::KeyAesGcm>(other.raw_key))
+    {}
+
+    LedgerSecret(std::vector<uint8_t>&& raw_key_) :
+      raw_key(raw_key_),
+      key(std::make_shared<crypto::KeyAesGcm>(std::move(raw_key_)))
+    {}
+  };
+
+  inline LedgerSecret make_ledger_secret()
+  {
+    return LedgerSecret(crypto::create_entropy()->random(crypto::GCM_SIZE_KEY));
+  }
+
   using LedgerSecretsMap = std::map<kv::Version, LedgerSecretPtr>;
   using VersionedLedgerSecret = LedgerSecretsMap::value_type;
 

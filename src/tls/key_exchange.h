@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/entropy.h"
+#include "crypto/key_pair_mbedtls.h"
 #include "ds/logger.h"
-#include "tls/entropy.h"
 #include "tls/error_string.h"
-#include "tls/key_pair.h"
 
 #include <iostream>
 #include <map>
@@ -18,7 +18,7 @@ namespace tls
   private:
     mbedtls::ECDHContext ctx = nullptr;
     std::vector<uint8_t> own_public;
-    tls::EntropyPtr entropy;
+    crypto::EntropyPtr entropy;
 
   public:
     static constexpr mbedtls_ecp_group_id domain_parameter =
@@ -27,7 +27,9 @@ namespace tls
     static constexpr size_t len_public = 1024 + 1;
     static constexpr size_t len_shared_secret = 1024;
 
-    KeyExchangeContext() : own_public(len_public), entropy(create_entropy())
+    KeyExchangeContext() :
+      own_public(len_public),
+      entropy(crypto::create_entropy())
     {
       auto tmp_ctx = mbedtls::make_unique<mbedtls::ECDHContext>();
       size_t len;
@@ -58,9 +60,9 @@ namespace tls
     }
 
     KeyExchangeContext(
-      std::shared_ptr<KeyPair_mbedTLS> own_kp,
-      std::shared_ptr<PublicKey_mbedTLS> peer_pubk) :
-      entropy(create_entropy())
+      std::shared_ptr<crypto::KeyPair_mbedTLS> own_kp,
+      std::shared_ptr<crypto::PublicKey_mbedTLS> peer_pubk) :
+      entropy(crypto::create_entropy())
     {
       auto tmp_ctx = mbedtls::make_unique<mbedtls::ECDHContext>();
 

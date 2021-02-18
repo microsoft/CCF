@@ -3,12 +3,12 @@
 #pragma once
 
 #include "consensus/aft/raft_types.h"
+#include "crypto/key_pair.h"
+#include "crypto/verifier.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 #include "node/rpc/tx_status.h"
-#include "tls/key_pair.h"
-#include "tls/verifier.h"
 
 #include <map>
 #include <set>
@@ -80,7 +80,7 @@ namespace aft
   public:
     Replica(kv::NodeId id_, const std::vector<uint8_t>& cert_) :
       id(id_),
-      verifier(tls::make_unique_verifier(cert_))
+      verifier(crypto::make_unique_verifier(cert_))
     {}
 
     kv::NodeId get_id() const
@@ -90,7 +90,7 @@ namespace aft
 
   private:
     kv::NodeId id;
-    tls::VerifierUniquePtr verifier;
+    crypto::VerifierUniquePtr verifier;
   };
 
   struct State

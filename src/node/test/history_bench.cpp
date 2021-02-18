@@ -71,7 +71,7 @@ static void append(picobench::state& s)
   ::srand(42);
 
   kv::Store store;
-  auto kp = tls::make_key_pair();
+  auto kp = crypto::make_key_pair();
 
   std::shared_ptr<kv::Consensus> consensus = std::make_shared<DummyConsensus>();
   store.set_consensus(consensus);
@@ -108,7 +108,7 @@ static void append_compact(picobench::state& s)
   ::srand(42);
 
   kv::Store store;
-  auto kp = tls::make_key_pair();
+  auto kp = crypto::make_key_pair();
 
   std::shared_ptr<kv::Consensus> consensus = std::make_shared<DummyConsensus>();
   store.set_consensus(consensus);

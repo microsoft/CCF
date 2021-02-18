@@ -4,6 +4,7 @@
 
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
+#include "crypto/entropy.h"
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
@@ -25,7 +26,6 @@
 #include "share_manager.h"
 #include "snapshotter.h"
 #include "tls/client.h"
-#include "tls/entropy.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -63,8 +63,8 @@ namespace ccf
 
   struct NodeCreateInfo
   {
-    tls::Pem node_cert;
-    tls::Pem network_cert;
+    crypto::Pem node_cert;
+    crypto::Pem network_cert;
   };
 
   template <typename T>
@@ -118,10 +118,10 @@ namespace ccf
 
     static constexpr NodeId invalid_node_id = -1;
     NodeId self = invalid_node_id;
-    tls::KeyPairPtr node_sign_kp;
-    std::shared_ptr<tls::KeyPair_mbedTLS> node_encrypt_kp;
-    tls::Pem node_cert;
-    tls::CurveID curve_id;
+    crypto::KeyPairPtr node_sign_kp;
+    std::shared_ptr<crypto::KeyPair_mbedTLS> node_encrypt_kp;
+    crypto::Pem node_cert;
+    crypto::CurveID curve_id;
     QuoteInfo quote_info;
     CodeDigest node_code_id;
 #ifdef GET_QUOTE
@@ -241,8 +241,8 @@ namespace ccf
       const CurveID& curve_id) :
       sm(State::uninitialized),
       self(INVALID_ID),
-      node_sign_kp(tls::make_key_pair(curve_id)),
-      node_encrypt_kp(std::make_shared<tls::KeyPair_mbedTLS>(curve_id)),
+      node_sign_kp(crypto::make_key_pair(curve_id)),
+      node_encrypt_kp(std::make_shared<crypto::KeyPair_mbedTLS>(curve_id)),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -253,7 +253,7 @@ namespace ccf
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
-      const tls::Pem& expected_node_public_key) override
+      const crypto::Pem& expected_node_public_key) override
     {
 #ifdef GET_QUOTE
       return enclave_attestation_provider.verify_quote_against_store(
@@ -1359,7 +1359,7 @@ namespace ccf
       self = n;
     }
 
-    tls::SubjectAltName get_subject_alt_name(const CCFConfig& config)
+    crypto::SubjectAltName get_subject_alt_name(const CCFConfig& config)
     {
       // If a domain is passed at node creation, record domain in SAN for node
       // hostname authentication over TLS. Otherwise, record IP in SAN.
@@ -1368,10 +1368,11 @@ namespace ccf
               san_is_ip};
     }
 
-    std::vector<tls::SubjectAltName> get_subject_alternative_names(
+    std::vector<crypto::SubjectAltName> get_subject_alternative_names(
       const CCFConfig& config)
     {
-      std::vector<tls::SubjectAltName> sans = config.subject_alternative_names;
+      std::vector<crypto::SubjectAltName> sans =
+        config.subject_alternative_names;
       sans.push_back(get_subject_alt_name(config));
       return sans;
     }
@@ -1396,7 +1397,7 @@ namespace ccf
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
 
-      auto nw = tls::make_key_pair(network.identity->priv_key);
+      auto nw = crypto::make_key_pair(network.identity->priv_key);
       auto csr = node_sign_kp->create_csr(config.subject_name);
       auto sans = get_subject_alternative_names(config);
       auto endorsed_node_cert = nw->sign_csr(network.identity->cert, csr, sans);
@@ -1407,7 +1408,8 @@ namespace ccf
     }
 
     void open_frontend(
-      ccf::ActorsType actor, std::optional<tls::Pem*> identity = std::nullopt)
+      ccf::ActorsType actor,
+      std::optional<crypto::Pem*> identity = std::nullopt)
     {
       auto fe = rpc_map->find(actor);
       if (!fe.has_value())

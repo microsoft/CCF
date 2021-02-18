@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tls/entropy.h"
+#include "crypto/entropy.h"
 
 #include <array>
 #define FMT_HEADER_ONLY
@@ -13,7 +13,7 @@
 
 extern "C"
 {
-#include "tls/random_bytes.h"
+#include "crypto/random_bytes.h"
 
 #include <sss/sss.h>
 }
