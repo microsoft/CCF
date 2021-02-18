@@ -271,7 +271,6 @@ namespace threading
     template <typename Payload>
     void add_task(uint16_t tid, std::unique_ptr<Tmsg<Payload>> msg)
     {
-      LOG_INFO_FMT("Adding task");
       Task& task = get_task(tid);
 
       task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));

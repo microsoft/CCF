@@ -602,7 +602,7 @@ namespace aft
                   data, size);
             aee = std::make_unique<SignedAppendEntryResponseCallback>(
               *this, std::move(r));
-            //execute_async = true;
+            execute_async = true;
             break;
           }
 

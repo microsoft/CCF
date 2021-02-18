@@ -181,8 +181,6 @@ namespace aft
       auto r = std::make_unique<Request>(hash, time);
       requests_.insert(r.get());
       requests_list_.insert_back(r.release());
-      LOG_INFO_FMT(
-        "reqs: {}-{}", requests.size(), hashes_without_requests.size());
     }
 
     bool remove(
