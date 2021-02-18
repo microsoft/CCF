@@ -17,6 +17,8 @@
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
+#include <openssl/engine.h>
+
 namespace enclave
 {
   class Enclave
@@ -34,6 +36,7 @@ namespace enclave
     std::shared_ptr<ccf::Forwarder<ccf::NodeToNode>> cmd_forwarder;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::milliseconds last_tick_time;
+    ENGINE* rdrand_engine = nullptr;
 
     CCFConfig ccf_config;
     StartType start_type;
@@ -63,7 +66,8 @@ namespace enclave
       const EnclaveConfig& ec,
       const CCFConfig::SignatureIntervals& signature_intervals,
       const ConsensusType& consensus_type_,
-      const consensus::Configuration& consensus_config) :
+      const consensus::Configuration& consensus_config,
+      const CurveID& curve_id) :
       circuit(
         ringbuffer::BufferDef{ec.to_enclave_buffer_start,
                               ec.to_enclave_buffer_size,
@@ -86,10 +90,23 @@ namespace enclave
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
+      // From
+      // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
+      if (
+        ENGINE_load_rdrand() != 1 ||
+        (rdrand_engine = ENGINE_by_id("rdrand")) == nullptr ||
+        ENGINE_init(rdrand_engine) != 1 ||
+        ENGINE_set_default(rdrand_engine, ENGINE_METHOD_RAND) != 1)
+      {
+        ENGINE_free(rdrand_engine);
+        throw std::runtime_error(
+          "could not initialize RDRAND engine for OpenSSL");
+      }
+
       to_host = writer_factory.create_writer_to_outside();
 
       node = std::make_unique<ccf::NodeState>(
-        writer_factory, network, rpcsessions, share_manager);
+        writer_factory, network, rpcsessions, share_manager, curve_id);
       context.node_state = node.get();
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
@@ -117,6 +134,15 @@ namespace enclave
         cmd_forwarder,
         signature_intervals.sig_tx_interval,
         signature_intervals.sig_ms_interval);
+    }
+
+    ~Enclave()
+    {
+      if (rdrand_engine)
+      {
+        ENGINE_finish(rdrand_engine);
+        ENGINE_free(rdrand_engine);
+      }
     }
 
     bool create_new_node(
