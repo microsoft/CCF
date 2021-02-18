@@ -875,20 +875,18 @@ namespace ccf
 
         if (should_clear_old_entries)
         {
-          for (auto it = certificates.begin(); it != certificates.end();)
+          LOG_DEBUG_FMT("Removing all entries upto:{}", seqno);
+          for (auto it = certificates.begin();;)
           {
             CCF_ASSERT(
               it != certificates.end(),
               "Should never deleted all certificates");
 
-            if (it->first < seqno)
+            if (it->first == seqno)
             {
-              it = certificates.erase(it);
+              break;
             }
-            else
-            {
-              ++it;
-            }
+            it = certificates.erase(it);
           }
         }
       }
