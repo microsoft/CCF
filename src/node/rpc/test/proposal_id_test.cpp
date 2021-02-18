@@ -92,7 +92,8 @@ class NullTxHistoryWithOverride : public ccf::NullTxHistory
   bool forced = false;
 
 public:
-  NullTxHistoryWithOverride(kv::Store& store_, NodeId id_, tls::KeyPair& kp_) :
+  NullTxHistoryWithOverride(
+    kv::Store& store_, NodeId id_, tls::KeyPairBase& kp_) :
     ccf::NullTxHistory(store_, id_, kp_)
   {}
 
