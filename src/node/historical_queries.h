@@ -61,22 +61,7 @@ namespace ccf::historical
       std::optional<std::pair<consensus::Index, StoreDetailsPtr>>
         supporting_signature;
 
-      Request(consensus::Index start_idx, size_t num_following_indices)
-      {
-        adjust_range(start_idx, num_following_indices);
-      }
-
-      bool is_index_in_requested_range(consensus::Index idx)
-      {
-        return idx >= first_requested_index && idx <= last_requested_index;
-      }
-
-      bool does_range_match(
-        consensus::Index start_idx, size_t num_following_indices)
-      {
-        return start_idx == first_requested_index &&
-          (requested_stores.size() == num_following_indices + 1);
-      }
+      Request() {}
 
       StoreDetailsPtr get_store_details(consensus::Index idx) const
       {
@@ -117,9 +102,18 @@ namespace ccf::historical
       std::set<consensus::Index> adjust_range(
         consensus::Index start_idx, size_t num_following_indices)
       {
+        if (
+          start_idx == first_requested_index &&
+          (num_following_indices + 1) == requested_stores.size())
+        {
+          // This is precisely the range we're already tracking - do nothing
+          return {};
+        }
+
         std::set<consensus::Index> ret;
         std::vector<StoreDetailsPtr> new_stores(num_following_indices + 1);
-        for (auto idx = start_idx; idx <= start_idx + num_following_indices; ++idx)
+        for (auto idx = start_idx; idx <= start_idx + num_following_indices;
+             ++idx)
         {
           auto existing_details = get_store_details(idx);
           if (existing_details == nullptr)
@@ -137,17 +131,14 @@ namespace ccf::historical
         first_requested_index = start_idx;
         last_requested_index = first_requested_index + num_following_indices;
 
-        if (supporting_signature.has_value() && supporting_signature->first < last_requested_index)
+        if (
+          supporting_signature.has_value() &&
+          supporting_signature->first < last_requested_index)
         {
           supporting_signature.reset();
         }
 
         return ret;
-      }
-
-      bool is_interested_in(consensus::Index idx)
-      {
-        return get_store_details(idx) != nullptr;
       }
 
       enum class UpdateTrustedResult
@@ -446,40 +437,21 @@ namespace ccf::historical
       auto it = requests.find(handle);
       if (it == requests.end())
       {
-        // This is a new handle - create entirely new request object for it
-        Request new_request(start_idx, num_following_indices);
-        it = requests.emplace_hint(it, handle, std::move(new_request));
-
-        // Start fetching entries
-        for (consensus::Index idx = start_idx;
-             idx <= start_idx + num_following_indices;
-             ++idx)
-        {
-          fetch_entry_at(idx);
-        }
-      }
-      else
-      {
-        // There's an existing request at this handle - modify it if necessary
-        // and ensure all requested indices are being fetched
-        auto& request = it->second;
-        if (!request.does_range_match(start_idx, num_following_indices))
-        {
-          // We could just consider this equivalent to the case above, but
-          // instead we retain old StoreDetails where possible in the same
-          // Request, if the previous request and this had some overlap
-          auto new_indices =
-            request.adjust_range(start_idx, num_following_indices);
-          for (const auto new_idx : new_indices)
-          {
-            fetch_entry_at(new_idx);
-          }
-        }
+        // This is a new handle - insert a newly created Request for it
+        it = requests.emplace_hint(it, handle, Request());
       }
 
       Request& request = it->second;
 
-      // In any case, reset the expiry time as this has just been requested
+      // If there are any entries newly added to this Request, begin fetching
+      // them now
+      auto new_indices = request.adjust_range(start_idx, num_following_indices);
+      for (const auto new_idx : new_indices)
+      {
+        fetch_entry_at(new_idx);
+      }
+
+      // Reset the expiry time as this has just been requested
       request.time_to_expiry = expire_after_ms;
 
       std::vector<StorePtr> trusted_stores;
@@ -512,7 +484,7 @@ namespace ccf::historical
       auto request_it = requests.begin();
       while (request_it != requests.end())
       {
-        if (request_it->second.is_interested_in(idx))
+        if (request_it->second.get_store_details(idx) != nullptr)
         {
           request_it = requests.erase(request_it);
         }
