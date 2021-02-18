@@ -33,9 +33,7 @@ namespace ccf
       raw_key(other.raw_key),
       key(std::make_shared<crypto::KeyAesGcm>(other.raw_key)),
       previous_secret_stored_version(other.previous_secret_stored_version)
-    {
-      LOG_FAIL_FMT("LedgerSecret copy constructor!");
-    }
+    {}
 
     LedgerSecret(
       std::vector<uint8_t>&& raw_key_,
@@ -106,16 +104,8 @@ namespace nlohmann
       }
       else
       {
-        // TODO: This seems that the following doesn't work. Investigate.
-        // s = std::make_shared<ccf::LedgerSecret>(j);
-        std::optional<kv::Version> previous_version;
-        auto it = j.find("previous_secret_stored_version");
-        if (it != j.end())
-        {
-          previous_version = *it;
-        }
-        s = std::make_shared<ccf::LedgerSecret>(
-          j.at("raw_key"), previous_version);
+        ccf::LedgerSecret ls = j;
+        s = std::make_shared<ccf::LedgerSecret>(ls);
       }
     }
   };
