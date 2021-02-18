@@ -680,41 +680,41 @@ namespace aft
         return;
       }
 
-        if (execute_async)
-        {
-          auto async_pending_msg =
-            std::make_unique<threading::Tmsg<AsyncPendingExec>>(
-              [](std::unique_ptr<threading::Tmsg<AsyncPendingExec>> msg) {
-                msg->data.pending_execution->async_execute();
+      if (execute_async)
+      {
+        auto async_pending_msg =
+          std::make_unique<threading::Tmsg<AsyncPendingExec>>(
+            [](std::unique_ptr<threading::Tmsg<AsyncPendingExec>> msg) {
+              msg->data.pending_execution->async_execute();
 
-                msg->reset_cb(add_to_pending_execution_cb);
-                threading::ThreadMessaging::thread_messaging.add_task(
-                  threading::MAIN_THREAD_ID, std::move(msg));
-              },
-              this,
-              std::move(aee));
+              msg->reset_cb(add_to_pending_execution_cb);
+              threading::ThreadMessaging::thread_messaging.add_task(
+                threading::MAIN_THREAD_ID, std::move(msg));
+            },
+            this,
+            std::move(aee));
 
-          if (threading::ThreadMessaging::thread_count > 1)
-          {
-            threading::ThreadMessaging::thread_messaging.add_task(
-              threading::ThreadMessaging::get_execution_thread(
-                ++next_exec_thread),
-              std::move(async_pending_msg));
-          }
-          else
-          {
-            async_pending_msg->data.pending_execution->async_execute();
-            add_to_pending_execution_cb(std::move(async_pending_msg));
-          }
-        }
-        else if (!is_execution_pending)
+        if (threading::ThreadMessaging::thread_count > 1)
         {
-          aee->execute();
+          threading::ThreadMessaging::thread_messaging.add_task(
+            threading::ThreadMessaging::get_execution_thread(
+              ++next_exec_thread),
+            std::move(async_pending_msg));
         }
         else
         {
-          pending_executions.push_back(std::move(aee));
+          async_pending_msg->data.pending_execution->async_execute();
+          add_to_pending_execution_cb(std::move(async_pending_msg));
         }
+      }
+      else if (!is_execution_pending)
+      {
+        aee->execute();
+      }
+      else
+      {
+        pending_executions.push_back(std::move(aee));
+      }
 
       try_execute_pending();
     }
@@ -1403,9 +1403,7 @@ namespace aft
 
     struct AsyncExecutionCtx
     {
-      AsyncExecutionCtx() :
-        pending_cbs(0)
-      {}
+      AsyncExecutionCtx() : pending_cbs(0) {}
 
       uint32_t pending_cbs;
     };
@@ -1447,7 +1445,7 @@ namespace aft
       AppendEntries& r = msg->data.r;
       bool confirm_evidence = msg->data.confirm_evidence;
 
-      for(auto& ae : append_entries)
+      for (auto& ae : append_entries)
       {
         auto& [ds, i] = ae;
         state->last_idx = i;
@@ -1587,7 +1585,7 @@ namespace aft
         must_break =
           !ds->support_async_execution() && (async_exec.pending_cbs > 0);
 
-       ++async_exec_msg->data.index;
+        ++async_exec_msg->data.index;
         state->last_idx = i;
 
         kv::ApplyResult apply_success = ds->apply();
