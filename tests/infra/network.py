@@ -802,12 +802,14 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.client() as c:
                     r = c.get("/node/commit")
-                    commits.append(f"{r.view}.{r.seqno}")
+                    assert r.status_code == http.HTTPStatus.OK.value
+                    body = r.body.json()
+                    commits.append(f"{body['view']}.{body['seqno']}")
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)
         expected = [commits[0]] * len(commits)
-        assert expected == commits, f"{commits} != {expected}"
+        assert expected == commits, f"Multiple commit values: {commits}"
 
     def wait_for_new_primary(self, old_primary_id, timeout_multiplier=2):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat

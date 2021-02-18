@@ -6,14 +6,14 @@ Glossary
   Azure Confidential Compute
     `Azure Confidential Compute <https://azure.microsoft.com/en-us/solutions/confidential-compute/>`_ protects the confidentiality and integrity of your data and code while it’s processed in the public cloud.
 
+  Azure DCAP
+    Intel SGX Data Centre Attestation Primitives which allows SGX attestation to be used within Microsoft Azure.
+
   Consensus Protocols
     The term Consensus protocol refers to either :ref:`Raft <overview/consensus:CFT Consensus Protocol>` or :ref:`BFT <overview/consensus:BFT Consensus Protocol>`. Generic Consensus terminology will use `primary` node and `backup` node to indicate node responsibility in carrying out the protocol(s). These correspond in Raft to `leader` and `follower`. More information about consensus protocols can `be found here <https://en.wikipedia.org/wiki/Consensus_(computer_science)>`_.
 
   Constitution
     Set of rules written as a Lua script that define how members' proposals are accepted.
-
-  Azure DCAP
-    Intel SGX Data Centre Attestation Primitives which allows SGX attestation to be used within Microsoft Azure.
 
   FLC
     `Flexible Launch Control <https://github.com/intel/linux-sgx/blob/master/psw/ae/ref_le/ref_le.md#flexible-launch-control>`_ is a feature of the Intel :term:`SGX` architecture.
@@ -33,11 +33,11 @@ Glossary
   Open Enclave
     `Open Enclave SDK <https://openenclave.io/sdk>`_ is an SDK for building enclave applications in C and C++.
 
-  Operators
-    Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
-
   Open Enclave Engine
     `Open Enclave Engine <https://github.com/Microsoft/oe-engine>`_ is a template generation tool for :term:`Azure Confidential Compute`.
+
+  Operators
+    Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
 
   SGX
     `Intel Software Guard Extensions <https://software.intel.com/en-us/sgx>`_ is a set of instructions that increases the security of application code and data, giving them more protection from disclosure or modification. Developers can partition sensitive information into enclaves, which are areas of execution in memory with more security protection.

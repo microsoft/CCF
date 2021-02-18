@@ -28,22 +28,38 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        iterations = 10 if args.long_tests else 3
-        LOG.info(f"Running {iterations} iterations")
-
         # Replace primary repeatedly and check the network still operates
-        for _ in range(iterations):
+        LOG.info(f"Retiring primary {args.rotation_retirements} times")
+        for i in range(args.rotation_retirements):
+            LOG.warning(f"Retirement {i}")
             reconfiguration.test_add_node(network, args)
             reconfiguration.test_retire_primary(network, args)
 
         reconfiguration.test_add_node(network, args)
         # Suspend primary repeatedly and check the network still operates
-        for _ in range(iterations):
+        LOG.info(f"Suspending primary {args.rotation_suspensions} times")
+        for i in range(args.rotation_suspensions):
+            LOG.warning(f"Suspension {i}")
             test_suspend_primary(network, args)
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+
+    def add(parser):
+        parser.add_argument(
+            "--rotation-retirements",
+            help="Number of times to retired the primary",
+            type=int,
+            default=3,
+        )
+        parser.add_argument(
+            "--rotation-suspensions",
+            help="Number of times to suspend the primary",
+            type=int,
+            default=3,
+        )
+
+    args = infra.e2e_args.cli_args(add=add)
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_member_count = 1

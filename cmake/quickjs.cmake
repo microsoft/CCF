@@ -29,7 +29,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
   target_compile_options(
     quickjs.enclave PUBLIC -nostdinc -DCONFIG_VERSION="${QUICKJS_VERSION}"
-                           -DEMSCRIPTEN
+                           -DEMSCRIPTEN -DCONFIG_STACK_CHECK
   )
   target_link_libraries(quickjs.enclave PUBLIC ${OE_TARGET_LIBC})
   set_property(TARGET quickjs.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
