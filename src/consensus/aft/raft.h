@@ -708,7 +708,6 @@ namespace aft
         else
         {
           pending_executions.push_back(std::move(aee));
-        LOG_INFO_FMT("pending_executions - size:{}", pending_executions.size());
         }
 
       try_execute_pending();
@@ -724,7 +723,6 @@ namespace aft
       else
       {
         pending_executions.push_back(std::move(aee));
-        LOG_INFO_FMT("pending_executions - size:{}", pending_executions.size());
       }
     }
 
