@@ -134,11 +134,11 @@ namespace ccf
       return ledger_secrets.empty();
     }
 
-    VersionedLedgerSecret get_first(kv::ReadOnlyTx& tx)
+    VersionedLedgerSecret get_first()
     {
+      // This does not need a transaction as the first ledger secret is
+      // considered stable with regards to concurrent rekey transactions
       std::lock_guard<SpinLock> guard(lock);
-
-      take_dependency_on_secrets(tx);
 
       if (ledger_secrets.empty())
       {

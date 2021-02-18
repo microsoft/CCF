@@ -76,18 +76,18 @@ namespace ccf::historical
 
     ccf::VersionedLedgerSecret get_first_known_ledger_secret()
     {
-      auto tx = network.tables->create_read_only_tx();
       if (historical_ledger_secrets->is_empty())
       {
-        return network.ledger_secrets->get_first(tx);
+        return network.ledger_secrets->get_first();
       }
 
+      auto tx = network.tables->create_read_only_tx();
       CCF_ASSERT_FMT(
         historical_ledger_secrets->get_latest(tx).first <
-          network.ledger_secrets->get_first(tx).first,
+          network.ledger_secrets->get_first().first,
         "Historical ledger secrets are not older than main ledger secrets");
 
-      return historical_ledger_secrets->get_first(tx);
+      return historical_ledger_secrets->get_first();
     }
 
     void request_entry_at(consensus::Index idx)
@@ -347,10 +347,9 @@ namespace ccf::historical
         false /* Do not start from very first idx */,
         true /* Make use of historical secrets */);
 
-      auto tx = network.tables->create_read_only_tx();
       if (
         idx < static_cast<consensus::Index>(
-                network.ledger_secrets->get_first(tx).first))
+                network.ledger_secrets->get_first().first))
       {
         store->set_encryptor(historical_encryptor);
       }
