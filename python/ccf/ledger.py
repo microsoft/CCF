@@ -517,7 +517,7 @@ class Ledger:
         else:
             LOG.info(
                 f"Ledger verification complete. Found {self._ledger_validator.signature_count} signatures."
-                + "Ledger verified till seqNo: {self._ledger_validator.last_verified_seqno} and view: {self._ledger_validator.last_verified_view}"
+                + f"Ledger verified till seqNo: {self._ledger_validator.last_verified_seqno} and view: {self._ledger_validator.last_verified_view}"
             )
             raise StopIteration
 
