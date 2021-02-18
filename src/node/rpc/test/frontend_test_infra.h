@@ -34,7 +34,7 @@ using TResponse = http::SimpleResponseProcessor::Response;
 auto kp = tls::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(member_cert);
-auto member_caller = verifier_mem -> der_cert_data();
+auto member_caller = verifier_mem -> cert_der();
 auto user_cert = kp -> self_sign("CN=name_user");
 auto dummy_enc_pubk = tls::make_rsa_key_pair() -> public_key_pem();
 
@@ -119,9 +119,8 @@ std::vector<uint8_t> create_signed_request(
                                        serdes::pack(params, default_pack);
   r.set_body(&body);
 
-  crypto::Sha256Hash hash;
   const auto contents = caller.contents();
-  tls::do_hash(contents.data(), contents.size(), hash.h, MBEDTLS_MD_SHA256);
+  crypto::Sha256Hash hash({contents.data(), contents.size()});
   const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
 
   http::sign_request(r, kp_, key_id);
@@ -155,7 +154,7 @@ auto frontend_process(
   const tls::Pem& caller)
 {
   auto session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, tls::make_verifier(caller)->der_cert_data());
+    enclave::InvalidSessionId, tls::make_verifier(caller)->cert_der());
   auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   http::extract_actor(*rpc_ctx);
   auto serialized_response = frontend.process(rpc_ctx);

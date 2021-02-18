@@ -183,7 +183,6 @@ set(HTTP_PARSER_SOURCES
 find_library(CRYPTO_LIBRARY crypto)
 
 include(${CCF_DIR}/cmake/crypto.cmake)
-include(${CCF_DIR}/cmake/secp256k1.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 
@@ -293,8 +292,8 @@ add_executable(
 )
 use_client_mbedtls(scenario_perf_client)
 target_link_libraries(
-  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
-                               http_parser.host ccfcrypto.host
+  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                               ccfcrypto.host
 )
 install(TARGETS scenario_perf_client DESTINATION bin)
 
@@ -602,7 +601,7 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
-                    $<BUILD_INTERFACE:merklecpp>
+                    $<BUILD_INTERFACE:merklecpp> crypto
   )
 
   # -Wall -Werror catches a number of warnings in picobench

@@ -119,8 +119,9 @@ namespace ccf
     static constexpr NodeId invalid_node_id = -1;
     NodeId self = invalid_node_id;
     tls::KeyPairPtr node_sign_kp;
-    tls::KeyPairPtr node_encrypt_kp;
+    std::shared_ptr<tls::KeyPair_mbedTLS> node_encrypt_kp;
     tls::Pem node_cert;
+    tls::CurveID curve_id;
     QuoteInfo quote_info;
     CodeDigest node_code_id;
 #ifdef GET_QUOTE
@@ -236,11 +237,12 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
-      ShareManager& share_manager) :
+      ShareManager& share_manager,
+      const CurveID& curve_id) :
       sm(State::uninitialized),
       self(INVALID_ID),
-      node_sign_kp(tls::make_key_pair()),
-      node_encrypt_kp(tls::make_key_pair()),
+      node_sign_kp(tls::make_key_pair(curve_id)),
+      node_encrypt_kp(std::make_shared<tls::KeyPair_mbedTLS>(curve_id)),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -297,6 +299,8 @@ namespace ccf
 
       create_node_cert(config);
       open_frontend(ActorsType::nodes);
+
+      curve_id = config.curve_id;
 
 #ifdef GET_QUOTE
       quote_info = enclave_attestation_provider.generate_quote(
@@ -1354,13 +1358,11 @@ namespace ccf
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
-      auto nw = tls::make_key_pair({network.identity->priv_key});
 
+      auto nw = tls::make_key_pair(network.identity->priv_key);
+      auto csr = node_sign_kp->create_csr(config.subject_name);
       auto sans = get_subject_alternative_names(config);
-      auto endorsed_node_cert = nw->sign_csr(
-        node_sign_kp->create_csr(config.subject_name),
-        fmt::format("CN={}", "CCF Network"),
-        sans);
+      auto endorsed_node_cert = nw->sign_csr(network.identity->cert, csr, sans);
 
       rpcsessions->set_cert(
         endorsed_node_cert, node_sign_kp->private_key_pem());
@@ -1415,9 +1417,8 @@ namespace ccf
 
       request.set_body(&body);
 
-      crypto::Sha256Hash hash;
       const auto contents = node_cert.contents();
-      tls::do_hash(contents.data(), contents.size(), hash.h, MBEDTLS_MD_SHA256);
+      crypto::Sha256Hash hash({contents.data(), contents.size()});
       const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
 
       http::sign_request(request, node_sign_kp, key_id);
@@ -1557,7 +1558,7 @@ namespace ccf
               {
                 auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
                   node_encrypt_kp,
-                  tls::make_public_key(
+                  std::make_shared<PublicKey_mbedTLS>(
                     ledger_secret_set.primary_public_encryption_key),
                   encrypted_ledger_secret.encrypted_secret);
 

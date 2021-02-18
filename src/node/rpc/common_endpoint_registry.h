@@ -98,7 +98,7 @@ namespace ccf
           const GetCallerId::In in = params;
           auto certs = args.tx.template ro<CertDERs>(certs_table_name);
           std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
-          std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
+          std::vector<uint8_t> der = tls::make_verifier(pem)->cert_der();
           auto caller_id_opt = certs->get(der);
 
           if (!caller_id_opt.has_value())
