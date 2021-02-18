@@ -65,6 +65,11 @@ def run(args):
 
         # Suspend the final backup and run some transactions which only the partitioned
         # primary hears, which should be discarded by the new primary
+        # NB: We can't guarantee that these will be discarded. Since we can't control
+        # what order the queued actions occur in after resuming, they may be appended
+        # before an election is called. They key assertion is that this primary is able
+        # to rejoin the network whatever happens, even when (in the usual case) they
+        # hold a suffix which has been discarded.
         backups[0].suspend()
         post_partition_txs = []
         with primary.client("user0") as uc:
@@ -86,7 +91,6 @@ def run(args):
         new_primary, new_term = network.wait_for_new_primary(
             primary.node_id, timeout_multiplier=6
         )
-        assert new_primary == backups[0]
         LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
 
         with new_primary.client("user0") as uc:
@@ -94,17 +98,6 @@ def run(args):
             check_commit = infra.checker.Checker(uc)
             for tx in committable_txs:
                 check_commit(tx)
-
-            # Check that suffix received after partition is lost
-            for tx in post_partition_txs:
-                r = uc.get(f"/node/tx?view={tx.view}&seqno={tx.seqno}")
-                assert (
-                    r.status_code == http.HTTPStatus.OK
-                ), f"tx request returned HTTP status {r.status_code}"
-                status = TxStatus(r.body.json()["status"])
-                assert (
-                    status == TxStatus.Invalid
-                ), f"Expected new primary to have invalidated {tx.view}.{tx.seqno}"
 
         # Check that new transactions can be committed
         with new_primary.client("user0") as uc:
