@@ -667,6 +667,12 @@ namespace aft
           {
           }
         }
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_EXC(err.what());
+        return;
+      }
 
         if (execute_async)
         {
@@ -702,12 +708,8 @@ namespace aft
         else
         {
           pending_executions.push_back(std::move(aee));
+        LOG_INFO_FMT("pending_executions - size:{}", pending_executions.size());
         }
-      }
-      catch (const std::logic_error& err)
-      {
-        LOG_FAIL_EXC(err.what());
-      }
 
       try_execute_pending();
     }
@@ -722,6 +724,7 @@ namespace aft
       else
       {
         pending_executions.push_back(std::move(aee));
+        LOG_INFO_FMT("pending_executions - size:{}", pending_executions.size());
       }
     }
 
@@ -1071,7 +1074,7 @@ namespace aft
     {
       AsyncExecution(
         Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self_,
-        std::list<std::tuple<
+        std::vector<std::tuple<
           std::unique_ptr<kv::AbstractExecutionWrapper>,
           kv::Version>>&& append_entries_,
         AppendEntries&& r_,
@@ -1083,11 +1086,12 @@ namespace aft
       {}
 
       Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
-      std::list<
+      std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
         append_entries;
       AppendEntries r;
       bool confirm_evidence;
+      uint32_t index = 0;
     };
 
     void recv_append_entries(AppendEntries r, const uint8_t* data, size_t size)
@@ -1273,7 +1277,7 @@ namespace aft
         is_new_follower = false;
       }
 
-      std::list<
+      std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
         append_entries;
       // Finally, deserialise each entry in the batch
@@ -1395,13 +1399,10 @@ namespace aft
 
     struct AsyncExecutionCtx
     {
-      AsyncExecutionCtx(
-        std::unique_ptr<threading::Tmsg<AsyncExecution>>&& msg_) :
-        msg(std::move(msg_)),
+      AsyncExecutionCtx() :
         pending_cbs(0)
       {}
 
-      std::unique_ptr<threading::Tmsg<AsyncExecution>> msg;
       uint32_t pending_cbs;
     };
 
@@ -1413,15 +1414,13 @@ namespace aft
         std::unique_ptr<threading::Tmsg<AsyncExecution>>&& msg_,
         kv::Version last_idx_,
         kv::Version commit_idx_,
-        uint16_t home_thread_,
-        std::shared_ptr<AsyncExecutionCtx> ctx_) :
+        uint16_t home_thread_) :
         self(self_),
         ds(std::move(ds_)),
         msg(std::move(msg_)),
         last_idx(last_idx_),
         commit_idx(commit_idx_),
-        home_thread(home_thread_),
-        ctx(ctx_)
+        home_thread(home_thread_)
       {}
 
       Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
@@ -1438,16 +1437,14 @@ namespace aft
     bool execute_append_entries_sync(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
-      std::list<
+      std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries = msg->data.append_entries;
       AppendEntries& r = msg->data.r;
       bool confirm_evidence = msg->data.confirm_evidence;
 
-      while (!append_entries.empty())
+      for(auto& ae : append_entries)
       {
-        auto ae = std::move(append_entries.front());
-        append_entries.pop_front();
         auto& [ds, i] = ae;
         state->last_idx = i;
 
@@ -1538,6 +1535,9 @@ namespace aft
       return execute_append_entries_finish(confirm_evidence, r);
     }
 
+    AsyncExecutionCtx async_exec;
+    std::unique_ptr<threading::Tmsg<AsyncExecution>> async_exec_msg = nullptr;
+
     bool execute_append_entries_async(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
@@ -1545,22 +1545,20 @@ namespace aft
       // transactions we can execute concurrently and then starting said
       // execution. If the are more pending entries after we select the batch we
       // will return to this function.
-      std::list<
+      std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries = msg->data.append_entries;
       AppendEntries& r = msg->data.r;
       bool confirm_evidence = msg->data.confirm_evidence;
-
-      auto async_exec = std::make_shared<AsyncExecutionCtx>(std::move(msg));
+      async_exec_msg = std::move(msg);
       bool is_first = true;
       bool must_break = false;
       uint64_t before_state_idx = state->last_idx;
       bool run_sync = threading::ThreadMessaging::thread_count == 1;
 
-      while (!append_entries.empty())
+      while (async_exec_msg->data.index != append_entries.size())
       {
-        std::unique_ptr<kv::AbstractExecutionWrapper>& wrapper =
-          std::get<0>(append_entries.front());
+        auto& [ds, i] = append_entries[async_exec_msg->data.index];
         if (!run_sync)
         {
           if (must_break)
@@ -1568,16 +1566,16 @@ namespace aft
             return false;
           }
 
-          if (async_exec->pending_cbs > 0)
+          if (async_exec.pending_cbs > 0)
           {
-            if (!wrapper->support_async_execution() && !is_first)
+            if (!ds->support_async_execution() && !is_first)
             {
               return false;
             }
 
             if (
-              wrapper->support_async_execution() &&
-              wrapper->get_max_conflict_version() >= before_state_idx)
+              ds->support_async_execution() &&
+              ds->get_max_conflict_version() >= before_state_idx)
             {
               return false;
             }
@@ -1586,11 +1584,9 @@ namespace aft
 
         is_first = false;
         must_break =
-          !wrapper->support_async_execution() && (async_exec->pending_cbs > 0);
+          !ds->support_async_execution() && (async_exec.pending_cbs > 0);
 
-        auto ae = std::move(append_entries.front());
-        append_entries.pop_front();
-        auto& [ds, i] = ae;
+       ++async_exec_msg->data.index;
         state->last_idx = i;
 
         kv::ApplyResult apply_success = ds->apply();
@@ -1701,41 +1697,45 @@ namespace aft
 
           case kv::ApplyResult::PASS:
           {
-            auto tmsg = std::make_unique<threading::Tmsg<AsyncExecTxMsg>>(
-              [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
-                auto self = msg->data.self;
-                self->executor->commit_replayed_request(
-                  msg->data.ds->get_request(),
-                  self->request_tracker,
-                  msg->data.last_idx,
-                  msg->data.commit_idx,
-                  msg->data.ds->get_max_conflict_version());
-
-                msg->reset_cb(
-                  [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
-                    auto self = msg->data.self;
-                    --msg->data.ctx->pending_cbs;
-                    if (msg->data.ctx->pending_cbs == 0)
-                    {
-                      self->execute_append_entries(
-                        std::move(msg->data.ctx->msg));
-                    }
-                  });
-                uint16_t home_thread = msg->data.home_thread;
-                threading::ThreadMessaging::thread_messaging.add_task(
-                  home_thread, std::move(msg));
-              },
-              this,
-              std::move(ds),
-              std::move(msg),
-              state->last_idx,
-              state->commit_idx,
-              threading::get_current_thread_id(),
-              async_exec);
-
             if (!run_sync)
             {
-              ++async_exec->pending_cbs;
+              auto tmsg = std::make_unique<threading::Tmsg<AsyncExecTxMsg>>(
+                [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
+                  auto self = msg->data.self;
+                  self->executor->commit_replayed_request(
+                    msg->data.ds->get_request(),
+                    self->request_tracker,
+                    msg->data.last_idx,
+                    msg->data.commit_idx,
+                    msg->data.ds->get_max_conflict_version());
+
+                  if (threading::ThreadMessaging::thread_count == 1)
+                  {
+                    return;
+                  }
+
+                  msg->reset_cb(
+                    [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
+                      auto self = msg->data.self;
+                      --self->async_exec.pending_cbs;
+                      if (self->async_exec.pending_cbs == 0)
+                      {
+                        self->execute_append_entries(
+                          std::move(self->async_exec_msg));
+                      }
+                    });
+                  uint16_t home_thread = msg->data.home_thread;
+                  threading::ThreadMessaging::thread_messaging.add_task(
+                    home_thread, std::move(msg));
+                },
+                this,
+                std::move(ds),
+                std::move(msg),
+                state->last_idx,
+                state->commit_idx,
+                threading::get_current_thread_id());
+
+              ++async_exec.pending_cbs;
               threading::ThreadMessaging::thread_messaging.add_task(
                 threading::ThreadMessaging::get_execution_thread(
                   ++next_exec_thread),
@@ -1743,8 +1743,12 @@ namespace aft
             }
             else
             {
-              auto cb = tmsg->cb;
-              cb(std::move(tmsg));
+              executor->commit_replayed_request(
+                ds->get_request(),
+                request_tracker,
+                state->last_idx,
+                state->commit_idx,
+                ds->get_max_conflict_version());
             }
             break;
           }
@@ -1761,7 +1765,7 @@ namespace aft
         }
       }
 
-      if (async_exec->pending_cbs == 0)
+      if (async_exec.pending_cbs == 0)
       {
         return execute_append_entries_finish(confirm_evidence, r);
       }

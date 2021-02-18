@@ -502,6 +502,7 @@ namespace kv
              kv::ConsensusHookPtrs& hooks) -> ApplyResult {
       if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
+        LOG_FAIL_FMT("receive_nonces commit_deserialized Failed");
         return ApplyResult::FAIL;
       }
 

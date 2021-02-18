@@ -674,6 +674,7 @@ namespace ccf
         auto r =
           certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
             tx_id.version, CommitCert()));
+        LOG_INFO_FMT("Cert size:{}", certificates.size());
         it = r.first;
       }
       else
@@ -865,23 +866,29 @@ namespace ccf
       kv::Consensus::SeqNo seqno,
       bool should_clear_old_entries)
     {
-      if (cert.nonces_committed_to_ledger && seqno > highest_commit_level)
+      if (cert.nonces_committed_to_ledger)
       {
-        highest_commit_level = seqno;
+        if (seqno > highest_commit_level)
+        {
+          highest_commit_level = seqno;
+        }
+
         if (should_clear_old_entries)
         {
-          LOG_DEBUG_FMT("Removing all entries upto:{}", seqno);
-          for (auto it = certificates.begin();;)
+          for (auto it = certificates.begin(); it != certificates.end();)
           {
             CCF_ASSERT(
               it != certificates.end(),
               "Should never deleted all certificates");
 
-            if (it->first == seqno)
+            if (it->first < seqno)
             {
-              break;
+              it = certificates.erase(it);
             }
-            it = certificates.erase(it);
+            else
+            {
+              ++it;
+            }
           }
         }
       }
