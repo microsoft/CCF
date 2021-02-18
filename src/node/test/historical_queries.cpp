@@ -403,7 +403,6 @@ TEST_CASE("StateCache range queries")
 {
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
-  const auto default_handle = 0;
 
   std::vector<kv::Version> signature_versions;
 
@@ -443,44 +442,48 @@ TEST_CASE("StateCache range queries")
     return *next_sig_it;
   };
 
-  auto fetch_and_validate_range =
-    [&](kv::Version range_start, kv::Version range_end) {
-      {
-        auto stores =
-          cache.get_store_range(default_handle, range_start, range_end);
-        REQUIRE(stores.empty());
-      }
+  auto next_handle = 0;
+  auto fetch_and_validate_range = [&](
+                                    kv::Version range_start,
+                                    kv::Version range_end) {
+    const auto this_handle = next_handle++;
+    {
+      auto stores = cache.get_store_range(this_handle, range_start, range_end);
+      REQUIRE(stores.empty());
+    }
 
-      const auto proof_end = signing_version(range_end);
-      for (auto i = range_start; i <= proof_end; ++i)
-      {
-        REQUIRE(provide_ledger_entry(i));
-      }
+    const auto proof_end = signing_version(range_end);
+    for (auto i = range_start; i <= proof_end; ++i)
+    {
+      // Some of these may be unrequested since they overlapped with the
+      // previous range so are already known. Provide them all blindly for
+      // simplicity, and make no assertion on the return code.
+      provide_ledger_entry(i);
+    }
 
-      {
-        auto stores =
-          cache.get_store_range(default_handle, range_start, range_end);
+    {
+      auto stores = cache.get_store_range(this_handle, range_start, range_end);
 
-        const auto range_size = (range_end - range_start) + 1;
-        REQUIRE(stores.size() == range_size);
-        for (size_t i = 0; i < stores.size(); ++i)
+      const auto range_size = (range_end - range_start) + 1;
+      REQUIRE(stores.size() == range_size);
+      for (size_t i = 0; i < stores.size(); ++i)
+      {
+        auto& store = stores[i];
+        REQUIRE(store != nullptr);
+        const auto idx = range_start + i;
+
+        // Don't validate anything about signature transactions, just the
+        // business transactions between them
+        if (
+          std::find(
+            signature_versions.begin(), signature_versions.end(), idx) ==
+          signature_versions.end())
         {
-          auto& store = stores[i];
-          REQUIRE(store != nullptr);
-          const auto idx = range_start + i;
-
-          // Don't validate anything about signature transactions, just the
-          // business transactions between them
-          if (
-            std::find(
-              signature_versions.begin(), signature_versions.end(), idx) ==
-            signature_versions.end())
-          {
-            validate_business_transaction(store, idx);
-          }
+          validate_business_transaction(store, idx);
         }
       }
-    };
+    }
+  };
 
   {
     INFO("Fetch a single explicit range");
@@ -573,13 +576,18 @@ TEST_CASE("StateCache concurrent access")
     }
   });
 
+  constexpr auto per_thread_queries = 30;
+
+  using Clock = std::chrono::system_clock;
+  const auto too_long = std::chrono::seconds(2);
+
   auto query_random_point = [&](size_t handle) {
-    for (size_t i = 0; i < 10; ++i)
+    for (size_t i = 0; i < per_thread_queries; ++i)
     {
       const auto target_idx = random_index();
 
       ccf::historical::StorePtr store;
-      // Poll to fetch point query
+      const auto start_time = Clock::now();
       while (true)
       {
         store = cache.get_store_at(handle, target_idx);
@@ -587,6 +595,18 @@ TEST_CASE("StateCache concurrent access")
         {
           break;
         }
+
+        if (Clock::now() - start_time > too_long)
+        {
+          std::cout << fmt::format(
+                         "Thread <{}>, i [{}]: {} - still no answer!",
+                         handle,
+                         i,
+                         target_idx)
+                    << std::endl;
+          REQUIRE(false);
+        }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
 
@@ -601,7 +621,7 @@ TEST_CASE("StateCache concurrent access")
   };
 
   auto query_random_range = [&](size_t handle) {
-    for (size_t i = 0; i < 10; ++i)
+    for (size_t i = 0; i < per_thread_queries; ++i)
     {
       auto range_start = random_index();
       auto range_end = random_index();
@@ -612,6 +632,7 @@ TEST_CASE("StateCache concurrent access")
       }
 
       std::vector<ccf::historical::StorePtr> stores;
+      const auto start_time = Clock::now();
       while (true)
       {
         stores = cache.get_store_range(handle, range_start, range_end);
@@ -619,6 +640,19 @@ TEST_CASE("StateCache concurrent access")
         {
           break;
         }
+
+        if (Clock::now() - start_time > too_long)
+        {
+          std::cout << fmt::format(
+                         "Thread <{}>, i [{}]: {}-{} - still no answer!",
+                         handle,
+                         i,
+                         range_start,
+                         range_end)
+                    << std::endl;
+          REQUIRE(false);
+        }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
 
@@ -639,9 +673,10 @@ TEST_CASE("StateCache concurrent access")
     }
   };
 
+  const auto num_threads = 20;
   std::atomic<size_t> next_handle = 0;
   std::vector<std::thread> random_queries;
-  for (size_t i = 0; i < 30; ++i)
+  for (size_t i = 0; i < num_threads; ++i)
   {
     if (i % 3 == 0)
     {
