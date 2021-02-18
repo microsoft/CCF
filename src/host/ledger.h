@@ -481,9 +481,18 @@ namespace asynchost
         get_last_idx(),
         ledger_committed_suffix);
 
-      fs::rename(
-        fs::path(dir) / fs::path(get_file_name()),
-        fs::path(dir) / fs::path(committed_file_name));
+      auto this_file = fs::path(dir) / fs::path(get_file_name());
+      auto committed_file = fs::path(dir) / fs::path(committed_file_name);
+
+      std::error_code ec;
+      fs::rename(this_file, committed_file, ec);
+      if (ec)
+      {
+        LOG_FAIL_FMT(
+          "Could not rename committed ledger file {} to {}",
+          this_file,
+          committed_file;
+      }
 
       committed = true;
       return true;
