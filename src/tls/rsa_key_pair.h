@@ -139,9 +139,8 @@ namespace tls
      */
     RSAPublicKey_OpenSSL(const Pem& pem)
     {
-      BIO* mem = BIO_new_mem_buf(pem.data(), -1);
+      Unique_BIO mem(pem.data(), -1);
       key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
-      BIO_free(mem);
       if (!key || !EVP_PKEY_get0_RSA(key))
       {
         throw std::logic_error("invalid RSA key");
@@ -187,7 +186,7 @@ namespace tls
       const uint8_t* label = nullptr,
       size_t label_size = 0)
     {
-      EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(key, NULL);
+      Unique_EVP_PKEY_CTX ctx(key);
       OPENSSL_CHECK1(EVP_PKEY_encrypt_init(ctx));
       EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING);
       EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
@@ -213,7 +212,6 @@ namespace tls
         EVP_PKEY_encrypt(ctx, output.data(), &olen, input, input_size));
 
       output.resize(olen);
-      EVP_PKEY_CTX_free(ctx);
       return output;
     }
 
@@ -376,9 +374,8 @@ namespace tls
 
     RSAKeyPair_OpenSSL(const Pem& pem, CBuffer pw = nullb)
     {
-      BIO* mem = BIO_new_mem_buf(pem.data(), -1);
+      Unique_BIO mem(pem.data(), -1);
       key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
-      BIO_free(mem);
       if (!key)
       {
         throw std::runtime_error("could not parse PEM");
@@ -405,7 +402,7 @@ namespace tls
         label_size = label->size();
       }
 
-      EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(key, NULL);
+      Unique_EVP_PKEY_CTX ctx(key);
       OPENSSL_CHECK1(EVP_PKEY_decrypt_init(ctx));
       EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING);
       EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
@@ -432,7 +429,6 @@ namespace tls
         ctx, output.data(), &olen, input.data(), input.size()));
 
       output.resize(olen);
-      EVP_PKEY_CTX_free(ctx);
       return output;
     }
   };
