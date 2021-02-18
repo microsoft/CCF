@@ -189,7 +189,6 @@ class LedgerValidator:
         1) The merkle proof is signed by a TRUSTED node in the given network
         2) The merkle root and signature are verified with the node cert
         3) The merkle proof is correct for each set of transactions
-        4) The last transaction in the LedgerChunk should be that of merkle tree signing
     """
 
     # The node that is expected to sign the signature transaction
@@ -202,6 +201,7 @@ class LedgerValidator:
     # Signature table contains PrimarySignature which extends NodeSignature. NodeId should be at index 1 in the serialized Node
     # https://github.com/microsoft/CCF/blob/main/src/node/signatures.h
     EXPECTED_NODE_SIGNATURE_INDEX = 0
+    EXPECTED_NODE_SEQNO_INDEX = 1
     EXPECTED_NODE_VIEW_INDEX = 2
     EXPECTED_ROOT_INDEX = 5
     # https://github.com/microsoft/CCF/blob/main/src/node/node_signature.h
@@ -214,7 +214,6 @@ class LedgerValidator:
         self.node_certificates = {}
         self.node_activity_status = {}
         self.signature_count = 0
-        self.signature_ending = False
         self.chosen_hash = ec.ECDSA(utils.Prehashed(hashes.SHA256()))
 
         # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of it's merkle tree.
@@ -222,6 +221,9 @@ class LedgerValidator:
         self.merkle = MerkleTree()
         empty_bytes_array = bytearray(self.SHA_256_HASH_SIZE)
         self.merkle.add_leaf(empty_bytes_array, do_hash=False)
+
+        self.last_verified_seqno = 0
+        self.last_verified_view = 0
 
     def add_transaction(self, transaction):
         """
@@ -231,7 +233,6 @@ class LedgerValidator:
         It also matches the root of the merkle tree that this class maintains with the one extracted from the ledger.
         If any of the above checks fail, this method throws.
         """
-        self.signature_ending = False
         transaction_public_domain = transaction.get_public_domain()
         tables = transaction_public_domain.get_tables()
 
@@ -248,11 +249,12 @@ class LedgerValidator:
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
-            self.signature_ending = True
             self.signature_count += 1
             signature_table = tables[SIGNATURE_TX_TABLE_NAME]
 
             for nodeid, values in signature_table.items():
+                current_seqno = values[self.EXPECTED_NODE_SEQNO_INDEX]
+                current_view = values[self.EXPECTED_NODE_VIEW_INDEX]
                 signing_node = values[self.EXPECTED_NODE_SIGNATURE_INDEX][
                     self.EXPECTED_SIGNING_NODE_ID_INDEX
                 ]
@@ -277,25 +279,14 @@ class LedgerValidator:
                 # throws if ledger validation failed.
                 self._verify_tx_set(tx_info)
 
+                self.last_verified_seqno = current_seqno
+                self.last_verified_view = current_view
+                LOG.info(
+                    f"Ledger verified till seqNo: {current_seqno} and view: {current_view}"
+                )
+
         # Checks complete, add this transaction to tree
         self.merkle.add_leaf(transaction.get_raw_tx())
-
-    def verify_ending(self):
-        """
-        Verify the ledger ends in a signature transaction and has at least 1 signature.
-        These two conditions are prerequisite for the creation of .committed files.
-        This verifies the 4th condition.
-        """
-        if self.signature_count == 0:
-            LOG.error(
-                "Found 0 signatures. This usually means that the ledger is invalid"
-            )
-            raise SignatureCountException
-        if not self.signature_ending:
-            LOG.error(
-                "The last transaction in the ledger chunk wasn't a signature transaction which is unexpected."
-            )
-            raise SignatureEndingException
 
     def _verify_tx_set(self, tx_info: TxBundleInfo):
         """
@@ -472,7 +463,6 @@ class LedgerChunk:
         try:
             return next(self._current_tx)
         except StopIteration:
-            self._ledger_validator.verify_ending()
             LOG.debug(f"Completed verifying Txns in {self._filename}.")
             raise
 
@@ -487,10 +477,6 @@ class Ledger:
     :param str name: Ledger directory for a single CCF node.
     """
 
-    LEDGER_COMMITTED_FILE_NAME_REGEX_PATTERN = (
-        r"ledger_(?P<commit_start>[0-9]*)-(?P<commit_end>[0-9]*)\.committed"
-    )
-
     _filenames: list
     _fileindex: int
     _current_chunk: LedgerChunk
@@ -502,29 +488,15 @@ class Ledger:
         self._filenames = []
         self._fileindex = -1
 
-        self._committed_file_name_regex = re.compile(
-            self.LEDGER_COMMITTED_FILE_NAME_REGEX_PATTERN
-        )
-
-        # It's possible that some of the ledger chunks exist in non-committed state in the ledger directory.
-        # We'll only consider committed ledger chunks for Ledger Verification.
-        commited_ledger_chunks = list()
         ledgers = os.listdir(directory)
-        for ledger_chunk in ledgers:
-            if ledger_chunk.endswith(".committed"):
-                commited_ledger_chunks.append(ledger_chunk)
-
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
         sorted_ledgers = sorted(
-            commited_ledger_chunks,
+            ledgers,
             key=lambda x: int(
                 x.replace(".committed", "").replace("ledger_", "").split("-")[0]
             ),
         )
-
-        # Verifies there are no missing ledger chunks
-        self._verify_committed_files(sorted_ledgers)
 
         for chunk in sorted_ledgers:
             if os.path.isfile(os.path.join(directory, chunk)):
@@ -543,36 +515,14 @@ class Ledger:
             )
             return self._current_chunk
         else:
+            LOG.info(
+                f"Ledger verification complete. Found {self._ledger_validator.signature_count} signatures."
+                + "Ledger verified till seqNo: {self._ledger_validator.last_verified_seqno} and view: {self._ledger_validator.last_verified_view}"
+            )
             raise StopIteration
 
     def __iter__(self):
         return self
-
-    def _verify_committed_files(self, sorted_ledgers: list):
-        """
-        Verify that there are no missing ledger chunks.
-        Throws if there are missing files.
-        """
-
-        # First commit should always be 1
-        expected_commit = 1
-
-        # initialize end commit id to 1
-        end_commit_id = -1
-
-        for filename in sorted_ledgers:
-            match = self._committed_file_name_regex.search(filename)
-            if match:
-                start_commit_id = match.group("commit_start")
-                end_commit_id = match.group("commit_end")
-            # Starting commit of the next ledger chunk should be 1 more than the end commit of the previous chunk
-            if expected_commit == int(start_commit_id):
-                expected_commit = int(end_commit_id) + 1
-            else:
-                LOG.error(
-                    f"Expected next commit to be {expected_commit}, but was {start_commit_id}"
-                )
-                raise ValueError("Ledger chunks are missing.")
 
 
 def extract_msgpacked_data(data: bytes):
