@@ -7,11 +7,6 @@ from enum import IntEnum
 import secrets
 import datetime
 
-import coincurve
-from coincurve._libsecp256k1 import ffi, lib  # pylint: disable=no-name-in-module
-from coincurve.context import GLOBAL_CONTEXT
-
-from cryptography.exceptions import InvalidSignature
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.x509 import (
@@ -35,96 +30,32 @@ import jwt
 RECOMMENDED_RSA_PUBLIC_EXPONENT = 65537
 
 
-# As per mbedtls md_type_t
+# As per tls::MDType
 class CCFDigestType(IntEnum):
     MD_NONE = 0
-    MD_MD2 = 1
-    MD_MD4 = 2
-    MD_MD5 = 3
-    MD_SHA1 = 4
-    MD_SHA224 = 5
-    MD_SHA256 = 6
-    MD_SHA384 = 7
-    MD_SHA512 = 8
-    MD_RIPEMD160 = 9
-
-
-# This function calls the native API and does not rely on the
-# imported library's implementation. Though not being used by
-# the current test, it might still be helpful to have this
-# sequence of native calls for verification, in case the
-# imported library's code changes.
-def verify_recover_secp256k1_bc_native(
-    signature, req, hasher=coincurve.utils.sha256, context=GLOBAL_CONTEXT
-):
-    # Compact
-    native_rec_sig = ffi.new("secp256k1_ecdsa_recoverable_signature *")
-    raw_sig, recovery_id = signature[:64], coincurve.utils.bytes_to_int(signature[64:])
-    lib.secp256k1_ecdsa_recoverable_signature_parse_compact(
-        context.ctx, native_rec_sig, raw_sig, recovery_id
-    )
-
-    # Recover public key
-    native_public_key = ffi.new("secp256k1_pubkey *")
-    msg_hash = hasher(req) if hasher is not None else req
-    lib.secp256k1_ecdsa_recover(
-        context.ctx, native_public_key, native_rec_sig, msg_hash
-    )
-
-    # Convert
-    native_standard_sig = ffi.new("secp256k1_ecdsa_signature *")
-    lib.secp256k1_ecdsa_recoverable_signature_convert(
-        context.ctx, native_standard_sig, native_rec_sig
-    )
-
-    # Verify
-    ret = lib.secp256k1_ecdsa_verify(
-        context.ctx, native_standard_sig, msg_hash, native_public_key
-    )
-    return ret
-
-
-def verify_recover_secp256k1_bc(
-    signature, req, hasher=coincurve.utils.sha256, context=GLOBAL_CONTEXT
-):
-    msg_hash = hasher(req) if hasher is not None else req
-    rec_sig = coincurve.ecdsa.deserialize_recoverable(signature)
-    public_key = coincurve.PublicKey(coincurve.ecdsa.recover(req, rec_sig))
-    n_sig = coincurve.ecdsa.recoverable_convert(rec_sig)
-
-    if not lib.secp256k1_ecdsa_verify(
-        context.ctx, n_sig, msg_hash, public_key.public_key
-    ):
-        raise RuntimeError("Failed to verify SECP256K1 bitcoin signature")
+    MD_SHA1 = 1
+    MD_SHA256 = 2
+    MD_SHA384 = 3
+    MD_SHA512 = 4
 
 
 def verify_request_sig(raw_cert, sig, req, request_body, md):
-    try:
-        cert = x509.load_der_x509_certificate(raw_cert, backend=default_backend())
+    cert = x509.load_der_x509_certificate(raw_cert, backend=default_backend())
 
-        # Verify that the request digest matches the hash of the body
-        h = hashes.Hash(hashes.SHA256(), backend=default_backend())
-        h.update(request_body)
-        raw_req_digest = h.finalize()
-        header_digest = base64.b64decode(req.decode().split("SHA-256=")[1])
-        assert (
-            header_digest == raw_req_digest
-        ), "Digest header does not match request body"
+    # Verify that the request digest matches the hash of the body
+    h = hashes.Hash(hashes.SHA256(), backend=default_backend())
+    h.update(request_body)
+    raw_req_digest = h.finalize()
+    header_digest = base64.b64decode(req.decode().split("SHA-256=")[1])
+    assert header_digest == raw_req_digest, "Digest header does not match request body"
 
-        pub_key = cert.public_key()
-        signature_hash_alg = ec.ECDSA(
-            hashes.SHA256()
-            if md == CCFDigestType.MD_SHA256
-            else cert.signature_hash_algorithm
-        )
-        pub_key.verify(sig, req, signature_hash_alg)
-    except InvalidSignature as e:
-        # we support a non-standard curve, which is also being
-        # used for bitcoin.
-        if pub_key._curve.name != "secp256k1":  # pylint: disable=protected-access
-            raise e
-
-        verify_recover_secp256k1_bc(sig, req)
+    pub_key = cert.public_key()
+    signature_hash_alg = ec.ECDSA(
+        hashes.SHA256()
+        if md == CCFDigestType.MD_SHA256
+        else cert.signature_hash_algorithm
+    )
+    pub_key.verify(sig, req, signature_hash_alg)
 
 
 def generate_aes_key(key_bits: int) -> bytes:

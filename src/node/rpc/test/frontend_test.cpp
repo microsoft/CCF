@@ -407,9 +407,8 @@ http::Request create_signed_request(
 
   s.set_body(body);
 
-  crypto::Sha256Hash hash;
   const auto contents = caller_cert.contents();
-  tls::do_hash(contents.data(), contents.size(), hash.h, MBEDTLS_MD_SHA256);
+  crypto::Sha256Hash hash({contents.data(), contents.size()});
   const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
 
   http::sign_request(s, kp, key_id);
@@ -436,17 +435,17 @@ nlohmann::json parse_response_body(
 
 // callers used throughout
 auto user_caller = kp -> self_sign("CN=name");
-auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
+auto user_caller_der = tls::make_verifier(user_caller) -> cert_der();
 
 auto member_caller = kp -> self_sign("CN=name_member");
-auto member_caller_der = tls::make_verifier(member_caller) -> der_cert_data();
+auto member_caller_der = tls::make_verifier(member_caller) -> cert_der();
 
 auto node_caller = kp -> self_sign("CN=node");
-auto node_caller_der = tls::make_verifier(node_caller) -> der_cert_data();
+auto node_caller_der = tls::make_verifier(node_caller) -> cert_der();
 
 auto kp_other = tls::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name");
-auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
+auto invalid_caller_der = tls::make_verifier(invalid_caller) -> cert_der();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
 

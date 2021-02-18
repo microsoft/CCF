@@ -155,7 +155,7 @@ namespace http
         token.signed_content.size(),
         token.signature.data(),
         token.signature.size(),
-        MBEDTLS_MD_SHA256);
+        crypto::MDType::SHA256);
       return valid;
     }
   };
