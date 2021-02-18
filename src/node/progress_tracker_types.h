@@ -3,8 +3,8 @@
 #pragma once
 #include "backup_signatures.h"
 #include "consensus/aft/revealed_nonces.h"
+#include "crypto/hash.h"
 #include "node_signature.h"
-#include "tls/hash.h"
 #include "tls/tls.h"
 #include "tls/verifier.h"
 #include "view_change.h"
@@ -83,7 +83,8 @@ namespace ccf
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
   {
   public:
-    ProgressTrackerStoreAdapter(kv::AbstractStore& store_, tls::KeyPair& kp_) :
+    ProgressTrackerStoreAdapter(
+      kv::AbstractStore& store_, tls::KeyPairBase& kp_) :
       store(store_),
       kp(kp_),
       nodes(ccf::Tables::NODES),
@@ -183,7 +184,7 @@ namespace ccf
       }
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       return from_cert->verify_hash(
-        root.h.data(), root.h.size(), sig, sig_size);
+        root.h.data(), root.h.size(), sig, sig_size, MDType::SHA256);
     }
 
     void sign_view_change_request(
@@ -213,11 +214,7 @@ namespace ccf
         return false;
       }
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
-      return from_cert->verify_hash(
-        h.h.data(),
-        h.h.size(),
-        view_change.signature.data(),
-        view_change.signature.size());
+      return from_cert->verify_hash(h.h, view_change.signature, MDType::SHA256);
     }
 
     bool verify_view_change_request_confirmation(
@@ -234,11 +231,7 @@ namespace ccf
       }
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       auto h = hash_new_view(new_view);
-      return from_cert->verify_hash(
-        h.h.data(),
-        h.h.size(),
-        new_view.signature.data(),
-        new_view.signature.size());
+      return from_cert->verify_hash(h.h, new_view.signature, MDType::SHA256);
     }
 
     kv::Consensus::SeqNo write_view_change_confirmation(
@@ -269,7 +262,7 @@ namespace ccf
 
     crypto::Sha256Hash hash_new_view(ccf::ViewChangeConfirmation& new_view)
     {
-      crypto::CSha256Hash ch;
+      crypto::ISha256Hash ch;
       ch.update(new_view.view);
       ch.update(new_view.seqno);
 
@@ -278,12 +271,12 @@ namespace ccf
         ch.update(it.second.signature);
       }
 
-      return ch.finalize();
+      return ch.finalise();
     }
 
   private:
     kv::AbstractStore& store;
-    tls::KeyPair& kp;
+    tls::KeyPairBase& kp;
     ccf::Nodes nodes;
     ccf::BackupSignaturesMap backup_signatures;
     aft::RevealedNoncesMap revealed_nonces;
@@ -294,7 +287,7 @@ namespace ccf
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) const
     {
-      crypto::CSha256Hash ch;
+      crypto::ISha256Hash ch;
 
       ch.update(view);
       ch.update(seqno);
@@ -304,7 +297,7 @@ namespace ccf
         ch.update(s.sig);
       }
 
-      return ch.finalize();
+      return ch.finalise();
     }
   };
 

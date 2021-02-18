@@ -16,8 +16,8 @@ namespace ccf
   {
   private:
     static std::vector<uint8_t> encrypt_ledger_secret(
-      tls::KeyPairPtr encryption_key,
-      tls::PublicKeyPtr backup_pubk,
+      std::shared_ptr<tls::KeyPair_mbedTLS> encryption_key,
+      std::shared_ptr<tls::PublicKey_mbedTLS> backup_pubk,
       std::vector<uint8_t>&& plain)
     {
       // Encrypt secrets with a shared secret derived from backup public
@@ -39,7 +39,7 @@ namespace ccf
   public:
     static void broadcast_some(
       NetworkState& network,
-      tls::KeyPairPtr encryption_key,
+      std::shared_ptr<tls::KeyPair_mbedTLS> encryption_key,
       NodeId self,
       kv::Tx& tx,
       const LedgerSecretsMap& some_ledger_secrets)
@@ -59,7 +59,7 @@ namespace ccf
             {s.first,
              encrypt_ledger_secret(
                encryption_key,
-               tls::make_public_key(ni.encryption_pub_key),
+               std::make_shared<tls::PublicKey_mbedTLS>(ni.encryption_pub_key),
                std::move(s.second.raw_key))});
         }
 
@@ -72,7 +72,7 @@ namespace ccf
 
     static void broadcast_new(
       NetworkState& network,
-      tls::KeyPairPtr encryption_key,
+      std::shared_ptr<tls::KeyPair_mbedTLS> encryption_key,
       kv::Tx& tx,
       LedgerSecret&& new_ledger_secret)
     {
@@ -86,7 +86,7 @@ namespace ccf
           {std::nullopt,
            encrypt_ledger_secret(
              encryption_key,
-             tls::make_public_key(ni.encryption_pub_key),
+             std::make_shared<tls::PublicKey_mbedTLS>(ni.encryption_pub_key),
              std::move(new_ledger_secret.raw_key))});
 
         secrets->put(
@@ -97,8 +97,8 @@ namespace ccf
     }
 
     static std::vector<uint8_t> decrypt(
-      tls::KeyPairPtr encryption_key,
-      tls::PublicKeyPtr primary_pubk,
+      std::shared_ptr<tls::KeyPair_mbedTLS> encryption_key,
+      std::shared_ptr<tls::PublicKey_mbedTLS> primary_pubk,
       const std::vector<uint8_t>& cipher)
     {
       crypto::GcmCipher gcmcipher;
