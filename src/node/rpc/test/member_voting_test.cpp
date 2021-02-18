@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #include "node/rpc/test/frontend_test_infra.h"
 
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
-
 DOCTEST_TEST_CASE("Member query/read")
 {
   // initialize the network state

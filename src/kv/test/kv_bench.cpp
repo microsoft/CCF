@@ -11,8 +11,6 @@
 #include <picobench/picobench.hpp>
 #include <string>
 
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
-
 using KeyType = kv::serialisers::SerialisedEntry;
 using ValueType = kv::serialisers::SerialisedEntry;
 using MapType = kv::untyped::Map;

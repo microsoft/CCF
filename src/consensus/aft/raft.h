@@ -124,6 +124,12 @@ namespace aft
     std::shared_ptr<aft::RequestTracker> request_tracker;
     std::unique_ptr<aft::ViewChangeTracker> view_change_tracker;
 
+    // Async execution
+    struct AsyncExecutionCtx;
+    struct AsyncExecution;
+    AsyncExecutionCtx async_exec;
+    std::unique_ptr<threading::Tmsg<AsyncExecution>> async_exec_msg;
+
     // Timeouts
     std::chrono::milliseconds request_timeout;
     std::chrono::milliseconds election_timeout;
@@ -1532,9 +1538,6 @@ namespace aft
 
       return execute_append_entries_finish(confirm_evidence, r);
     }
-
-    AsyncExecutionCtx async_exec;
-    std::unique_ptr<threading::Tmsg<AsyncExecution>> async_exec_msg = nullptr;
 
     bool execute_append_entries_async(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)

@@ -19,8 +19,6 @@ using namespace serdes;
 
 using TResponse = http::SimpleResponseProcessor::Response;
 
-std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
-
 auto kp = tls::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member");
 auto node_id = 0;
