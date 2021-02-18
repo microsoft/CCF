@@ -261,6 +261,12 @@ namespace ccf
 
       while (attempts < max_attempts)
       {
+        if (attempts > 0)
+        {
+          set_root_on_proposals(*ctx, tx);
+          metrics.retries++;
+        }
+
         ++attempts;
 
         try
@@ -305,8 +311,6 @@ namespace ccf
 
             case kv::CommitResult::FAIL_CONFLICT:
             {
-              set_root_on_proposals(*ctx, tx);
-              metrics.retries++;
               break;
             }
 
