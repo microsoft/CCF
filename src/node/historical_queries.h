@@ -50,8 +50,8 @@ namespace ccf::historical
 
     struct Request
     {
-      consensus::Index first_requested_index;
-      consensus::Index last_requested_index;
+      consensus::Index first_requested_index = 0;
+      consensus::Index last_requested_index = 0;
       std::vector<StoreDetailsPtr> requested_stores;
       std::chrono::milliseconds time_to_expiry;
 
@@ -83,7 +83,10 @@ namespace ccf::historical
         if (idx >= first_requested_index && idx <= last_requested_index)
         {
           const auto offset = idx - first_requested_index;
-          return requested_stores[offset];
+          if (offset < requested_stores.size())
+          {
+            return requested_stores[offset];
+          }
         }
 
         if (
@@ -96,23 +99,49 @@ namespace ccf::historical
         return nullptr;
       }
 
+      // Keep as many existing entries as possible, return indices that weren't
+      // already present to indicate they should be fetched For example, if we
+      // were previously fetching:
+      //        2  3  4  5
+      // and then we adjust to:
+      //              4  5
+      // we don't need to fetch anything new, this is a subrange, we just need
+      // to adjust where these are in our requested_stores vector. But if we
+      // adjust to:
+      //  0  1  2  3  4  5  6
+      // we need to shift _and_ start fetching 0, 1, and 6.
+      // The supporting signature needs to be considered separately - if its
+      // late enough that it might still be a supporting signature for the new
+      // range it should be kept, otherwise it could be rolled into the range,
+      // otherwise it should be dropped
       std::set<consensus::Index> adjust_range(
         consensus::Index start_idx, size_t num_following_indices)
       {
-        // TODO: Calculate actual overlap. This just drops everything and says
-        // it needs to be refetched
-        requested_stores.clear();
-        first_requested_index = start_idx;
-        requested_stores.resize(1 + num_following_indices);
-        last_requested_index = first_requested_index + num_following_indices;
-        supporting_signature.reset();
-
         std::set<consensus::Index> ret;
-        for (size_t i = start_idx; i <= last_requested_index; ++i)
+        std::vector<StoreDetailsPtr> new_stores(num_following_indices + 1);
+        for (auto idx = start_idx; idx <= start_idx + num_following_indices; ++idx)
         {
-          requested_stores[i - start_idx] = std::make_shared<StoreDetails>();
-          ret.insert(i);
+          auto existing_details = get_store_details(idx);
+          if (existing_details == nullptr)
+          {
+            ret.insert(idx);
+            new_stores[idx - start_idx] = std::make_shared<StoreDetails>();
+          }
+          else
+          {
+            new_stores[idx - start_idx] = std::move(existing_details);
+          }
         }
+
+        requested_stores = std::move(new_stores);
+        first_requested_index = start_idx;
+        last_requested_index = first_requested_index + num_following_indices;
+
+        if (supporting_signature.has_value() && supporting_signature->first < last_requested_index)
+        {
+          supporting_signature.reset();
+        }
+
         return ret;
       }
 
@@ -123,10 +152,19 @@ namespace ccf::historical
 
       enum class UpdateTrustedResult
       {
-        // TODO: Document these
+        // Common result. The new index may have transitioned some entries to
+        // Trusted
         Continue,
-        Invalidated,
+
+        // Occasional result. The new index was at the end of the sequence (or
+        // an attempt at retrieving a trailing supporting signature), but we
+        // still have untrusted entries, so attempt to fetch the next
         FetchNext,
+
+        // Error result. The new entry exposed a mismatch between a signature's
+        // claim at a certain index and the entry we received there. Invalidate
+        // entire request, it can be re-requested if necessary
+        Invalidated,
       };
 
       UpdateTrustedResult update_trusted(consensus::Index new_idx)
