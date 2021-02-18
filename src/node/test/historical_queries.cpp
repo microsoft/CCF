@@ -8,6 +8,8 @@
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 
+#include <algorithm>
+#include <random>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -442,6 +444,8 @@ TEST_CASE("StateCache range queries")
     return *next_sig_it;
   };
 
+  std::random_device rd;
+  std::mt19937 g(rd());
   auto next_handle = 0;
   auto fetch_and_validate_range = [&](
                                     kv::Version range_start,
@@ -453,16 +457,30 @@ TEST_CASE("StateCache range queries")
     }
 
     const auto proof_end = signing_version(range_end);
-    for (auto i = range_start; i <= proof_end; ++i)
+
+    // Cache is robust to receiving these out-of-order, so stress that by
+    // submitting out-of-order
+    std::vector<size_t> to_provide(1 + range_end - range_start);
+    std::iota(to_provide.begin(), to_provide.end(), range_start);
+    std::shuffle(to_provide.begin(), to_provide.end(), g);
+
+    for (const auto idx : to_provide)
     {
       // Some of these may be unrequested since they overlapped with the
       // previous range so are already known. Provide them all blindly for
       // simplicity, and make no assertion on the return code.
-      provide_ledger_entry(i);
+      provide_ledger_entry(idx);
+    }
+
+    // Then provide trailing proof after the requested indices
+    for (auto idx = range_end + 1; idx <= proof_end; ++idx)
+    {
+      provide_ledger_entry(idx);
     }
 
     {
       auto stores = cache.get_store_range(this_handle, range_start, range_end);
+      REQUIRE(!stores.empty());
 
       const auto range_size = (range_end - range_start) + 1;
       REQUIRE(stores.size() == range_size);
@@ -576,10 +594,12 @@ TEST_CASE("StateCache concurrent access")
     }
   });
 
-  constexpr auto per_thread_queries = 30;
+  constexpr auto per_thread_queries = 20;
 
   using Clock = std::chrono::system_clock;
-  const auto too_long = std::chrono::seconds(2);
+  // Add a watchdog timeout. Even in Debug+SAN this entire test takes <3 secs,
+  // so 10 seconds for any single entry is surely deadlock
+  const auto too_long = std::chrono::seconds(10);
 
   auto query_random_point = [&](size_t handle) {
     for (size_t i = 0; i < per_thread_queries; ++i)
@@ -621,6 +641,7 @@ TEST_CASE("StateCache concurrent access")
   };
 
   auto query_random_range = [&](size_t handle) {
+    std::vector<std::pair<size_t, size_t>> requested;
     for (size_t i = 0; i < per_thread_queries; ++i)
     {
       auto range_start = random_index();
@@ -630,6 +651,8 @@ TEST_CASE("StateCache concurrent access")
       {
         std::swap(range_start, range_end);
       }
+
+      requested.push_back(std::make_pair(range_start, range_end));
 
       std::vector<ccf::historical::StorePtr> stores;
       const auto start_time = Clock::now();
@@ -650,6 +673,13 @@ TEST_CASE("StateCache concurrent access")
                          range_start,
                          range_end)
                     << std::endl;
+          std::cout << fmt::format(
+                         "I've previously used handle {} to request:", handle)
+                    << std::endl;
+          for (const auto& [a, b] : requested)
+          {
+            std::cout << fmt::format("  {} to {}", a, b) << std::endl;
+          }
           REQUIRE(false);
         }
 

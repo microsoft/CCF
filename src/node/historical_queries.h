@@ -95,10 +95,6 @@ namespace ccf::historical
       // adjust to:
       //  0  1  2  3  4  5  6
       // we need to shift _and_ start fetching 0, 1, and 6.
-      // The supporting signature needs to be considered separately - if its
-      // late enough that it might still be a supporting signature for the new
-      // range it should be kept, otherwise it could be rolled into the range,
-      // otherwise it should be dropped
       std::set<consensus::Index> adjust_range(
         consensus::Index start_idx, size_t num_following_indices)
       {
@@ -131,11 +127,20 @@ namespace ccf::historical
         first_requested_index = start_idx;
         last_requested_index = first_requested_index + num_following_indices;
 
-        if (
-          supporting_signature.has_value() &&
-          supporting_signature->first < last_requested_index)
+        // If the final entry in the new range is known and not a signature,
+        // then we may need a subsequent signature to support it (or an earlier
+        // entry received out-of-order!) So start fetching subsequent entries to
+        // find supporting signature. Its possible this was the supporting entry
+        // we already had, or a signature in the range we already had, but
+        // working that out is tricky so be pessimistic and refetch instead.
+        supporting_signature.reset();
+        const auto last_details = get_store_details(last_requested_index);
+        if (last_details->store != nullptr && !last_details->is_signature)
         {
-          supporting_signature.reset();
+          const auto next_idx = last_requested_index + 1;
+          supporting_signature =
+            std::make_pair(next_idx, std::make_shared<StoreDetails>());
+          ret.insert(next_idx);
         }
 
         return ret;
