@@ -132,7 +132,7 @@ namespace tls
     {
       if (md_type == MDType::NONE)
       {
-        md_type = get_md_for_ec(get_curve_id(), true);
+        md_type = get_md_for_ec(get_curve_id());
       }
 
       const auto mmdt = get_md_type(md_type);

@@ -143,7 +143,7 @@ namespace tls
     {
       if (md_type == MDType::NONE)
       {
-        md_type = get_md_for_ec(get_curve_id(), true);
+        md_type = get_md_for_ec(get_curve_id());
       }
 
       EVP_PKEY_CTX* pctx = NULL;

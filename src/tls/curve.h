@@ -34,7 +34,7 @@ namespace tls
   }
 
   // Get message digest algorithm to use for given elliptic curve
-  inline MDType get_md_for_ec(CurveID ec, bool allow_none = false)
+  inline MDType get_md_for_ec(CurveID ec)
   {
     switch (ec)
     {
@@ -44,14 +44,7 @@ namespace tls
         return MDType::SHA256;
       default:
       {
-        if (allow_none)
-        {
-          return MDType::NONE;
-        }
-        else
-        {
-          throw std::logic_error(fmt::format("Unhandled CurveID: {}", ec));
-        }
+        throw std::logic_error(fmt::format("Unhandled CurveID: {}", ec));
       }
     }
   }

@@ -133,7 +133,7 @@ namespace tls
     }
   };
 
-  class Verifier_MBedTLS : public VerifierBase
+  class Verifier_mbedTLS : public VerifierBase
   {
   protected:
     mutable mbedtls::X509Crt cert;
@@ -164,7 +164,7 @@ namespace tls
      *
      * @param c Certificate in DER or PEM format
      */
-    Verifier_MBedTLS(const std::vector<uint8_t>& c) : VerifierBase()
+    Verifier_mbedTLS(const std::vector<uint8_t>& c) : VerifierBase()
     {
       cert = mbedtls::make_unique<mbedtls::X509Crt>();
       int rc = mbedtls_x509_crt_parse(cert.get(), c.data(), c.size());
@@ -202,9 +202,9 @@ namespace tls
       }
     }
 
-    Verifier_MBedTLS(const Verifier_MBedTLS&) = delete;
+    Verifier_mbedTLS(const Verifier_mbedTLS&) = delete;
 
-    virtual ~Verifier_MBedTLS() = default;
+    virtual ~Verifier_mbedTLS() = default;
 
     const mbedtls_x509_crt* raw()
     {

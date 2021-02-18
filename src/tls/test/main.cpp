@@ -359,8 +359,8 @@ void run_csr()
 
 TEST_CASE("Create, sign & verify certificates")
 {
-  run_csr<KeyPair_mbedTLS, Verifier_MBedTLS>();
+  run_csr<KeyPair_mbedTLS, Verifier_mbedTLS>();
   run_csr<KeyPair_mbedTLS, Verifier_OpenSSL>();
-  run_csr<KeyPair_OpenSSL, Verifier_MBedTLS>();
+  run_csr<KeyPair_OpenSSL, Verifier_mbedTLS>();
   run_csr<KeyPair_OpenSSL, Verifier_OpenSSL>();
 }

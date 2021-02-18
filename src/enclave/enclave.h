@@ -98,6 +98,7 @@ namespace enclave
         ENGINE_init(rdrand_engine) != 1 ||
         ENGINE_set_default(rdrand_engine, ENGINE_METHOD_RAND) != 1)
       {
+        ENGINE_free(rdrand_engine);
         throw std::runtime_error(
           "could not initialize RDRAND engine for OpenSSL");
       }
@@ -141,7 +142,6 @@ namespace enclave
       {
         ENGINE_finish(rdrand_engine);
         ENGINE_free(rdrand_engine);
-        ENGINE_cleanup();
       }
     }
 

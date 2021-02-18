@@ -97,11 +97,9 @@ namespace crypto
 
     virtual HashBytes Hash(const uint8_t* data, size_t size, MDType type) const
     {
-      HashBytes r;
-      unsigned int len = 0;
       auto o_md_type = get_md_type(type);
-
-      r.resize(EVP_MD_size(o_md_type));
+      HashBytes r(EVP_MD_size(o_md_type));
+      unsigned int len = 0;
 
       if (EVP_Digest(data, size, r.data(), &len, o_md_type, NULL) != 1)
         throw std::runtime_error("OpenSSL hash update error");

@@ -429,7 +429,7 @@ int main(int argc, char** argv)
     .add_option(
       "--curve-id",
       curve_id,
-      "Elliptic curve to use for node's certificate (used for TLS and ledger "
+      "Elliptic curve to use as for node and network identities (used for TLS and ledger "
       "signatures")
     ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
     ->capture_default_str();
