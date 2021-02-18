@@ -16,6 +16,7 @@
 #include "node_interface.h"
 #include "tls/base64.h"
 #include "tls/key_pair.h"
+#include "node/gov.h"
 
 #include <charconv>
 #include <exception>
@@ -2238,8 +2239,22 @@ namespace ccf
               fmt::format("Proposal failed to validate: {}", description));
           }
 
-          record_voting_history(
-            ctx.tx, caller_identity.member_id, caller_identity.signed_request);
+          auto pm = ctx.tx.rw<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+          // Introduce a read dependency, so that if identical proposal creations
+          // are in-flight and reading at the same version, all except the first
+          // conflict and are re-executed. If we ever produce a proposal ID which
+          // already exists, we must have a hash collision.
+          if (pm->has(proposal_id))
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Proposal ID collision.");
+          }
+          pm->put(proposal_id, {ctx.rpc_ctx->get_request_body().begin(), ctx.rpc_ctx->get_request_body().end()});
+
+          //record_voting_history(
+          //  ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
           return make_success(description);
         };
