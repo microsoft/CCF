@@ -519,7 +519,7 @@ TEST_CASE("StateCache concurrent access")
 
   {
     INFO("Build some interesting state in the store");
-    for (size_t batch_size : {20, 10, 20})
+    for (size_t batch_size : {5, 10, 5})
     {
       signature_versions.push_back(
         write_transactions_and_signature(kv_store, batch_size));
@@ -545,11 +545,15 @@ TEST_CASE("StateCache concurrent access")
       std::vector<StubWriter::Write> writes;
       {
         std::lock_guard<std::mutex> guard(writer->writes_mutex);
+        auto finished_write_it = std::partition_point(
+          writer->writes.begin() + last_handled_write,
+          writer->writes.end(),
+          [](const StubWriter::Write& w) { return w.finished; });
         writes.insert(
           writes.end(),
           writer->writes.begin() + last_handled_write,
-          writer->writes.end());
-        last_handled_write = writer->writes.size();
+          finished_write_it);
+        last_handled_write = finished_write_it - writer->writes.begin();
       }
 
       for (const auto& write : writes)
@@ -637,14 +641,13 @@ TEST_CASE("StateCache concurrent access")
 
   std::atomic<size_t> next_handle = 0;
   std::vector<std::thread> random_queries;
-  for (size_t i = 0; i < 20; ++i)
+  for (size_t i = 0; i < 30; ++i)
   {
-    // TODO: This is still unsafe?
-    // if (i % 3 == 0)
-    // {
-    //   random_queries.emplace_back(query_random_range, ++next_handle);
-    // }
-    // else
+    if (i % 3 == 0)
+    {
+      random_queries.emplace_back(query_random_range, ++next_handle);
+    }
+    else
     {
       random_queries.emplace_back(query_random_point, ++next_handle);
     }

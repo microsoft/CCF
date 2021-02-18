@@ -56,8 +56,10 @@ namespace ccf::historical
       std::chrono::milliseconds time_to_expiry;
 
       // An entry from outside the requested range containing the next signature
-      // may be needed to trust this range. It is stored here, distinct from user-requested stores.
-      std::optional<std::pair<consensus::Index, StoreDetailsPtr>> supporting_signature;
+      // may be needed to trust this range. It is stored here, distinct from
+      // user-requested stores.
+      std::optional<std::pair<consensus::Index, StoreDetailsPtr>>
+        supporting_signature;
 
       Request(consensus::Index start_idx, size_t num_following_indices)
       {
@@ -84,7 +86,9 @@ namespace ccf::historical
           return requested_stores[offset];
         }
 
-        if (supporting_signature.has_value() && supporting_signature->first == idx)
+        if (
+          supporting_signature.has_value() &&
+          supporting_signature->first == idx)
         {
           return supporting_signature->second;
         }
@@ -101,6 +105,8 @@ namespace ccf::historical
         first_requested_index = start_idx;
         requested_stores.resize(1 + num_following_indices);
         last_requested_index = first_requested_index + num_following_indices;
+        supporting_signature.reset();
+
         std::set<consensus::Index> ret;
         for (size_t i = start_idx; i <= last_requested_index; ++i)
         {
@@ -128,7 +134,8 @@ namespace ccf::historical
         auto new_details = get_store_details(new_idx);
         if (new_details->is_signature)
         {
-          // Iterate through earlier indices. If this signature covers them (and the digests match), move them to Trusted
+          // Iterate through earlier indices. If this signature covers them (and
+          // the digests match), move them to Trusted
           const auto sig = get_signature(new_details->store);
           ccf::MerkleTreeHistory tree(sig->tree);
 
@@ -141,8 +148,8 @@ namespace ccf::historical
               {
                 if (details->current_stage == RequestStage::Untrusted)
                 {
-                  // Compare signed digest, from signature mini-tree, with digest of
-                  // the entry which was used to construct this store
+                  // Compare signed digest, from signature mini-tree, with
+                  // digest of the entry which was used to construct this store
                   const auto& untrusted_digest = details->entry_digest;
                   const auto trusted_digest = tree.get_leaf(idx);
                   if (trusted_digest != untrusted_digest)
@@ -153,12 +160,13 @@ namespace ccf::historical
                       new_idx,
                       idx);
 
-                    // We trust the signature (since it comes from a trusted node), and it
-                    // disagrees with one of the entries we previously retrieved and
-                    // deserialised. This generally means a malicious host gave us a bad
-                    // transaction but a good signature. Delete the entire original request
-                    // - if it is re-requested, maybe the host will give us a valid pair of
-                    // transaction+sig next time
+                    // We trust the signature (since it comes from a trusted
+                    // node), and it disagrees with one of the entries we
+                    // previously retrieved and deserialised. This generally
+                    // means a malicious host gave us a bad transaction but a
+                    // good signature. Delete the entire original request
+                    // - if it is re-requested, maybe the host will give us a
+                    // valid pair of transaction+sig next time
                     return UpdateTrustedResult::Invalidated;
                   }
 
@@ -170,7 +178,8 @@ namespace ccf::historical
         }
         else if (new_details->current_stage == RequestStage::Untrusted)
         {
-          // Iterate through later indices, see if there's a signature that covers this one
+          // Iterate through later indices, see if there's a signature that
+          // covers this one
           const auto& untrusted_digest = new_details->entry_digest;
           bool sig_seen = false;
           for (auto idx = new_idx + 1; idx <= last_requested_index; ++idx)
@@ -182,9 +191,9 @@ namespace ccf::historical
               {
                 const auto sig = get_signature(details->store);
                 ccf::MerkleTreeHistory tree(sig->tree);
-                if (tree.in_range(idx))
+                if (tree.in_range(new_idx))
                 {
-                  const auto trusted_digest = tree.get_leaf(idx);
+                  const auto trusted_digest = tree.get_leaf(new_idx);
                   if (trusted_digest != untrusted_digest)
                   {
                     return UpdateTrustedResult::Invalidated;
@@ -193,7 +202,8 @@ namespace ccf::historical
                   new_details->current_stage = RequestStage::Trusted;
                 }
 
-                // Break here - if this signature doesn't cover us, no later one can
+                // Break here - if this signature doesn't cover us, no later one
+                // can
                 sig_seen = true;
                 break;
               }
@@ -207,9 +217,9 @@ namespace ccf::historical
             {
               const auto sig = get_signature(details->store);
               ccf::MerkleTreeHistory tree(sig->tree);
-              if (tree.in_range(idx))
+              if (tree.in_range(new_idx))
               {
-                const auto trusted_digest = tree.get_leaf(idx);
+                const auto trusted_digest = tree.get_leaf(new_idx);
                 if (trusted_digest != untrusted_digest)
                 {
                   return UpdateTrustedResult::Invalidated;
@@ -220,10 +230,15 @@ namespace ccf::historical
             }
           }
 
-          // If still untrusted, and this non-signature is the last requested index, or previous attempt at finding supporting signature, request the _next_ index to find supporting signature
+          // If still untrusted, and this non-signature is the last requested
+          // index, or previous attempt at finding supporting signature, request
+          // the _next_ index to find supporting signature
           if (new_details->current_stage == RequestStage::Untrusted)
           {
-            if (new_idx == last_requested_index || (supporting_signature.has_value() && supporting_signature->first == new_idx))
+            if (
+              new_idx == last_requested_index ||
+              (supporting_signature.has_value() &&
+               supporting_signature->first == new_idx))
             {
               return UpdateTrustedResult::FetchNext;
             }
@@ -322,11 +337,14 @@ namespace ccf::historical
       {
         auto& [handle, request] = *request_it;
         auto details = request.get_store_details(idx);
-        if (details != nullptr && details->current_stage == RequestStage::Fetching)
+        if (
+          details != nullptr &&
+          details->current_stage == RequestStage::Fetching)
         {
           if (is_signature)
           {
-            // Signatures have already been verified by the time we get here, so we trust them already
+            // Signatures have already been verified by the time we get here, so
+            // we trust them already
             details->current_stage = RequestStage::Trusted;
           }
           else
@@ -348,24 +366,25 @@ namespace ccf::historical
           const auto result = request.update_trusted(idx);
           switch (result)
           {
-              case (Request::UpdateTrustedResult::Continue):
-              {
-                ++request_it;
-                break;
-              }
-              case (Request::UpdateTrustedResult::Invalidated):
-              {
-                request_it = requests.erase(request_it);
-                break;
-              }
-              case (Request::UpdateTrustedResult::FetchNext):
-              {
-                const auto next_idx = idx + 1;
-                fetch_entry_at(next_idx);
-                request.supporting_signature = std::make_pair(next_idx, std::make_shared<StoreDetails>());
-                ++request_it;
-                break;
-              }
+            case (Request::UpdateTrustedResult::Continue):
+            {
+              ++request_it;
+              break;
+            }
+            case (Request::UpdateTrustedResult::Invalidated):
+            {
+              request_it = requests.erase(request_it);
+              break;
+            }
+            case (Request::UpdateTrustedResult::FetchNext):
+            {
+              const auto next_idx = idx + 1;
+              fetch_entry_at(next_idx);
+              request.supporting_signature =
+                std::make_pair(next_idx, std::make_shared<StoreDetails>());
+              ++request_it;
+              break;
+            }
           }
         }
         else
@@ -446,6 +465,24 @@ namespace ccf::historical
       }
 
       return trusted_stores;
+    }
+
+    // Used when we received an invalid entry, to drop any requests which were
+    // asking for it
+    void delete_all_interested_requests(consensus::Index idx)
+    {
+      auto request_it = requests.begin();
+      while (request_it != requests.end())
+      {
+        if (request_it->second.is_interested_in(idx))
+        {
+          request_it = requests.erase(request_it);
+        }
+        else
+        {
+          ++request_it;
+        }
+      }
     }
 
   public:
@@ -551,15 +588,15 @@ namespace ccf::historical
         return false;
       }
 
-      const auto is_signature = deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
+      const auto is_signature =
+        deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
       if (is_signature)
       {
         // This looks like a signature - check that we trust it
         if (!verify_signature(store, idx))
         {
           LOG_FAIL_FMT("Bad signature at {}", idx);
-          // TODO: Re-request it? Invalidate any request that was asking for it?
-          // Hmmm
+          delete_all_interested_requests(idx);
           return false;
         }
       }
@@ -585,18 +622,7 @@ namespace ccf::historical
       const auto fetches_it = pending_fetches.find(idx);
       if (fetches_it != pending_fetches.end())
       {
-        auto request_it = requests.begin();
-        while (request_it != requests.end())
-        {
-          if (request_it->second.is_interested_in(idx))
-          {
-            request_it = requests.erase(request_it);
-          }
-          else
-          {
-            ++request_it;
-          }
-        }
+        delete_all_interested_requests(idx);
 
         pending_fetches.erase(fetches_it);
       }
