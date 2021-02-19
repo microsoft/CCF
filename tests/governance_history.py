@@ -25,17 +25,23 @@ def count_governance_operations(ledger):
             if "public:ccf.internal.members.certs_der" in tables:
                 members_table = tables["public:ccf.internal.members.certs_der"]
                 for cert, member_id in members_table.items():
-                    members[member_id] = cert
+                    cert_unpacked = ccf.ledger.extract_msgpacked_data(cert)
+                    member_id_unpacked = ccf.ledger.extract_msgpacked_data(member_id)
+                    members[member_id_unpacked] = cert_unpacked
 
             if "public:ccf.gov.history" in tables:
                 governance_history_table = tables["public:ccf.gov.history"]
                 for member_id, signed_request in governance_history_table.items():
+                    member_id_unpacked = ccf.ledger.extract_msgpacked_data(member_id)
+                    signed_request_unpacked = ccf.ledger.extract_msgpacked_data(
+                        signed_request
+                    )
                     assert member_id in members
-                    cert = members[member_id]
-                    sig = signed_request[0][0]
-                    req = signed_request[0][1]
-                    request_body = signed_request[0][2]
-                    digest = signed_request[0][3]
+                    cert = members[member_id_unpacked]
+                    sig = signed_request_unpacked[0][0]
+                    req = signed_request_unpacked[0][1]
+                    request_body = signed_request_unpacked[0][2]
+                    digest = signed_request_unpacked[0][3]
                     infra.crypto.verify_request_sig(
                         cert, sig, req, request_body, digest
                     )

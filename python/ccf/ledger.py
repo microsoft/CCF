@@ -4,7 +4,6 @@
 import io
 import struct
 import os
-import re
 
 from typing import BinaryIO, NamedTuple, Optional, Set
 from enum import IntEnum
@@ -54,7 +53,8 @@ class GcmHeader:
     def __init__(self, buffer):
         if len(buffer) < GcmHeader.size():
             raise ValueError("Corrupt GCM header")
-        self._gcm_tag = struct.unpack(f"@{GCM_SIZE_TAG}B", buffer[:GCM_SIZE_TAG])
+        self._gcm_tag = struct.unpack(
+            f"@{GCM_SIZE_TAG}B", buffer[:GCM_SIZE_TAG])
         self._gcm_iv = struct.unpack(f"@{GCM_SIZE_IV}B", buffer[GCM_SIZE_TAG:])
 
     @staticmethod
@@ -311,7 +311,8 @@ class LedgerValidator:
     def _verify_root_signature(self, tx_info: TxBundleInfo):
         """Verify item 2, that the Merkle root signature validates against the node certificate"""
         try:
-            cert = load_pem_x509_certificate(tx_info.node_cert, default_backend())
+            cert = load_pem_x509_certificate(
+                tx_info.node_cert, default_backend())
             pub_key = cert.public_key()
 
             assert isinstance(pub_key, ec.EllipticCurvePublicKey)
@@ -399,7 +400,8 @@ class Transaction:
         :return: :py:class:`ccf.ledger.PublicDomain`
         """
         if self._public_domain == None:
-            buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
+            buffer = io.BytesIO(_byte_read_safe(
+                self._file, self._public_domain_size))
             self._public_domain = PublicDomain(buffer)
         return self._public_domain
 
@@ -493,7 +495,8 @@ class Ledger:
         sorted_ledgers = sorted(
             ledgers,
             key=lambda x: int(
-                x.replace(".committed", "").replace("ledger_", "").split("-")[0]
+                x.replace(".committed", "").replace(
+                    "ledger_", "").split("-")[0]
             ),
         )
 
@@ -503,7 +506,7 @@ class Ledger:
                     LOG.warning(f"The file {chunk} has not been committed")
                 self._filenames.append(os.path.join(directory, chunk))
 
-        # Initialize LedgerValidator isntance which will be passed to LedgerChunks.
+        # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
 
     def __next__(self) -> LedgerChunk:
