@@ -34,11 +34,9 @@ namespace ccf
     SignedReq signed_request;
   };
 
-  // TODO: Test LRU by calling multi_auth from many users, timing responses?
   struct VerifierCache
   {
-    // TODO: Make a principled choice on what this should be
-    static constexpr size_t DEFAULT_MAX_VERIFIERS = 30;
+    static constexpr size_t DEFAULT_MAX_VERIFIERS = 50;
 
     SpinLock verifiers_lock;
     LRU<tls::Pem, tls::VerifierPtr> verifiers;
