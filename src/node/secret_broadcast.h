@@ -61,7 +61,8 @@ namespace ccf
             {s.first,
              encrypt_ledger_secret(
                encryption_key,
-               std::make_shared<crypto::PublicKey_mbedTLS>(ni.encryption_pub_key),
+               std::make_shared<crypto::PublicKey_mbedTLS>(
+                 ni.encryption_pub_key),
                std::move(s.second->raw_key)),
              s.second->previous_secret_stored_version});
         }
