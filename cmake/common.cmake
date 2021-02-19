@@ -183,7 +183,6 @@ set(HTTP_PARSER_SOURCES
 find_library(CRYPTO_LIBRARY crypto)
 
 include(${CCF_DIR}/cmake/crypto.cmake)
-include(${CCF_DIR}/cmake/secp256k1.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 
@@ -256,7 +255,11 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     set(SNMALLOC_LIB)
     set(SNMALLOC_CPP)
   else()
+
+    # Remove once we upgrade to snmalloc 0.5.4
     set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
+    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+    set(USE_POSIX_COMMIT_CHECKS off)
     add_subdirectory(3rdparty/snmalloc EXCLUDE_FROM_ALL)
     set(SNMALLOC_LIB snmalloc_lib)
     set(SNMALLOC_CPP src/enclave/snmalloc.cpp)
@@ -293,8 +296,8 @@ add_executable(
 )
 use_client_mbedtls(scenario_perf_client)
 target_link_libraries(
-  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
-                               http_parser.host ccfcrypto.host
+  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                               ccfcrypto.host
 )
 install(TARGETS scenario_perf_client DESTINATION bin)
 
@@ -394,10 +397,6 @@ function(add_e2e_test)
     set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
   endif()
 
-  if(LONG_TESTS)
-    set(LONG_TEST_ARGS "--long-tests")
-  endif()
-
   if(BUILD_END_TO_END_TESTS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
@@ -405,7 +404,6 @@ function(add_e2e_test)
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
         ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --consensus
         ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
-        ${LONG_TEST_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -598,7 +596,7 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
-                    $<BUILD_INTERFACE:merklecpp>
+                    $<BUILD_INTERFACE:merklecpp> crypto
   )
 
   # -Wall -Werror catches a number of warnings in picobench

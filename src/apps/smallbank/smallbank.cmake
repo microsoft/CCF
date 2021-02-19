@@ -7,16 +7,14 @@ add_picobench(
   SRCS ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_serdes_bench.cpp
        src/crypto/symmetric_key.cpp src/enclave/thread_local.cpp
   INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR}
-  LINK_LIBS ccfcrypto.host secp256k1.host crypto
+  LINK_LIBS ccfcrypto.host crypto
 )
 
 add_client_exe(
   small_bank_client
   SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/small_bank_client.cpp
 )
-target_link_libraries(
-  small_bank_client PRIVATE secp256k1.host http_parser.host ccfcrypto.host
-)
+target_link_libraries(small_bank_client PRIVATE http_parser.host ccfcrypto.host)
 
 # SmallBank application
 add_ccf_app(smallbank SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp)
@@ -95,7 +93,7 @@ if(BUILD_TESTS)
       1000
       --sign
       --participants-curve
-      "secp256k1"
+      "secp256r1"
       --metrics-file
       small_bank_cft_sigs_metrics.json
   )

@@ -8,7 +8,8 @@
 
 enum HashImpl
 {
-  mbedtls
+  mbedtls,
+  openssl
 };
 
 template <HashImpl IMPL>
@@ -29,6 +30,10 @@ static void sha256_bench(picobench::state& s)
     {
       crypto::Sha256Hash::mbedtls_sha256(v, h.h.data());
     }
+    else if constexpr (IMPL == HashImpl::openssl)
+    {
+      crypto::Sha256Hash::openssl_sha256(v, h.h.data());
+    }
   }
   s.stop_timer();
 }
@@ -39,3 +44,6 @@ PICOBENCH_SUITE("SHA-256");
 
 auto mbedtls_digest_sha256 = sha256_bench<HashImpl::mbedtls>;
 PICOBENCH(mbedtls_digest_sha256).iterations(hash_sizes).baseline();
+
+auto openssl_digest_sha256 = sha256_bench<HashImpl::openssl>;
+PICOBENCH(openssl_digest_sha256).iterations(hash_sizes).baseline();

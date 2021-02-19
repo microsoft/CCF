@@ -24,8 +24,9 @@ int main(int argc, char** argv)
   CLI11_PARSE(app, argc, argv);
 
   auto kp = tls::make_key_pair();
-  auto cert = kp->sign_csr(
-    kp->create_csr(subject_name), subject_name, subject_alternative_names);
+  auto icrt = kp->self_sign("CN=issuer");
+  auto csr = kp->create_csr(subject_name);
+  auto cert = kp->sign_csr(icrt, csr, subject_alternative_names);
 
   std::cout << cert.str() << std::endl;
   return 0;

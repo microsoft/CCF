@@ -68,8 +68,7 @@ namespace aft
       auto data_ = raw_request.data();
       auto size_ = raw_request.size();
 
-      crypto::Sha256Hash hash;
-      tls::do_hash(data_, size_, hash.h, MBEDTLS_MD_SHA256);
+      crypto::Sha256Hash hash({data_, size_});
 
       if (!request_tracker->remove(hash))
       {

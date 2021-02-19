@@ -78,7 +78,7 @@ def run(args):
             _,
             careful_vote,
         ) = network.consortium.generate_and_propose_new_member(
-            primary, curve=infra.network.ParticipantsCurve.secp256k1
+            primary, curve=infra.network.ParticipantsCurve.secp256r1
         )
         proposals_issued += 1
 
@@ -91,7 +91,7 @@ def run(args):
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
         new_member_proposal, _, _ = network.consortium.generate_and_propose_new_member(
-            primary, curve=infra.network.ParticipantsCurve.secp256k1
+            primary, curve=infra.network.ParticipantsCurve.secp256r1
         )
         proposals_issued += 1
 

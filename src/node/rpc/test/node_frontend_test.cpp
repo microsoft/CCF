@@ -184,7 +184,7 @@ TEST_CASE("Add a node to an opening service")
   {
     tls::KeyPairPtr kp = tls::make_key_pair();
     auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-    const auto caller = v->der_cert_data();
+    const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
@@ -260,7 +260,7 @@ TEST_CASE("Add a node to an open service")
   {
     tls::KeyPairPtr kp = tls::make_key_pair();
     auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-    const auto caller = v->der_cert_data();
+    const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;

@@ -28,8 +28,8 @@ endif()
 
 add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})
 add_san(ccfcrypto.host)
-target_compile_definitions(ccfcrypto.host PRIVATE)
 target_compile_options(ccfcrypto.host PRIVATE -stdlib=libc++)
+target_link_libraries(ccfcrypto.host PRIVATE crypto)
 use_client_mbedtls(ccfcrypto.host)
 set_property(TARGET ccfcrypto.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 

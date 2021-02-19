@@ -113,11 +113,13 @@ namespace ccf
   {
     kv::Store& store;
     NodeId id;
+
+  protected:
     kv::Version version = 0;
     kv::Term term = 0;
 
   public:
-    NullTxHistory(kv::Store& store_, NodeId id_, tls::KeyPair&) :
+    NullTxHistory(kv::Store& store_, NodeId id_, tls::KeyPairBase&) :
       store(store_),
       id(id_)
     {}
@@ -250,7 +252,7 @@ namespace ccf
     kv::Store& store;
     T& replicated_state_tree;
     NodeId id;
-    tls::KeyPair& kp;
+    tls::KeyPairBase& kp;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -259,7 +261,7 @@ namespace ccf
       kv::Store& store_,
       T& replicated_state_tree_,
       NodeId id_,
-      tls::KeyPair& kp_) :
+      tls::KeyPairBase& kp_) :
       txid(txid_),
       commit_txid(commit_txid_),
       store(store_),
@@ -462,7 +464,7 @@ namespace ccf
     NodeId id;
     T replicated_state_tree;
 
-    tls::KeyPair& kp;
+    tls::KeyPairBase& kp;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
 
@@ -470,14 +472,14 @@ namespace ccf
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
-    SpinLock term_lock;
+    SpinLock state_lock;
     kv::Term term = 0;
 
   public:
     HashedTxHistory(
       kv::Store& store_,
       NodeId id_,
-      tls::KeyPair& kp_,
+      tls::KeyPairBase& kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
       bool signature_timer = false) :
@@ -567,6 +569,7 @@ namespace ccf
     bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) override
     {
+      std::lock_guard<SpinLock> guard(state_lock);
       // The history can be initialised after a snapshot has been applied by
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
@@ -595,13 +598,14 @@ namespace ccf
 
     crypto::Sha256Hash get_replicated_state_root() override
     {
+      std::lock_guard<SpinLock> guard(state_lock);
       return replicated_state_tree.get_root();
     }
 
     std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
       override
     {
-      std::lock_guard<SpinLock> tguard(term_lock);
+      std::lock_guard<SpinLock> guard(state_lock);
       return {
         {term, static_cast<kv::Version>(replicated_state_tree.end_index())},
         replicated_state_tree.get_root()};
@@ -668,11 +672,8 @@ namespace ccf
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
       log_hash(root, VERIFY);
-      bool result = from_cert->verify_hash(
-        root.h.data(),
-        root.h.size(),
-        sig_value.sig.data(),
-        sig_value.sig.size());
+      bool result =
+        from_cert->verify_hash(root.h, sig_value.sig, MDType::SHA256);
 
       if (!result)
       {
@@ -684,19 +685,21 @@ namespace ccf
 
     void set_term(kv::Term t) override
     {
-      std::lock_guard<SpinLock> tguard(term_lock);
+      std::lock_guard<SpinLock> guard(state_lock);
       term = t;
     }
 
     void rollback(kv::Version v, kv::Term t) override
     {
-      set_term(t);
+      std::lock_guard<SpinLock> guard(state_lock);
+      term = t;
       replicated_state_tree.retract(v);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
 
     void compact(kv::Version v) override
     {
+      std::lock_guard<SpinLock> guard(state_lock);
       // Receipts can only be retrieved to the flushed index. Keep a range of
       // history so that a range of receipts are available.
       if (v > MAX_HISTORY_LEN)
@@ -767,17 +770,20 @@ namespace ccf
 
     std::vector<uint8_t> get_receipt(kv::Version index) override
     {
+      std::lock_guard<SpinLock> guard(state_lock);
       return replicated_state_tree.get_receipt(index).to_v();
     }
 
     bool verify_receipt(const std::vector<uint8_t>& v) override
     {
+      std::lock_guard<SpinLock> guard(state_lock);
       Receipt r(v);
       return replicated_state_tree.verify(r);
     }
 
     std::vector<uint8_t> get_raw_leaf(uint64_t index) override
     {
+      std::lock_guard<SpinLock> guard(state_lock);
       auto leaf = replicated_state_tree.get_leaf(index);
       return {leaf.h.begin(), leaf.h.end()};
     }
@@ -802,6 +808,7 @@ namespace ccf
 
     void append(const std::vector<uint8_t>& replicated) override
     {
+      std::lock_guard<SpinLock> guard(state_lock);
       crypto::Sha256Hash rh({replicated.data(), replicated.size()});
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);
