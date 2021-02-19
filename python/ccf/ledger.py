@@ -528,24 +528,16 @@ def extract_msgpacked_data(data: bytes):
 
 
 class InvalidRootException(Exception):
-    """When the transactions don't add up to the ledger signature root"""
-
-
-class SignatureCountException(Exception):
-    """When a ledger has no signature transactions"""
-
-
-class SignatureEndingException(Exception):
-    """When a signature transaction is not the last transaction of a ledger"""
+    """MerkleTree root doesn't match with the root reported in the signature's table"""
 
 
 class InvalidRootSignatureException(Exception):
-    """When a signature transactions certificate cannot be validated against the node signature"""
+    """Signature of the MerkleRoot doesn't match with the signature that's reported in the signature's table"""
 
 
 class CommitIdRangeException(Exception):
-    """There was a missing chunk in the ledger directory"""
+    """Missing ledger chunk in the ledger directory"""
 
 
 class UntrustedNodeException(Exception):
-    """The signing node was not verified by the network"""
+    """The signing node wasn't part of the network"""
