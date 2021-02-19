@@ -121,9 +121,9 @@ namespace ccf
     tls::KeyPairPtr node_sign_kp;
     std::shared_ptr<tls::KeyPair_mbedTLS> node_encrypt_kp;
     tls::Pem node_cert;
-    tls::CurveID curve_id;
     QuoteInfo quote_info;
     CodeDigest node_code_id;
+    CCFConfig config;
 #ifdef GET_QUOTE
     EnclaveAttestationProvider enclave_attestation_provider;
 #endif
@@ -201,7 +201,7 @@ namespace ccf
     };
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
 
-    void initialise_startup_snapshot(CCFConfig& config)
+    void initialise_startup_snapshot()
     {
       LOG_INFO_FMT(
         "Deserialising public snapshot ({})", config.startup_snapshot.size());
@@ -292,15 +292,15 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    NodeCreateInfo create(StartType start_type, CCFConfig& config)
+    NodeCreateInfo create(StartType start_type, CCFConfig& config_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
-      create_node_cert(config);
-      open_frontend(ActorsType::nodes);
+      config = std::move(config_);
 
-      curve_id = config.curve_id;
+      create_node_cert();
+      open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
       quote_info = enclave_attestation_provider.generate_quote(
@@ -319,7 +319,7 @@ namespace ccf
           network.ledger_secrets = std::make_shared<LedgerSecrets>();
           network.ledger_secrets->init();
 
-          setup_snapshotter(config.snapshot_tx_interval);
+          setup_snapshotter();
           setup_encryptor();
           setup_consensus();
           setup_progress_tracker();
@@ -332,14 +332,14 @@ namespace ccf
           // network
           open_frontend(ActorsType::members);
 
-          if (!create_and_send_request(config))
+          if (!create_and_send_request())
           {
             throw std::runtime_error(
               "Genesis transaction could not be committed");
           }
 
-          accept_network_tls_connections(config);
-          auto_refresh_jwt_keys(config);
+          accept_network_tls_connections();
+          auto_refresh_jwt_keys();
 
           reset_data(quote_info.quote);
           reset_data(quote_info.endorsements);
@@ -352,7 +352,6 @@ namespace ccf
           // TLS connections are not endorsed by the network until the node
           // has joined
           accept_node_tls_connections();
-          auto_refresh_jwt_keys(config);
 
           if (!config.startup_snapshot.empty())
           {
@@ -362,9 +361,9 @@ namespace ccf
             // deserialise the public domain when recovering the public ledger
             network.ledger_secrets = std::make_shared<LedgerSecrets>();
             setup_encryptor();
-            setup_snapshotter(config.snapshot_tx_interval);
+            setup_snapshotter();
 
-            initialise_startup_snapshot(config);
+            initialise_startup_snapshot();
 
             sm.advance(State::verifyingSnapshot);
           }
@@ -392,18 +391,17 @@ namespace ccf
           // secrets.
           setup_encryptor();
 
-          setup_snapshotter(config.snapshot_tx_interval);
+          setup_snapshotter();
           bool from_snapshot = !config.startup_snapshot.empty();
           setup_recovery_hook();
 
           if (from_snapshot)
           {
-            initialise_startup_snapshot(config);
+            initialise_startup_snapshot();
             snapshotter->set_last_snapshot_idx(ledger_idx);
           }
 
-          accept_network_tls_connections(config);
-          auto_refresh_jwt_keys(config);
+          accept_network_tls_connections();
 
           sm.advance(State::readingPublicLedger);
           return {node_cert, network.identity->cert};
@@ -419,7 +417,7 @@ namespace ccf
     //
     // funcs in state "pending"
     //
-    void initiate_join(CCFConfig& config)
+    void initiate_join()
     {
       auto network_ca = std::make_shared<tls::CA>(config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
@@ -432,7 +430,7 @@ namespace ccf
       join_client->connect(
         config.joining.target_host,
         config.joining.target_port,
-        [this, &config](
+        [this](
           http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
@@ -488,11 +486,12 @@ namespace ccf
                 resp.network_info.consensus_type));
             }
 
-            setup_snapshotter(config.snapshot_tx_interval);
+            setup_snapshotter();
             setup_encryptor();
             setup_consensus(resp.network_info.public_only);
             setup_progress_tracker();
             setup_history();
+            auto_refresh_jwt_keys();
 
             if (resp.network_info.public_only)
             {
@@ -556,7 +555,7 @@ namespace ccf
 
             open_frontend(ActorsType::members);
 
-            accept_network_tls_connections(config);
+            accept_network_tls_connections();
 
             if (resp.network_info.public_only)
             {
@@ -613,49 +612,43 @@ namespace ccf
       join_client->send_request(r.build_request());
     }
 
-    void start_join_timer(CCFConfig& config)
+    void start_join_timer()
     {
-      initiate_join(config);
+      initiate_join();
 
       struct JoinTimeMsg
       {
-        JoinTimeMsg(NodeState& self_, CCFConfig& config_) :
-          self(self_),
-          config(config_)
-        {}
-
+        JoinTimeMsg(NodeState& self_) : self(self_) {}
         NodeState& self;
-        CCFConfig& config;
       };
 
       auto join_timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
           if (msg->data.self.sm.check(State::pending))
           {
-            msg->data.self.initiate_join(msg->data.config);
-            auto delay =
-              std::chrono::milliseconds(msg->data.config.joining.join_timer);
+            msg->data.self.initiate_join();
+            auto delay = std::chrono::milliseconds(
+              msg->data.self.config.joining.join_timer);
 
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
           }
         },
-        *this,
-        config);
+        *this);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(join_timer_msg),
         std::chrono::milliseconds(config.joining.join_timer));
     }
 
-    void join(CCFConfig& config)
+    void join()
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::pending);
-      start_join_timer(config);
+      start_join_timer();
     }
 
-    void auto_refresh_jwt_keys(const CCFConfig& config)
+    void auto_refresh_jwt_keys()
     {
       if (!consensus)
       {
@@ -816,7 +809,7 @@ namespace ccf
       read_ledger_idx(++ledger_idx);
     }
 
-    void verify_snapshot_end(CCFConfig& config)
+    void verify_snapshot_end()
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::verifyingSnapshot);
@@ -832,7 +825,7 @@ namespace ccf
       ledger_truncate(startup_snapshot_info->seqno);
 
       sm.advance(State::pending);
-      start_join_timer(config);
+      start_join_timer();
     }
 
     void recover_public_ledger_end_unsafe()
@@ -913,7 +906,8 @@ namespace ccf
         progress_tracker->set_node_id(self);
       }
 
-      setup_raft(true);
+      setup_consensus(true);
+      auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT(
         "Restarting consensus at view: {} seqno: {} commit_seqno {}",
@@ -1359,7 +1353,7 @@ namespace ccf
       self = n;
     }
 
-    tls::SubjectAltName get_subject_alt_name(const CCFConfig& config)
+    tls::SubjectAltName get_subject_alt_name()
     {
       // If a domain is passed at node creation, record domain in SAN for node
       // hostname authentication over TLS. Otherwise, record IP in SAN.
@@ -1368,17 +1362,16 @@ namespace ccf
               san_is_ip};
     }
 
-    std::vector<tls::SubjectAltName> get_subject_alternative_names(
-      const CCFConfig& config)
+    std::vector<tls::SubjectAltName> get_subject_alternative_names()
     {
       std::vector<tls::SubjectAltName> sans = config.subject_alternative_names;
-      sans.push_back(get_subject_alt_name(config));
+      sans.push_back(get_subject_alt_name());
       return sans;
     }
 
-    void create_node_cert(const CCFConfig& config)
+    void create_node_cert()
     {
-      auto sans = get_subject_alternative_names(config);
+      auto sans = get_subject_alternative_names();
       node_cert = node_sign_kp->self_sign(config.subject_name, sans);
     }
 
@@ -1391,14 +1384,14 @@ namespace ccf
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
 
-    void accept_network_tls_connections(const CCFConfig& config)
+    void accept_network_tls_connections()
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
 
       auto nw = tls::make_key_pair(network.identity->priv_key);
       auto csr = node_sign_kp->create_csr(config.subject_name);
-      auto sans = get_subject_alternative_names(config);
+      auto sans = get_subject_alternative_names();
       auto endorsed_node_cert = nw->sign_csr(network.identity->cert, csr, sans);
 
       rpcsessions->set_cert(
@@ -1423,8 +1416,7 @@ namespace ccf
       open_frontend(ccf::ActorsType::users, &network.identity->cert);
     }
 
-    std::vector<uint8_t> serialize_create_request(
-      const CCFConfig& config, const QuoteInfo& quote_info)
+    std::vector<uint8_t> serialize_create_request(const QuoteInfo& quote_info)
     {
       CreateNetworkNodeToNode::In create_params;
 
@@ -1531,10 +1523,10 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_request(const CCFConfig& config)
+    bool create_and_send_request()
     {
       const auto create_success =
-        send_create_request(serialize_create_request(config, quote_info));
+        send_create_request(serialize_create_request(quote_info));
       if (network.consensus_type == ConsensusType::BFT)
       {
         return true;
@@ -1818,10 +1810,10 @@ namespace ccf
       }
     }
 
-    void setup_snapshotter(size_t snapshot_tx_interval)
+    void setup_snapshotter()
     {
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network, snapshot_tx_interval);
+        writer_factory, network, config.snapshot_tx_interval);
     }
 
     void setup_tracker_store()

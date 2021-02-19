@@ -413,6 +413,8 @@ def test_jwt_key_auto_refresh(network, args):
         with_timeout(lambda: check_kv_jwt_key_matches(network, kid, None), timeout=5)
         check_kv_jwt_key_matches(network, kid2, cert2_pem)
 
+    return network
+
 
 @reqs.description("JWT with auto_refresh enabled, initial refresh")
 def test_jwt_key_initial_refresh(network, args):
@@ -457,6 +459,8 @@ def test_jwt_key_initial_refresh(network, args):
         assert m["failures"] == 0, m["failures"]
         assert m["successes"] > 0, m["successes"]
 
+    return network
+
 
 def with_timeout(fn, timeout):
     t0 = time.time()
@@ -482,6 +486,12 @@ def run(args):
         network = test_jwt_with_sgx_key_filter(network, args)
         network = test_jwt_key_auto_refresh(network, args)
 
+        # Check that auto refresh also works on backups
+        primary, _ = network.find_primary()
+        primary.stop()
+        network.wait_for_new_primary(primary.node_id)
+        network = test_jwt_key_auto_refresh(network, args)
+
     args.jwt_key_refresh_interval_s = 100000
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -489,10 +499,16 @@ def run(args):
         network.start_and_join(args)
         network = test_jwt_key_initial_refresh(network, args)
 
+        # Check that initial refresh also works on backups
+        primary, _ = network.find_primary()
+        primary.stop()
+        network.wait_for_new_primary(primary.node_id)
+        network = test_jwt_key_initial_refresh(network, args)
+
 
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     run(args)
