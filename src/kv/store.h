@@ -71,7 +71,6 @@ namespace kv
 
     std::shared_ptr<Consensus> consensus = nullptr;
 
-    bool is_history_temporary = false;
     std::shared_ptr<TxHistory> history = nullptr;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker = nullptr;
     EncryptorPtr encryptor = nullptr;
@@ -146,23 +145,14 @@ namespace kv
       consensus = consensus_;
     }
 
-    std::shared_ptr<TxHistory> get_history(
-      bool ignore_temporary = false) override
+    std::shared_ptr<TxHistory> get_history() override
     {
-      if (ignore_temporary && is_history_temporary)
-      {
-        LOG_FAIL_FMT("Returning nullptr instead of history");
-        return nullptr;
-      }
-
       return history;
     }
 
-    void set_history(
-      std::shared_ptr<TxHistory> history_, bool is_temporary = false)
+    void set_history(std::shared_ptr<TxHistory> history_)
     {
       history = history_;
-      is_history_temporary = is_temporary;
     }
 
     void reset_history()
