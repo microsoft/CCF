@@ -3,12 +3,12 @@
 
 #include "node/historical_queries.h"
 
+#include "crypto/rsa_key_pair.h"
 #include "ds/messaging.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 #include "node/share_manager.h"
-#include "tls/rsa_key_pair.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -22,7 +22,7 @@ using NumToString = kv::Map<size_t, std::string>;
 // Used throughout
 constexpr size_t buffer_size = 1 << 12;
 const auto node_id = 0;
-auto kp = tls::make_key_pair();
+auto kp = crypto::make_key_pair();
 
 void initialise_store(kv::Store& store, bool initialise_ledger_rekey = false)
 {
@@ -46,7 +46,7 @@ void initialise_store(kv::Store& store, bool initialise_ledger_rekey = false)
     auto members = tx.rw<ccf::Members>(ccf::Tables::MEMBERS);
     ccf::MemberInfo mi;
     mi.status = ccf::MemberStatus::ACTIVE;
-    mi.encryption_pub_key = tls::make_rsa_key_pair()->public_key_pem();
+    mi.encryption_pub_key = crypto::make_rsa_key_pair()->public_key_pem();
     members->put(0, mi);
   }
 
