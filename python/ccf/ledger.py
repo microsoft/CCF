@@ -481,7 +481,6 @@ class Ledger:
     _fileindex: int
     _current_chunk: LedgerChunk
     _ledger_validator: LedgerValidator
-    _committed_file_name_regex: re.Pattern
 
     def __init__(self, directory: str):
 
