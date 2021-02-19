@@ -346,11 +346,8 @@ namespace ccf::historical
       }
 
       auto verifier = tls::make_verifier(node_info->cert);
-      const auto verified = verifier->verify_hash(
-        real_root.h.data(),
-        real_root.h.size(),
-        sig->sig.data(),
-        sig->sig.size());
+      const auto verified =
+        verifier->verify_hash(real_root.h, sig->sig, MDType::SHA256);
       if (!verified)
       {
         LOG_FAIL_FMT("Signature at {}: Signature invalid", sig_idx);

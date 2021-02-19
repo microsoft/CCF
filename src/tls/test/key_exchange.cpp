@@ -56,8 +56,10 @@ TEST_CASE("Simple key exchange")
 
 TEST_CASE("Key exchange from static shares")
 {
-  auto peer1_kp = tls::make_key_pair();
-  auto peer2_kp = tls::make_key_pair();
+  auto peer1_kp =
+    std::make_shared<tls::KeyPair_mbedTLS>(tls::service_identity_curve_choice);
+  auto peer2_kp =
+    std::make_shared<tls::KeyPair_mbedTLS>(tls::service_identity_curve_choice);
 
   auto peer1_ctx = tls::KeyExchangeContext(peer1_kp, peer2_kp);
   auto peer2_ctx = tls::KeyExchangeContext(peer2_kp, peer1_kp);

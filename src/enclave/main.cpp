@@ -128,7 +128,11 @@ extern "C"
 #endif
 
     auto enclave = new enclave::Enclave(
-      ec, cc.signature_intervals, consensus_type, cc.consensus_config);
+      ec,
+      cc.signature_intervals,
+      consensus_type,
+      cc.consensus_config,
+      cc.curve_id);
 
     bool result = enclave->create_new_node(
       start_type,

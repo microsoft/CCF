@@ -14,6 +14,7 @@
 #include "node/members.h"
 #include "node/node_info_network.h"
 #include "start_type.h"
+#include "tls/curve.h"
 #include "tls/san.h"
 #include "tls/tls.h"
 
@@ -39,6 +40,8 @@ struct EnclaveConfig
   DebugConfig debug_config = {};
 #endif
 };
+
+MSGPACK_ADD_ENUM(tls::CurveID);
 
 struct CCFConfig
 {
@@ -83,6 +86,8 @@ struct CCFConfig
 
   size_t jwt_key_refresh_interval_s;
 
+  tls::CurveID curve_id;
+
   MSGPACK_DEFINE(
     consensus_config,
     node_info_network,
@@ -95,7 +100,8 @@ struct CCFConfig
     joining,
     subject_name,
     subject_alternative_names,
-    jwt_key_refresh_interval_s);
+    jwt_key_refresh_interval_s,
+    curve_id);
 };
 
 /// General administrative messages
