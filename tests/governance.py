@@ -88,7 +88,7 @@ def test_user(network, args, verify=True):
     # a new user and uses its own LoggingTxs
     primary, _ = network.find_nodes()
     new_user_id = 3
-    network.create_users([new_user_id], args.participants_curve)
+    network.create_user(new_user_id, args.participants_curve)
     user_data = {"lifetime": "temporary"}
     network.consortium.add_user(primary, new_user_id, user_data)
     txs = app.LoggingTxs(user_id=new_user_id)
