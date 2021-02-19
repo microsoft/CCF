@@ -113,6 +113,8 @@ namespace ccf
   {
     kv::Store& store;
     NodeId id;
+
+  protected:
     kv::Version version = 0;
     kv::Term term = 0;
 
