@@ -469,18 +469,18 @@ namespace asynchost
         ledger_committed_suffix);
 
       auto file_path = fs::path(dir) / fs::path(file_name);
-      auto committed_file_file = fs::path(dir) / fs::path(committed_file_name);
+      auto committed_file_path = fs::path(dir) / fs::path(committed_file_name);
 
       std::error_code ec;
-      fs::rename(file_path, committed_file_file, ec);
+      fs::rename(file_path, committed_file_path, ec);
       if (ec)
       {
-        // Even if the file cannot be renamed (e.g. file was removed), continue
-        // and report an error
+        // Even if the file cannot be renamed (e.g. file was removed), report an
+        // error and continue
         LOG_FAIL_FMT(
           "Could not rename committed ledger file {} to {}",
           file_path,
-          committed_file_file);
+          committed_file_path);
       }
       else
       {
