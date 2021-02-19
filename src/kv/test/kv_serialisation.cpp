@@ -546,8 +546,8 @@ TEST_CASE_TEMPLATE(
     auto tx2 = kv_store2.create_tx();
     auto handle2 = tx2.rw(map2);
 
-    // operator== does not need to be defined for custom types. In this case it
-    // is not, and we check each member manually
+    // operator== does not need to be defined for custom types. In this case
+    // it is not, and we check each member manually
     auto va = handle2->get(k1);
     REQUIRE(va.has_value());
     REQUIRE(va->s == v1.s);
