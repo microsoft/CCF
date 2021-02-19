@@ -65,6 +65,8 @@ namespace ccf
           get_status_for_txid_v1(in.view, in.seqno, out.status);
         if (result == ccf::ApiResult::OK)
         {
+          out.view = in.view;
+          out.seqno = in.seqno;
           return make_success(out);
         }
         else
