@@ -3,6 +3,7 @@
 #pragma once
 
 #include "authentication_types.h"
+#include "ds/lru.h"
 #include "http/http_sig.h"
 
 namespace ccf
@@ -33,10 +34,18 @@ namespace ccf
     SignedReq signed_request;
   };
 
+  // TODO: Test LRU by calling multi_auth from many users, timing responses?
   struct VerifierCache
   {
+    // TODO: Make a principled choice on what this should be
+    static constexpr size_t DEFAULT_MAX_VERIFIERS = 30;
+
     SpinLock verifiers_lock;
-    std::unordered_map<tls::Pem, tls::VerifierPtr> verifiers;
+    LRU<tls::Pem, tls::VerifierPtr> verifiers;
+
+    VerifierCache(size_t max_verifiers = DEFAULT_MAX_VERIFIERS) :
+      verifiers(max_verifiers)
+    {}
 
     tls::VerifierPtr get_verifier(const tls::Pem& pem)
     {
@@ -47,7 +56,7 @@ namespace ccf
       auto it = verifiers.find(pem);
       if (it == verifiers.end())
       {
-        it = verifiers.emplace_hint(it, pem, tls::make_verifier(pem));
+        it = verifiers.insert(pem, tls::make_verifier(pem));
       }
 
       return it->second;

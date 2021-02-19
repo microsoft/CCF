@@ -96,7 +96,7 @@ public:
     return it != iter_map.end();
   }
 
-  Iterator insert(K&& k, V&& v)
+  Iterator insert(const K& k, V&& v)
   {
     auto it = iter_map.find(k);
     if (it != iter_map.end())
@@ -108,7 +108,7 @@ public:
     else
     {
       // Else add a new entry to both containers, and cull if necessary
-      entries_list.push_front(std::make_pair(k, v));
+      entries_list.push_front(std::make_pair(k, std::forward<V>(v)));
       const auto list_it = entries_list.begin();
       iter_map.emplace_hint(it, k, list_it);
       cull();
