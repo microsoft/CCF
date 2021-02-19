@@ -18,7 +18,6 @@ namespace ccf
     ObjectId commit_seqno = 0;
     ObjectId commit_view = 0;
     crypto::Sha256Hash root;
-    std::vector<uint8_t> tree = {0};
 
     MSGPACK_DEFINE(
       MSGPACK_BASE(NodeSignature),
@@ -26,8 +25,7 @@ namespace ccf
       view,
       commit_seqno,
       commit_view,
-      root,
-      tree);
+      root);
 
     PrimarySignature() {}
 
@@ -46,23 +44,26 @@ namespace ccf
       kv::Consensus::View commit_view_,
       const crypto::Sha256Hash root_,
       Nonce hashed_nonce_,
-      const std::vector<uint8_t>& sig_,
-      const std::vector<uint8_t>& tree_) :
+      const std::vector<uint8_t>& sig_) :
       NodeSignature(sig_, node_, hashed_nonce_),
       seqno(seqno_),
       view(view_),
       commit_seqno(commit_seqno_),
       commit_view(commit_view_),
-      root(root_),
-      tree(tree_)
+      root(root_)
     {}
   };
   DECLARE_JSON_TYPE_WITH_BASE(PrimarySignature, NodeSignature)
   DECLARE_JSON_REQUIRED_FIELDS(
-    PrimarySignature, seqno, view, commit_seqno, commit_view, root, tree)
+    PrimarySignature, seqno, view, commit_seqno, commit_view, root)
   using Signatures = kv::MapSerialisedWith<
     ObjectId,
     PrimarySignature,
     kv::serialisers::BlitSerialiser,
     kv::serialisers::JsonSerialiser>;
+  using Tree = kv::MapSerialisedWith<
+    ObjectId,
+    std::vector<uint8_t>,
+    kv::serialisers::BlitSerialiser,
+    kv::serialisers::BlitSerialiser>;
 }

@@ -275,6 +275,7 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto tree = sig.template rw<ccf::Tree>(ccf::Tables::TREE);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
 
       Nonce hashed_nonce;
@@ -314,9 +315,7 @@ namespace ccf
         commit_txid.term,
         root,
         hashed_nonce,
-        primary_sig,
-        replicated_state_tree.serialise(
-          commit_txid.previous_version, txid.version - 1));
+        primary_sig);
 
       if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
       {
@@ -326,6 +325,10 @@ namespace ccf
       }
 
       signatures->put(0, sig_value);
+      tree->put(
+        0,
+        replicated_state_tree.serialise(
+          commit_txid.previous_version, txid.version - 1));
       return sig.commit_reserved();
     }
   };
@@ -583,11 +586,19 @@ namespace ccf
         return false;
       }
 
+      auto tree = tx.template ro<ccf::Tree>(ccf::Tables::TREE);
+      auto tree_snap = tree->get(0);
+      if (!tree_snap.has_value())
+      {
+        LOG_FAIL_FMT("No tree snapshot found in tree map");
+        return false;
+      }
+
       CCF_ASSERT_FMT(
         !replicated_state_tree.in_range(1),
         "Tree is not empty before initialising from snapshot");
 
-      replicated_state_tree.apply(sig->tree);
+      replicated_state_tree.apply(tree_snap.value());
 
       crypto::Sha256Hash hash;
       std::copy_n(
