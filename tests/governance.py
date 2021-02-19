@@ -231,9 +231,8 @@ def test_service_principals(network, args):
 
 @reqs.description("Test ack state digest updates")
 def test_ack_state_digest_update(network, args):
-    for _ in range(50):
-        for node in network.get_joined_nodes():
-            network.consortium.get_any_active_member().update_ack_state_digest(node)
+    for node in network.get_joined_nodes():
+        network.consortium.get_any_active_member().update_ack_state_digest(node)
 
 
 def run(args):
