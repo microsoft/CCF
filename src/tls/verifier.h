@@ -273,7 +273,7 @@ namespace tls
      */
     Verifier_OpenSSL(const std::vector<uint8_t>& c) : VerifierBase()
     {
-      BIO* certbio = BIO_new_mem_buf(c.data(), c.size());
+      Unique_BIO certbio(c.data(), c.size());
       if (!(cert = PEM_read_bio_X509(certbio, NULL, 0, NULL)))
       {
         BIO_reset(certbio);
@@ -283,7 +283,6 @@ namespace tls
             "OpenSSL error: {}", ERR_error_string(ERR_get_error(), NULL)));
         }
       }
-      BIO_free(certbio);
 
       int mdnid, pknid, secbits;
       X509_get_signature_info(cert, &mdnid, &pknid, &secbits, 0);
@@ -322,28 +321,22 @@ namespace tls
 
     virtual std::vector<uint8_t> cert_der() override
     {
-      BIO* mem = BIO_new(BIO_s_mem());
+      Unique_BIO mem;
       OPENSSL_CHECK1(i2d_X509_bio(mem, cert));
 
       BUF_MEM* bptr;
       BIO_get_mem_ptr(mem, &bptr);
-      std::vector<uint8_t> result = {(uint8_t*)bptr->data,
-                                     (uint8_t*)bptr->data + bptr->length};
-      BIO_free(mem);
-      return result;
+      return {(uint8_t*)bptr->data, (uint8_t*)bptr->data + bptr->length};
     }
 
     virtual Pem cert_pem() override
     {
-      BIO* mem = BIO_new(BIO_s_mem());
+      Unique_BIO mem;
       OPENSSL_CHECK1(PEM_write_bio_X509(mem, cert));
 
       BUF_MEM* bptr;
       BIO_get_mem_ptr(mem, &bptr);
-      Pem result((uint8_t*)bptr->data, bptr->length);
-      BIO_free(mem);
-
-      return result;
+      return Pem((uint8_t*)bptr->data, bptr->length);
     }
   };
 
