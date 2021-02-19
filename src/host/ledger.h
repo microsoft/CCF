@@ -157,7 +157,7 @@ namespace asynchost
       if (!file)
       {
         throw std::logic_error(fmt::format(
-          "Unable to open ledger file {}: {}", full_path, strerror(errno)));
+          "Unable to open ledger file {}: {}", file_path, strerror(errno)));
       }
 
       committed = is_ledger_file_committed(file_name);
@@ -173,7 +173,7 @@ namespace asynchost
       if (fread(&table_offset, sizeof(positions_offset_header_t), 1, file) != 1)
       {
         throw std::logic_error(fmt::format(
-          "Failed to read positions offset from ledger file {}", full_path));
+          "Failed to read positions offset from ledger file {}", file_path));
       }
 
       if (table_offset != 0)
@@ -193,7 +193,7 @@ namespace asynchost
             file) != positions.size())
         {
           throw std::logic_error(fmt::format(
-            "Failed to read positions table from ledger file {}", full_path));
+            "Failed to read positions table from ledger file {}", file_path));
         }
         completed = true;
       }
@@ -212,7 +212,7 @@ namespace asynchost
           if (fread(&entry_size, frame_header_size, 1, file) != 1)
           {
             throw std::logic_error(fmt::format(
-              "Failed to read frame from ledger file {}", full_path));
+              "Failed to read frame from ledger file {}", file_path));
           }
 
           len -= frame_header_size;
@@ -220,7 +220,7 @@ namespace asynchost
           if (len < entry_size)
           {
             throw std::logic_error(
-              fmt::format("Malformed ledger file {}", full_path));
+              fmt::format("Malformed ledger file {}", file_path));
           }
 
           fseeko(file, entry_size, SEEK_CUR);
