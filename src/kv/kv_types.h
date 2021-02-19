@@ -175,7 +175,8 @@ namespace kv
     PASS_NONCES = 5,
     PASS_NEW_VIEW = 6,
     PASS_SNAPSHOT_EVIDENCE = 7,
-    FAIL = 8
+    PASS_ENCRYPTED_PAST_LEDGER_SECRET = 8,
+    FAIL = 9
   };
 
   enum ReplicateType
@@ -420,7 +421,7 @@ namespace kv
   public:
     virtual ~AbstractTxEncryptor() {}
 
-    virtual void encrypt(
+    virtual bool encrypt(
       const std::vector<uint8_t>& plain,
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,

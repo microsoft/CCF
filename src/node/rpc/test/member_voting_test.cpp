@@ -302,7 +302,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   constexpr auto max_members = 8;
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
@@ -524,7 +524,7 @@ DOCTEST_TEST_CASE("Accept node")
 {
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
@@ -1299,7 +1299,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   // and gets it through without member votes
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
@@ -1481,7 +1481,7 @@ DOCTEST_TEST_CASE(
   // A majority of members pass the vote
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
@@ -1752,7 +1752,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 {
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
 
   ShareManager share_manager(network);

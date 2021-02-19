@@ -10,7 +10,7 @@ class Checker:
         self.notified_commit = 0
 
     # TODO: that API's not right!
-    def __call__(self, rpc_result, result=None, error=None, timeout=2):
+    def __call__(self, rpc_result, result=None, error=None):
         if error is not None:
             if callable(error):
                 assert error(
