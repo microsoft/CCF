@@ -503,7 +503,7 @@ class Ledger:
                     LOG.warning(f"The file {chunk} has not been committed")
                 self._filenames.append(os.path.join(directory, chunk))
 
-        # Initialize LedgerValidator isntance which will be passed to LedgerChunks.
+        # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
 
     def __next__(self) -> LedgerChunk:
