@@ -153,7 +153,7 @@ namespace asynchost
       file_name(file_name_)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
-      file = fopen(full_path.c_str(), "r+b");
+      file = fopen(file_path.c_str(), "r+b");
       if (!file)
       {
         throw std::logic_error(fmt::format(
