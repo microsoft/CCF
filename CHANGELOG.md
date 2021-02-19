@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.18.2]
 
+### Added
+
+- Support for historical queries after ledger rekey and service recovery (#2200).
+
 ### Changed
 
 - CCF now supports OpenSSL for many crypto tasks like hashing, signing, and signature verification (#2123).

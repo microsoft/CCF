@@ -316,7 +316,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
-          network.ledger_secrets = std::make_shared<LedgerSecrets>(self);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>();
           network.ledger_secrets->init();
 
           setup_snapshotter(config.snapshot_tx_interval);
@@ -477,7 +477,7 @@ namespace ccf
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
-              self, std::move(resp.network_info.ledger_secrets));
+              std::move(resp.network_info.ledger_secrets));
 
             if (resp.network_info.consensus_type != network.consensus_type)
             {
@@ -883,7 +883,6 @@ namespace ccf
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
       network.ledger_secrets->init(last_recovered_signed_idx + 1);
-      network.ledger_secrets->set_node_id(self);
       setup_encryptor();
 
       // Initialise snapshotter after public recovery
@@ -1007,7 +1006,6 @@ namespace ccf
       network.tables->swap_private_maps(*recovery_store.get());
       recovery_history.reset();
       recovery_store.reset();
-      reset_recovery_hook();
 
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
@@ -1018,6 +1016,7 @@ namespace ccf
       // Open the service
       if (consensus->is_primary())
       {
+        setup_one_off_secret_hook();
         auto tx = network.tables->create_tx();
 
         // Shares for the new ledger secret can only be issued now, once the
@@ -1039,6 +1038,44 @@ namespace ccf
       reset_data(quote_info.quote);
       reset_data(quote_info.endorsements);
       sm.advance(State::partOfNetwork);
+    }
+
+    void setup_one_off_secret_hook()
+    {
+      // This hook is necessary to adjust the version at which the last ledger
+      // secret before recovery is recorded in the store. This can only be fired
+      // once, after the recovery shares for the post-recovery ledger secret are
+      // issued.
+      network.tables->set_map_hook(
+        network.encrypted_ledger_secrets.get_name(),
+        network.encrypted_ledger_secrets.wrap_map_hook(
+          [this](
+            kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
+            -> kv::ConsensusHookPtr {
+            if (w.size() > 1)
+            {
+              throw std::logic_error(fmt::format(
+                "Transaction contains {} writes to map {}, expected one",
+                w.size(),
+                network.encrypted_ledger_secrets.get_name()));
+            }
+
+            auto encrypted_ledger_secret_info = w.at(0);
+            if (!encrypted_ledger_secret_info.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Removal from {} table",
+                network.encrypted_ledger_secrets.get_name()));
+            }
+
+            network.ledger_secrets->adjust_previous_secret_stored_version(
+              version);
+
+            network.tables->unset_map_hook(
+              network.encrypted_ledger_secrets.get_name());
+
+            return kv::ConsensusHookPtr(nullptr);
+          }));
     }
 
     //
@@ -1152,6 +1189,7 @@ namespace ccf
       history->emit_signature();
 
       setup_private_recovery_store();
+      reset_recovery_hook();
 
       // Start reading private security domain of ledger
       ledger_idx = recovery_store->current_version();
@@ -1279,17 +1317,16 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
 
-      // Because submitted recovery shares are encrypted with the latest
-      // ledger secret, it is not possible to rekey the ledger if the service
-      // is in that state.
+      // The ledger should not be re-keyed when the service is not open because:
+      // - While waiting for recovery shares, the submitted shares are stored
+      // in a public table, encrypted with the ledger secret generated at
+      // startup of the first recovery node
+      // - On recovery, historical ledger secrets can only be looked up in the
+      // ledger once all ledger secrets have been restored
       GenesisGenerator g(network, tx);
-      if (
-        g.get_service_status().value() ==
-        ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+      if (g.get_service_status().value() != ServiceStatus::OPEN)
       {
-        LOG_FAIL_FMT(
-          "Cannot rekey ledger while the service is waiting for recovery "
-          "shares");
+        LOG_FAIL_FMT("Cannot rekey ledger while the service is not open");
         return false;
       }
 
@@ -1508,7 +1545,7 @@ namespace ccf
       }
     }
 
-    void backup_finish_recovery()
+    void backup_initiate_private_recovery()
     {
       if (!consensus->is_backup())
         return;
@@ -1518,6 +1555,9 @@ namespace ccf
       LOG_INFO_FMT("Initiating end of recovery (backup)");
 
       setup_private_recovery_store();
+
+      reset_recovery_hook();
+      setup_one_off_secret_hook();
 
       // Start reading private security domain of ledger
       ledger_idx = recovery_store->current_version();
@@ -1535,30 +1575,40 @@ namespace ccf
             -> kv::ConsensusHookPtr {
             LedgerSecretsMap restored_ledger_secrets;
 
-            for (const auto& [node_id, opt_ledger_secret_set] : w)
+            if (w.size() > 1)
             {
-              if (!opt_ledger_secret_set.has_value())
-              {
-                throw std::logic_error(fmt::format(
-                  "Unexpected: removal from secrets table for node ({})",
-                  node_id));
-              }
+              throw std::logic_error(fmt::format(
+                "Transaction contains {} writes to map {}, expected one",
+                w.size(),
+                network.secrets.get_name()));
+            }
 
+            auto encrypted_ledger_secrets = w.at(0);
+            if (!encrypted_ledger_secrets.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Removal from {} table", network.secrets.get_name()));
+            }
+
+            auto primary_public_encryption_key =
+              encrypted_ledger_secrets->primary_public_encryption_key;
+
+            for (const auto& [node_id, encrypted_ledger_secrets] :
+                 encrypted_ledger_secrets->secrets_for_nodes)
+            {
               if (node_id != self)
               {
                 // Only consider ledger secrets for this node
                 continue;
               }
 
-              const auto& ledger_secret_set = opt_ledger_secret_set.value();
-
               for (const auto& encrypted_ledger_secret :
-                   ledger_secret_set.encrypted_secrets)
+                   encrypted_ledger_secrets)
               {
                 auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
                   node_encrypt_kp,
                   std::make_shared<PublicKey_mbedTLS>(
-                    ledger_secret_set.primary_public_encryption_key),
+                    primary_public_encryption_key),
                   encrypted_ledger_secret.encrypted_secret);
 
                 // On rekey, the version is inferred from the version at which
@@ -1571,7 +1621,10 @@ namespace ccf
                 {
                   // On recovery, accumulate restored ledger secrets
                   restored_ledger_secrets.emplace(
-                    ledger_secret_version, std::move(plain_ledger_secret));
+                    ledger_secret_version,
+                    std::make_shared<LedgerSecret>(
+                      std::move(plain_ledger_secret),
+                      encrypted_ledger_secret.previous_secret_stored_version));
                 }
                 else
                 {
@@ -1579,7 +1632,9 @@ namespace ccf
                   // onward (backups deserialise this transaction with the
                   // previous ledger secret)
                   network.ledger_secrets->set_secret(
-                    ledger_secret_version + 1, std::move(plain_ledger_secret));
+                    ledger_secret_version + 1,
+                    std::make_shared<LedgerSecret>(
+                      std::move(plain_ledger_secret), hook_version));
                 }
               }
             }
@@ -1590,7 +1645,7 @@ namespace ccf
               // recovery protocol (backup only)
               network.ledger_secrets->restore_historical(
                 std::move(restored_ledger_secrets));
-              backup_finish_recovery();
+              backup_initiate_private_recovery();
             }
 
             return kv::ConsensusHookPtr(nullptr);
