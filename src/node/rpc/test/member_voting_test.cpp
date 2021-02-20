@@ -302,7 +302,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   constexpr auto max_members = 8;
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
@@ -524,7 +524,7 @@ DOCTEST_TEST_CASE("Accept node")
 {
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
@@ -1116,7 +1116,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     const auto uid = tx1.rw(network.values)->get(ValueIds::NEXT_USER_ID);
     DOCTEST_CHECK(uid);
     DOCTEST_CHECK(*uid == 1);
-    user_der = tls::make_verifier(user_cert)->der_cert_data();
+    user_der = tls::make_verifier(user_cert)->cert_der();
     const auto uid1 = tx1.rw(network.user_certs)->get(user_der);
     DOCTEST_CHECK(uid1);
     DOCTEST_CHECK(*uid1 == 0);
@@ -1224,9 +1224,7 @@ DOCTEST_TEST_CASE(
     const auto propose =
       create_signed_request(proposal, "proposals", kp, members[proposer_id]);
     const auto r = parse_response_body<Propose::Out>(frontend_process(
-      frontend,
-      propose,
-      tls::make_verifier(members[proposer_id])->der_cert_data()));
+      frontend, propose, tls::make_verifier(members[proposer_id])->cert_der()));
 
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
 
@@ -1301,7 +1299,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   // and gets it through without member votes
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
@@ -1483,7 +1481,7 @@ DOCTEST_TEST_CASE(
   // A majority of members pass the vote
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
@@ -1754,7 +1752,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 {
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
 
   ShareManager share_manager(network);
