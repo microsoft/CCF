@@ -3,10 +3,10 @@
 #pragma once
 
 #include "crypto/hash.h"
+#include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
 #include "serialiser_declare.h"
-#include "tls/pem.h"
 
 #include <array>
 #include <chrono>

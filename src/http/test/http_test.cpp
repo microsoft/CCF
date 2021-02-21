@@ -5,7 +5,7 @@
 #include "../http_builder.h"
 #include "../http_parser.h"
 #include "../http_sig.h"
-#include "tls/key_pair.h"
+#include "crypto/key_pair.h"
 
 #include <doctest/doctest.h>
 #include <queue>
@@ -454,7 +454,7 @@ DOCTEST_TEST_CASE("Signatures")
 {
   // Produce signed requests with some formatting variations, ensure we can
   // parse them
-  auto kp = tls::make_key_pair();
+  auto kp = crypto::make_key_pair();
   const std::string key_id = "UniqueIdentifierForThisKeypair";
 
   http::Request request("/foo", HTTP_POST);

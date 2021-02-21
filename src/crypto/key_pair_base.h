@@ -2,9 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "curve.h"
+#include "hash.h"
 #include "pem.h"
+#include "san.h"
 
-namespace tls
+namespace crypto
 {
   static constexpr size_t max_pem_key_size = 2048;
 
