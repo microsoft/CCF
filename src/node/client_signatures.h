@@ -11,7 +11,6 @@
 #include <msgpack/msgpack.hpp>
 #include <vector>
 
-using namespace tls;
 using namespace crypto;
 
 MSGPACK_ADD_ENUM(MDType);

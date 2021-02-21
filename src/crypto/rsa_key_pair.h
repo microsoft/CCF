@@ -12,7 +12,7 @@
 #include <optional>
 #include <vector>
 
-namespace tls
+namespace crypto
 {
   // Compatible with Azure HSM encryption schemes (see
   // https://docs.microsoft.com/en-gb/azure/key-vault/keys/about-keys#wrapkeyunwrapkey-encryptdecrypt)
@@ -71,7 +71,7 @@ namespace tls
       mbedtls_rsa_set_padding(rsa_ctx, rsa_padding_mode, rsa_padding_digest_id);
 
       std::vector<uint8_t> output_buf(rsa_ctx->len);
-      auto entropy = tls::create_entropy();
+      auto entropy = create_entropy();
 
       // Note that the maximum input size to wrap is k - 2*hLen - 2
       // where hLen is the hash size (32 bytes = SHA256) and
@@ -310,7 +310,7 @@ namespace tls
       mbedtls_rsa_set_padding(rsa_ctx, rsa_padding_mode, rsa_padding_digest_id);
 
       std::vector<uint8_t> output_buf(rsa_ctx->len);
-      auto entropy = tls::create_entropy();
+      auto entropy = create_entropy();
 
       const unsigned char* label_ = NULL;
       size_t label_size = 0;

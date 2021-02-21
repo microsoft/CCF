@@ -11,7 +11,7 @@
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
 
-namespace tls
+namespace crypto
 {
   namespace
   {
@@ -270,6 +270,11 @@ namespace tls
       BUF_MEM* bptr;
       BIO_get_mem_ptr(buf, &bptr);
       return Pem((uint8_t*)bptr->data, bptr->length);
+    }
+
+    static std::string error_string(unsigned long ec)
+    {
+      return ERR_error_string(ec, NULL);
     }
   };
 

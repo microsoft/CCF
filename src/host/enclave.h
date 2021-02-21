@@ -3,9 +3,9 @@
 #pragma once
 
 #include "crypto/hash.h"
+#include "crypto/key_pair.h"
 #include "ds/logger.h"
 #include "enclave/interface.h"
-#include "tls/key_pair.h"
 
 #include <dlfcn.h>
 #include <msgpack/msgpack.hpp>

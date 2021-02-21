@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tls.h"
-
 #include <cassert>
 #include <utility>
 #include <vector>
@@ -23,7 +21,7 @@
 // issue.`
 #define RDRAND_RETRIES 10
 
-namespace tls
+namespace crypto
 {
   using rng_func_t = int (*)(void* ctx, unsigned char* output, size_t len);
 

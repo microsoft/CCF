@@ -3,11 +3,11 @@
 #pragma once
 
 #include "crypto/hash.h"
+#include "crypto/key_pair.h"
 #include "http_consts.h"
 #include "http_parser.h"
 #include "node/client_signatures.h"
 #include "tls/base64.h"
-#include "tls/key_pair.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -82,7 +82,7 @@ namespace http
 
   inline void sign_request(
     http::Request& request,
-    const tls::KeyPairPtr& kp,
+    const crypto::KeyPairPtr& kp,
     const std::string& key_id,
     const std::vector<std::string_view>& headers_to_sign)
   {
@@ -116,7 +116,7 @@ namespace http
 
   inline void sign_request(
     http::Request& request,
-    const tls::KeyPairPtr& kp,
+    const crypto::KeyPairPtr& kp,
     const std::string& key_id)
   {
     std::vector<std::string_view> headers_to_sign;
