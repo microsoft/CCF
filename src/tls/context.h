@@ -3,9 +3,9 @@
 #pragma once
 
 #include "cert.h"
-#include "entropy.h"
+#include "crypto/entropy.h"
+#include "crypto/mbedtls_wrappers.h"
 #include "error_string.h"
-#include "mbedtls_wrappers.h"
 
 #include <memory>
 
@@ -16,7 +16,7 @@ namespace tls
   protected:
     mbedtls::SSLContext ssl = nullptr;
     mbedtls::SSLConfig cfg = nullptr;
-    EntropyPtr entropy;
+    crypto::EntropyPtr entropy;
 
 #ifndef NO_STRICT_TLS_CIPHERSUITES
     const int ciphersuites[2] = {
@@ -24,7 +24,7 @@ namespace tls
 #endif
 
   public:
-    Context(bool client, bool dgram) : entropy(tls::create_entropy())
+    Context(bool client, bool dgram) : entropy(crypto::create_entropy())
     {
       int rc = 0;
 

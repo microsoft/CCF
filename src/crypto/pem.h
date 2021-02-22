@@ -4,7 +4,6 @@
 
 #include "ds/buffer.h"
 #include "ds/json.h"
-#include "tls.h"
 
 #include <cstring>
 #include <exception>
@@ -12,7 +11,7 @@
 #include <msgpack/msgpack.hpp>
 #include <vector>
 
-namespace tls
+namespace crypto
 {
   // Convenience class ensuring null termination of PEM-encoded certificates as
   // required by mbedTLS
@@ -125,9 +124,9 @@ namespace tls
 namespace std
 {
   template <>
-  struct hash<tls::Pem>
+  struct hash<crypto::Pem>
   {
-    size_t operator()(const tls::Pem& pem) const
+    size_t operator()(const crypto::Pem& pem) const
     {
       return std::hash<std::string>()(pem.str());
     }

@@ -472,8 +472,8 @@ if(BUILD_TESTS)
   add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
   add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
   add_picobench(
-    tls_bench
-    SRCS src/tls/test/bench.cpp
+    crypto_bench
+    SRCS src/crypto/test/bench.cpp
     LINK_LIBS
   )
   add_picobench(

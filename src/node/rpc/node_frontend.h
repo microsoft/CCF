@@ -47,7 +47,7 @@ namespace ccf
 
     std::optional<ExistingNodeInfo> check_node_exists(
       kv::Tx& tx,
-      const tls::Pem& node_pem,
+      const crypto::Pem& node_pem,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
       auto nodes = tx.rw(network.nodes);
@@ -92,7 +92,7 @@ namespace ccf
 
     auto add_node(
       kv::Tx& tx,
-      const tls::Pem& caller_pem,
+      const crypto::Pem& caller_pem,
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status)
     {
@@ -221,7 +221,7 @@ namespace ccf
           // Convert caller cert from DER to PEM as PEM certificates
           // are quoted
           auto caller_pem =
-            tls::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
+            crypto::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
 
           if (active_service->status == ServiceStatus::OPENING)
           {

@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "client_signatures.h"
+#include "crypto/pem.h"
 #include "ds/hash.h"
 #include "entities.h"
 #include "node_signature.h"
-#include "tls/pem.h"
 
 #include <msgpack/msgpack.hpp>
 #include <vector>
@@ -34,17 +34,17 @@ namespace ccf
 
   struct MemberPubInfo
   {
-    tls::Pem cert;
+    crypto::Pem cert;
 
     // If encryption public key is set, the member is a recovery member
-    std::optional<tls::Pem> encryption_pub_key = std::nullopt;
+    std::optional<crypto::Pem> encryption_pub_key = std::nullopt;
     nlohmann::json member_data = nullptr;
 
     MemberPubInfo() {}
 
     MemberPubInfo(
-      const tls::Pem& cert_,
-      const std::optional<tls::Pem>& encryption_pub_key_ = std::nullopt,
+      const crypto::Pem& cert_,
+      const std::optional<crypto::Pem>& encryption_pub_key_ = std::nullopt,
       const nlohmann::json& member_data_ = nullptr) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),

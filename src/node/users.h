@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/pem.h"
 #include "kv/map.h"
-#include "tls/pem.h"
 
 #include <nlohmann/json.hpp>
 
@@ -11,7 +11,7 @@ namespace ccf
 {
   struct UserInfo
   {
-    tls::Pem cert;
+    crypto::Pem cert;
     nlohmann::json user_data = nullptr;
 
     MSGPACK_DEFINE(cert, user_data);
