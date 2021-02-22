@@ -261,7 +261,7 @@ namespace ccf
       kv::Consensus::SignableTxIndices commit_txid_,
       kv::Store& store_,
       T& replicated_state_tree_,
-      SpinLock& state_lock_,
+      SpinLock& state_lock_, // lock to protect replicated_state_tree_
       NodeId id_,
       tls::KeyPairBase& kp_) :
       txid(txid_),

@@ -270,7 +270,7 @@ namespace kv
      */
     CommitResult commit(
       std::function<Version()> version_resolver = nullptr,
-      kv::Version replicated_max_conflict_version = -1)
+      kv::Version replicated_max_conflict_version = kv::NoVersion)
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -339,7 +339,7 @@ namespace kv
         if (
           version > max_conflict_version &&
           version > replicated_max_conflict_version &&
-          replicated_max_conflict_version != -1)
+          replicated_max_conflict_version != kv::NoVersion)
         {
           max_conflict_version = replicated_max_conflict_version;
         }

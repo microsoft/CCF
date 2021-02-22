@@ -142,8 +142,8 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
       const PreExec& pre_exec = {},
-      kv::Version reserved = -1,
-      kv::Consensus::SeqNo max_conflict_version = -1)
+      kv::Version prescribed_commit_version = kv::NoVersion,
+      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion)
     {
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
@@ -287,13 +287,13 @@ namespace ccf
           }
 
           std::function<kv::Version()> version_resolver = nullptr;
-          if (reserved != -1)
+          if (prescribed_commit_version != kv::NoVersion)
           {
             CCF_ASSERT(
               consensus->type() == ConsensusType::BFT, "Wrong consensus type");
             version_resolver = [&]() {
               tables.next_version();
-              return reserved;
+              return prescribed_commit_version;
             };
           }
 
@@ -571,11 +571,11 @@ namespace ccf
 
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
-      kv::Consensus::SeqNo last_idx,
+      kv::Consensus::SeqNo prescribed_commit_version,
       kv::Consensus::SeqNo max_conflict_version) override
     {
       auto tx = tables.create_tx();
-      return process_bft(ctx, tx, last_idx, max_conflict_version);
+      return process_bft(ctx, tx, prescribed_commit_version, max_conflict_version);
     }
 
     /** Process a serialised command with the associated RPC context via BFT
@@ -585,8 +585,8 @@ namespace ccf
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
-      kv::Consensus::SeqNo last_idx = -1,
-      kv::Consensus::SeqNo max_conflict_version = -1) override
+      kv::Consensus::SeqNo prescribed_commit_version = kv::NoVersion,
+      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) override
     {
       // Note: this can only happen if the primary is malicious,
       // and has executed a user transaction when the service wasn't
@@ -610,7 +610,7 @@ namespace ccf
            ctx.frame_format()});
       };
 
-      auto rep = process_command(ctx, tx, fn, last_idx, max_conflict_version);
+      auto rep = process_command(ctx, tx, fn, prescribed_commit_version, max_conflict_version);
 
       version = tx.get_version();
       return {std::move(rep.value()), version};

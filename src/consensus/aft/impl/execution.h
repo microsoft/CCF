@@ -37,9 +37,9 @@ namespace aft
     virtual kv::Version execute_request(
       std::unique_ptr<RequestMessage> request,
       bool is_create_request,
-      kv::Consensus::SeqNo commit_version = -1,
+      kv::Consensus::SeqNo commit_version = kv::NoVersion,
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
-      kv::Consensus::SeqNo max_conflict_version = -1) = 0;
+      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) = 0;
 
     virtual std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args,
@@ -73,9 +73,9 @@ namespace aft
     kv::Version execute_request(
       std::unique_ptr<RequestMessage> request,
       bool is_create_request,
-      kv::Consensus::SeqNo last_idx = -1,
+      kv::Consensus::SeqNo last_idx = kv::NoVersion,
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
-      kv::Consensus::SeqNo max_conflict_version = -1) override;
+      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) override;
 
     std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args,

@@ -123,6 +123,10 @@ namespace kv
       // Get the version number to be used for this commit.
       version = f();
 
+      // Since the tracking of a read version is done in a key-value pair we
+      // cannot track the dependencies of two transactions that depend on a
+      // key-value pair on a map that does not exist yet. We therefore gate
+      // execution pipelining on map creation.
       if (!new_maps.empty() && version > 0)
       {
         max_conflict_version = version - 1;

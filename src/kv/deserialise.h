@@ -251,6 +251,7 @@ namespace kv
       return v - 1;
     }
 
+  protected:
     ExecutionWrapperStore* store;
     std::shared_ptr<TxHistory> history;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker;
