@@ -138,7 +138,7 @@ namespace aft
 
     void recv_message(OArray&& oa) override {}
 
-    void initialize(NodeId self_id, const tls::Pem& network_pkey) override {}
+    void initialize(NodeId self_id, const crypto::Pem& network_pkey) override {}
 
     bool send_encrypted(
       const ccf::NodeMsgType& msg_type,

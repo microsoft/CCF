@@ -3,11 +3,11 @@
 #pragma once
 
 #include "authentication_types.h"
+#include "crypto/pem.h"
 #include "node/certs.h"
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/users.h"
-#include "tls/pem.h"
 
 namespace ccf
 {
@@ -16,7 +16,7 @@ namespace ccf
     /** CCF user ID, as defined in @c public:ccf.gov.users.info table */
     UserId user_id;
     /** User certificate, as established by TLS */
-    tls::Pem user_cert;
+    crypto::Pem user_cert;
     /** Additional user data, as defined in @c public:ccf.gov.users.info */
     nlohmann::json user_data;
   };
@@ -73,7 +73,7 @@ namespace ccf
   struct MemberCertAuthnIdentity : public AuthnIdentity
   {
     MemberId member_id;
-    tls::Pem member_cert;
+    crypto::Pem member_cert;
     nlohmann::json member_data;
   };
 
@@ -142,7 +142,7 @@ namespace ccf
       std::string& error_reason) override
     {
       const auto caller_cert_pem =
-        tls::cert_der_to_pem(ctx->session->caller_cert);
+        crypto::cert_der_to_pem(ctx->session->caller_cert);
 
       std::unique_ptr<NodeCertAuthnIdentity> identity = nullptr;
 

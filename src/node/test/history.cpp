@@ -126,7 +126,7 @@ TEST_CASE("Check signing works across rollback")
 
   ccf::Nodes nodes(ccf::Tables::NODES);
 
-  auto kp = tls::make_key_pair();
+  auto kp = crypto::make_key_pair();
 
   std::shared_ptr<kv::Consensus> consensus =
     std::make_shared<DummyConsensus>(&backup_store);
