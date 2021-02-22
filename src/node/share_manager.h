@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/entropy.h"
+#include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "genesis_gen.h"
@@ -9,8 +11,6 @@
 #include "ledger_secrets.h"
 #include "network_state.h"
 #include "secret_share.h"
-#include "tls/entropy.h"
-#include "tls/rsa_key_pair.h"
 
 #include <vector>
 
@@ -24,7 +24,8 @@ namespace ccf
     bool has_wrapped = false;
 
   public:
-    LedgerSecretWrappingKey() : data(tls::create_entropy()->random(KZ_KEY_SIZE))
+    LedgerSecretWrappingKey() :
+      data(crypto::create_entropy()->random(KZ_KEY_SIZE))
     {}
 
     template <typename T>
@@ -136,7 +137,7 @@ namespace ccf
       size_t share_index = 0;
       for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
       {
-        auto member_enc_pubk = tls::make_rsa_public_key(enc_pub_key);
+        auto member_enc_pubk = crypto::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
         encrypted_shares[member_id] = member_enc_pubk->wrap(raw_share);
@@ -185,7 +186,7 @@ namespace ccf
 
         crypto::GcmCipher encrypted_previous_ls(
           previous_ledger_secret->second->raw_key.size());
-        auto iv = tls::create_entropy()->random(crypto::GCM_SIZE_IV);
+        auto iv = crypto::create_entropy()->random(crypto::GCM_SIZE_IV);
         encrypted_previous_ls.hdr.set_iv(iv.data(), iv.size());
 
         latest_ledger_secret->key->encrypt(
@@ -217,7 +218,7 @@ namespace ccf
       // Submitted recovery shares are encrypted with the latest ledger secret.
       crypto::GcmCipher encrypted_submitted_share(submitted_share.size());
 
-      auto iv = tls::create_entropy()->random(crypto::GCM_SIZE_IV);
+      auto iv = crypto::create_entropy()->random(crypto::GCM_SIZE_IV);
       encrypted_submitted_share.hdr.set_iv(iv.data(), iv.size());
 
       current_ledger_secret->key->encrypt(

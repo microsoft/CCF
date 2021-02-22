@@ -3,10 +3,10 @@
 #pragma once
 
 #include "crypto/hash.h"
+#include "crypto/key_pair.h"
 #include "http_consts.h"
 #include "http_parser.h"
 #include "tls/base64.h"
-#include "tls/key_pair.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -149,7 +149,7 @@ namespace http
     static bool validate_token_signature(
       const Token& token, std::vector<uint8_t> cert_der)
     {
-      auto verifier = tls::make_unique_verifier(cert_der);
+      auto verifier = crypto::make_unique_verifier(cert_der);
       bool valid = verifier->verify(
         (uint8_t*)token.signed_content.data(),
         token.signed_content.size(),

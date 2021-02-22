@@ -9,6 +9,6 @@
 
 void randombytes(void* buf, size_t n)
 {
-  auto entropy = tls::create_entropy();
+  auto entropy = crypto::create_entropy();
   entropy->random((unsigned char*)buf, n);
 }

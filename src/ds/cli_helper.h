@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/san.h"
 #include "ds/nonstd.h"
-#include "tls/san.h"
 
 #include <CLI11/CLI11.hpp>
 #include <optional>
@@ -163,7 +163,7 @@ namespace cli
 
   CLI::Option* add_subject_alternative_name_option(
     CLI::App& app,
-    std::vector<tls::SubjectAltName>& parsed,
+    std::vector<crypto::SubjectAltName>& parsed,
     const std::string& option_name,
     const std::string& option_desc)
   {

@@ -5,7 +5,7 @@
 #include <msgpack/msgpack.hpp>
 #include <string>
 
-namespace tls
+namespace crypto
 {
   struct SubjectAltName
   {
