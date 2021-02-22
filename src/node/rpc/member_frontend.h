@@ -693,7 +693,8 @@ namespace ccf
            catch (const std::logic_error& e)
            {
              LOG_FAIL_FMT(
-               "Proposal {}: 'cert_bundle' is not a valid X.509 certificate bundle in "
+               "Proposal {}: 'cert_bundle' is not a valid X.509 certificate "
+               "bundle in "
                "PEM format: {}",
                proposal_id,
                e.what());
