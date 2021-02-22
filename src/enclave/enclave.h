@@ -146,7 +146,7 @@ namespace enclave
 
     bool create_new_node(
       StartType start_type_,
-      CCFConfig& ccf_config_,
+      CCFConfig&& ccf_config_,
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
@@ -163,7 +163,7 @@ namespace enclave
       ccf::NodeCreateInfo r;
       try
       {
-        r = node->create(start_type, ccf_config_);
+        r = node->create(start_type, std::move(ccf_config_));
       }
       catch (const std::runtime_error& e)
       {

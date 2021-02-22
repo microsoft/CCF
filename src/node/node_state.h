@@ -292,7 +292,7 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    NodeCreateInfo create(StartType start_type, CCFConfig& config_)
+    NodeCreateInfo create(StartType start_type, CCFConfig&& config_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
