@@ -3,6 +3,7 @@
 #pragma once
 
 #include "authentication_types.h"
+#include "ds/lru.h"
 #include "http/http_sig.h"
 
 namespace ccf
@@ -35,8 +36,14 @@ namespace ccf
 
   struct VerifierCache
   {
+    static constexpr size_t DEFAULT_MAX_VERIFIERS = 50;
+
     SpinLock verifiers_lock;
-    std::unordered_map<crypto::Pem, crypto::VerifierPtr> verifiers;
+    LRU<crypto::Pem, crypto::VerifierPtr> verifiers;
+
+    VerifierCache(size_t max_verifiers = DEFAULT_MAX_VERIFIERS) :
+      verifiers(max_verifiers)
+    {}
 
     crypto::VerifierPtr get_verifier(const crypto::Pem& pem)
     {
@@ -47,7 +54,7 @@ namespace ccf
       auto it = verifiers.find(pem);
       if (it == verifiers.end())
       {
-        it = verifiers.emplace_hint(it, pem, crypto::make_verifier(pem));
+        it = verifiers.insert(pem, crypto::make_verifier(pem));
       }
 
       return it->second;
