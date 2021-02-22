@@ -171,13 +171,13 @@ namespace ccf
   DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
   DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
 
-  struct SetCaCert
+  struct SetCaCertBundle
   {
     std::string name;
-    std::string cert;
+    std::string cert_bundle;
   };
-  DECLARE_JSON_TYPE(SetCaCert)
-  DECLARE_JSON_REQUIRED_FIELDS(SetCaCert, name, cert)
+  DECLARE_JSON_TYPE(SetCaCertBundle)
+  DECLARE_JSON_REQUIRED_FIELDS(SetCaCertBundle, name, cert_bundle)
 
   class MemberEndpoints : public CommonEndpointRegistry
   {
@@ -679,35 +679,34 @@ namespace ccf
            users->put(parsed.user_id, user_info.value());
            return true;
          }},
-        {"set_ca_cert",
+        {"set_ca_cert_bundle",
          [this](
            const ProposalId& proposal_id,
            kv::Tx& tx,
            const nlohmann::json& args) {
-           const auto parsed = args.get<SetCaCert>();
-           auto ca_certs = tx.rw(this->network.ca_certs);
-           std::vector<uint8_t> cert_der;
+           const auto parsed = args.get<SetCaCertBundle>();
+           auto ca_cert_bundles = tx.rw(this->network.ca_cert_bundles);
            try
            {
-             cert_der = crypto::cert_pem_to_der(parsed.cert);
+             tls::CA(parsed.cert_bundle);
            }
-           catch (const std::invalid_argument& e)
+           catch (const std::logic_error& e)
            {
              LOG_FAIL_FMT(
-               "Proposal {}: certificate is not a valid X.509 certificate in "
+               "Proposal {}: 'cert_bundle' is not a valid X.509 certificate bundle in "
                "PEM format: {}",
                proposal_id,
                e.what());
              return false;
            }
-           ca_certs->put(parsed.name, cert_der);
+           ca_cert_bundles->put(parsed.name, parsed.cert_bundle);
            return true;
          }},
-        {"remove_ca_cert",
+        {"remove_ca_cert_bundle",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto cert_name = args.get<std::string>();
-           auto ca_certs = tx.rw(this->network.ca_certs);
-           ca_certs->remove(cert_name);
+           const auto cert_bundle_name = args.get<std::string>();
+           auto ca_cert_bundles = tx.rw(this->network.ca_cert_bundles);
+           ca_cert_bundles->remove(cert_bundle_name);
            return true;
          }},
         {"set_jwt_issuer",
@@ -717,24 +716,24 @@ namespace ccf
            const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtIssuer>();
            auto issuers = tx.rw(this->network.jwt_issuers);
-           auto ca_certs = tx.ro(this->network.ca_certs);
+           auto ca_cert_bundles = tx.ro(this->network.ca_cert_bundles);
 
            if (parsed.auto_refresh)
            {
-             if (!parsed.ca_cert_name.has_value())
+             if (!parsed.ca_cert_bundle_name.has_value())
              {
                LOG_FAIL_FMT(
-                 "Proposal {}: ca_cert_name is missing but required if "
+                 "Proposal {}: ca_cert_bundle_name is missing but required if "
                  "auto_refresh is true",
                  proposal_id);
                return false;
              }
-             if (!ca_certs->has(parsed.ca_cert_name.value()))
+             if (!ca_cert_bundles->has(parsed.ca_cert_bundle_name.value()))
              {
                LOG_FAIL_FMT(
-                 "Proposal {}: No CA cert found with name '{}'",
+                 "Proposal {}: No CA cert list found with name '{}'",
                  proposal_id,
-                 parsed.ca_cert_name.value());
+                 parsed.ca_cert_bundle_name.value());
                return false;
              }
              http::URL issuer_url;
