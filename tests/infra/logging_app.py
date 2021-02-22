@@ -5,7 +5,9 @@ import infra.checker
 import time
 import http
 import ccf.clients
+import ccf.commit
 from collections import defaultdict
+
 
 from loguru import logger as LOG
 
@@ -142,12 +144,14 @@ class LoggingTxs:
         start_time = time.time()
         while time.time() < (start_time + timeout):
             with node.client(self.user) as c:
+                ccf.commit.wait_for_commit(c, seqno, view, timeout)
+
                 rep = c.get(f"{cmd}?id={idx}", headers=headers)
                 if rep.status_code == http.HTTPStatus.OK:
-                    infra.checker.Checker(c)(
-                        rep,
-                        result={"msg": msg},
-                    )
+                    expected_result = {"msg": msg}
+                    assert (
+                        rep.body.json() == expected_result
+                    ), "Expected {}, got {}".format(expected_result, rep.body)
                     found = True
                     break
                 elif rep.status_code == http.HTTPStatus.NOT_FOUND:

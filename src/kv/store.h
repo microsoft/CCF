@@ -155,11 +155,6 @@ namespace kv
       history = history_;
     }
 
-    void reset_history()
-    {
-      history = nullptr;
-    }
-
     std::shared_ptr<ccf::ProgressTracker> get_progress_tracker()
     {
       return progress_tracker;

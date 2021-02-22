@@ -136,7 +136,7 @@ extern "C"
 
     bool result = enclave->create_new_node(
       start_type,
-      cc,
+      std::move(cc),
       node_cert,
       node_cert_size,
       node_cert_len,

@@ -31,9 +31,9 @@ namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
   {
-    tls::Pem cert;
+    crypto::Pem cert;
     QuoteInfo quote_info;
-    tls::Pem encryption_pub_key;
+    crypto::Pem encryption_pub_key;
     NodeStatus status = NodeStatus::PENDING;
 
     // Set to the seqno of the latest ledger secret at the time the node is

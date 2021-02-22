@@ -3,6 +3,7 @@
 #pragma once
 #include "common_endpoint_registry.h"
 #include "consensus/aft/request.h"
+#include "crypto/verifier.h"
 #include "ds/buffer.h"
 #include "ds/spin_lock.h"
 #include "enclave/rpc_handler.h"
@@ -13,7 +14,6 @@
 #include "node/nodes.h"
 #include "node/service.h"
 #include "rpc_exception.h"
-#include "tls/verifier.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -41,7 +41,7 @@ namespace ccf
     std::atomic<size_t> tx_count = 0;
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
-    tls::Pem* service_identity = nullptr;
+    crypto::Pem* service_identity = nullptr;
 
     using PreExec = std::function<void(kv::Tx& tx, enclave::RpcContext& ctx)>;
 
@@ -418,7 +418,7 @@ namespace ccf
       cmd_forwarder = cmd_forwarder_;
     }
 
-    void open(std::optional<tls::Pem*> identity = std::nullopt) override
+    void open(std::optional<crypto::Pem*> identity = std::nullopt) override
     {
       std::lock_guard<SpinLock> mguard(open_lock);
       // open() without an identity unconditionally opens the frontend.

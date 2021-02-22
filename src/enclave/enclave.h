@@ -38,7 +38,6 @@ namespace enclave
     std::chrono::milliseconds last_tick_time;
     ENGINE* rdrand_engine = nullptr;
 
-    CCFConfig ccf_config;
     StartType start_type;
 
     struct NodeContext : public ccfapp::AbstractNodeContext
@@ -85,7 +84,7 @@ namespace enclave
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map, consensus_type_)),
       context(ccf::historical::StateCache(
-        *network.tables, writer_factory.create_writer_to_outside()))
+        network, writer_factory.create_writer_to_outside()))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
@@ -147,7 +146,7 @@ namespace enclave
 
     bool create_new_node(
       StartType start_type_,
-      const CCFConfig& ccf_config_,
+      CCFConfig&& ccf_config_,
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
@@ -160,12 +159,11 @@ namespace enclave
       // <= node_cert_size is checked by the EDL-generated wrapper
 
       start_type = start_type_;
-      ccf_config = ccf_config_;
 
       ccf::NodeCreateInfo r;
       try
       {
-        r = node->create(start_type, ccf_config);
+        r = node->create(start_type, std::move(ccf_config_));
       }
       catch (const std::runtime_error& e)
       {
@@ -323,7 +321,7 @@ namespace enclave
               {
                 if (node->is_verifying_snapshot())
                 {
-                  node->verify_snapshot_end(ccf_config);
+                  node->verify_snapshot_end();
                 }
                 else
                 {
@@ -349,13 +347,13 @@ namespace enclave
         {
           // When joining from a snapshot, deserialise ledger suffix to verify
           // snapshot evidence. Otherwise, attempt to join straight away
-          if (!ccf_config.startup_snapshot.empty())
+          if (node->is_verifying_snapshot())
           {
             node->start_ledger_recovery();
           }
           else
           {
-            node->join(ccf_config);
+            node->join();
           }
         }
         else if (start_type == StartType::Recover)

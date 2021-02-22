@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../key_pair.h"
+#include "crypto/key_pair.h"
 
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>
 
 using namespace std;
-using namespace tls;
+using namespace crypto;
 
 static const string lorem_ipsum =
   "Lorem ipsum dolor sit amet, consectetur adipiscing "
@@ -99,8 +99,6 @@ static void benchmark_hash(picobench::state& s)
 }
 
 const std::vector<int> sizes = {10};
-
-using namespace tls;
 
 #define PICO_SUFFIX(CURVE) iterations(sizes).samples(10)
 

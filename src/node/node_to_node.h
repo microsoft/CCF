@@ -91,7 +91,8 @@ namespace ccf
 
     virtual void recv_message(OArray&& oa) = 0;
 
-    virtual void initialize(NodeId self_id, const tls::Pem& network_pkey) = 0;
+    virtual void initialize(
+      NodeId self_id, const crypto::Pem& network_pkey) = 0;
 
     virtual bool send_encrypted(
       const NodeMsgType& msg_type,
@@ -137,7 +138,7 @@ namespace ccf
       writer_factory(writer_factory_)
     {}
 
-    void initialize(NodeId self_id, const tls::Pem& network_pkey) override
+    void initialize(NodeId self_id, const crypto::Pem& network_pkey) override
     {
       CCF_ASSERT_FMT(
         self == INVALID_ID,

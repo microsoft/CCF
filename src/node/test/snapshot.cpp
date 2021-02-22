@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "crypto/key_pair.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 #include "node/nodes.h"
 #include "node/signatures.h"
-#include "tls/key_pair.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -21,7 +21,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   kv::Store source_store(source_consensus);
 
   ccf::NodeId source_node_id = 0;
-  auto source_node_kp = tls::make_key_pair();
+  auto source_node_kp = crypto::make_key_pair();
 
   auto source_history =
     std::make_shared<ccf::MerkleTxHistory>(source_store, 0, *source_node_kp);
@@ -80,7 +80,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     kv::Store target_store;
     INFO("Setup target store");
     {
-      auto target_node_kp = tls::make_key_pair();
+      auto target_node_kp = crypto::make_key_pair();
 
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
         target_store, 0, *target_node_kp);
