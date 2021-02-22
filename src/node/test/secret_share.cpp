@@ -15,8 +15,8 @@ TEST_CASE("Simple test")
 
   INFO("Data to split must be have fixed length");
   {
-    auto random =
-      tls::create_entropy()->random(ccf::SecretSharing::SECRET_TO_SPLIT_LENGTH);
+    auto random = crypto::create_entropy()->random(
+      ccf::SecretSharing::SECRET_TO_SPLIT_LENGTH);
     std::copy_n(
       random.begin(),
       ccf::SecretSharing::SECRET_TO_SPLIT_LENGTH,

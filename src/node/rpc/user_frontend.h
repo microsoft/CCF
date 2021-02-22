@@ -17,7 +17,7 @@ namespace ccf
       RpcFrontend(tables, h)
     {}
 
-    void open(std::optional<tls::Pem*> identity = std::nullopt) override
+    void open(std::optional<crypto::Pem*> identity = std::nullopt) override
     {
       RpcFrontend::open(identity);
       endpoints.openapi_info.title = "CCF Application API";

@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash.h"
 #include "curve.h"
-#include "error_string.h"
+#include "hash.h"
 #include "key_pair.h"
 #include "pem.h"
 #include "rsa_key_pair.h"
@@ -13,9 +12,7 @@
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 
-using namespace crypto;
-
-namespace tls
+namespace crypto
 {
   static constexpr size_t max_pem_cert_size = 4096;
 
@@ -131,6 +128,11 @@ namespace tls
     {
       return public_key->get_curve_id();
     }
+
+    virtual Pem public_key_pem() const
+    {
+      return public_key->public_key_pem();
+    }
   };
 
   class Verifier_mbedTLS : public VerifierBase
@@ -170,8 +172,9 @@ namespace tls
       int rc = mbedtls_x509_crt_parse(cert.get(), c.data(), c.size());
       if (rc)
       {
-        throw std::invalid_argument(
-          fmt::format("Failed to parse certificate: {}", error_string(rc)));
+        throw std::invalid_argument(fmt::format(
+          "Failed to parse certificate: {}",
+          PublicKey_mbedTLS::error_string(rc)));
       }
 
       md_type = get_md_type(cert->sig_md);
@@ -182,8 +185,8 @@ namespace tls
       rc = mbedtls_pk_write_pubkey_pem(&cert->pk, buf, sizeof(buf));
       if (rc != 0)
       {
-        throw std::runtime_error(
-          fmt::format("PEM export failed: {}", error_string(rc)));
+        throw std::runtime_error(fmt::format(
+          "PEM export failed: {}", PublicKey_mbedTLS::error_string(rc)));
       }
 
       Pem pem(buf, sizeof(buf));
@@ -205,11 +208,6 @@ namespace tls
     Verifier_mbedTLS(const Verifier_mbedTLS&) = delete;
 
     virtual ~Verifier_mbedTLS() = default;
-
-    const mbedtls_x509_crt* raw()
-    {
-      return cert.get();
-    }
 
     virtual std::vector<uint8_t> cert_der() override
     {
@@ -233,7 +231,8 @@ namespace tls
       if (rc != 0)
       {
         throw std::logic_error(
-          "mbedtls_pem_write_buffer failed: " + error_string(rc));
+          "mbedtls_pem_write_buffer failed: " +
+          PublicKey_mbedTLS::error_string(rc));
       }
 
       return Pem(buf, len);
@@ -314,11 +313,6 @@ namespace tls
         X509_free(cert);
     }
 
-    const X509* raw()
-    {
-      return cert;
-    }
-
     virtual std::vector<uint8_t> cert_der() override
     {
       Unique_BIO mem;
@@ -358,18 +352,42 @@ namespace tls
 #endif
   }
 
-  inline VerifierPtr make_verifier(const Pem& cert)
+  inline VerifierPtr make_verifier(const std::vector<uint8_t>& cert)
   {
-    return make_unique_verifier(cert.raw());
+#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
+    return std::make_shared<Verifier_mbedTLS>(cert);
+#else
+    return std::make_shared<Verifier_OpenSSL>(cert);
+#endif
   }
 
-  inline tls::Pem cert_der_to_pem(const std::vector<uint8_t>& der_cert_raw)
+  inline VerifierPtr make_unique_verifier(const Pem& pem)
   {
-    return make_verifier(der_cert_raw)->cert_pem();
+    return make_unique_verifier(pem.raw());
   }
 
-  inline std::vector<uint8_t> cert_pem_to_der(const std::string& pem_cert_raw)
+  inline VerifierPtr make_verifier(const Pem& pem)
   {
-    return make_verifier(pem_cert_raw)->cert_der();
+    return make_verifier(pem.raw());
+  }
+
+  inline crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der)
+  {
+    return make_verifier(der)->cert_pem();
+  }
+
+  inline std::vector<uint8_t> cert_pem_to_der(const std::string& pem_string)
+  {
+    return make_verifier(Pem(pem_string).raw())->cert_der();
+  }
+
+  static inline Pem public_key_pem_from_cert(const Pem& cert)
+  {
+    return make_unique_verifier(cert)->public_key_pem();
+  }
+
+  inline void check_is_cert(const CBuffer& der)
+  {
+    make_unique_verifier((std::vector<uint8_t>)der); // throws on error
   }
 }

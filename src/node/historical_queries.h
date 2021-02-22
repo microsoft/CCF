@@ -213,7 +213,7 @@ namespace ccf::historical
           sig->node));
       }
 
-      auto verifier = tls::make_verifier(node_info->cert);
+      auto verifier = crypto::make_verifier(node_info->cert);
       const auto verified =
         verifier->verify_hash(real_root.h, sig->sig, MDType::SHA256);
       if (!verified)
