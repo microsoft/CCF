@@ -448,15 +448,15 @@ namespace ccf
       try_update_watermark(cert, tx_id.version, is_primary);
     }
 
-    crypto::Sha256Hash get_my_hashed_nonce(kv::TxID tx_id)
+    crypto::Sha256Hash get_node_hashed_nonce(kv::TxID tx_id)
     {
       std::unique_lock<SpinLock> guard(lock);
-      return get_my_hashed_nonce_(tx_id);
+      return get_node_hashed_nonce_(tx_id);
     }
 
-    void get_my_hashed_nonce(kv::TxID tx_id, crypto::Sha256Hash& hash)
+    void get_node_hashed_nonce(kv::TxID tx_id, crypto::Sha256Hash& hash)
     {
-      Nonce nonce = get_my_nonce(tx_id);
+      Nonce nonce = get_node_nonce(tx_id);
       hash_data(nonce, hash);
     }
 
@@ -635,10 +635,10 @@ namespace ccf
       return true;
     }
 
-    Nonce get_my_nonce(kv::TxID tx_id)
+    Nonce get_node_nonce(kv::TxID tx_id)
     {
       std::unique_lock<SpinLock> guard(lock);
-      return get_my_nonce_(tx_id);
+      return get_node_nonce_(tx_id);
     }
 
   private:
@@ -723,7 +723,7 @@ namespace ccf
           std::equal(
             hashed_nonce.h.begin(),
             hashed_nonce.h.end(),
-            get_my_hashed_nonce_(tx_id).h.begin()),
+            get_node_hashed_nonce_(tx_id).h.begin()),
         "hashed_nonce does not match my nonce");
 
       BftNodeSignature bft_node_sig(
@@ -757,7 +757,7 @@ namespace ccf
       return kv::TxHistory::Result::OK;
     }
 
-    Nonce get_my_nonce_(kv::TxID tx_id)
+    Nonce get_node_nonce_(kv::TxID tx_id)
     {
       auto it = certificates.find(tx_id.version);
       if (it == certificates.end())
@@ -770,9 +770,9 @@ namespace ccf
       return it->second.my_nonce;
     }
 
-    crypto::Sha256Hash get_my_hashed_nonce_(kv::TxID tx_id)
+    crypto::Sha256Hash get_node_hashed_nonce_(kv::TxID tx_id)
     {
-      Nonce nonce = get_my_nonce_(tx_id);
+      Nonce nonce = get_node_nonce_(tx_id);
       return hash_data(nonce);
     }
 

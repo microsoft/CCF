@@ -78,7 +78,7 @@ namespace kv
     bool ok = true;
     for (auto it = views.begin(); it != views.end(); ++it)
     {
-      if (!it->second->prepare())
+      if (!it->second->prepare(track_conflicts))
       {
         ok = false;
         break;
@@ -137,7 +137,7 @@ namespace kv
 
       for (auto it = views.begin(); it != views.end(); ++it)
       {
-        it->second->commit(version, max_conflict_version);
+        it->second->commit(version, track_conflicts, max_conflict_version);
       }
 
       // Collect ConsensusHooks

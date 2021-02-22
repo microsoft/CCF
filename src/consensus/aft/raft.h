@@ -1095,7 +1095,7 @@ namespace aft
         append_entries;
       AppendEntries r;
       bool confirm_evidence;
-      uint32_t index = 0;
+      uint64_t next_append_entry_index = 0;
     };
 
     void recv_append_entries(AppendEntries r, const uint8_t* data, size_t size)
@@ -1342,7 +1342,7 @@ namespace aft
       }
       else
       {
-        execute_append_entries(std::move(msg));
+        apply(std::move(msg));
       }
     }
 
@@ -1361,10 +1361,10 @@ namespace aft
     {
       auto self = msg->data.self;
       std::unique_lock<SpinLock> guard(self->state->lock);
-      self->execute_append_entries(std::move(msg));
+      self->apply(std::move(msg));
     }
 
-    void execute_append_entries(
+    void apply(
       std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
     {
       auto self = msg->data.self;
@@ -1416,13 +1416,13 @@ namespace aft
         std::unique_ptr<threading::Tmsg<AsyncExecution>>&& msg_,
         kv::Version last_idx_,
         kv::Version commit_idx_,
-        uint16_t home_thread_) :
+        uint16_t scheduler_thread_) :
         self(self_),
         ds(std::move(ds_)),
         msg(std::move(msg_)),
         last_idx(last_idx_),
         commit_idx(commit_idx_),
-        home_thread(home_thread_)
+        scheduler_thread(scheduler_thread_)
       {}
 
       Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
@@ -1430,7 +1430,7 @@ namespace aft
       std::unique_ptr<threading::Tmsg<AsyncExecution>> msg;
       kv::Version last_idx;
       kv::Version commit_idx;
-      uint16_t home_thread;
+      uint16_t scheduler_thread;
       std::shared_ptr<AsyncExecutionCtx> ctx;
     };
 
@@ -1542,7 +1542,7 @@ namespace aft
     {
       // This function is responsible for selection the next batch of
       // transactions we can execute concurrently and then starting said
-      // execution. If the are more pending entries after we select the batch we
+      // execution. If there are more pending entries after we select the batch we
       // will return to this function.
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
@@ -1555,9 +1555,9 @@ namespace aft
       uint64_t before_state_idx = state->last_idx;
       bool run_sync = threading::ThreadMessaging::thread_count == 1;
 
-      while (async_exec_msg->data.index != append_entries.size())
+      while (async_exec_msg->data.next_append_entry_index != append_entries.size())
       {
-        auto& [ds, i] = append_entries[async_exec_msg->data.index];
+        auto& [ds, i] = append_entries[async_exec_msg->data.next_append_entry_index];
         if (!run_sync)
         {
           if (must_break)
@@ -1585,7 +1585,7 @@ namespace aft
         must_break =
           !ds->support_async_execution() && (async_exec.pending_cbs > 0);
 
-        ++async_exec_msg->data.index;
+        ++async_exec_msg->data.next_append_entry_index;
         state->last_idx = i;
 
         kv::ApplyResult apply_success = ds->apply();
@@ -1719,13 +1719,13 @@ namespace aft
                       --self->async_exec.pending_cbs;
                       if (self->async_exec.pending_cbs == 0)
                       {
-                        self->execute_append_entries(
+                        self->apply(
                           std::move(self->async_exec_msg));
                       }
                     });
-                  uint16_t home_thread = msg->data.home_thread;
+                  uint16_t scheduler_thread = msg->data.scheduler_thread;
                   threading::ThreadMessaging::thread_messaging.add_task(
-                    home_thread, std::move(msg));
+                    scheduler_thread, std::move(msg));
                 },
                 this,
                 std::move(ds),
@@ -1850,7 +1850,7 @@ namespace aft
         {},
         sig.root};
 
-      progress_tracker->get_my_hashed_nonce(
+      progress_tracker->get_node_hashed_nonce(
         {state->current_view, state->last_idx}, r.hashed_nonce);
 
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
@@ -1878,12 +1878,12 @@ namespace aft
     }
 
     bool recv_append_entries_signed_response(
-      SignedAppendEntriesResponse r, bool is_pre_exec)
+      SignedAppendEntriesResponse r, bool only_verify_signature)
     {
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
 
-      if (is_pre_exec)
+      if (only_verify_signature)
       {
         {
           std::lock_guard<SpinLock> guard(state->lock);
@@ -2003,7 +2003,7 @@ namespace aft
           auto progress_tracker = store->get_progress_tracker();
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
-          nonce = progress_tracker->get_my_nonce(tx_id);
+          nonce = progress_tracker->get_node_nonce(tx_id);
           NonceRevealMsg r = {{bft_nonce_reveal, state->my_node_id},
                               tx_id.term,
                               tx_id.version,

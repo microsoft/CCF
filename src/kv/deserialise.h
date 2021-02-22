@@ -73,16 +73,16 @@ namespace kv
     }
     ccf::PrimarySignature& get_signature() override
     {
-      throw std::logic_error("get_index not implemented");
+      throw std::logic_error("get_signature not implemented");
     }
     kv::Tx& get_tx() override
     {
-      throw std::logic_error("get_index not implemented");
+      throw std::logic_error("get_tx not implemented");
     }
 
     aft::Request& get_request() override
     {
-      throw std::logic_error("get_index not implemented");
+      throw std::logic_error("get_request not implemented");
     }
 
     std::function<ApplyResult(
@@ -653,7 +653,7 @@ namespace kv
       auto req_v = aft_requests->get(0);
       CCF_ASSERT(
         req_v.has_value(),
-        "Deserialised request but it was not found in the requests map");
+        "Deserialised append entry, but requests map is empty");
       req_ = req_v.value();
 
       return ApplyResult::PASS;

@@ -110,15 +110,12 @@ namespace kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool prepare() override
+      bool prepare(bool track_conflicts) override
       {
         if (change_set.writes.empty())
           return true;
 
         auto& roll = map.get_roll();
-        auto consensus = map.store->get_consensus();
-        bool track_conflicts =
-          (consensus != nullptr && consensus->type() == ConsensusType::BFT);
 
         // If the parent map has rolled back since this transaction began, this
         // transaction must fail.
@@ -170,17 +167,14 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version v, kv::Version& max_conflict_version) override
+      void commit(Version v, bool track_conflicts, kv::Version& max_conflict_version) override
       {
         auto& roll = map.get_roll();
         auto current = roll.commits->get_tail();
         auto state = current->state;
         bool is_writing_to_new_key = false;
-        auto consensus = map.store->get_consensus();
-        bool track_commit = consensus != nullptr &&
-          map.store->get_consensus()->type() == ConsensusType::BFT;
 
-        if (map.include_conflict_read_version && track_commit)
+        if (map.include_conflict_read_version && track_conflicts)
         {
           for (auto it = change_set.reads.begin(); it != change_set.reads.end();
                ++it)
@@ -214,7 +208,7 @@ namespace kv::untyped
           }
         }
 
-        if (track_commit)
+        if (track_conflicts)
         {
           for (auto it = change_set.reads.begin(); it != change_set.reads.end();
                ++it)
@@ -233,7 +227,7 @@ namespace kv::untyped
         {
           commit_version = change_set.start_version;
 
-          if (track_commit)
+          if (track_conflicts)
           {
             map.roll.commits->insert_back(map.roll.create_new_local_commit(
               commit_version, std::move(state), change_set.writes));
@@ -452,13 +446,13 @@ namespace kv::untyped
         return true;
       }
 
-      bool prepare() override
+      bool prepare(bool) override
       {
         // Snapshots never conflict
         return true;
       }
 
-      void commit(Version, kv::Version&) override
+      void commit(Version, bool, kv::Version&) override
       {
         // Version argument is ignored. The version of the roll after the
         // snapshot is applied depends on the version of the map at which the

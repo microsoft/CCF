@@ -37,7 +37,7 @@ namespace aft
     virtual kv::Version execute_request(
       std::unique_ptr<RequestMessage> request,
       bool is_create_request,
-      kv::Consensus::SeqNo last_idx = -1,
+      kv::Consensus::SeqNo commit_version = -1,
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
       kv::Consensus::SeqNo max_conflict_version = -1) = 0;
 

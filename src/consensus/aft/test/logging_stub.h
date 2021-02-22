@@ -263,7 +263,6 @@ namespace aft
 
       bool support_async_execution() override
       {
-        return true;
         throw std::logic_error("Not Implemented");
       }
 
