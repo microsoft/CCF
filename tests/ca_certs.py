@@ -67,11 +67,8 @@ def test_cert_store(network, args):
         cert_ref = x509.load_pem_x509_certificate(
             cert_pem.encode(), crypto_backends.default_backend()
         )
-        cert_kv = x509.load_der_x509_certificate(
-            # Note that /gov/read returns all data as JSON.
-            # Here, the stored data is a uint8 array, therefore it
-            # is returned as an array of integers.
-            bytes(r.body.json()),
+        cert_kv = x509.load_pem_x509_certificate(
+            r.body.json().encode(),
             crypto_backends.default_backend(),
         )
         assert (
@@ -79,7 +76,7 @@ def test_cert_store(network, args):
         ), f"stored cert not equal to input cert: {cert_ref} != {cert_kv}"
 
     LOG.info("Member removes a ca cert")
-    network.consortium.remove_ca_cert(primary, cert_name)
+    network.consortium.remove_ca_cert_bundle(primary, cert_name)
 
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
