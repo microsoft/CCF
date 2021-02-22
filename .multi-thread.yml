@@ -10,7 +10,7 @@ pr:
       - main
   paths:
     include:
-      - "*"
+      - .multi-thread.yml
 
 resources:
   containers:
