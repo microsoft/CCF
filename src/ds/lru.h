@@ -18,7 +18,7 @@ template <typename K, typename V>
 class LRU
 {
 public:
-  using Entry = std::pair<K, V>;
+  using Entry = std::pair<const K, V>;
   using List = std::list<Entry>;
   using Map = std::map<K, typename List::iterator>;
   using Iterator = typename List::iterator;
