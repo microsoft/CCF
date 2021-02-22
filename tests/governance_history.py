@@ -36,7 +36,7 @@ def count_governance_operations(ledger):
                     signed_request_unpacked = ccf.ledger.extract_msgpacked_data(
                         signed_request
                     )
-                    assert member_id in members
+                    assert member_id_unpacked in members
                     cert = members[member_id_unpacked]
                     sig = signed_request_unpacked[0][0]
                     req = signed_request_unpacked[0][1]
