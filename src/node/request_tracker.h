@@ -164,7 +164,7 @@ namespace aft
       std::chrono::milliseconds(0);
     mutable SpinLock lock;
 
-    void insert(
+    static void insert(
       const crypto::Sha256Hash& hash,
       std::chrono::milliseconds time,
       std::multiset<Request*, RequestComp>& requests_,
@@ -174,8 +174,10 @@ namespace aft
         requests_list_.get_tail() != nullptr &&
         requests_list_.get_tail()->time > time)
       {
-        // Time is an not a precise measurement and can be different be
-        // on different threads.
+        // Time is not a precise measurement and can be different
+        // on different threads to ensure that the time values we store  are
+        // correctly ordered we will just reuse the time value of the last
+        // inserted item
         time = requests_list_.get_tail()->time;
       }
       auto r = std::make_unique<Request>(hash, time);

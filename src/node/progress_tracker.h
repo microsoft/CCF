@@ -47,7 +47,7 @@ namespace ccf
       bool is_primary)
     {
       std::unique_lock<SpinLock> guard(lock);
-      return add_signature_(
+      return add_signature_internal(
         tx_id,
         node_id,
         signature_size,
@@ -229,7 +229,7 @@ namespace ccf
           std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
           std::copy(backup_sig.sig.begin(), backup_sig.sig.end(), sig.begin());
 
-          kv::TxHistory::Result r = add_signature_(
+          kv::TxHistory::Result r = add_signature_internal(
             {sigs_value.view, sigs_value.seqno},
             backup_sig.node,
             backup_sig.sig.size(),
@@ -451,7 +451,7 @@ namespace ccf
     crypto::Sha256Hash get_node_hashed_nonce(kv::TxID tx_id)
     {
       std::unique_lock<SpinLock> guard(lock);
-      return get_node_hashed_nonce_(tx_id);
+      return get_node_hashed_nonce_internal(tx_id);
     }
 
     void get_node_hashed_nonce(kv::TxID tx_id, crypto::Sha256Hash& hash)
@@ -650,7 +650,7 @@ namespace ccf
     std::map<kv::Consensus::SeqNo, CommitCert> certificates;
     mutable SpinLock lock;
 
-    kv::TxHistory::Result add_signature_(
+    kv::TxHistory::Result add_signature_internal(
       kv::TxID tx_id,
       kv::NodeId node_id,
       uint32_t signature_size,
@@ -723,7 +723,7 @@ namespace ccf
           std::equal(
             hashed_nonce.h.begin(),
             hashed_nonce.h.end(),
-            get_node_hashed_nonce_(tx_id).h.begin()),
+            get_node_hashed_nonce_internal(tx_id).h.begin()),
         "hashed_nonce does not match my nonce");
 
       BftNodeSignature bft_node_sig(
@@ -770,7 +770,7 @@ namespace ccf
       return it->second.my_nonce;
     }
 
-    crypto::Sha256Hash get_node_hashed_nonce_(kv::TxID tx_id)
+    crypto::Sha256Hash get_node_hashed_nonce_internal(kv::TxID tx_id)
     {
       Nonce nonce = get_node_nonce_(tx_id);
       return hash_data(nonce);

@@ -105,7 +105,7 @@ namespace aft
     // over the commit level.
     kv::Version election_index = 0;
     bool is_execution_pending = false;
-    std::list<std::unique_ptr<AbstractMsgCallback>> pending_executions;
+    std::list<std::unique_ptr<AbstractMsgCallback>> execution_backlog;
 
     // When this node receives append entries from a new primary, it may need to
     // roll back a committable but uncommitted suffix it holds. The
@@ -420,6 +420,9 @@ namespace aft
     void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
       std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
+      // It is safe to call is_follower() by construction as the consensus
+      // can only change from leader or follower while in a view-change during
+      // which time transaction cannot be executed.
       if (
         consensus_type == ConsensusType::BFT && is_follower() &&
         threading::ThreadMessaging::thread_count > 1)
@@ -713,7 +716,7 @@ namespace aft
       }
       else
       {
-        pending_executions.push_back(std::move(aee));
+        execution_backlog.push_back(std::move(aee));
       }
 
       try_execute_pending();
@@ -728,7 +731,7 @@ namespace aft
       }
       else
       {
-        pending_executions.push_back(std::move(aee));
+        execution_backlog.push_back(std::move(aee));
       }
     }
 
@@ -737,17 +740,17 @@ namespace aft
       if (threading::ThreadMessaging::thread_count > 1)
       {
         periodic(std::chrono::milliseconds(0));
-        while (!is_execution_pending && !pending_executions.empty())
+        while (!is_execution_pending && !execution_backlog.empty())
         {
-          auto pe = std::move(pending_executions.front());
-          pending_executions.pop_front();
+          auto pe = std::move(execution_backlog.front());
+          execution_backlog.pop_front();
           pe->execute();
         }
       }
       else
       {
         CCF_ASSERT_FMT(
-          pending_executions.empty(),
+          execution_backlog.empty(),
           "No message should be run asynchronously");
       }
     }
@@ -1374,8 +1377,9 @@ namespace aft
       }
       else
       {
-        bool result = self->execute_append_entries_async(msg);
-        if (!result)
+        if (
+          self->execute_append_entries_async(msg) ==
+          AsyncExecutionResult::PENDING)
         {
           return;
         }
@@ -1413,13 +1417,11 @@ namespace aft
       AsyncExecTxMsg(
         Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self_,
         std::unique_ptr<kv::AbstractExecutionWrapper>&& ds_,
-        std::unique_ptr<threading::Tmsg<AsyncExecution>>&& msg_,
         kv::Version last_idx_,
         kv::Version commit_idx_,
         uint16_t scheduler_thread_) :
         self(self_),
         ds(std::move(ds_)),
-        msg(std::move(msg_)),
         last_idx(last_idx_),
         commit_idx(commit_idx_),
         scheduler_thread(scheduler_thread_)
@@ -1427,7 +1429,6 @@ namespace aft
 
       Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
       std::unique_ptr<kv::AbstractExecutionWrapper> ds;
-      std::unique_ptr<threading::Tmsg<AsyncExecution>> msg;
       kv::Version last_idx;
       kv::Version commit_idx;
       uint16_t scheduler_thread;
@@ -1537,7 +1538,184 @@ namespace aft
       return execute_append_entries_finish(confirm_evidence, r);
     }
 
-    bool execute_append_entries_async(
+    enum class AsyncExecutionResult
+    {
+      PENDING,
+      COMPLETE
+    };
+
+    AsyncExecutionResult foobar(
+      kv::ApplyResult apply_success,
+      std::unique_ptr<kv::AbstractExecutionWrapper>& ds,
+      kv::Version i,
+      AppendEntries& r)
+    {
+      if (apply_success == kv::ApplyResult::FAIL)
+      {
+        // Setting last_idx to i-1 is a work around that should be fixed
+        // shortly. In BFT mode when we deserialize and realize we need to
+        // create a new map we remember this. If we need to create the same
+        // map multiple times (for tx in the same group of append entries) the
+        // first create successes but the second fails because the map is
+        // already there. This works around the problem by stopping just
+        // before the 2nd create (which failed at this point) and when the
+        // primary resends the append entries we will succeed as the map is
+        // already there. This will only occur on BFT startup so not a perf
+        // problem but still need to be resolved.
+        state->last_idx = i - 1;
+        ledger->truncate(state->last_idx);
+        send_append_entries_response(
+          r.from_node, AppendEntriesResponseType::FAIL);
+        return AsyncExecutionResult::COMPLETE;
+      }
+
+      for (auto& hook : ds->get_hooks())
+      {
+        hook->call(this);
+      }
+
+      bool globally_committable =
+        (apply_success == kv::ApplyResult::PASS_SIGNATURE);
+      bool force_ledger_chunk = false;
+      if (globally_committable)
+      {
+        force_ledger_chunk = snapshotter->record_committable(i);
+      }
+
+      ledger->put_entry(
+        ds->get_entry(), globally_committable, force_ledger_chunk);
+
+      switch (apply_success)
+      {
+        case kv::ApplyResult::FAIL: {
+          LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
+          state->last_idx--;
+          ledger->truncate(state->last_idx);
+          send_append_entries_response(
+            r.from_node, AppendEntriesResponseType::FAIL);
+          break;
+        }
+
+        case kv::ApplyResult::PASS_SIGNATURE: {
+          LOG_DEBUG_FMT("Deserialising signature at {}", i);
+          auto prev_lci = last_committable_index();
+          committable_indices.push_back(i);
+
+          if (ds->get_term())
+          {
+            // A signature for sig_term tells us that all transactions from
+            // the previous signature onwards (at least, if not further back)
+            // happened in sig_term. We reflect this in the history.
+            if (r.term_of_idx == aft::ViewHistory::InvalidView)
+            {
+              state->view_history.update(1, r.term);
+            }
+            else
+            {
+              state->view_history.update(prev_lci + 1, ds->get_term());
+            }
+            commit_if_possible(r.leader_commit_idx);
+          }
+          if (consensus_type == ConsensusType::BFT)
+          {
+            send_append_entries_signed_response(
+              r.from_node, ds->get_signature());
+          }
+          break;
+        }
+
+        case kv::ApplyResult::PASS_BACKUP_SIGNATURE: {
+          break;
+        }
+        case kv::ApplyResult::PASS_NEW_VIEW: {
+          view_change_tracker->clear(
+            get_primary(ds->get_term()) == id(), ds->get_term());
+          request_tracker->clear();
+          break;
+        }
+
+        case kv::ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK: {
+          try_send_sig_ack(
+            {ds->get_term(), ds->get_index()},
+            kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK);
+          break;
+        }
+
+        case kv::ApplyResult::PASS_NONCES: {
+          request_tracker->insert_signed_request(
+            state->last_idx,
+            threading::ThreadMessaging::thread_messaging
+              .get_current_time_offset());
+          break;
+        }
+
+        case kv::ApplyResult::PASS: {
+          if (threading::ThreadMessaging::thread_count != 1)
+          {
+            auto tmsg = std::make_unique<threading::Tmsg<AsyncExecTxMsg>>(
+              [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
+                auto self = msg->data.self;
+                self->executor->commit_replayed_request(
+                  msg->data.ds->get_request(),
+                  self->request_tracker,
+                  msg->data.last_idx,
+                  msg->data.commit_idx,
+                  msg->data.ds->get_max_conflict_version());
+
+                if (threading::ThreadMessaging::thread_count == 1)
+                {
+                  return;
+                }
+
+                msg->reset_cb(
+                  [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
+                    auto self = msg->data.self;
+                    --self->async_exec.pending_cbs;
+                    if (self->async_exec.pending_cbs == 0)
+                    {
+                      self->apply(std::move(self->async_exec_msg));
+                    }
+                  });
+                uint16_t scheduler_thread = msg->data.scheduler_thread;
+                threading::ThreadMessaging::thread_messaging.add_task(
+                  scheduler_thread, std::move(msg));
+              },
+              this,
+              std::move(ds),
+              state->last_idx,
+              state->commit_idx,
+              threading::get_current_thread_id());
+
+            ++async_exec.pending_cbs;
+            threading::ThreadMessaging::thread_messaging.add_task(
+              threading::ThreadMessaging::get_execution_thread(
+                ++next_exec_thread),
+              std::move(tmsg));
+          }
+          else
+          {
+            executor->commit_replayed_request(
+              ds->get_request(),
+              request_tracker,
+              state->last_idx,
+              state->commit_idx,
+              ds->get_max_conflict_version());
+          }
+          break;
+        }
+
+        case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE: {
+          break;
+        }
+
+        default: {
+          throw std::logic_error("Unknown ApplyResult value");
+        }
+      }
+      return AsyncExecutionResult::COMPLETE;
+    }
+
+    AsyncExecutionResult execute_append_entries_async(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
       // This function is responsible for selection the next batch of
@@ -1562,21 +1740,21 @@ namespace aft
         {
           if (must_break)
           {
-            return false;
+            return AsyncExecutionResult::PENDING;
           }
 
           if (async_exec.pending_cbs > 0)
           {
             if (!ds->support_async_execution() && !is_first)
             {
-              return false;
+              return AsyncExecutionResult::PENDING;
             }
 
             if (
               ds->support_async_execution() &&
               ds->get_max_conflict_version() >= before_state_idx)
             {
-              return false;
+              return AsyncExecutionResult::PENDING;
             }
           }
         }
@@ -1589,186 +1767,18 @@ namespace aft
         state->last_idx = i;
 
         kv::ApplyResult apply_success = ds->apply();
-        if (apply_success == kv::ApplyResult::FAIL)
+        if (foobar(apply_success, ds, i, r) == AsyncExecutionResult::PENDING)
         {
-          // Setting last_idx to i-1 is a work around that should be fixed
-          // shortly. In BFT mode when we deserialize and realize we need to
-          // create a new map we remember this. If we need to create the same
-          // map multiple times (for tx in the same group of append entries) the
-          // first create successes but the second fails because the map is
-          // already there. This works around the problem by stopping just
-          // before the 2nd create (which failed at this point) and when the
-          // primary resends the append entries we will succeed as the map is
-          // already there. This will only occur on BFT startup so not a perf
-          // problem but still need to be resolved.
-          state->last_idx = i - 1;
-          ledger->truncate(state->last_idx);
-          send_append_entries_response(
-            r.from_node, AppendEntriesResponseType::FAIL);
-          return true;
-        }
-
-        for (auto& hook : ds->get_hooks())
-        {
-          hook->call(this);
-        }
-
-        bool globally_committable =
-          (apply_success == kv::ApplyResult::PASS_SIGNATURE);
-        bool force_ledger_chunk = false;
-        if (globally_committable)
-        {
-          force_ledger_chunk = snapshotter->record_committable(i);
-        }
-
-        ledger->put_entry(
-          ds->get_entry(), globally_committable, force_ledger_chunk);
-
-        switch (apply_success)
-        {
-          case kv::ApplyResult::FAIL:
-          {
-            LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
-            state->last_idx--;
-            ledger->truncate(state->last_idx);
-            send_append_entries_response(
-              r.from_node, AppendEntriesResponseType::FAIL);
-            break;
-          }
-
-          case kv::ApplyResult::PASS_SIGNATURE:
-          {
-            LOG_DEBUG_FMT("Deserialising signature at {}", i);
-            auto prev_lci = last_committable_index();
-            committable_indices.push_back(i);
-
-            if (ds->get_term())
-            {
-              // A signature for sig_term tells us that all transactions from
-              // the previous signature onwards (at least, if not further back)
-              // happened in sig_term. We reflect this in the history.
-              if (r.term_of_idx == aft::ViewHistory::InvalidView)
-              {
-                state->view_history.update(1, r.term);
-              }
-              else
-              {
-                state->view_history.update(prev_lci + 1, ds->get_term());
-              }
-              commit_if_possible(r.leader_commit_idx);
-            }
-            if (consensus_type == ConsensusType::BFT)
-            {
-              send_append_entries_signed_response(
-                r.from_node, ds->get_signature());
-            }
-            break;
-          }
-
-          case kv::ApplyResult::PASS_BACKUP_SIGNATURE:
-          {
-            break;
-          }
-          case kv::ApplyResult::PASS_NEW_VIEW:
-          {
-            view_change_tracker->clear(
-              get_primary(ds->get_term()) == id(), ds->get_term());
-            request_tracker->clear();
-            break;
-          }
-
-          case kv::ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK:
-          {
-            try_send_sig_ack(
-              {ds->get_term(), ds->get_index()},
-              kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK);
-            break;
-          }
-
-          case kv::ApplyResult::PASS_NONCES:
-          {
-            request_tracker->insert_signed_request(
-              state->last_idx,
-              threading::ThreadMessaging::thread_messaging
-                .get_current_time_offset());
-            break;
-          }
-
-          case kv::ApplyResult::PASS:
-          {
-            if (!run_sync)
-            {
-              auto tmsg = std::make_unique<threading::Tmsg<AsyncExecTxMsg>>(
-                [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
-                  auto self = msg->data.self;
-                  self->executor->commit_replayed_request(
-                    msg->data.ds->get_request(),
-                    self->request_tracker,
-                    msg->data.last_idx,
-                    msg->data.commit_idx,
-                    msg->data.ds->get_max_conflict_version());
-
-                  if (threading::ThreadMessaging::thread_count == 1)
-                  {
-                    return;
-                  }
-
-                  msg->reset_cb(
-                    [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
-                      auto self = msg->data.self;
-                      --self->async_exec.pending_cbs;
-                      if (self->async_exec.pending_cbs == 0)
-                      {
-                        self->apply(
-                          std::move(self->async_exec_msg));
-                      }
-                    });
-                  uint16_t scheduler_thread = msg->data.scheduler_thread;
-                  threading::ThreadMessaging::thread_messaging.add_task(
-                    scheduler_thread, std::move(msg));
-                },
-                this,
-                std::move(ds),
-                std::move(msg),
-                state->last_idx,
-                state->commit_idx,
-                threading::get_current_thread_id());
-
-              ++async_exec.pending_cbs;
-              threading::ThreadMessaging::thread_messaging.add_task(
-                threading::ThreadMessaging::get_execution_thread(
-                  ++next_exec_thread),
-                std::move(tmsg));
-            }
-            else
-            {
-              executor->commit_replayed_request(
-                ds->get_request(),
-                request_tracker,
-                state->last_idx,
-                state->commit_idx,
-                ds->get_max_conflict_version());
-            }
-            break;
-          }
-
-          case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
-          {
-            break;
-          }
-
-          default:
-          {
-            throw std::logic_error("Unknown ApplyResult value");
-          }
+          return AsyncExecutionResult::PENDING;
         }
       }
 
       if (async_exec.pending_cbs == 0)
       {
-        return execute_append_entries_finish(confirm_evidence, r);
+        execute_append_entries_finish(confirm_evidence, r);
+        return AsyncExecutionResult::COMPLETE;
       }
-      return false;
+      return AsyncExecutionResult::PENDING;
     }
 
     bool execute_append_entries_finish(bool confirm_evidence, AppendEntries& r)

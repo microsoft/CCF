@@ -8,7 +8,7 @@
 // enable parallel execution of transactions on the backup, and as such we only
 // track dependencies when running BFT consensus protocol.
 //
-// Depency tracking follows the following pseudocode
+// Dependency tracking follows the following pseudocode
 //
 // OnTxCommit:
 //   MaxSeenReadVersion = -1
@@ -21,7 +21,6 @@
 #include "apply_changes.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_deprecated.h"
-#include "ds/thread_messaging.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"

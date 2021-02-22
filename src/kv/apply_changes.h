@@ -38,6 +38,10 @@ namespace kv
   // sets to their underlying Maps. Calls f() at most once, iff the writes are
   // applied, to retrieve a unique Version for the write set and return the max
   // version which can have a conflict with the transaction.
+  //
+  // The track_conflicts parameter tells the store if it needs to track the last
+  // read version for every key. This is required for backup execution described
+  // at the top of tx.h
 
   static inline std::optional<std::tuple<Version, Version>> apply_changes(
     OrderedChanges& changes,
