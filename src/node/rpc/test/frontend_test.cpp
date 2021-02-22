@@ -281,12 +281,13 @@ class RpcContextRecorder
 {
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
-  tls::Pem last_caller_cert;
+  crypto::Pem last_caller_cert;
   CallerId last_caller_id = INVALID_ID;
 
   void record_ctx(EndpointContext& ctx)
   {
-    last_caller_cert = tls::cert_der_to_pem(ctx.rpc_ctx->session->caller_cert);
+    last_caller_cert =
+      crypto::cert_der_to_pem(ctx.rpc_ctx->session->caller_cert);
     if (const auto uci = ctx.try_get_caller<UserCertAuthnIdentity>())
     {
       last_caller_id = uci->user_id;
@@ -379,11 +380,11 @@ public:
 };
 
 // used throughout
-auto kp = tls::make_key_pair();
+auto kp = crypto::make_key_pair();
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 NetworkState bft_network(ConsensusType::BFT);
-auto history_kp = tls::make_key_pair();
+auto history_kp = crypto::make_key_pair();
 
 auto history =
   std::make_shared<NullTxHistory>(*bft_network.tables, 0, *history_kp);
@@ -399,7 +400,7 @@ auto create_simple_request(
 }
 
 http::Request create_signed_request(
-  const tls::Pem& caller_cert,
+  const crypto::Pem& caller_cert,
   const http::Request& r = create_simple_request(),
   const std::vector<uint8_t>* body = nullptr)
 {
@@ -435,17 +436,17 @@ nlohmann::json parse_response_body(
 
 // callers used throughout
 auto user_caller = kp -> self_sign("CN=name");
-auto user_caller_der = tls::make_verifier(user_caller) -> cert_der();
+auto user_caller_der = crypto::make_verifier(user_caller) -> cert_der();
 
 auto member_caller = kp -> self_sign("CN=name_member");
-auto member_caller_der = tls::make_verifier(member_caller) -> cert_der();
+auto member_caller_der = crypto::make_verifier(member_caller) -> cert_der();
 
 auto node_caller = kp -> self_sign("CN=node");
-auto node_caller_der = tls::make_verifier(node_caller) -> cert_der();
+auto node_caller_der = crypto::make_verifier(node_caller) -> cert_der();
 
-auto kp_other = tls::make_key_pair();
+auto kp_other = crypto::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name");
-auto invalid_caller_der = tls::make_verifier(invalid_caller) -> cert_der();
+auto invalid_caller_der = crypto::make_verifier(invalid_caller) -> cert_der();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
 

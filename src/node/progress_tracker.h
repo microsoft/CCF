@@ -22,7 +22,7 @@ namespace ccf
       std::shared_ptr<ProgressTrackerStore> store_, kv::NodeId id_) :
       store(store_),
       id(id_),
-      entropy(tls::create_entropy())
+      entropy(crypto::create_entropy())
     {}
 
     std::shared_ptr<ProgressTrackerStore> store;
@@ -712,7 +712,7 @@ namespace ccf
 
   private:
     kv::NodeId id;
-    std::shared_ptr<tls::Entropy> entropy;
+    std::shared_ptr<crypto::Entropy> entropy;
     kv::Consensus::SeqNo highest_commit_level = 0;
     kv::TxID highest_prepared_level = {0, 0};
 

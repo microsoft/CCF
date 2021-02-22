@@ -4,7 +4,7 @@
 #include "ds/buffer.h"
 #include "ds/serialized.h"
 #include "ds/thread_messaging.h"
-#include "tls/mbedtls_wrappers.h"
+#include "mbedtls_wrappers.h"
 
 namespace crypto
 {

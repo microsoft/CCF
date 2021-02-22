@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "crypto/entropy.h"
+#include "crypto/rsa_key_pair.h"
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
-#include "tls/entropy.h"
-#include "tls/rsa_key_pair.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -179,7 +179,7 @@ namespace ccfapp
       return JS_EXCEPTION;
     }
 
-    std::vector<uint8_t> key = tls::create_entropy()->random(key_size / 8);
+    std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
 
     return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
   }
@@ -239,8 +239,9 @@ namespace ccfapp
     size_t label_buf_size;
     uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
 
-    auto wrapped_key = tls::make_rsa_public_key(wrapping_key, wrapping_key_size)
-                         ->wrap(key, key_size, label_buf, label_buf_size);
+    auto wrapped_key =
+      crypto::make_rsa_public_key(wrapping_key, wrapping_key_size)
+        ->wrap(key, key_size, label_buf, label_buf_size);
 
     return JS_NewArrayBufferCopy(ctx, wrapped_key.data(), wrapped_key.size());
   }

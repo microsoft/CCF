@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/entropy.h"
+#include "crypto/symmetric_key.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "ledger_secret.h"

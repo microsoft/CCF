@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ca.h"
+#include "crypto/mbedtls_wrappers.h"
 #include "error_string.h"
-#include "mbedtls_wrappers.h"
 
 #include <cstring>
 #include <memory>
@@ -40,8 +40,8 @@ namespace tls
   public:
     Cert(
       std::shared_ptr<CA> peer_ca_,
-      const std::optional<tls::Pem>& own_cert_ = std::nullopt,
-      const std::optional<tls::Pem>& own_pkey_ = std::nullopt,
+      const std::optional<crypto::Pem>& own_cert_ = std::nullopt,
+      const std::optional<crypto::Pem>& own_pkey_ = std::nullopt,
       CBuffer pw = nullb,
       Auth auth_ = auth_default,
       const std::optional<std::string>& peer_hostname_ = std::nullopt) :
