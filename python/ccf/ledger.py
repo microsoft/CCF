@@ -108,7 +108,7 @@ class PublicDomain:
             # map_start_indicator
             self._read_next()
             map_name = self._read_next_string()
-            LOG.debug(f"Reading map {map_name}")
+            LOG.trace(f"Reading map {map_name}")
             records = {}
             self._tables[map_name] = records
 
@@ -137,7 +137,7 @@ class PublicDomain:
                         k = msgpack.unpackb(k, **UNPACK_ARGS)
                     records[k] = None
 
-            LOG.debug(
+            LOG.trace(
                 f"Found {read_count} reads, {write_count} writes, and {remove_count} removes"
             )
 
@@ -280,8 +280,8 @@ class LedgerValidator:
 
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view
-                LOG.info(
-                    f"Ledger verified till seqNo: {current_seqno} and view: {current_view}"
+                LOG.debug(
+                    f"Ledger verified till seqno: {current_seqno} and view: {current_view}"
                 )
 
         # Checks complete, add this transaction to tree
@@ -362,6 +362,10 @@ class Transaction:
             self._file_size = int.from_bytes(
                 _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
             )
+            # If the ledger chunk is not yet committed, the ledger header will be empty.
+            # Default to reading the file size instead.
+            if self._file_size == 0:
+                self._file_size = os.path.getsize(filename)
         except ValueError:
             if is_ledger_chunk_committed(filename):
                 raise
@@ -462,7 +466,7 @@ class LedgerChunk:
         try:
             return next(self._current_tx)
         except StopIteration:
-            LOG.debug(f"Completed verifying Txns in {self._filename}.")
+            LOG.info(f"Completed verifying ledger file '{self._filename}'")
             raise
 
     def __iter__(self):
@@ -499,11 +503,15 @@ class Ledger:
         for chunk in sorted_ledgers:
             if os.path.isfile(os.path.join(directory, chunk)):
                 if not is_ledger_chunk_committed(chunk):
-                    LOG.warning(f"The file {chunk} has not been committed")
+                    LOG.warning(f"Ledger file {chunk} is not committed")
                 self._filenames.append(os.path.join(directory, chunk))
 
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
+
+        LOG.info(
+            f"Initialised CCF ledger from directory '{directory}' (found {len(sorted_ledgers)} files)"
+        )
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1
@@ -513,9 +521,9 @@ class Ledger:
             )
             return self._current_chunk
         else:
-            LOG.info(
-                f"Ledger verification complete. Found {self._ledger_validator.signature_count} signatures."
-                + f"Ledger verified till seqNo: {self._ledger_validator.last_verified_seqno} and view: {self._ledger_validator.last_verified_view}"
+            LOG.success(
+                f"Ledger verification complete (found {self._ledger_validator.signature_count} signatures)."
+                + f" Ledger verified till seqno {self._ledger_validator.last_verified_seqno} in view {self._ledger_validator.last_verified_view}"
             )
             raise StopIteration
 

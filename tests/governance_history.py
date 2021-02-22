@@ -36,7 +36,7 @@ def count_governance_operations(ledger):
                     signed_request_unpacked = ccf.ledger.extract_msgpacked_data(
                         signed_request
                     )
-                    assert member_id in members
+                    assert member_id_unpacked in members
                     cert = members[member_id_unpacked]
                     sig = signed_request_unpacked[0][0]
                     req = signed_request_unpacked[0][1]
@@ -69,7 +69,7 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        ledger_directory = network.find_primary()[0].remote.ledger_path()
+        ledger_directory = primary.remote.ledger_path()
 
         ledger = ccf.ledger.Ledger(ledger_directory)
         (
