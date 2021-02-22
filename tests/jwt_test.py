@@ -296,10 +296,13 @@ class OpenIDProviderServer(AbstractContextManager):
             certfile_fp.flush()
 
             self.httpd = HTTPServer((host, port), MyHTTPRequestHandler)
-            self.httpd.socket = ssl.wrap_socket(
-                self.httpd.socket,
-                keyfile=keyfile_fp.name,
+            context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
+            context.load_cert_chain(
                 certfile=certfile_fp.name,
+                keyfile=keyfile_fp.name,
+            )
+            self.httpd.socket = context.wrap_socket(
+                self.httpd.socket,
                 server_side=True,
             )
             self.thread = threading.Thread(None, self.httpd.serve_forever)
