@@ -29,20 +29,18 @@ def test_cert_store(network, args):
         f.write("foo")
         f.flush()
         try:
-            ccf.proposal_generator.set_ca_cert_bundle(cert_name, f.name)
+            ccf.proposal_generator.set_ca_cert_bundle_bundle(cert_name, f.name)
         except ValueError:
             pass
         else:
-            assert False, "set_ca_cert_bundle should have raised an error"
+            assert False, "set_ca_cert_bundle_bundle should have raised an error"
 
     LOG.info("Member makes a ca cert update proposal with malformed cert")
     with tempfile.NamedTemporaryFile("w") as f:
         f.write("foo")
         f.flush()
         try:
-            network.consortium.set_ca_cert_bundle(
-                primary, cert_name, f.name, skip_checks=True
-            )
+            network.consortium.set_ca_cert_bundle_bundle(primary, cert_name, f.name, skip_checks=True)
         except infra.proposal.ProposalNotAccepted:
             pass
         else:
@@ -54,14 +52,13 @@ def test_cert_store(network, args):
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as cert_pem_fp:
         cert_pem_fp.write(cert_pem)
         cert_pem_fp.flush()
-        network.consortium.set_ca_cert_bundle(primary, cert_name, cert_pem_fp.name)
+        network.consortium.set_ca_cert_bundle_bundle(primary, cert_name, cert_pem_fp.name)
 
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post(
-            "/gov/read",
-            {"table": "public:ccf.gov.tls.ca_cert_bundles", "key": cert_name},
+            "/gov/read", {"table": "public:ccf.gov.tls.ca_cert_bundle_bundles", "key": cert_name}
         )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         cert_ref = x509.load_pem_x509_certificate(
@@ -79,14 +76,13 @@ def test_cert_store(network, args):
         ), f"stored cert not equal to input cert: {cert_ref} != {cert_kv}"
 
     LOG.info("Member removes a ca cert")
-    network.consortium.remove_ca_cert(primary, cert_name)
+    network.consortium.remove_ca_cert_bundle(primary, cert_name)
 
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post(
-            "/gov/read",
-            {"table": "public:ccf.gov.tls.ca_cert_bundles", "key": cert_name},
+            "/gov/read", {"table": "public:ccf.gov.tls.ca_cert_bundle_bundles", "key": cert_name}
         )
         assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
 
