@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "crypto/pem.h"
+#include "crypto/verifier.h"
 #include "ds/logger.h"
 #include "nlohmann/json.hpp"
 #include "node/genesis_gen.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/serdes.h"
 #include "node_stub.h"
-#include "tls/pem.h"
-#include "tls/verifier.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -19,7 +19,7 @@ using namespace serdes;
 
 using TResponse = http::SimpleResponseProcessor::Response;
 
-auto kp = tls::make_key_pair();
+auto kp = crypto::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member");
 auto node_id = 0;
 
@@ -38,7 +38,7 @@ TResponse frontend_process(
   NodeRpcFrontend& frontend,
   const json& json_params,
   const std::string& method,
-  const tls::Pem& caller)
+  const crypto::Pem& caller)
 {
   http::Request r(method);
   const auto body = json_params.is_null() ?
@@ -103,10 +103,10 @@ TEST_CASE("Add a node to an opening service")
     up_to_ledger_secret_seqno, make_ledger_secret());
 
   // Node certificate
-  tls::KeyPairPtr kp = tls::make_key_pair();
+  crypto::KeyPairPtr kp = crypto::make_key_pair();
   const auto caller = kp->self_sign(fmt::format("CN=nodes"));
   const auto node_public_encryption_key =
-    tls::make_key_pair()->public_key_pem();
+    crypto::make_key_pair()->public_key_pem();
 
   INFO("Try to join with a different consensus");
   {
@@ -193,8 +193,8 @@ TEST_CASE("Add a node to an opening service")
   INFO(
     "Adding a different node with the same node network details should fail");
   {
-    tls::KeyPairPtr kp = tls::make_key_pair();
-    auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+    crypto::KeyPairPtr kp = crypto::make_key_pair();
+    auto v = crypto::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
@@ -233,13 +233,13 @@ TEST_CASE("Add a node to an open service")
 
   gen.create_service({});
   gen.init_configuration({1});
-  gen.activate_member(
-    gen.add_member({member_cert, tls::make_rsa_key_pair()->public_key_pem()}));
+  gen.activate_member(gen.add_member(
+    {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
   REQUIRE(gen.open_service());
   gen.finalize();
 
   // Node certificate
-  tls::KeyPairPtr kp = tls::make_key_pair();
+  crypto::KeyPairPtr kp = crypto::make_key_pair();
   const auto caller = kp->self_sign(fmt::format("CN=nodes"));
 
   std::optional<NodeInfo> node_info;
@@ -269,8 +269,8 @@ TEST_CASE("Add a node to an open service")
   INFO(
     "Adding a different node with the same node network details should fail");
   {
-    tls::KeyPairPtr kp = tls::make_key_pair();
-    auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+    crypto::KeyPairPtr kp = crypto::make_key_pair();
+    auto v = crypto::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)

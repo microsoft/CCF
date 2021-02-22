@@ -47,10 +47,10 @@ namespace ccf
     {
       std::vector<MemberPubInfo> members_info;
       std::string gov_script;
-      tls::Pem node_cert;
-      tls::Pem network_cert;
+      crypto::Pem node_cert;
+      crypto::Pem network_cert;
       QuoteInfo quote_info;
-      tls::Pem public_encryption_key;
+      crypto::Pem public_encryption_key;
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
       ServiceConfiguration configuration;
@@ -63,7 +63,7 @@ namespace ccf
     {
       NodeInfoNetwork node_info_network;
       QuoteInfo quote_info;
-      tls::Pem public_encryption_key;
+      crypto::Pem public_encryption_key;
       ConsensusType consensus_type = ConsensusType::CFT;
     };
 

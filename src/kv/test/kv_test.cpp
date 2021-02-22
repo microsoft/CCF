@@ -1112,7 +1112,7 @@ TEST_CASE("Deserialise return status")
   ccf::Nodes nodes(ccf::Tables::NODES);
   MapTypes::NumNum data("public:data");
 
-  auto kp = tls::make_key_pair();
+  auto kp = crypto::make_key_pair();
 
   auto history = std::make_shared<ccf::NullTxHistory>(store, 0, *kp);
   store.set_history(history);

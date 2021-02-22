@@ -11,12 +11,12 @@
 #include "tls_client.h"
 
 #define FMT_HEADER_ONLY
+#include <crypto/key_pair.h>
 #include <fmt/format.h>
 #include <http/http_sig.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <thread>
-#include <tls/key_pair.h>
 
 class HttpRpcTlsClient : public TlsClient, public http::ResponseProcessor
 {
@@ -39,7 +39,7 @@ protected:
   http::ResponseParser parser;
   ws::ResponseParser ws_parser;
   std::optional<std::string> prefix;
-  tls::KeyPairPtr key_pair = nullptr;
+  crypto::KeyPairPtr key_pair = nullptr;
   std::string key_id = "Invalid";
   bool is_ws = false;
 
@@ -158,9 +158,9 @@ public:
     is_ws = true;
   }
 
-  void create_key_pair(const tls::Pem priv_key)
+  void create_key_pair(const crypto::Pem priv_key)
   {
-    key_pair = tls::make_key_pair(priv_key);
+    key_pair = crypto::make_key_pair(priv_key);
   }
 
   PreparedRpc gen_request(

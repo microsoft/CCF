@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "entities.h"
 #include "node_types.h"
 #include "tls/key_exchange.h"
-#include "tls/key_pair.h"
 
 #include <iostream>
 #include <map>
@@ -67,7 +67,7 @@ namespace ccf
     };
 
     NodeId self;
-    tls::KeyPairPtr network_kp;
+    crypto::KeyPairPtr network_kp;
 
     // Notifies the host to create a new outgoing connection
     ringbuffer::WriterPtr to_host;
@@ -170,7 +170,7 @@ namespace ccf
   public:
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      tls::KeyPairPtr network_kp_,
+      crypto::KeyPairPtr network_kp_,
       NodeId self_,
       NodeId peer_id_,
       const std::string& peer_hostname_,
@@ -189,7 +189,7 @@ namespace ccf
 
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      tls::KeyPairPtr network_kp_,
+      crypto::KeyPairPtr network_kp_,
       NodeId self_,
       NodeId peer_id_) :
       self(self_),
@@ -270,7 +270,7 @@ namespace ccf
         return false;
       }
 
-      auto network_pubk = tls::make_public_key(network_kp->public_key_pem());
+      auto network_pubk = crypto::make_public_key(network_kp->public_key_pem());
 
       auto peer_public_size = serialized::read<size_t>(data, size);
       auto peer_public_start = data;
@@ -457,17 +457,17 @@ namespace ccf
   private:
     std::unordered_map<NodeId, std::shared_ptr<Channel>> channels;
     ringbuffer::AbstractWriterFactory& writer_factory;
-    tls::KeyPairPtr network_kp;
+    crypto::KeyPairPtr network_kp;
     NodeId self;
     SpinLock lock;
 
   public:
     ChannelManager(
       ringbuffer::AbstractWriterFactory& writer_factory_,
-      const tls::Pem& network_pkey,
+      const crypto::Pem& network_pkey,
       NodeId self_) :
       writer_factory(writer_factory_),
-      network_kp(tls::make_key_pair(network_pkey)),
+      network_kp(crypto::make_key_pair(network_pkey)),
       self(self_)
     {}
 

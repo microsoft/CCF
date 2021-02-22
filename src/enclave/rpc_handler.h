@@ -27,7 +27,7 @@ namespace enclave
     virtual void set_cmd_forwarder(
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) = 0;
     virtual void tick(std::chrono::milliseconds) {}
-    virtual void open(std::optional<tls::Pem*> identity = std::nullopt) = 0;
+    virtual void open(std::optional<crypto::Pem*> identity = std::nullopt) = 0;
     virtual bool is_open(kv::Tx& tx) = 0;
 
     // Used by rpcendpoint to process incoming client RPCs

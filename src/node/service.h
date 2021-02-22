@@ -33,7 +33,7 @@ namespace ccf
 {
   struct ServiceInfo
   {
-    tls::Pem cert;
+    crypto::Pem cert;
     ServiceStatus status;
 
     MSGPACK_DEFINE(cert, status);
