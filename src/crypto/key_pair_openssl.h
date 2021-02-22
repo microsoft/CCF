@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "key_pair_base.h"
+#include "key_pair.h"
 
 #include <openssl/ec.h>
 #include <openssl/engine.h>
@@ -10,6 +10,8 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
+#include <stdexcept>
+#include <string>
 
 namespace crypto
 {
@@ -123,7 +125,7 @@ namespace crypto
     };
   }
 
-  class PublicKey_OpenSSL : public PublicKeyBase
+  class PublicKey_OpenSSL : public PublicKey
   {
   protected:
     EVP_PKEY* key = nullptr;
@@ -205,8 +207,8 @@ namespace crypto
       return CurveID::NONE;
     }
 
-    using PublicKeyBase::verify;
-    using PublicKeyBase::verify_hash;
+    using PublicKey::verify;
+    using PublicKey::verify_hash;
 
     virtual bool verify(
       const uint8_t* contents,
@@ -272,13 +274,13 @@ namespace crypto
       return Pem((uint8_t*)bptr->data, bptr->length);
     }
 
-    static std::string error_string(unsigned long ec)
+    static std::string error_string(int ec)
     {
-      return ERR_error_string(ec, NULL);
+      return ERR_error_string((unsigned long)ec, NULL);
     }
   };
 
-  class KeyPair_OpenSSL : public PublicKey_OpenSSL, public KeyPairBase
+  class KeyPair_OpenSSL : public PublicKey_OpenSSL, public KeyPair
   {
   protected:
     inline int get_openssl_group_id(CurveID gid)

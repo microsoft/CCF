@@ -4,7 +4,7 @@
 
 #include "ds/net.h"
 #include "entropy.h"
-#include "key_pair_base.h"
+#include "key_pair.h"
 #include "mbedtls_wrappers.h"
 #include "san.h"
 
@@ -21,9 +21,10 @@
 
 namespace crypto
 {
-  class PublicKey_mbedTLS : public PublicKeyBase
+  class PublicKey_mbedTLS : public PublicKey
   {
   protected:
+    static constexpr size_t max_pem_key_size = 2048;
     mbedtls::PKContext ctx = mbedtls::make_unique<mbedtls::PKContext>();
 
     PublicKey_mbedTLS() {}
@@ -113,8 +114,8 @@ namespace crypto
 
     virtual ~PublicKey_mbedTLS() = default;
 
-    using PublicKeyBase::verify;
-    using PublicKeyBase::verify_hash;
+    using PublicKey::verify;
+    using PublicKey::verify_hash;
 
     virtual bool verify(
       const uint8_t* contents,
@@ -194,7 +195,7 @@ namespace crypto
     }
   };
 
-  class KeyPair_mbedTLS : public PublicKey_mbedTLS, public KeyPairBase
+  class KeyPair_mbedTLS : public PublicKey_mbedTLS, public KeyPair
   {
   public:
     inline mbedtls_ecp_group_id get_mbedtls_group_id(CurveID gid)

@@ -196,9 +196,8 @@ function(add_unit_test name)
   enable_coverage(${name})
   target_link_libraries(
     ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
-                    $<BUILD_INTERFACE:merklecpp> crypto
+                    $<BUILD_INTERFACE:merklecpp>
   )
-  use_client_mbedtls(${name})
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
@@ -216,7 +215,6 @@ function(add_test_bin name)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
-  use_client_mbedtls(${name})
   add_san(${name})
 endfunction()
 
@@ -227,7 +225,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   add_warning_checks(cchost)
-  use_client_mbedtls(cchost)
   target_compile_options(cchost PRIVATE -stdlib=libc++)
   target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
   add_san(cchost)
@@ -267,7 +264,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   # Virtual Host Executable
   add_executable(cchost.virtual ${SNMALLOC_CPP} ${CCF_DIR}/src/host/main.cpp)
-  use_client_mbedtls(cchost.virtual)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
   target_include_directories(
@@ -294,10 +290,9 @@ endif()
 add_executable(
   scenario_perf_client ${CCF_DIR}/src/perf_client/scenario_perf_client.cpp
 )
-use_client_mbedtls(scenario_perf_client)
 target_link_libraries(
   scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                               ccfcrypto.host
+                               ccfcrypto.host c++fs
 )
 install(TARGETS scenario_perf_client DESTINATION bin)
 
@@ -376,12 +371,12 @@ function(add_client_exe name)
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
 
-  target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+  target_link_libraries(
+    ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host
+  )
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/src/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
   )
-
-  use_client_mbedtls(${name})
 
 endfunction()
 
@@ -596,7 +591,7 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
-                    $<BUILD_INTERFACE:merklecpp> crypto
+                    $<BUILD_INTERFACE:merklecpp> ccfcrypto.host
   )
 
   # -Wall -Werror catches a number of warnings in picobench
@@ -608,8 +603,6 @@ function(add_picobench name)
       bash -c
       "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
   )
-
-  use_client_mbedtls(${name})
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
 endfunction()
