@@ -1364,7 +1364,8 @@ namespace ccf
 
     std::vector<crypto::SubjectAltName> get_subject_alternative_names()
     {
-      std::vector<crypto::SubjectAltName> sans = config.subject_alternative_names;
+      std::vector<crypto::SubjectAltName> sans =
+        config.subject_alternative_names;
       sans.push_back(get_subject_alt_name());
       return sans;
     }
