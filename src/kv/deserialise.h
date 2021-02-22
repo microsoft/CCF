@@ -48,8 +48,60 @@ namespace kv
 
     ApplyResult apply() override
     {
-      return fn(
-        store, data, history, public_only, v, &term, changes, new_maps, hooks);
+      kv::Version max_conflict_version;
+      if (!store->fill_maps(
+            data,
+            public_only,
+            v,
+            max_conflict_version,
+            changes,
+            new_maps,
+            true))
+      {
+        return ApplyResult::FAIL;
+      }
+
+      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      {
+        return ApplyResult::FAIL;
+      }
+      auto success = ApplyResult::PASS;
+
+      auto search = changes.find(ccf::Tables::SIGNATURES);
+      if (search != changes.end())
+      {
+        // Transactions containing a signature must only contain
+        // a signature and must be verified
+        if (changes.size() > 1)
+        {
+          LOG_FAIL_FMT("Failed to deserialise");
+          LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
+          return ApplyResult::FAIL;
+        }
+
+        if (history)
+        {
+          if (!history->verify(&term))
+          {
+            LOG_FAIL_FMT("Failed to deserialise");
+            LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
+            return ApplyResult::FAIL;
+          }
+        }
+        success = ApplyResult::PASS_SIGNATURE;
+      }
+
+      search = changes.find(ccf::Tables::SNAPSHOT_EVIDENCE);
+      if (search != changes.end())
+      {
+        success = ApplyResult::PASS_SNAPSHOT_EVIDENCE;
+      }
+
+      if (history)
+      {
+        history->append(data);
+      }
+      return success;
     }
 
     kv::ConsensusHookPtrs& get_hooks() override
@@ -84,82 +136,6 @@ namespace kv
     {
       throw std::logic_error("get_request not implemented");
     }
-
-    std::function<ApplyResult(
-      ExecutionWrapperStore* store,
-      const std::vector<uint8_t>& data,
-      std::shared_ptr<TxHistory> history,
-      bool public_only,
-      kv::Version& v,
-      Term* term,
-      OrderedChanges& changes,
-      MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks)>
-      fn = [](
-             ExecutionWrapperStore* store,
-             const std::vector<uint8_t>& data,
-             std::shared_ptr<TxHistory> history,
-             bool public_only,
-             kv::Version& v,
-             Term* term_,
-             OrderedChanges& changes,
-             MapCollection& new_maps,
-             kv::ConsensusHookPtrs& hooks) -> ApplyResult {
-      kv::Version max_conflict_version;
-      if (!store->fill_maps(
-            data,
-            public_only,
-            v,
-            max_conflict_version,
-            changes,
-            new_maps,
-            true))
-      {
-        return ApplyResult::FAIL;
-      }
-
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
-      {
-        return ApplyResult::FAIL;
-      }
-      auto success = ApplyResult::PASS;
-
-      auto search = changes.find(ccf::Tables::SIGNATURES);
-      if (search != changes.end())
-      {
-        // Transactions containing a signature must only contain
-        // a signature and must be verified
-        if (changes.size() > 1)
-        {
-          LOG_FAIL_FMT("Failed to deserialise");
-          LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
-          return ApplyResult::FAIL;
-        }
-
-        if (history)
-        {
-          if (!history->verify(term_))
-          {
-            LOG_FAIL_FMT("Failed to deserialise");
-            LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
-            return ApplyResult::FAIL;
-          }
-        }
-        success = ApplyResult::PASS_SIGNATURE;
-      }
-
-      search = changes.find(ccf::Tables::SNAPSHOT_EVIDENCE);
-      if (search != changes.end())
-      {
-        success = ApplyResult::PASS_SNAPSHOT_EVIDENCE;
-      }
-
-      if (history)
-      {
-        history->append(data);
-      }
-      return success;
-    };
 
     bool support_async_execution() override
     {
@@ -294,50 +270,18 @@ namespace kv
 
     ApplyResult apply() override
     {
-      return fn(store, data, history, v, &term, &sig, changes, new_maps, hooks);
-    }
-
-    std::function<ApplyResult(
-      ExecutionWrapperStore* store,
-      const std::vector<uint8_t>& data,
-      std::shared_ptr<TxHistory> history,
-      kv::Version& v,
-      Term* term,
-      ccf::PrimarySignature* sig,
-      OrderedChanges& changes,
-      MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks)>
-      fn = [](
-             ExecutionWrapperStore* store,
-             const std::vector<uint8_t>& data,
-             std::shared_ptr<TxHistory> history,
-             kv::Version& v,
-             Term* term_,
-             ccf::PrimarySignature* sig,
-             OrderedChanges& changes,
-             MapCollection& new_maps,
-             kv::ConsensusHookPtrs& hooks) -> ApplyResult
-
-    {
       if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
 
       bool result = true;
-      if (sig != nullptr)
+      auto r = history->verify_and_sign(sig, &term);
+      if (
+        r != kv::TxHistory::Result::OK &&
+        r != kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
       {
-        auto r = history->verify_and_sign(*sig, term_);
-        if (
-          r != kv::TxHistory::Result::OK &&
-          r != kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
-        {
-          result = false;
-        }
-      }
-      else
-      {
-        result = history->verify(term_);
+        result = false;
       }
 
       if (!result)
@@ -350,7 +294,7 @@ namespace kv
       }
       history->append(data);
       return ApplyResult::PASS_SIGNATURE;
-    };
+    }
   };
 
   class BackupSignatureBFTExec : public BFTExecutionWrapper
@@ -380,44 +324,6 @@ namespace kv
 
     ApplyResult apply() override
     {
-      return fn(
-        store,
-        data,
-        history,
-        progress_tracker,
-        consensus,
-        v,
-        &term,
-        &version,
-        changes,
-        new_maps,
-        hooks);
-    }
-
-    std::function<ApplyResult(
-      ExecutionWrapperStore* store,
-      const std::vector<uint8_t>& data,
-      std::shared_ptr<TxHistory> history,
-      std::shared_ptr<ccf::ProgressTracker> progress_tracker,
-      std::shared_ptr<Consensus> consensus,
-      kv::Version& v,
-      Term* term,
-      Version* index,
-      OrderedChanges& changes,
-      MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks)>
-      fn = [](
-             ExecutionWrapperStore* store,
-             const std::vector<uint8_t>& data,
-             std::shared_ptr<TxHistory> history,
-             std::shared_ptr<ccf::ProgressTracker> progress_tracker,
-             std::shared_ptr<Consensus> consensus,
-             kv::Version& v,
-             Term* term_,
-             Version* index_,
-             OrderedChanges& changes,
-             MapCollection& new_maps,
-             kv::ConsensusHookPtrs& hooks) -> ApplyResult {
       if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
         return ApplyResult::FAIL;
@@ -445,12 +351,12 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      *term_ = tx_id.term;
-      *index_ = tx_id.version;
+      term = tx_id.term;
+      version = tx_id.version;
 
       history->append(data);
       return success;
-    };
+    }
   };
 
   class NoncesBFTExec : public BFTExecutionWrapper
@@ -479,28 +385,6 @@ namespace kv
 
     ApplyResult apply() override
     {
-      return fn(
-        store, data, history, progress_tracker, v, changes, new_maps, hooks);
-    }
-
-    std::function<ApplyResult(
-      ExecutionWrapperStore* store,
-      const std::vector<uint8_t>& data,
-      std::shared_ptr<TxHistory> history,
-      std::shared_ptr<ccf::ProgressTracker> progress_tracker,
-      kv::Version& v,
-      OrderedChanges& changes,
-      MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks)>
-      fn = [](
-             ExecutionWrapperStore* store,
-             const std::vector<uint8_t>& data,
-             std::shared_ptr<TxHistory> history,
-             std::shared_ptr<ccf::ProgressTracker> progress_tracker,
-             kv::Version& v,
-             OrderedChanges& changes,
-             MapCollection& new_maps,
-             kv::ConsensusHookPtrs& hooks) -> ApplyResult {
       if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
         LOG_FAIL_FMT("receive_nonces commit_deserialized Failed");
@@ -518,7 +402,8 @@ namespace kv
 
       history->append(data);
       return ApplyResult::PASS_NONCES;
-    };
+    }
+
   };
 
   class NewViewBFTExec : public BFTExecutionWrapper
@@ -548,44 +433,6 @@ namespace kv
 
     ApplyResult apply() override
     {
-      return fn(
-        store,
-        data,
-        history,
-        progress_tracker,
-        consensus,
-        v,
-        &term,
-        &version,
-        changes,
-        new_maps,
-        hooks);
-    }
-
-    std::function<ApplyResult(
-      ExecutionWrapperStore* store,
-      const std::vector<uint8_t>& data,
-      std::shared_ptr<TxHistory> history,
-      std::shared_ptr<ccf::ProgressTracker> progress_tracker,
-      std::shared_ptr<Consensus> consensus,
-      kv::Version& v,
-      Term* term,
-      Version* index,
-      OrderedChanges& changes,
-      MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks)>
-      fn = [](
-             ExecutionWrapperStore* store,
-             const std::vector<uint8_t>& data,
-             std::shared_ptr<TxHistory> history,
-             std::shared_ptr<ccf::ProgressTracker> progress_tracker,
-             std::shared_ptr<Consensus> consensus,
-             kv::Version& v,
-             Term* term_,
-             Version* index_,
-             OrderedChanges& changes,
-             MapCollection& new_maps,
-             kv::ConsensusHookPtrs& hooks) -> ApplyResult {
       LOG_INFO_FMT("Applying new view");
       if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
@@ -593,7 +440,7 @@ namespace kv
       }
 
       if (!progress_tracker->apply_new_view(
-            consensus->primary(), consensus->node_count(), *term_, *index_))
+            consensus->primary(), consensus->node_count(), term, version))
       {
         LOG_FAIL_FMT("apply_new_view Failed");
         LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);
@@ -602,7 +449,7 @@ namespace kv
 
       history->append(data);
       return ApplyResult::PASS_NEW_VIEW;
-    };
+    }
   };
 
   class TxBFTExec : public BFTExecutionWrapper
@@ -635,19 +482,6 @@ namespace kv
 
     ApplyResult apply() override
     {
-      return fn(tx, term, changes, req);
-    }
-
-    std::function<ApplyResult(
-      std::unique_ptr<Tx>& tx,
-      Term term,
-      OrderedChanges& changes,
-      aft::Request& req_)>
-      fn = [](
-             std::unique_ptr<Tx>& tx,
-             Term term,
-             OrderedChanges& changes,
-             aft::Request& req_) -> ApplyResult {
       tx->set_change_list(std::move(changes), term);
 
       auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
@@ -655,10 +489,11 @@ namespace kv
       CCF_ASSERT(
         req_v.has_value(),
         "Deserialised append entry, but requests map is empty");
-      req_ = req_v.value();
+      req = req_v.value();
 
       return ApplyResult::PASS;
-    };
+    }
+
 
     virtual bool support_async_execution() override
     {
