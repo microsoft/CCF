@@ -125,13 +125,13 @@ namespace ccf::historical
       }
 
       // Keep as many existing entries as possible, return indices that weren't
-      // already present to indicate they should be fetched For example, if we
+      // already present to indicate they should be fetched. For example, if we
       // were previously fetching:
       //        2  3  4  5
       // and then we adjust to:
       //              4  5
-      // we don't need to fetch anything new, this is a subrange, we just need
-      // to adjust where these are in our requested_stores vector. But if we
+      // we don't need to fetch anything new; this is a subrange, we just need
+      // to shift where these are in our requested_stores vector. But if we
       // adjust to:
       //  0  1  2  3  4  5  6
       // we need to shift _and_ start fetching 0, 1, and 6.
