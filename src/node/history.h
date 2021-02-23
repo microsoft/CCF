@@ -482,7 +482,7 @@ namespace ccf
       crypto::KeyPairBase& kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
-      bool signature_timer = true) :
+      bool signature_timer = false) :
       store(store_),
       id(id_),
       kp(kp_),
