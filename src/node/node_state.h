@@ -289,6 +289,11 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
+    NodeId get_node_id()
+    {
+      return crypto::Sha256Hash(node_sign_kp->public_key_pem()).hex_str();
+    }
+
     //
     // funcs in state "initialized"
     //
@@ -312,7 +317,11 @@ namespace ccf
       {
         case StartType::New:
         {
+          // TODO: Node id changes!
+          // 1. Display node id in log whenever it is set
+
           set_node_id(0); // The first node id is always 0
+
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 

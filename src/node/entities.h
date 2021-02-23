@@ -13,7 +13,6 @@ namespace ccf
 
   constexpr ObjectId INVALID_ID = (std::numeric_limits<ObjectId>::max)();
 
-  using NodeId = uint64_t;
   using Index = int64_t;
   using Node2NodeMsg = uint64_t;
 

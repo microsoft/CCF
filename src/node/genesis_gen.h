@@ -269,11 +269,9 @@ namespace ccf
 
     auto add_node(const NodeInfo& node_info)
     {
-      auto node_id = get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
-
-      auto raw_cert = crypto::make_verifier(node_info.cert)->cert_der();
-
       auto node = tx.rw(tables.nodes);
+      auto node_id = node_info.cert;
+
       node->put(node_id, node_info);
       return node_id;
     }
