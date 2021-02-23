@@ -84,11 +84,11 @@ namespace aft
     std::unique_ptr<Store> store;
 
     // Persistent
-    NodeId voted_for;
+    std::optional<kv::NodeId> voted_for = std::nullopt;
 
     // Volatile
-    NodeId leader_id;
-    std::unordered_set<NodeId> votes_for_me;
+    std::optional<kv::NodeId> leader_id = std::nullopt;
+    std::unordered_set<kv::NodeId> votes_for_me;
 
     ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
@@ -127,7 +127,7 @@ namespace aft
 
     // Configurations
     std::list<Configuration> configurations;
-    std::unordered_map<NodeId, NodeState> nodes;
+    std::unordered_map<kv::NodeId, NodeState> nodes;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -153,7 +153,7 @@ namespace aft
     std::shared_ptr<SnapshotterProxy> snapshotter;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
-    std::set<NodeId> backup_nodes;
+    std::set<kv::NodeId> backup_nodes;
 
   public:
     Aft(
@@ -176,7 +176,6 @@ namespace aft
       bool public_only_ = false) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
-      voted_for(NoNode),
 
       replica_state(Follower),
       timeout_elapsed(0),
@@ -202,7 +201,6 @@ namespace aft
       rpc_map(rpc_map_)
 
     {
-      leader_id = NoNode;
       if (view_change_tracker != nullptr)
       {
         view_change_tracker->set_current_view_change(starting_view_change);
@@ -218,7 +216,7 @@ namespace aft
 
     virtual ~Aft() = default;
 
-    NodeId leader()
+    std::optional<kv::NodeId> leader()
     {
       return leader_id;
     }
@@ -238,7 +236,7 @@ namespace aft
       }
     }
 
-    std::set<NodeId> active_nodes()
+    std::set<kv::NodeId> active_nodes()
     {
       // Find all nodes present in any active configuration.
       if (backup_nodes.empty())
@@ -257,7 +255,7 @@ namespace aft
       return backup_nodes;
     }
 
-    NodeId id()
+    kv::NodeId id()
     {
       return state->my_node_id;
     }
@@ -272,11 +270,14 @@ namespace aft
       return replica_state == Follower;
     }
 
-    NodeId get_primary(kv::Consensus::View view)
+    kv::NodeId get_primary(kv::Consensus::View view)
     {
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
-      return (view - starting_view_change) % active_nodes().size();
+      // return (view - starting_view_change) % active_nodes().size();
+      // TODO: Fix!!
+      (void)view;
+      return kv::NodeId();
     }
 
     Index last_committable_index() const
@@ -297,7 +298,7 @@ namespace aft
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
-      if (leader_id != NoNode)
+      if (leader_id.has_value())
       {
         throw std::logic_error(
           "Can't force leadership if there is already a leader");
@@ -316,9 +317,12 @@ namespace aft
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
-      if (leader_id != NoNode)
+      if (leader_id.has_value())
+      {
         throw std::logic_error(
           "Can't force leadership if there is already a leader");
+      }
+
       std::lock_guard<SpinLock> guard(state->lock);
       state->current_view = term;
       state->last_idx = index;
@@ -816,19 +820,26 @@ namespace aft
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
-          "Recv nonce reveal to {} from {}: unknown node",
+          "Recv view change evidence to {} from {}: unknown node",
           state->my_node_id,
           r.from_node);
         return;
       }
 
-      if (r.from_node != state->requested_evidence_from)
+      if (!state->requested_evidence_from.has_value())
       {
-        // Ignore if we didn't request this evidence.
-        LOG_FAIL_FMT("Received unrequested evidence from {}", r.from_node);
+        LOG_FAIL_FMT("Received unrequested view change evidence");
         return;
       }
-      state->requested_evidence_from = NoNode;
+
+      if (r.from_node != state->requested_evidence_from.value())
+      {
+        // Ignore if we didn't request this evidence.
+        LOG_FAIL_FMT(
+          "Received unrequested view change evidence from {}", r.from_node);
+        return;
+      }
+      state->requested_evidence_from.reset();
 
       view_change_tracker->add_unknown_primary_evidence(
         {data, size}, r.view, node_count());
@@ -936,7 +947,7 @@ namespace aft
       return state->view_history.view_at(idx);
     }
 
-    void send_append_entries(NodeId to, Index start_idx)
+    void send_append_entries(kv::NodeId to, Index start_idx)
     {
       Index end_idx = (state->last_idx == 0) ?
         0 :
@@ -954,7 +965,8 @@ namespace aft
       }
     }
 
-    void send_append_entries_range(NodeId to, Index start_idx, Index end_idx)
+    void send_append_entries_range(
+      kv::NodeId to, Index start_idx, Index end_idx)
     {
       const auto prev_idx = start_idx - 1;
       const auto prev_term = get_term_internal(prev_idx);
@@ -1141,11 +1153,11 @@ namespace aft
       // If the terms match up, it is sufficient to convince us that the sender
       // is leader in our term
       restart_election_timeout();
-      if (leader_id != r.from_node)
+      if (!leader_id.has_value() || leader_id.value() != r.from_node)
       {
         leader_id = r.from_node;
         LOG_DEBUG_FMT(
-          "Node {} thinks leader is {}", state->my_node_id, leader_id);
+          "Node {} thinks leader is {}", state->my_node_id, leader_id.value());
       }
 
       // Third, check index consistency, making sure entries are not in the past
@@ -1468,7 +1480,7 @@ namespace aft
     }
 
     void send_append_entries_response(
-      NodeId to, AppendEntriesResponseType answer)
+      kv::NodeId to, AppendEntriesResponseType answer)
     {
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
@@ -1488,7 +1500,7 @@ namespace aft
     }
 
     void send_append_entries_signed_response(
-      NodeId to, ccf::PrimarySignature& sig)
+      kv::NodeId to, ccf::PrimarySignature& sig)
     {
       LOG_DEBUG_FMT(
         "Send append entries signed response from {} to {} for index {}",
@@ -1789,7 +1801,7 @@ namespace aft
       update_commit();
     }
 
-    void send_request_vote(NodeId to)
+    void send_request_vote(kv::NodeId to)
     {
       auto last_committable_idx = last_committable_index();
       LOG_INFO_FMT(
@@ -1846,14 +1858,14 @@ namespace aft
         become_follower(r.term);
       }
 
-      if ((voted_for != NoNode) && (voted_for != r.from_node))
+      if ((voted_for.has_value()) && (voted_for.value() != r.from_node))
       {
         // Reply false, since we already voted for someone else.
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: already voted for {}",
           state->my_node_id,
           r.from_node,
-          voted_for);
+          voted_for.value());
         send_request_vote_response(r.from_node, false);
         return;
       }
@@ -1875,7 +1887,7 @@ namespace aft
         // If we grant our vote, we also acknowledge that an election is in
         // progress.
         restart_election_timeout();
-        leader_id = NoNode;
+        leader_id.reset();
         voted_for = r.from_node;
       }
       else
@@ -1891,7 +1903,7 @@ namespace aft
       send_request_vote_response(r.from_node, answer);
     }
 
-    void send_request_vote_response(NodeId to, bool answer)
+    void send_request_vote_response(kv::NodeId to, bool answer)
     {
       LOG_INFO_FMT(
         "Send request vote response from {} to {}: {}",
@@ -1980,7 +1992,7 @@ namespace aft
     void become_candidate()
     {
       replica_state = Candidate;
-      leader_id = NoNode;
+      leader_id.reset();
       voted_for = state->my_node_id;
       votes_for_me.clear();
       state->current_view++;
@@ -2054,11 +2066,11 @@ namespace aft
     void become_follower(Term term)
     {
       replica_state = Follower;
-      leader_id = NoNode;
+      leader_id.reset();
       restart_election_timeout();
 
       state->current_view = term;
-      voted_for = NoNode;
+      voted_for.reset();
       votes_for_me.clear();
 
       rollback(last_committable_index());
@@ -2077,14 +2089,14 @@ namespace aft
     void become_retired()
     {
       replica_state = Retired;
-      leader_id = NoNode;
+      leader_id.reset();
 
       LOG_INFO_FMT(
         "Becoming retired {}: {}", state->my_node_id, state->current_view);
       channels->destroy_all_channels();
     }
 
-    void add_vote_for_me(NodeId from)
+    void add_vote_for_me(kv::NodeId from)
     {
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
       votes_for_me.insert(from);
@@ -2312,7 +2324,7 @@ namespace aft
 
       // Remove all nodes in the node state that are not present in any active
       // configuration.
-      std::vector<NodeId> to_remove;
+      std::vector<kv::NodeId> to_remove;
 
       for (auto& node : nodes)
       {

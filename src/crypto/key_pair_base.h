@@ -20,6 +20,12 @@ namespace crypto
     printf("\n");
   }
 
+  static inline std::string get_public_key_pem_hash_hex(
+    const crypto::Pem& public_key)
+  {
+    return crypto::Sha256Hash(public_key.contents()).hex_str();
+  }
+
   class PublicKeyBase
   {
   public:

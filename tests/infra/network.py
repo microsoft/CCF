@@ -706,9 +706,10 @@ class Network:
                 with node.client() as c:
                     try:
                         logs = []
-                        res = c.get("/node/network", log_capture=logs)
+                        res = c.get("/node/network")  # , log_capture=logs)
                         assert res.status_code == 200, res
                         body = res.body.json()
+                        LOG.error(res.body.json())
                         primary_id = body["primary_id"]
                         view = body["current_view"]
                         view_change_in_progress = body["view_change_in_progress"]

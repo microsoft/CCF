@@ -128,26 +128,26 @@ namespace ccf
   class NodeToNodeImpl : public NodeToNode
   {
   private:
-    NodeId self;
+    std::optional<NodeId> self = std::nullopt;
     std::unique_ptr<ChannelManager> channels;
     ringbuffer::AbstractWriterFactory& writer_factory;
 
   public:
     NodeToNodeImpl(ringbuffer::AbstractWriterFactory& writer_factory_) :
-      self(INVALID_ID),
       writer_factory(writer_factory_)
     {}
 
     void initialize(NodeId self_id, const crypto::Pem& network_pkey) override
     {
       CCF_ASSERT_FMT(
-        self == INVALID_ID,
+        !self.has_value(),
         "Calling initialize more than once, previous id:{}, new id:{}",
-        self,
+        self.value(),
         self_id);
+
       self = self_id;
-      channels =
-        std::make_unique<ChannelManager>(writer_factory, network_pkey, self);
+      channels = std::make_unique<ChannelManager>(
+        writer_factory, network_pkey, self.value());
     }
 
     void create_channel(
@@ -155,7 +155,7 @@ namespace ccf
       const std::string& hostname,
       const std::string& service) override
     {
-      if (peer_id == self)
+      if (peer_id == self.value())
       {
         return;
       }
@@ -165,7 +165,7 @@ namespace ccf
 
     void destroy_channel(NodeId peer_id) override
     {
-      if (peer_id == self)
+      if (peer_id == self.value())
       {
         return;
       }

@@ -19,18 +19,22 @@ namespace asynchost
     {
     public:
       NodeConnections& parent;
-      ccf::NodeId node;
+      std::optional<ccf::NodeId> node;
       uint32_t msg_size = (uint32_t)-1;
       std::vector<uint8_t> pending;
 
-      ConnectionBehaviour(NodeConnections& parent, ccf::NodeId node) :
+      ConnectionBehaviour(
+        NodeConnections& parent,
+        std::optional<ccf::NodeId> node = std::nullopt) :
         parent(parent),
         node(node)
       {}
 
       void on_read(size_t len, uint8_t*& incoming)
       {
-        LOG_DEBUG_FMT("from node {} received {} bytes", node, len);
+        // TODO: Hack!
+        LOG_DEBUG_FMT(
+          "from node {} received {} bytes", node.value_or(ccf::NodeId()), len);
 
         pending.insert(pending.end(), incoming, incoming + len);
 
@@ -43,7 +47,9 @@ namespace asynchost
           if (msg_size == (uint32_t)-1)
           {
             if (size < sizeof(uint32_t))
+            {
               break;
+            }
 
             msg_size = serialized::read<uint32_t>(data, size);
             used += sizeof(uint32_t);
@@ -51,8 +57,8 @@ namespace asynchost
 
           if (size < msg_size)
           {
-            LOG_DEBUG_FMT(
-              "from node {} have {}/{} bytes", node, size, msg_size);
+            // LOG_DEBUG_FMT(
+            //   "from node {} have {}/{} bytes", node, size, msg_size);
             break;
           }
 
@@ -61,12 +67,14 @@ namespace asynchost
           auto msg_type = serialized::read<ccf::NodeMsgType>(p, psize);
           auto header = serialized::read<ccf::Header>(p, psize);
 
-          if (node == ccf::NoNode)
+          if (!node.has_value())
+          {
             associate(header.from_node);
+          }
 
           LOG_DEBUG_FMT(
             "node in: from node {}, size {}, type {}",
-            node,
+            node.value(),
             msg_size,
             msg_type);
 
@@ -82,7 +90,9 @@ namespace asynchost
         }
 
         if (used > 0)
+        {
           pending.erase(pending.begin(), pending.begin() + used);
+        }
       }
 
       virtual void associate(ccf::NodeId) {}
@@ -94,25 +104,27 @@ namespace asynchost
       size_t id;
 
       IncomingBehaviour(NodeConnections& parent, size_t id) :
-        ConnectionBehaviour(parent, ccf::NoNode),
+        ConnectionBehaviour(parent),
         id(id)
       {}
 
       void on_disconnect()
       {
-        LOG_DEBUG_FMT("node incoming disconnect {} with node {}", id, node);
-
         parent.incoming.erase(id);
 
-        if (node != ccf::NoNode)
-          parent.associated.erase(node);
+        if (node.has_value())
+        {
+          LOG_DEBUG_FMT(
+            "node incoming disconnect {} with node {}", id, node.value());
+          parent.associated.erase(node.value());
+        }
       }
 
       virtual void associate(ccf::NodeId n)
       {
         node = n;
-        parent.associated.emplace(node, parent.incoming.at(id));
-        LOG_DEBUG_FMT("node incoming {} associated with {}", id, node);
+        parent.associated.emplace(node.value(), parent.incoming.at(id));
+        LOG_DEBUG_FMT("node incoming {} associated with {}", id, node.value());
       }
     };
 
@@ -125,25 +137,25 @@ namespace asynchost
 
       void on_resolve_failed()
       {
-        LOG_DEBUG_FMT("node resolve failed {}", node);
+        LOG_DEBUG_FMT("node resolve failed {}", node.value());
         reconnect();
       }
 
       void on_connect_failed()
       {
-        LOG_DEBUG_FMT("node connect failed {}", node);
+        LOG_DEBUG_FMT("node connect failed {}", node.value());
         reconnect();
       }
 
       void on_disconnect()
       {
-        LOG_DEBUG_FMT("node disconnect failed {}", node);
+        LOG_DEBUG_FMT("node disconnect failed {}", node.value());
         reconnect();
       }
 
       void reconnect()
       {
-        parent.request_reconnect(node);
+        parent.request_reconnect(node.value());
       }
     };
 
@@ -223,7 +235,9 @@ namespace asynchost
           auto node = find(to, true);
 
           if (!node)
+          {
             return;
+          }
 
           auto data_to_send = data;
           auto size_to_send = size;
@@ -344,14 +358,18 @@ namespace asynchost
       auto s = outgoing.find(node);
 
       if (s != outgoing.end())
+      {
         return s->second;
+      }
 
       if (use_incoming)
       {
         auto s = associated.find(node);
 
         if (s != associated.end())
+        {
           return s->second;
+        }
       }
 
       LOG_FAIL_FMT("Unknown node connection {}", node);
@@ -376,7 +394,9 @@ namespace asynchost
       auto id = next_id++;
 
       while (incoming.find(id) != incoming.end())
+      {
         id = next_id++;
+      }
 
       return id;
     }

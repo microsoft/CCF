@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/entities.h"
+#include "node/nodes.h"
 
 #include <msgpack/msgpack.hpp>
 #include <stdint.h>

@@ -12,9 +12,6 @@
 
 namespace ccf
 {
-  using NodeId =
-    std::string; // < Hex-encoded hash of node's identity public key
-
   enum class NodeStatus
   {
     PENDING = 0,

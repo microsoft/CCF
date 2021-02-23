@@ -39,10 +39,10 @@ namespace ccf
     CommitCert() = default;
 
     crypto::Sha256Hash root;
-    std::map<kv::NodeId, BftNodeSignature> sigs;
-    std::set<kv::NodeId> sig_acks;
-    std::set<kv::NodeId> nonce_set;
-    std::map<kv::NodeId, Nonce> unmatched_nonces;
+    std::map<ccf::NodeId, BftNodeSignature> sigs;
+    std::set<ccf::NodeId> sig_acks;
+    std::set<ccf::NodeId> nonce_set;
+    std::map<ccf::NodeId, Nonce> unmatched_nonces;
     Nonce my_nonce;
     bool have_primary_signature = false;
     bool ack_sent = false;
@@ -61,7 +61,7 @@ namespace ccf
     virtual void write_nonces(aft::RevealedNonces& nonces) = 0;
     virtual std::optional<aft::RevealedNonces> get_nonces() = 0;
     virtual bool verify_signature(
-      kv::NodeId node_id,
+      ccf::NodeId node_id,
       crypto::Sha256Hash& root,
       uint32_t sig_size,
       uint8_t* sig) = 0;
@@ -71,13 +71,13 @@ namespace ccf
       kv::Consensus::SeqNo seqno) = 0;
     virtual bool verify_view_change_request(
       ViewChangeRequest& view_change,
-      kv::NodeId from,
+      ccf::NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) = 0;
     virtual kv::Consensus::SeqNo write_view_change_confirmation(
       ccf::ViewChangeConfirmation& new_view) = 0;
     virtual bool verify_view_change_request_confirmation(
-      ccf::ViewChangeConfirmation& new_view, kv::NodeId from) = 0;
+      ccf::ViewChangeConfirmation& new_view, ccf::NodeId from) = 0;
   };
 
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
@@ -167,7 +167,7 @@ namespace ccf
     }
 
     bool verify_signature(
-      kv::NodeId node_id,
+      ccf::NodeId node_id,
       crypto::Sha256Hash& root,
       uint32_t sig_size,
       uint8_t* sig) override
@@ -198,7 +198,7 @@ namespace ccf
 
     bool verify_view_change_request(
       ViewChangeRequest& view_change,
-      kv::NodeId from,
+      ccf::NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) override
     {
@@ -219,7 +219,7 @@ namespace ccf
     }
 
     bool verify_view_change_request_confirmation(
-      ViewChangeConfirmation& new_view, kv::NodeId from) override
+      ViewChangeConfirmation& new_view, ccf::NodeId from) override
     {
       kv::Tx tx(&store);
       auto ni_tv = tx.rw(nodes);

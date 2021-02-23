@@ -267,13 +267,11 @@ namespace ccf
       return true;
     }
 
-    auto add_node(const NodeInfo& node_info)
+    // TODO: Remove this
+    void add_node(NodeId id, const NodeInfo& node_info)
     {
       auto node = tx.rw(tables.nodes);
-      auto node_id = node_info.cert;
-
-      node->put(node_id, node_info);
-      return node_id;
+      node->put(id, node_info);
     }
 
     auto get_trusted_nodes(std::optional<NodeId> self_to_exclude = std::nullopt)

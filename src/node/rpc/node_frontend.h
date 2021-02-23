@@ -113,8 +113,9 @@ namespace ccf
             conflicting_node_id.value()));
       }
 
-#ifdef GET_QUOTE
       auto pk_pem = public_key_pem_from_cert(caller_pem);
+      NodeId joining_node_id = crypto::Sha256Hash(pk_pem.contents()).hex_str();
+#ifdef GET_QUOTE
 
       QuoteVerificationResult verify_result =
         this->node.verify_quote(tx, in.quote_info, pk_pem);
@@ -127,8 +128,8 @@ namespace ccf
       LOG_INFO_FMT("Skipped joining node quote verification");
 #endif
 
-      NodeId joining_node_id =
-        get_next_id(tx.rw(this->network.values), NEXT_NODE_ID);
+      // NodeId joining_node_id =
+      //   get_next_id(tx.rw(this->network.values), NEXT_NODE_ID);
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
       if (node_status == NodeStatus::TRUSTED)
@@ -414,15 +415,17 @@ namespace ccf
           if (consensus != nullptr)
           {
             out.current_view = consensus->get_view();
+            out.view_change_in_progress = consensus->view_change_in_progress();
 
             auto primary_id = consensus->primary();
-            auto view_change_in_progress = consensus->view_change_in_progress();
-            auto nodes = args.tx.ro(this->network.nodes);
-            auto info = nodes->get(primary_id);
-            if (info)
+            if (primary_id.has_value())
             {
-              out.primary_id = primary_id;
-              out.view_change_in_progress = view_change_in_progress;
+              auto nodes = args.tx.ro(this->network.nodes);
+              auto info = nodes->get(primary_id.value());
+              if (info)
+              {
+                out.primary_id = primary_id.value();
+              }
             }
           }
           return make_success(out);
@@ -558,9 +561,17 @@ namespace ccf
         {
           auto node_id = this->node.get_node_id();
           auto primary_id = consensus->primary();
+          if (!primary_id.has_value())
+          {
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::PrimaryNotFound,
+              "Primary unknown");
+          }
+
           auto nodes = args.tx.ro(this->network.nodes);
           auto info = nodes->get(node_id);
-          auto info_primary = nodes->get(primary_id);
+          auto info_primary = nodes->get(primary_id.value());
           if (info && info_primary)
           {
             args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
@@ -570,7 +581,7 @@ namespace ccf
                 "https://{}:{}/node/network/nodes/{}",
                 info->pubhost,
                 info->pubport,
-                primary_id));
+                primary_id.value()));
             return;
           }
         }
@@ -595,9 +606,17 @@ namespace ccf
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
           if (consensus != nullptr)
           {
-            NodeId primary_id = consensus->primary();
+            auto primary_id = consensus->primary();
+            if (!primary_id.has_value())
+            {
+              args.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Primary unknown");
+            }
+
             auto nodes = args.tx.ro(this->network.nodes);
-            auto info = nodes->get(primary_id);
+            auto info = nodes->get(primary_id.value());
             if (info)
             {
               args.rpc_ctx->set_response_header(

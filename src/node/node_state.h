@@ -116,9 +116,8 @@ namespace ccf
     StateMachine<State> sm;
     SpinLock lock;
 
-    static constexpr NodeId invalid_node_id = -1;
-    NodeId self = invalid_node_id;
     crypto::KeyPairPtr node_sign_kp;
+    NodeId self;
     std::shared_ptr<crypto::KeyPair_mbedTLS> node_encrypt_kp;
     crypto::Pem node_cert;
     QuoteInfo quote_info;
@@ -240,8 +239,8 @@ namespace ccf
       ShareManager& share_manager,
       const CurveID& curve_id) :
       sm(State::uninitialized),
-      self(INVALID_ID),
       node_sign_kp(crypto::make_key_pair(curve_id)),
+      self(crypto::get_public_key_pem_hash_hex(node_sign_kp->public_key_pem())),
       node_encrypt_kp(std::make_shared<crypto::KeyPair_mbedTLS>(curve_id)),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
@@ -289,11 +288,6 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
-    NodeId get_node_id()
-    {
-      return crypto::Sha256Hash(node_sign_kp->public_key_pem()).hex_str();
-    }
-
     //
     // funcs in state "initialized"
     //
@@ -303,6 +297,8 @@ namespace ccf
       sm.expect(State::initialized);
 
       config = std::move(config_);
+
+      LOG_INFO_FMT("Creating node {}", self);
 
       create_node_cert();
       open_frontend(ActorsType::nodes);
@@ -317,11 +313,6 @@ namespace ccf
       {
         case StartType::New:
         {
-          // TODO: Node id changes!
-          // 1. Display node id in log whenever it is set
-
-          set_node_id(0); // The first node id is always 0
-
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
@@ -479,7 +470,7 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp.node_status == NodeStatus::TRUSTED)
           {
-            set_node_id(resp.node_id);
+            // TODO: Delete node id from response
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
@@ -876,11 +867,13 @@ namespace ccf
       g.create_service(network.identity->cert);
       g.retire_active_nodes();
 
-      set_node_id(g.add_node({node_info_network,
-                              node_cert,
-                              quote_info,
-                              node_encrypt_kp->public_key_pem().raw(),
-                              NodeStatus::PENDING}));
+      g.add_node(
+        self,
+        {node_info_network,
+         node_cert,
+         quote_info,
+         node_encrypt_kp->public_key_pem().raw(),
+         NodeStatus::PENDING});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -1350,18 +1343,6 @@ namespace ccf
     }
 
   private:
-    void set_node_id(NodeId n)
-    {
-      LOG_INFO_FMT("Setting self node ID: {}", n);
-      if (self != invalid_node_id)
-      {
-        throw std::logic_error(fmt::format(
-          "Trying to reset node ID. Was previously {}, proposed {}", self, n));
-      }
-
-      self = n;
-    }
-
     crypto::SubjectAltName get_subject_alt_name()
     {
       // If a domain is passed at node creation, record domain in SAN for node
@@ -1437,6 +1418,7 @@ namespace ccf
       }
 
       create_params.gov_script = config.genesis.gov_script;
+      create_params.node_id = self;
       create_params.node_cert = node_cert;
       create_params.network_cert = network.identity->cert;
       create_params.quote_info = quote_info;

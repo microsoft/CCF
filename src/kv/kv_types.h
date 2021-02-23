@@ -39,7 +39,10 @@ namespace kv
   // all accepted kv modifications. Terms are handled by Consensus via the
   // TermHistory
   using Term = int64_t;
-  using NodeId = uint64_t;
+
+  // TODO: Copied from entities.h  - to be deleted
+  using NodeId =
+    std::string; // < Hex-encoded hash of node's identity public key
 
   struct TxID
   {
@@ -332,7 +335,7 @@ namespace kv
     virtual std::vector<SeqNo> get_view_history(SeqNo) = 0;
     virtual void initialise_view_history(const std::vector<SeqNo>&) = 0;
     virtual SeqNo get_committed_seqno() = 0;
-    virtual NodeId primary() = 0;
+    virtual std::optional<NodeId> primary() = 0;
     virtual bool view_change_in_progress() = 0;
     virtual std::set<NodeId> active_nodes() = 0;
 

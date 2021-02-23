@@ -13,8 +13,6 @@ namespace ccf
 {
   using Node2NodeMsg = uint64_t;
 
-  static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
-
   // Type of messages exchanged between nodes
   enum NodeMsgType : uint64_t
   {

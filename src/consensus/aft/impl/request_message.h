@@ -19,7 +19,7 @@ namespace aft
   {
     RequestMessageRep() = default;
     RequestMessageRep(
-      aft::NodeId from_node,
+      kv::NodeId from_node,
       uint16_t command_size_,
       uint16_t session_id_,
       kv::TxHistory::RequestID rid_) :
@@ -68,9 +68,10 @@ namespace aft
       }
     }
 
-    void serialize_message(
-      aft::NodeId from_node, uint8_t* data, size_t size) const override
+    void serialize_message(uint8_t* data, size_t size) const override
     {
+      // TODO: From_node is unused here!
+      kv::NodeId from_node;
       RequestMessageRep rep(from_node, request.size(), 0, rid);
 
       serialized::write(

@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "execution.h"
-
 #include "consensus/aft/request.h"
 #include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
+#include "execution.h"
 #include "http/http_rpc_context.h"
 #include "kv/tx.h"
 #include "request_message.h"
@@ -59,8 +58,7 @@ namespace aft
       request->get_request_ctx().frontend;
 
     ctx->bft_raw.resize(request->size());
-    request->serialize_message(
-      NoNode, ctx->bft_raw.data(), ctx->bft_raw.size());
+    request->serialize_message(ctx->bft_raw.data(), ctx->bft_raw.size());
 
     if (request_tracker != nullptr)
     {
