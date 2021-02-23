@@ -70,6 +70,7 @@ public:
 struct TestState
 {
   std::shared_ptr<kv::Store> kv_store = nullptr;
+  std::shared_ptr<ccf::LedgerSecrets> ledger_secrets = nullptr;
   crypto::KeyPairPtr kp = nullptr;
 };
 
@@ -80,9 +81,11 @@ TestState create_and_init_state()
   ts.kv_store =
     std::make_shared<kv::Store>(std::make_shared<kv::StubConsensus>());
 
-  // TODO: Create ledger secrets, create a NodeEncryptor with these secrets, set
-  // it here
-  ts.kv_store->set_encryptor(std::make_shared<kv::NullTxEncryptor>());
+  // Create ledger secrets to test decrypting entries across rekeys
+  ts.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+  ts.ledger_secrets->init();
+  ts.kv_store->set_encryptor(
+    std::make_shared<ccf::NodeEncryptor>(ts.ledger_secrets));
 
   ts.kp = crypto::make_key_pair();
 
@@ -102,11 +105,26 @@ TestState create_and_init_state()
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
+  {
+    INFO("Store one recovery member");
+    // This is necessary to rekey the ledger and issue recovery shares for the
+    // new ledger secret
+    auto tx = ts.kv_store->create_tx();
+    auto config = tx.rw<ccf::Configuration>(ccf::Tables::CONFIGURATION);
+    size_t recovery_threshold = 1;
+    config->put(0, {recovery_threshold});
+    auto members = tx.rw<ccf::Members>(ccf::Tables::MEMBERS);
+    ccf::MemberInfo mi;
+    mi.status = ccf::MemberStatus::ACTIVE;
+    mi.encryption_pub_key = crypto::make_rsa_key_pair()->public_key_pem();
+    members->put(0, mi);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
   return ts;
 }
 
-kv::Version write_transactions_and_signature(
-  kv::Store& kv_store, size_t tx_count)
+kv::Version write_transactions(kv::Store& kv_store, size_t tx_count)
 {
   const auto begin = kv_store.current_version();
   const auto end = begin + tx_count;
@@ -121,6 +139,14 @@ kv::Version write_transactions_and_signature(
 
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
+
+  return kv_store.current_version();
+}
+
+kv::Version write_transactions_and_signature(
+  kv::Store& kv_store, size_t tx_count)
+{
+  write_transactions(kv_store, tx_count);
 
   kv_store.get_history()->emit_signature();
   kv_store.compact(kv_store.current_version());
@@ -207,8 +233,8 @@ TEST_CASE("StateCache point queries")
 
   // Now we actually get to the historical queries
   auto stub_writer = std::make_shared<StubWriter>();
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
-  ccf::historical::StateCache cache(kv_store, ledger_secrets, stub_writer);
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, stub_writer);
 
   static const ccf::historical::RequestHandle default_handle = 0;
   static const ccf::historical::RequestHandle low_handle = 1;
@@ -428,9 +454,8 @@ TEST_CASE("StateCache range queries")
   const auto end_index = kv_store.current_version();
 
   // TODO: Build this in state?
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ccf::historical::StateCache cache(
-    kv_store, ledger_secrets, std::make_shared<StubWriter>());
+    kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
 
   auto provide_ledger_entry = [&](size_t i) {
@@ -563,8 +588,7 @@ TEST_CASE("StateCache concurrent access")
   };
 
   auto writer = std::make_shared<StubWriter>();
-  auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
-  ccf::historical::StateCache cache(kv_store, ledger_secrets, writer);
+  ccf::historical::StateCache cache(kv_store, state.ledger_secrets, writer);
 
   std::atomic<bool> finished = false;
   std::thread host_thread([&]() {
@@ -736,214 +760,200 @@ TEST_CASE("StateCache concurrent access")
   finished = true;
   host_thread.join();
 }
-// TODO: Revive this test
-// TEST_CASE("Recover historical ledger secrets")
-// {
-//   ccf::NetworkState network;
-//   auto& store = *network.tables.get();
 
-//   auto consensus = std::make_shared<kv::StubConsensus>();
-//   store.set_consensus(consensus);
+TEST_CASE("Recover historical ledger secrets")
+{
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
 
-//   // Make history to produce signatures
-//   auto history = std::make_shared<ccf::MerkleTxHistory>(store, node_id, *kp);
-//   store.set_history(history);
+  // TODO: ShareManager doesn't need a network! Just a ledger_secrets,
+  // everything else is just table access ccf::ShareManager
+  ccf::NetworkState network;
+  network.ledger_secrets = state.ledger_secrets;
+  ccf::ShareManager share_manager(network);
 
-//   // Make ledger secrets and share manager to rekey ledger and record
-//   previous
-//   // encrypted ledger secret
-//   network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
-//   network.ledger_secrets->init();
-//   auto encryptor =
-//   std::make_shared<ccf::NodeEncryptor>(network.ledger_secrets);
-//   ccf::ShareManager share_manager(network);
+  // Rekey ledger every 10 transactions
+  constexpr size_t first_rekey_index = 10;
+  constexpr size_t second_rekey_index = first_rekey_index + 10;
+  constexpr size_t third_rekey_index = second_rekey_index + 10;
 
-//   store.set_encryptor(encryptor);
+  const size_t first_index = kv_store.current_version();
+  constexpr size_t second_index = second_rekey_index + 1;
+  constexpr size_t third_index = third_rekey_index + 1;
 
-//   initialise_store(store, true);
+  // Only one signature, valid with the latest ledger secret
+  constexpr size_t signature_index = third_index + 5;
 
-//   // Only one signature, valid with the latest ledger secret
-//   constexpr size_t signature_index = 50;
+  {
+    // TODO: Rewrite as non-loop for clarity
+    INFO("Create entries and populate ledger");
 
-//   // Rekey ledger every 10 transactions
-//   constexpr size_t first_rekey_index = 10;
-//   constexpr size_t second_rekey_index = first_rekey_index + 10;
-//   constexpr size_t third_rekey_index = second_rekey_index + 10;
+    for (size_t i = kv_store.current_version(); i < signature_index; ++i)
+    {
+      if (i == signature_index - 1)
+      {
+        kv_store.get_history()->emit_signature();
+        kv_store.compact(kv_store.current_version());
+      }
+      else if (
+        i == first_rekey_index - 1 || i == second_rekey_index - 1 ||
+        i == third_rekey_index - 1)
+      {
+        auto tx = kv_store.create_tx();
+        auto new_ledger_secret = ccf::make_ledger_secret();
+        share_manager.issue_recovery_shares(tx, new_ledger_secret);
+        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-//   constexpr size_t first_index = 1;
-//   constexpr size_t second_index = second_rekey_index + 1;
-//   constexpr size_t third_index = third_rekey_index + 1;
+        auto tx_version = tx.commit_version();
 
-//   {
-//     INFO("Create entries and populate ledger");
+        state.ledger_secrets->set_secret(
+          tx_version + 1,
+          std::make_shared<ccf::LedgerSecret>(
+            std::move(new_ledger_secret->raw_key), tx_version));
+      }
+      else
+      {
+        write_transactions(kv_store, 1);
+      }
+    }
+  }
 
-//     for (size_t i = store.current_version(); i < signature_index; ++i)
-//     {
-//       if (i == signature_index - 1)
-//       {
-//         history->emit_signature();
-//         store.compact(store.current_version());
-//       }
-//       else if (
-//         i == first_rekey_index - 1 || i == second_rekey_index - 1 ||
-//         i == third_rekey_index - 1)
-//       {
-//         auto tx = store.create_tx();
-//         auto new_ledger_secret = ccf::make_ledger_secret();
-//         share_manager.issue_recovery_shares(tx, new_ledger_secret);
-//         REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  REQUIRE(ledger.size() == signature_index);
 
-//         auto tx_version = tx.commit_version();
+  // ccf::NetworkState recovered_network;
 
-//         network.ledger_secrets->set_secret(
-//           tx_version + 1,
-//           std::make_shared<ccf::LedgerSecret>(
-//             std::move(new_ledger_secret->raw_key), tx_version));
-//       }
-//       else
-//       {
-//         record_entry(store);
-//       }
-//     }
-//   }
+  // {
+  //   INFO("Recover a new service, as if the node had recovered from a
+  //   snapshot");
 
-//   Ledger ledger;
-//   initialise_ledger(ledger, consensus);
-//   REQUIRE(ledger.size() == signature_index);
+  //   // Initially, the new service has only access to the very latest ledger
+  //   // secret. The historical ledger secrets will be recovered from the
+  //   // ledger before fetching historical entries.
+  //   recovered_network.ledger_secrets =
+  //   std::make_shared<ccf::LedgerSecrets>();
 
-//   ccf::NetworkState recovered_network;
+  //   auto tx = recovered_network.tables->create_read_only_tx();
+  //   ccf::LedgerSecretsMap recovered_ledger_secrets;
+  //   recovered_ledger_secrets.emplace(network.ledger_secrets->get_latest(tx));
+  //   recovered_network.ledger_secrets->restore_historical(
+  //     std::move(recovered_ledger_secrets));
 
-//   {
-//     INFO("Recover a new service, as if the node had recovered from a
-//     snapshot");
+  //   // Register node in network (note that this won't be necessary when
+  //   // historical nodes are fetched from snapshot, see
+  //   // https://github.com/microsoft/CCF/issues/1705)
+  //   initialise_store(*recovered_network.tables, false);
 
-//     // Initially, the new service has only access to the very latest ledger
-//     // secret. The historical ledger secrets will be recovered from the
-//     // ledger before fetching historical entries.
-//     recovered_network.ledger_secrets =
-//     std::make_shared<ccf::LedgerSecrets>();
+  //   auto new_encryptor =
+  //     std::make_shared<ccf::NodeEncryptor>(recovered_network.ledger_secrets);
+  //   recovered_network.tables->set_encryptor(new_encryptor);
+  // }
 
-//     auto tx = recovered_network.tables->create_read_only_tx();
-//     ccf::LedgerSecretsMap recovered_ledger_secrets;
-//     recovered_ledger_secrets.emplace(network.ledger_secrets->get_latest(tx));
-//     recovered_network.ledger_secrets->restore_historical(
-//       std::move(recovered_ledger_secrets));
+  // // Now we actually get to the historical queries
+  // std::vector<consensus::Index> requested_ledger_entries = {};
+  // messaging::BufferProcessor bp("historical_queries");
+  // set_dispatcher(bp, requested_ledger_entries);
 
-//     // Register node in network (note that this won't be necessary when
-//     // historical nodes are fetched from snapshot, see
-//     // https://github.com/microsoft/CCF/issues/1705)
-//     initialise_store(*recovered_network.tables, false);
+  // auto buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
+  // ringbuffer::Reader rr(buffer->bd);
+  // auto rw = std::make_shared<ringbuffer::Writer>(rr);
+  // ccf::historical::StateCache cache(recovered_network, rw);
 
-//     auto new_encryptor =
-//       std::make_shared<ccf::NodeEncryptor>(recovered_network.ledger_secrets);
-//     recovered_network.tables->set_encryptor(new_encryptor);
-//   }
+  // auto provide_ledger_entry = [&](size_t i) {
+  //   bool accepted = cache.handle_ledger_entry(i, ledger.at(i));
+  //   // Pump outbound ringbuffer to clear messages
+  //   bp.read_n(100, rr);
+  //   return accepted;
+  // };
 
-//   // Now we actually get to the historical queries
-//   std::vector<consensus::Index> requested_ledger_entries = {};
-//   messaging::BufferProcessor bp("historical_queries");
-//   set_dispatcher(bp, requested_ledger_entries);
+  // {
+  //   INFO("Retrieve latest index, applicable with latest ledger secret");
+  //   REQUIRE(cache.get_store_at(third_index) == nullptr);
 
-//   auto buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
-//   ringbuffer::Reader rr(buffer->bd);
-//   auto rw = std::make_shared<ringbuffer::Writer>(rr);
-//   ccf::historical::StateCache cache(recovered_network, rw);
+  //   const auto read = bp.read_n(100, rr);
+  //   REQUIRE(read == 1);
+  //   REQUIRE(requested_ledger_entries.size() == 1);
 
-//   auto provide_ledger_entry = [&](size_t i) {
-//     bool accepted = cache.handle_ledger_entry(i, ledger.at(i));
-//     // Pump outbound ringbuffer to clear messages
-//     bp.read_n(100, rr);
-//     return accepted;
-//   };
+  //   // Provide target and subsequent entries until next signature
+  //   for (size_t i = third_index; i <= signature_index; ++i)
+  //   {
+  //     REQUIRE(provide_ledger_entry(i));
+  //   }
 
-//   {
-//     INFO("Retrieve latest index, applicable with latest ledger secret");
-//     REQUIRE(cache.get_store_at(third_index) == nullptr);
+  //   // Store is now trusted, proceed to recover entries
+  //   auto historical_store = cache.get_store_at(third_index);
+  //   REQUIRE(historical_store != nullptr);
 
-//     const auto read = bp.read_n(100, rr);
-//     REQUIRE(read == 1);
-//     REQUIRE(requested_ledger_entries.size() == 1);
+  //   read_historical_entry(historical_store, third_index);
+  // }
 
-//     // Provide target and subsequent entries until next signature
-//     for (size_t i = third_index; i <= signature_index; ++i)
-//     {
-//       REQUIRE(provide_ledger_entry(i));
-//     }
+  // {
+  //   INFO("Retrieve second index, requiring one historical ledger secret");
+  //   REQUIRE(cache.get_store_at(second_index) == nullptr);
 
-//     // Store is now trusted, proceed to recover entries
-//     auto historical_store = cache.get_store_at(third_index);
-//     REQUIRE(historical_store != nullptr);
+  //   // Request is always in flight
+  //   REQUIRE(cache.get_store_at(second_index) == nullptr);
 
-//     read_historical_entry(historical_store, third_index);
-//   }
+  //   const auto read = bp.read_n(100, rr);
+  //   REQUIRE(read == 1);
 
-//   {
-//     INFO("Retrieve second index, requiring one historical ledger secret");
-//     REQUIRE(cache.get_store_at(second_index) == nullptr);
+  //   // The encrypted ledger secret applicable for second_index was recorded
+  //   in
+  //     // the store at the next rekey
+  //     REQUIRE(provide_ledger_entry(third_rekey_index));
 
-//     // Request is always in flight
-//     REQUIRE(cache.get_store_at(second_index) == nullptr);
+  //   // Ledger secret has already been fetched
+  //   REQUIRE_FALSE(provide_ledger_entry(third_rekey_index));
 
-//     const auto read = bp.read_n(100, rr);
-//     REQUIRE(read == 1);
+  //   // Provide target and subsequent entries until next signature
+  //   for (size_t i = second_index; i <= signature_index; ++i)
+  //   {
+  //     REQUIRE(provide_ledger_entry(i));
+  //   }
 
-//     // The encrypted ledger secret applicable for second_index was recorded
-//     in
-//     // the store at the next rekey
-//     REQUIRE(provide_ledger_entry(third_rekey_index));
+  //   // Store is now trusted, proceed to recover entries
+  //   auto historical_store = cache.get_store_at(second_index);
+  //   REQUIRE(historical_store != nullptr);
 
-//     // Ledger secret has already been fetched
-//     REQUIRE_FALSE(provide_ledger_entry(third_rekey_index));
+  //   read_historical_entry(historical_store, second_index);
+  // }
 
-//     // Provide target and subsequent entries until next signature
-//     for (size_t i = second_index; i <= signature_index; ++i)
-//     {
-//       REQUIRE(provide_ledger_entry(i));
-//     }
+  // {
+  //   INFO("Retrieve first index, requiring all historical ledger secrets");
+  //   REQUIRE(cache.get_store_at(first_index) == nullptr);
+  //   const auto read = bp.read_n(100, rr);
+  //   REQUIRE(read == 1);
 
-//     // Store is now trusted, proceed to recover entries
-//     auto historical_store = cache.get_store_at(second_index);
-//     REQUIRE(historical_store != nullptr);
+  //   // Recover all ledger secrets since the start of time
+  //   REQUIRE(provide_ledger_entry(second_rekey_index));
+  //   REQUIRE(provide_ledger_entry(first_rekey_index));
 
-//     read_historical_entry(historical_store, second_index);
-//   }
+  //   // Provide target and subsequent entries until next signature
+  //   for (size_t i = first_index; i <= signature_index; ++i)
+  //   {
+  //     REQUIRE(provide_ledger_entry(i));
+  //   }
 
-//   {
-//     INFO("Retrieve first index, requiring all historical ledger secrets");
-//     REQUIRE(cache.get_store_at(first_index) == nullptr);
-//     const auto read = bp.read_n(100, rr);
-//     REQUIRE(read == 1);
+  //   // Store is now trusted, proceed to recover entries
+  //   auto historical_store = cache.get_store_at(second_index);
+  //   REQUIRE(historical_store != nullptr);
 
-//     // Recover all ledger secrets since the start of time
-//     REQUIRE(provide_ledger_entry(second_rekey_index));
-//     REQUIRE(provide_ledger_entry(first_rekey_index));
+  //   read_historical_entry(historical_store, second_index);
+  // }
 
-//     // Provide target and subsequent entries until next signature
-//     for (size_t i = first_index; i <= signature_index; ++i)
-//     {
-//       REQUIRE(provide_ledger_entry(i));
-//     }
+  // {
+  //   INFO("All historical secrets have been fetched");
+  //   size_t target_index = first_index + 1;
+  //   REQUIRE(cache.get_store_at(target_index) == nullptr);
 
-//     // Store is now trusted, proceed to recover entries
-//     auto historical_store = cache.get_store_at(second_index);
-//     REQUIRE(historical_store != nullptr);
+  //   // Provide target and subsequent entries until next signature
+  //   for (size_t i = target_index; i <= signature_index; ++i)
+  //   {
+  //     REQUIRE(provide_ledger_entry(i));
+  //   }
 
-//     read_historical_entry(historical_store, second_index);
-//   }
-
-//   {
-//     INFO("All historical secrets have been fetched");
-//     size_t target_index = first_index + 1;
-//     REQUIRE(cache.get_store_at(target_index) == nullptr);
-
-//     // Provide target and subsequent entries until next signature
-//     for (size_t i = target_index; i <= signature_index; ++i)
-//     {
-//       REQUIRE(provide_ledger_entry(i));
-//     }
-
-//     auto historical_store = cache.get_store_at(target_index);
-//     REQUIRE(historical_store != nullptr);
-//     read_historical_entry(historical_store, target_index);
-//   }
-// }
+  //   auto historical_store = cache.get_store_at(target_index);
+  //   REQUIRE(historical_store != nullptr);
+  //   read_historical_entry(historical_store, target_index);
+  // }
+}
