@@ -1808,7 +1808,6 @@ namespace ccf
 
     void setup_history()
     {
-      // Signature generation is disabled on temporary history
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
