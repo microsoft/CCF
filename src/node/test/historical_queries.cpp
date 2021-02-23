@@ -162,6 +162,23 @@ kv::Version write_transactions_and_signature(
   return kv_store.current_version();
 }
 
+kv::Version rekey(kv::Store& kv_store, const std::shared_ptr<ccf::LedgerSecrets>& ledger_secrets, ccf::ShareManager& share_manager)
+{
+  auto tx = kv_store.create_tx();
+  auto new_ledger_secret = ccf::make_ledger_secret();
+  share_manager.issue_recovery_shares(tx, new_ledger_secret);
+  REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+  auto tx_version = tx.commit_version();
+
+  ledger_secrets->set_secret(
+    tx_version + 1,
+    std::make_shared<ccf::LedgerSecret>(
+      std::move(new_ledger_secret->raw_key), tx_version));
+
+  return tx_version;
+}
+
 void validate_business_transaction(
   ccf::historical::StorePtr store, consensus::Index idx)
 {
@@ -779,51 +796,22 @@ TEST_CASE("Recover historical ledger secrets")
   network.ledger_secrets = state.ledger_secrets;
   ccf::ShareManager share_manager(network);
 
-  // Rekey ledger every 10 transactions
-  constexpr size_t first_rekey_index = 10;
-  constexpr size_t second_rekey_index = first_rekey_index + 10;
-  constexpr size_t third_rekey_index = second_rekey_index + 10;
+  INFO("Create entries and populate ledger");
 
-  const size_t first_index = kv_store.current_version();
-  constexpr size_t second_index = second_rekey_index + 1;
-  constexpr size_t third_index = third_rekey_index + 1;
+  // Rekey ledger every 10 transactions
+  write_transactions(kv_store, 10);
+  const auto first_rekey_index = rekey(kv_store, state.ledger_secrets, share_manager);
+  write_transactions(kv_store, 10);
+  const auto second_rekey_index = rekey(kv_store, state.ledger_secrets, share_manager);
+  write_transactions(kv_store, 10);
+  const auto third_rekey_index = rekey(kv_store, state.ledger_secrets, share_manager);
 
   // Only one signature, valid with the latest ledger secret
-  constexpr size_t signature_index = third_index + 5;
+  const auto signature_index = write_transactions_and_signature(kv_store, 5);
 
-  {
-    // TODO: Rewrite as non-loop for clarity
-    INFO("Create entries and populate ledger");
-
-    for (size_t i = kv_store.current_version(); i < signature_index; ++i)
-    {
-      if (i == signature_index - 1)
-      {
-        kv_store.get_history()->emit_signature();
-        kv_store.compact(kv_store.current_version());
-      }
-      else if (
-        i == first_rekey_index - 1 || i == second_rekey_index - 1 ||
-        i == third_rekey_index - 1)
-      {
-        auto tx = kv_store.create_tx();
-        auto new_ledger_secret = ccf::make_ledger_secret();
-        share_manager.issue_recovery_shares(tx, new_ledger_secret);
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-
-        auto tx_version = tx.commit_version();
-
-        state.ledger_secrets->set_secret(
-          tx_version + 1,
-          std::make_shared<ccf::LedgerSecret>(
-            std::move(new_ledger_secret->raw_key), tx_version));
-      }
-      else
-      {
-        write_transactions(kv_store, 1);
-      }
-    }
-  }
+  const auto first_index = first_rekey_index - 3;
+  const auto second_index = second_rekey_index + 1;
+  const auto third_index = third_rekey_index + 2;
 
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
   REQUIRE(ledger.size() == signature_index);
@@ -902,24 +890,23 @@ TEST_CASE("Recover historical ledger secrets")
   }
 
   {
-    INFO("Retrieve early index, requiring all historical ledger secrets");
-    size_t target_index = first_index + 1;
-    REQUIRE(cache.get_store_at(default_handle, target_index) == nullptr);
+    INFO("Retrieve first index, requiring all historical ledger secrets");
+    REQUIRE(cache.get_store_at(default_handle, first_index) == nullptr);
 
     // Recover all ledger secrets since the start of time
     REQUIRE(provide_ledger_entry(second_rekey_index));
     REQUIRE(provide_ledger_entry(first_rekey_index));
 
     // Provide target and subsequent entries until next signature
-    for (size_t i = target_index; i <= signature_index; ++i)
+    for (size_t i = first_index; i <= signature_index; ++i)
     {
       provide_ledger_entry(i);
     }
 
     // Store is now trusted, proceed to recover entries
-    auto historical_store = cache.get_store_at(default_handle, target_index);
+    auto historical_store = cache.get_store_at(default_handle, first_index);
     REQUIRE(historical_store != nullptr);
 
-    validate_business_transaction(historical_store, target_index);
+    validate_business_transaction(historical_store, first_index);
   }
 }
