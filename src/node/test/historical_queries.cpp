@@ -162,7 +162,10 @@ kv::Version write_transactions_and_signature(
   return kv_store.current_version();
 }
 
-kv::Version rekey(kv::Store& kv_store, const std::shared_ptr<ccf::LedgerSecrets>& ledger_secrets, ccf::ShareManager& share_manager)
+kv::Version rekey(
+  kv::Store& kv_store,
+  const std::shared_ptr<ccf::LedgerSecrets>& ledger_secrets,
+  ccf::ShareManager& share_manager)
 {
   auto tx = kv_store.create_tx();
   auto new_ledger_secret = ccf::make_ledger_secret();
@@ -800,11 +803,14 @@ TEST_CASE("Recover historical ledger secrets")
 
   // Rekey ledger every 10 transactions
   write_transactions(kv_store, 10);
-  const auto first_rekey_index = rekey(kv_store, state.ledger_secrets, share_manager);
+  const auto first_rekey_index =
+    rekey(kv_store, state.ledger_secrets, share_manager);
   write_transactions(kv_store, 10);
-  const auto second_rekey_index = rekey(kv_store, state.ledger_secrets, share_manager);
+  const auto second_rekey_index =
+    rekey(kv_store, state.ledger_secrets, share_manager);
   write_transactions(kv_store, 10);
-  const auto third_rekey_index = rekey(kv_store, state.ledger_secrets, share_manager);
+  const auto third_rekey_index =
+    rekey(kv_store, state.ledger_secrets, share_manager);
 
   // Only one signature, valid with the latest ledger secret
   const auto signature_index = write_transactions_and_signature(kv_store, 5);

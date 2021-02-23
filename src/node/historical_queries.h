@@ -400,6 +400,39 @@ namespace ccf::historical
       return true;
     }
 
+    std::unique_ptr<LedgerSecretRecoveryInfo> fetch_supporting_secret_if_needed(
+      consensus::Index idx)
+    {
+      auto [earliest_ledger_secret_idx, earliest_ledger_secret] =
+        get_earliest_known_ledger_secret();
+      if (idx < earliest_ledger_secret_idx)
+      {
+        // Still need more secrets, fetch the next
+        auto previous_secret_stored_version =
+          earliest_ledger_secret->previous_secret_stored_version;
+        if (!previous_secret_stored_version.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Earliest known ledger secret at {} has no earlier secret stored "
+            "version",
+            earliest_ledger_secret_idx));
+        }
+
+        const auto idx_to_fetch = previous_secret_stored_version.value();
+        LOG_TRACE_FMT(
+          "Requesting historical entry at {} but first known ledger "
+          "secret is applicable from {} - requesting older secret now",
+          idx,
+          earliest_ledger_secret_idx);
+
+        fetch_entry_at(idx_to_fetch);
+        return std::make_unique<LedgerSecretRecoveryInfo>(
+          idx_to_fetch, earliest_ledger_secret);
+      }
+
+      return nullptr;
+    }
+
     void process_deserialised_store(
       const StorePtr& store,
       const crypto::Sha256Hash& entry_digest,
@@ -429,39 +462,11 @@ namespace ccf::historical
             continue;
           }
 
-          auto [earliest_ledger_secret_idx, earliest_ledger_secret] =
-            get_earliest_known_ledger_secret();
-          if (request.first_requested_idx < earliest_ledger_secret_idx)
+          auto new_secret_fetch =
+            fetch_supporting_secret_if_needed(request.first_requested_idx);
+          if (new_secret_fetch != nullptr)
           {
-            // Still need more secrets, fetch the next
-            auto previous_secret_stored_version =
-              earliest_ledger_secret->previous_secret_stored_version;
-            if (!previous_secret_stored_version.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "First known ledger secret at {} has no previous secret stored "
-                "version",
-                earliest_ledger_secret_idx));
-            }
-
-            const auto idx_to_fetch = previous_secret_stored_version.value();
-            // Only need to fetch this if we're not already
-            if (
-              request.ledger_secret_recovery_info == nullptr ||
-              request.ledger_secret_recovery_info->target_idx != idx_to_fetch)
-            {
-              LOG_TRACE_FMT(
-                "Requesting historical entry at {} but first known ledger "
-                "secret is applicable from {} - requesting older secret now",
-                request.first_requested_idx,
-                earliest_ledger_secret_idx);
-
-              request.ledger_secret_recovery_info =
-                std::make_unique<LedgerSecretRecoveryInfo>(
-                  idx_to_fetch, earliest_ledger_secret);
-
-              fetch_entry_at(idx_to_fetch);
-            }
+            request.ledger_secret_recovery_info = std::move(new_secret_fetch);
           }
           else
           {
@@ -597,42 +602,23 @@ namespace ccf::historical
       // If the earliest target entry cannot be deserialised with the earliest
       // known ledger secret, record the target idx and begin fetching the
       // previous historical ledger secret.
-      auto [earliest_ledger_secret_idx, earliest_ledger_secret] =
-        get_earliest_known_ledger_secret();
-      if (start_idx < earliest_ledger_secret_idx)
+      auto secret_fetch =
+        fetch_supporting_secret_if_needed(request.first_requested_idx);
+      if (secret_fetch != nullptr)
       {
-        auto previous_secret_stored_version =
-          earliest_ledger_secret->previous_secret_stored_version;
-        if (!previous_secret_stored_version.has_value())
-        {
-          throw std::logic_error(fmt::format(
-            "First known ledger secret at {} has no previous secret stored "
-            "version",
-            earliest_ledger_secret_idx));
-        }
-
-        const auto idx_to_fetch = previous_secret_stored_version.value();
-        // Only need to fetch this if we're not already
         if (
           request.ledger_secret_recovery_info == nullptr ||
-          request.ledger_secret_recovery_info->target_idx != idx_to_fetch)
+          request.ledger_secret_recovery_info->target_idx !=
+            secret_fetch->target_idx)
         {
-          // TODO: This is duplicated, combine?
-          LOG_TRACE_FMT(
-            "Requesting historical entry at {} but first known ledger secret is applicable from {}", start_idx, earliest_ledger_secret_idx);
-
-          request.ledger_secret_recovery_info =
-            std::make_unique<LedgerSecretRecoveryInfo>(idx_to_fetch,
-            earliest_ledger_secret);
-
-          fetch_entry_at(idx_to_fetch);
+          request.ledger_secret_recovery_info = std::move(secret_fetch);
         }
       }
       else
       {
         // If we have sufficiently early secrets, begin fetching any newly
-        // requested entries. If we don't fall into this branch, they'll only begin to be fetched once the
-        // secret arrives.
+        // requested entries. If we don't fall into this branch, they'll only
+        // begin to be fetched once the secret arrives.
         for (const auto new_idx : new_indices)
         {
           fetch_entry_at(new_idx);
@@ -787,18 +773,25 @@ namespace ccf::historical
 
       try
       {
+        // Encrypted ledger secrets are deserialised in public-only mode. Their
+        // Merkle tree integrity is not verified: even if the recovered ledger
+        // secret was bogus, the deserialisation of subsequent ledger entries
+        // would fail.
         // TODO: Work out if this is a secret more efficiently
         bool public_only = false;
-        for (const auto& [_, request]: requests)
+        for (const auto& [_, request] : requests)
         {
-          if (request.ledger_secret_recovery_info != nullptr && request.ledger_secret_recovery_info->target_idx == idx)
+          if (
+            request.ledger_secret_recovery_info != nullptr &&
+            request.ledger_secret_recovery_info->target_idx == idx)
           {
             public_only = true;
             break;
           }
         }
 
-        deserialise_result = store->apply(data, ConsensusType::CFT, public_only)->execute();
+        deserialise_result =
+          store->apply(data, ConsensusType::CFT, public_only)->execute();
       }
       catch (const std::exception& e)
       {
