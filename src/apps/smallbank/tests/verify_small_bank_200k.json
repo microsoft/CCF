@@ -53,39 +53,39 @@
     },
     {
       "account": 1,
-      "balance": 0
+      "balance": -67
     },
     {
       "account": 2,
-      "balance": 28
+      "balance": -24
     },
     {
       "account": 3,
-      "balance": 890665
+      "balance": -47
     },
     {
       "account": 4,
-      "balance": 19
+      "balance": -48
     },
     {
       "account": 5,
-      "balance": 322
+      "balance": 0
     },
     {
       "account": 6,
-      "balance": 40
+      "balance": 113
     },
     {
       "account": 7,
-      "balance": 43
+      "balance": 881672
     },
     {
       "account": 8,
-      "balance": 19
+      "balance": 0
     },
     {
       "account": 9,
-      "balance": 63
+      "balance": 0
     }
   ]
 }
