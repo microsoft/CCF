@@ -91,6 +91,17 @@ TestState create_and_init_state()
   ts.kv_store->set_history(
     std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *ts.kp));
 
+  {
+    INFO("Store the signing node's key");
+    auto tx = ts.kv_store->create_tx();
+    auto nodes = tx.rw<ccf::Nodes>(ccf::Tables::NODES);
+    ccf::NodeInfo ni;
+    ni.cert = ts.kp->self_sign("CN=Test node");
+    ni.status = ccf::NodeStatus::TRUSTED;
+    nodes->put(node_id, ni);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
   return ts;
 }
 

@@ -773,7 +773,7 @@ namespace ccf::historical
       StorePtr store = std::make_shared<kv::Store>(
         false /* Do not start from very first idx */,
         true /* Make use of historical secrets */);
-      store->set_encryptor(historical_encryptor);
+      store->set_encryptor(source_store.get_encryptor());
 
       kv::ApplyResult deserialise_result;
 
