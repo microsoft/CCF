@@ -195,7 +195,7 @@ namespace ccf
     }
 
     static QuoteVerificationResult verify_quoted_node_public_key(
-      const tls::Pem& expected_node_public_key,
+      const crypto::Pem& expected_node_public_key,
       const crypto::Sha256Hash& quoted_hash)
     {
       if (
@@ -244,7 +244,7 @@ namespace ccf
       return unique_id;
     }
 
-    static QuoteInfo generate_quote(const tls::Pem& node_public_key)
+    static QuoteInfo generate_quote(const crypto::Pem& node_public_key)
     {
       QuoteInfo node_quote_info;
       node_quote_info.format = QuoteFormat::oe_sgx_v1;
@@ -302,7 +302,7 @@ namespace ccf
     static QuoteVerificationResult verify_quote_against_store(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
-      const tls::Pem& expected_node_public_key)
+      const crypto::Pem& expected_node_public_key)
     {
       CodeDigest unique_id;
       crypto::Sha256Hash quoted_hash;

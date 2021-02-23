@@ -653,7 +653,7 @@ namespace loggingapp
       logger_handlers(context)
     {}
 
-    void open(std::optional<tls::Pem*> identity = std::nullopt) override
+    void open(std::optional<crypto::Pem*> identity = std::nullopt) override
     {
       ccf::UserRpcFrontend::open(identity);
       logger_handlers.openapi_info.title = "CCF Sample Logging App";

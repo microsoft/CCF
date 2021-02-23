@@ -4,13 +4,12 @@
 
 #include "intel_drng.h"
 #include "mbedtls_wrappers.h"
-#include "tls.h"
 
 #include <functional>
 #include <memory>
 #include <vector>
 
-namespace tls
+namespace crypto
 {
   static bool use_drng = IntelDRNG::is_drng_supported();
   using EntropyPtr = std::shared_ptr<Entropy>;

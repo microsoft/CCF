@@ -3,6 +3,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #define DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
+#include "crypto/rsa_key_pair.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
@@ -16,7 +17,6 @@
 #include "node/rpc/user_frontend.h"
 #include "node_stub.h"
 #include "runtime_config/default_whitelists.h"
-#include "tls/rsa_key_pair.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -31,12 +31,12 @@ using namespace nlohmann;
 using TResponse = http::SimpleResponseProcessor::Response;
 
 // used throughout
-auto kp = tls::make_key_pair();
+auto kp = crypto::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member");
-auto verifier_mem = tls::make_verifier(member_cert);
+auto verifier_mem = crypto::make_verifier(member_cert);
 auto member_caller = verifier_mem -> cert_der();
 auto user_cert = kp -> self_sign("CN=name_user");
-auto dummy_enc_pubk = tls::make_rsa_key_pair() -> public_key_pem();
+auto dummy_enc_pubk = crypto::make_rsa_key_pair() -> public_key_pem();
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
@@ -109,8 +109,8 @@ std::vector<uint8_t> create_request(
 std::vector<uint8_t> create_signed_request(
   const json& params,
   const string& method_name,
-  const tls::KeyPairPtr& kp_,
-  const tls::Pem& caller,
+  const crypto::KeyPairPtr& kp_,
+  const crypto::Pem& caller,
   llhttp_method verb = HTTP_POST)
 {
   http::Request r(fmt::format("/gov/{}", method_name), verb);
@@ -151,10 +151,10 @@ auto read_params(const T& key, const string& table_name)
 auto frontend_process(
   MemberRpcFrontend& frontend,
   const std::vector<uint8_t>& serialized_request,
-  const tls::Pem& caller)
+  const crypto::Pem& caller)
 {
   auto session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, tls::make_verifier(caller)->cert_der());
+    enclave::InvalidSessionId, crypto::make_verifier(caller)->cert_der());
   auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   http::extract_actor(*rpc_ctx);
   auto serialized_response = frontend.process(rpc_ctx);
@@ -173,7 +173,7 @@ auto frontend_process(
 auto get_proposal(
   MemberRpcFrontend& frontend,
   const ProposalId& proposal_id,
-  const tls::Pem& caller)
+  const crypto::Pem& caller)
 {
   const auto getter =
     create_request(nullptr, fmt::format("proposals/{}", proposal_id), HTTP_GET);
@@ -186,7 +186,7 @@ auto get_vote(
   MemberRpcFrontend& frontend,
   ProposalId proposal_id,
   MemberId voter,
-  const tls::Pem& caller)
+  const crypto::Pem& caller)
 {
   const auto getter = create_request(
     nullptr,
@@ -199,8 +199,8 @@ auto get_vote(
 
 auto activate(
   MemberRpcFrontend& frontend,
-  const tls::KeyPairPtr& kp,
-  const tls::Pem& caller)
+  const crypto::KeyPairPtr& kp,
+  const crypto::Pem& caller)
 {
   const auto state_digest_req =
     create_request(nullptr, "ack/update_state_digest");
@@ -213,7 +213,7 @@ auto activate(
   return frontend_process(frontend, ack_req, caller);
 }
 
-auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
+auto get_cert(uint64_t member_id, crypto::KeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign("CN=new member" + to_string(member_id));
 }
@@ -224,7 +224,7 @@ auto init_frontend(
   StubNodeState& node,
   ShareManager& share_manager,
   const int n_members,
-  std::vector<tls::Pem>& member_certs)
+  std::vector<crypto::Pem>& member_certs)
 {
   // create members
   for (uint8_t i = 0; i < n_members; i++)

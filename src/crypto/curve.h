@@ -4,16 +4,13 @@
 
 #include "crypto/hash.h"
 #include "ds/logger.h"
-#include "tls.h"
 
 #include <mbedtls/ecp.h>
 #include <openssl/evp.h>
 #include <stdexcept>
 #include <string>
 
-using namespace crypto;
-
-namespace tls
+namespace crypto
 {
   // SNIPPET_START: supported_curves
   enum class CurveID

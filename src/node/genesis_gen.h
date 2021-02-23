@@ -3,6 +3,7 @@
 #pragma once
 #include "code_id.h"
 #include "crypto/hash.h"
+#include "crypto/verifier.h"
 #include "entities.h"
 #include "kv/tx.h"
 #include "ledger_secrets.h"
@@ -13,7 +14,6 @@
 #include "node_info_network.h"
 #include "nodes.h"
 #include "runtime_config/default_whitelists.h"
-#include "tls/verifier.h"
 #include "values.h"
 
 #include <algorithm>
@@ -84,7 +84,7 @@ namespace ccf
     auto get_active_recovery_members()
     {
       auto members = tx.ro(tables.members);
-      std::map<MemberId, tls::Pem> active_members_info;
+      std::map<MemberId, crypto::Pem> active_members_info;
 
       members->foreach(
         [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
@@ -109,7 +109,7 @@ namespace ccf
       // The key to a CertDERs table must be a DER, for easy comparison against
       // the DER peer cert retrieved from the connection
       auto member_cert_der =
-        tls::make_verifier(member_pub_info.cert)->cert_der();
+        crypto::make_verifier(member_pub_info.cert)->cert_der();
 
       auto member_id = mc->get(member_cert_der);
       if (member_id.has_value())
@@ -229,7 +229,7 @@ namespace ccf
       auto ud = tx.rw(tables.user_digests);
       auto v = tx.rw(tables.values);
 
-      auto user_cert_der = tls::make_verifier(user_info.cert)->cert_der();
+      auto user_cert_der = crypto::make_verifier(user_info.cert)->cert_der();
 
       // Cert should be unique
       auto user_id = uc->get(user_cert_der);
@@ -259,8 +259,8 @@ namespace ccf
         return false;
       }
 
-      auto pem = tls::Pem(user_info.value().cert);
-      auto user_cert_der = tls::make_verifier(pem)->cert_der();
+      auto pem = crypto::Pem(user_info.value().cert);
+      auto user_cert_der = crypto::make_verifier(pem)->cert_der();
 
       u->remove(user_id);
       uc->remove(user_cert_der);
@@ -271,7 +271,7 @@ namespace ccf
     {
       auto node_id = get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
 
-      auto raw_cert = tls::make_verifier(node_info.cert)->cert_der();
+      auto raw_cert = crypto::make_verifier(node_info.cert)->cert_der();
 
       auto node = tx.rw(tables.nodes);
       node->put(node_id, node_info);
@@ -301,7 +301,7 @@ namespace ccf
     }
 
     // Service status should use a state machine, very much like NodeState.
-    void create_service(const tls::Pem& network_cert)
+    void create_service(const crypto::Pem& network_cert)
     {
       auto service = tx.rw(tables.service);
       service->put(0, {network_cert, ServiceStatus::OPENING});

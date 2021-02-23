@@ -49,7 +49,7 @@ DOCTEST_TEST_CASE("Unique proposal ids")
   auto fn = [](
               MemberRpcFrontend& f,
               const std::vector<uint8_t>& r,
-              const tls::Pem& i,
+              const crypto::Pem& i,
               Propose::Out& o) {
     const auto rs = frontend_process(f, r, i);
     o = parse_response_body<Propose::Out>(rs);
@@ -93,7 +93,7 @@ class NullTxHistoryWithOverride : public ccf::NullTxHistory
 
 public:
   NullTxHistoryWithOverride(
-    kv::Store& store_, NodeId id_, tls::KeyPairBase& kp_) :
+    kv::Store& store_, NodeId id_, crypto::KeyPairBase& kp_) :
     ccf::NullTxHistory(store_, id_, kp_)
   {}
 

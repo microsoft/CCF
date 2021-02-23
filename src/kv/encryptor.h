@@ -33,7 +33,7 @@ namespace kv
     }
 
   public:
-    TxEncryptor(std::shared_ptr<T> secrets) : ledger_secrets(secrets) {}
+    TxEncryptor(const std::shared_ptr<T>& secrets) : ledger_secrets(secrets) {}
 
     size_t get_header_length() override
     {
@@ -53,8 +53,10 @@ namespace kv
      * corresponding with the plaintext
      * @param[in]   is_snapshot       Indicates that the entry is a snapshot (to
      * avoid IV re-use)
+     *
+     * @return Boolean status indicating success of encryption.
      */
-    void encrypt(
+    bool encrypt(
       const std::vector<uint8_t>& plain,
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
@@ -67,10 +69,18 @@ namespace kv
 
       set_iv(hdr, tx_id, is_snapshot);
 
-      ledger_secrets->get_encryption_key_for(tx_id.version)
-        ->encrypt(hdr.get_iv(), plain, additional_data, cipher.data(), hdr.tag);
+      auto key = ledger_secrets->get_encryption_key_for(tx_id.version);
+      if (key == nullptr)
+      {
+        return false;
+      }
+
+      key->encrypt(
+        hdr.get_iv(), plain, additional_data, cipher.data(), hdr.tag);
 
       serialised_header = hdr.serialise();
+
+      return true;
     }
 
     /**
@@ -100,10 +110,15 @@ namespace kv
       hdr.apply(serialised_header);
       plain.resize(cipher.size());
 
-      auto ret =
-        ledger_secrets->get_encryption_key_for(version, historical_hint)
-          ->decrypt(
-            hdr.get_iv(), hdr.tag, cipher, additional_data, plain.data());
+      auto key =
+        ledger_secrets->get_encryption_key_for(version, historical_hint);
+      if (key == nullptr)
+      {
+        return false;
+      }
+
+      auto ret = key->decrypt(
+        hdr.get_iv(), hdr.tag, cipher, additional_data, plain.data());
       if (!ret)
       {
         plain.resize(0);

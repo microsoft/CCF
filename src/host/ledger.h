@@ -114,10 +114,11 @@ namespace asynchost
     static constexpr size_t frame_header_size = sizeof(uint32_t);
 
     const std::string dir;
+    std::string file_name;
 
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
-    FILE* file;
+    FILE* file = nullptr;
 
     size_t start_idx = 1;
     size_t total_len = 0;
@@ -127,13 +128,13 @@ namespace asynchost
     bool committed = false;
 
   public:
+    // Used when creating a new (empty) ledger file
     LedgerFile(const std::string& dir, size_t start_idx) :
       dir(dir),
-      file(nullptr),
+      file_name(fmt::format("{}_{}", file_name_prefix, start_idx)),
       start_idx(start_idx)
     {
-      const auto filename = fmt::format("{}_{}", file_name_prefix, start_idx);
-      const auto file_path = fs::path(dir) / fs::path(filename);
+      auto file_path = fs::path(dir) / fs::path(file_name);
       file = fopen(file_path.c_str(), "w+b");
       if (!file)
       {
@@ -147,16 +148,16 @@ namespace asynchost
     }
 
     // Used when recovering an existing ledger file
-    LedgerFile(const std::string& dir, const std::string& file_name) :
+    LedgerFile(const std::string& dir, const std::string& file_name_) :
       dir(dir),
-      file(nullptr)
+      file_name(file_name_)
     {
-      auto full_path = (fs::path(dir) / fs::path(file_name));
-      file = fopen(full_path.c_str(), "r+b");
+      auto file_path = (fs::path(dir) / fs::path(file_name));
+      file = fopen(file_path.c_str(), "r+b");
       if (!file)
       {
         throw std::logic_error(fmt::format(
-          "Unable to open ledger file {}: {}", full_path, strerror(errno)));
+          "Unable to open ledger file {}: {}", file_path, strerror(errno)));
       }
 
       committed = is_ledger_file_committed(file_name);
@@ -172,7 +173,7 @@ namespace asynchost
       if (fread(&table_offset, sizeof(positions_offset_header_t), 1, file) != 1)
       {
         throw std::logic_error(fmt::format(
-          "Failed to read positions offset from ledger file {}", full_path));
+          "Failed to read positions offset from ledger file {}", file_path));
       }
 
       if (table_offset != 0)
@@ -192,7 +193,7 @@ namespace asynchost
             file) != positions.size())
         {
           throw std::logic_error(fmt::format(
-            "Failed to read positions table from ledger file {}", full_path));
+            "Failed to read positions table from ledger file {}", file_path));
         }
         completed = true;
       }
@@ -211,7 +212,7 @@ namespace asynchost
           if (fread(&entry_size, frame_header_size, 1, file) != 1)
           {
             throw std::logic_error(fmt::format(
-              "Failed to read frame from ledger file {}", full_path));
+              "Failed to read frame from ledger file {}", file_path));
           }
 
           len -= frame_header_size;
@@ -219,7 +220,7 @@ namespace asynchost
           if (len < entry_size)
           {
             throw std::logic_error(
-              fmt::format("Malformed ledger file {}", full_path));
+              fmt::format("Malformed ledger file {}", file_path));
           }
 
           fseeko(file, entry_size, SEEK_CUR);
@@ -238,20 +239,6 @@ namespace asynchost
       {
         fclose(file);
       }
-    }
-
-    std::string get_file_name() const
-    {
-      int fd = fileno(file);
-      auto path = fmt::format("/proc/self/fd/{}", fd);
-      char result[PATH_MAX];
-      ::memset(result, 0, sizeof(result));
-      if (readlink(path.c_str(), result, sizeof(result) - 1) < 0)
-      {
-        throw std::logic_error("Could not read ledger file name");
-      }
-
-      return fs::path(result).filename();
     }
 
     size_t get_start_idx() const
@@ -384,10 +371,10 @@ namespace asynchost
       if (idx == start_idx - 1)
       {
         // Truncating everything triggers file deletion
-        if (!fs::remove(fs::path(dir) / fs::path(get_file_name())))
+        if (!fs::remove(fs::path(dir) / fs::path(file_name)))
         {
           throw std::logic_error(
-            fmt::format("Could not remove file {}", get_file_name()));
+            fmt::format("Could not remove file {}", file_name));
         }
         return true;
       }
@@ -481,11 +468,26 @@ namespace asynchost
         get_last_idx(),
         ledger_committed_suffix);
 
-      fs::rename(
-        fs::path(dir) / fs::path(get_file_name()),
-        fs::path(dir) / fs::path(committed_file_name));
+      auto file_path = fs::path(dir) / fs::path(file_name);
+      auto committed_file_path = fs::path(dir) / fs::path(committed_file_name);
 
-      committed = true;
+      std::error_code ec;
+      fs::rename(file_path, committed_file_path, ec);
+      if (ec)
+      {
+        // Even if the file cannot be renamed (e.g. file was removed), report an
+        // error and continue
+        LOG_FAIL_FMT(
+          "Could not rename committed ledger file {} to {}",
+          file_path,
+          committed_file_path);
+      }
+      else
+      {
+        file_name = committed_file_name;
+        committed = true;
+      }
+
       return true;
     }
   };

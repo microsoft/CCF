@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "../crypto/mbedtls_wrappers.h"
+#include "../crypto/pem.h"
 #include "../ds/buffer.h"
-#include "mbedtls_wrappers.h"
-#include "pem.h"
 
 #include <exception>
 
@@ -24,7 +24,7 @@ namespace tls
 
       if (ca_.n > 0)
       {
-        Pem pem_ca(ca_);
+        crypto::Pem pem_ca(ca_);
         if (
           mbedtls_x509_crt_parse(tmp_ca.get(), pem_ca.data(), pem_ca.size()) !=
           0)
@@ -33,7 +33,7 @@ namespace tls
 
       if (crl_.n > 0)
       {
-        Pem pem_crl(crl_);
+        crypto::Pem pem_crl(crl_);
         if (
           mbedtls_x509_crl_parse(
             tmp_crl.get(), pem_crl.data(), pem_crl.size()) != 0)

@@ -139,6 +139,12 @@ namespace kv
         success = ApplyResult::PASS_SNAPSHOT_EVIDENCE;
       }
 
+      search = changes.find(ccf::Tables::ENCRYPTED_PAST_LEDGER_SECRET);
+      if (search != changes.end())
+      {
+        success = ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET;
+      }
+
       if (history)
       {
         history->append(data);

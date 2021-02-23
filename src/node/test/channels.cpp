@@ -108,7 +108,7 @@ auto read_node_msgs(ringbuffer::Circuit& circuit)
 
 TEST_CASE("Client/Server key exchange")
 {
-  auto network_kp = tls::make_key_pair();
+  auto network_kp = crypto::make_key_pair();
   auto channel1 = Channel(wf1, network_kp, 1, 2);
   auto channel2 = Channel(wf2, network_kp, 2, 1);
 
@@ -250,7 +250,7 @@ TEST_CASE("Client/Server key exchange")
 
 TEST_CASE("Replay and out-of-order")
 {
-  auto network_kp = tls::make_key_pair();
+  auto network_kp = crypto::make_key_pair();
   auto channel1 = Channel(wf1, network_kp, 1, 2);
   auto channel2 = Channel(wf2, network_kp, 2, 1);
 
@@ -334,7 +334,7 @@ TEST_CASE("Replay and out-of-order")
 TEST_CASE("Host connections")
 {
   NodeId self = 1;
-  auto network_kp = tls::make_key_pair();
+  auto network_kp = crypto::make_key_pair();
   auto channel_manager =
     ChannelManager(wf1, network_kp->private_key_pem(), self);
   NodeId peer_id = 2;

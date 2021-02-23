@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "symmetric_key.h"
 
+#include "crypto/key_pair_mbedtls.h"
 #include "ds/logger.h"
 #include "ds/thread_messaging.h"
-#include "tls/error_string.h"
 
 #include <mbedtls/aes.h>
 #include <mbedtls/error.h>
@@ -42,7 +42,7 @@ namespace crypto
 
       if (rc != 0)
       {
-        throw std::logic_error(tls::error_string(rc));
+        throw std::logic_error(PublicKey_mbedTLS::error_string(rc));
       }
     }
   }
@@ -75,7 +75,7 @@ namespace crypto
 
     if (rc != 0)
     {
-      throw std::logic_error(tls::error_string(rc));
+      throw std::logic_error(PublicKey_mbedTLS::error_string(rc));
     }
   }
 
