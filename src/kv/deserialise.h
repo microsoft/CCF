@@ -403,7 +403,6 @@ namespace kv
       history->append(data);
       return ApplyResult::PASS_NONCES;
     }
-
   };
 
   class NewViewBFTExec : public BFTExecutionWrapper
@@ -493,7 +492,6 @@ namespace kv
 
       return ApplyResult::PASS;
     }
-
 
     virtual bool support_async_execution() override
     {

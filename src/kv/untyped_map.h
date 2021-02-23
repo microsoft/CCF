@@ -167,7 +167,10 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version v, bool track_conflicts, kv::Version& max_conflict_version) override
+      void commit(
+        Version v,
+        bool track_conflicts,
+        kv::Version& max_conflict_version) override
       {
         auto& roll = map.get_roll();
         auto current = roll.commits->get_tail();

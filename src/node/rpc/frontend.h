@@ -575,7 +575,8 @@ namespace ccf
       kv::Consensus::SeqNo max_conflict_version) override
     {
       auto tx = tables.create_tx();
-      return process_bft(ctx, tx, prescribed_commit_version, max_conflict_version);
+      return process_bft(
+        ctx, tx, prescribed_commit_version, max_conflict_version);
     }
 
     /** Process a serialised command with the associated RPC context via BFT
@@ -610,7 +611,8 @@ namespace ccf
            ctx.frame_format()});
       };
 
-      auto rep = process_command(ctx, tx, fn, prescribed_commit_version, max_conflict_version);
+      auto rep = process_command(
+        ctx, tx, fn, prescribed_commit_version, max_conflict_version);
 
       version = tx.get_version();
       return {std::move(rep.value()), version};
