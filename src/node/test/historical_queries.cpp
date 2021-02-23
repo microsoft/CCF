@@ -461,7 +461,6 @@ TEST_CASE("StateCache range queries")
 
   const auto end_index = kv_store.current_version();
 
-  // TODO: Build this in state?
   ccf::historical::StateCache cache(
     kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
