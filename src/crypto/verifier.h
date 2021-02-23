@@ -114,11 +114,6 @@ namespace crypto
         hash.data(), hash.size(), signature.data(), signature.size(), md_type);
     }
 
-    virtual CurveID get_curve_id() const
-    {
-      return public_key->get_curve_id();
-    }
-
     virtual Pem public_key_pem() const
     {
       return public_key->public_key_pem();

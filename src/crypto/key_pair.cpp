@@ -41,5 +41,4 @@ namespace crypto
   {
     return std::make_shared<KeyPairImpl>(pem, pw);
   }
-
 }

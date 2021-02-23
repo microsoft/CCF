@@ -9,6 +9,7 @@
 #include "crypto/rsa_key_pair_openssl.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
+#include "crypto/entropy.h"
 #include "tls/base64.h"
 
 #include <chrono>

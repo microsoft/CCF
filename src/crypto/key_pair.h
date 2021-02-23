@@ -17,8 +17,19 @@ namespace crypto
   class PublicKey
   {
   public:
-    virtual CurveID get_curve_id() const = 0;
-
+    /**
+     * Verify that a signature was produced on contents with the private key
+     * associated with the public key held by the object.
+     *
+     * @param contents address of contents
+     * @param contents_size size of contents
+     * @param sig address of signature
+     * @param sig_size size of signature
+     * @param md_type Digest algorithm to use
+     * @param bytes Buffer to write the hash to
+     *
+     * @return Whether the signature matches the contents and the key
+     */
     virtual bool verify(
       const uint8_t* contents,
       size_t contents_size,
@@ -35,8 +46,8 @@ namespace crypto
      * @param contents_size size of contents
      * @param sig address of signature
      * @param sig_size size of signature
-     * @param md_type Digest algorithm to use. Derived from the public key if
-     * MDType::None.
+     * @param md_type Digest algorithm to use (derived from the public key if
+     * md_type == MDType::None).
      *
      * @return Whether the signature matches the contents and the key
      */
@@ -68,6 +79,15 @@ namespace crypto
         contents.data(), contents.size(), signature.data(), signature.size());
     }
 
+    /**
+     * Verify that a signature was produced on the hash of some contents with
+     * the private key associated with the public key held by the object.
+     *
+     * @param hash Hash of some content
+     * @param signature Signature as a sequence of bytes
+     *
+     * @return Whether the signature matches the hash and the key
+     */
     virtual bool verify_hash(
       const std::vector<uint8_t>& hash,
       const std::vector<uint8_t>& signature,
@@ -77,6 +97,18 @@ namespace crypto
         hash.data(), hash.size(), signature.data(), signature.size(), md_type);
     }
 
+    /**
+     * Verify that a signature was produced on the hash of some contents with
+     * the private key associated with the public key held by the object.
+     *
+     * @param hash Hash of some content
+     * @param hash_size length of @p hash
+     * @param sig Signature as a sequence of bytes
+     * @param sig_size Length og @p sig
+     * @param md_type Digest algorithm
+     *
+     * @return Whether the signature matches the hash and the key
+     */
     virtual bool verify_hash(
       const uint8_t* hash,
       size_t hash_size,
@@ -96,7 +128,6 @@ namespace crypto
     virtual ~KeyPair() = default;
 
     virtual Pem private_key_pem() const = 0;
-
     virtual Pem public_key_pem() const = 0;
 
     virtual bool verify(

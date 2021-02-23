@@ -2,9 +2,13 @@
 # Licensed under the Apache 2.0 License.
 
 set(CCFCRYPTO_SRC
-    ${CCF_DIR}/src/crypto/hash.cpp ${CCF_DIR}/src/crypto/symmetric_key.cpp
-    ${CCF_DIR}/src/crypto/key_pair.cpp ${CCF_DIR}/src/crypto/rsa_key_pair.cpp
+    ${CCF_DIR}/src/crypto/hash.cpp
+    ${CCF_DIR}/src/crypto/symmetric_key.cpp
+    ${CCF_DIR}/src/crypto/key_pair.cpp
+    ${CCF_DIR}/src/crypto/rsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/verifier.cpp
+    ${CCF_DIR}/src/crypto/key_pair_mbedtls.cpp
+    ${CCF_DIR}/src/crypto/key_pair_openssl.cpp
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)

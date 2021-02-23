@@ -3,6 +3,7 @@
 
 #include "rsa_key_pair.h"
 
+#include "entropy.h"
 #include "key_pair_mbedtls.h"
 #include "key_pair_openssl.h"
 #include "rsa_key_pair_mbedtls.h"
