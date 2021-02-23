@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "crypto/entropy.h"
 #include "crypto/key_pair.h"
 #include "crypto/key_pair_mbedtls.h"
 #include "crypto/key_pair_openssl.h"
@@ -9,7 +10,6 @@
 #include "crypto/rsa_key_pair_openssl.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
-#include "crypto/entropy.h"
 #include "tls/base64.h"
 
 #include <chrono>
