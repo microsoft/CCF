@@ -70,6 +70,7 @@ namespace kv
     MapHooks map_hooks;
 
     std::shared_ptr<Consensus> consensus = nullptr;
+
     std::shared_ptr<TxHistory> history = nullptr;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker = nullptr;
     EncryptorPtr encryptor = nullptr;
