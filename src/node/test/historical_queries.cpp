@@ -901,42 +901,25 @@ TEST_CASE("Recover historical ledger secrets")
     validate_business_transaction(historical_store, second_index);
   }
 
-  // {
-  //   INFO("Retrieve first index, requiring all historical ledger secrets");
-  //   REQUIRE(cache.get_store_at(first_index) == nullptr);
-  //   const auto read = bp.read_n(100, rr);
-  //   REQUIRE(read == 1);
+  {
+    INFO("Retrieve early index, requiring all historical ledger secrets");
+    size_t target_index = first_index + 1;
+    REQUIRE(cache.get_store_at(default_handle, target_index) == nullptr);
 
-  //   // Recover all ledger secrets since the start of time
-  //   REQUIRE(provide_ledger_entry(second_rekey_index));
-  //   REQUIRE(provide_ledger_entry(first_rekey_index));
+    // Recover all ledger secrets since the start of time
+    REQUIRE(provide_ledger_entry(second_rekey_index));
+    REQUIRE(provide_ledger_entry(first_rekey_index));
 
-  //   // Provide target and subsequent entries until next signature
-  //   for (size_t i = first_index; i <= signature_index; ++i)
-  //   {
-  //     REQUIRE(provide_ledger_entry(i));
-  //   }
+    // Provide target and subsequent entries until next signature
+    for (size_t i = target_index; i <= signature_index; ++i)
+    {
+      provide_ledger_entry(i);
+    }
 
-  //   // Store is now trusted, proceed to recover entries
-  //   auto historical_store = cache.get_store_at(second_index);
-  //   REQUIRE(historical_store != nullptr);
+    // Store is now trusted, proceed to recover entries
+    auto historical_store = cache.get_store_at(default_handle, target_index);
+    REQUIRE(historical_store != nullptr);
 
-  //   read_historical_entry(historical_store, second_index);
-  // }
-
-  // {
-  //   INFO("All historical secrets have been fetched");
-  //   size_t target_index = first_index + 1;
-  //   REQUIRE(cache.get_store_at(target_index) == nullptr);
-
-  //   // Provide target and subsequent entries until next signature
-  //   for (size_t i = target_index; i <= signature_index; ++i)
-  //   {
-  //     REQUIRE(provide_ledger_entry(i));
-  //   }
-
-  //   auto historical_store = cache.get_store_at(target_index);
-  //   REQUIRE(historical_store != nullptr);
-  //   read_historical_entry(historical_store, target_index);
-  // }
+    validate_business_transaction(historical_store, target_index);
+  }
 }
