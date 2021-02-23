@@ -1917,8 +1917,6 @@ namespace ccf
            in.public_encryption_key,
            NodeStatus::TRUSTED});
 
-        LOG_INFO_FMT("Create node id: {}", in.node_id);
-
 #ifdef GET_QUOTE
         CodeDigest node_code_id;
         std::copy_n(

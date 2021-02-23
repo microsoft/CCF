@@ -687,8 +687,10 @@ class Network:
                 time.sleep(0.1)
         raise TimeoutError(f"Application frontend was not open after {timeout}s")
 
-    def _get_node_by_id(self, node_id):
-        return next((node for node in self.nodes if node.node_id == node_id), None)
+    def _get_node_by_service_id(self, node_id):
+        return next(
+            (node for node in self.nodes if node.service_node_id == node_id), None
+        )
 
     def find_primary(self, timeout=3, log_capture=None):
         """
@@ -729,7 +731,8 @@ class Network:
             raise PrimaryNotFound
 
         flush_info(logs, log_capture, 0)
-        return (self._get_node_by_id(primary_id), view)
+
+        return (self._get_node_by_service_id(primary_id), view)
 
     def find_backups(self, primary=None, timeout=3):
         if primary is None:

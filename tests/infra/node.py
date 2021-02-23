@@ -3,6 +3,7 @@
 
 from contextlib import contextmanager, closing
 from enum import Enum
+import infra.crypto
 import infra.remote
 import infra.net
 import infra.path
@@ -68,6 +69,7 @@ class Node:
         self.network_state = NodeNetworkState.stopped
         self.common_dir = None
         self.suspended = False
+        self.service_node_id = None
 
         if host.startswith("local://"):
             self.remote_impl = infra.remote.LocalRemote
@@ -221,8 +223,14 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
         self.remote.get_startup_files(self.common_dir)
+
+        with open(os.path.join(self.common_dir, f"{self.node_id}.pem")) as f:
+            self.service_node_id = (
+                infra.crypto.compute_public_key_pem_hash_hex_from_pem(f.read())
+            )
+
         self._read_ports()
-        LOG.info("Node {} started".format(self.node_id))
+        LOG.info(f"Node {self.node_id} started: {self.service_node_id}")
 
     def _read_ports(self):
         node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
