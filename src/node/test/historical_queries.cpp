@@ -875,36 +875,32 @@ TEST_CASE("Recover historical ledger secrets")
     validate_business_transaction(historical_store, third_index);
   }
 
-  // {
-  //   INFO("Retrieve second index, requiring one historical ledger secret");
-  //   REQUIRE(cache.get_store_at(second_index) == nullptr);
+  {
+    INFO("Retrieve second index, requiring one historical ledger secret");
+    REQUIRE(cache.get_store_at(default_handle, second_index) == nullptr);
 
-  //   // Request is always in flight
-  //   REQUIRE(cache.get_store_at(second_index) == nullptr);
+    // Request is always in flight
+    REQUIRE(cache.get_store_at(default_handle, second_index) == nullptr);
 
-  //   const auto read = bp.read_n(100, rr);
-  //   REQUIRE(read == 1);
+    // The encrypted ledger secret applicable for second_index was recorded in
+    // the store at the next rekey
+    REQUIRE(provide_ledger_entry(third_rekey_index));
 
-  //   // The encrypted ledger secret applicable for second_index was recorded
-  //   in
-  //     // the store at the next rekey
-  //     REQUIRE(provide_ledger_entry(third_rekey_index));
+    // Ledger secret has already been fetched
+    REQUIRE_FALSE(provide_ledger_entry(third_rekey_index));
 
-  //   // Ledger secret has already been fetched
-  //   REQUIRE_FALSE(provide_ledger_entry(third_rekey_index));
+    // Provide target and subsequent entries until next signature
+    for (size_t i = second_index; i <= signature_index; ++i)
+    {
+      provide_ledger_entry(i);
+    }
 
-  //   // Provide target and subsequent entries until next signature
-  //   for (size_t i = second_index; i <= signature_index; ++i)
-  //   {
-  //     REQUIRE(provide_ledger_entry(i));
-  //   }
+    // Store is now trusted, proceed to recover entries
+    auto historical_store = cache.get_store_at(default_handle, second_index);
+    REQUIRE(historical_store != nullptr);
 
-  //   // Store is now trusted, proceed to recover entries
-  //   auto historical_store = cache.get_store_at(second_index);
-  //   REQUIRE(historical_store != nullptr);
-
-  //   read_historical_entry(historical_store, second_index);
-  // }
+    validate_business_transaction(historical_store, second_index);
+  }
 
   // {
   //   INFO("Retrieve first index, requiring all historical ledger secrets");
