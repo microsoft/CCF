@@ -166,7 +166,8 @@ kv::Version rekey(
   kv::Store& kv_store,
   const std::shared_ptr<ccf::LedgerSecrets>& ledger_secrets)
 {
-  // This isn't really used, but is needed for ShareManager, so can be recreated each time here
+  // This isn't really used, but is needed for ShareManager, so can be recreated
+  // each time here
   ccf::NetworkState network;
   network.ledger_secrets = ledger_secrets;
   ccf::ShareManager share_manager(network);
@@ -801,14 +802,11 @@ TEST_CASE("Recover historical ledger secrets")
 
   // Rekey ledger every 10 transactions
   write_transactions(kv_store, 10);
-  const auto first_rekey_index =
-    rekey(kv_store, state.ledger_secrets);
+  const auto first_rekey_index = rekey(kv_store, state.ledger_secrets);
   write_transactions(kv_store, 10);
-  const auto second_rekey_index =
-    rekey(kv_store, state.ledger_secrets);
+  const auto second_rekey_index = rekey(kv_store, state.ledger_secrets);
   write_transactions(kv_store, 10);
-  const auto third_rekey_index =
-    rekey(kv_store, state.ledger_secrets);
+  const auto third_rekey_index = rekey(kv_store, state.ledger_secrets);
 
   // Only one signature, valid with the latest ledger secret
   const auto signature_index = write_transactions_and_signature(kv_store, 5);
