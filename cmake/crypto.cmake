@@ -9,6 +9,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/rsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/verifier.cpp
     ${CCF_DIR}/src/crypto/mbedtls/symmetric_key.cpp
+    ${CCF_DIR}/src/crypto/openssl/symmetric_key.cpp
     ${CCF_DIR}/src/crypto/mbedtls/public_key.cpp
     ${CCF_DIR}/src/crypto/openssl/public_key.cpp
     ${CCF_DIR}/src/crypto/mbedtls/key_pair.cpp

@@ -123,6 +123,22 @@ namespace crypto
       }
     };
 
+    class Unique_EVP_CIPHER_CTX
+    {
+      std::unique_ptr<EVP_CIPHER_CTX, void (*)(EVP_CIPHER_CTX*)> p;
+
+    public:
+      Unique_EVP_CIPHER_CTX() : p(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free)
+      {
+        if (!p)
+          throw std::runtime_error("out of memory");
+      }
+      operator EVP_CIPHER_CTX*()
+      {
+        return p.get();
+      }
+    };
+
     inline std::string error_string(int ec)
     {
       return ERR_error_string((unsigned long)ec, NULL);
