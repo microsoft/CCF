@@ -236,7 +236,7 @@ namespace aft
       }
     }
 
-    std::set<kv::NodeId> active_nodes()
+    std::set<kv::NodeId>& active_nodes()
     {
       // Find all nodes present in any active configuration.
       if (backup_nodes.empty())
@@ -274,10 +274,10 @@ namespace aft
     {
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
-      // return (view - starting_view_change) % active_nodes().size();
-      // TODO: Fix!!
-      (void)view;
-      return kv::NodeId();
+      auto& active_nodes_ = active_nodes();
+      auto it = active_nodes_.begin();
+      std::advance(it, (view - starting_view_change) % active_nodes_.size());
+      return *it;
     }
 
     Index last_committable_index() const

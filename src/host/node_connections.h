@@ -3,10 +3,10 @@
 #pragma once
 
 #include "consensus/aft/raft_types.h"
-#include "host/timer.h"
 #include "ledger.h"
 #include "node/node_types.h"
 #include "tcp.h"
+#include "timer.h"
 
 #include <unordered_map>
 
@@ -32,9 +32,10 @@ namespace asynchost
 
       void on_read(size_t len, uint8_t*& incoming)
       {
-        // TODO: Hack!
         LOG_DEBUG_FMT(
-          "from node {} received {} bytes", node.value_or(ccf::NodeId()), len);
+          "from node {} received {} bytes",
+          node.value_or(ccf::UnknownNodeId),
+          len);
 
         pending.insert(pending.end(), incoming, incoming + len);
 
@@ -57,8 +58,11 @@ namespace asynchost
 
           if (size < msg_size)
           {
-            // LOG_DEBUG_FMT(
-            //   "from node {} have {}/{} bytes", node, size, msg_size);
+            LOG_DEBUG_FMT(
+              "from node {} have {}/{} bytes",
+              node.value_or(ccf::UnknownNodeId),
+              size,
+              msg_size);
             break;
           }
 

@@ -42,7 +42,7 @@ namespace ccf
   struct Header
   {
     Node2NodeMsg msg;
-    NodeId from_node;
+    NodeId from_node; // TODO: Make this an array
   };
 
   // Channel-specific header for key exchange

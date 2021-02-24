@@ -17,6 +17,7 @@ namespace ccf
   using Node2NodeMsg = uint64_t;
 
   // TODO: Move to nodes.h
+  static constexpr auto UnknownNodeId = "UnknownNodeId";
   using NodeId =
     std::string; // < Hex-encoded hash of node's identity public key
 
