@@ -11,8 +11,8 @@ namespace crypto
   class KeyAesGcm_OpenSSL : public KeyAesGcm
   {
   private:
-    CBuffer key;
-    const EVP_CIPHER* cipher;
+    const std::vector<uint8_t> key;
+    const EVP_CIPHER* evp_cipher;
 
   public:
     KeyAesGcm_OpenSSL(CBuffer rawKey);
