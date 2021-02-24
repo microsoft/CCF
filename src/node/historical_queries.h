@@ -777,7 +777,6 @@ namespace ccf::historical
         // Merkle tree integrity is not verified: even if the recovered ledger
         // secret was bogus, the deserialisation of subsequent ledger entries
         // would fail.
-        // TODO: Work out if this is a secret more efficiently
         bool public_only = false;
         for (const auto& [_, request] : requests)
         {

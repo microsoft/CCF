@@ -793,8 +793,6 @@ TEST_CASE("Recover historical ledger secrets")
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
-  // TODO: ShareManager doesn't need a network! Just a ledger_secrets,
-  // everything else is just table access ccf::ShareManager
   ccf::NetworkState network;
   network.ledger_secrets = state.ledger_secrets;
   ccf::ShareManager share_manager(network);
