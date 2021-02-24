@@ -88,7 +88,7 @@ def test_user(network, args, verify=True):
     # a new user and uses its own LoggingTxs
     primary, _ = network.find_nodes()
     new_user_id = 3
-    network.create_users([new_user_id], args.participants_curve)
+    network.create_user(new_user_id, args.participants_curve)
     user_data = {"lifetime": "temporary"}
     network.consortium.add_user(primary, new_user_id, user_data)
     txs = app.LoggingTxs(user_id=new_user_id)
@@ -229,6 +229,12 @@ def test_service_principals(network, args):
     return network
 
 
+@reqs.description("Test ack state digest updates")
+def test_ack_state_digest_update(network, args):
+    for node in network.get_joined_nodes():
+        network.consortium.get_any_active_member().update_ack_state_digest(node)
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -241,6 +247,7 @@ def run(args):
         network = test_no_quote(network, args)
         network = test_caller_id(network, args)
         network = test_service_principals(network, args)
+        network = test_ack_state_digest_update(network, args)
 
 
 if __name__ == "__main__":

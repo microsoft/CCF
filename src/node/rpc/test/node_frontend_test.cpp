@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "crypto/pem.h"
+#include "crypto/verifier.h"
 #include "ds/logger.h"
 #include "nlohmann/json.hpp"
 #include "node/genesis_gen.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/serdes.h"
 #include "node_stub.h"
-#include "tls/pem.h"
-#include "tls/verifier.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -19,7 +19,7 @@ using namespace serdes;
 
 using TResponse = http::SimpleResponseProcessor::Response;
 
-auto kp = tls::make_key_pair();
+auto kp = crypto::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member");
 auto node_id = 0;
 
@@ -38,7 +38,7 @@ TResponse frontend_process(
   NodeRpcFrontend& frontend,
   const json& json_params,
   const std::string& method,
-  const tls::Pem& caller)
+  const crypto::Pem& caller)
 {
   http::Request r(method);
   const auto body = json_params.is_null() ?
@@ -70,6 +70,17 @@ T parse_response_body(const TResponse& r)
   return body_j.get<T>();
 }
 
+void require_ledger_secrets_equal(
+  const LedgerSecretsMap& first, const LedgerSecretsMap& second)
+{
+  REQUIRE(first.size() == second.size());
+  REQUIRE(std::equal(
+    first.begin(),
+    first.end(),
+    second.begin(),
+    [](const auto& a, const auto& b) { return (*a.second == *b.second); }));
+}
+
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
@@ -83,7 +94,7 @@ TEST_CASE("Add a node to an opening service")
   frontend.open();
 
   network.identity = std::make_unique<NetworkIdentity>();
-  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
 
   // New node should not be given ledger secret past this one via join request
@@ -92,10 +103,10 @@ TEST_CASE("Add a node to an opening service")
     up_to_ledger_secret_seqno, make_ledger_secret());
 
   // Node certificate
-  tls::KeyPairPtr kp = tls::make_key_pair();
+  crypto::KeyPairPtr kp = crypto::make_key_pair();
   const auto caller = kp->self_sign(fmt::format("CN=nodes"));
   const auto node_public_encryption_key =
-    tls::make_key_pair()->public_key_pem();
+    crypto::make_key_pair()->public_key_pem();
 
   INFO("Try to join with a different consensus");
   {
@@ -141,8 +152,8 @@ TEST_CASE("Add a node to an opening service")
     const auto response =
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
-    CHECK(
-      response.network_info.ledger_secrets == network.ledger_secrets->get(tx));
+    require_ledger_secrets_equal(
+      response.network_info.ledger_secrets, network.ledger_secrets->get(tx));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.network_info.public_only == false);
@@ -172,8 +183,8 @@ TEST_CASE("Add a node to an opening service")
     const auto response =
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
-    CHECK(
-      response.network_info.ledger_secrets ==
+    require_ledger_secrets_equal(
+      response.network_info.ledger_secrets,
       network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
@@ -182,8 +193,8 @@ TEST_CASE("Add a node to an opening service")
   INFO(
     "Adding a different node with the same node network details should fail");
   {
-    tls::KeyPairPtr kp = tls::make_key_pair();
-    auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+    crypto::KeyPairPtr kp = crypto::make_key_pair();
+    auto v = crypto::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
@@ -212,7 +223,7 @@ TEST_CASE("Add a node to an open service")
 
   network.identity = std::make_unique<NetworkIdentity>();
 
-  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   network.ledger_secrets->init();
 
   // New node should not be given ledger secret past this one via join request
@@ -222,13 +233,13 @@ TEST_CASE("Add a node to an open service")
 
   gen.create_service({});
   gen.init_configuration({1});
-  gen.activate_member(
-    gen.add_member({member_cert, tls::make_rsa_key_pair()->public_key_pem()}));
+  gen.activate_member(gen.add_member(
+    {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
   REQUIRE(gen.open_service());
   gen.finalize();
 
   // Node certificate
-  tls::KeyPairPtr kp = tls::make_key_pair();
+  crypto::KeyPairPtr kp = crypto::make_key_pair();
   const auto caller = kp->self_sign(fmt::format("CN=nodes"));
 
   std::optional<NodeInfo> node_info;
@@ -258,8 +269,8 @@ TEST_CASE("Add a node to an open service")
   INFO(
     "Adding a different node with the same node network details should fail");
   {
-    tls::KeyPairPtr kp = tls::make_key_pair();
-    auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+    crypto::KeyPairPtr kp = crypto::make_key_pair();
+    auto v = crypto::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
     const auto caller = v->cert_der();
 
     // Network node info is empty (same as before)
@@ -302,8 +313,8 @@ TEST_CASE("Add a node to an open service")
       parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     auto tx = network.tables->create_tx();
-    CHECK(
-      response.network_info.ledger_secrets ==
+    require_ledger_secrets_equal(
+      response.network_info.ledger_secrets,
       network.ledger_secrets->get(tx, up_to_ledger_secret_seqno));
     CHECK(response.network_info.identity == *network.identity.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);

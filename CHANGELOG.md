@@ -5,11 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.18.3]
+
+### Added
+
+- CCF now depends on [Open Enclave 0.14](https://github.com/openenclave/openenclave/releases/tag/v0.14.0).
+
 ## [0.18.2]
+
+### Added
+
+- Support for historical queries after ledger rekey and service recovery (#2200).
 
 ### Changed
 
 - CCF now supports OpenSSL for many crypto tasks like hashing, signing, and signature verification (#2123).
+- In progress ledger files no longer cause a node to crash when they are committed (#2209).
 
 ## [0.18.1]
 

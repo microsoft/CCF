@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/hash.h"
+#include "crypto/verifier.h"
 #include "ds/dl_list.h"
 #include "ds/logger.h"
 #include "ds/thread_messaging.h"
@@ -12,7 +13,6 @@
 #include "nodes.h"
 #include "signatures.h"
 #include "tls/tls.h"
-#include "tls/verifier.h"
 
 #include <array>
 #include <deque>
@@ -113,11 +113,13 @@ namespace ccf
   {
     kv::Store& store;
     NodeId id;
+
+  protected:
     kv::Version version = 0;
     kv::Term term = 0;
 
   public:
-    NullTxHistory(kv::Store& store_, NodeId id_, tls::KeyPairBase&) :
+    NullTxHistory(kv::Store& store_, NodeId id_, crypto::KeyPairBase&) :
       store(store_),
       id(id_)
     {}
@@ -250,7 +252,7 @@ namespace ccf
     kv::Store& store;
     T& replicated_state_tree;
     NodeId id;
-    tls::KeyPairBase& kp;
+    crypto::KeyPairBase& kp;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -259,7 +261,7 @@ namespace ccf
       kv::Store& store_,
       T& replicated_state_tree_,
       NodeId id_,
-      tls::KeyPairBase& kp_) :
+      crypto::KeyPairBase& kp_) :
       txid(txid_),
       commit_txid(commit_txid_),
       store(store_),
@@ -462,7 +464,7 @@ namespace ccf
     NodeId id;
     T replicated_state_tree;
 
-    tls::KeyPairBase& kp;
+    crypto::KeyPairBase& kp;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
 
@@ -477,10 +479,10 @@ namespace ccf
     HashedTxHistory(
       kv::Store& store_,
       NodeId id_,
-      tls::KeyPairBase& kp_,
+      crypto::KeyPairBase& kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
-      bool signature_timer = true) :
+      bool signature_timer = false) :
       store(store_),
       id(id_),
       kp(kp_),
@@ -667,11 +669,11 @@ namespace ccf
         return false;
       }
 
-      tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
+      crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
       crypto::Sha256Hash root = replicated_state_tree.get_root();
       log_hash(root, VERIFY);
       bool result =
-        from_cert->verify_hash(root.h, sig_value.sig, MDType::SHA256);
+        from_cert->verify_hash(root.h, sig_value.sig, crypto::MDType::SHA256);
 
       if (!result)
       {

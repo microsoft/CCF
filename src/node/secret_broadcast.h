@@ -16,8 +16,8 @@ namespace ccf
   {
   private:
     static std::vector<uint8_t> encrypt_ledger_secret(
-      std::shared_ptr<tls::KeyPair_mbedTLS> encryption_key,
-      std::shared_ptr<tls::PublicKey_mbedTLS> backup_pubk,
+      std::shared_ptr<crypto::KeyPair_mbedTLS> encryption_key,
+      std::shared_ptr<crypto::PublicKey_mbedTLS> backup_pubk,
       std::vector<uint8_t>&& plain)
     {
       // Encrypt secrets with a shared secret derived from backup public
@@ -27,7 +27,7 @@ namespace ccf
           .compute_shared_secret());
 
       crypto::GcmCipher gcmcipher(plain.size());
-      auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
+      auto iv = crypto::create_entropy()->random(gcmcipher.hdr.get_iv().n);
       std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
 
       backup_shared_secret.encrypt(
@@ -39,7 +39,7 @@ namespace ccf
   public:
     static void broadcast_some(
       NetworkState& network,
-      std::shared_ptr<tls::KeyPair_mbedTLS> encryption_key,
+      std::shared_ptr<crypto::KeyPair_mbedTLS> encryption_key,
       NodeId self,
       kv::Tx& tx,
       const LedgerSecretsMap& some_ledger_secrets)
@@ -48,6 +48,8 @@ namespace ccf
       auto secrets = tx.rw(network.secrets);
 
       auto trusted_nodes = g.get_trusted_nodes(self);
+
+      SecretsForNodes secrets_for_nodes;
 
       for (auto [nid, ni] : trusted_nodes)
       {
@@ -59,46 +61,52 @@ namespace ccf
             {s.first,
              encrypt_ledger_secret(
                encryption_key,
-               std::make_shared<tls::PublicKey_mbedTLS>(ni.encryption_pub_key),
-               std::move(s.second.raw_key))});
+               std::make_shared<crypto::PublicKey_mbedTLS>(
+                 ni.encryption_pub_key),
+               std::move(s.second->raw_key)),
+             s.second->previous_secret_stored_version});
         }
 
-        secrets->put(
-          nid,
-          {encryption_key->public_key_pem().raw(),
-           std::move(ledger_secrets_for_node)});
+        secrets_for_nodes.emplace(nid, std::move(ledger_secrets_for_node));
       }
+
+      secrets->put(
+        0, {encryption_key->public_key_pem().raw(), secrets_for_nodes});
     }
 
     static void broadcast_new(
       NetworkState& network,
-      std::shared_ptr<tls::KeyPair_mbedTLS> encryption_key,
+      std::shared_ptr<crypto::KeyPair_mbedTLS> encryption_key,
       kv::Tx& tx,
-      LedgerSecret&& new_ledger_secret)
+      LedgerSecretPtr&& new_ledger_secret)
     {
       GenesisGenerator g(network, tx);
       auto secrets = tx.rw(network.secrets);
 
+      SecretsForNodes secrets_for_nodes;
+
       for (auto [nid, ni] : g.get_trusted_nodes())
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
+
         ledger_secrets_for_node.push_back(
           {std::nullopt,
            encrypt_ledger_secret(
              encryption_key,
-             std::make_shared<tls::PublicKey_mbedTLS>(ni.encryption_pub_key),
-             std::move(new_ledger_secret.raw_key))});
+             std::make_shared<crypto::PublicKey_mbedTLS>(ni.encryption_pub_key),
+             std::move(new_ledger_secret->raw_key)),
+           new_ledger_secret->previous_secret_stored_version});
 
-        secrets->put(
-          nid,
-          {encryption_key->public_key_pem().raw(),
-           std::move(ledger_secrets_for_node)});
+        secrets_for_nodes.emplace(nid, std::move(ledger_secrets_for_node));
       }
+
+      secrets->put(
+        0, {encryption_key->public_key_pem().raw(), secrets_for_nodes});
     }
 
     static std::vector<uint8_t> decrypt(
-      std::shared_ptr<tls::KeyPair_mbedTLS> encryption_key,
-      std::shared_ptr<tls::PublicKey_mbedTLS> primary_pubk,
+      std::shared_ptr<crypto::KeyPair_mbedTLS> encryption_key,
+      std::shared_ptr<crypto::PublicKey_mbedTLS> primary_pubk,
       const std::vector<uint8_t>& cipher)
     {
       crypto::GcmCipher gcmcipher;

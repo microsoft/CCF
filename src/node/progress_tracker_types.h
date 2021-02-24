@@ -4,9 +4,9 @@
 #include "backup_signatures.h"
 #include "consensus/aft/revealed_nonces.h"
 #include "crypto/hash.h"
+#include "crypto/verifier.h"
 #include "node_signature.h"
 #include "tls/tls.h"
-#include "tls/verifier.h"
 #include "view_change.h"
 
 namespace ccf
@@ -84,7 +84,7 @@ namespace ccf
   {
   public:
     ProgressTrackerStoreAdapter(
-      kv::AbstractStore& store_, tls::KeyPairBase& kp_) :
+      kv::AbstractStore& store_, crypto::KeyPairBase& kp_) :
       store(store_),
       kp(kp_),
       nodes(ccf::Tables::NODES),
@@ -182,9 +182,9 @@ namespace ccf
           "No node info, and therefore no cert for node {}", node_id);
         return false;
       }
-      tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
+      crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
       return from_cert->verify_hash(
-        root.h.data(), root.h.size(), sig, sig_size, MDType::SHA256);
+        root.h.data(), root.h.size(), sig, sig_size, crypto::MDType::SHA256);
     }
 
     void sign_view_change_request(
@@ -213,8 +213,9 @@ namespace ccf
         LOG_FAIL_FMT("No node info, and therefore no cert for node {}", from);
         return false;
       }
-      tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
-      return from_cert->verify_hash(h.h, view_change.signature, MDType::SHA256);
+      crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
+      return from_cert->verify_hash(
+        h.h, view_change.signature, crypto::MDType::SHA256);
     }
 
     bool verify_view_change_request_confirmation(
@@ -229,9 +230,10 @@ namespace ccf
         LOG_FAIL_FMT("No node info, and therefore no cert for node {}", from);
         return false;
       }
-      tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
+      crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
       auto h = hash_new_view(new_view);
-      return from_cert->verify_hash(h.h, new_view.signature, MDType::SHA256);
+      return from_cert->verify_hash(
+        h.h, new_view.signature, crypto::MDType::SHA256);
     }
 
     kv::Consensus::SeqNo write_view_change_confirmation(
@@ -276,7 +278,7 @@ namespace ccf
 
   private:
     kv::AbstractStore& store;
-    tls::KeyPairBase& kp;
+    crypto::KeyPairBase& kp;
     ccf::Nodes nodes;
     ccf::BackupSignaturesMap backup_signatures;
     aft::RevealedNoncesMap revealed_nonces;

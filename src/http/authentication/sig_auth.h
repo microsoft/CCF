@@ -3,6 +3,7 @@
 #pragma once
 
 #include "authentication_types.h"
+#include "ds/lru.h"
 #include "http/http_sig.h"
 
 namespace ccf
@@ -26,7 +27,7 @@ namespace ccf
     /** CCF user ID, as defined in @c public:ccf.gov.users.info table */
     UserId user_id;
     /** User certificate, used to sign this request, described by keyId */
-    tls::Pem user_cert;
+    crypto::Pem user_cert;
     /** Additional user data, as defined in @c public:ccf.gov.users.info */
     nlohmann::json user_data;
     /** Canonicalised request and associated signature */
@@ -35,19 +36,25 @@ namespace ccf
 
   struct VerifierCache
   {
-    SpinLock verifiers_lock;
-    std::unordered_map<tls::Pem, tls::VerifierPtr> verifiers;
+    static constexpr size_t DEFAULT_MAX_VERIFIERS = 50;
 
-    tls::VerifierPtr get_verifier(const tls::Pem& pem)
+    SpinLock verifiers_lock;
+    LRU<crypto::Pem, crypto::VerifierPtr> verifiers;
+
+    VerifierCache(size_t max_verifiers = DEFAULT_MAX_VERIFIERS) :
+      verifiers(max_verifiers)
+    {}
+
+    crypto::VerifierPtr get_verifier(const crypto::Pem& pem)
     {
       std::lock_guard<SpinLock> guard(verifiers_lock);
 
-      tls::VerifierPtr verifier = nullptr;
+      crypto::VerifierPtr verifier = nullptr;
 
       auto it = verifiers.find(pem);
       if (it == verifiers.end())
       {
-        it = verifiers.emplace_hint(it, pem, tls::make_verifier(pem));
+        it = verifiers.insert(pem, crypto::make_verifier(pem));
       }
 
       return it->second;
@@ -149,7 +156,7 @@ namespace ccf
   struct MemberSignatureAuthnIdentity : public AuthnIdentity
   {
     MemberId member_id;
-    tls::Pem member_cert;
+    crypto::Pem member_cert;
     nlohmann::json member_data;
     SignedReq signed_request;
     std::vector<uint8_t> request_digest;

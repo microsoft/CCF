@@ -11,24 +11,116 @@
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>
 
-namespace tls
+namespace crypto
 {
-  inline void OPENSSL_CHECK1(int rc)
+  namespace
   {
-    unsigned long ec = ERR_get_error();
-    if (rc != 1 && ec != 0)
+    inline void OPENSSL_CHECK1(int rc)
     {
-      throw std::runtime_error(
-        fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
+      unsigned long ec = ERR_get_error();
+      if (rc != 1 && ec != 0)
+      {
+        throw std::runtime_error(
+          fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
+      }
     }
-  }
 
-  inline void OPENSSL_CHECKNULL(void* ptr)
-  {
-    if (ptr == NULL)
+    inline void OPENSSL_CHECKNULL(void* ptr)
     {
-      throw std::runtime_error("OpenSSL error: missing object");
+      if (ptr == NULL)
+      {
+        throw std::runtime_error("OpenSSL error: missing object");
+      }
     }
+
+    class Unique_BIO
+    {
+      std::unique_ptr<BIO, void (*)(BIO*)> p;
+
+    public:
+      Unique_BIO() : p(BIO_new(BIO_s_mem()), [](auto x) { BIO_free(x); })
+      {
+        if (!p)
+          throw std::runtime_error("out of memory");
+      }
+      Unique_BIO(const void* buf, int len) :
+        p(BIO_new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
+      {
+        if (!p)
+          throw std::runtime_error("out of memory");
+      }
+      operator BIO*()
+      {
+        return p.get();
+      }
+    };
+
+    class Unique_EVP_PKEY_CTX
+    {
+      std::unique_ptr<EVP_PKEY_CTX, void (*)(EVP_PKEY_CTX*)> p;
+
+    public:
+      Unique_EVP_PKEY_CTX(EVP_PKEY* key) :
+        p(EVP_PKEY_CTX_new(key, NULL), EVP_PKEY_CTX_free)
+      {
+        if (!p)
+          throw std::runtime_error("out of memory");
+      }
+      Unique_EVP_PKEY_CTX() :
+        p(EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL), EVP_PKEY_CTX_free)
+      {
+        if (!p)
+          throw std::runtime_error("out of memory");
+      }
+      operator EVP_PKEY_CTX*()
+      {
+        return p.get();
+      }
+    };
+
+    class Unique_X509_REQ
+    {
+      std::unique_ptr<X509_REQ, void (*)(X509_REQ*)> p;
+
+    public:
+      Unique_X509_REQ() : p(X509_REQ_new(), X509_REQ_free)
+      {
+        if (!p)
+          throw std::runtime_error("out of memory");
+      }
+      Unique_X509_REQ(BIO* mem) :
+        p(PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL), X509_REQ_free)
+      {
+        if (!p)
+          throw std::runtime_error("out of memory");
+      }
+      operator X509_REQ*()
+      {
+        return p.get();
+      }
+    };
+
+    class Unique_X509
+    {
+      std::unique_ptr<X509, void (*)(X509*)> p;
+
+    public:
+      Unique_X509() : p(X509_new(), X509_free)
+      {
+        if (!p)
+          throw std::runtime_error("out of memory");
+      }
+      Unique_X509(BIO* mem) :
+        p(PEM_read_bio_X509(mem, NULL, NULL, NULL), X509_free)
+      {
+        if (!p)
+          throw std::runtime_error("out of memory");
+      }
+      operator X509*()
+      {
+        return p.get();
+      }
+    };
   }
 
   class PublicKey_OpenSSL : public PublicKeyBase
@@ -66,9 +158,8 @@ namespace tls
      */
     PublicKey_OpenSSL(const Pem& pem)
     {
-      BIO* mem = BIO_new_mem_buf(pem.data(), -1);
+      Unique_BIO mem(pem.data(), -1);
       key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
-      BIO_free(mem);
       if (!key)
         throw std::runtime_error("could not parse PEM");
     }
@@ -146,8 +237,7 @@ namespace tls
         md_type = get_md_for_ec(get_curve_id());
       }
 
-      EVP_PKEY_CTX* pctx = NULL;
-      OPENSSL_CHECKNULL(pctx = EVP_PKEY_CTX_new(key, NULL));
+      Unique_EVP_PKEY_CTX pctx(key);
       OPENSSL_CHECK1(EVP_PKEY_verify_init(pctx));
       if (md_type != MDType::NONE)
       {
@@ -155,7 +245,6 @@ namespace tls
           EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
       }
       int rc = EVP_PKEY_verify(pctx, sig, sig_size, hash, hash_size);
-      EVP_PKEY_CTX_free(pctx);
 
       bool ok = rc == 1;
       if (!ok)
@@ -174,24 +263,19 @@ namespace tls
      */
     virtual Pem public_key_pem() const override
     {
-      BIO* buf = BIO_new(BIO_s_mem());
-      if (!buf)
-        throw std::runtime_error("out of memory");
+      Unique_BIO buf;
 
       OPENSSL_CHECK1(PEM_write_bio_PUBKEY(buf, key));
 
       BUF_MEM* bptr;
       BIO_get_mem_ptr(buf, &bptr);
-      Pem result((uint8_t*)bptr->data, bptr->length);
-      BIO_free(buf);
-
-      return result;
+      return Pem((uint8_t*)bptr->data, bptr->length);
     }
 
-    // EVP_PKEY* get_raw_context() const
-    // {
-    //   return key;
-    // }
+    static std::string error_string(unsigned long ec)
+    {
+      return ERR_error_string(ec, NULL);
+    }
   };
 
   class KeyPair_OpenSSL : public PublicKey_OpenSSL, public KeyPairBase
@@ -241,7 +325,7 @@ namespace tls
     {
       int curve_nid = get_openssl_group_id(curve_id);
       key = EVP_PKEY_new();
-      EVP_PKEY_CTX* pkctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+      Unique_EVP_PKEY_CTX pkctx;
       if (
         EVP_PKEY_paramgen_init(pkctx) < 0 ||
         EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pkctx, curve_nid) < 0 ||
@@ -249,16 +333,14 @@ namespace tls
         throw std::runtime_error("could not initialize PK context");
       if (EVP_PKEY_keygen_init(pkctx) < 0 || EVP_PKEY_keygen(pkctx, &key) < 0)
         throw std::runtime_error("could not generate new EC key");
-      EVP_PKEY_CTX_free(pkctx);
     }
 
     KeyPair_OpenSSL(const KeyPair_OpenSSL&) = delete;
 
     KeyPair_OpenSSL(const Pem& pem, CBuffer pw = nullb)
     {
-      BIO* mem = BIO_new_mem_buf(pem.data(), -1);
+      Unique_BIO mem(pem.data(), -1);
       key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
-      BIO_free(mem);
       if (!key)
         throw std::runtime_error("could not parse PEM");
     }
@@ -279,19 +361,14 @@ namespace tls
      */
     virtual Pem private_key_pem() const override
     {
-      BIO* buf = BIO_new(BIO_s_mem());
-      if (!buf)
-        throw std::runtime_error("out of memory");
+      Unique_BIO buf;
 
       OPENSSL_CHECK1(
         PEM_write_bio_PrivateKey(buf, key, NULL, NULL, 0, NULL, NULL));
 
       BUF_MEM* bptr;
       BIO_get_mem_ptr(buf, &bptr);
-      Pem result((uint8_t*)bptr->data, bptr->length);
-      BIO_free(buf);
-
-      return result;
+      return Pem((uint8_t*)bptr->data, bptr->length);
     }
 
     /**
@@ -373,11 +450,9 @@ namespace tls
       size_t* sig_size,
       uint8_t* sig) const override
     {
-      EVP_PKEY_CTX* pctx = NULL;
-      OPENSSL_CHECKNULL(pctx = EVP_PKEY_CTX_new(key, NULL));
+      Unique_EVP_PKEY_CTX pctx(key);
       OPENSSL_CHECK1(EVP_PKEY_sign_init(pctx));
       OPENSSL_CHECK1(EVP_PKEY_sign(pctx, sig, sig_size, hash, hash_size));
-      EVP_PKEY_CTX_free(pctx);
       return 0;
     }
 
@@ -388,12 +463,7 @@ namespace tls
      */
     virtual Pem create_csr(const std::string& name) const override
     {
-      X509_REQ* req = NULL;
-
-      if (!(req = X509_REQ_new()))
-      {
-        throw std::runtime_error("failed to create X509_REQ object");
-      }
+      Unique_X509_REQ req;
 
       OPENSSL_CHECK1(X509_REQ_set_pubkey(req, key));
 
@@ -418,15 +488,12 @@ namespace tls
       if (key)
         OPENSSL_CHECK1(X509_REQ_sign(req, key, EVP_sha512()));
 
-      BIO* mem = BIO_new(BIO_s_mem());
+      Unique_BIO mem;
       OPENSSL_CHECK1(PEM_write_bio_X509_REQ(mem, req));
 
       BUF_MEM* bptr;
       BIO_get_mem_ptr(mem, &bptr);
       Pem result((uint8_t*)bptr->data, bptr->length);
-      BIO_free(mem);
-
-      X509_REQ_free(req);
 
       return result;
     }
@@ -438,14 +505,9 @@ namespace tls
       bool ca = false) const override
     {
       X509* icrt = NULL;
-      X509_REQ* csr = NULL;
-
-      BIO* mem = BIO_new_mem_buf(signing_request.data(), -1);
-      OPENSSL_CHECKNULL(csr = PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL));
-      BIO_free(mem);
-
-      X509* crt = NULL;
-      OPENSSL_CHECKNULL(crt = X509_new());
+      Unique_BIO mem(signing_request.data(), -1);
+      Unique_X509_REQ csr(mem);
+      Unique_X509 crt;
 
       OPENSSL_CHECK1(X509_set_version(crt, 2));
 
@@ -464,9 +526,8 @@ namespace tls
       // Add issuer name
       if (!issuer_cert.empty())
       {
-        mem = BIO_new_mem_buf(issuer_cert.data(), -1);
-        OPENSSL_CHECKNULL(icrt = PEM_read_bio_X509(mem, NULL, NULL, NULL));
-        BIO_free(mem);
+        Unique_BIO imem(issuer_cert.data(), -1);
+        OPENSSL_CHECKNULL(icrt = PEM_read_bio_X509(imem, NULL, NULL, NULL));
         OPENSSL_CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
       }
       else
@@ -556,17 +617,13 @@ namespace tls
       if (size <= 0)
         throw std::runtime_error("could not sign CRT");
 
-      mem = BIO_new(BIO_s_mem());
-      OPENSSL_CHECK1(PEM_write_bio_X509(mem, crt));
+      Unique_BIO omem;
+      OPENSSL_CHECK1(PEM_write_bio_X509(omem, crt));
 
       // Export
       BUF_MEM* bptr;
-      BIO_get_mem_ptr(mem, &bptr);
+      BIO_get_mem_ptr(omem, &bptr);
       Pem result((uint8_t*)bptr->data, bptr->length);
-      BIO_free(mem);
-
-      X509_REQ_free(csr);
-      X509_free(crt);
 
       if (icrt)
         X509_free(icrt);

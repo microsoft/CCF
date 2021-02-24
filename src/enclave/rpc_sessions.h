@@ -48,7 +48,7 @@ namespace enclave
       to_host = writer_factory.create_writer_to_outside();
     }
 
-    void set_cert(const tls::Pem& cert_, const tls::Pem& pk)
+    void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
       std::lock_guard<SpinLock> guard(lock);
 

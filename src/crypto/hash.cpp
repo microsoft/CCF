@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "hash.h"
 
-#include "../tls/mbedtls_wrappers.h"
+#include "mbedtls_wrappers.h"
 
 #include <mbedtls/sha256.h>
 #include <openssl/sha.h>

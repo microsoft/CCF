@@ -195,7 +195,7 @@ function(add_unit_test name)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
   target_link_libraries(
-    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehostverify
+    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
                     $<BUILD_INTERFACE:merklecpp> crypto
   )
   use_client_mbedtls(${name})
@@ -255,7 +255,11 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     set(SNMALLOC_LIB)
     set(SNMALLOC_CPP)
   else()
+
     set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
+    # Remove the following two lines once we upgrade to snmalloc 0.5.4
+    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+    set(USE_POSIX_COMMIT_CHECKS off)
     add_subdirectory(3rdparty/snmalloc EXCLUDE_FROM_ALL)
     set(SNMALLOC_LIB snmalloc_lib)
     set(SNMALLOC_CPP src/enclave/snmalloc.cpp)

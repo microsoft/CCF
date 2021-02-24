@@ -289,8 +289,8 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
 struct NewMember
 {
   MemberId id;
-  tls::KeyPairPtr kp = tls::make_key_pair();
-  tls::Pem cert;
+  crypto::KeyPairPtr kp = crypto::make_key_pair();
+  crypto::Pem cert;
 };
 
 DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
@@ -302,7 +302,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   constexpr auto max_members = 8;
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
@@ -524,7 +524,7 @@ DOCTEST_TEST_CASE("Accept node")
 {
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
@@ -533,7 +533,7 @@ DOCTEST_TEST_CASE("Accept node")
   gen.create_service({});
   ShareManager share_manager(network);
   StubNodeState node;
-  auto new_kp = tls::make_key_pair();
+  auto new_kp = crypto::make_key_pair();
 
   const auto member_0_cert = get_cert(0, new_kp);
   const auto member_1_cert = get_cert(1, kp);
@@ -735,7 +735,7 @@ ProposalInfo test_raw_writes(
   const int pro_votes = 1,
   bool explicit_proposer_vote = false)
 {
-  std::vector<tls::Pem> member_certs;
+  std::vector<crypto::Pem> member_certs;
   auto frontend =
     init_frontend(network, gen, node, share_manager, n_members, member_certs);
   frontend.open();
@@ -907,7 +907,7 @@ DOCTEST_TEST_CASE("Remove proposal")
 {
   NewMember caller;
   auto cert = caller.kp->self_sign("CN=new member");
-  auto v = tls::make_verifier(cert);
+  auto v = crypto::make_verifier(cert);
   caller.cert = v->cert_pem();
 
   NetworkState network;
@@ -1116,7 +1116,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     const auto uid = tx1.rw(network.values)->get(ValueIds::NEXT_USER_ID);
     DOCTEST_CHECK(uid);
     DOCTEST_CHECK(*uid == 1);
-    user_der = tls::make_verifier(user_cert)->cert_der();
+    user_der = crypto::make_verifier(user_cert)->cert_der();
     const auto uid1 = tx1.rw(network.user_certs)->get(user_der);
     DOCTEST_CHECK(uid1);
     DOCTEST_CHECK(*uid1 == 0);
@@ -1183,7 +1183,7 @@ DOCTEST_TEST_CASE(
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, tls::Pem> members;
+  std::map<size_t, crypto::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert(i, kp);
@@ -1224,7 +1224,9 @@ DOCTEST_TEST_CASE(
     const auto propose =
       create_signed_request(proposal, "proposals", kp, members[proposer_id]);
     const auto r = parse_response_body<Propose::Out>(frontend_process(
-      frontend, propose, tls::make_verifier(members[proposer_id])->cert_der()));
+      frontend,
+      propose,
+      crypto::make_verifier(members[proposer_id])->cert_der()));
 
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
 
@@ -1299,14 +1301,14 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   // and gets it through without member votes
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  auto new_kp = tls::make_key_pair();
+  auto new_kp = crypto::make_key_pair();
   auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni;
   ni.cert = new_ca;
@@ -1319,7 +1321,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, tls::Pem> members;
+  std::map<size_t, crypto::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert(i, kp);
@@ -1381,7 +1383,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     DOCTEST_CHECK(proposer_vote == votes.end());
   }
 
-  auto new_operator_kp = tls::make_key_pair();
+  auto new_operator_kp = crypto::make_key_pair();
   const auto new_operator_cert = get_cert(42, new_operator_kp);
 
   {
@@ -1434,7 +1436,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   {
     DOCTEST_INFO("New operator cannot add non-operator member");
 
-    auto new_member_kp = tls::make_key_pair();
+    auto new_member_kp = crypto::make_key_pair();
     const auto new_member_cert = get_cert(100, new_member_kp);
 
     Propose::In proposal;
@@ -1481,14 +1483,14 @@ DOCTEST_TEST_CASE(
   // A majority of members pass the vote
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  auto new_kp = tls::make_key_pair();
+  auto new_kp = crypto::make_key_pair();
   auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni;
   ni.cert = new_ca;
@@ -1500,7 +1502,7 @@ DOCTEST_TEST_CASE(
   gen.activate_member(proposer_id);
 
   // Non-operating members
-  std::map<size_t, tls::Pem> members;
+  std::map<size_t, crypto::Pem> members;
   for (size_t i = 1; i < 3; i++)
   {
     auto cert = get_cert(i, kp);
@@ -1752,13 +1754,13 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 {
   NetworkState network;
   NodeId node_id = 0;
-  network.ledger_secrets = std::make_shared<LedgerSecrets>(node_id);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
 
   ShareManager share_manager(network);
   StubRecoverableNodeState node(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
-  std::map<size_t, std::pair<tls::Pem, tls::RSAKeyPairPtr>> members;
+  std::map<size_t, std::pair<crypto::Pem, crypto::RSAKeyPairPtr>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 2;
@@ -1775,7 +1777,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     for (size_t i = 0; i < members_count; i++)
     {
       auto cert = get_cert(i, kp);
-      auto enc_kp = tls::make_rsa_key_pair();
+      auto enc_kp = crypto::make_rsa_key_pair();
 
       auto id = gen.add_member({cert, enc_kp->public_key_pem()});
       gen.activate_member(id);
@@ -1916,7 +1918,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  std::map<size_t, tls::Pem> members;
+  std::map<size_t, crypto::Pem> members;
 
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
@@ -1980,7 +1982,7 @@ DOCTEST_TEST_CASE("Open network sequence")
   ShareManager share_manager(network);
   StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
-  std::map<size_t, std::pair<tls::Pem, std::vector<uint8_t>>> members;
+  std::map<size_t, std::pair<crypto::Pem, std::vector<uint8_t>>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 100;

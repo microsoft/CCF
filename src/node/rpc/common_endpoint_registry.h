@@ -65,6 +65,8 @@ namespace ccf
           get_status_for_txid_v1(in.view, in.seqno, out.status);
         if (result == ccf::ApiResult::OK)
         {
+          out.view = in.view;
+          out.seqno = in.seqno;
           return make_success(out);
         }
         else
@@ -98,7 +100,7 @@ namespace ccf
           const GetCallerId::In in = params;
           auto certs = args.tx.template ro<CertDERs>(certs_table_name);
           std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
-          std::vector<uint8_t> der = tls::make_verifier(pem)->cert_der();
+          std::vector<uint8_t> der = crypto::make_verifier(pem)->cert_der();
           auto caller_id_opt = certs->get(der);
 
           if (!caller_id_opt.has_value())

@@ -10,7 +10,7 @@ namespace kv
   class NullTxEncryptor : public AbstractTxEncryptor
   {
   public:
-    void encrypt(
+    bool encrypt(
       const std::vector<uint8_t>& plain,
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
@@ -19,6 +19,7 @@ namespace kv
       bool is_snapshot = false) override
     {
       cipher = plain;
+      return true;
     }
 
     bool decrypt(

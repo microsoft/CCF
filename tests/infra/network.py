@@ -489,6 +489,10 @@ class Network:
         self.ignoring_shutdown_errors = True
 
     def stop_all_nodes(self):
+        # Verify that all txs committed on the service can be read
+        if self.txs is not None:
+            self.txs.verify(self)
+
         fatal_error_found = False
         longest_ledger_seqno = 0
         most_up_to_date_node = None

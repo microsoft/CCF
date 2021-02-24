@@ -309,7 +309,7 @@ int main(int argc, char** argv)
       "--sn", subject_name, "Subject Name in node certificate, eg. CN=CCF Node")
     ->capture_default_str();
 
-  std::vector<tls::SubjectAltName> subject_alternative_names;
+  std::vector<crypto::SubjectAltName> subject_alternative_names;
   cli::add_subject_alternative_name_option(
     app,
     subject_alternative_names,

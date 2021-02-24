@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "crypto/key_pair.h"
 #include "ds/nonstd.h"
 #include "frontend.h"
 #include "js/wrap.h"
@@ -15,7 +16,6 @@
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "tls/base64.h"
-#include "tls/key_pair.h"
 #include "node/gov.h"
 
 #include <charconv>
@@ -454,7 +454,7 @@ namespace ccf
         {
           try
           {
-            tls::check_is_cert(der);
+            crypto::check_is_cert(der);
           }
           catch (std::invalid_argument& exc)
           {
@@ -691,7 +691,7 @@ namespace ccf
            std::vector<uint8_t> cert_der;
            try
            {
-             cert_der = tls::cert_pem_to_der(parsed.cert);
+             cert_der = crypto::cert_pem_to_der(parsed.cert);
            }
            catch (const std::invalid_argument& e)
            {
@@ -1981,7 +1981,7 @@ namespace ccf
 
         auto primary_cert_pem = info.value().cert;
         auto cert_der = ctx.rpc_ctx->session->caller_cert;
-        auto caller_cert_pem = tls::cert_der_to_pem(cert_der);
+        auto caller_cert_pem = crypto::cert_der_to_pem(cert_der);
         if (caller_cert_pem != primary_cert_pem)
         {
           LOG_FAIL_FMT(

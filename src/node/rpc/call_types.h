@@ -35,6 +35,8 @@ namespace ccf
 
     struct Out
     {
+      kv::Consensus::View view;
+      kv::Consensus::SeqNo seqno;
       TxStatus status;
     };
   };

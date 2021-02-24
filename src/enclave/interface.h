@@ -6,6 +6,8 @@
 
 #include "consensus/consensus_types.h"
 #include "consensus_type.h"
+#include "crypto/curve.h"
+#include "crypto/san.h"
 #include "ds/buffer.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
@@ -14,8 +16,6 @@
 #include "node/members.h"
 #include "node/node_info_network.h"
 #include "start_type.h"
-#include "tls/curve.h"
-#include "tls/san.h"
 #include "tls/tls.h"
 
 #include <chrono>
@@ -41,7 +41,7 @@ struct EnclaveConfig
 #endif
 };
 
-MSGPACK_ADD_ENUM(tls::CurveID);
+MSGPACK_ADD_ENUM(crypto::CurveID);
 
 struct CCFConfig
 {
@@ -83,11 +83,11 @@ struct CCFConfig
   Joining joining = {};
 
   std::string subject_name;
-  std::vector<tls::SubjectAltName> subject_alternative_names;
+  std::vector<crypto::SubjectAltName> subject_alternative_names;
 
   size_t jwt_key_refresh_interval_s;
 
-  tls::CurveID curve_id;
+  crypto::CurveID curve_id;
 
   MSGPACK_DEFINE(
     consensus_config,

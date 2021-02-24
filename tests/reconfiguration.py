@@ -71,8 +71,6 @@ def test_add_node_from_backup(network, args):
     return network
 
 
-# Note: this test cannot be included in the full test suite yet as
-# add_from_snapshot() decorator makes use of historical queries (#1648)
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
 @reqs.add_from_snapshot()
