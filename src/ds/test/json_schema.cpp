@@ -446,8 +446,10 @@ namespace renamed
     size_t c;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Foo)
-  DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(Foo, x, X, y, SOMETHING_ELSE, z, z)
-  DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(Foo, a, A, b, OTHER_NAME, c, c)
+  DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
+    Foo, x, "X", y, "SOMETHING_ELSE", z, "z-z!?(),;")
+  DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
+    Foo, a, "A", b, "OTHER_NAME", c, "c")
 }
 
 TEST_CASE("JSON with different field names")
@@ -457,7 +459,8 @@ TEST_CASE("JSON with different field names")
   const auto& properties = schema["properties"];
   const auto& required = schema["required"];
 
-  std::vector<char const*> required_json_fields{"X", "SOMETHING_ELSE", "z"};
+  std::vector<char const*> required_json_fields{
+    "X", "SOMETHING_ELSE", "z-z!?(),;"};
   for (const auto s : required_json_fields)
   {
     REQUIRE(properties.find(s) != properties.end());
@@ -482,7 +485,7 @@ TEST_CASE("JSON with different field names")
   const nlohmann::json j = foo;
   REQUIRE(j["X"] == foo.x);
   REQUIRE(j["SOMETHING_ELSE"] == foo.y);
-  REQUIRE(j["z"] == foo.z);
+  REQUIRE(j["z-z!?(),;"] == foo.z);
   REQUIRE(j["A"] == foo.a);
   REQUIRE(j["OTHER_NAME"] == foo.b);
   REQUIRE(j["c"] == foo.c);

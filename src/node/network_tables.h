@@ -35,6 +35,21 @@
 
 namespace ccf
 {
+  inline std::shared_ptr<kv::Store> make_store(
+    const ConsensusType& consensus_type)
+  {
+    if (consensus_type == ConsensusType::CFT)
+    {
+      return std::make_shared<kv::Store>(
+        aft::replicate_type_raft, aft::replicated_tables_raft);
+    }
+    else
+    {
+      return std::make_shared<kv::Store>(
+        aft::replicate_type_bft, aft::replicated_tables_bft);
+    }
+  }
+
   struct NetworkTables
   {
     std::shared_ptr<kv::Store> tables;
@@ -103,12 +118,7 @@ namespace ccf
     NewViewsMap new_views_map;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
-      tables(
-        (consensus_type == ConsensusType::CFT) ?
-          std::make_shared<kv::Store>(
-            aft::replicate_type_raft, aft::replicated_tables_raft) :
-          std::make_shared<kv::Store>(
-            aft::replicate_type_bft, aft::replicated_tables_bft)),
+      tables(make_store(consensus_type)),
       members(Tables::MEMBERS),
       member_certs(Tables::MEMBER_CERT_DERS),
       member_digests(Tables::MEMBER_DIGESTS),

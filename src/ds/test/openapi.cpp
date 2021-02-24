@@ -143,9 +143,9 @@ struct Buzz : public Baz
 };
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Buzz, Baz);
 DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
-  Buzz, required_and_only_in_c, RequiredJsonField);
+  Buzz, required_and_only_in_c, "RequiredJsonField");
 DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
-  Buzz, optional_and_only_in_c, OptionalJsonField);
+  Buzz, optional_and_only_in_c, "OptionalJsonField");
 
 TEST_CASE("Complex custom types")
 {
