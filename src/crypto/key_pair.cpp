@@ -3,8 +3,10 @@
 
 #include "key_pair.h"
 
-#include "key_pair_mbedtls.h"
-#include "key_pair_openssl.h"
+#include "mbedtls/key_pair.h"
+#include "mbedtls/public_key.h"
+#include "openssl/key_pair.h"
+#include "openssl/public_key.h"
 
 #include <cstring>
 #include <iomanip>

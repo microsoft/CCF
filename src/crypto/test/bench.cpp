@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "crypto/key_pair.h"
-#include "crypto/key_pair_mbedtls.h"
-#include "crypto/key_pair_openssl.h"
+#include "crypto/mbedtls/key_pair.h"
+#include "crypto/openssl/key_pair.h"
 
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>

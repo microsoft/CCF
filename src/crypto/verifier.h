@@ -2,13 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "curve.h"
 #include "hash.h"
 #include "key_pair.h"
-#include "mbedtls_wrappers.h"
 #include "pem.h"
-
-#include <openssl/x509.h>
+#include "public_key.h"
 
 namespace crypto
 {
@@ -118,39 +115,6 @@ namespace crypto
     {
       return public_key->public_key_pem();
     }
-  };
-
-  class Verifier_mbedTLS : public Verifier
-  {
-  protected:
-    mutable mbedtls::X509Crt cert;
-
-    MDType get_md_type(mbedtls_md_type_t mdt) const;
-
-  public:
-    Verifier_mbedTLS(const std::vector<uint8_t>& c);
-    Verifier_mbedTLS(const Verifier_mbedTLS&) = delete;
-    virtual ~Verifier_mbedTLS() = default;
-
-    virtual std::vector<uint8_t> cert_der() override;
-    virtual Pem cert_pem() override;
-  };
-
-  class Verifier_OpenSSL : public Verifier
-  {
-  protected:
-    mutable X509* cert;
-
-    MDType get_md_type(int mdt) const;
-
-  public:
-    Verifier_OpenSSL(const std::vector<uint8_t>& c);
-    Verifier_OpenSSL(Verifier_OpenSSL&& v) = default;
-    Verifier_OpenSSL(const Verifier_OpenSSL&) = delete;
-    virtual ~Verifier_OpenSSL();
-
-    virtual std::vector<uint8_t> cert_der() override;
-    virtual Pem cert_pem() override;
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;

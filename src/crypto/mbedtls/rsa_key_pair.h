@@ -2,9 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "key_pair_mbedtls.h"
+#include "crypto/rsa_key_pair.h"
+
+#include "crypto/key_pair.h"
+#include "crypto/mbedtls/public_key.h"
 #include "mbedtls_wrappers.h"
-#include "rsa_key_pair.h"
 
 #include <optional>
 #include <vector>

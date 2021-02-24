@@ -1,13 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "crypto/entropy.h"
 #include "crypto/key_pair.h"
-#include "crypto/key_pair_mbedtls.h"
-#include "crypto/key_pair_openssl.h"
+#include "crypto/mbedtls/entropy.h"
+#include "crypto/mbedtls/key_pair.h"
+#include "crypto/mbedtls/rsa_key_pair.h"
+#include "crypto/mbedtls/verifier.h"
+#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/rsa_key_pair.h"
+#include "crypto/openssl/verifier.h"
 #include "crypto/rsa_key_pair.h"
-#include "crypto/rsa_key_pair_mbedtls.h"
-#include "crypto/rsa_key_pair_openssl.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "tls/base64.h"
@@ -380,15 +382,15 @@ static const vector<uint8_t>& getRawKey()
 
 TEST_CASE("ExtendedIv0")
 {
-  KeyAesGcm k(getRawKey());
+  auto k = crypto::make_key_aes_gcm(getRawKey());
   // setup plain text
   unsigned char rawP[100];
   memset(rawP, 'x', sizeof(rawP));
   Buffer p{rawP, sizeof(rawP)};
   // test large IV
   GcmHeader<1234> h;
-  k.encrypt(h.get_iv(), p, nullb, p.p, h.tag);
+  k->encrypt(h.get_iv(), p, nullb, p.p, h.tag);
 
-  KeyAesGcm k2(getRawKey());
-  REQUIRE(k2.decrypt(h.get_iv(), h.tag, p, nullb, p.p));
+  auto k2 = crypto::make_key_aes_gcm(getRawKey());
+  REQUIRE(k2->decrypt(h.get_iv(), h.tag, p, nullb, p.p));
 }

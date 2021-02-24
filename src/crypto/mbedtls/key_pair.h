@@ -2,51 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "key_pair.h"
+#include "../key_pair.h"
+
+#include "../san.h"
 #include "mbedtls_wrappers.h"
-#include "san.h"
+#include "public_key.h"
 
 namespace crypto
 {
-  class PublicKey_mbedTLS : public PublicKey
-  {
-  protected:
-    mbedtls::PKContext ctx = mbedtls::make_unique<mbedtls::PKContext>();
-    PublicKey_mbedTLS();
-    CurveID get_curve_id() const;
-
-  public:
-    PublicKey_mbedTLS(PublicKey_mbedTLS&& pk) = default;
-    PublicKey_mbedTLS(mbedtls::PKContext&& c);
-    PublicKey_mbedTLS(const Pem& pem);
-    PublicKey_mbedTLS(const std::vector<uint8_t>& der);
-    virtual ~PublicKey_mbedTLS() = default;
-
-    using PublicKey::verify;
-    using PublicKey::verify_hash;
-
-    virtual bool verify(
-      const uint8_t* contents,
-      size_t contents_size,
-      const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type,
-      HashBytes& bytes) override;
-
-    virtual bool verify_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      const uint8_t* sig,
-      size_t sig_size,
-      MDType md_type) override;
-
-    virtual Pem public_key_pem() const override;
-
-    mbedtls_pk_context* get_raw_context() const;
-
-    static std::string error_string(int err);
-  };
-
   class KeyPair_mbedTLS : public PublicKey_mbedTLS, public KeyPair
   {
   public:

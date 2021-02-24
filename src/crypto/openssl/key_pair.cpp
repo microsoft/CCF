@@ -1,7 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "key_pair_openssl.h"
+#include "key_pair.h"
+
+#include "crypto/curve.h"
+#include "hash.h"
+#include "openssl_wrappers.h"
 
 #include <openssl/ec.h>
 #include <openssl/engine.h>
@@ -14,134 +18,7 @@
 
 namespace crypto
 {
-  PublicKey_OpenSSL::PublicKey_OpenSSL() {}
-
-  static inline const EVP_MD* get_md_type(MDType mdt)
-  {
-    switch (mdt)
-    {
-      case MDType::NONE:
-        return nullptr;
-      case MDType::SHA1:
-        return EVP_sha1();
-      case MDType::SHA256:
-        return EVP_sha256();
-      case MDType::SHA384:
-        return EVP_sha384();
-      case MDType::SHA512:
-        return EVP_sha512();
-      default:
-        return nullptr;
-    }
-    return nullptr;
-  }
-
-  PublicKey_OpenSSL::PublicKey_OpenSSL(const Pem& pem)
-  {
-    Unique_BIO mem(pem.data(), -1);
-    key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
-    if (!key)
-      throw std::runtime_error("could not parse PEM");
-  }
-
-  PublicKey_OpenSSL::PublicKey_OpenSSL(const std::vector<uint8_t>& der)
-  {
-    const unsigned char* pp = der.data();
-    key = d2i_PublicKey(EVP_PKEY_EC, &key, &pp, der.size());
-    if (!key)
-    {
-      throw new std::runtime_error("Could not read DER");
-    }
-  }
-
-  PublicKey_OpenSSL::PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
-
-  PublicKey_OpenSSL::~PublicKey_OpenSSL()
-  {
-    if (key)
-      EVP_PKEY_free(key);
-  }
-
-  CurveID PublicKey_OpenSSL::get_curve_id() const
-  {
-    int nid =
-      EC_GROUP_get_curve_name(EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(key)));
-    switch (nid)
-    {
-      case NID_secp384r1:
-        return CurveID::SECP384R1;
-      case NID_X9_62_prime256v1:
-        return CurveID::SECP256R1;
-      default:
-        throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
-    }
-    return CurveID::NONE;
-  }
-
-  bool PublicKey_OpenSSL::verify(
-    const uint8_t* contents,
-    size_t contents_size,
-    const uint8_t* sig,
-    size_t sig_size,
-    MDType md_type,
-    HashBytes& bytes)
-  {
-    if (md_type == MDType::NONE)
-    {
-      md_type = get_md_for_ec(get_curve_id());
-    }
-    OpenSSLHashProvider hp;
-    bytes = hp.Hash(contents, contents_size, md_type);
-    return verify_hash(bytes.data(), bytes.size(), sig, sig_size, md_type);
-  }
-
-  bool PublicKey_OpenSSL::verify_hash(
-    const uint8_t* hash,
-    size_t hash_size,
-    const uint8_t* sig,
-    size_t sig_size,
-    MDType md_type)
-  {
-    if (md_type == MDType::NONE)
-    {
-      md_type = get_md_for_ec(get_curve_id());
-    }
-
-    Unique_EVP_PKEY_CTX pctx(key);
-    OPENSSL_CHECK1(EVP_PKEY_verify_init(pctx));
-    if (md_type != MDType::NONE)
-    {
-      OPENSSL_CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
-    }
-    int rc = EVP_PKEY_verify(pctx, sig, sig_size, hash, hash_size);
-
-    bool ok = rc == 1;
-    if (!ok)
-    {
-      int ec = ERR_get_error();
-      LOG_DEBUG_FMT(
-        "OpenSSL signature verification failure: {}",
-        ERR_error_string(ec, NULL));
-    }
-
-    return ok;
-  }
-
-  Pem PublicKey_OpenSSL::public_key_pem() const
-  {
-    Unique_BIO buf;
-
-    OPENSSL_CHECK1(PEM_write_bio_PUBKEY(buf, key));
-
-    BUF_MEM* bptr;
-    BIO_get_mem_ptr(buf, &bptr);
-    return Pem((uint8_t*)bptr->data, bptr->length);
-  }
-
-  std::string PublicKey_OpenSSL::error_string(int ec)
-  {
-    return ERR_error_string((unsigned long)ec, NULL);
-  }
+  using namespace OpenSSL;
 
   static inline int get_openssl_group_id(CurveID gid)
   {
@@ -205,7 +82,7 @@ namespace crypto
   {
     Unique_BIO buf;
 
-    OPENSSL_CHECK1(
+    OpenSSL::CHECK1(
       PEM_write_bio_PrivateKey(buf, key, NULL, NULL, 0, NULL, NULL));
 
     BUF_MEM* bptr;
@@ -266,8 +143,8 @@ namespace crypto
     const uint8_t* hash, size_t hash_size, size_t* sig_size, uint8_t* sig) const
   {
     Unique_EVP_PKEY_CTX pctx(key);
-    OPENSSL_CHECK1(EVP_PKEY_sign_init(pctx));
-    OPENSSL_CHECK1(EVP_PKEY_sign(pctx, sig, sig_size, hash, hash_size));
+    OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));
+    OpenSSL::CHECK1(EVP_PKEY_sign(pctx, sig, sig_size, hash, hash_size));
     return 0;
   }
 
@@ -275,14 +152,14 @@ namespace crypto
   {
     Unique_X509_REQ req;
 
-    OPENSSL_CHECK1(X509_REQ_set_pubkey(req, key));
+    OpenSSL::CHECK1(X509_REQ_set_pubkey(req, key));
 
     X509_NAME* subj_name = NULL;
-    OPENSSL_CHECKNULL(subj_name = X509_NAME_new());
+    OpenSSL::CHECKNULL(subj_name = X509_NAME_new());
 
     for (auto kv : parse_name(name))
     {
-      OPENSSL_CHECK1(X509_NAME_add_entry_by_txt(
+      OpenSSL::CHECK1(X509_NAME_add_entry_by_txt(
         subj_name,
         kv.first.c_str(),
         MBSTRING_ASC,
@@ -292,14 +169,14 @@ namespace crypto
         0));
     }
 
-    OPENSSL_CHECK1(X509_REQ_set_subject_name(req, subj_name));
+    OpenSSL::CHECK1(X509_REQ_set_subject_name(req, subj_name));
     X509_NAME_free(subj_name);
 
     if (key)
-      OPENSSL_CHECK1(X509_REQ_sign(req, key, EVP_sha512()));
+      OpenSSL::CHECK1(X509_REQ_sign(req, key, EVP_sha512()));
 
     Unique_BIO mem;
-    OPENSSL_CHECK1(PEM_write_bio_X509_REQ(mem, req));
+    OpenSSL::CHECK1(PEM_write_bio_X509_REQ(mem, req));
 
     BUF_MEM* bptr;
     BIO_get_mem_ptr(mem, &bptr);
@@ -319,17 +196,17 @@ namespace crypto
     Unique_X509_REQ csr(mem);
     Unique_X509 crt;
 
-    OPENSSL_CHECK1(X509_set_version(crt, 2));
+    OpenSSL::CHECK1(X509_set_version(crt, 2));
 
     // Add serial number
     unsigned char rndbytes[16];
-    OPENSSL_CHECK1(RAND_bytes(rndbytes, sizeof(rndbytes)));
+    OpenSSL::CHECK1(RAND_bytes(rndbytes, sizeof(rndbytes)));
     BIGNUM* bn = NULL;
-    OPENSSL_CHECKNULL(bn = BN_new());
+    OpenSSL::CHECKNULL(bn = BN_new());
     BN_bin2bn(rndbytes, sizeof(rndbytes), bn);
     ASN1_INTEGER* serial = ASN1_INTEGER_new();
     BN_to_ASN1_INTEGER(bn, serial);
-    OPENSSL_CHECK1(X509_set_serialNumber(crt, serial));
+    OpenSSL::CHECK1(X509_set_serialNumber(crt, serial));
     ASN1_INTEGER_free(serial);
     BN_free(bn);
 
@@ -337,21 +214,22 @@ namespace crypto
     if (!issuer_cert.empty())
     {
       Unique_BIO imem(issuer_cert.data(), -1);
-      OPENSSL_CHECKNULL(icrt = PEM_read_bio_X509(imem, NULL, NULL, NULL));
-      OPENSSL_CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
+      OpenSSL::CHECKNULL(icrt = PEM_read_bio_X509(imem, NULL, NULL, NULL));
+      OpenSSL::CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
     }
     else
     {
-      OPENSSL_CHECK1(X509_set_issuer_name(crt, X509_REQ_get_subject_name(csr)));
+      OpenSSL::CHECK1(
+        X509_set_issuer_name(crt, X509_REQ_get_subject_name(csr)));
     }
 
     // Note: 825-day validity range
     // https://support.apple.com/en-us/HT210176
     ASN1_TIME *before = NULL, *after = NULL;
-    OPENSSL_CHECKNULL(before = ASN1_TIME_new());
-    OPENSSL_CHECKNULL(after = ASN1_TIME_new());
-    OPENSSL_CHECK1(ASN1_TIME_set_string(before, "20191101000000Z"));
-    OPENSSL_CHECK1(ASN1_TIME_set_string(after, "20211231235959Z"));
+    OpenSSL::CHECKNULL(before = ASN1_TIME_new());
+    OpenSSL::CHECKNULL(after = ASN1_TIME_new());
+    OpenSSL::CHECK1(ASN1_TIME_set_string(before, "20191101000000Z"));
+    OpenSSL::CHECK1(ASN1_TIME_set_string(after, "20211231235959Z"));
     X509_set1_notBefore(crt, before);
     X509_set1_notAfter(crt, after);
     ASN1_TIME_free(before);
@@ -369,24 +247,24 @@ namespace crypto
 
     // Add basic constraints
     X509_EXTENSION* ext = NULL;
-    OPENSSL_CHECKNULL(
+    OpenSSL::CHECKNULL(
       ext = X509V3_EXT_conf_nid(
         NULL, &v3ctx, NID_basic_constraints, ca ? "CA:TRUE" : "CA:FALSE"));
-    OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
+    OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
     X509_EXTENSION_free(ext);
 
     // Add subject key identifier
-    OPENSSL_CHECKNULL(
+    OpenSSL::CHECKNULL(
       ext =
         X509V3_EXT_conf_nid(NULL, &v3ctx, NID_subject_key_identifier, "hash"));
-    OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
+    OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
     X509_EXTENSION_free(ext);
 
     // Add authority key identifier
-    OPENSSL_CHECKNULL(
+    OpenSSL::CHECKNULL(
       ext = X509V3_EXT_conf_nid(
         NULL, &v3ctx, NID_authority_key_identifier, "keyid:always"));
-    OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
+    OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
     X509_EXTENSION_free(ext);
 
     // Subject alternative names (Necessary? Shouldn't they be in the CSR?)
@@ -413,10 +291,10 @@ namespace crypto
         all_alt_names += san.san;
       }
 
-      OPENSSL_CHECKNULL(
+      OpenSSL::CHECKNULL(
         ext = X509V3_EXT_conf_nid(
           NULL, &v3ctx, NID_subject_alt_name, all_alt_names.c_str()));
-      OPENSSL_CHECK1(X509_add_ext(crt, ext, -1));
+      OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
       X509_EXTENSION_free(ext);
     }
 
@@ -427,7 +305,7 @@ namespace crypto
       throw std::runtime_error("could not sign CRT");
 
     Unique_BIO omem;
-    OPENSSL_CHECK1(PEM_write_bio_X509(omem, crt));
+    OpenSSL::CHECK1(PEM_write_bio_X509(omem, crt));
 
     // Export
     BUF_MEM* bptr;

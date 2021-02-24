@@ -3,12 +3,14 @@
 #pragma once
 
 #include "ca.h"
-#include "crypto/mbedtls_wrappers.h"
+#include "crypto/mbedtls/mbedtls_wrappers.h"
 #include "error_string.h"
 
 #include <cstring>
 #include <memory>
 #include <optional>
+
+using namespace crypto;
 
 namespace tls
 {
