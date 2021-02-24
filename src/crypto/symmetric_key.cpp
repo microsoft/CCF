@@ -11,10 +11,6 @@ namespace crypto
 
   std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey)
   {
-#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
     return std::make_unique<KeyAesGcm_mbedTLS>(rawKey);
-#else
-    return std::make_unique<KeyAesGcm_OpenSSL>(rawKey);
-#endif
   }
 }
