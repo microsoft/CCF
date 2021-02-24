@@ -84,7 +84,9 @@ namespace enclave
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map, consensus_type_)),
       context(ccf::historical::StateCache(
-        network, writer_factory.create_writer_to_outside()))
+        *network.tables,
+        network.ledger_secrets,
+        writer_factory.create_writer_to_outside()))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();

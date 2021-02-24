@@ -405,7 +405,7 @@ namespace ccf::historical
     {
       auto [earliest_ledger_secret_idx, earliest_ledger_secret] =
         get_earliest_known_ledger_secret();
-      if (idx < earliest_ledger_secret_idx)
+      if (idx < static_cast<consensus::Index>(earliest_ledger_secret_idx))
       {
         // Still need more secrets, fetch the next
         auto previous_secret_stored_version =
@@ -453,7 +453,7 @@ namespace ccf::historical
           // Handle it, hopefully extending earliest_known_ledger_secret to
           // cover earlier entries
           const auto valid_secret = handle_encrypted_past_ledger_secret(
-            store, idx, std::move(request.ledger_secret_recovery_info));
+            store, std::move(request.ledger_secret_recovery_info));
           if (!valid_secret)
           {
             // Invalid! Erase this request: host gave us junk, need to start
@@ -545,7 +545,6 @@ namespace ccf::historical
 
     bool handle_encrypted_past_ledger_secret(
       const StorePtr& store,
-      consensus::Index idx,
       std::unique_ptr<LedgerSecretRecoveryInfo> ledger_secret_recovery_info)
     {
       // Read encrypted secrets from store
@@ -760,7 +759,9 @@ namespace ccf::historical
 
       // If this is older than the node's currently known ledger secrets, use
       // the historical encryptor (which should have older secrets)
-      if (idx < source_ledger_secrets->get_first().first)
+      if (
+        idx <
+        static_cast<consensus::Index>(source_ledger_secrets->get_first().first))
       {
         store->set_encryptor(historical_encryptor);
       }
