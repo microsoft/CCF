@@ -3,8 +3,6 @@
 import os
 import tempfile
 import http
-from cryptography import x509
-import cryptography.hazmat.backends as crypto_backends
 import infra.network
 import infra.path
 import infra.proc
