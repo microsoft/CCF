@@ -237,11 +237,19 @@
       },
       "GetTxStatus__Out": {
         "properties": {
+          "seqno": {
+            "$ref": "#/components/schemas/int64"
+          },
           "status": {
             "$ref": "#/components/schemas/TxStatus"
+          },
+          "view": {
+            "$ref": "#/components/schemas/int64"
           }
         },
         "required": [
+          "view",
+          "seqno",
           "status"
         ],
         "type": "object"

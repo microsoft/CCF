@@ -66,7 +66,7 @@ namespace ccf
   DECLARE_JSON_TYPE(GetTxStatus::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::In, view, seqno)
   DECLARE_JSON_TYPE(GetTxStatus::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, status)
+  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, view, seqno, status)
 
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
