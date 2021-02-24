@@ -141,15 +141,16 @@ namespace crypto
   std::vector<uint8_t> KeyPair_mbedTLS::sign_hash(
     const uint8_t* hash, size_t hash_size) const
   {
-    uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
+    std::vector<uint8_t> sig(MBEDTLS_ECDSA_MAX_LEN);
     size_t written = sizeof(sig);
 
-    if (sign_hash(hash, hash_size, &written, sig) != 0)
+    if (sign_hash(hash, hash_size, &written, sig.data()) != 0)
     {
       return {};
     }
 
-    return {sig, sig + written};
+    sig.resize(written);
+    return sig;
   }
 
   int KeyPair_mbedTLS::sign_hash(
