@@ -103,12 +103,10 @@ namespace ccf::historical
         }
       }
 
-      // Use session ID as request handle - so each session gets a single active
-      // historic query (potentially over a range). Do not drop these explicitly
-      // - maintain them for repeated requests and allow them to expire after
-      // idle time
-      const auto historic_request_handle =
-        args.rpc_ctx->session->client_session_id;
+      // We need a handle to determine whether this request is the 'same' as a
+      // previous one. For simplicity we use target_seqno. This means we keep a
+      // lot of state around for old requests! It should be cleaned up manually
+      const auto historic_request_handle = target_seqno;
 
       // Get a store at the target version from the cache, if it is present
       auto historical_store =
