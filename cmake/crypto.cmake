@@ -15,6 +15,8 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/openssl/key_pair.cpp
     ${CCF_DIR}/src/crypto/mbedtls/hash.cpp
     ${CCF_DIR}/src/crypto/openssl/hash.cpp
+    ${CCF_DIR}/src/crypto/mbedtls/rsa_public_key.cpp
+    ${CCF_DIR}/src/crypto/openssl/rsa_public_key.cpp
     ${CCF_DIR}/src/crypto/mbedtls/rsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/openssl/rsa_key_pair.cpp
     ${CCF_DIR}/src/crypto/mbedtls/verifier.cpp
