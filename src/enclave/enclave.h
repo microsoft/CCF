@@ -85,7 +85,7 @@ namespace enclave
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map, consensus_type_))
-      {
+    {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
@@ -307,7 +307,8 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context->historical_state_cache.handle_ledger_entry(index, body);
+                context->historical_state_cache.handle_ledger_entry(
+                  index, body);
                 break;
               }
               default:

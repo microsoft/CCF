@@ -287,8 +287,7 @@ namespace ccf
       network(network),
       rpcsessions(rpcsessions),
       share_manager(share_manager)
-    {
-    }
+    {}
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
