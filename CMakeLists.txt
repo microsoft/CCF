@@ -140,7 +140,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            aft.virtual
            sss.host
-           openenclave::oehostverify
+           openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
            $<BUILD_INTERFACE:merklecpp>
   )
