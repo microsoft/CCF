@@ -111,6 +111,16 @@ namespace ccf
       ledger_secrets.emplace(initial_version, make_ledger_secret());
     }
 
+    void init_from_map(LedgerSecretsMap&& ledger_secrets_)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      CCF_ASSERT_FMT(
+        ledger_secrets.empty(), "Should only init an empty LedgerSecrets");
+
+      ledger_secrets = std::move(ledger_secrets_);
+    }
+
     void adjust_previous_secret_stored_version(kv::Version version)
     {
       // To be able to lookup the last active ledger secret before the service

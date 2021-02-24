@@ -226,8 +226,6 @@ namespace ccf
       if (!recovery)
       {
         // Create a new store to verify the snapshot only
-        network.ledger_secrets = std::make_shared<LedgerSecrets>();
-
         snapshot_store = make_store(network.consensus_type);
         auto snapshot_history = std::make_shared<MerkleTxHistory>(
           *snapshot_store.get(),
@@ -289,7 +287,8 @@ namespace ccf
       network(network),
       rpcsessions(rpcsessions),
       share_manager(share_manager)
-    {}
+    {
+    }
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
@@ -357,7 +356,6 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
-          network.ledger_secrets = std::make_shared<LedgerSecrets>();
           network.ledger_secrets->init();
 
           setup_snapshotter();
@@ -412,7 +410,6 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets = std::make_shared<LedgerSecrets>();
 
           setup_history();
 
@@ -506,7 +503,7 @@ namespace ccf
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
-            network.ledger_secrets = std::make_shared<LedgerSecrets>(
+            network.ledger_secrets->init_from_map(
               std::move(resp.network_info.ledger_secrets));
 
             if (resp.network_info.consensus_type != network.consensus_type)

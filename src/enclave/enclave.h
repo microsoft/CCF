@@ -58,7 +58,9 @@ namespace enclave
       {
         return *node_state;
       }
-    } context;
+    };
+
+    std::unique_ptr<NodeContext> context = nullptr;
 
   public:
     Enclave(
@@ -82,12 +84,8 @@ namespace enclave
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
-        rpcsessions, n2n_channels, rpc_map, consensus_type_)),
-      context(ccf::historical::StateCache(
-        *network.tables,
-        network.ledger_secrets,
-        writer_factory.create_writer_to_outside()))
-    {
+        rpcsessions, n2n_channels, rpc_map, consensus_type_))
+      {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
@@ -106,16 +104,23 @@ namespace enclave
 
       to_host = writer_factory.create_writer_to_outside();
 
+      network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+
       node = std::make_unique<ccf::NodeState>(
         writer_factory, network, rpcsessions, share_manager, curve_id);
-      context.node_state = node.get();
+
+      context = std::make_unique<NodeContext>(ccf::historical::StateCache(
+        *network.tables,
+        network.ledger_secrets,
+        writer_factory.create_writer_to_outside()));
+      context->node_state = node.get();
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
           network, *node, share_manager));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
-        ccfapp::get_rpc_handler(network, context));
+        ccfapp::get_rpc_handler(network, *context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *node));
@@ -245,7 +250,7 @@ namespace enclave
               last_tick_time = time_now;
 
               node->tick(elapsed_ms);
-              context.historical_state_cache.tick(elapsed_ms);
+              context->historical_state_cache.tick(elapsed_ms);
               threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
@@ -302,7 +307,7 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context.historical_state_cache.handle_ledger_entry(index, body);
+                context->historical_state_cache.handle_ledger_entry(index, body);
                 break;
               }
               default:
@@ -334,7 +339,7 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context.historical_state_cache.handle_no_entry(index);
+                context->historical_state_cache.handle_no_entry(index);
                 break;
               }
               default:
