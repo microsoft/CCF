@@ -48,11 +48,14 @@ def test_cert_store(network, args):
         else:
             assert False, "Proposal should not have been accepted"
 
-    LOG.info("Member makes a ca cert update proposal with valid cert")
+    LOG.info("Member makes a ca cert update proposal with valid certs")
     key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
     cert_pem = infra.crypto.generate_cert(key_priv_pem)
+    key2_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+    cert2_pem = infra.crypto.generate_cert(key2_priv_pem)
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as cert_pem_fp:
         cert_pem_fp.write(cert_pem)
+        cert_pem_fp.write(cert2_pem)
         cert_pem_fp.flush()
         network.consortium.set_ca_cert_bundle(primary, cert_name, cert_pem_fp.name)
 
@@ -64,16 +67,11 @@ def test_cert_store(network, args):
             {"table": "public:ccf.gov.tls.ca_cert_bundles", "key": cert_name},
         )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-        cert_ref = x509.load_pem_x509_certificate(
-            cert_pem.encode(), crypto_backends.default_backend()
-        )
-        cert_kv = x509.load_pem_x509_certificate(
-            r.body.json().encode(),
-            crypto_backends.default_backend(),
-        )
+        cert_ref = cert_pem + cert2_pem
+        cert_kv = r.body.json()
         assert (
             cert_ref == cert_kv
-        ), f"stored cert not equal to input cert: {cert_ref} != {cert_kv}"
+        ), f"stored cert not equal to input certs: {cert_ref} != {cert_kv}"
 
     LOG.info("Member removes a ca cert")
     network.consortium.remove_ca_cert_bundle(primary, cert_name)
