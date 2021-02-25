@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "crypto/key_pair.h"
+#include "crypto/key_wrap.h"
 #include "crypto/mbedtls/entropy.h"
 #include "crypto/mbedtls/key_pair.h"
 #include "crypto/mbedtls/rsa_key_pair.h"
@@ -34,6 +35,8 @@ static const string contents_ =
   "cillum dolore eu fugiat nulla pariatur. Excepteur "
   "sint occaecat cupidatat non proident, sunt in culpa "
   "qui officia deserunt mollit anim id est laborum.";
+
+vector<uint8_t> contents(contents_.begin(), contents_.end());
 
 template <typename T>
 void corrupt(T& buf)
@@ -421,8 +424,7 @@ TEST_CASE("AES mbedTLS vs OpenSSL")
       nullb,
       decrypted.data()));
 
-    REQUIRE(decrypted.size() == contents_.size());
-    REQUIRE(memcmp(decrypted.data(), contents_.data(), sizeof(contents_)) == 0);
+    REQUIRE(decrypted == contents);
   }
 
   { // OpenSSL -> mbedTLS
@@ -439,8 +441,7 @@ TEST_CASE("AES mbedTLS vs OpenSSL")
     CBuffer encbuf{encrypted.data(), encrypted.size()};
     REQUIRE(mbed->decrypt(h.get_iv(), h.tag, encbuf, nullb, decrypted.data()));
 
-    REQUIRE(decrypted.size() == contents_.size());
-    REQUIRE(memcmp(decrypted.data(), contents_.data(), sizeof(contents_)) == 0);
+    REQUIRE(decrypted == contents);
   }
 }
 
@@ -471,8 +472,7 @@ TEST_CASE("AES mbedTLS vs OpenSSL + AAD")
       aad,
       decrypted.data()));
 
-    REQUIRE(decrypted.size() == contents_.size());
-    REQUIRE(memcmp(decrypted.data(), contents_.data(), sizeof(contents_)) == 0);
+    REQUIRE(decrypted == contents);
   }
 
   {
@@ -491,7 +491,37 @@ TEST_CASE("AES mbedTLS vs OpenSSL + AAD")
     CBuffer encbuf{encrypted.data(), encrypted.size()};
     REQUIRE(mbed->decrypt(h.get_iv(), h.tag, encbuf, aad, decrypted.data()));
 
-    REQUIRE(decrypted.size() == contents_.size());
-    REQUIRE(memcmp(decrypted.data(), contents_.data(), sizeof(contents_)) == 0);
+    REQUIRE(decrypted == contents);
   }
+}
+
+TEST_CASE("AES Key wrap with padding")
+{
+  auto key = getRawKey();
+  GcmHeader<1234> h;
+  std::vector<uint8_t> aad(123, 'y');
+
+  std::vector<uint8_t> key_to_wrap = create_entropy()->random(997);
+
+  auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+  std::vector<uint8_t> wrapped, unwrapped;
+  ossl->ckm_aes_key_wrap_pad(key_to_wrap, wrapped);
+  REQUIRE(ossl->ckm_aes_key_unwrap_pad(wrapped, unwrapped));
+
+  REQUIRE(key_to_wrap == unwrapped);
+}
+
+TEST_CASE("CKM_RSA_AES_KEY_WRAP")
+{
+  std::vector<uint8_t> key_to_wrap = create_entropy()->random(256);
+
+  auto rsa_kp = make_rsa_key_pair();
+  auto rsa_pk = make_rsa_public_key(rsa_kp->public_key_pem());
+
+  std::vector<uint8_t> wrapped =
+    ckm_rsa_aes_key_wrap(key_to_wrap.size(), rsa_pk, key_to_wrap);
+  std::vector<uint8_t> unwrapped = ckm_rsa_aes_key_unwrap(wrapped, rsa_kp);
+
+  REQUIRE(unwrapped == key_to_wrap);
 }

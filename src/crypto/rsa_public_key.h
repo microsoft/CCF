@@ -28,7 +28,12 @@ namespace crypto
     RSAPublicKey(const std::vector<uint8_t>& der);
 
     /**
-     * Wrap data using RSA-OAEP-256
+     * Get the key size in bits
+     */
+    virtual size_t key_size() const = 0;
+
+    /**
+     * Wrap data using RSA-OAEP-256 (CKM_RSA_PKCS_OAEP)
      *
      * @param input Pointer to raw data to wrap
      * @param input_size Size of raw data
@@ -44,7 +49,7 @@ namespace crypto
       size_t label_size = 0) = 0;
 
     /**
-     * Wrap data using RSA-OAEP-256
+     * Wrap data using RSA-OAEP-256 (CKM_RSA_PKCS_OAEP)
      *
      * @param input Raw data to wrap
      * @param label Optional string used as label during wrapping

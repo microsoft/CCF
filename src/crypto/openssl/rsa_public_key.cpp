@@ -46,6 +46,11 @@ namespace crypto
     RSA_free(rsa);
   }
 
+  size_t RSAPublicKey_OpenSSL::key_size() const
+  {
+    return EVP_PKEY_bits(key);
+  }
+
   std::vector<uint8_t> RSAPublicKey_OpenSSL::wrap(
     const uint8_t* input,
     size_t input_size,

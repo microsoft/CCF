@@ -24,8 +24,10 @@ namespace crypto
     RSAKeyPair(const Pem& pem, CBuffer pw = nullb);
     virtual ~RSAKeyPair() = default;
 
+    virtual size_t key_size() const = 0;
+
     /**
-     * Unwrap data using RSA-OAEP-256
+     * Unwrap data using RSA-OAEP-256 (CKM_RSA_PKCS_OAEP)
      *
      * @param input Raw data to unwrap
      * @param label Optional string used as label during unwrapping

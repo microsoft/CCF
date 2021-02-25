@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/rsa_public_key.h"
-
 #include "key_pair.h"
 
 #include <optional>
@@ -20,6 +19,8 @@ namespace crypto
     RSAPublicKey_OpenSSL(const Pem& pem);
     RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der);
     virtual ~RSAPublicKey_OpenSSL() = default;
+
+    virtual size_t key_size() const;
 
     virtual std::vector<uint8_t> wrap(
       const uint8_t* input,

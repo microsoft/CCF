@@ -3,6 +3,7 @@
 
 #include "rsa_key_pair.h"
 
+#include "crypto/mbedtls/rsa_public_key.h"
 #include "entropy.h"
 #include "mbedtls_wrappers.h"
 
@@ -51,6 +52,11 @@ namespace crypto
       throw std::logic_error(
         "Could not parse private key: " + error_string(rc));
     }
+  }
+
+  size_t RSAKeyPair_mbedTLS::key_size() const
+  {
+    return RSAPublicKey_mbedTLS::key_size();
   }
 
   std::vector<uint8_t> RSAKeyPair_mbedTLS::unwrap(

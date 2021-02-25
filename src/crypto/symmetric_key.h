@@ -138,6 +138,7 @@ namespace crypto
     KeyAesGcm() = default;
     virtual ~KeyAesGcm() = default;
 
+    // AES-GCM encryption
     virtual void encrypt(
       CBuffer iv,
       CBuffer plain,
@@ -145,6 +146,7 @@ namespace crypto
       uint8_t* cipher,
       uint8_t tag[GCM_SIZE_TAG]) const = 0;
 
+    // AES-GCM decryption
     virtual bool decrypt(
       CBuffer iv,
       const uint8_t tag[GCM_SIZE_TAG],

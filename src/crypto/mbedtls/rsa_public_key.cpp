@@ -32,6 +32,11 @@ namespace crypto
     }
   }
 
+  size_t RSAPublicKey_mbedTLS::key_size() const
+  {
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(*ctx.get())) * 8;
+  }
+
   std::vector<uint8_t> RSAPublicKey_mbedTLS::wrap(
     const uint8_t* input,
     size_t input_size,

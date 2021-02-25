@@ -38,6 +38,11 @@ namespace crypto
     }
   }
 
+  size_t RSAKeyPair_OpenSSL::key_size() const
+  {
+    return RSAPublicKey_OpenSSL::key_size();
+  }
+
   std::vector<uint8_t> RSAKeyPair_OpenSSL::unwrap(
     const std::vector<uint8_t>& input, std::optional<std::string> label)
   {

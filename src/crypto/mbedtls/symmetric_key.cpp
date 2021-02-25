@@ -5,6 +5,7 @@
 
 #include <mbedtls/aes.h>
 #include <mbedtls/error.h>
+#include <stdexcept>
 
 namespace crypto
 {
@@ -93,4 +94,5 @@ namespace crypto
       cipher.p,
       plain);
   }
+
 }
