@@ -372,12 +372,12 @@ def read_modules(modules_path: str) -> List[dict]:
 
 
 @cli_proposal
-def trust_node(node_id: int, **kwargs):
+def trust_node(node_id: str, **kwargs):
     return build_proposal("trust_node", node_id, **kwargs)
 
 
 @cli_proposal
-def retire_node(node_id: int, **kwargs):
+def retire_node(node_id: str, **kwargs):
     return build_proposal("retire_node", node_id, **kwargs)
 
 
