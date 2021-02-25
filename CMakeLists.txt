@@ -474,7 +474,6 @@ if(BUILD_TESTS)
   add_picobench(
     history_bench
     SRCS src/node/test/history_bench.cpp
-    LINK_LIBS
   )
   add_picobench(
     kv_bench
