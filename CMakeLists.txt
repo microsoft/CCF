@@ -469,7 +469,6 @@ if(BUILD_TESTS)
   add_picobench(
     merkle_bench
     SRCS src/node/test/merkle_bench.cpp
-    LINK_LIBS
   )
   add_picobench(
     history_bench
