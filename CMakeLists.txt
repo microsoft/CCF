@@ -477,7 +477,6 @@ if(BUILD_TESTS)
   add_picobench(
     kv_bench
     SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
-    LINK_LIBS
   )
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
   add_picobench(
