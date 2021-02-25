@@ -48,12 +48,13 @@ namespace ccf::historical
 
     struct LedgerSecretRecoveryInfo
     {
-      consensus::Index target_idx = 0;
+      kv::SeqNo target_seqno = 0;
       LedgerSecretPtr last_ledger_secret;
 
       LedgerSecretRecoveryInfo(
-        consensus::Index target_idx_, LedgerSecretPtr last_ledger_secret_) :
-        target_idx(target_idx_),
+        kv::SeqNo target_seqno_,
+        LedgerSecretPtr last_ledger_secret_) :
+        target_seqno(target_seqno_),
         last_ledger_secret(last_ledger_secret_)
       {}
     };
@@ -85,15 +86,15 @@ namespace ccf::historical
 
     struct Request
     {
-      consensus::Index first_requested_idx = 0;
-      consensus::Index last_requested_idx = 0;
+      kv::SeqNo first_requested_seqno = 0;
+      kv::SeqNo last_requested_seqno = 0;
       std::vector<StoreDetailsPtr> requested_stores;
       std::chrono::milliseconds time_to_expiry;
 
-      // An entry from outside the requested range containing the next signature
-      // may be needed to trust this range. It is stored here, distinct from
+      // Entries from outside the requested range (such as the next signature)
+      // may be needed to trust this range. They are stored here, distinct from
       // user-requested stores.
-      std::optional<std::pair<consensus::Index, StoreDetailsPtr>>
+      std::optional<std::pair<kv::SeqNo, StoreDetailsPtr>>
         supporting_signature;
 
       // Only set when recovering ledger secrets
@@ -102,12 +103,12 @@ namespace ccf::historical
 
       Request() {}
 
-      StoreDetailsPtr get_store_details(consensus::Index idx) const
+      StoreDetailsPtr get_store_details(kv::SeqNo seqno) const
       {
-        if (idx >= first_requested_idx && idx <= last_requested_idx)
+        if (seqno >= first_requested_seqno && seqno <= last_requested_seqno)
         {
-          const auto offset = idx - first_requested_idx;
-          if (offset < requested_stores.size())
+          const auto offset = seqno - first_requested_seqno;
+          if (static_cast<size_t>(offset) < requested_stores.size())
           {
             return requested_stores[offset];
           }
@@ -115,7 +116,7 @@ namespace ccf::historical
 
         if (
           supporting_signature.has_value() &&
-          supporting_signature->first == idx)
+          supporting_signature->first == seqno)
         {
           return supporting_signature->second;
         }
@@ -134,37 +135,38 @@ namespace ccf::historical
       // adjust to:
       //  0  1  2  3  4  5  6
       // we need to shift _and_ start fetching 0, 1, and 6.
-      std::set<consensus::Index> adjust_range(
-        consensus::Index start_idx, size_t num_following_indices)
+      std::set<kv::SeqNo> adjust_range(
+        kv::SeqNo start_seqno, size_t num_following_indices)
       {
         if (
-          start_idx == first_requested_idx &&
+          start_seqno == first_requested_seqno &&
           (num_following_indices + 1) == requested_stores.size())
         {
           // This is precisely the range we're already tracking - do nothing
           return {};
         }
 
-        std::set<consensus::Index> ret;
+        std::set<kv::SeqNo> ret;
         std::vector<StoreDetailsPtr> new_stores(num_following_indices + 1);
-        for (auto idx = start_idx; idx <= start_idx + num_following_indices;
-             ++idx)
+        for (auto seqno = start_seqno;
+             seqno <= static_cast<kv::SeqNo>(start_seqno + num_following_indices);
+             ++seqno)
         {
-          auto existing_details = get_store_details(idx);
+          auto existing_details = get_store_details(seqno);
           if (existing_details == nullptr)
           {
-            ret.insert(idx);
-            new_stores[idx - start_idx] = std::make_shared<StoreDetails>();
+            ret.insert(seqno);
+            new_stores[seqno - start_seqno] = std::make_shared<StoreDetails>();
           }
           else
           {
-            new_stores[idx - start_idx] = std::move(existing_details);
+            new_stores[seqno - start_seqno] = std::move(existing_details);
           }
         }
 
         requested_stores = std::move(new_stores);
-        first_requested_idx = start_idx;
-        last_requested_idx = first_requested_idx + num_following_indices;
+        first_requested_seqno = start_seqno;
+        last_requested_seqno = first_requested_seqno + num_following_indices;
 
         // If the final entry in the new range is known and not a signature,
         // then we may need a subsequent signature to support it (or an earlier
@@ -173,13 +175,13 @@ namespace ccf::historical
         // we already had, or a signature in the range we already had, but
         // working that out is tricky so be pessimistic and refetch instead.
         supporting_signature.reset();
-        const auto last_details = get_store_details(last_requested_idx);
+        const auto last_details = get_store_details(last_requested_seqno);
         if (last_details->store != nullptr && !last_details->is_signature)
         {
-          const auto next_idx = last_requested_idx + 1;
+          const auto next_seqno = last_requested_seqno + 1;
           supporting_signature =
-            std::make_pair(next_idx, std::make_shared<StoreDetails>());
-          ret.insert(next_idx);
+            std::make_pair(next_seqno, std::make_shared<StoreDetails>());
+          ret.insert(next_seqno);
         }
 
         // If the range has changed, forget what ledger secrets we may have been
@@ -191,24 +193,24 @@ namespace ccf::historical
 
       enum class UpdateTrustedResult
       {
-        // Common result. The new index may have transitioned some entries to
+        // Common result. The new seqno may have transitioned some entries to
         // Trusted
         Continue,
 
-        // Occasional result. The new index was at the end of the sequence (or
+        // Occasional result. The new seqno was at the end of the sequence (or
         // an attempt at retrieving a trailing supporting signature), but we
         // still have untrusted entries, so attempt to fetch the next
         FetchNext,
 
         // Error result. The new entry exposed a mismatch between a signature's
-        // claim at a certain index and the entry we received there. Invalidate
+        // claim at a certain seqno and the entry we received there. Invalidate
         // entire request, it can be re-requested if necessary
         Invalidated,
       };
 
-      UpdateTrustedResult update_trusted(consensus::Index new_idx)
+      UpdateTrustedResult update_trusted(kv::SeqNo new_seqno)
       {
-        auto new_details = get_store_details(new_idx);
+        auto new_details = get_store_details(new_seqno);
         if (new_details->is_signature)
         {
           // Iterate through earlier indices. If this signature covers them (and
@@ -216,11 +218,11 @@ namespace ccf::historical
           const auto sig = get_signature(new_details->store);
           ccf::MerkleTreeHistory tree(sig->tree);
 
-          for (auto idx = first_requested_idx; idx < new_idx; ++idx)
+          for (auto seqno = first_requested_seqno; seqno < new_seqno; ++seqno)
           {
-            if (tree.in_range(idx))
+            if (tree.in_range(seqno))
             {
-              auto details = get_store_details(idx);
+              auto details = get_store_details(seqno);
               if (details != nullptr)
               {
                 if (details->current_stage == RequestStage::Untrusted)
@@ -228,14 +230,14 @@ namespace ccf::historical
                   // Compare signed digest, from signature mini-tree, with
                   // digest of the entry which was used to construct this store
                   const auto& untrusted_digest = details->entry_digest;
-                  const auto trusted_digest = tree.get_leaf(idx);
+                  const auto trusted_digest = tree.get_leaf(seqno);
                   if (trusted_digest != untrusted_digest)
                   {
                     LOG_FAIL_FMT(
                       "Signature at {} has a different transaction at {} than "
                       "previously received",
-                      new_idx,
-                      idx);
+                      new_seqno,
+                      seqno);
 
                     // We trust the signature (since it comes from a trusted
                     // node), and it disagrees with one of the entries we
@@ -259,18 +261,19 @@ namespace ccf::historical
           // covers this one
           const auto& untrusted_digest = new_details->entry_digest;
           bool sig_seen = false;
-          for (auto idx = new_idx + 1; idx <= last_requested_idx; ++idx)
+          for (auto seqno = new_seqno + 1; seqno <= last_requested_seqno;
+               ++seqno)
           {
-            auto details = get_store_details(idx);
+            auto details = get_store_details(seqno);
             if (details != nullptr)
             {
               if (details->store != nullptr && details->is_signature)
               {
                 const auto sig = get_signature(details->store);
                 ccf::MerkleTreeHistory tree(sig->tree);
-                if (tree.in_range(new_idx))
+                if (tree.in_range(new_seqno))
                 {
-                  const auto trusted_digest = tree.get_leaf(new_idx);
+                  const auto trusted_digest = tree.get_leaf(new_seqno);
                   if (trusted_digest != untrusted_digest)
                   {
                     return UpdateTrustedResult::Invalidated;
@@ -289,14 +292,14 @@ namespace ccf::historical
 
           if (!sig_seen && supporting_signature.has_value())
           {
-            const auto& [idx, details] = *supporting_signature;
+            const auto& [seqno, details] = *supporting_signature;
             if (details->store != nullptr && details->is_signature)
             {
               const auto sig = get_signature(details->store);
               ccf::MerkleTreeHistory tree(sig->tree);
-              if (tree.in_range(new_idx))
+              if (tree.in_range(new_seqno))
               {
-                const auto trusted_digest = tree.get_leaf(new_idx);
+                const auto trusted_digest = tree.get_leaf(new_seqno);
                 if (trusted_digest != untrusted_digest)
                 {
                   return UpdateTrustedResult::Invalidated;
@@ -308,14 +311,14 @@ namespace ccf::historical
           }
 
           // If still untrusted, and this non-signature is the last requested
-          // index, or previous attempt at finding supporting signature, request
-          // the _next_ index to find supporting signature
+          // seqno, or previous attempt at finding supporting signature, request
+          // the _next_ seqno to find supporting signature
           if (new_details->current_stage == RequestStage::Untrusted)
           {
             if (
-              new_idx == last_requested_idx ||
+              new_seqno == last_requested_seqno ||
               (supporting_signature.has_value() &&
-               supporting_signature->first == new_idx))
+               supporting_signature->first == new_seqno))
             {
               return UpdateTrustedResult::FetchNext;
             }
@@ -332,20 +335,20 @@ namespace ccf::historical
     // Track all things currently requested by external callers
     std::map<RequestHandle, Request> requests;
 
-    std::set<consensus::Index> pending_fetches;
+    std::set<kv::SeqNo> pending_fetches;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
-    void fetch_entry_at(consensus::Index idx)
+    void fetch_entry_at(kv::SeqNo seqno)
     {
-      const auto ib = pending_fetches.insert(idx);
+      const auto ib = pending_fetches.insert(seqno);
       if (ib.second)
       {
-        // Newly requested index
+        // Newly requested seqno
         RINGBUFFER_WRITE_MESSAGE(
           consensus::ledger_get,
           to_host,
-          idx,
+          static_cast<consensus::Index>(seqno),
           consensus::LedgerRequestPurpose::HistoricalQuery);
       }
     }
@@ -363,12 +366,13 @@ namespace ccf::historical
 
     // Returns true if this is a valid signature that passes our verification
     // checks
-    bool verify_signature(const StorePtr& sig_store, consensus::Index sig_idx)
+    bool verify_signature(
+      const StorePtr& sig_store, kv::SeqNo sig_seqno)
     {
       const auto sig = get_signature(sig_store);
       if (!sig.has_value())
       {
-        LOG_FAIL_FMT("Signature at {}: Missing signature value", sig_idx);
+        LOG_FAIL_FMT("Signature at {}: Missing signature value", sig_seqno);
         return false;
       }
 
@@ -377,14 +381,15 @@ namespace ccf::historical
       const auto real_root = tree.get_root();
       if (real_root != sig->root)
       {
-        LOG_FAIL_FMT("Signature at {}: Invalid root", sig_idx);
+        LOG_FAIL_FMT("Signature at {}: Invalid root", sig_seqno);
         return false;
       }
 
       const auto node_info = get_node_info(sig->node);
       if (!node_info.has_value())
       {
-        LOG_FAIL_FMT("Signature at {}: Node {} is unknown", sig_idx, sig->node);
+        LOG_FAIL_FMT(
+          "Signature at {}: Node {} is unknown", sig_seqno, sig->node);
         return false;
       }
 
@@ -393,7 +398,7 @@ namespace ccf::historical
         verifier->verify_hash(real_root.h, sig->sig, MDType::SHA256);
       if (!verified)
       {
-        LOG_FAIL_FMT("Signature at {}: Signature invalid", sig_idx);
+        LOG_FAIL_FMT("Signature at {}: Signature invalid", sig_seqno);
         return false;
       }
 
@@ -401,11 +406,12 @@ namespace ccf::historical
     }
 
     std::unique_ptr<LedgerSecretRecoveryInfo> fetch_supporting_secret_if_needed(
-      consensus::Index idx)
+      kv::SeqNo seqno)
     {
-      auto [earliest_ledger_secret_idx, earliest_ledger_secret] =
+      auto [earliest_ledger_secret_seqno, earliest_ledger_secret] =
         get_earliest_known_ledger_secret();
-      if (idx < static_cast<consensus::Index>(earliest_ledger_secret_idx))
+      if (
+        seqno < earliest_ledger_secret_seqno)
       {
         // Still need more secrets, fetch the next
         auto previous_secret_stored_version =
@@ -415,19 +421,19 @@ namespace ccf::historical
           throw std::logic_error(fmt::format(
             "Earliest known ledger secret at {} has no earlier secret stored "
             "version",
-            earliest_ledger_secret_idx));
+            earliest_ledger_secret_seqno));
         }
 
-        const auto idx_to_fetch = previous_secret_stored_version.value();
+        const auto seqno_to_fetch = previous_secret_stored_version.value();
         LOG_TRACE_FMT(
           "Requesting historical entry at {} but first known ledger "
           "secret is applicable from {} - requesting older secret now",
-          idx,
-          earliest_ledger_secret_idx);
+          seqno,
+          earliest_ledger_secret_seqno);
 
-        fetch_entry_at(idx_to_fetch);
+        fetch_entry_at(seqno_to_fetch);
         return std::make_unique<LedgerSecretRecoveryInfo>(
-          idx_to_fetch, earliest_ledger_secret);
+          seqno_to_fetch, earliest_ledger_secret);
       }
 
       return nullptr;
@@ -436,7 +442,7 @@ namespace ccf::historical
     void process_deserialised_store(
       const StorePtr& store,
       const crypto::Sha256Hash& entry_digest,
-      consensus::Index idx,
+      kv::SeqNo seqno,
       bool is_signature)
     {
       auto request_it = requests.begin();
@@ -448,7 +454,7 @@ namespace ccf::historical
         // that secret
         if (
           request.ledger_secret_recovery_info != nullptr &&
-          request.ledger_secret_recovery_info->target_idx == idx)
+          request.ledger_secret_recovery_info->target_seqno == seqno)
         {
           // Handle it, hopefully extending earliest_known_ledger_secret to
           // cover earlier entries
@@ -463,7 +469,7 @@ namespace ccf::historical
           }
 
           auto new_secret_fetch =
-            fetch_supporting_secret_if_needed(request.first_requested_idx);
+            fetch_supporting_secret_if_needed(request.first_requested_seqno);
           if (new_secret_fetch != nullptr)
           {
             request.ledger_secret_recovery_info = std::move(new_secret_fetch);
@@ -472,11 +478,11 @@ namespace ccf::historical
           {
             // Newly have all required secrets - begin fetching the actual
             // entries
-            for (auto idx = request.first_requested_idx;
-                 idx <= request.last_requested_idx;
-                 ++idx)
+            for (auto seqno = request.first_requested_seqno;
+                 seqno <= request.last_requested_seqno;
+                 ++seqno)
             {
-              fetch_entry_at(idx);
+              fetch_entry_at(seqno);
             }
           }
 
@@ -485,7 +491,7 @@ namespace ccf::historical
           continue;
         }
 
-        auto details = request.get_store_details(idx);
+        auto details = request.get_store_details(seqno);
         if (
           details != nullptr &&
           details->current_stage == RequestStage::Fetching)
@@ -505,14 +511,14 @@ namespace ccf::historical
 
           CCF_ASSERT_FMT(
             details->store == nullptr,
-            "Request {} already has store for index {}",
+            "Request {} already has store for seqno {}",
             handle,
-            idx);
+            seqno);
           details->store = store;
 
           details->is_signature = is_signature;
 
-          const auto result = request.update_trusted(idx);
+          const auto result = request.update_trusted(seqno);
           switch (result)
           {
             case (Request::UpdateTrustedResult::Continue):
@@ -527,10 +533,10 @@ namespace ccf::historical
             }
             case (Request::UpdateTrustedResult::FetchNext):
             {
-              const auto next_idx = idx + 1;
-              fetch_entry_at(next_idx);
+              const auto next_seqno = seqno + 1;
+              fetch_entry_at(next_seqno);
               request.supporting_signature =
-                std::make_pair(next_idx, std::make_shared<StoreDetails>());
+                std::make_pair(next_seqno, std::make_shared<StoreDetails>());
               ++request_it;
               break;
             }
@@ -576,7 +582,7 @@ namespace ccf::historical
 
     std::vector<StorePtr> get_store_range_internal(
       RequestHandle handle,
-      consensus::Index start_idx,
+      kv::SeqNo start_seqno,
       size_t num_following_indices,
       ExpiryDuration expire_after)
     {
@@ -596,19 +602,20 @@ namespace ccf::historical
 
       // Update this Request to represent the currently requested range,
       // returning any newly requested indices
-      auto new_indices = request.adjust_range(start_idx, num_following_indices);
+      auto new_indices =
+        request.adjust_range(start_seqno, num_following_indices);
 
       // If the earliest target entry cannot be deserialised with the earliest
-      // known ledger secret, record the target idx and begin fetching the
+      // known ledger secret, record the target seqno and begin fetching the
       // previous historical ledger secret.
       auto secret_fetch =
-        fetch_supporting_secret_if_needed(request.first_requested_idx);
+        fetch_supporting_secret_if_needed(request.first_requested_seqno);
       if (secret_fetch != nullptr)
       {
         if (
           request.ledger_secret_recovery_info == nullptr ||
-          request.ledger_secret_recovery_info->target_idx !=
-            secret_fetch->target_idx)
+          request.ledger_secret_recovery_info->target_seqno !=
+            secret_fetch->target_seqno)
         {
           request.ledger_secret_recovery_info = std::move(secret_fetch);
         }
@@ -618,9 +625,9 @@ namespace ccf::historical
         // If we have sufficiently early secrets, begin fetching any newly
         // requested entries. If we don't fall into this branch, they'll only
         // begin to be fetched once the secret arrives.
-        for (const auto new_idx : new_indices)
+        for (const auto new_seqno : new_indices)
         {
-          fetch_entry_at(new_idx);
+          fetch_entry_at(new_seqno);
         }
       }
 
@@ -629,11 +636,11 @@ namespace ccf::historical
 
       std::vector<StorePtr> trusted_stores;
 
-      for (consensus::Index idx = start_idx;
-           idx <= start_idx + num_following_indices;
-           ++idx)
+      for (kv::SeqNo seqno = start_seqno;
+           seqno <= static_cast<kv::SeqNo>(start_seqno + num_following_indices);
+           ++seqno)
       {
-        auto target_details = request.get_store_details(idx);
+        auto target_details = request.get_store_details(seqno);
         if (target_details->current_stage == RequestStage::Trusted)
         {
           // Have this store and trust it - add it to return list
@@ -652,12 +659,12 @@ namespace ccf::historical
 
     // Used when we received an invalid entry, to drop any requests which were
     // asking for it
-    void delete_all_interested_requests(consensus::Index idx)
+    void delete_all_interested_requests(kv::SeqNo seqno)
     {
       auto request_it = requests.begin();
       while (request_it != requests.end())
       {
-        if (request_it->second.get_store_details(idx) != nullptr)
+        if (request_it->second.get_store_details(seqno) != nullptr)
         {
           request_it = requests.erase(request_it);
         }
@@ -683,10 +690,10 @@ namespace ccf::historical
 
     StorePtr get_store_at(
       RequestHandle handle,
-      consensus::Index idx,
+      kv::SeqNo seqno,
       ExpiryDuration expire_after) override
     {
-      auto range = get_store_range(handle, idx, idx, expire_after);
+      auto range = get_store_range(handle, seqno, seqno, expire_after);
       if (range.empty())
       {
         return nullptr;
@@ -695,37 +702,38 @@ namespace ccf::historical
       return range[0];
     }
 
-    StorePtr get_store_at(RequestHandle handle, consensus::Index idx) override
+    StorePtr get_store_at(
+      RequestHandle handle, kv::SeqNo seqno) override
     {
-      return get_store_at(handle, idx, default_expiry_duration);
+      return get_store_at(handle, seqno, default_expiry_duration);
     }
 
     std::vector<StorePtr> get_store_range(
       RequestHandle handle,
-      consensus::Index start_idx,
-      consensus::Index end_idx,
+      kv::SeqNo start_seqno,
+      kv::SeqNo end_seqno,
       ExpiryDuration expire_after) override
     {
-      if (end_idx < start_idx)
+      if (end_seqno < start_seqno)
       {
         throw std::logic_error(fmt::format(
           "Invalid range for historical query: end {} is before start {}",
-          end_idx,
-          start_idx));
+          end_seqno,
+          start_seqno));
       }
 
-      const auto tail_length = end_idx - start_idx;
+      const auto tail_length = end_seqno - start_seqno;
       return get_store_range_internal(
-        handle, start_idx, tail_length, expire_after);
+        handle, start_seqno, tail_length, expire_after);
     }
 
     std::vector<StorePtr> get_store_range(
       RequestHandle handle,
-      consensus::Index start_idx,
-      consensus::Index end_idx) override
+      kv::SeqNo start_seqno,
+      kv::SeqNo end_seqno) override
     {
       return get_store_range(
-        handle, start_idx, end_idx, default_expiry_duration);
+        handle, start_seqno, end_seqno, default_expiry_duration);
     }
 
     void set_default_expiry_duration(ExpiryDuration duration) override
@@ -740,10 +748,11 @@ namespace ccf::historical
       return erased_count > 0;
     }
 
-    bool handle_ledger_entry(consensus::Index idx, const LedgerEntry& data)
+    bool handle_ledger_entry(
+      kv::SeqNo seqno, const LedgerEntry& data)
     {
       std::lock_guard<SpinLock> guard(requests_lock);
-      const auto it = pending_fetches.find(idx);
+      const auto it = pending_fetches.find(seqno);
       if (it == pending_fetches.end())
       {
         // Unexpected entry - ignore it?
@@ -754,14 +763,14 @@ namespace ccf::historical
 
       // Create a new store and try to deserialise this entry into it
       StorePtr store = std::make_shared<kv::Store>(
-        false /* Do not start from very first idx */,
+        false /* Do not start from very first seqno */,
         true /* Make use of historical secrets */);
 
       // If this is older than the node's currently known ledger secrets, use
       // the historical encryptor (which should have older secrets)
       if (
-        idx <
-        static_cast<consensus::Index>(source_ledger_secrets->get_first().first))
+        seqno < 
+                  source_ledger_secrets->get_first().first)
       {
         store->set_encryptor(historical_encryptor);
       }
@@ -783,7 +792,7 @@ namespace ccf::historical
         {
           if (
             request.ledger_secret_recovery_info != nullptr &&
-            request.ledger_secret_recovery_info->target_idx == idx)
+            request.ledger_secret_recovery_info->target_seqno == seqno)
           {
             public_only = true;
             break;
@@ -797,7 +806,7 @@ namespace ccf::historical
       {
         LOG_FAIL_FMT(
           "Exception while attempting to deserialise entry {}: {}",
-          idx,
+          seqno,
           e.what());
         deserialise_result = kv::ApplyResult::FAIL;
       }
@@ -812,25 +821,25 @@ namespace ccf::historical
       if (is_signature)
       {
         // This looks like a signature - check that we trust it
-        if (!verify_signature(store, idx))
+        if (!verify_signature(store, seqno))
         {
-          LOG_FAIL_FMT("Bad signature at {}", idx);
-          delete_all_interested_requests(idx);
+          LOG_FAIL_FMT("Bad signature at {}", seqno);
+          delete_all_interested_requests(seqno);
           return false;
         }
       }
 
       LOG_DEBUG_FMT(
         "Processing historical store at {} ({})",
-        idx,
+        seqno,
         (size_t)deserialise_result);
       const auto entry_digest = crypto::Sha256Hash(data);
-      process_deserialised_store(store, entry_digest, idx, is_signature);
+      process_deserialised_store(store, entry_digest, seqno, is_signature);
 
       return true;
     }
 
-    void handle_no_entry(consensus::Index idx)
+    void handle_no_entry(kv::SeqNo seqno)
     {
       std::lock_guard<SpinLock> guard(requests_lock);
 
@@ -838,10 +847,10 @@ namespace ccf::historical
       // forget about it and drop any requests which were looking for it - don't
       // have a mechanism for remembering this failure and reporting it to
       // users.
-      const auto fetches_it = pending_fetches.find(idx);
+      const auto fetches_it = pending_fetches.find(seqno);
       if (fetches_it != pending_fetches.end())
       {
-        delete_all_interested_requests(idx);
+        delete_all_interested_requests(seqno);
 
         pending_fetches.erase(fetches_it);
       }

@@ -9,14 +9,14 @@ namespace ccf::historical
 {
   using CheckAvailability = std::function<bool(
     kv::Consensus::View view,
-    kv::Consensus::SeqNo seqno,
+    kv::SeqNo seqno,
     std::string& error_reason)>;
 
   using HandleHistoricalQuery = std::function<void(
     ccf::EndpointContext& args,
     StorePtr store,
     kv::Consensus::View view,
-    kv::Consensus::SeqNo seqno)>;
+    kv::SeqNo seqno)>;
 
 // Unused in most sample apps
 #pragma clang diagnostic push
@@ -29,7 +29,7 @@ namespace ccf::historical
     return [f, &state_cache, available](EndpointContext& args) {
       // Extract the requested transaction ID
       kv::Consensus::View target_view;
-      kv::Consensus::SeqNo target_seqno;
+      kv::SeqNo target_seqno;
 
       {
         const auto target_view_opt =

@@ -46,45 +46,45 @@ namespace ccf::historical
      */
     virtual void set_default_expiry_duration(ExpiryDuration duration) = 0;
 
-    /** Retrieve a Store containing the state written at the given index.
+    /** Retrieve a Store containing the state written at the given seqno.
      *
      * See @c get_store_range for a description of the caching behaviour. This
-     * is equivalent to get_store_at(handle, index, index), but returns nullptr
+     * is equivalent to get_store_at(handle, seqno, seqno), but returns nullptr
      * if the state is currently unavailable.
      */
     virtual StorePtr get_store_at(
       RequestHandle handle,
-      consensus::Index index,
+      kv::SeqNo seqno,
       ExpiryDuration expire_after) = 0;
 
     /** Same as @c get_store_at but uses default expiry value.
      * @see get_store_at
      */
     virtual StorePtr get_store_at(
-      RequestHandle handle, consensus::Index index) = 0;
+      RequestHandle handle, kv::SeqNo seqno) = 0;
 
     /** Retrieve a range of Stores containing the state written at the given
      * indices.
      *
      * If this is not currently available, this function returns an empty vector
      * and begins fetching the ledger entry asynchronously. This will generally
-     * be true for the first call for a given index, and it may take some time
+     * be true for the first call for a given seqno, and it may take some time
      * to completely fetch and validate. The call should be repeated later with
      * the same arguments to retrieve the requested entries. This state is kept
      * until it is deleted for one of the following reasons:
      *  - A call to @c drop_request
      *  - @c expire_after seconds elapse without calling this function
-     *  - This handle is used to request a different index or range
+     *  - This handle is used to request a different seqno or range
      *
-     * The range is inclusive of both start_index and end_index. If a non-empty
+     * The range is inclusive of both start_seqno and end_seqno. If a non-empty
      * vector is returned, it will always contain the full requested range - the
-     * vector will be of length (end_index - start_index + 1), and will contain
+     * vector will be of length (end_seqno - start_seqno + 1), and will contain
      * no nullptrs.
      */
     virtual std::vector<StorePtr> get_store_range(
       RequestHandle handle,
-      consensus::Index start_index,
-      consensus::Index end_index,
+      kv::SeqNo start_seqno,
+      kv::SeqNo end_seqno,
       ExpiryDuration expire_after) = 0;
 
     /** Same as @c get_store_range but uses default expiry value.
@@ -92,8 +92,8 @@ namespace ccf::historical
      */
     virtual std::vector<StorePtr> get_store_range(
       RequestHandle handle,
-      consensus::Index start_index,
-      consensus::Index end_index) = 0;
+      kv::SeqNo start_seqno,
+      kv::SeqNo end_seqno) = 0;
 
     /** Drop state for the given handle.
      *

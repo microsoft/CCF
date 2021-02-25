@@ -46,9 +46,9 @@ public:
     size_t* identifier = nullptr) override
   {
     std::lock_guard<std::mutex> guard(writes_mutex);
-    const auto index = writes.size();
+    const auto seqno = writes.size();
     writes.push_back(Write{m, false, {}});
-    return index;
+    return seqno;
   }
 
   void finish(const WriteMarker& marker) override
@@ -188,7 +188,7 @@ kv::Version rekey(
 }
 
 void validate_business_transaction(
-  ccf::historical::StorePtr store, consensus::Index idx)
+  ccf::historical::StorePtr store, kv::SeqNo seqno)
 {
   REQUIRE(store != nullptr);
 
@@ -196,7 +196,7 @@ void validate_business_transaction(
   auto public_map = tx.ro<NumToString>("public:data");
   auto private_map = tx.ro<NumToString>("data");
 
-  const auto k = idx - 1;
+  const auto k = seqno - 1;
   const auto v = std::to_string(k);
 
   auto public_v = public_map->get(k);
@@ -220,14 +220,14 @@ void validate_business_transaction(
   });
 }
 
-std::map<consensus::Index, std::vector<uint8_t>> construct_host_ledger(
+std::map<kv::SeqNo, std::vector<uint8_t>> construct_host_ledger(
   std::shared_ptr<kv::Consensus> c)
 {
   auto consensus = dynamic_cast<kv::StubConsensus*>(c.get());
   REQUIRE(consensus != nullptr);
 
   INFO("Rebuild ledger as seen by host");
-  std::map<consensus::Index, std::vector<uint8_t>> ledger;
+  std::map<kv::SeqNo, std::vector<uint8_t>> ledger;
 
   auto next_ledger_entry = consensus->pop_oldest_entry();
   while (next_ledger_entry.has_value())
@@ -257,9 +257,9 @@ TEST_CASE("StateCache point queries")
     REQUIRE(kv_store.current_version() == high_signature_transaction);
   }
 
-  size_t low_index = low_signature_transaction + 2;
-  size_t high_index = high_signature_transaction - 3;
-  size_t unsigned_index = high_signature_transaction + 5;
+  const auto low_seqno = low_signature_transaction + 2;
+  const auto high_seqno = high_signature_transaction - 3;
+  const auto unsigned_seqno = high_signature_transaction + 5;
 
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
   REQUIRE(ledger.size() == high_signature_transaction);
@@ -277,28 +277,29 @@ TEST_CASE("StateCache point queries")
     INFO(
       "Initially, no stores are available, even if they're requested multiple "
       "times");
-    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
-    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
-    REQUIRE(cache.get_store_at(high_handle, high_index) == nullptr);
-    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
-    REQUIRE(cache.get_store_at(default_handle, unsigned_index) == nullptr);
-    REQUIRE(cache.get_store_at(high_handle, high_index) == nullptr);
-    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
+    REQUIRE(cache.get_store_at(high_handle, high_seqno) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, unsigned_seqno) == nullptr);
+    REQUIRE(cache.get_store_at(high_handle, high_seqno) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
   }
 
   {
     INFO("The host sees requests for these indices");
     REQUIRE(!stub_writer->writes.empty());
-    std::set<consensus::Index> expected{low_index, high_index, unsigned_index};
-    std::set<consensus::Index> actual;
+    std::set<kv::SeqNo> expected{
+      low_seqno, high_seqno, unsigned_seqno};
+    std::set<kv::SeqNo> actual;
     for (const auto& write : stub_writer->writes)
     {
       const uint8_t* data = write.contents.data();
       size_t size = write.contents.size();
-      auto [idx, purpose] =
+      auto [seqno, purpose] =
         ringbuffer::read_message<consensus::ledger_get>(data, size);
       REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
-      actual.insert(idx);
+      actual.insert(seqno);
     }
     REQUIRE(actual == expected);
   }
@@ -310,73 +311,73 @@ TEST_CASE("StateCache point queries")
 
   {
     INFO("Cache doesn't accept arbitrary entries");
-    REQUIRE(!provide_ledger_entry(high_index - 1));
-    REQUIRE(!provide_ledger_entry(high_index + 1));
+    REQUIRE(!provide_ledger_entry(high_seqno - 1));
+    REQUIRE(!provide_ledger_entry(high_seqno + 1));
   }
 
   {
     INFO(
       "Cache accepts requested entries, and then range of supporting entries");
-    REQUIRE(provide_ledger_entry(high_index));
+    REQUIRE(provide_ledger_entry(high_seqno));
 
     // Count up to next signature
-    for (size_t i = high_index + 1; i < high_signature_transaction; ++i)
+    for (size_t i = high_seqno + 1; i < high_signature_transaction; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
-      REQUIRE(cache.get_store_at(high_handle, high_index) == nullptr);
+      REQUIRE(cache.get_store_at(high_handle, high_seqno) == nullptr);
     }
 
     REQUIRE(provide_ledger_entry(high_signature_transaction));
-    REQUIRE(cache.get_store_at(high_handle, high_index) != nullptr);
+    REQUIRE(cache.get_store_at(high_handle, high_seqno) != nullptr);
   }
 
   {
     INFO(
       "Cache accepts _wrong_ requested entry, and the range of supporting "
       "entries");
-    // NB: This is _a_ valid entry, but not at this index. In fact this stage
+    // NB: This is _a_ valid entry, but not at this seqno. In fact this stage
     // will accept anything that looks quite like a valid entry, even if it
     // never came from a legitimate node - they should all fail at the signature
     // check
-    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
-    REQUIRE(cache.handle_ledger_entry(low_index, ledger.at(low_index + 1)));
+    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
+    REQUIRE(cache.handle_ledger_entry(low_seqno, ledger.at(low_seqno + 1)));
 
     // Count up to next signature
-    for (size_t i = low_index + 1; i < high_signature_transaction; ++i)
+    for (size_t i = low_seqno + 1; i < high_signature_transaction; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
-      REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
+      REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
     }
 
     // Signature is good
     REQUIRE(provide_ledger_entry(high_signature_transaction));
     // Junk entry is still not available
-    REQUIRE(cache.get_store_at(low_handle, low_index) == nullptr);
+    REQUIRE(cache.get_store_at(low_handle, low_seqno) == nullptr);
   }
 
   {
     INFO("Historical state can be retrieved from provided entries");
-    auto store_at_index = cache.get_store_at(high_handle, high_index);
-    REQUIRE(store_at_index != nullptr);
+    auto store_at_seqno = cache.get_store_at(high_handle, high_seqno);
+    REQUIRE(store_at_seqno != nullptr);
 
-    validate_business_transaction(store_at_index, high_index);
+    validate_business_transaction(store_at_seqno, high_seqno);
   }
 
   {
     INFO("Cache doesn't throw when given junk");
-    REQUIRE(cache.get_store_at(default_handle, unsigned_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, unsigned_seqno) == nullptr);
     bool result;
-    REQUIRE_NOTHROW(result = cache.handle_ledger_entry(unsigned_index, {}));
+    REQUIRE_NOTHROW(result = cache.handle_ledger_entry(unsigned_seqno, {}));
     REQUIRE(!result);
     REQUIRE_NOTHROW(
-      result = cache.handle_ledger_entry(unsigned_index, {0x1, 0x2, 0x3}));
+      result = cache.handle_ledger_entry(unsigned_seqno, {0x1, 0x2, 0x3}));
     REQUIRE(!result);
     REQUIRE_NOTHROW(
-      result = cache.handle_ledger_entry(unsigned_index, ledger[low_index]));
+      result = cache.handle_ledger_entry(unsigned_seqno, ledger[low_seqno]));
     REQUIRE(!result);
     REQUIRE_NOTHROW(
       result = cache.handle_ledger_entry(
-        unsigned_index, ledger[high_signature_transaction]));
+        unsigned_seqno, ledger[high_signature_transaction]));
     REQUIRE(!result);
   }
 
@@ -384,13 +385,13 @@ TEST_CASE("StateCache point queries")
     INFO("Signature transactions can be requested");
     for (const auto i : {low_signature_transaction, high_signature_transaction})
     {
-      auto store_at_index = cache.get_store_at(default_handle, i);
-      REQUIRE(store_at_index == nullptr);
+      auto store_at_seqno = cache.get_store_at(default_handle, i);
+      REQUIRE(store_at_seqno == nullptr);
 
       REQUIRE(provide_ledger_entry(i));
 
-      store_at_index = cache.get_store_at(default_handle, i);
-      REQUIRE(store_at_index != nullptr);
+      store_at_seqno = cache.get_store_at(default_handle, i);
+      REQUIRE(store_at_seqno != nullptr);
     }
 
     {
@@ -473,7 +474,7 @@ TEST_CASE("StateCache range queries")
 
   std::vector<kv::Version> signature_versions;
 
-  const auto begin_index = kv_store.current_version() + 1;
+  const auto begin_seqno = kv_store.current_version() + 1;
 
   {
     INFO("Build some interesting state in the store");
@@ -484,7 +485,7 @@ TEST_CASE("StateCache range queries")
     }
   }
 
-  const auto end_index = kv_store.current_version();
+  const auto end_seqno = kv_store.current_version();
 
   ccf::historical::StateCache cache(
     kv_store, state.ledger_secrets, std::make_shared<StubWriter>());
@@ -495,17 +496,17 @@ TEST_CASE("StateCache range queries")
     return accepted;
   };
 
-  auto signing_version = [&signature_versions](kv::Version idx) {
+  auto signing_version = [&signature_versions](kv::Version seqno) {
     const auto begin = signature_versions.begin();
     const auto end = signature_versions.end();
 
-    const auto exact_it = std::find(begin, end, idx);
+    const auto exact_it = std::find(begin, end, seqno);
     if (exact_it != end)
     {
-      return idx;
+      return seqno;
     }
 
-    const auto next_sig_it = std::upper_bound(begin, end, idx);
+    const auto next_sig_it = std::upper_bound(begin, end, seqno);
     REQUIRE(next_sig_it != end);
     return *next_sig_it;
   };
@@ -530,18 +531,18 @@ TEST_CASE("StateCache range queries")
     std::iota(to_provide.begin(), to_provide.end(), range_start);
     std::shuffle(to_provide.begin(), to_provide.end(), g);
 
-    for (const auto idx : to_provide)
+    for (const auto seqno : to_provide)
     {
       // Some of these may be unrequested since they overlapped with the
       // previous range so are already known. Provide them all blindly for
       // simplicity, and make no assertion on the return code.
-      provide_ledger_entry(idx);
+      provide_ledger_entry(seqno);
     }
 
     // Then provide trailing proof after the requested indices
-    for (auto idx = range_end + 1; idx <= proof_end; ++idx)
+    for (auto seqno = range_end + 1; seqno <= proof_end; ++seqno)
     {
-      provide_ledger_entry(idx);
+      provide_ledger_entry(seqno);
     }
 
     {
@@ -554,16 +555,16 @@ TEST_CASE("StateCache range queries")
       {
         auto& store = stores[i];
         REQUIRE(store != nullptr);
-        const auto idx = range_start + i;
+        const auto seqno = range_start + i;
 
         // Don't validate anything about signature transactions, just the
         // business transactions between them
         if (
           std::find(
-            signature_versions.begin(), signature_versions.end(), idx) ==
+            signature_versions.begin(), signature_versions.end(), seqno) ==
           signature_versions.end())
         {
-          validate_business_transaction(store, idx);
+          validate_business_transaction(store, seqno);
         }
       }
     }
@@ -579,12 +580,12 @@ TEST_CASE("StateCache range queries")
 
   {
     INFO("Fetch ranges of various sizes, including across multiple signatures");
-    const size_t whole_range = end_index - begin_index;
+    const size_t whole_range = end_seqno - begin_seqno;
     std::vector<size_t> range_sizes{3, 8, whole_range / 2, whole_range};
     for (const size_t range_size : range_sizes)
     {
-      for (auto range_start = begin_index;
-           range_start <= (end_index - range_size);
+      for (auto range_start = begin_seqno;
+           range_start <= (end_seqno - range_size);
            ++range_start)
       {
         const auto range_end = range_start + range_size;
@@ -602,7 +603,7 @@ TEST_CASE("StateCache concurrent access")
 
   std::vector<kv::Version> signature_versions;
 
-  const auto begin_index = kv_store.current_version() + 1;
+  const auto begin_seqno = kv_store.current_version() + 1;
 
   {
     INFO("Build some interesting state in the store");
@@ -613,10 +614,10 @@ TEST_CASE("StateCache concurrent access")
     }
   }
 
-  const auto end_index = kv_store.current_version();
+  const auto end_seqno = kv_store.current_version();
 
-  auto random_index = [&]() {
-    return begin_index + (rand() % (end_index - begin_index - 1));
+  auto random_seqno = [&]() {
+    return begin_seqno + (rand() % (end_seqno - begin_seqno - 1));
   };
 
   auto writer = std::make_shared<StubWriter>();
@@ -647,13 +648,13 @@ TEST_CASE("StateCache concurrent access")
       {
         auto data = write.contents.data();
         auto size = write.contents.size();
-        const auto [idx, purpose] =
+        const auto [seqno, purpose] =
           ringbuffer::read_message<consensus::ledger_get>(data, size);
         REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
 
-        const auto it = ledger.find(idx);
+        const auto it = ledger.find(seqno);
         REQUIRE(it != ledger.end());
-        cache.handle_ledger_entry(idx, it->second);
+        cache.handle_ledger_entry(seqno, it->second);
       }
 
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -670,13 +671,13 @@ TEST_CASE("StateCache concurrent access")
   auto query_random_point = [&](size_t handle) {
     for (size_t i = 0; i < per_thread_queries; ++i)
     {
-      const auto target_idx = random_index();
+      const auto target_seqno = random_seqno();
 
       ccf::historical::StorePtr store;
       const auto start_time = Clock::now();
       while (true)
       {
-        store = cache.get_store_at(handle, target_idx);
+        store = cache.get_store_at(handle, target_seqno);
         if (store != nullptr)
         {
           break;
@@ -688,7 +689,7 @@ TEST_CASE("StateCache concurrent access")
                          "Thread <{}>, i [{}]: {} - still no answer!",
                          handle,
                          i,
-                         target_idx)
+                         target_seqno)
                     << std::endl;
           REQUIRE(false);
         }
@@ -698,10 +699,10 @@ TEST_CASE("StateCache concurrent access")
 
       if (
         std::find(
-          signature_versions.begin(), signature_versions.end(), target_idx) ==
+          signature_versions.begin(), signature_versions.end(), target_seqno) ==
         signature_versions.end())
       {
-        validate_business_transaction(store, target_idx);
+        validate_business_transaction(store, target_seqno);
       }
     }
   };
@@ -710,8 +711,8 @@ TEST_CASE("StateCache concurrent access")
     std::vector<std::pair<size_t, size_t>> requested;
     for (size_t i = 0; i < per_thread_queries; ++i)
     {
-      auto range_start = random_index();
-      auto range_end = random_index();
+      auto range_start = random_seqno();
+      auto range_end = random_seqno();
 
       if (range_start > range_end)
       {
@@ -757,13 +758,13 @@ TEST_CASE("StateCache concurrent access")
       {
         auto& store = stores[i];
         REQUIRE(store != nullptr);
-        const auto idx = range_start + i;
+        const auto seqno = range_start + i;
         if (
           std::find(
-            signature_versions.begin(), signature_versions.end(), idx) ==
+            signature_versions.begin(), signature_versions.end(), seqno) ==
           signature_versions.end())
         {
-          validate_business_transaction(store, idx);
+          validate_business_transaction(store, seqno);
         }
       }
     }
@@ -802,21 +803,21 @@ TEST_CASE("Recover historical ledger secrets")
 
   // Rekey ledger every 10 transactions
   write_transactions(kv_store, 10);
-  const auto first_rekey_index = rekey(kv_store, state.ledger_secrets);
+  const auto first_rekey_seqno = rekey(kv_store, state.ledger_secrets);
   write_transactions(kv_store, 10);
-  const auto second_rekey_index = rekey(kv_store, state.ledger_secrets);
+  const auto second_rekey_seqno = rekey(kv_store, state.ledger_secrets);
   write_transactions(kv_store, 10);
-  const auto third_rekey_index = rekey(kv_store, state.ledger_secrets);
+  const auto third_rekey_seqno = rekey(kv_store, state.ledger_secrets);
 
   // Only one signature, valid with the latest ledger secret
-  const auto signature_index = write_transactions_and_signature(kv_store, 5);
+  const auto signature_seqno = write_transactions_and_signature(kv_store, 5);
 
-  const auto first_index = first_rekey_index - 3;
-  const auto second_index = second_rekey_index + 1;
-  const auto third_index = third_rekey_index + 2;
+  const auto first_seqno = first_rekey_seqno - 3;
+  const auto second_seqno = second_rekey_seqno + 1;
+  const auto third_seqno = third_rekey_seqno + 2;
 
   auto ledger = construct_host_ledger(state.kv_store->get_consensus());
-  REQUIRE(ledger.size() == signature_index);
+  REQUIRE(ledger.size() == signature_seqno);
 
   // Register node in recovered network (note that this won't be necessary when
   // historical nodes are fetched from snapshot, see
@@ -848,67 +849,67 @@ TEST_CASE("Recover historical ledger secrets")
   };
 
   {
-    INFO("Retrieve latest index, applicable with latest ledger secret");
-    REQUIRE(cache.get_store_at(default_handle, third_index) == nullptr);
+    INFO("Retrieve latest seqno, applicable with latest ledger secret");
+    REQUIRE(cache.get_store_at(default_handle, third_seqno) == nullptr);
 
     // Provide target and subsequent entries until next signature
-    for (size_t i = third_index; i <= signature_index; ++i)
+    for (size_t i = third_seqno; i <= signature_seqno; ++i)
     {
       REQUIRE(provide_ledger_entry(i));
     }
 
     // Store is now trusted, proceed to recover entries
-    auto historical_store = cache.get_store_at(default_handle, third_index);
+    auto historical_store = cache.get_store_at(default_handle, third_seqno);
     REQUIRE(historical_store != nullptr);
 
-    validate_business_transaction(historical_store, third_index);
+    validate_business_transaction(historical_store, third_seqno);
   }
 
   {
-    INFO("Retrieve second index, requiring one historical ledger secret");
-    REQUIRE(cache.get_store_at(default_handle, second_index) == nullptr);
+    INFO("Retrieve second seqno, requiring one historical ledger secret");
+    REQUIRE(cache.get_store_at(default_handle, second_seqno) == nullptr);
 
     // Request is always in flight
-    REQUIRE(cache.get_store_at(default_handle, second_index) == nullptr);
+    REQUIRE(cache.get_store_at(default_handle, second_seqno) == nullptr);
 
-    // The encrypted ledger secret applicable for second_index was recorded in
+    // The encrypted ledger secret applicable for second_seqno was recorded in
     // the store at the next rekey
-    REQUIRE(provide_ledger_entry(third_rekey_index));
+    REQUIRE(provide_ledger_entry(third_rekey_seqno));
 
     // Ledger secret has already been fetched
-    REQUIRE_FALSE(provide_ledger_entry(third_rekey_index));
+    REQUIRE_FALSE(provide_ledger_entry(third_rekey_seqno));
 
     // Provide target and subsequent entries until next signature
-    for (size_t i = second_index; i <= signature_index; ++i)
+    for (size_t i = second_seqno; i <= signature_seqno; ++i)
     {
       provide_ledger_entry(i);
     }
 
     // Store is now trusted, proceed to recover entries
-    auto historical_store = cache.get_store_at(default_handle, second_index);
+    auto historical_store = cache.get_store_at(default_handle, second_seqno);
     REQUIRE(historical_store != nullptr);
 
-    validate_business_transaction(historical_store, second_index);
+    validate_business_transaction(historical_store, second_seqno);
   }
 
   {
-    INFO("Retrieve first index, requiring all historical ledger secrets");
-    REQUIRE(cache.get_store_at(default_handle, first_index) == nullptr);
+    INFO("Retrieve first seqno, requiring all historical ledger secrets");
+    REQUIRE(cache.get_store_at(default_handle, first_seqno) == nullptr);
 
     // Recover all ledger secrets since the start of time
-    REQUIRE(provide_ledger_entry(second_rekey_index));
-    REQUIRE(provide_ledger_entry(first_rekey_index));
+    REQUIRE(provide_ledger_entry(second_rekey_seqno));
+    REQUIRE(provide_ledger_entry(first_rekey_seqno));
 
     // Provide target and subsequent entries until next signature
-    for (size_t i = first_index; i <= signature_index; ++i)
+    for (size_t i = first_seqno; i <= signature_seqno; ++i)
     {
       provide_ledger_entry(i);
     }
 
     // Store is now trusted, proceed to recover entries
-    auto historical_store = cache.get_store_at(default_handle, first_index);
+    auto historical_store = cache.get_store_at(default_handle, first_seqno);
     REQUIRE(historical_store != nullptr);
 
-    validate_business_transaction(historical_store, first_index);
+    validate_business_transaction(historical_store, first_seqno);
   }
 }
