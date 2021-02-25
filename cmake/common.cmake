@@ -182,16 +182,17 @@ set(HTTP_PARSER_SOURCES
 
 find_library(CRYPTO_LIBRARY crypto)
 
+list(APPEND COMPILE_LIBCXX -stdlib=libc++)
+list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
+
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
 
-list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
-
 # Unit test wrapper
 function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE -stdlib=libc++)
+  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
   target_link_libraries(
@@ -211,7 +212,7 @@ endfunction()
 # Test binary wrapper
 function(add_test_bin name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE -stdlib=libc++)
+  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
@@ -225,7 +226,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   add_warning_checks(cchost)
-  target_compile_options(cchost PRIVATE -stdlib=libc++)
+  target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
   add_san(cchost)
   add_lvi_mitigations(cchost)
@@ -265,7 +266,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   # Virtual Host Executable
   add_executable(cchost.virtual ${SNMALLOC_CPP} ${CCF_DIR}/src/host/main.cpp)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
-  target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
+  target_compile_options(cchost.virtual PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
     cchost.virtual PRIVATE ${OE_INCLUDEDIR} ${CCF_GENERATED_DIR}
   )

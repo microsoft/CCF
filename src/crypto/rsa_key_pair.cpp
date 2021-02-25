@@ -26,9 +26,13 @@ namespace crypto
     return std::make_shared<RSAPublicKeyImpl>(der);
   }
 
+  static constexpr auto PEM_BEGIN = "-----BEGIN";
+  static constexpr auto PEM_BEGIN_LEN =
+    std::char_traits<char>::length(PEM_BEGIN);
+
   RSAPublicKeyPtr make_rsa_public_key(const uint8_t* data, size_t size)
   {
-    if (size < 10 || strncmp("-----BEGIN", (char*)data, 10) != 0)
+    if (size < 10 || strncmp(PEM_BEGIN, (char*)data, PEM_BEGIN_LEN) != 0)
     {
       std::vector<uint8_t> der = {data, data + size};
       return std::make_shared<RSAPublicKeyImpl>(der);

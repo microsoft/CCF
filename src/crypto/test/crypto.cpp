@@ -401,11 +401,6 @@ TEST_CASE("AES mbedTLS vs OpenSSL")
 {
   auto key = getRawKey();
 
-  // std::cout << "Contents: ";
-  // for (size_t i = 0; i < contents_.size(); i++)
-  //   printf("%02x", contents_[i]);
-  // std::cout << std::endl;
-
   GcmHeader<1234> h;
 
   { // mbedTLS -> OpenSSL
@@ -453,15 +448,12 @@ TEST_CASE("AES mbedTLS vs OpenSSL + AAD")
 {
   auto key = getRawKey();
 
-  // std::cout << "Contents: ";
-  // for (size_t i = 0; i < contents_.size(); i++)
-  //   printf("%02x", contents_[i]);
-  // std::cout << std::endl;
-
   GcmHeader<1234> h;
   std::vector<uint8_t> aad(123, 'y');
 
-  { // mbedTLS -> OpenSSL
+  {
+    INFO("mbedTLS -> OpenSSL");
+
     auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
     auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
 
@@ -483,7 +475,9 @@ TEST_CASE("AES mbedTLS vs OpenSSL + AAD")
     REQUIRE(memcmp(decrypted.data(), contents_.data(), sizeof(contents_)) == 0);
   }
 
-  { // OpenSSL -> mbedTLS
+  {
+    INFO("OpenSSL -> mbedTLS");
+
     auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
     auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
 

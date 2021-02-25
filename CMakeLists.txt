@@ -121,7 +121,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
                        _LIBCPP_HAS_THREAD_API_PTHREAD
   )
 
-  target_compile_options(ccf.virtual PUBLIC -stdlib=libc++)
+  target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
   add_warning_checks(ccf.virtual)
 
   target_include_directories(
@@ -466,23 +466,13 @@ if(BUILD_TESTS)
     SRCS src/crypto/test/bench.cpp
     LINK_LIBS
   )
+  add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
+  add_picobench(history_bench SRCS src/node/test/history_bench.cpp)
   add_picobench(
-    merkle_bench
-    SRCS src/node/test/merkle_bench.cpp
-  )
-  add_picobench(
-    history_bench
-    SRCS src/node/test/history_bench.cpp
-  )
-  add_picobench(
-    kv_bench
-    SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
+    kv_bench SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
   )
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
-  add_picobench(
-    digest_bench
-    SRCS src/crypto/test/digest_bench.cpp
-  )
+  add_picobench(digest_bench SRCS src/crypto/test/digest_bench.cpp)
 
   # Storing signed governance operations
   add_e2e_test(
