@@ -399,7 +399,7 @@ namespace asynchost
         return false;
       }
 
-      LOG_DEBUG_FMT("Removed node connection with {}", node);
+      LOG_DEBUG_FMT("Removed outgoing node connection with {}", node);
 
       return true;
     }

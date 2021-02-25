@@ -143,6 +143,8 @@ class Network:
             self.existing_network is None
         ), "Cannot adjust local node IDs if the network was started from an existing network"
 
+        # TODO: This won't work!!!
+
         with primary.client() as nc:
             r = nc.get("/node/network/nodes/primary")
             first_node_id = r.body.json()["node_id"]
@@ -706,14 +708,14 @@ class Network:
                 with node.client() as c:
                     try:
                         logs = []
-                        res = c.get("/node/network")  # , log_capture=logs)
-                        assert res.status_code == 200, res
-                        body = res.body.json()
-                        primary_id = body["primary_id"]
-                        view = body["current_view"]
-                        view_change_in_progress = body["view_change_in_progress"]
-                        if primary_id is not None:
+                        res = c.get("/node/network", log_capture=logs)
+                        if res.status_code != 200:
                             break
+                        body = res.body.json()
+                        view = body["current_view"]
+                        if body["view_change_in_progress"]:
+                            break
+                        primary_id = body["primary_id"]
 
                     except CCFConnectionException:
                         LOG.warning(
@@ -723,7 +725,7 @@ class Network:
                 break
             time.sleep(0.1)
 
-        if primary_id is None or view_change_in_progress:
+        if primary_id is None:
             flush_info(logs, log_capture, 0)
             raise PrimaryNotFound
 

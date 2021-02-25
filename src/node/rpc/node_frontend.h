@@ -563,6 +563,7 @@ namespace ccf
           auto primary_id = consensus->primary();
           if (!primary_id.has_value())
           {
+            // TODO: Change status code
             args.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::PrimaryNotFound,
