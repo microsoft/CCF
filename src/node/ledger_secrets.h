@@ -100,10 +100,6 @@ namespace ccf
   public:
     LedgerSecrets() = default;
 
-    LedgerSecrets(LedgerSecretsMap&& ledger_secrets_) :
-      ledger_secrets(std::move(ledger_secrets_))
-    {}
-
     void init(kv::Version initial_version = 1)
     {
       std::lock_guard<SpinLock> guard(lock);

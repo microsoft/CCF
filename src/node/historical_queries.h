@@ -22,7 +22,7 @@ namespace ccf::historical
   static std::optional<ccf::PrimarySignature> get_signature(
     const StorePtr& sig_store)
   {
-    auto tx = sig_store->create_tx();
+    auto tx = sig_store->create_read_only_tx();
     auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
     return signatures->get(0);
   }
