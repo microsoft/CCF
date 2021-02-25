@@ -286,18 +286,26 @@ namespace ccf
             return ctx->serialise_response();
           }
 
-          std::function<kv::Version()> version_resolver = nullptr;
+          kv::CommitResult result;
+          bool track_conflicts =
+            (consensus != nullptr && consensus->type() == ConsensusType::BFT);
           if (prescribed_commit_version != kv::NoVersion)
           {
             CCF_ASSERT(
               consensus->type() == ConsensusType::BFT, "Wrong consensus type");
-            version_resolver = [&]() {
+            auto version_resolver = [&]() {
               tables.next_version();
               return prescribed_commit_version;
             };
+            result = tx.commit(
+              track_conflicts, version_resolver, max_conflict_version);
+          }
+          else
+          {
+            result = tx.commit(track_conflicts);
           }
 
-          switch (tx.commit(version_resolver, max_conflict_version))
+          switch (result)
           {
             case kv::CommitResult::SUCCESS:
             {

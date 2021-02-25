@@ -1102,8 +1102,8 @@ DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
 {
   DOCTEST_INFO("With 1 thread");
   {
-    aft::AsyncExecutionCoordinator aec(1);
-    aec.start_next_execution_round(0);
+    aft::AsyncExecutor aec(1);
+    aec.execute_as_far_as_possible(0);
     for (uint32_t i = 0; i < 20; ++i)
     {
       DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 10));
@@ -1114,8 +1114,8 @@ DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
 
   DOCTEST_INFO("multithreaded run upto sync point");
   {
-    aft::AsyncExecutionCoordinator aec(2);
-    aec.start_next_execution_round(5);
+    aft::AsyncExecutor aec(2);
+    aec.execute_as_far_as_possible(5);
     for (uint32_t i = 0; i < 4; ++i)
     {
       DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
@@ -1128,8 +1128,8 @@ DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
 
   DOCTEST_INFO("multithreaded run upto sync point");
   {
-    aft::AsyncExecutionCoordinator aec(2);
-    aec.start_next_execution_round(10);
+    aft::AsyncExecutor aec(2);
+    aec.execute_as_far_as_possible(10);
     for (uint32_t i = 0; i < 4; ++i)
     {
       DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));

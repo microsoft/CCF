@@ -1454,11 +1454,42 @@ TEST_CASE("Conflict resolution")
   REQUIRE(res3 == kv::CommitResult::SUCCESS);
 
   REQUIRE(tx1.commit_version() > tx2.commit_version());
-  REQUIRE(tx2.get_read_version() >= tx2.get_read_version());
+  REQUIRE(tx1.get_read_version() >= tx2.get_read_version());
 
   // Re-running a _committed_ transaction is exceptionally bad
   REQUIRE_THROWS(tx1.commit());
   REQUIRE_THROWS(tx2.commit());
+}
+
+TEST_CASE("Backup conflict detection")
+{
+  kv::Store kv_store;
+  MapTypes::StringString map("public:map");
+
+  {
+    // Ensure this map already exists, by making a prior write to it
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("foo", "initial");
+    REQUIRE(tx.commit(true) == kv::CommitResult::SUCCESS);
+  }
+
+  // Add some values to the map
+  for (uint32_t i = 0; i < 10; ++i)
+  {
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put("foo", "value");
+    REQUIRE(tx.commit(true) == kv::CommitResult::SUCCESS);
+  }
+
+  auto tx = kv_store.create_tx();
+  auto handle = tx.rw(map);
+  handle->get("foo");
+  handle->put("foo", "value");
+  kv::Version max_conflict_version = 2;
+  auto version_resolver = [&]() { return max_conflict_version - 1; };
+  REQUIRE_THROWS(tx.commit(true, version_resolver, max_conflict_version));
 }
 
 TEST_CASE("Mid-tx compaction")

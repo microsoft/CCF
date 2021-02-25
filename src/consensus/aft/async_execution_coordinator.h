@@ -12,11 +12,19 @@ namespace aft
     COMPLETE
   };
 
-  class AsyncExecutionCoordinator
+  class AsyncExecutor
   {
+  private:
+    uint32_t pending_cbs = 0;
+    bool run_sync = threading::ThreadMessaging::thread_count == 1;
+    bool is_first;
+    bool must_break;
+    uint64_t execution_start_idx;
+
   public:
-    AsyncExecutionCoordinator(uint16_t thread_count) :
-      pending_cbs(0), run_sync(thread_count == 1)
+    AsyncExecutor(uint16_t thread_count) :
+      pending_cbs(0),
+      run_sync(thread_count == 1)
     {}
 
     void increment_pending()
@@ -32,21 +40,22 @@ namespace aft
 
     AsyncExecutionResult execution_status()
     {
-      if (pending_cbs == 0) 
+      if (pending_cbs == 0)
       {
         return AsyncExecutionResult::COMPLETE;
       }
       return AsyncExecutionResult::PENDING;
     }
 
-    void start_next_execution_round(kv::Version last_idx)
+    void execute_as_far_as_possible(kv::Version start_idx)
     {
       is_first = true;
       must_break = false;
-      execution_start_idx = last_idx;
+      execution_start_idx = start_idx;
     }
-    
-    bool should_exec_next_append_entry(bool support_async_execution, uint64_t max_conflict_version)
+
+    bool should_exec_next_append_entry(
+      bool support_async_execution, uint64_t max_conflict_version)
     {
       if (!run_sync)
       {
@@ -77,12 +86,5 @@ namespace aft
 
       return true;
     }
-
-  private:
-    uint32_t pending_cbs = 0;
-    bool run_sync = threading::ThreadMessaging::thread_count == 1;
-    bool is_first;
-    bool must_break;
-    uint64_t execution_start_idx;
   };
 }

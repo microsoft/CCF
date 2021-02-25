@@ -43,12 +43,12 @@ namespace enclave
 
     virtual ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
-      kv::Consensus::SeqNo last_idx,
+      kv::Consensus::SeqNo prescribed_commit_version,
       kv::Consensus::SeqNo max_conflict_version) = 0;
     virtual ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
-      kv::Consensus::SeqNo last_idx = -1,
-      kv::Consensus::SeqNo max_conflict_version = -1) = 0;
+      kv::Consensus::SeqNo prescribed_commit_version = kv::NoVersion,
+      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) = 0;
   };
 }

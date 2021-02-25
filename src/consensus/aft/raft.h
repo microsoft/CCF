@@ -127,7 +127,7 @@ namespace aft
 
     // Async execution
     struct AsyncExecution;
-    AsyncExecutionCoordinator async_exec_coordinator;
+    AsyncExecutor async_executor;
     std::unique_ptr<threading::Tmsg<AsyncExecution>> async_exec_msg;
 
     // Timeouts
@@ -196,7 +196,7 @@ namespace aft
       executor(executor_),
       request_tracker(request_tracker_),
       view_change_tracker(std::move(view_change_tracker_)),
-      async_exec_coordinator(threading::ThreadMessaging::thread_count),
+      async_executor(threading::ThreadMessaging::thread_count),
 
       request_timeout(request_timeout_),
       election_timeout(election_timeout_),
@@ -1433,7 +1433,7 @@ namespace aft
       kv::Version last_idx;
       kv::Version commit_idx;
       uint16_t scheduler_thread;
-      std::shared_ptr<AsyncExecutionCoordinator> ctx;
+      std::shared_ptr<AsyncExecutor> ctx;
     };
 
     uint64_t next_exec_thread = 0;
@@ -1673,7 +1673,7 @@ namespace aft
                   [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
                     auto self = msg->data.self;
                     if (
-                      self->async_exec_coordinator.decrement_pending() ==
+                      self->async_executor.decrement_pending() ==
                       AsyncExecutionResult::COMPLETE)
                     {
                       self->apply(std::move(self->async_exec_msg));
@@ -1689,7 +1689,7 @@ namespace aft
               state->commit_idx,
               threading::get_current_thread_id());
 
-            async_exec_coordinator.increment_pending();
+            async_executor.increment_pending();
             threading::ThreadMessaging::thread_messaging.add_task(
               threading::ThreadMessaging::get_execution_thread(
                 ++next_exec_thread),
@@ -1733,13 +1733,13 @@ namespace aft
       AppendEntries& r = msg->data.r;
       bool confirm_evidence = msg->data.confirm_evidence;
       async_exec_msg = std::move(msg);
-      async_exec_coordinator.start_next_execution_round(state->last_idx);
+      async_executor.execute_as_far_as_possible(state->last_idx);
       while (async_exec_msg->data.next_append_entry_index !=
              append_entries.size())
       {
         auto& [ds, i] =
           append_entries[async_exec_msg->data.next_append_entry_index];
-        if (!async_exec_coordinator.should_exec_next_append_entry(
+        if (!async_executor.should_exec_next_append_entry(
               ds->support_async_execution(), ds->get_max_conflict_version()))
         {
           return AsyncExecutionResult::PENDING;
@@ -1757,9 +1757,7 @@ namespace aft
         }
       }
 
-      if (
-        async_exec_coordinator.execution_status() ==
-        AsyncExecutionResult::COMPLETE)
+      if (async_executor.execution_status() == AsyncExecutionResult::COMPLETE)
       {
         execute_append_entries_finish(confirm_evidence, r);
         return AsyncExecutionResult::COMPLETE;

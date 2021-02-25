@@ -4,9 +4,10 @@
 
 // The transaction engine supports producing a transaction dependencies. This is
 // materialized by providing a sequence number after which the current
-// transaction must be run. The current use case for dependency tracking is to
-// enable parallel execution of transactions on the backup, and as such we only
-// track dependencies when running BFT consensus protocol.
+// transaction must be run and required that transaction execution is started in
+// the total order.  The current use case for dependency tracking is to enable
+// parallel execution of transactions on the backup, and as such we only track
+// dependencies when running BFT consensus protocol.
 //
 // Dependency tracking follows the following pseudocode
 //
@@ -269,6 +270,7 @@ namespace kv
      * @return transaction outcome
      */
     CommitResult commit(
+      bool track_conflicts = false,
       std::function<Version()> version_resolver = nullptr,
       kv::Version replicated_max_conflict_version = kv::NoVersion)
     {
@@ -283,9 +285,6 @@ namespace kv
       }
 
       auto store = all_changes.begin()->second.map->get_store();
-      auto consensus = store->get_consensus();
-      bool track_conflicts =
-        (consensus != nullptr && consensus->type() == ConsensusType::BFT);
 
       // If this transaction creates any maps, ensure that commit gets a
       // consistent snapshot of the existing maps
@@ -342,6 +341,12 @@ namespace kv
           replicated_max_conflict_version != kv::NoVersion)
         {
           max_conflict_version = replicated_max_conflict_version;
+        }
+
+        if (max_conflict_version > version)
+        {
+          // Detected a linearizability violation
+          throw std::logic_error("detected linearizability violation");
         }
 
         // From here, we have received a unique commit version and made
