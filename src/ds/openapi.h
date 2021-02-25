@@ -99,14 +99,20 @@ namespace ds
     }
 
     static inline nlohmann::json& path_operation(
-      nlohmann::json& path, llhttp_method verb)
+      nlohmann::json& path, llhttp_method verb, bool default_responses = true)
     {
       // HTTP_GET becomes the string "get"
       std::string s = llhttp_method_name(verb);
       nonstd::to_lower(s);
       auto& po = access::get_object(path, s);
-      // responses is required field in a path_operation
-      access::get_object(po, "responses");
+
+      if (default_responses)
+      {
+        // responses is required field in a path_operation, but caller may
+        // choose to add their own later
+        access::get_object(po, "responses");
+      }
+
       return po;
     }
 
