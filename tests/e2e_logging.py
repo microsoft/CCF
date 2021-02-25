@@ -448,8 +448,8 @@ def test_historical_query_range(network, args):
 
     primary, _ = network.find_primary()
 
-    main_id = 0
-    fizz_id = 1
+    id_a = 0
+    id_b = 1
 
     first_seqno = None
     last_seqno = None
@@ -463,7 +463,7 @@ def test_historical_query_range(network, args):
                     f"/app/log/private/historical/range?from_seqno={first_seqno}&to_seqno={last_seqno}&id={target_id}"
                 )
                 if r.status_code == http.HTTPStatus.OK:
-                    return r.body.json()
+                    return r.body.json()["entries"]
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
                     # Ignore retry-after header, just sleep briefly and retry
                     time.sleep(0.5)
@@ -472,25 +472,40 @@ def test_historical_query_range(network, args):
         
         raise TimeoutError(f"Historical range not available after {timeout}s")
 
+    def make_msg(i):
+        return f"A unique message about {i}"
 
     with primary.client("user0") as c:
         # Submit many transactions, overwriting the same IDs
-        for i in range(100):
-            r = c.post("/app/log/private", {"id": main_id, "msg": f"{i}"})
+        n_entries = 100
+        for i in range(n_entries):
+            r = c.post("/app/log/private", {"id": id_b if i % 3 == 0 else id_a, "msg": make_msg(i)})
             assert r.status_code == http.HTTPStatus.OK
 
             if first_seqno is None:
                 first_seqno = r.seqno
 
-            if i % 3 == 0:
-                r = c.post("/app/log/private", {"id": fizz_id, "msg": f"Fizz {i}"})
-                assert r.status_code == http.HTTPStatus.OK
-
             last_seqno = r.seqno
 
         ccf.commit.wait_for_commit(c, last_seqno, r.view, 3)
 
-        main_entries = get_all_entries(main_id)
+        entries_a = get_all_entries(id_a)
+        entries_b = get_all_entries(id_b)
+        actual_len = len(entries_a) + len(entries_b)
+        assert n_entries == actual_len, f"Expected {n_entries} total entries, got {actual_len}"
+
+        # Iterate through both lists, by i, checking we have expected entries
+        for i in range(n_entries):
+            entries = entries_b if i % 3 == 0 else entries_a
+            expected_id = id_b if i % 3 == 0 else id_a
+            entry = entries.pop(0)
+            assert entry["id"] == expected_id
+            assert entry["msg"] == make_msg(i)
+
+        # Make sure this has checked every entry
+        assert len(entries_a) == 0
+        assert len(entries_b) == 0
+
 
     return network
 
