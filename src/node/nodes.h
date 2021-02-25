@@ -54,6 +54,11 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno);
 
   using Nodes = kv::Map<NodeId, NodeInfo>;
+  // using Nodes = kv::MapSerialisedWith<
+  //   NodeId,
+  //   NodeInfo,
+  //   kv::serialisers::BlitSerialiser,
+  //   kv::serialisers::MsgPackSerialiser>; // TODO: To change to JSON!
 }
 
 FMT_BEGIN_NAMESPACE

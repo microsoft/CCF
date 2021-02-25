@@ -135,7 +135,7 @@ class Network:
 
     def _get_next_local_node_id(self):
         if len(self.nodes):
-            return self.nodes[-1].node_id + 1
+            return self.nodes[-1].local_node_id + 1
         return self.node_offset
 
     def _adjust_local_node_ids(self, primary):
@@ -688,9 +688,7 @@ class Network:
         raise TimeoutError(f"Application frontend was not open after {timeout}s")
 
     def _get_node_by_service_id(self, node_id):
-        return next(
-            (node for node in self.nodes if node.service_node_id == node_id), None
-        )
+        return next((node for node in self.nodes if node.node_id == node_id), None)
 
     def find_primary(self, timeout=3, log_capture=None):
         """
@@ -711,7 +709,6 @@ class Network:
                         res = c.get("/node/network")  # , log_capture=logs)
                         assert res.status_code == 200, res
                         body = res.body.json()
-                        LOG.error(res.body.json())
                         primary_id = body["primary_id"]
                         view = body["current_view"]
                         view_change_in_progress = body["view_change_in_progress"]
