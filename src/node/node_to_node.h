@@ -30,35 +30,31 @@ namespace ccf
     virtual void destroy_all_channels() = 0;
 
     template <class T>
-    bool send_authenticated(
-      const NodeMsgType& msg_type, NodeId to, const T& data)
+    bool send_authenticated(NodeId to, NodeMsgType type, const T& data)
     {
       return send_authenticated(
-        msg_type, to, reinterpret_cast<const uint8_t*>(&data), sizeof(T));
+        to, type, reinterpret_cast<const uint8_t*>(&data), sizeof(T));
     }
 
     template <>
     bool send_authenticated(
-      const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
+      NodeId to, NodeMsgType type, const std::vector<uint8_t>& data)
     {
-      return send_authenticated(msg_type, to, data.data(), data.size());
+      return send_authenticated(to, type, data.data(), data.size());
     }
 
     virtual bool send_authenticated(
-      const ccf::NodeMsgType& msg_type,
-      NodeId to,
-      const uint8_t* data,
-      size_t size) = 0;
+      NodeId to, NodeMsgType type, const uint8_t* data, size_t size) = 0;
 
     template <class T>
-    const T& recv_authenticated(const uint8_t*& data, size_t& size)
+    const T& recv_authenticated(NodeId from, const uint8_t*& data, size_t& size)
     {
       auto& t = serialized::overlay<T>(data, size);
 
-      if (!recv_authenticated(t.from_node, asCb(t), data, size))
+      if (!recv_authenticated(from, asCb(t), data, size))
       {
         throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message from node {}", t.from_node));
+          "Invalid authenticated node2node message from node {}", from));
       }
 
       return t;
@@ -84,10 +80,10 @@ namespace ccf
     }
 
     virtual bool recv_authenticated_with_load(
-      NodeId from_node, const uint8_t*& data, size_t& size) = 0;
+      NodeId from, const uint8_t*& data, size_t& size) = 0;
 
     virtual bool recv_authenticated(
-      NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) = 0;
+      NodeId from, CBuffer cb, const uint8_t*& data, size_t& size) = 0;
 
     virtual void recv_message(OArray&& oa) = 0;
 
@@ -184,36 +180,34 @@ namespace ccf
     }
 
     bool send_authenticated(
-      const ccf::NodeMsgType& msg_type,
-      NodeId to,
-      const uint8_t* data,
-      size_t size) override
+      NodeId to, NodeMsgType type, const uint8_t* data, size_t size) override
     {
       auto n2n_channel = channels->get(to);
-      return n2n_channel->send(msg_type, {data, size});
+      return n2n_channel->send(type, {data, size});
     }
 
     bool recv_authenticated(
-      NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) override
+      NodeId from, CBuffer cb, const uint8_t*& data, size_t& size) override
     {
-      auto n2n_channel = channels->get(from_node);
+      auto n2n_channel = channels->get(from);
       return n2n_channel->recv_authenticated(cb, data, size);
     }
 
+    // TODO: Change order of args
     bool send_encrypted(
-      const NodeMsgType& msg_type,
+      const NodeMsgType& type,
       CBuffer cb,
       NodeId to,
       const std::vector<uint8_t>& data) override
     {
       auto n2n_channel = channels->get(to);
-      return n2n_channel->send(msg_type, cb, data);
+      return n2n_channel->send(type, cb, data); // TODO: Fix!
     }
 
     bool recv_authenticated_with_load(
-      NodeId from_node, const uint8_t*& data, size_t& size) override
+      NodeId from, const uint8_t*& data, size_t& size) override
     {
-      auto n2n_channel = channels->get(from_node);
+      auto n2n_channel = channels->get(from);
       return n2n_channel->recv_authenticated_with_load(data, size);
     }
 
@@ -232,23 +226,21 @@ namespace ccf
       return plain.value();
     }
 
-    void process_key_exchange(const uint8_t* data, size_t size)
+    void process_key_exchange(NodeId from, const uint8_t* data, size_t size)
     {
       // Called on channel target when a key exchange message is received from
       // the initiator
-      const auto& ke = serialized::overlay<ChannelHeader>(data, size);
-
-      auto n2n_channel = channels->get(ke.from_node);
+      // const auto& ke = serialized::overlay<ChannelHeader>(data, size);
+      auto n2n_channel = channels->get(from);
       n2n_channel->load_peer_signed_public(false, data, size);
     }
 
-    void complete_key_exchange(const uint8_t* data, size_t size)
+    void complete_key_exchange(NodeId from, const uint8_t* data, size_t size)
     {
       // Called on channel initiator when a key exchange response message is
       // received from the target
-      const auto& ke = serialized::overlay<ChannelHeader>(data, size);
-
-      auto n2n_channel = channels->get(ke.from_node);
+      // const auto& ke = serialized::overlay<ChannelHeader>(data, size);
+      auto n2n_channel = channels->get(from);
       n2n_channel->load_peer_signed_public(true, data, size);
     }
 
@@ -256,17 +248,18 @@ namespace ccf
     {
       const uint8_t* data = oa.data();
       size_t size = oa.size();
-      switch (serialized::peek<ChannelMsg>(data, size))
+      auto from = serialized::read<NodeId>(data, size);
+      switch (serialized::read<ChannelMsg>(data, size))
       {
         case key_exchange:
         {
-          process_key_exchange(data, size);
+          process_key_exchange(from, data, size);
           break;
         }
 
         case key_exchange_response:
         {
-          complete_key_exchange(data, size);
+          complete_key_exchange(from, data, size);
           break;
         }
 

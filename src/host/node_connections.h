@@ -69,11 +69,15 @@ namespace asynchost
           auto p = data;
           auto psize = size;
           auto msg_type = serialized::read<ccf::NodeMsgType>(p, psize);
-          auto header = serialized::read<ccf::Header>(p, psize);
+          // auto header = serialized::read<ccf::Header>(p, psize);
+          // serialized::skip(p, psize, sizeof(ccf::Node2NodeMsg));
+          auto from = serialized::read<ccf::NodeId>(p, psize);
+
+          LOG_FAIL_FMT("Recv msg from node {}", from);
 
           if (!node.has_value())
           {
-            associate(header.from_node);
+            associate(from);
           }
 
           LOG_DEBUG_FMT(
@@ -249,20 +253,27 @@ namespace asynchost
           // If the message is a consensus append entries message, affix the
           // corresponding ledger entries
           auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
+          auto from = serialized::read<ccf::NodeId>(data, size);
+
+          LOG_FAIL_FMT(
+            "Node outbound msg {} from {} to {}", msg_type, from, to);
+
           if (
             msg_type == ccf::NodeMsgType::consensus_msg &&
-            (serialized::peek<aft::RaftMsgType>(data, size) ==
+            (serialized::read<aft::RaftMsgType>(data, size) ==
              aft::raft_append_entries))
           {
             // Parse the indices to be sent to the recipient.
-            auto p = data;
-            auto psize = size;
+            // auto p = data;
+            // auto psize = size;
 
-            serialized::overlay<consensus::ConsensusHeader<ccf::Node2NodeMsg>>(
-              p, psize);
+            // serialized::overlay<consensus::ConsensusHeader<ccf::Node2NodeMsg>>(
+            //   p, psize);
+            // serialized::skip(p, psize, sizeof(ccf::Node2NodeMsg));
+            // serialized::skip(data, size, sizeof(ccf::NodeId));
 
             const auto& ae =
-              serialized::overlay<consensus::AppendEntriesIndex>(p, psize);
+              serialized::overlay<consensus::AppendEntriesIndex>(data, size);
 
             // Find the total frame size, and write it along with the header.
             uint32_t frame = (uint32_t)size_to_send;

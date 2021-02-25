@@ -38,12 +38,13 @@ namespace ccf
   };
 
 #pragma pack(push, 1)
-  // Header for every message exchange between nodes
-  struct Header
-  {
-    Node2NodeMsg msg;
-    NodeId from_node; // TODO: Make this an array
-  };
+  // TODO: Delete
+  // // Header for every message exchange between nodes
+  // struct Header
+  // {
+  //   Node2NodeMsg msg;
+  //   NodeId from_node;
+  // };
 
   // Channel-specific header for key exchange
   struct ChannelHeader

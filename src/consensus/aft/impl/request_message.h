@@ -19,17 +19,18 @@ namespace aft
   {
     RequestMessageRep() = default;
     RequestMessageRep(
-      kv::NodeId from_node,
+      kv::NodeId from_node_,
       uint16_t command_size_,
       uint16_t session_id_,
       kv::TxHistory::RequestID rid_) :
-      consensus::ConsensusHeader<RaftMsgType>(
-        RaftMsgType::bft_request, from_node),
+      consensus::ConsensusHeader<RaftMsgType>(RaftMsgType::bft_request),
+      from_node(from_node_),
       command_size(command_size_),
       session_id(session_id_),
       rid(rid_)
     {}
 
+    kv::NodeId from_node; // TODO: Fix BFT!
     uint16_t command_size;
     uint16_t session_id; // unique id of client who sends the request
     kv::TxHistory::RequestID rid; // unique request identifier

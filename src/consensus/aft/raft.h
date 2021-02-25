@@ -541,7 +541,13 @@ namespace aft
       std::unique_ptr<AbstractMsgCallback> aee;
       const uint8_t* data = d.data();
       size_t size = d.size();
+      kv::NodeId from = serialized::read<kv::NodeId>(data, size);
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
+
+      // TODO:
+      // 1. Do not send nodeid as part of consensus msg: get it from channel
+      // insteeaaaad! --> Can't do this right now because the host checks the
+      // from field!!
 
       try
       {
@@ -550,87 +556,92 @@ namespace aft
           case raft_append_entries:
           {
             AppendEntries r =
-              channels->template recv_authenticated<AppendEntries>(data, size);
+              channels->template recv_authenticated<AppendEntries>(
+                from, data, size);
             aee = std::make_unique<AppendEntryCallback>(
-              *this, std::move(r), data, size, std::move(d));
+              *this, from, std::move(r), data, size, std::move(d));
             break;
           }
           case raft_append_entries_response:
           {
             AppendEntriesResponse r =
               channels->template recv_authenticated<AppendEntriesResponse>(
-                data, size);
+                from, data, size);
             aee = std::make_unique<AppendEntryResponseCallback>(
-              *this, std::move(r));
+              *this, from, std::move(r));
             break;
           }
-          case raft_append_entries_signed_response:
-          {
-            SignedAppendEntriesResponse r =
-              channels
-                ->template recv_authenticated<SignedAppendEntriesResponse>(
-                  data, size);
-            aee = std::make_unique<SignedAppendEntryResponseCallback>(
-              *this, std::move(r));
-            break;
-          }
+            // case raft_append_entries_signed_response:
+            // {
+            //   SignedAppendEntriesResponse r =
+            //     channels
+            //       ->template recv_authenticated<SignedAppendEntriesResponse>(
+            //         data, size);
+            //   aee = std::make_unique<SignedAppendEntryResponseCallback>(
+            //     *this, std::move(r));
+            //   break;
+            // }
 
-          case raft_request_vote:
-          {
-            RequestVote r =
-              channels->template recv_authenticated<RequestVote>(data, size);
-            aee = std::make_unique<RequestVoteCallback>(*this, std::move(r));
-            break;
-          }
+            // case raft_request_vote:
+            // {
+            //   RequestVote r =
+            //     channels->template recv_authenticated<RequestVote>(data,
+            //     size);
+            //   aee = std::make_unique<RequestVoteCallback>(*this,
+            //   std::move(r)); break;
+            // }
 
-          case raft_request_vote_response:
-          {
-            RequestVoteResponse r =
-              channels->template recv_authenticated<RequestVoteResponse>(
-                data, size);
-            aee = std::make_unique<RequestVoteResponseCallback>(
-              *this, std::move(r));
-            break;
-          }
+            // case raft_request_vote_response:
+            // {
+            //   RequestVoteResponse r =
+            //     channels->template recv_authenticated<RequestVoteResponse>(
+            //       data, size);
+            //   aee = std::make_unique<RequestVoteResponseCallback>(
+            //     *this, std::move(r));
+            //   break;
+            // }
 
-          case bft_signature_received_ack:
-          {
-            SignaturesReceivedAck r =
-              channels->template recv_authenticated<SignaturesReceivedAck>(
-                data, size);
-            aee = std::make_unique<SignatureAckCallback>(*this, std::move(r));
-            break;
-          }
+            // case bft_signature_received_ack:
+            // {
+            //   SignaturesReceivedAck r =
+            //     channels->template recv_authenticated<SignaturesReceivedAck>(
+            //       data, size);
+            //   aee = std::make_unique<SignatureAckCallback>(*this,
+            //   std::move(r)); break;
+            // }
 
-          case bft_nonce_reveal:
-          {
-            NonceRevealMsg r =
-              channels->template recv_authenticated<NonceRevealMsg>(data, size);
-            aee = std::make_unique<NonceRevealCallback>(*this, std::move(r));
-            break;
-          }
-          case bft_view_change:
-          {
-            RequestViewChangeMsg r =
-              channels
-                ->template recv_authenticated_with_load<RequestViewChangeMsg>(
-                  data, size);
-            aee = std::make_unique<ViewChangeCallback>(
-              *this, std::move(r), data, size, std::move(d));
-            break;
-          }
+            // case bft_nonce_reveal:
+            // {
+            //   NonceRevealMsg r =
+            //     channels->template recv_authenticated<NonceRevealMsg>(data,
+            //     size);
+            //   aee = std::make_unique<NonceRevealCallback>(*this,
+            //   std::move(r)); break;
+            // }
+            // case bft_view_change:
+            // {
+            //   RequestViewChangeMsg r =
+            //     channels
+            //       ->template
+            //       recv_authenticated_with_load<RequestViewChangeMsg>(
+            //         data, size);
+            //   aee = std::make_unique<ViewChangeCallback>(
+            //     *this, std::move(r), data, size, std::move(d));
+            //   break;
+            // }
 
-          case bft_view_change_evidence:
-          {
-            ViewChangeEvidenceMsg r =
-              channels
-                ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
-                  data, size);
+            // case bft_view_change_evidence:
+            // {
+            //   ViewChangeEvidenceMsg r =
+            //     channels
+            //       ->template
+            //       recv_authenticated_with_load<ViewChangeEvidenceMsg>(
+            //         data, size);
 
-            aee = std::make_unique<ViewChangeEvidenceCallback>(
-              *this, std::move(r), data, size, std::move(d));
-            break;
-          }
+            //   aee = std::make_unique<ViewChangeEvidenceCallback>(
+            //     *this, std::move(r), data, size, std::move(d));
+            //   break;
+            // }
 
           default:
           {
@@ -727,8 +738,8 @@ namespace aft
             auto send_to = it->first;
             if (send_to != state->my_node_id)
             {
-              channels->send_authenticated(
-                ccf::NodeMsgType::consensus_msg, send_to, m);
+              // channels->send_authenticated(
+              //   ccf::NodeMsgType::consensus_msg, send_to, m);
             }
           }
 
@@ -982,7 +993,7 @@ namespace aft
         end_idx,
         state->commit_idx);
 
-      AppendEntries ae = {{raft_append_entries, state->my_node_id},
+      AppendEntries ae = {{RaftMsgType::raft_append_entries},
                           {end_idx, prev_idx},
                           state->current_view,
                           prev_term,
@@ -995,7 +1006,7 @@ namespace aft
       // The host will append log entries to this message when it is
       // sent to the destination node.
       if (!channels->send_authenticated(
-            ccf::NodeMsgType::consensus_msg, to, ae))
+            to, ccf::NodeMsgType::consensus_msg, ae))
       {
         return;
       }
@@ -1011,10 +1022,12 @@ namespace aft
         std::vector<std::tuple<
           std::unique_ptr<kv::AbstractExecutionWrapper>,
           kv::Version>>&& append_entries_,
+        kv::NodeId from_,
         AppendEntries&& r_,
         bool confirm_evidence_) :
         self(self_),
         append_entries(std::move(append_entries_)),
+        from(from_),
         r(std::move(r_)),
         confirm_evidence(confirm_evidence_)
       {}
@@ -1023,20 +1036,23 @@ namespace aft
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
         append_entries;
+      kv::NodeId from;
       AppendEntries r;
       bool confirm_evidence;
     };
 
-    void recv_append_entries(AppendEntries r, const uint8_t* data, size_t size)
+    void recv_append_entries(
+      kv::NodeId from, AppendEntries r, const uint8_t* data, size_t size)
     {
       std::unique_lock<SpinLock> guard(state->lock);
+
       LOG_DEBUG_FMT(
-        "Received append entries: {}.{} to {}.{} (primary is {} in term {})",
+        "Received append entries: {}.{} to {}.{} (from {} in term {})",
         r.prev_term,
         r.prev_idx,
         r.term_of_idx,
         r.idx,
-        r.from_node,
+        from,
         r.term);
 
       // Don't check that the sender node ID is valid. Accept anything that
@@ -1056,17 +1072,16 @@ namespace aft
           // is part of the network we joined but that is dependent on Byzantine
           // identity
         }
-        else if (get_primary(r.term) != r.from_node)
+        else if (get_primary(r.term) != from)
         {
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} at view:{} but the primary at "
             "this view should be {}",
             state->my_node_id,
-            r.from_node,
+            from,
             r.term,
             get_primary(r.term));
-          send_append_entries_response(
-            r.from_node, AppendEntriesResponseType::FAIL);
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
         }
         else if (!view_change_tracker->check_evidence(r.term))
@@ -1081,10 +1096,10 @@ namespace aft
               "Recv append entries to {} from {} at view:{} but we do not have "
               "the evidence to support this view",
               state->my_node_id,
-              r.from_node,
+              from,
               r.term);
             send_append_entries_response(
-              r.from_node, AppendEntriesResponseType::REQUIRE_EVIDENCE);
+              from, AppendEntriesResponseType::REQUIRE_EVIDENCE);
             return;
           }
         }
@@ -1108,11 +1123,10 @@ namespace aft
         LOG_INFO_FMT(
           "Recv append entries to {} from {} but our term is later ({} > {})",
           state->my_node_id,
-          r.from_node,
+          from,
           state->current_view,
           r.term);
-        send_append_entries_response(
-          r.from_node, AppendEntriesResponseType::FAIL);
+        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return;
       }
 
@@ -1131,7 +1145,7 @@ namespace aft
             "Recv append entries to {} from {} but our log does not yet "
             "contain index {}",
             state->my_node_id,
-            r.from_node,
+            from,
             r.prev_idx);
         }
         else
@@ -1140,22 +1154,21 @@ namespace aft
             "Recv append entries to {} from {} but our log at {} has the wrong "
             "previous term (ours: {}, theirs: {})",
             state->my_node_id,
-            r.from_node,
+            from,
             r.prev_idx,
             prev_term,
             r.prev_term);
         }
-        send_append_entries_response(
-          r.from_node, AppendEntriesResponseType::FAIL);
+        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return;
       }
 
       // If the terms match up, it is sufficient to convince us that the sender
       // is leader in our term
       restart_election_timeout();
-      if (!leader_id.has_value() || leader_id.value() != r.from_node)
+      if (!leader_id.has_value() || leader_id.value() != from)
       {
-        leader_id = r.from_node;
+        leader_id = from;
         LOG_DEBUG_FMT(
           "Node {} thinks leader is {}", state->my_node_id, leader_id.value());
       }
@@ -1168,7 +1181,7 @@ namespace aft
           "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
           "({})",
           state->my_node_id,
-          r.from_node,
+          from,
           r.prev_idx,
           state->commit_idx);
         return;
@@ -1178,7 +1191,7 @@ namespace aft
         LOG_DEBUG_FMT(
           "Recv append entries to {} from {} but prev_idx ({}) > last_idx ({})",
           state->my_node_id,
-          r.from_node,
+          from,
           r.prev_idx,
           state->last_idx);
         return;
@@ -1187,7 +1200,7 @@ namespace aft
       LOG_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
         state->my_node_id,
-        r.from_node,
+        from,
         r.idx,
         r.prev_idx);
 
@@ -1237,10 +1250,9 @@ namespace aft
           LOG_FAIL_FMT(
             "Recv append entries to {} from {} but the data is malformed: {}",
             state->my_node_id,
-            r.from_node,
+            from,
             e.what());
-          send_append_entries_response(
-            r.from_node, AppendEntriesResponseType::FAIL);
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
         }
 
@@ -1248,8 +1260,7 @@ namespace aft
         if (ds == nullptr)
         {
           LOG_DEBUG_FMT("failed to deserialize we failed to apply");
-          send_append_entries_response(
-            r.from_node, AppendEntriesResponseType::FAIL);
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
         }
         append_entries.push_back(std::make_tuple(std::move(ds), i));
@@ -1260,8 +1271,10 @@ namespace aft
         execute_append_entries_cb,
         this,
         std::move(append_entries),
+        from,
         std::move(r),
         confirm_evidence);
+
       if (threading::ThreadMessaging::thread_count > 1)
       {
         threading::ThreadMessaging::thread_messaging.add_task(
@@ -1280,7 +1293,11 @@ namespace aft
       std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
     {
       msg->data.self->execute_append_entries(
-        msg->data.append_entries, msg->data.r, msg->data.confirm_evidence);
+        msg->data.append_entries,
+        msg->data.from,
+        msg->data.r,
+        msg->data.confirm_evidence);
+
       msg->cb =
         reinterpret_cast<void (*)(std::unique_ptr<threading::ThreadMsg>)>(
           continue_execution);
@@ -1306,6 +1323,7 @@ namespace aft
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries,
+      kv::NodeId from,
       AppendEntries& r,
       bool confirm_evidence)
     {
@@ -1330,8 +1348,7 @@ namespace aft
           // problem but still need to be resolved.
           state->last_idx = i - 1;
           ledger->truncate(state->last_idx);
-          send_append_entries_response(
-            r.from_node, AppendEntriesResponseType::FAIL);
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
         }
 
@@ -1358,8 +1375,7 @@ namespace aft
             LOG_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
             ledger->truncate(state->last_idx);
-            send_append_entries_response(
-              r.from_node, AppendEntriesResponseType::FAIL);
+            send_append_entries_response(from, AppendEntriesResponseType::FAIL);
             break;
           }
 
@@ -1386,8 +1402,7 @@ namespace aft
             }
             if (consensus_type == ConsensusType::BFT)
             {
-              send_append_entries_signed_response(
-                r.from_node, ds->get_signature());
+              send_append_entries_signed_response(from, ds->get_signature());
             }
             break;
           }
@@ -1454,10 +1469,10 @@ namespace aft
           "the evidence to support this view, append message was marked as "
           "containing evidence",
           state->my_node_id,
-          r.from_node,
+          from,
           r.term);
         send_append_entries_response(
-          r.from_node, AppendEntriesResponseType::REQUIRE_EVIDENCE);
+          from, AppendEntriesResponseType::REQUIRE_EVIDENCE);
         return;
       }
 
@@ -1476,7 +1491,7 @@ namespace aft
         state->view_history.update(lci + 1, r.term_of_idx);
       }
 
-      send_append_entries_response(r.from_node, AppendEntriesResponseType::OK);
+      send_append_entries_response(from, AppendEntriesResponseType::OK);
     }
 
     void send_append_entries_response(
@@ -1489,14 +1504,13 @@ namespace aft
         state->last_idx,
         answer);
 
-      AppendEntriesResponse response = {
-        {raft_append_entries_response, state->my_node_id},
-        state->current_view,
-        state->last_idx,
-        answer};
+      AppendEntriesResponse response = {{raft_append_entries_response},
+                                        state->current_view,
+                                        state->last_idx,
+                                        answer};
 
       channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg, to, response);
+        to, ccf::NodeMsgType::consensus_msg, response);
     }
 
     void send_append_entries_signed_response(
@@ -1532,13 +1546,14 @@ namespace aft
         r.hashed_nonce,
         node_count(),
         is_primary());
+
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
         auto send_to = it->first;
         if (send_to != state->my_node_id)
         {
-          channels->send_authenticated(
-            ccf::NodeMsgType::consensus_msg, send_to, r);
+          // channels->send_authenticated(
+          //   ccf::NodeMsgType::consensus_msg, send_to, r);
         }
       }
 
@@ -1591,8 +1606,8 @@ namespace aft
             auto send_to = it->first;
             if (send_to != state->my_node_id)
             {
-              channels->send_authenticated(
-                ccf::NodeMsgType::consensus_msg, send_to, r);
+              // channels->send_authenticated(
+              //   ccf::NodeMsgType::consensus_msg, send_to, r);
             }
           }
 
@@ -1662,8 +1677,8 @@ namespace aft
             auto send_to = it->first;
             if (send_to != state->my_node_id)
             {
-              channels->send_authenticated(
-                ccf::NodeMsgType::consensus_msg, send_to, r);
+              // channels->send_authenticated(
+              //   ccf::NodeMsgType::consensus_msg, send_to, r);
             }
           }
           progress_tracker->add_nonce_reveal(
@@ -1703,21 +1718,24 @@ namespace aft
       update_commit();
     }
 
-    void recv_append_entries_response(AppendEntriesResponse r)
+    void recv_append_entries_response(kv::NodeId from, AppendEntriesResponse r)
     {
       std::lock_guard<SpinLock> guard(state->lock);
       // Ignore if we're not the leader.
-      if (replica_state != Leader)
-        return;
 
-      auto node = nodes.find(r.from_node);
+      if (replica_state != Leader)
+      {
+        return;
+      }
+
+      auto node = nodes.find(from);
       if (node == nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
           "Recv append entries response to {} from {}: unknown node",
           state->my_node_id,
-          r.from_node);
+          from);
         return;
       }
       else if (state->current_view < r.term)
@@ -1726,7 +1744,7 @@ namespace aft
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: more recent term",
           state->my_node_id,
-          r.from_node);
+          from);
         become_follower(r.term);
         return;
       }
@@ -1737,7 +1755,7 @@ namespace aft
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: stale term",
           state->my_node_id,
-          r.from_node);
+          from);
         if (r.success == AppendEntriesResponseType::OK)
         {
           return;
@@ -1750,7 +1768,7 @@ namespace aft
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: stale idx",
           state->my_node_id,
-          r.from_node);
+          from);
         if (r.success == AppendEntriesResponseType::OK)
         {
           return;
@@ -1765,7 +1783,7 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        state->requested_evidence_from = r.from_node;
+        state->requested_evidence_from = from;
         ViewChangeEvidenceMsg vw = {
           {bft_view_change_evidence, state->my_node_id}, state->current_view};
 
@@ -1778,8 +1796,8 @@ namespace aft
           reinterpret_cast<uint8_t*>(&vw),
           reinterpret_cast<uint8_t*>(&vw) + sizeof(ViewChangeEvidenceMsg));
 
-        channels->send_authenticated(
-          ccf::NodeMsgType::consensus_msg, r.from_node, data);
+        // channels->send_authenticated(
+        //   ccf::NodeMsgType::consensus_msg, r.from_node, data);
       }
 
       if (r.success != AppendEntriesResponseType::OK)
@@ -1788,15 +1806,15 @@ namespace aft
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: failed",
           state->my_node_id,
-          r.from_node);
-        send_append_entries(r.from_node, node->second.match_idx + 1);
+          from);
+        send_append_entries(from, node->second.match_idx + 1);
         return;
       }
 
       LOG_DEBUG_FMT(
         "Recv append entries response to {} from {} for index {}: success",
         state->my_node_id,
-        r.from_node,
+        from,
         r.last_log_idx);
       update_commit();
     }
@@ -1816,7 +1834,7 @@ namespace aft
                         last_committable_idx,
                         get_term_internal(last_committable_idx)};
 
-      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
+      // channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
 
     void recv_request_vote(RequestVote r)
@@ -1916,8 +1934,8 @@ namespace aft
         state->current_view,
         answer};
 
-      channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg, to, response);
+      // channels->send_authenticated(
+      //   ccf::NodeMsgType::consensus_msg, to, response);
     }
 
     void recv_request_vote_response(RequestVoteResponse r)

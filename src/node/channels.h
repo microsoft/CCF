@@ -156,12 +156,19 @@ namespace ccf
 
     void try_establish_channel()
     {
-      ChannelHeader msg = {ChannelMsg::key_exchange, self};
+      // TODO: Make generic to all sends
+      // auto size = sizeof(ChannelMsg) + sizeof(size_t) + self.size();
+      // std::vector<uint8_t> msg(size);
+      // auto data = msg.data();
+      // serialized::write(data, size, ChannelMsg::key_exchange);
+      // serialized::write(data, size, self);
+
       to_host->write(
         node_outbound,
         peer_id,
         NodeMsgType::channel_msg,
-        msg,
+        self,
+        ChannelMsg::key_exchange,
         get_signed_public());
 
       LOG_DEBUG_FMT("node channel with {} initiated", peer_id);
@@ -336,10 +343,11 @@ namespace ccf
 
       if (outgoing_msg.has_value())
       {
-        send(
-          outgoing_msg->type,
-          outgoing_msg->raw_plain,
-          outgoing_msg->raw_cipher);
+        // TODO: re-enable!
+        // send(
+        //   outgoing_msg->type,
+        //   outgoing_msg->raw_plain,
+        //   outgoing_msg->raw_cipher);
         outgoing_msg.reset();
       }
 
@@ -347,37 +355,58 @@ namespace ccf
 
       if (!complete)
       {
-        ChannelHeader msg = {ChannelMsg::key_exchange_response, self};
+        // TODO: Make generic to all sends in this class!
+        // auto size = sizeof(ChannelMsg) + sizeof(size_t) + self.size();
+        // std::vector<uint8_t> msg(size);
+        // auto data = msg.data();
+        // serialized::write(data, size, ChannelMsg::key_exchange_response);
+        // serialized::write(data, size, self);
+
         to_host->write(
           node_outbound,
           peer_id,
           NodeMsgType::channel_msg,
-          msg,
+          self,
+          ChannelMsg::key_exchange_response,
           get_signed_public());
       }
     }
 
-    bool send(NodeMsgType msg_type, CBuffer aad, CBuffer plain = nullb)
+    bool send(NodeMsgType type, CBuffer aad, CBuffer plain = nullb)
     {
       if (status != ESTABLISHED)
       {
         try_establish_channel();
-        outgoing_msg = OutgoingMsg(msg_type, aad, plain);
+        outgoing_msg = OutgoingMsg(type, aad, plain);
         return false;
       }
 
       RecvNonce nonce(
         send_nonce.fetch_add(1), threading::get_current_thread_id());
 
-      serializer::ByteRange aad_byte_range = {aad.p, aad.n};
-      GcmHdr hdr;
-      hdr.set_iv_seq(nonce.get_val());
+      GcmHdr gcm_hdr;
+      gcm_hdr.set_iv_seq(nonce.get_val());
 
       std::vector<uint8_t> cipher(plain.n);
-      key->encrypt(hdr.get_iv(), plain, aad, cipher.data(), hdr.tag);
+      key->encrypt(gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
+
+      // TODO: Make it generic to all sends!
+      // size_t size = sizeof(Node2NodeMsg) + sizeof(size_t) + self.size();
+      // std::vector<uint8_t> hdr(size);
+      // auto data = hdr.data();
+      // serialized::write(data, size, msg);
+      // serialized::write(data, size, self);
+
+      LOG_FAIL_FMT("Sending n2n msg {} from {}", type, self);
 
       to_host->write(
-        node_outbound, peer_id, msg_type, aad_byte_range, hdr, cipher);
+        node_outbound,
+        peer_id,
+        type,
+        self,
+        serializer::ByteRange{aad.p, aad.n},
+        gcm_hdr,
+        cipher);
 
       return true;
     }

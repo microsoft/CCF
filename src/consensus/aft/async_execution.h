@@ -10,8 +10,9 @@ namespace aft
   {
   public:
     virtual void recv_append_entries(
-      AppendEntries r, const uint8_t* data, size_t size) = 0;
-    virtual void recv_append_entries_response(AppendEntriesResponse r) = 0;
+      kv::NodeId from, AppendEntries r, const uint8_t* data, size_t size) = 0;
+    virtual void recv_append_entries_response(
+      kv::NodeId from, AppendEntriesResponse r) = 0;
     virtual void recv_append_entries_signed_response(
       SignedAppendEntriesResponse r) = 0;
     virtual void recv_request_vote(RequestVote r) = 0;
@@ -36,11 +37,13 @@ namespace aft
   public:
     AppendEntryCallback(
       AbstractConsensusCallback& store_,
+      kv::NodeId from_,
       AppendEntries&& hdr_,
       const uint8_t* data_,
       size_t size_,
       OArray&& oarray_) :
       store(store_),
+      from(from_),
       hdr(std::move(hdr_)),
       data(data_),
       size(size_),
@@ -49,11 +52,12 @@ namespace aft
 
     void execute() override
     {
-      store.recv_append_entries(hdr, data, size);
+      store.recv_append_entries(from, hdr, data, size);
     }
 
   private:
     AbstractConsensusCallback& store;
+    kv::NodeId from;
     AppendEntries hdr;
     const uint8_t* data;
     size_t size;
@@ -64,18 +68,22 @@ namespace aft
   {
   public:
     AppendEntryResponseCallback(
-      AbstractConsensusCallback& store_, AppendEntriesResponse&& hdr_) :
+      AbstractConsensusCallback& store_,
+      kv::NodeId from_,
+      AppendEntriesResponse&& hdr_) :
       store(store_),
+      from(from_),
       hdr(std::move(hdr_))
     {}
 
     void execute() override
     {
-      store.recv_append_entries_response(hdr);
+      store.recv_append_entries_response(from, hdr);
     }
 
   private:
     AbstractConsensusCallback& store;
+    kv::NodeId from;
     AppendEntriesResponse hdr;
   };
 

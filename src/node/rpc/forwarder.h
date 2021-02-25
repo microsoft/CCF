@@ -113,7 +113,7 @@ namespace ccf
       {
         if (self != to && skip_node != to)
         {
-          n2n_channels->send_authenticated(NodeMsgType::forwarded_msg, to, msg);
+          n2n_channels->send_authenticated(to, NodeMsgType::forwarded_msg, msg);
         }
       }
 
@@ -213,13 +213,14 @@ namespace ccf
     }
 
     std::optional<MessageHash> recv_request_hash(
-      const uint8_t* data, size_t size)
+      kv::NodeId from, const uint8_t* data, size_t size)
     {
       MessageHash m;
 
       try
       {
-        m = n2n_channels->template recv_authenticated<MessageHash>(data, size);
+        m = n2n_channels->template recv_authenticated<MessageHash>(
+          from, data, size);
       }
       catch (const std::logic_error& err)
       {
@@ -234,92 +235,95 @@ namespace ccf
     {
       serialized::skip(data, size, sizeof(NodeMsgType));
 
-      auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
+      auto forwarded_msg = serialized::read<ForwardedMsg>(data, size);
+      auto from = serialized::read<NodeId>(data, size);
 
       switch (forwarded_msg)
       {
-        case ForwardedMsg::forwarded_cmd:
-        {
-          if (rpc_map)
-          {
-            auto r = recv_forwarded_command(data, size);
-            if (!r.has_value())
-            {
-              LOG_FAIL_FMT("Failed to receive forwarded command");
-              return;
-            }
+          // case ForwardedMsg::forwarded_cmd:
+          // {
+          //   if (rpc_map)
+          //   {
+          //     auto r = recv_forwarded_command(data, size);
+          //     if (!r.has_value())
+          //     {
+          //       LOG_FAIL_FMT("Failed to receive forwarded command");
+          //       return;
+          //     }
 
-            auto [ctx, from_node] = std::move(r.value());
+          //     auto [ctx, from_node] = std::move(r.value());
 
-            const auto actor_opt = http::extract_actor(*ctx);
-            if (!actor_opt.has_value())
-            {
-              LOG_FAIL_FMT("Failed to extract actor from forwarded context.");
-              LOG_DEBUG_FMT(
-                "Failed to extract actor from forwarded context. Method is "
-                "'{}'",
-                ctx->get_method());
-            }
+          //     const auto actor_opt = http::extract_actor(*ctx);
+          //     if (!actor_opt.has_value())
+          //     {
+          //       LOG_FAIL_FMT("Failed to extract actor from forwarded
+          //       context."); LOG_DEBUG_FMT(
+          //         "Failed to extract actor from forwarded context. Method is
+          //         "
+          //         "'{}'",
+          //         ctx->get_method());
+          //     }
 
-            const auto& actor_s = actor_opt.value();
-            auto actor = rpc_map->resolve(actor_s);
-            auto handler = rpc_map->find(actor);
-            if (actor == ccf::ActorsType::unknown || !handler.has_value())
-            {
-              LOG_FAIL_FMT(
-                "Failed to process forwarded command: unknown actor");
-              LOG_DEBUG_FMT(
-                "Failed to process forwarded command: unknown actor {}",
-                actor_s);
-              return;
-            }
+          //     const auto& actor_s = actor_opt.value();
+          //     auto actor = rpc_map->resolve(actor_s);
+          //     auto handler = rpc_map->find(actor);
+          //     if (actor == ccf::ActorsType::unknown || !handler.has_value())
+          //     {
+          //       LOG_FAIL_FMT(
+          //         "Failed to process forwarded command: unknown actor");
+          //       LOG_DEBUG_FMT(
+          //         "Failed to process forwarded command: unknown actor {}",
+          //         actor_s);
+          //       return;
+          //     }
 
-            auto fwd_handler =
-              dynamic_cast<ForwardedRpcHandler*>(handler.value().get());
-            if (!fwd_handler)
-            {
-              LOG_FAIL_FMT(
-                "Failed to process forwarded command: handler is not a "
-                "ForwardedRpcHandler");
-              return;
-            }
+          //     auto fwd_handler =
+          //       dynamic_cast<ForwardedRpcHandler*>(handler.value().get());
+          //     if (!fwd_handler)
+          //     {
+          //       LOG_FAIL_FMT(
+          //         "Failed to process forwarded command: handler is not a "
+          //         "ForwardedRpcHandler");
+          //       return;
+          //     }
 
-            if (!send_forwarded_response(
-                  ctx->session->client_session_id,
-                  from_node,
-                  fwd_handler->process_forwarded(ctx)))
-            {
-              LOG_FAIL_FMT(
-                "Could not send forwarded response to {}", from_node);
-            }
-            else
-            {
-              LOG_DEBUG_FMT("Sending forwarded response to {}", from_node);
-            }
-          }
-          break;
-        }
+          //     if (!send_forwarded_response(
+          //           ctx->session->client_session_id,
+          //           from_node,
+          //           fwd_handler->process_forwarded(ctx)))
+          //     {
+          //       LOG_FAIL_FMT(
+          //         "Could not send forwarded response to {}", from_node);
+          //     }
+          //     else
+          //     {
+          //       LOG_DEBUG_FMT("Sending forwarded response to {}", from_node);
+          //     }
+          //   }
+          //   break;
+          // }
 
-        case ForwardedMsg::forwarded_response:
-        {
-          auto rep = recv_forwarded_response(data, size);
-          if (!rep.has_value())
-            return;
+          // case ForwardedMsg::forwarded_response:
+          // {
+          //   auto rep = recv_forwarded_response(data, size);
+          //   if (!rep.has_value())
+          //     return;
 
-          LOG_DEBUG_FMT(
-            "Sending forwarded response to RPC endpoint {}", rep->first);
+          //   LOG_DEBUG_FMT(
+          //     "Sending forwarded response to RPC endpoint {}", rep->first);
 
-          if (!rpcresponder->reply_async(rep->first, std::move(rep->second)))
-          {
-            return;
-          }
+          //   if (!rpcresponder->reply_async(rep->first,
+          //   std::move(rep->second)))
+          //   {
+          //     return;
+          //   }
 
-          break;
-        }
+          //   break;
+          // }
 
         case ForwardedMsg::request_hash:
         {
-          auto hash = recv_request_hash(data, size);
+          auto hash = recv_request_hash(from, data, size);
           if (!hash.has_value())
           {
             return;
