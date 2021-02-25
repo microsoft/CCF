@@ -584,9 +584,9 @@ namespace loggingapp
 
       auto get_historical_range = [&, this](ccf::EndpointContext& args) {
         // Parse request body
-        const auto body_j =
-          nlohmann::json::parse(args.rpc_ctx->get_request_body());
-        const auto in = body_j.get<LoggingGetHistoricalRange::In>();
+        const auto query_j =
+          ccf::jsonhandler::get_params_from_query(args.rpc_ctx);
+        const auto in = query_j.get<LoggingGetHistoricalRange::In>();
 
         // Range must be in order
         if (in.to_seqno < in.from_seqno)

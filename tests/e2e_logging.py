@@ -433,6 +433,68 @@ def test_historical_query(network, args):
     return network
 
 
+@reqs.description("Read range of historical state")
+@reqs.supports_methods("log/private", "log/private/historical/range")
+def test_historical_query_range(network, args):
+    if args.consensus == "bft":
+        LOG.warning("Skipping historical queries in BFT")
+        return network
+
+    if args.package != "liblogging":
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
+        return network
+
+    primary, _ = network.find_primary()
+
+    main_id = 0
+    fizz_id = 1
+
+    first_seqno = None
+    last_seqno = None
+
+    def get_all_entries(target_id):
+        with primary.client("user0") as c:
+            timeout = 5
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                r = c.get(
+                    f"/app/log/private/historical/range?from_seqno={first_seqno}&to_seqno={last_seqno}&id={target_id}"
+                )
+                if r.status_code == http.HTTPStatus.OK:
+                    return r.body.json()
+                elif r.status_code == http.HTTPStatus.ACCEPTED:
+                    # Ignore retry-after header, just sleep briefly and retry
+                    time.sleep(0.5)
+                else:
+                    raise ValueError(f"Unexpected status code from historical range query: {r.status_code}")
+        
+        raise TimeoutError(f"Historical range not available after {timeout}s")
+
+
+    with primary.client("user0") as c:
+        # Submit many transactions, overwriting the same IDs
+        for i in range(100):
+            r = c.post("/app/log/private", {"id": main_id, "msg": f"{i}"})
+            assert r.status_code == http.HTTPStatus.OK
+
+            if first_seqno is None:
+                first_seqno = r.seqno
+
+            if i % 3 == 0:
+                r = c.post("/app/log/private", {"id": fizz_id, "msg": f"Fizz {i}"})
+                assert r.status_code == http.HTTPStatus.OK
+
+            last_seqno = r.seqno
+
+        ccf.commit.wait_for_commit(c, last_seqno, r.view, 3)
+
+        main_entries = get_all_entries(main_id)
+
+    return network
+
+
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("log/private")
 @reqs.at_least_n_nodes(2)
@@ -893,30 +955,31 @@ def run(args):
             args,
             verify=args.package != "libjs_generic",
         )
-        network = test_illegal(network, args, verify=args.package != "libjs_generic")
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
-        network = test_view_history(network, args)
-        network = test_primary(network, args)
-        network = test_network_node_info(network, args)
-        network = test_metrics(network, args)
-        network = test_memory(network, args)
-        # BFT does not handle re-keying yet
-        if args.consensus == "cft":
-            network = test_liveness(network, args)
-            network = test_rekey(network, args)
-            network = test_liveness(network, args)
-        if args.package == "liblogging":
-            network = test_ws(network, args)
-            network = test_receipts(network, args)
+        # network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        # network = test_large_messages(network, args)
+        # network = test_remove(network, args)
+        # network = test_forwarding_frontends(network, args)
+        # network = test_user_data_ACL(network, args)
+        # network = test_cert_prefix(network, args)
+        # network = test_anonymous_caller(network, args)
+        # network = test_multi_auth(network, args)
+        # network = test_custom_auth(network, args)
+        # network = test_raw_text(network, args)
+        # network = test_historical_query(network, args)
+        network = test_historical_query_range(network, args) # TODO: Restore others!
+        # network = test_view_history(network, args)
+        # network = test_primary(network, args)
+        # network = test_network_node_info(network, args)
+        # network = test_metrics(network, args)
+        # network = test_memory(network, args)
+        # # BFT does not handle re-keying yet
+        # if args.consensus == "cft":
+        #     network = test_liveness(network, args)
+        #     network = test_rekey(network, args)
+        #     network = test_liveness(network, args)
+        # if args.package == "liblogging":
+        #     network = test_ws(network, args)
+        #     network = test_receipts(network, args)
 
 
 if __name__ == "__main__":

@@ -119,7 +119,7 @@ class LoggingTxs:
                         v["seqno"],
                         v["view"],
                         priv=True,
-                        historical=(v != priv_value[-1]),
+                        historical=True,
                         timeout=timeout,
                     )
 

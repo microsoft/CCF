@@ -75,7 +75,7 @@ namespace loggingapp
     LoggingGetHistoricalRange::In, from_seqno, to_seqno, id);
 
   DECLARE_JSON_TYPE(LoggingGetHistoricalRange::Entry);
-  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetHistoricalRange::Entry, id, msg);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetHistoricalRange::Entry, seqno, id, msg);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LoggingGetHistoricalRange::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGetHistoricalRange::Out, entries);
