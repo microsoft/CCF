@@ -94,8 +94,8 @@ namespace aft
     void close_all_outgoing() override {}
 
     bool send_authenticated(
-      const ccf::NodeMsgType& msg_type,
       NodeId to,
+      ccf::NodeMsgType msg_type,
       const uint8_t* data,
       size_t size) override
     {
@@ -141,9 +141,9 @@ namespace aft
     void initialize(NodeId self_id, const crypto::Pem& network_pkey) override {}
 
     bool send_encrypted(
-      const ccf::NodeMsgType& msg_type,
-      CBuffer cb,
       NodeId to,
+      ccf::NodeMsgType msg_type,
+      CBuffer cb,
       const std::vector<uint8_t>& data) override
     {
       return true;

@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/progress_tracker.h"
-
 #include "consensus/aft/impl/view_change_tracker.h"
 #include "kv/store.h"
+#include "kv/test/stub_consensus.h"
 #include "node/nodes.h"
+#include "node/progress_tracker.h"
 #include "node/request_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -53,14 +53,14 @@ public:
 };
 
 void ordered_execution(
-  uint32_t my_node_id, std::unique_ptr<ccf::ProgressTracker>& pt)
+  kv::NodeId my_node_id, std::unique_ptr<ccf::ProgressTracker>& pt)
 {
   kv::Consensus::View view = 0;
   kv::Consensus::SeqNo seqno = 42;
   uint32_t node_count = 4;
   uint32_t node_count_quorum =
     2; // Takes into account that counting starts at 0
-  bool am_i_primary = (my_node_id == 0);
+  bool am_i_primary = (my_node_id == kv::PrimaryNodeId);
 
   crypto::Sha256Hash root;
   std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;

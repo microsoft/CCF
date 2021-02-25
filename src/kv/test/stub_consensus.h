@@ -11,6 +11,9 @@
 
 namespace kv
 {
+  static constexpr auto PrimaryNodeId = "PrimaryNodeId";
+  static constexpr auto FirstBackupNodeId = "FirstBackupNodeId";
+
   class StubConsensus : public Consensus
   {
   private:
@@ -21,7 +24,7 @@ namespace kv
     aft::ViewHistory view_history;
 
     StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :
-      Consensus(0),
+      Consensus(kv::PrimaryNodeId),
       replica(),
       consensus_type(consensus_type_)
     {}
@@ -94,9 +97,9 @@ namespace kv
       return 0;
     }
 
-    NodeId primary() override
+    std::optional<NodeId> primary() override
     {
-      return 0;
+      return PrimaryNodeId;
     }
 
     bool view_change_in_progress() override
@@ -106,7 +109,7 @@ namespace kv
 
     std::set<NodeId> active_nodes() override
     {
-      return {0};
+      return {PrimaryNodeId};
     }
 
     NodeId id() override

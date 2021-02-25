@@ -123,8 +123,8 @@ DOCTEST_TEST_CASE("Compaction conflict")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  auto history =
-    std::make_shared<NullTxHistoryWithOverride>(*network.tables, 0, *kp);
+  auto history = std::make_shared<NullTxHistoryWithOverride>(
+    *network.tables, kv::PrimaryNodeId, *kp);
   network.tables->set_history(history);
   auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
   network.tables->set_consensus(consensus);

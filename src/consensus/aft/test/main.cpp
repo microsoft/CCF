@@ -25,10 +25,14 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 std::vector<uint8_t> cert;
 
+static constexpr auto PrimaryNodeId = "primary";
+static constexpr auto FirstBackupNodeId = "backup_one";
+static constexpr auto SecondBackupNodeId = "backup_two";
+
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
-  auto kv_store = std::make_shared<Store>(0);
-  aft::NodeId node_id(0);
+  aft::NodeId node_id = PrimaryNodeId;
+  auto kv_store = std::make_shared<Store>(node_id);
   ms election_timeout(150);
 
   TRaft r0(
@@ -55,7 +59,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
   DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
 
   DOCTEST_REQUIRE(!r0.is_primary());
-  DOCTEST_REQUIRE(r0.leader() == aft::NoNode);
+  DOCTEST_REQUIRE(!r0.leader().has_value());
   DOCTEST_REQUIRE(r0.get_term() == 0);
   DOCTEST_REQUIRE(r0.get_commit_idx() == 0);
 
@@ -72,8 +76,8 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 
 DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 {
-  auto kv_store = std::make_shared<Store>(0);
-  aft::NodeId node_id(0);
+  aft::NodeId node_id = PrimaryNodeId;
+  auto kv_store = std::make_shared<Store>(node_id);
   ms election_timeout(150);
 
   TRaft r0(
@@ -122,13 +126,13 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 DOCTEST_TEST_CASE(
   "Multiple nodes startup and election" * doctest::test_suite("multiple"))
 {
-  auto kv_store0 = std::make_shared<Store>(0);
-  auto kv_store1 = std::make_shared<Store>(1);
-  auto kv_store2 = std::make_shared<Store>(2);
+  aft::NodeId node_id0 = PrimaryNodeId;
+  aft::NodeId node_id1 = FirstBackupNodeId;
+  aft::NodeId node_id2 = SecondBackupNodeId;
 
-  aft::NodeId node_id0(0);
-  aft::NodeId node_id1(1);
-  aft::NodeId node_id2(2);
+  auto kv_store0 = std::make_shared<Store>(node_id0);
+  auto kv_store1 = std::make_shared<Store>(node_id1);
+  auto kv_store2 = std::make_shared<Store>(node_id2);
 
   ms request_timeout(10);
 
@@ -331,13 +335,13 @@ static size_t dispatch_all_and_DOCTEST_CHECK(
 DOCTEST_TEST_CASE(
   "Multiple nodes append entries" * doctest::test_suite("multiple"))
 {
-  auto kv_store0 = std::make_shared<Store>(0);
-  auto kv_store1 = std::make_shared<Store>(1);
-  auto kv_store2 = std::make_shared<Store>(2);
+  aft::NodeId node_id0 = PrimaryNodeId;
+  aft::NodeId node_id1 = FirstBackupNodeId;
+  aft::NodeId node_id2 = SecondBackupNodeId;
 
-  aft::NodeId node_id0(0);
-  aft::NodeId node_id1(1);
-  aft::NodeId node_id2(2);
+  auto kv_store0 = std::make_shared<Store>(node_id0);
+  auto kv_store1 = std::make_shared<Store>(node_id1);
+  auto kv_store2 = std::make_shared<Store>(node_id2);
 
   ms request_timeout(10);
 
@@ -512,13 +516,13 @@ DOCTEST_TEST_CASE(
 
 DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 {
-  auto kv_store0 = std::make_shared<Store>(0);
-  auto kv_store1 = std::make_shared<Store>(1);
-  auto kv_store2 = std::make_shared<Store>(2);
+  aft::NodeId node_id0 = PrimaryNodeId;
+  aft::NodeId node_id1 = FirstBackupNodeId;
+  aft::NodeId node_id2 = SecondBackupNodeId;
 
-  aft::NodeId node_id0(0);
-  aft::NodeId node_id1(1);
-  aft::NodeId node_id2(2);
+  auto kv_store0 = std::make_shared<Store>(node_id0);
+  auto kv_store1 = std::make_shared<Store>(node_id1);
+  auto kv_store2 = std::make_shared<Store>(node_id2);
 
   ms request_timeout(10);
 
@@ -678,11 +682,11 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 
 DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
 {
-  auto kv_store0 = std::make_shared<Store>(0);
-  auto kv_store1 = std::make_shared<Store>(1);
+  aft::NodeId node_id0 = PrimaryNodeId;
+  aft::NodeId node_id1 = FirstBackupNodeId;
 
-  aft::NodeId node_id0(0);
-  aft::NodeId node_id1(1);
+  auto kv_store0 = std::make_shared<Store>(node_id0);
+  auto kv_store1 = std::make_shared<Store>(node_id1);
 
   ms request_timeout(10);
 
@@ -898,13 +902,13 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 {
   logger::config::level() = logger::INFO;
 
-  auto kv_store0 = std::make_shared<Store>(0);
-  auto kv_store1 = std::make_shared<Store>(1);
-  auto kv_store2 = std::make_shared<Store>(2);
+  aft::NodeId node_id0 = PrimaryNodeId;
+  aft::NodeId node_id1 = FirstBackupNodeId;
+  aft::NodeId node_id2 = SecondBackupNodeId;
 
-  aft::NodeId node_id0(0);
-  aft::NodeId node_id1(1);
-  aft::NodeId node_id2(2);
+  auto kv_store0 = std::make_shared<Store>(node_id0);
+  auto kv_store1 = std::make_shared<Store>(node_id1);
+  auto kv_store2 = std::make_shared<Store>(node_id2);
 
   ms request_timeout(10);
 

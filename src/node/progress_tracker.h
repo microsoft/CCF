@@ -140,11 +140,6 @@ namespace ccf
       Nonce hashed_nonce,
       uint32_t node_count = 0)
     {
-      LOG_TRACE_FMT(
-        "record_primary node_id:{}, seqno:{}, hashed_nonce:{}",
-        node_id,
-        tx_id.version,
-        hashed_nonce);
       auto n = entropy->random(hashed_nonce.h.size());
       Nonce my_nonce;
       std::copy(n.begin(), n.end(), my_nonce.h.begin());

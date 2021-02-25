@@ -20,11 +20,11 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   auto source_consensus = std::make_shared<kv::StubConsensus>();
   kv::Store source_store(source_consensus);
 
-  ccf::NodeId source_node_id = 0;
+  ccf::NodeId source_node_id = kv::PrimaryNodeId;
   auto source_node_kp = crypto::make_key_pair();
 
-  auto source_history =
-    std::make_shared<ccf::MerkleTxHistory>(source_store, 0, *source_node_kp);
+  auto source_history = std::make_shared<ccf::MerkleTxHistory>(
+    source_store, source_node_id, *source_node_kp);
 
   source_store.set_history(source_history);
 
@@ -83,7 +83,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto target_node_kp = crypto::make_key_pair();
 
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
-        target_store, 0, *target_node_kp);
+        target_store, kv::PrimaryNodeId, *target_node_kp);
       target_store.set_history(target_history);
     }
 

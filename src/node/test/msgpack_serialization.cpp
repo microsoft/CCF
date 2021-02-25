@@ -186,7 +186,7 @@ TEST_CASE("Signature")
     INFO("Simple sig");
     PrimarySignature sig;
     sig.sig.push_back(0);
-    sig.node = 0;
+    sig.node = "node";
     sig.seqno = 1;
     sig.view = 2;
     sig.commit_seqno = 3;

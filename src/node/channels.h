@@ -343,11 +343,10 @@ namespace ccf
 
       if (outgoing_msg.has_value())
       {
-        // TODO: re-enable!
-        // send(
-        //   outgoing_msg->type,
-        //   outgoing_msg->raw_plain,
-        //   outgoing_msg->raw_cipher);
+        send(
+          outgoing_msg->type,
+          outgoing_msg->raw_plain,
+          outgoing_msg->raw_cipher);
         outgoing_msg.reset();
       }
 
@@ -355,13 +354,6 @@ namespace ccf
 
       if (!complete)
       {
-        // TODO: Make generic to all sends in this class!
-        // auto size = sizeof(ChannelMsg) + sizeof(size_t) + self.size();
-        // std::vector<uint8_t> msg(size);
-        // auto data = msg.data();
-        // serialized::write(data, size, ChannelMsg::key_exchange_response);
-        // serialized::write(data, size, self);
-
         to_host->write(
           node_outbound,
           peer_id,
@@ -390,14 +382,7 @@ namespace ccf
       std::vector<uint8_t> cipher(plain.n);
       key->encrypt(gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
 
-      // TODO: Make it generic to all sends!
-      // size_t size = sizeof(Node2NodeMsg) + sizeof(size_t) + self.size();
-      // std::vector<uint8_t> hdr(size);
-      // auto data = hdr.data();
-      // serialized::write(data, size, msg);
-      // serialized::write(data, size, self);
-
-      LOG_FAIL_FMT("Sending n2n msg {} from {}", type, self);
+      // LOG_FAIL_FMT("Sending n2n msg {} from {}", type, self);
 
       to_host->write(
         node_outbound,

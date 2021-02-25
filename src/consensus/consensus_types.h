@@ -23,6 +23,7 @@ namespace consensus
   };
 
 #pragma pack(push, 1)
+  // TODO: Delete this struct altogether??
   template <typename T>
   struct ConsensusHeader
   {
@@ -30,7 +31,6 @@ namespace consensus
     ConsensusHeader(T msg_) : msg(msg_) {}
 
     T msg;
-    // ccf::NodeId from_node;
   };
 
   struct AppendEntriesIndex

@@ -243,7 +243,8 @@ auto init_frontend(
 void init_network(NetworkState& network)
 {
   network.tables->set_encryptor(encryptor);
-  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  auto history = std::make_shared<ccf::NullTxHistory>(
+    *network.tables, kv::PrimaryNodeId, *kp);
   network.tables->set_history(history);
   auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
   network.tables->set_consensus(consensus);

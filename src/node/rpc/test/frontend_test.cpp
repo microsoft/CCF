@@ -386,8 +386,8 @@ auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 NetworkState bft_network(ConsensusType::BFT);
 auto history_kp = crypto::make_key_pair();
 
-auto history =
-  std::make_shared<NullTxHistory>(*bft_network.tables, 0, *history_kp);
+auto history = std::make_shared<NullTxHistory>(
+  *bft_network.tables, kv::PrimaryNodeId, *history_kp);
 
 auto create_simple_request(
   const std::string& method = "empty_function",
@@ -1201,10 +1201,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
-    auto [fwd_ctx, node_id] =
-      backup_forwarder
-        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-        .value();
+    auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+      "", forwarded_msg.data(), forwarded_msg.size());
 
     {
       INFO("Invalid caller");
@@ -1232,10 +1230,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
-    auto [fwd_ctx, node_id] =
-      backup_forwarder
-        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-        .value();
+    auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+      "", forwarded_msg.data(), forwarded_msg.size());
 
     // Processing forwarded response by a backup frontend (here, the same
     // frontend that the command was originally issued to)
@@ -1273,10 +1269,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
-    auto [fwd_ctx, node_id] =
-      backup_forwarder
-        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-        .value();
+    auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+      "", forwarded_msg.data(), forwarded_msg.size());
 
     auto response =
       parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
@@ -1333,10 +1327,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
-  auto [fwd_ctx, node_id] =
-    backup_forwarder
-      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-      .value();
+  auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+    "", forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(node_frontend_primary.process_forwarded(fwd_ctx));
@@ -1377,10 +1369,8 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
-  auto [fwd_ctx, node_id] =
-    backup_forwarder
-      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-      .value();
+  auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+    "", forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
@@ -1425,10 +1415,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
-  auto [fwd_ctx, node_id] =
-    backup_forwarder
-      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-      .value();
+  auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+    "", forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(member_frontend_primary.process_forwarded(fwd_ctx));

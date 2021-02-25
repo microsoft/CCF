@@ -19,18 +19,15 @@ namespace aft
   {
     RequestMessageRep() = default;
     RequestMessageRep(
-      kv::NodeId from_node_,
       uint16_t command_size_,
       uint16_t session_id_,
       kv::TxHistory::RequestID rid_) :
       consensus::ConsensusHeader<RaftMsgType>(RaftMsgType::bft_request),
-      from_node(from_node_),
       command_size(command_size_),
       session_id(session_id_),
       rid(rid_)
     {}
 
-    kv::NodeId from_node; // TODO: Fix BFT!
     uint16_t command_size;
     uint16_t session_id; // unique id of client who sends the request
     kv::TxHistory::RequestID rid; // unique request identifier
@@ -71,9 +68,7 @@ namespace aft
 
     void serialize_message(uint8_t* data, size_t size) const override
     {
-      // TODO: From_node is unused here!
-      kv::NodeId from_node;
-      RequestMessageRep rep(from_node, request.size(), 0, rid);
+      RequestMessageRep rep(request.size(), 0, rid);
 
       serialized::write(
         data,

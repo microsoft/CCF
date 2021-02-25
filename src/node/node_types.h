@@ -38,14 +38,6 @@ namespace ccf
   };
 
 #pragma pack(push, 1)
-  // TODO: Delete
-  // // Header for every message exchange between nodes
-  // struct Header
-  // {
-  //   Node2NodeMsg msg;
-  //   NodeId from_node;
-  // };
-
   // Channel-specific header for key exchange
   struct ChannelHeader
   {
@@ -63,13 +55,12 @@ namespace ccf
   struct MessageHash
   {
     MessageHash() = default;
-    MessageHash(ForwardedMsg msg_, NodeId from_node_) :
+    MessageHash(ForwardedMsg msg_, crypto::Sha256Hash&& hash_) :
       msg(msg_),
-      from_node(from_node_)
+      hash(std::move(hash_))
     {}
 
     ForwardedMsg msg;
-    NodeId from_node;
     crypto::Sha256Hash hash;
   };
 #pragma pack(pop)

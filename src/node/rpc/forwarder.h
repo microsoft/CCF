@@ -106,8 +106,8 @@ namespace ccf
       auto data_ = raw_request.data();
       auto size_ = raw_request.size();
 
-      MessageHash msg(ForwardedMsg::request_hash, self);
-      msg.hash = crypto::Sha256Hash({data_, size_});
+      MessageHash msg(
+        ForwardedMsg::request_hash, crypto::Sha256Hash({data_, size_}));
 
       for (auto to : nodes)
       {

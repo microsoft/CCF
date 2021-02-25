@@ -18,8 +18,8 @@ namespace ccf
 
     template <class T>
     bool send_encrypted(
-      const NodeMsgType& msg_type,
       NodeId to,
+      const NodeMsgType& msg_type,
       const std::vector<uint8_t>& data,
       const T& msg)
     {
@@ -29,7 +29,7 @@ namespace ccf
 
     template <class T>
     bool send_authenticated(
-      const ccf::NodeMsgType& msg_type, NodeId to, const T& data)
+      NodeId to, const ccf::NodeMsgType& msg_type, const T& data)
     {
       return true;
     }
@@ -40,7 +40,7 @@ namespace ccf
 
     template <class T>
     std::pair<T, std::vector<uint8_t>> recv_encrypted(
-      const uint8_t* data, size_t size)
+      NodeId from, const uint8_t* data, size_t size)
     {
       T msg;
       return std::make_pair(msg, std::vector<uint8_t>(data, data + size));

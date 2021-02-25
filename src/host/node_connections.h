@@ -69,11 +69,7 @@ namespace asynchost
           auto p = data;
           auto psize = size;
           auto msg_type = serialized::read<ccf::NodeMsgType>(p, psize);
-          // auto header = serialized::read<ccf::Header>(p, psize);
-          // serialized::skip(p, psize, sizeof(ccf::Node2NodeMsg));
           auto from = serialized::read<ccf::NodeId>(p, psize);
-
-          LOG_FAIL_FMT("Recv msg from node {}", from);
 
           if (!node.has_value())
           {
@@ -255,8 +251,8 @@ namespace asynchost
           auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
           auto from = serialized::read<ccf::NodeId>(data, size);
 
-          LOG_FAIL_FMT(
-            "Node outbound msg {} from {} to {}", msg_type, from, to);
+          // LOG_FAIL_FMT(
+          //   "Node outbound msg {} from {} to {}", msg_type, from, to);
 
           if (
             msg_type == ccf::NodeMsgType::consensus_msg &&
@@ -264,14 +260,6 @@ namespace asynchost
              aft::raft_append_entries))
           {
             // Parse the indices to be sent to the recipient.
-            // auto p = data;
-            // auto psize = size;
-
-            // serialized::overlay<consensus::ConsensusHeader<ccf::Node2NodeMsg>>(
-            //   p, psize);
-            // serialized::skip(p, psize, sizeof(ccf::Node2NodeMsg));
-            // serialized::skip(data, size, sizeof(ccf::NodeId));
-
             const auto& ae =
               serialized::overlay<consensus::AppendEntriesIndex>(data, size);
 

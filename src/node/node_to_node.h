@@ -64,7 +64,6 @@ namespace ccf
     const T& recv_authenticated_with_load(
       NodeId from, const uint8_t*& data, size_t& size)
     {
-      // TODO: This looks odd?
       const auto* data_ = data;
       auto size_ = size;
 

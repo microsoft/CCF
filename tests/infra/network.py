@@ -721,6 +721,7 @@ class Network:
                         LOG.warning(
                             f"Could not successfully connect to node {node.node_id}. Retrying..."
                         )
+
             if primary_id is not None:
                 break
             time.sleep(0.1)

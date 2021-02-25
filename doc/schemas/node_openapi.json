@@ -119,7 +119,7 @@
             "$ref": "#/components/schemas/int64"
           },
           "primary_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/string"
           },
           "service_status": {
             "$ref": "#/components/schemas/ServiceStatus"
@@ -131,7 +131,6 @@
         "required": [
           "service_status",
           "current_view",
-          "primary_id",
           "view_change_in_progress"
         ],
         "type": "object"
@@ -148,7 +147,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/string"
           },
           "port": {
             "$ref": "#/components/schemas/string"
@@ -219,7 +218,7 @@
             "$ref": "#/components/schemas/int64"
           },
           "node_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/string"
           },
           "recovery_target_seqno": {
             "$ref": "#/components/schemas/int64"
@@ -285,7 +284,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/string"
           },
           "raw": {
             "$ref": "#/components/schemas/string"
