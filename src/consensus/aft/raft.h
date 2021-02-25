@@ -45,6 +45,7 @@
 namespace aft
 {
   using Configuration = kv::Configuration;
+  using NodeId = kv::NodeId;
 
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
   class Aft : public kv::ConfigurableConsensus, public AbstractConsensusCallback
@@ -84,11 +85,11 @@ namespace aft
     std::unique_ptr<Store> store;
 
     // Persistent
-    std::optional<kv::NodeId> voted_for = std::nullopt;
+    std::optional<NodeId> voted_for = std::nullopt;
 
     // Volatile
-    std::optional<kv::NodeId> leader_id = std::nullopt;
-    std::unordered_set<kv::NodeId> votes_for_me;
+    std::optional<NodeId> leader_id = std::nullopt;
+    std::unordered_set<NodeId> votes_for_me;
 
     ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
@@ -127,7 +128,7 @@ namespace aft
 
     // Configurations
     std::list<Configuration> configurations;
-    std::unordered_map<kv::NodeId, NodeState> nodes;
+    std::unordered_map<NodeId, NodeState> nodes;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -153,7 +154,7 @@ namespace aft
     std::shared_ptr<SnapshotterProxy> snapshotter;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
-    std::set<kv::NodeId> backup_nodes;
+    std::set<NodeId> backup_nodes;
 
   public:
     Aft(
@@ -216,7 +217,7 @@ namespace aft
 
     virtual ~Aft() = default;
 
-    std::optional<kv::NodeId> leader()
+    std::optional<NodeId> leader()
     {
       return leader_id;
     }
@@ -236,7 +237,7 @@ namespace aft
       }
     }
 
-    std::set<kv::NodeId>& active_nodes()
+    std::set<NodeId>& active_nodes()
     {
       // Find all nodes present in any active configuration.
       if (backup_nodes.empty())
@@ -255,7 +256,7 @@ namespace aft
       return backup_nodes;
     }
 
-    kv::NodeId id()
+    NodeId id()
     {
       return state->my_node_id;
     }
@@ -270,7 +271,7 @@ namespace aft
       return replica_state == Follower;
     }
 
-    kv::NodeId get_primary(kv::Consensus::View view)
+    NodeId get_primary(kv::Consensus::View view)
     {
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
@@ -541,13 +542,8 @@ namespace aft
       std::unique_ptr<AbstractMsgCallback> aee;
       const uint8_t* data = d.data();
       size_t size = d.size();
-      kv::NodeId from = serialized::read<kv::NodeId>(data, size);
+      NodeId from = serialized::read<NodeId>(data, size);
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
-
-      // TODO:
-      // 1. Do not send nodeid as part of consensus msg: get it from channel
-      // insteeaaaad! --> Can't do this right now because the host checks the
-      // from field!!
 
       try
       {
@@ -571,77 +567,77 @@ namespace aft
               *this, from, std::move(r));
             break;
           }
-            // case raft_append_entries_signed_response:
-            // {
-            //   SignedAppendEntriesResponse r =
-            //     channels
-            //       ->template recv_authenticated<SignedAppendEntriesResponse>(
-            //         data, size);
-            //   aee = std::make_unique<SignedAppendEntryResponseCallback>(
-            //     *this, std::move(r));
-            //   break;
-            // }
+          case raft_append_entries_signed_response:
+          {
+            SignedAppendEntriesResponse r =
+              channels
+                ->template recv_authenticated<SignedAppendEntriesResponse>(
+                  from, data, size);
+            aee = std::make_unique<SignedAppendEntryResponseCallback>(
+              *this, from, std::move(r));
+            break;
+          }
 
-            // case raft_request_vote:
-            // {
-            //   RequestVote r =
-            //     channels->template recv_authenticated<RequestVote>(data,
-            //     size);
-            //   aee = std::make_unique<RequestVoteCallback>(*this,
-            //   std::move(r)); break;
-            // }
+          case raft_request_vote:
+          {
+            RequestVote r = channels->template recv_authenticated<RequestVote>(
+              from, data, size);
+            aee =
+              std::make_unique<RequestVoteCallback>(*this, from, std::move(r));
+            break;
+          }
 
-            // case raft_request_vote_response:
-            // {
-            //   RequestVoteResponse r =
-            //     channels->template recv_authenticated<RequestVoteResponse>(
-            //       data, size);
-            //   aee = std::make_unique<RequestVoteResponseCallback>(
-            //     *this, std::move(r));
-            //   break;
-            // }
+          case raft_request_vote_response:
+          {
+            RequestVoteResponse r =
+              channels->template recv_authenticated<RequestVoteResponse>(
+                from, data, size);
+            aee = std::make_unique<RequestVoteResponseCallback>(
+              *this, from, std::move(r));
+            break;
+          }
 
-            // case bft_signature_received_ack:
-            // {
-            //   SignaturesReceivedAck r =
-            //     channels->template recv_authenticated<SignaturesReceivedAck>(
-            //       data, size);
-            //   aee = std::make_unique<SignatureAckCallback>(*this,
-            //   std::move(r)); break;
-            // }
+          case bft_signature_received_ack:
+          {
+            SignaturesReceivedAck r =
+              channels->template recv_authenticated<SignaturesReceivedAck>(
+                from, data, size);
+            aee =
+              std::make_unique<SignatureAckCallback>(*this, from, std::move(r));
+            break;
+          }
 
-            // case bft_nonce_reveal:
-            // {
-            //   NonceRevealMsg r =
-            //     channels->template recv_authenticated<NonceRevealMsg>(data,
-            //     size);
-            //   aee = std::make_unique<NonceRevealCallback>(*this,
-            //   std::move(r)); break;
-            // }
-            // case bft_view_change:
-            // {
-            //   RequestViewChangeMsg r =
-            //     channels
-            //       ->template
-            //       recv_authenticated_with_load<RequestViewChangeMsg>(
-            //         data, size);
-            //   aee = std::make_unique<ViewChangeCallback>(
-            //     *this, std::move(r), data, size, std::move(d));
-            //   break;
-            // }
+          case bft_nonce_reveal:
+          {
+            NonceRevealMsg r =
+              channels->template recv_authenticated<NonceRevealMsg>(
+                from, data, size);
+            aee =
+              std::make_unique<NonceRevealCallback>(*this, from, std::move(r));
+            break;
+          }
+          case bft_view_change:
+          {
+            RequestViewChangeMsg r =
+              channels
+                ->template recv_authenticated_with_load<RequestViewChangeMsg>(
+                  from, data, size);
+            aee = std::make_unique<ViewChangeCallback>(
+              *this, from, std::move(r), data, size, std::move(d));
+            break;
+          }
 
-            // case bft_view_change_evidence:
-            // {
-            //   ViewChangeEvidenceMsg r =
-            //     channels
-            //       ->template
-            //       recv_authenticated_with_load<ViewChangeEvidenceMsg>(
-            //         data, size);
+          case bft_view_change_evidence:
+          {
+            ViewChangeEvidenceMsg r =
+              channels
+                ->template recv_authenticated_with_load<ViewChangeEvidenceMsg>(
+                  from, data, size);
 
-            //   aee = std::make_unique<ViewChangeEvidenceCallback>(
-            //     *this, std::move(r), data, size, std::move(d));
-            //   break;
-            // }
+            aee = std::make_unique<ViewChangeEvidenceCallback>(
+              *this, from, std::move(r), data, size, std::move(d));
+            break;
+          }
 
           default:
           {
@@ -718,8 +714,7 @@ namespace aft
 
           size_t vc_size = vc->get_serialized_size();
 
-          RequestViewChangeMsg vcm = {
-            {bft_view_change, state->my_node_id}, new_view, seqno};
+          RequestViewChangeMsg vcm = {{bft_view_change}, new_view, seqno};
 
           std::vector<uint8_t> m;
           m.resize(sizeof(RequestViewChangeMsg) + vc_size);
@@ -735,11 +730,11 @@ namespace aft
           LOG_INFO_FMT("Sending view change msg view:{}", vcm.view);
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
-            auto send_to = it->first;
-            if (send_to != state->my_node_id)
+            auto to = it->first;
+            if (to != state->my_node_id)
             {
-              // channels->send_authenticated(
-              //   ccf::NodeMsgType::consensus_msg, send_to, m);
+              channels->send_authenticated(
+                to, ccf::NodeMsgType::consensus_msg, m);
             }
           }
 
@@ -788,27 +783,26 @@ namespace aft
     }
 
     void recv_view_change(
-      RequestViewChangeMsg r, const uint8_t* data, size_t size)
+      NodeId from, RequestViewChangeMsg r, const uint8_t* data, size_t size)
     {
-      auto node = nodes.find(r.from_node);
+      auto node = nodes.find(from);
       if (node == nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
           "Recv nonce reveal to {} from {}: unknown node",
           state->my_node_id,
-          r.from_node);
+          from);
         return;
       }
 
       ccf::ViewChangeRequest v =
         ccf::ViewChangeRequest::deserialize(data, size);
-      LOG_INFO_FMT(
-        "Received view change from:{}, view:{}", r.from_node, r.view);
+      LOG_INFO_FMT("Received view change from:{}, view:{}", from, r.view);
 
       auto progress_tracker = store->get_progress_tracker();
       if (!progress_tracker->apply_view_change_message(
-            v, r.from_node, r.view, r.seqno))
+            v, from, r.view, r.seqno))
       {
         return;
       }
@@ -816,7 +810,7 @@ namespace aft
       if (
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
           view_change_tracker->add_request_view_change(
-            v, r.from_node, r.view, r.seqno, node_count()) &&
+            v, from, r.view, r.seqno, node_count()) &&
         get_primary(r.view) == id())
       {
         append_new_view(r.view);
@@ -824,16 +818,16 @@ namespace aft
     }
 
     void recv_view_change_evidence(
-      ViewChangeEvidenceMsg r, const uint8_t* data, size_t size)
+      NodeId from, ViewChangeEvidenceMsg r, const uint8_t* data, size_t size)
     {
-      auto node = nodes.find(r.from_node);
+      auto node = nodes.find(from);
       if (node == nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
           "Recv view change evidence to {} from {}: unknown node",
           state->my_node_id,
-          r.from_node);
+          from);
         return;
       }
 
@@ -843,11 +837,10 @@ namespace aft
         return;
       }
 
-      if (r.from_node != state->requested_evidence_from.value())
+      if (from != state->requested_evidence_from.value())
       {
         // Ignore if we didn't request this evidence.
-        LOG_FAIL_FMT(
-          "Received unrequested view change evidence from {}", r.from_node);
+        LOG_FAIL_FMT("Received unrequested view change evidence from {}", from);
         return;
       }
       state->requested_evidence_from.reset();
@@ -958,7 +951,7 @@ namespace aft
       return state->view_history.view_at(idx);
     }
 
-    void send_append_entries(kv::NodeId to, Index start_idx)
+    void send_append_entries(NodeId to, Index start_idx)
     {
       Index end_idx = (state->last_idx == 0) ?
         0 :
@@ -976,8 +969,7 @@ namespace aft
       }
     }
 
-    void send_append_entries_range(
-      kv::NodeId to, Index start_idx, Index end_idx)
+    void send_append_entries_range(NodeId to, Index start_idx, Index end_idx)
     {
       const auto prev_idx = start_idx - 1;
       const auto prev_term = get_term_internal(prev_idx);
@@ -993,7 +985,7 @@ namespace aft
         end_idx,
         state->commit_idx);
 
-      AppendEntries ae = {{RaftMsgType::raft_append_entries},
+      AppendEntries ae = {{raft_append_entries},
                           {end_idx, prev_idx},
                           state->current_view,
                           prev_term,
@@ -1022,7 +1014,7 @@ namespace aft
         std::vector<std::tuple<
           std::unique_ptr<kv::AbstractExecutionWrapper>,
           kv::Version>>&& append_entries_,
-        kv::NodeId from_,
+        NodeId from_,
         AppendEntries&& r_,
         bool confirm_evidence_) :
         self(self_),
@@ -1036,13 +1028,13 @@ namespace aft
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
         append_entries;
-      kv::NodeId from;
+      NodeId from;
       AppendEntries r;
       bool confirm_evidence;
     };
 
     void recv_append_entries(
-      kv::NodeId from, AppendEntries r, const uint8_t* data, size_t size)
+      NodeId from, AppendEntries r, const uint8_t* data, size_t size)
     {
       std::unique_lock<SpinLock> guard(state->lock);
 
@@ -1323,7 +1315,7 @@ namespace aft
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries,
-      kv::NodeId from,
+      NodeId from,
       AppendEntries& r,
       bool confirm_evidence)
     {
@@ -1495,7 +1487,7 @@ namespace aft
     }
 
     void send_append_entries_response(
-      kv::NodeId to, AppendEntriesResponseType answer)
+      NodeId to, AppendEntriesResponseType answer)
     {
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
@@ -1514,7 +1506,7 @@ namespace aft
     }
 
     void send_append_entries_signed_response(
-      kv::NodeId to, ccf::PrimarySignature& sig)
+      NodeId to, ccf::PrimarySignature& sig)
     {
       LOG_DEBUG_FMT(
         "Send append entries signed response from {} to {} for index {}",
@@ -1525,13 +1517,12 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
 
-      SignedAppendEntriesResponse r = {
-        {raft_append_entries_signed_response, state->my_node_id},
-        state->current_view,
-        state->last_idx,
-        {},
-        static_cast<uint32_t>(sig.sig.size()),
-        {}};
+      SignedAppendEntriesResponse r = {{raft_append_entries_signed_response},
+                                       state->current_view,
+                                       state->last_idx,
+                                       {},
+                                       static_cast<uint32_t>(sig.sig.size()),
+                                       {}};
 
       progress_tracker->get_my_hashed_nonce(
         {state->current_view, state->last_idx}, r.hashed_nonce);
@@ -1540,7 +1531,7 @@ namespace aft
 
       auto result = progress_tracker->add_signature(
         {r.term, r.last_log_idx},
-        r.from_node,
+        state->my_node_id,
         r.signature_size,
         r.sig,
         r.hashed_nonce,
@@ -1549,27 +1540,27 @@ namespace aft
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
-        auto send_to = it->first;
-        if (send_to != state->my_node_id)
+        auto to = it->first;
+        if (to != state->my_node_id)
         {
-          // channels->send_authenticated(
-          //   ccf::NodeMsgType::consensus_msg, send_to, r);
+          channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, r);
         }
       }
 
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
 
-    void recv_append_entries_signed_response(SignedAppendEntriesResponse r)
+    void recv_append_entries_signed_response(
+      NodeId from, SignedAppendEntriesResponse r)
     {
-      auto node = nodes.find(r.from_node);
+      auto node = nodes.find(from);
       if (node == nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
           "Recv signed append entries response to {} from {}: unknown node",
           state->my_node_id,
-          r.from_node);
+          from);
         return;
       }
 
@@ -1577,7 +1568,7 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       auto result = progress_tracker->add_signature(
         {r.term, r.last_log_idx},
-        r.from_node,
+        from,
         r.signature_size,
         r.sig,
         r.hashed_nonce,
@@ -1598,16 +1589,14 @@ namespace aft
         case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
         {
           SignaturesReceivedAck r = {
-            {bft_signature_received_ack, state->my_node_id},
-            tx_id.term,
-            tx_id.version};
+            {bft_signature_received_ack}, tx_id.term, tx_id.version};
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
-            auto send_to = it->first;
-            if (send_to != state->my_node_id)
+            auto to = it->first;
+            if (to != state->my_node_id)
             {
-              // channels->send_authenticated(
-              //   ccf::NodeMsgType::consensus_msg, send_to, r);
+              channels->send_authenticated(
+                to, ccf::NodeMsgType::consensus_msg, r);
             }
           }
 
@@ -1626,16 +1615,16 @@ namespace aft
       }
     }
 
-    void recv_signature_received_ack(SignaturesReceivedAck r)
+    void recv_signature_received_ack(NodeId from, SignaturesReceivedAck r)
     {
-      auto node = nodes.find(r.from_node);
+      auto node = nodes.find(from);
       if (node == nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
           "Recv signature received ack to {} from {}: unknown node",
           state->my_node_id,
-          r.from_node);
+          from);
         return;
       }
 
@@ -1643,11 +1632,12 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
         "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
-        r.from_node,
+        from,
         r.term,
         r.idx);
+
       auto result = progress_tracker->add_signature_ack(
-        {r.term, r.idx}, r.from_node, node_count());
+        {r.term, r.idx}, from, node_count());
       try_send_reply_and_nonce({r.term, r.idx}, result);
     }
 
@@ -1667,18 +1657,16 @@ namespace aft
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
           nonce = progress_tracker->get_my_nonce(tx_id);
-          NonceRevealMsg r = {{bft_nonce_reveal, state->my_node_id},
-                              tx_id.term,
-                              tx_id.version,
-                              nonce};
+          NonceRevealMsg r = {
+            {bft_nonce_reveal}, tx_id.term, tx_id.version, nonce};
 
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
-            auto send_to = it->first;
-            if (send_to != state->my_node_id)
+            auto to = it->first;
+            if (to != state->my_node_id)
             {
-              // channels->send_authenticated(
-              //   ccf::NodeMsgType::consensus_msg, send_to, r);
+              channels->send_authenticated(
+                to, ccf::NodeMsgType::consensus_msg, r);
             }
           }
           progress_tracker->add_nonce_reveal(
@@ -1692,16 +1680,16 @@ namespace aft
       }
     }
 
-    void recv_nonce_reveal(NonceRevealMsg r)
+    void recv_nonce_reveal(NodeId from, NonceRevealMsg r)
     {
-      auto node = nodes.find(r.from_node);
+      auto node = nodes.find(from);
       if (node == nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
           "Recv nonce reveal to {} from {}: unknown node",
           state->my_node_id,
-          r.from_node);
+          from);
         return;
       }
 
@@ -1709,16 +1697,16 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
         "processing nonce_reveal, from:{} view:{}, seqno:{}",
-        r.from_node,
+        from,
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
-        {r.term, r.idx}, r.nonce, r.from_node, node_count(), is_primary());
+        {r.term, r.idx}, r.nonce, from, node_count(), is_primary());
 
       update_commit();
     }
 
-    void recv_append_entries_response(kv::NodeId from, AppendEntriesResponse r)
+    void recv_append_entries_response(NodeId from, AppendEntriesResponse r)
     {
       std::lock_guard<SpinLock> guard(state->lock);
       // Ignore if we're not the leader.
@@ -1784,8 +1772,8 @@ namespace aft
         // entries. This should only happened if there is some kind of network
         // partition.
         state->requested_evidence_from = from;
-        ViewChangeEvidenceMsg vw = {
-          {bft_view_change_evidence, state->my_node_id}, state->current_view};
+        ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
+                                    state->current_view};
 
         std::vector<uint8_t> data =
           view_change_tracker->get_serialized_view_change_confirmation(
@@ -1796,8 +1784,8 @@ namespace aft
           reinterpret_cast<uint8_t*>(&vw),
           reinterpret_cast<uint8_t*>(&vw) + sizeof(ViewChangeEvidenceMsg));
 
-        // channels->send_authenticated(
-        //   ccf::NodeMsgType::consensus_msg, r.from_node, data);
+        channels->send_authenticated(
+          from, ccf::NodeMsgType::consensus_msg, data);
       }
 
       if (r.success != AppendEntriesResponseType::OK)
@@ -1819,7 +1807,7 @@ namespace aft
       update_commit();
     }
 
-    void send_request_vote(kv::NodeId to)
+    void send_request_vote(NodeId to)
     {
       auto last_committable_idx = last_committable_index();
       LOG_INFO_FMT(
@@ -1829,26 +1817,26 @@ namespace aft
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
-      RequestVote rv = {{raft_request_vote, state->my_node_id},
+      RequestVote rv = {{raft_request_vote},
                         state->current_view,
                         last_committable_idx,
                         get_term_internal(last_committable_idx)};
 
-      // channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
+      channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
 
-    void recv_request_vote(RequestVote r)
+    void recv_request_vote(NodeId from, RequestVote r)
     {
       std::lock_guard<SpinLock> guard(state->lock);
 
       // Ignore if we don't recognise the node.
-      auto node = nodes.find(r.from_node);
+      auto node = nodes.find(from);
       if (node == nodes.end())
       {
         LOG_FAIL_FMT(
           "Recv request vote to {} from {}: unknown node",
           state->my_node_id,
-          r.from_node);
+          from);
         return;
       }
 
@@ -1858,10 +1846,10 @@ namespace aft
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: our term is later ({} > {})",
           state->my_node_id,
-          r.from_node,
+          from,
           state->current_view,
           r.term);
-        send_request_vote_response(r.from_node, false);
+        send_request_vote_response(from, false);
         return;
       }
       else if (state->current_view < r.term)
@@ -1870,21 +1858,21 @@ namespace aft
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: their term is later ({} < {})",
           state->my_node_id,
-          r.from_node,
+          from,
           state->current_view,
           r.term);
         become_follower(r.term);
       }
 
-      if ((voted_for.has_value()) && (voted_for.value() != r.from_node))
+      if ((voted_for.has_value()) && (voted_for.value() != from))
       {
         // Reply false, since we already voted for someone else.
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: already voted for {}",
           state->my_node_id,
-          r.from_node,
+          from,
           voted_for.value());
-        send_request_vote_response(r.from_node, false);
+        send_request_vote_response(from, false);
         return;
       }
 
@@ -1906,7 +1894,7 @@ namespace aft
         // progress.
         restart_election_timeout();
         leader_id.reset();
-        voted_for = r.from_node;
+        voted_for = from;
       }
       else
       {
@@ -1918,10 +1906,10 @@ namespace aft
           last_committable_idx);
       }
 
-      send_request_vote_response(r.from_node, answer);
+      send_request_vote_response(from, answer);
     }
 
-    void send_request_vote_response(kv::NodeId to, bool answer)
+    void send_request_vote_response(NodeId to, bool answer)
     {
       LOG_INFO_FMT(
         "Send request vote response from {} to {}: {}",
@@ -1930,15 +1918,13 @@ namespace aft
         answer);
 
       RequestVoteResponse response = {
-        {raft_request_vote_response, state->my_node_id},
-        state->current_view,
-        answer};
+        {raft_request_vote_response}, state->current_view, answer};
 
-      // channels->send_authenticated(
-      //   ccf::NodeMsgType::consensus_msg, to, response);
+      channels->send_authenticated(
+        to, ccf::NodeMsgType::consensus_msg, response);
     }
 
-    void recv_request_vote_response(RequestVoteResponse r)
+    void recv_request_vote_response(NodeId from, RequestVoteResponse r)
     {
       if (replica_state != Candidate)
       {
@@ -1949,13 +1935,13 @@ namespace aft
       }
 
       // Ignore if we don't recognise the node.
-      auto node = nodes.find(r.from_node);
+      auto node = nodes.find(from);
       if (node == nodes.end())
       {
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: unknown node",
           state->my_node_id,
-          r.from_node);
+          from);
         return;
       }
 
@@ -1966,7 +1952,7 @@ namespace aft
           "Recv request vote response to {} from {}: their term is more recent "
           "({} < {})",
           state->my_node_id,
-          r.from_node,
+          from,
           state->current_view,
           r.term);
         become_follower(r.term);
@@ -1978,7 +1964,7 @@ namespace aft
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: stale ({} != {})",
           state->my_node_id,
-          r.from_node,
+          from,
           state->current_view,
           r.term);
         return;
@@ -1989,15 +1975,16 @@ namespace aft
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: they voted no",
           state->my_node_id,
-          r.from_node);
+          from);
         return;
       }
 
       LOG_INFO_FMT(
         "Recv request vote response to {} from {}: they voted yes",
         state->my_node_id,
-        r.from_node);
-      add_vote_for_me(r.from_node);
+        from);
+
+      add_vote_for_me(from);
     }
 
     void restart_election_timeout()
@@ -2114,7 +2101,7 @@ namespace aft
       channels->destroy_all_channels();
     }
 
-    void add_vote_for_me(kv::NodeId from)
+    void add_vote_for_me(NodeId from)
     {
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
       votes_for_me.insert(from);
@@ -2342,7 +2329,7 @@ namespace aft
 
       // Remove all nodes in the node state that are not present in any active
       // configuration.
-      std::vector<kv::NodeId> to_remove;
+      std::vector<NodeId> to_remove;
 
       for (auto& node : nodes)
       {

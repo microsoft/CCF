@@ -136,15 +136,10 @@ namespace aft
   struct RaftHeader
   {
     RaftMsgType msg;
-    kv::NodeId from_node;
   };
 
-  struct RaftHeaderNew
-  {
-    RaftMsgType msg;
-  };
-
-  struct AppendEntries : RaftHeaderNew, consensus::AppendEntriesIndex
+  // TODO: Probably cull consensus::AppendEntriesIndex
+  struct AppendEntries : RaftHeader, consensus::AppendEntriesIndex
   {
     Term term;
     Term prev_term;
@@ -160,7 +155,7 @@ namespace aft
     REQUIRE_EVIDENCE = 2
   };
 
-  struct AppendEntriesResponse : RaftHeaderNew
+  struct AppendEntriesResponse : RaftHeader
   {
     Term term;
     Index last_log_idx;

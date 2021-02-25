@@ -693,11 +693,11 @@ def test_network_node_info(network, args):
         nodes = r.body.json()["nodes"]
         nodes_by_id = {node["node_id"]: node for node in nodes}
         for n in all_nodes:
-            node = nodes_by_id[n.node_id]
+            node = nodes_by_id[n.service_node_id]
             assert node["host"] == n.pubhost
             assert node["port"] == str(n.pubport)
             assert node["primary"] == (n == primary)
-            del nodes_by_id[n.node_id]
+            del nodes_by_id[n.service_node_id]
 
         assert nodes_by_id == {}
 
