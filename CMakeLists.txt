@@ -482,7 +482,6 @@ if(BUILD_TESTS)
   add_picobench(
     digest_bench
     SRCS src/crypto/test/digest_bench.cpp
-    LINK_LIBS
   )
 
   # Storing signed governance operations
