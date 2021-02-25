@@ -582,6 +582,140 @@ namespace loggingapp
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 
+      auto get_historical_range = [&, this](ccf::EndpointContext& args) {
+        // Parse request body
+        const auto body_j =
+          nlohmann::json::parse(args.rpc_ctx->get_request_body());
+        const auto in = body_j.get<LoggingGetHistoricalRange::In>();
+
+        // Range must be in order
+        if (in.to_seqno < in.from_seqno)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "Invalid range: Starts at {} but ends at {}",
+            in.from_seqno,
+            in.to_seqno));
+          return;
+        }
+
+        // End of range must be committed
+        if (consensus == nullptr)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body("Node is not fully operational");
+          return;
+        }
+
+        const auto view_of_final_seqno = consensus->get_view(in.to_seqno);
+        const auto committed_seqno = consensus->get_committed_seqno();
+        const auto committed_view = consensus->get_view(committed_seqno);
+        const auto tx_status = ccf::evaluate_tx_status(
+          view_of_final_seqno,
+          in.to_seqno,
+          view_of_final_seqno,
+          committed_view,
+          committed_seqno);
+        if (tx_status != ccf::TxStatus::Committed)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "Only committed transactions can be queried. Transaction {}.{} is "
+            "{}",
+            view_of_final_seqno,
+            in.to_seqno,
+            ccf::tx_status_to_str(tx_status)));
+          return;
+        }
+
+        // Use hash of request as RequestHandle. WARNING: This means identical
+        // requests from different users will collide, and overwrite each
+        // other's progress!
+        ccf::historical::RequestHandle handle;
+        {
+          auto size =
+            sizeof(in.from_seqno) + sizeof(in.to_seqno) + sizeof(in.id);
+          std::vector<uint8_t> v(size);
+          auto data = v.data();
+          serialized::write(data, size, in.from_seqno);
+          serialized::write(data, size, in.to_seqno);
+          serialized::write(data, size, in.id);
+          handle = std::hash<decltype(v)>()(v);
+        }
+
+        // Fetch the requested range
+        auto& historical_cache = context.get_historical_state();
+
+        // TODO: Add pagination limit
+
+        auto stores =
+          historical_cache.get_store_range(handle, in.from_seqno, in.to_seqno);
+        if (stores.empty())
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+          static constexpr size_t retry_after_seconds = 3;
+          args.rpc_ctx->set_response_header(
+            http::headers::RETRY_AFTER, retry_after_seconds);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "Historical transactions from {} to {} are not yet "
+            "available, fetching now",
+            in.from_seqno,
+            in.to_seqno));
+          return;
+        }
+
+        // Process the fetched Stores
+        LoggingGetHistoricalRange::Out response;
+        for (size_t i = 0; i < stores.size(); ++i)
+        {
+          const auto store_seqno = in.from_seqno + i;
+          auto& store = stores[i];
+
+          auto historical_tx = store->create_read_only_tx();
+          auto records_handle = historical_tx.ro(records);
+          const auto v = records_handle->get(in.id);
+
+          if (v.has_value())
+          {
+            LoggingGetHistoricalRange::Entry e;
+            e.seqno = store_seqno;
+            e.id = in.id;
+            e.msg = v.value();
+            response.entries.push_back(e);
+          }
+          // We do not include an entry when the given key wasn't modified at
+          // this seqno!
+        }
+
+        // Construct the HTTP response
+        nlohmann::json j_response = response;
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        args.rpc_ctx->set_response_body(j_response.dump());
+
+        // ALSO: Assume this response makes it all the way to the client, and
+        // they're finished with it, so we can drop the retrieved state. In a
+        // real app this should be driven by a separate client request!
+        historical_cache.drop_request(handle);
+      };
+      make_endpoint(
+        "log/private/historical/range",
+        HTTP_GET,
+        get_historical_range,
+        auth_policies)
+        .set_auto_schema<LoggingGetHistoricalRange>()
+        .set_forwarding_required(ccf::ForwardingRequired::Never)
+        .install();
+
       auto record_admin_only =
         [this](ccf::EndpointContext& ctx, nlohmann::json&& params) {
           {

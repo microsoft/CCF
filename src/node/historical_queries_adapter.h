@@ -117,6 +117,8 @@ namespace ccf::historical
         static constexpr size_t retry_after_seconds = 3;
         args.rpc_ctx->set_response_header(
           http::headers::RETRY_AFTER, retry_after_seconds);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
         args.rpc_ctx->set_response_body(fmt::format(
           "Historical transaction at seqno {} in view {} is not currently "
           "available.",
