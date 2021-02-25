@@ -7,7 +7,7 @@
 #include "ds/spin_lock.h"
 #include "kv/store.h"
 #include "node/encryptor.h"
-#include "node/historical_queries_interface.h"
+#include "ccf/historical_queries_interface.h"
 #include "node/history.h"
 #include "node/ledger_secrets.h"
 #include "node/rpc/node_interface.h"
