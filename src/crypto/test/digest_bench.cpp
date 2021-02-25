@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 
 #include "crypto/hash.h"
+#include "crypto/mbedtls/hash.h"
+#include "crypto/openssl/hash.h"
 
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>
@@ -28,11 +30,11 @@ static void sha256_bench(picobench::state& s)
   {
     if constexpr (IMPL == HashImpl::mbedtls)
     {
-      crypto::Sha256Hash::mbedtls_sha256(v, h.h.data());
+      crypto::mbedtls_sha256(v, h.h.data());
     }
     else if constexpr (IMPL == HashImpl::openssl)
     {
-      crypto::Sha256Hash::openssl_sha256(v, h.h.data());
+      crypto::openssl_sha256(v, h.h.data());
     }
   }
   s.stop_timer();
