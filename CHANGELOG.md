@@ -589,7 +589,7 @@ This pre-release enables experimental support for running CCF with the PBFT cons
 
 - Experimental PBFT support [docs](https://microsoft.github.io/CCF/developers/consensus.html)
 - Increased threading support [docs](https://microsoft.github.io/CCF/developers/threading.html) (#831, #838)
-- Governance proposals can now be rejected, which allows consitutions to implement veto power (#854)
+- Governance proposals can now be rejected, which allows constitutions to implement veto power (#854)
 - Support for non JSON-RPC payloads (#852)
 - RPC to get the OE report (containing the SGX quote) of a specific node (#907)
 

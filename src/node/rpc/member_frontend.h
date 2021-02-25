@@ -2256,13 +2256,58 @@ namespace ccf
           record_voting_history(
             ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
-          return make_success(description);
+          auto rv = nlohmann::json::object();
+          rv["proposal_id"] = proposal_id;
+
+          return make_success(rv);
         };
       make_endpoint(
         "proposals.js",
         HTTP_POST,
         json_adapter(post_proposals_js),
         member_sig_only)
+        .install();
+
+      auto get_proposal_js =
+        [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          const auto member_id = get_caller_member_id(ctx);
+          if (!check_member_active(ctx.tx, member_id))
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is not active.");
+          }
+
+          ProposalId proposal_id;
+          std::string error;
+          if (!get_proposal_id_from_path(
+                ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
+
+          auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+          auto p = pm->get(proposal_id);
+
+          if (!p)
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ProposalNotFound,
+              fmt::format("Proposal {} does not exist.", proposal_id));
+          }
+
+          return make_success(p.value());
+        };
+      
+      make_read_only_endpoint(
+        "proposals.js/{proposal_id}",
+        HTTP_GET,
+        json_read_only_adapter(get_proposal_js),
+        member_cert_or_sig)
+        .set_auto_schema<void, jsgov::Proposal>()
         .install();
     }
   };

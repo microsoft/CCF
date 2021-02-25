@@ -120,7 +120,7 @@ namespace ccf
 
     // JS Constitution
     Constitution constitution;
-
+    
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(make_store(consensus_type)),
       members(Tables::MEMBERS),

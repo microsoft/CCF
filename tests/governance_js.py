@@ -12,8 +12,8 @@ def action(name, **args):
     return {"name": name, "args": args}
 
 
-@reqs.description("Test proposals")
-def test_proposals(network, args):
+@reqs.description("Test proposal validation")
+def test_proposal_validation(network, args):
     primary, _ = network.find_nodes()
     add_member = [action("add_member", cert="", enc_pubk="", member_data={})]
 
@@ -39,13 +39,33 @@ def test_proposals(network, args):
 
     return network
 
+@reqs.description("Test proposal storage")
+def test_proposal_storage(network, args):
+    primary, _ = network.find_nodes()
+    add_member = [action("add_member", cert="", enc_pubk="", member_data={})]
+
+    valid_set_recovery_threshold = [action("set_recovery_threshold", threshold=5)]
+
+    with primary.client(None, "member0") as c:
+        r = c.get(f"/gov/proposals.js/42")
+        assert r.status_code == 404, r.body.text()
+
+    with primary.client(None, "member0") as c:
+        r = c.post("/gov/proposals.js", valid_set_recovery_threshold)
+        assert r.status_code == 200, r.body.text()
+        pid = r.body.json()["proposal_id"]
+        r = c.get(f"/gov/proposals.js/{pid}")
+        assert r.status_code == 200, r.body.text()
+
+    return network
 
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_proposals(network, args)
+        network = test_proposal_validation(network, args)
+        network = test_proposal_storage(network, args)
 
 
 if __name__ == "__main__":
