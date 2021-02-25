@@ -289,8 +289,7 @@ TEST_CASE("StateCache point queries")
   {
     INFO("The host sees requests for these indices");
     REQUIRE(!stub_writer->writes.empty());
-    std::set<kv::SeqNo> expected{
-      low_seqno, high_seqno, unsigned_seqno};
+    std::set<kv::SeqNo> expected{low_seqno, high_seqno, unsigned_seqno};
     std::set<kv::SeqNo> actual;
     for (const auto& write : stub_writer->writes)
     {

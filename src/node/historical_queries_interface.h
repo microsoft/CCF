@@ -41,10 +41,11 @@ namespace ccf::historical
 
     /** Set the default time after which a request's state will be deleted, and
      * will not be accessible without retrieving it again from the ledger. Any
-     * call to get_store_XXX which doesn't pass an explicit expire_after will
-     * reset the timer to this default duration.
+     * call to get_store_XXX which doesn't pass an explicit seconds_until_expiry
+     * will reset the timer to this default duration.
      */
-    virtual void set_default_expiry_duration(ExpiryDuration duration) = 0;
+    virtual void set_default_expiry_duration(
+      ExpiryDuration seconds_until_expiry) = 0;
 
     /** Retrieve a Store containing the state written at the given seqno.
      *
@@ -55,13 +56,12 @@ namespace ccf::historical
     virtual StorePtr get_store_at(
       RequestHandle handle,
       kv::SeqNo seqno,
-      ExpiryDuration expire_after) = 0;
+      ExpiryDuration seconds_until_expiry) = 0;
 
     /** Same as @c get_store_at but uses default expiry value.
      * @see get_store_at
      */
-    virtual StorePtr get_store_at(
-      RequestHandle handle, kv::SeqNo seqno) = 0;
+    virtual StorePtr get_store_at(RequestHandle handle, kv::SeqNo seqno) = 0;
 
     /** Retrieve a range of Stores containing the state written at the given
      * indices.
@@ -73,7 +73,7 @@ namespace ccf::historical
      * the same arguments to retrieve the requested entries. This state is kept
      * until it is deleted for one of the following reasons:
      *  - A call to @c drop_request
-     *  - @c expire_after seconds elapse without calling this function
+     *  - @c seconds_until_expiry seconds elapse without calling this function
      *  - This handle is used to request a different seqno or range
      *
      * The range is inclusive of both start_seqno and end_seqno. If a non-empty
@@ -85,15 +85,13 @@ namespace ccf::historical
       RequestHandle handle,
       kv::SeqNo start_seqno,
       kv::SeqNo end_seqno,
-      ExpiryDuration expire_after) = 0;
+      ExpiryDuration seconds_until_expiry) = 0;
 
     /** Same as @c get_store_range but uses default expiry value.
      * @see get_store_range
      */
     virtual std::vector<StorePtr> get_store_range(
-      RequestHandle handle,
-      kv::SeqNo start_seqno,
-      kv::SeqNo end_seqno) = 0;
+      RequestHandle handle, kv::SeqNo start_seqno, kv::SeqNo end_seqno) = 0;
 
     /** Drop state for the given handle.
      *

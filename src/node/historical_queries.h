@@ -52,8 +52,7 @@ namespace ccf::historical
       LedgerSecretPtr last_ledger_secret;
 
       LedgerSecretRecoveryInfo(
-        kv::SeqNo target_seqno_,
-        LedgerSecretPtr last_ledger_secret_) :
+        kv::SeqNo target_seqno_, LedgerSecretPtr last_ledger_secret_) :
         target_seqno(target_seqno_),
         last_ledger_secret(last_ledger_secret_)
       {}
@@ -94,8 +93,7 @@ namespace ccf::historical
       // Entries from outside the requested range (such as the next signature)
       // may be needed to trust this range. They are stored here, distinct from
       // user-requested stores.
-      std::optional<std::pair<kv::SeqNo, StoreDetailsPtr>>
-        supporting_signature;
+      std::optional<std::pair<kv::SeqNo, StoreDetailsPtr>> supporting_signature;
 
       // Only set when recovering ledger secrets
       std::unique_ptr<LedgerSecretRecoveryInfo> ledger_secret_recovery_info =
@@ -148,8 +146,8 @@ namespace ccf::historical
 
         std::set<kv::SeqNo> ret;
         std::vector<StoreDetailsPtr> new_stores(num_following_indices + 1);
-        for (auto seqno = start_seqno;
-             seqno <= static_cast<kv::SeqNo>(start_seqno + num_following_indices);
+        for (auto seqno = start_seqno; seqno <=
+             static_cast<kv::SeqNo>(start_seqno + num_following_indices);
              ++seqno)
         {
           auto existing_details = get_store_details(seqno);
@@ -366,8 +364,7 @@ namespace ccf::historical
 
     // Returns true if this is a valid signature that passes our verification
     // checks
-    bool verify_signature(
-      const StorePtr& sig_store, kv::SeqNo sig_seqno)
+    bool verify_signature(const StorePtr& sig_store, kv::SeqNo sig_seqno)
     {
       const auto sig = get_signature(sig_store);
       if (!sig.has_value())
@@ -410,8 +407,7 @@ namespace ccf::historical
     {
       auto [earliest_ledger_secret_seqno, earliest_ledger_secret] =
         get_earliest_known_ledger_secret();
-      if (
-        seqno < earliest_ledger_secret_seqno)
+      if (seqno < earliest_ledger_secret_seqno)
       {
         // Still need more secrets, fetch the next
         auto previous_secret_stored_version =
@@ -584,12 +580,13 @@ namespace ccf::historical
       RequestHandle handle,
       kv::SeqNo start_seqno,
       size_t num_following_indices,
-      ExpiryDuration expire_after)
+      ExpiryDuration seconds_until_expiry)
     {
       std::lock_guard<SpinLock> guard(requests_lock);
 
-      const auto expire_after_ms =
-        std::chrono::duration_cast<std::chrono::milliseconds>(expire_after);
+      const auto ms_until_expiry =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+          seconds_until_expiry);
 
       auto it = requests.find(handle);
       if (it == requests.end())
@@ -631,8 +628,8 @@ namespace ccf::historical
         }
       }
 
-      // Reset the expiry time as this has just been requested
-      request.time_to_expiry = expire_after_ms;
+      // Reset the expiry timer as this has just been requested
+      request.time_to_expiry = ms_until_expiry;
 
       std::vector<StorePtr> trusted_stores;
 
@@ -691,9 +688,9 @@ namespace ccf::historical
     StorePtr get_store_at(
       RequestHandle handle,
       kv::SeqNo seqno,
-      ExpiryDuration expire_after) override
+      ExpiryDuration seconds_until_expiry) override
     {
-      auto range = get_store_range(handle, seqno, seqno, expire_after);
+      auto range = get_store_range(handle, seqno, seqno, seconds_until_expiry);
       if (range.empty())
       {
         return nullptr;
@@ -702,8 +699,7 @@ namespace ccf::historical
       return range[0];
     }
 
-    StorePtr get_store_at(
-      RequestHandle handle, kv::SeqNo seqno) override
+    StorePtr get_store_at(RequestHandle handle, kv::SeqNo seqno) override
     {
       return get_store_at(handle, seqno, default_expiry_duration);
     }
@@ -712,7 +708,7 @@ namespace ccf::historical
       RequestHandle handle,
       kv::SeqNo start_seqno,
       kv::SeqNo end_seqno,
-      ExpiryDuration expire_after) override
+      ExpiryDuration seconds_until_expiry) override
     {
       if (end_seqno < start_seqno)
       {
@@ -724,13 +720,11 @@ namespace ccf::historical
 
       const auto tail_length = end_seqno - start_seqno;
       return get_store_range_internal(
-        handle, start_seqno, tail_length, expire_after);
+        handle, start_seqno, tail_length, seconds_until_expiry);
     }
 
     std::vector<StorePtr> get_store_range(
-      RequestHandle handle,
-      kv::SeqNo start_seqno,
-      kv::SeqNo end_seqno) override
+      RequestHandle handle, kv::SeqNo start_seqno, kv::SeqNo end_seqno) override
     {
       return get_store_range(
         handle, start_seqno, end_seqno, default_expiry_duration);
@@ -748,8 +742,7 @@ namespace ccf::historical
       return erased_count > 0;
     }
 
-    bool handle_ledger_entry(
-      kv::SeqNo seqno, const LedgerEntry& data)
+    bool handle_ledger_entry(kv::SeqNo seqno, const LedgerEntry& data)
     {
       std::lock_guard<SpinLock> guard(requests_lock);
       const auto it = pending_fetches.find(seqno);
@@ -768,9 +761,7 @@ namespace ccf::historical
 
       // If this is older than the node's currently known ledger secrets, use
       // the historical encryptor (which should have older secrets)
-      if (
-        seqno < 
-                  source_ledger_secrets->get_first().first)
+      if (seqno < source_ledger_secrets->get_first().first)
       {
         store->set_encryptor(historical_encryptor);
       }

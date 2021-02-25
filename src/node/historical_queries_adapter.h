@@ -8,9 +8,7 @@
 namespace ccf::historical
 {
   using CheckAvailability = std::function<bool(
-    kv::Consensus::View view,
-    kv::SeqNo seqno,
-    std::string& error_reason)>;
+    kv::Consensus::View view, kv::SeqNo seqno, std::string& error_reason)>;
 
   using HandleHistoricalQuery = std::function<void(
     ccf::EndpointContext& args,
