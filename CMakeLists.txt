@@ -86,6 +86,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     ccf.enclave
     PUBLIC ${OE_TARGET_ENCLAVE_AND_STD}
            -lgcc
+           quickjs.enclave
            ccfcrypto.enclave
            http_parser.enclave
            lua.enclave

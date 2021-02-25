@@ -33,9 +33,12 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
   target_link_libraries(quickjs.enclave PUBLIC ${OE_TARGET_LIBC})
   set_property(TARGET quickjs.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
-  target_include_directories(quickjs.enclave PUBLIC ${QUICKJS_INC})
+  target_include_directories(
+    quickjs.enclave PUBLIC $<BUILD_INTERFACE:${CCF_DIR}/3rdparty/quickjs>
+                           $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+  )
 
-  install(TARGETS quickjs.enclave DESTINATION lib)
+  install(TARGETS quickjs.enclave EXPORT ccf DESTINATION lib)
 endif()
 
 add_library(quickjs.host STATIC ${QUICKJS_SRC})

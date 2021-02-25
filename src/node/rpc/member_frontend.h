@@ -2253,8 +2253,8 @@ namespace ccf
           }
           pm->put(proposal_id, {ctx.rpc_ctx->get_request_body().begin(), ctx.rpc_ctx->get_request_body().end()});
 
-          //record_voting_history(
-          //  ctx.tx, caller_identity.member_id, caller_identity.signed_request);
+          record_voting_history(
+            ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
           return make_success(description);
         };
