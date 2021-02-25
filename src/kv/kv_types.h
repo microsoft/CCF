@@ -40,7 +40,6 @@ namespace kv
   // TermHistory
   using Term = int64_t;
 
-  // TODO: Copied from entities.h  - to be deleted
   using NodeId =
     std::string; // < Hex-encoded hash of node's identity public key
 

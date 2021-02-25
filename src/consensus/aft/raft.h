@@ -45,7 +45,6 @@
 namespace aft
 {
   using Configuration = kv::Configuration;
-  using NodeId = kv::NodeId;
 
   template <class LedgerProxy, class ChannelProxy, class SnapshotterProxy>
   class Aft : public kv::ConfigurableConsensus, public AbstractConsensusCallback

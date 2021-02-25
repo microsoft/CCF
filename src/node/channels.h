@@ -156,13 +156,6 @@ namespace ccf
 
     void try_establish_channel()
     {
-      // TODO: Make generic to all sends
-      // auto size = sizeof(ChannelMsg) + sizeof(size_t) + self.size();
-      // std::vector<uint8_t> msg(size);
-      // auto data = msg.data();
-      // serialized::write(data, size, ChannelMsg::key_exchange);
-      // serialized::write(data, size, self);
-
       to_host->write(
         node_outbound,
         peer_id,
@@ -381,8 +374,6 @@ namespace ccf
 
       std::vector<uint8_t> cipher(plain.n);
       key->encrypt(gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
-
-      // LOG_FAIL_FMT("Sending n2n msg {} from {}", type, self);
 
       to_host->write(
         node_outbound,

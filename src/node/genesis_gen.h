@@ -267,7 +267,6 @@ namespace ccf
       return true;
     }
 
-    // TODO: Remove this
     void add_node(NodeId id, const NodeInfo& node_info)
     {
       auto node = tx.rw(tables.nodes);

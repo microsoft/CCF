@@ -20,7 +20,7 @@ namespace aft
 {
   using Index = int64_t;
   using Term = int64_t;
-  // using NodeId = uint64_t; // TODO: Remove this!
+  using NodeId = kv::NodeId;
   using Node2NodeMsg = uint64_t;
   using Nonce = crypto::Sha256Hash;
 
@@ -138,7 +138,6 @@ namespace aft
     RaftMsgType msg;
   };
 
-  // TODO: Probably cull consensus::AppendEntriesIndex
   struct AppendEntries : RaftHeader, consensus::AppendEntriesIndex
   {
     Term term;
