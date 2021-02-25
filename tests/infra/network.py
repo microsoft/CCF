@@ -710,11 +710,11 @@ class Network:
                         logs = []
                         res = c.get("/node/network", log_capture=logs)
                         if res.status_code != 200:
-                            break
+                            continue
                         body = res.body.json()
                         view = body["current_view"]
-                        if body["view_change_in_progress"]:
-                            break
+                        if "primary_id" not in body:
+                            continue
                         primary_id = body["primary_id"]
 
                     except CCFConnectionException:
