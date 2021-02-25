@@ -2,14 +2,23 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "crypto/key_pair.h"
+#include "crypto/mbedtls/entropy.h"
+#include "crypto/mbedtls/key_pair.h"
+#include "crypto/mbedtls/rsa_key_pair.h"
+#include "crypto/mbedtls/symmetric_key.h"
+#include "crypto/mbedtls/verifier.h"
+#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/rsa_key_pair.h"
+#include "crypto/openssl/symmetric_key.h"
+#include "crypto/openssl/verifier.h"
 #include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "tls/base64.h"
 
 #include <chrono>
+#include <cstring>
 #include <doctest/doctest.h>
-#include <string>
 
 using namespace std;
 using namespace tls;
@@ -375,15 +384,114 @@ static const vector<uint8_t>& getRawKey()
 
 TEST_CASE("ExtendedIv0")
 {
-  KeyAesGcm k(getRawKey());
+  auto k = crypto::make_key_aes_gcm(getRawKey());
   // setup plain text
   unsigned char rawP[100];
   memset(rawP, 'x', sizeof(rawP));
   Buffer p{rawP, sizeof(rawP)};
   // test large IV
   GcmHeader<1234> h;
-  k.encrypt(h.get_iv(), p, nullb, p.p, h.tag);
+  k->encrypt(h.get_iv(), p, nullb, p.p, h.tag);
 
-  KeyAesGcm k2(getRawKey());
-  REQUIRE(k2.decrypt(h.get_iv(), h.tag, p, nullb, p.p));
+  auto k2 = crypto::make_key_aes_gcm(getRawKey());
+  REQUIRE(k2->decrypt(h.get_iv(), h.tag, p, nullb, p.p));
+}
+
+TEST_CASE("AES mbedTLS vs OpenSSL")
+{
+  auto key = getRawKey();
+
+  GcmHeader<1234> h;
+
+  { // mbedTLS -> OpenSSL
+    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
+    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+    std::vector<uint8_t> encrypted(contents_.size());
+    mbed->encrypt(h.get_iv(), contents_, nullb, encrypted.data(), h.tag);
+
+    std::vector<unsigned char> rawP(contents_.size(), 'x');
+    Buffer p{rawP.data(), rawP.size()};
+
+    std::vector<uint8_t> decrypted(contents_.size());
+    REQUIRE(ossl->decrypt(
+      h.get_iv(),
+      h.tag,
+      {encrypted.data(), encrypted.size()},
+      nullb,
+      decrypted.data()));
+
+    REQUIRE(decrypted.size() == contents_.size());
+    REQUIRE(memcmp(decrypted.data(), contents_.data(), sizeof(contents_)) == 0);
+  }
+
+  { // OpenSSL -> mbedTLS
+    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
+    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+    std::vector<uint8_t> encrypted(contents_.size());
+    ossl->encrypt(h.get_iv(), contents_, nullb, encrypted.data(), h.tag);
+
+    std::vector<unsigned char> rawP(contents_.size(), 'x');
+    Buffer p{rawP.data(), rawP.size()};
+
+    std::vector<uint8_t> decrypted(contents_.size());
+    CBuffer encbuf{encrypted.data(), encrypted.size()};
+    REQUIRE(mbed->decrypt(h.get_iv(), h.tag, encbuf, nullb, decrypted.data()));
+
+    REQUIRE(decrypted.size() == contents_.size());
+    REQUIRE(memcmp(decrypted.data(), contents_.data(), sizeof(contents_)) == 0);
+  }
+}
+
+TEST_CASE("AES mbedTLS vs OpenSSL + AAD")
+{
+  auto key = getRawKey();
+
+  GcmHeader<1234> h;
+  std::vector<uint8_t> aad(123, 'y');
+
+  {
+    INFO("mbedTLS -> OpenSSL");
+
+    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
+    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+    std::vector<uint8_t> encrypted(contents_.size());
+    mbed->encrypt(h.get_iv(), contents_, aad, encrypted.data(), h.tag);
+
+    std::vector<unsigned char> rawP(contents_.size(), 'x');
+    Buffer p{rawP.data(), rawP.size()};
+
+    std::vector<uint8_t> decrypted(contents_.size());
+    REQUIRE(ossl->decrypt(
+      h.get_iv(),
+      h.tag,
+      {encrypted.data(), encrypted.size()},
+      aad,
+      decrypted.data()));
+
+    REQUIRE(decrypted.size() == contents_.size());
+    REQUIRE(memcmp(decrypted.data(), contents_.data(), sizeof(contents_)) == 0);
+  }
+
+  {
+    INFO("OpenSSL -> mbedTLS");
+
+    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
+    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+    std::vector<uint8_t> encrypted(contents_.size());
+    ossl->encrypt(h.get_iv(), contents_, aad, encrypted.data(), h.tag);
+
+    std::vector<unsigned char> rawP(contents_.size(), 'x');
+    Buffer p{rawP.data(), rawP.size()};
+
+    std::vector<uint8_t> decrypted(contents_.size());
+    CBuffer encbuf{encrypted.data(), encrypted.size()};
+    REQUIRE(mbed->decrypt(h.get_iv(), h.tag, encbuf, aad, decrypted.data()));
+
+    REQUIRE(decrypted.size() == contents_.size());
+    REQUIRE(memcmp(decrypted.data(), contents_.data(), sizeof(contents_)) == 0);
+  }
 }

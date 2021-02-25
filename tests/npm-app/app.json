@@ -109,6 +109,7 @@
           },
           "responses": {
             "200": {
+              "description": "Generated key",
               "content": {
                 "application/octet-stream": {}
               }
@@ -149,6 +150,7 @@
           },
           "responses": {
             "200": {
+              "description": "Wrapped key",
               "content": {
                 "application/octet-stream": {}
               }
@@ -213,6 +215,7 @@
           },
           "responses": {
             "200": {
+              "description": "Protobuf encoded data",
               "content": {
                 "application/x-protobuf": {}
               }
