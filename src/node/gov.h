@@ -19,6 +19,10 @@ namespace ccf {
         DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposer_id, votes);
 
         using ProposalMap = kv::RawCopySerialisedMap<ProposalId, Proposal>;
-        using ProposalInfoMap = kv::RawCopySerialisedMap<ProposalId, ProposalInfo>;
+        using ProposalInfoMap = kv::MapSerialisedWith<
+            ProposalId,
+            ProposalInfo,
+            kv::serialisers::BlitSerialiser,
+            kv::serialisers::JsonSerialiser>;
     }
 }

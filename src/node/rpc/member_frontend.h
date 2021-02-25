@@ -2253,6 +2253,9 @@ namespace ccf
           }
           pm->put(proposal_id, {ctx.rpc_ctx->get_request_body().begin(), ctx.rpc_ctx->get_request_body().end()});
 
+          auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>("public:ccf.gov.proposals_info.js");
+          pi->put(proposal_id, {caller_identity.member_id, {}});
+
           record_voting_history(
             ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
@@ -2299,7 +2302,19 @@ namespace ccf
               fmt::format("Proposal {} does not exist.", proposal_id));
           }
 
-          return make_success(p.value());
+          auto pi = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>("public:ccf.gov.proposals_info.js");
+          auto pi_ = pi->get(proposal_id);
+
+          if (!pi_)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format("No proposal info associated with {} exists.", proposal_id));
+          }
+
+          // TODO: staple proposal inline here
+          return make_success(pi_.value());
         };
       
       make_read_only_endpoint(
@@ -2307,7 +2322,7 @@ namespace ccf
         HTTP_GET,
         json_read_only_adapter(get_proposal_js),
         member_cert_or_sig)
-        .set_auto_schema<void, jsgov::Proposal>()
+        .set_auto_schema<void, jsgov::ProposalInfo>()
         .install();
     }
   };
