@@ -148,6 +148,22 @@ namespace ccf
     };
   };
 
+  struct GetReceiptJson
+  {
+    struct In
+    {
+      int64_t commit = 0;
+    };
+
+    struct Out
+    {
+      int64_t seqno = 0;
+      std::string root;
+      nlohmann::json path;
+      std::string leaf;
+    };
+  };
+
   struct VerifyReceipt
   {
     struct In

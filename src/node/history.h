@@ -197,6 +197,11 @@ namespace ccf
       return {};
     }
 
+    nlohmann::json get_receipt_json(kv::Version) override
+    {
+      return {};
+    }
+
     bool verify_receipt(const std::vector<uint8_t>&) override
     {
       return true;
@@ -241,6 +246,25 @@ namespace ccf
       root.serialise(v);
       path->serialise(v);
       return v;
+    }
+
+    nlohmann::json to_json() const
+    {
+      nlohmann::json j;
+      j["root"] = root.to_string();
+      j["leaf"] = path->leaf().to_string();
+
+      nlohmann::json j_path;
+      for (auto& entry : *path)
+      {
+        nlohmann::json obj;
+        std::string key = entry.direction == 0 ? "left" : "right";
+        obj[key] = entry.hash.to_string();
+        j_path.push_back(obj);
+      }
+      j["path"] = std::move(j_path);
+
+      return j;
     }
   };
 
@@ -772,6 +796,12 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(state_lock);
       return replicated_state_tree.get_receipt(index).to_v();
+    }
+
+    nlohmann::json get_receipt_json(kv::Version index) override
+    {
+      std::lock_guard<SpinLock> guard(state_lock);
+      return replicated_state_tree.get_receipt(index).to_json();
     }
 
     bool verify_receipt(const std::vector<uint8_t>& v) override

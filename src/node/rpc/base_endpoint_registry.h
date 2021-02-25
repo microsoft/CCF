@@ -200,6 +200,28 @@ namespace ccf
       }
     }
 
+    ApiResult get_receipt_json_for_seqno_v1(
+      kv::Consensus::SeqNo seqno, nlohmann::json& receipt)
+    {
+      if (history != nullptr)
+      {
+        try
+        {
+          receipt = history->get_receipt_json(seqno);
+          return ApiResult::OK;
+        }
+        catch (const std::exception& e)
+        {
+          LOG_TRACE_FMT("{}", e.what());
+          return ApiResult::InternalError;
+        }
+      }
+      else
+      {
+        return ApiResult::Uninitialised;
+      }
+    }
+
     /** Get a quote attesting to the hardware this node is running on.
      */
     ApiResult get_quote_for_this_node_v1(

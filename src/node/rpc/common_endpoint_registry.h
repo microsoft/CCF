@@ -232,6 +232,36 @@ namespace ccf
         .set_auto_schema<GetReceipt>()
         .install();
 
+      auto get_receipt_json = [this](auto&, nlohmann::json&& params) {
+        const auto in = params.get<GetReceiptJson::In>();
+
+        GetReceiptJson::Out out;
+        nlohmann::json j;
+        const auto result = get_receipt_json_for_seqno_v1(in.commit, j);
+        if (result == ccf::ApiResult::OK)
+        {
+          out.seqno = in.commit;
+          out.root = std::move(j["root"]);
+          out.path = std::move(j["path"]);
+          out.leaf = std::move(j["leaf"]);
+          return make_success(out);
+        }
+        else
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+        }
+      };
+      make_command_endpoint(
+        "receipt_json",
+        HTTP_GET,
+        json_command_adapter(get_receipt_json),
+        no_auth_required)
+        .set_auto_schema<GetReceiptJson>()
+        .install();
+
       auto verify_receipt = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<VerifyReceipt::In>();
 

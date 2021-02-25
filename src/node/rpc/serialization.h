@@ -117,6 +117,11 @@ namespace ccf
   DECLARE_JSON_TYPE(GetReceipt::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::Out, receipt)
 
+  DECLARE_JSON_TYPE(GetReceiptJson::In)
+  DECLARE_JSON_REQUIRED_FIELDS(GetReceiptJson::In, commit)
+  DECLARE_JSON_TYPE(GetReceiptJson::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetReceiptJson::Out, seqno, root, path, leaf)
+
   DECLARE_JSON_TYPE(VerifyReceipt::In)
   DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::In, receipt)
   DECLARE_JSON_TYPE(VerifyReceipt::Out)
