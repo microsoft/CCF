@@ -116,12 +116,14 @@ def unwrap_key_rsa_oaep(
     )
     return unwrapped
 
-def unwrap_key_aes_pad(
-    wrapped_key: bytes, wrapping_key: bytes) -> bytes:
+
+def unwrap_key_aes_pad(wrapped_key: bytes, wrapping_key: bytes) -> bytes:
     return keywrap.aes_key_unwrap_with_padding(wrapping_key, wrapped_key)
 
+
 def unwrap_key_rsa_oaep_aes_pad(
-    data: bytes, oaep_key_priv_pem: str, label: Optional[bytes] = None) -> bytes:
+    data: bytes, oaep_key_priv_pem: str, label: Optional[bytes] = None
+) -> bytes:
     oaep_key = load_pem_private_key(
         oaep_key_priv_pem.encode("ascii"), None, default_backend()
     )
@@ -130,7 +132,6 @@ def unwrap_key_rsa_oaep_aes_pad(
     w_target_key = data[w_aes_sz:]
     t_aes_key = unwrap_key_rsa_oaep(w_aes_key, oaep_key_priv_pem, label)
     return unwrap_key_aes_pad(w_target_key, t_aes_key)
-
 
 
 def pub_key_pem_to_der(pem: str) -> bytes:

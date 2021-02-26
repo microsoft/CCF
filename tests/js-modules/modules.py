@@ -272,7 +272,10 @@ def test_npm_app(network, args):
             {
                 "key": b64encode(aes_key_to_wrap).decode(),
                 "wrappingKey": b64encode(bytes(wrapping_key_pub_pem, "ascii")).decode(),
-                "parameters": {"name": "RSA-OAEP", "label": b64encode(bytes(label, "ascii")).decode()},
+                "parameters": {
+                    "name": "RSA-OAEP",
+                    "label": b64encode(bytes(label, "ascii")).decode(),
+                },
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
@@ -303,11 +306,17 @@ def test_npm_app(network, args):
             {
                 "key": b64encode(aes_key_to_wrap).decode(),
                 "wrappingKey": b64encode(bytes(wrapping_key_pub_pem, "ascii")).decode(),
-                "parameters": {"name": "RSA-OAEP-AES-KWP", "aes_key_size": 256, "label": b64encode(bytes(label, "ascii")).decode()},
+                "parameters": {
+                    "name": "RSA-OAEP-AES-KWP",
+                    "aes_key_size": 256,
+                    "label": b64encode(bytes(label, "ascii")).decode(),
+                },
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        unwrapped = infra.crypto.unwrap_key_rsa_oaep_aes_pad(r.body.data(), wrapping_key_priv_pem, label.encode("ascii"))
+        unwrapped = infra.crypto.unwrap_key_rsa_oaep_aes_pad(
+            r.body.data(), wrapping_key_priv_pem, label.encode("ascii")
+        )
         assert unwrapped == aes_key_to_wrap
 
         r = c.get("/app/log?id=42")
