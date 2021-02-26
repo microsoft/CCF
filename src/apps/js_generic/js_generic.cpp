@@ -2,18 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
-#include "crypto/openssl/symmetric_key.h"
-#include "crypto/rsa_key_pair.h"
-#include "crypto/symmetric_key.h"
-#include "crypto/verifier.h"
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
-#include "tls/base64.h"
 
-#include <mbedtls/base64.h>
 #include <memory>
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
