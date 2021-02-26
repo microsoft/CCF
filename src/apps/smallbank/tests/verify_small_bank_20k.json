@@ -49,7 +49,7 @@
   "final": [
     {
       "account": 0,
-      "balance": 120018
+      "balance": 36
     },
     {
       "account": 1,
@@ -57,35 +57,35 @@
     },
     {
       "account": 2,
-      "balance": 187
+      "balance": -50
     },
     {
       "account": 3,
-      "balance": 42
+      "balance": 53
     },
     {
       "account": 4,
-      "balance": -35
+      "balance": 49
     },
     {
       "account": 5,
-      "balance": 36
-    },
-    {
-      "account": 6,
-      "balance": 1189
-    },
-    {
-      "account": 7,
-      "balance": 6
-    },
-    {
-      "account": 8,
       "balance": 0
     },
     {
+      "account": 6,
+      "balance": 0
+    },
+    {
+      "account": 7,
+      "balance": 107846
+    },
+    {
+      "account": 8,
+      "balance": 75
+    },
+    {
       "account": 9,
-      "balance": 39
+      "balance": 11
     }
   ]
 }

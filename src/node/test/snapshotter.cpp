@@ -71,7 +71,7 @@ TEST_CASE("Regular snapshotting")
   issue_transactions(network, snapshot_tx_interval * interval_count);
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network, snapshot_tx_interval);
+    *writer_factory, network.tables, snapshot_tx_interval);
 
   REQUIRE_FALSE(snapshotter->record_committable(snapshot_tx_interval - 1));
   REQUIRE(snapshotter->record_committable(snapshot_tx_interval));
@@ -115,7 +115,7 @@ TEST_CASE("Commit snapshot evidence")
   issue_transactions(network, snapshot_tx_interval);
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network, snapshot_tx_interval);
+    *writer_factory, network.tables, snapshot_tx_interval);
 
   INFO("Generate snapshot");
   {
@@ -161,7 +161,7 @@ TEST_CASE("Rollback before evidence is committed")
   issue_transactions(network, snapshot_tx_interval);
 
   auto snapshotter = std::make_shared<ccf::Snapshotter>(
-    *writer_factory, network, snapshot_tx_interval);
+    *writer_factory, network.tables, snapshot_tx_interval);
 
   INFO("Generate snapshot");
   {

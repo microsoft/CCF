@@ -70,7 +70,7 @@
 - name: Copy Intel LVI as
   copy:
     remote_src: yes
-    src: "{{ workspace }}/external/toolset/as"
+    src: "{{ workspace }}/external/toolset/ubuntu18.04/as"
     dest: "{{ oe_lvi_bin_dir }}/as"
     mode: "0775"
   become: yes
@@ -78,7 +78,7 @@
 - name: Copy Intel LVI ld
   copy:
     remote_src: yes
-    src: "{{ workspace }}/external/toolset/ld"
+    src: "{{ workspace }}/external/toolset/ubuntu18.04/ld"
     dest: "{{ oe_lvi_bin_dir }}/ld"
     mode: "0775"
   become: yes

@@ -93,7 +93,7 @@ class NullTxHistoryWithOverride : public ccf::NullTxHistory
 
 public:
   NullTxHistoryWithOverride(
-    kv::Store& store_, NodeId id_, crypto::KeyPairBase& kp_) :
+    kv::Store& store_, NodeId id_, crypto::KeyPair& kp_) :
     ccf::NullTxHistory(store_, id_, kp_)
   {}
 

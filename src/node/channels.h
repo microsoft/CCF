@@ -330,7 +330,7 @@ namespace ccf
     void establish(bool complete)
     {
       auto shared_secret = ctx.compute_shared_secret();
-      key = std::make_unique<crypto::KeyAesGcm>(shared_secret);
+      key = crypto::make_key_aes_gcm(shared_secret);
       ctx.free_ctx();
       status = ESTABLISHED;
 

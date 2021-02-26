@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/entropy.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_exception.h"
 #include "kv/kv_types.h"
