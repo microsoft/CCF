@@ -844,13 +844,13 @@ def test_receipts(network, args):
             )
             r = c.get(f"/app/receipt?commit={r.seqno}")
 
-            rv = c.post("/app/receipt/verify", {"receipt": r.body.json()["receipt"]})
+            rv = c.post("/app/receipt/verify", r.body.json())
             assert rv.body.json() == {"valid": True}
 
-            invalid = r.body.json()["receipt"]
-            invalid[-3] += 1
+            invalid = r.body.json()
+            invalid["leaf"] = invalid["leaf"][::-1]
 
-            rv = c.post("/app/receipt/verify", {"receipt": invalid})
+            rv = c.post("/app/receipt/verify", invalid)
             assert rv.body.json() == {"valid": False}
 
     return network
