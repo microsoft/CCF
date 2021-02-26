@@ -448,8 +448,8 @@ def test_historical_query_range(network, args):
 
     primary, _ = network.find_primary()
 
-    id_a = 0
-    id_b = 1
+    id_a = 100
+    id_b = 101
 
     first_seqno = None
     last_seqno = None
@@ -468,44 +468,52 @@ def test_historical_query_range(network, args):
                     # Ignore retry-after header, just sleep briefly and retry
                     time.sleep(0.5)
                 else:
-                    raise ValueError(f"Unexpected status code from historical range query: {r.status_code}")
-        
-        raise TimeoutError(f"Historical range not available after {timeout}s")
+                    raise ValueError(
+                        f"Unexpected status code from historical range query: {r.status_code}"
+                    )
 
-    def make_msg(i):
-        return f"A unique message about {i}"
+        raise TimeoutError(f"Historical range not available after {timeout}s")
 
     with primary.client("user0") as c:
         # Submit many transactions, overwriting the same IDs
+        # Need to submit through network.txs so these can be verified at shutdown, but also need to submit one at a
+        # time to retrieve the submitted transactions
+        msgs = dict()
         n_entries = 100
         for i in range(n_entries):
-            r = c.post("/app/log/private", {"id": id_b if i % 3 == 0 else id_a, "msg": make_msg(i)})
-            assert r.status_code == http.HTTPStatus.OK
+            idx = id_b if i % 3 == 0 else id_a
+            network.txs.issue(network, repeat=True, idx=idx, wait_for_sync=False)
+            _, tx = network.txs.get_last_tx(idx=idx)
+            msg = tx["msg"]
+            seqno = tx["seqno"]
+            view = tx["view"]
+            msgs[seqno] = msg
 
             if first_seqno is None:
-                first_seqno = r.seqno
+                first_seqno = seqno
 
-            last_seqno = r.seqno
+            last_seqno = seqno
 
-        ccf.commit.wait_for_commit(c, last_seqno, r.view, 3)
+        ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
         entries_a = get_all_entries(id_a)
         entries_b = get_all_entries(id_b)
         actual_len = len(entries_a) + len(entries_b)
-        assert n_entries == actual_len, f"Expected {n_entries} total entries, got {actual_len}"
+        assert (
+            n_entries == actual_len
+        ), f"Expected {n_entries} total entries, got {actual_len}"
 
-        # Iterate through both lists, by i, checking we have expected entries
+        # Iterate through both lists, by i, checking retrieved entries match expectations
         for i in range(n_entries):
             entries = entries_b if i % 3 == 0 else entries_a
             expected_id = id_b if i % 3 == 0 else id_a
             entry = entries.pop(0)
             assert entry["id"] == expected_id
-            assert entry["msg"] == make_msg(i)
+            assert entry["msg"] == msgs[entry["seqno"]]
 
         # Make sure this has checked every entry
         assert len(entries_a) == 0
         assert len(entries_b) == 0
-
 
     return network
 
