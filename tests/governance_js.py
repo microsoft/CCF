@@ -59,6 +59,29 @@ def test_proposal_storage(network, args):
 
     return network
 
+@reqs.description("Test ballot storage")
+def test_ballot_storage(network, args):
+    primary, _ = network.find_nodes()
+    add_member = [action("add_member", cert="", enc_pubk="", member_data={})]
+
+    valid_set_recovery_threshold = [action("set_recovery_threshold", threshold=5)]
+
+    with primary.client(None, "member0") as c:
+        r = c.post("/gov/proposals.js", valid_set_recovery_threshold)
+        assert r.status_code == 200, r.body.text()
+        pid = r.body.json()["proposal_id"]
+
+        vote = {"ballot": "function (proposal, proposer_id, tx) { return true }"}
+        r = c.post(f"/gov/proposals.js/{pid}/votes", vote)
+        assert r.status_code == 200, r.body.text()
+
+        member_id = 0
+        r = c.get(f"/gov/proposals.js/{pid}/votes/{member_id}")
+        assert r.status_code == 200, r.body.text()
+        assert r.body.text() == f'"{vote["ballot"]}"'
+
+    return network
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -66,6 +89,7 @@ def run(args):
         network.start_and_join(args)
         network = test_proposal_validation(network, args)
         network = test_proposal_storage(network, args)
+        network = test_ballot_storage(network, args)
 
 
 if __name__ == "__main__":
