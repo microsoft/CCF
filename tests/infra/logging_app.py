@@ -62,10 +62,9 @@ class LoggingTxs:
         wait_for_sync=True,
     ):
         self.network = network
+        remote_node, _ = network.find_primary()
         if on_backup:
             remote_node = network.find_any_backup()
-        else:
-            remote_node, _ = network.find_primary()
 
         LOG.info(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
 
@@ -76,30 +75,33 @@ class LoggingTxs:
                 if not repeat and idx is None:
                     self.idx += 1
 
-                if idx is None:
-                    idx = self.idx
+                target_idx = idx
+                if target_idx is None:
+                    target_idx = self.idx
 
-                priv_msg = f"Private message at idx {idx} [{len(self.priv[idx])}]"
+                priv_msg = f"Private message at idx {target_idx} [{len(self.priv[target_idx])}]"
                 rep_priv = c.post(
                     "/app/log/private",
                     {
-                        "id": idx,
+                        "id": target_idx,
                         "msg": priv_msg,
                     },
                 )
-                self.priv[idx].append(
+                self.priv[target_idx].append(
                     {"msg": priv_msg, "seqno": rep_priv.seqno, "view": rep_priv.view}
                 )
 
-                pub_msg = f"Public message at idx {idx} [{len(self.pub[idx])}]"
+                pub_msg = (
+                    f"Public message at idx {target_idx} [{len(self.pub[target_idx])}]"
+                )
                 rep_pub = c.post(
                     "/app/log/public",
                     {
-                        "id": idx,
+                        "id": target_idx,
                         "msg": pub_msg,
                     },
                 )
-                self.pub[idx].append(
+                self.pub[target_idx].append(
                     {"msg": pub_msg, "seqno": rep_pub.seqno, "view": rep_pub.view}
                 )
             if number_txs and wait_for_sync:
@@ -136,7 +138,7 @@ class LoggingTxs:
 
             for priv_idx, priv_value in self.priv.items():
                 # Verifying all historical transactions is expensive, verify only a sample
-                for v in  sample_list(priv_value, sample_count):
+                for v in sample_list(priv_value, sample_count):
                     self._verify_tx(
                         node,
                         priv_idx,

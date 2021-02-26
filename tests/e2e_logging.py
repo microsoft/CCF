@@ -941,7 +941,7 @@ def test_receipts(network, args):
     return network
 
 
-@reqs.description("TTest basic app liveness")
+@reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
 def test_liveness(network, args):
     txs = app.LoggingTxs()
