@@ -17,6 +17,7 @@
 #include <memory>
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
+#include <stdexcept>
 #include <vector>
 
 namespace ccfapp
@@ -231,52 +232,78 @@ namespace ccfapp
       return JS_EXCEPTION;
     }
 
-    auto algo_name = std::string(wrap_algo_name_cstr);
-    if (algo_name == "RSA-OAEP")
+    try
     {
-      // key can in principle be arbitrary data (see note on maximum size
-      // in rsa_key_pair.h). wrapping_key is a public RSA key.
-
-      auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
-      size_t label_buf_size = 0;
-      uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
-
-      auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
-        Pem(wrapping_key, wrapping_key_size),
-        {key, key + key_size},
-        {label_buf, label_buf + label_buf_size});
-
-      return JS_NewArrayBufferCopy(ctx, wrapped_key.data(), wrapped_key.size());
-    }
-    else if (algo_name == "AES-KWP")
-    {
-      if (
-        wrapping_key_size != 16 && wrapping_key_size != 24 &&
-        wrapping_key_size != 32)
+      auto algo_name = std::string(wrap_algo_name_cstr);
+      if (algo_name == "RSA-OAEP")
       {
-        JS_ThrowRangeError(ctx, "invalid wrapping key size");
+        // key can in principle be arbitrary data (see note on maximum size
+        // in rsa_key_pair.h). wrapping_key is a public RSA key.
+
+        auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
+        size_t label_buf_size = 0;
+        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
+
+        auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
+          Pem(wrapping_key, wrapping_key_size),
+          {key, key + key_size},
+          {label_buf, label_buf + label_buf_size});
+
+        return JS_NewArrayBufferCopy(
+          ctx, wrapped_key.data(), wrapped_key.size());
+      }
+      else if (algo_name == "AES-KWP")
+      {
+        std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
+          {wrapping_key, wrapping_key + wrapping_key_size},
+          {key, key + key_size});
+
+        return JS_NewArrayBufferCopy(
+          ctx, wrapped_key.data(), wrapped_key.size());
+      }
+      else if (algo_name == "RSA-OAEP-AES-KWP")
+      {
+        auto aes_key_size_value =
+          auto_free(JS_GetPropertyStr(ctx, parameters, "aes_key_size"));
+        int32_t aes_key_size = 0;
+        if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value) < 0)
+        {
+          js_dump_error(ctx);
+          return JS_EXCEPTION;
+        }
+
+        auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
+        size_t label_buf_size = 0;
+        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
+
+        auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
+          aes_key_size,
+          Pem(wrapping_key, wrapping_key_size),
+          {key, key + key_size},
+          {label_buf, label_buf + label_buf_size});
+
+        return JS_NewArrayBufferCopy(
+          ctx, wrapped_key.data(), wrapped_key.size());
+      }
+      else
+      {
+        JS_ThrowRangeError(
+          ctx,
+          "unsupported key wrapping algorithm, supported: RSA-OAEP, AES-KWP, "
+          "RSA-OAEP-AES-KWP");
         js_dump_error(ctx);
         return JS_EXCEPTION;
       }
-
-      std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
-        {wrapping_key, wrapping_key + wrapping_key_size},
-        {key, key + key_size});
-
-      if (wrapped_key.size() == 0)
-      {
-        JS_ThrowRangeError(ctx, "invalid wrapped key size");
-        js_dump_error(ctx);
-        return JS_EXCEPTION;
-      }
-
-      return JS_NewArrayBufferCopy(ctx, wrapped_key.data(), wrapped_key.size());
     }
-    else
+    catch (std::exception& ex)
     {
-      JS_ThrowRangeError(
-        ctx,
-        "unsupported key wrapping algorithm, supported: RSA-OAEP, AES-KWP");
+      JS_ThrowRangeError(ctx, "%s", ex.what());
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+    catch (...)
+    {
+      JS_ThrowRangeError(ctx, "caught unknown exception");
       js_dump_error(ctx);
       return JS_EXCEPTION;
     }

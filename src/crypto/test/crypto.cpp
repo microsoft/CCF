@@ -509,6 +509,7 @@ TEST_CASE("AES Key wrap with padding")
   std::vector<uint8_t> wrapped = ossl->ckm_aes_key_wrap_pad(key_to_wrap);
   std::vector<uint8_t> unwrapped = ossl->ckm_aes_key_unwrap_pad(wrapped);
 
+  REQUIRE(wrapped != unwrapped);
   REQUIRE(key_to_wrap == unwrapped);
 }
 
@@ -522,5 +523,6 @@ TEST_CASE("CKM_RSA_AES_KEY_WRAP")
   std::vector<uint8_t> wrapped = ckm_rsa_aes_key_wrap(128, rsa_pk, key_to_wrap);
   std::vector<uint8_t> unwrapped = ckm_rsa_aes_key_unwrap(rsa_kp, wrapped);
 
+  REQUIRE(wrapped != unwrapped);
   REQUIRE(unwrapped == key_to_wrap);
 }

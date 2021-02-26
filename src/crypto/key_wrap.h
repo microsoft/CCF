@@ -50,20 +50,26 @@ namespace crypto
   std::vector<uint8_t> ckm_rsa_aes_key_wrap(
     size_t aes_key_size,
     RSAPublicKeyPtr wrapping_key,
-    const std::vector<uint8_t>& plain);
+    const std::vector<uint8_t>& plain,
+    const std::vector<uint8_t>& label = {});
 
   // PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP wrap
   // @param key_size Key size 128, 192 or 256.
   std::vector<uint8_t> ckm_rsa_aes_key_wrap(
     size_t aes_key_size,
     const Pem& wrapping_key,
-    const std::vector<uint8_t>& plain);
+    const std::vector<uint8_t>& plain,
+    const std::vector<uint8_t>& label = {});
 
   // PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP unwrap
   std::vector<uint8_t> ckm_rsa_aes_key_unwrap(
-    RSAKeyPairPtr wrapping_key, const std::vector<uint8_t>& cipher);
+    RSAKeyPairPtr wrapping_key,
+    const std::vector<uint8_t>& cipher,
+    const std::vector<uint8_t>& label = {});
 
   // PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP unwrap
   std::vector<uint8_t> ckm_rsa_aes_key_unwrap(
-    const Pem& wrapping_key, const std::vector<uint8_t>& cipher);
+    const Pem& wrapping_key,
+    const std::vector<uint8_t>& cipher,
+    const std::vector<uint8_t>& label = {});
 }

@@ -61,6 +61,11 @@ export interface AESKWPParams extends WrapAlgoParams {
   name: "AES-KWP";
 }
 
+export interface RsaOaepAESKWPParams extends WrapAlgoParams {
+  name: "RSA-OAEP-AES-KWP";
+  label?: ArrayBuffer;
+}
+
 export interface CCF {
   strToBuf(v: string): ArrayBuffer;
   bufToStr(v: ArrayBuffer): string;
