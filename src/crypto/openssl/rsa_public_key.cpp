@@ -86,13 +86,14 @@ namespace crypto
   }
 
   std::vector<uint8_t> RSAPublicKey_OpenSSL::wrap(
-    const std::vector<uint8_t>& input, std::optional<std::string> label)
+    const std::vector<uint8_t>& input,
+    std::optional<std::vector<std::uint8_t>> label)
   {
     const unsigned char* label_ = NULL;
     size_t label_size = 0;
     if (label.has_value())
     {
-      label_ = reinterpret_cast<const unsigned char*>(label->c_str());
+      label_ = label->data();
       label_size = label->size();
     }
 

@@ -153,6 +153,8 @@ namespace crypto
       CBuffer cipher,
       CBuffer aad,
       uint8_t* plain) const = 0;
+
+    virtual size_t key_size() const = 0;
   };
 
   std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey);

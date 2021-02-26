@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/rsa_key_pair.h"
+
 #include "mbedtls_wrappers.h"
 #include "rsa_public_key.h"
 
@@ -28,7 +29,7 @@ namespace crypto
 
     virtual std::vector<uint8_t> unwrap(
       const std::vector<uint8_t>& input,
-      std::optional<std::string> label = std::nullopt) override;
+      std::optional<std::vector<std::uint8_t>> label = std::nullopt) override;
 
     virtual Pem public_key_pem() const override;
   };

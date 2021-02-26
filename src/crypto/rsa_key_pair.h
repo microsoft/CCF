@@ -36,7 +36,7 @@ namespace crypto
      */
     virtual std::vector<uint8_t> unwrap(
       const std::vector<uint8_t>& input,
-      std::optional<std::string> label = std::nullopt) = 0;
+      std::optional<std::vector<std::uint8_t>> label = std::nullopt) = 0;
 
     /**
      * Get the public key in PEM format

@@ -118,10 +118,10 @@
         }
       }
     },
-    "/wrapKeyRsaOaep": {
+    "/wrapKey": {
       "post": {
         "js_module": "src/endpoints/crypto.js",
-        "js_function": "wrapKeyRsaOaep",
+        "js_function": "wrapKey",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
@@ -139,8 +139,8 @@
                     "wrappingKey": {
                       "type": "string"
                     },
-                    "label": {
-                      "type": "string"
+                    "parameters": {
+                      "type": "object"
                     }
                   },
                   "type": "object"

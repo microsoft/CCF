@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/symmetric_key.h"
+
 #include "openssl_wrappers.h"
 
 namespace crypto
@@ -20,6 +21,8 @@ namespace crypto
     KeyAesGcm_OpenSSL(KeyAesGcm_OpenSSL&& that);
     virtual ~KeyAesGcm_OpenSSL() = default;
 
+    virtual size_t key_size() const override;
+
     virtual void encrypt(
       CBuffer iv,
       CBuffer plain,
@@ -35,11 +38,9 @@ namespace crypto
       uint8_t* plain) const override;
 
     // @brief RFC 5649 AES key wrap with padding (CKM_AES_KEY_WRAP_PAD)
-    void ckm_aes_key_wrap_pad(
-      CBuffer plain, std::vector<uint8_t>& cipher) const;
+    std::vector<uint8_t> ckm_aes_key_wrap_pad(CBuffer plain) const;
 
     // @brief RFC 5649 AES key unwrap (with padding, CKM_AES_KEY_WRAP_PAD)
-    bool ckm_aes_key_unwrap_pad(
-      CBuffer cipher, std::vector<uint8_t>& plain) const;
+    std::vector<uint8_t> ckm_aes_key_unwrap_pad(CBuffer cipher) const;
   };
 }

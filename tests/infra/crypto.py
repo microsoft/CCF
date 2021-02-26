@@ -22,7 +22,7 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
     NoEncryption,
 )
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, keywrap
 from cryptography.hazmat.backends import default_backend
 
 import jwt
@@ -115,6 +115,10 @@ def unwrap_key_rsa_oaep(
         ),
     )
     return unwrapped
+
+def unwrap_key_aes_wrap_pad(
+    wrapped_key: bytes, wrapping_key: bytes) -> bytes:
+    return keywrap.aes_key_unwrap_with_padding(wrapping_key, wrapped_key)
 
 
 def pub_key_pem_to_der(pem: str) -> bytes:

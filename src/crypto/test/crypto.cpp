@@ -326,7 +326,8 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
   {
     auto rsa_kp = make_rsa_key_pair();
     auto rsa_pub = make_rsa_public_key(rsa_kp->public_key_pem());
-    std::string label = "my_label";
+    std::string lblstr = "my_label";
+    std::vector<uint8_t> label(lblstr.begin(), lblstr.end());
     auto wrapped = rsa_pub->wrap(input, label);
     auto unwrapped = rsa_kp->unwrap(wrapped, label);
     REQUIRE(input == unwrapped);
@@ -505,9 +506,8 @@ TEST_CASE("AES Key wrap with padding")
 
   auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
 
-  std::vector<uint8_t> wrapped, unwrapped;
-  ossl->ckm_aes_key_wrap_pad(key_to_wrap, wrapped);
-  REQUIRE(ossl->ckm_aes_key_unwrap_pad(wrapped, unwrapped));
+  std::vector<uint8_t> wrapped = ossl->ckm_aes_key_wrap_pad(key_to_wrap);
+  std::vector<uint8_t> unwrapped = ossl->ckm_aes_key_unwrap_pad(wrapped);
 
   REQUIRE(key_to_wrap == unwrapped);
 }
@@ -519,9 +519,8 @@ TEST_CASE("CKM_RSA_AES_KEY_WRAP")
   auto rsa_kp = make_rsa_key_pair();
   auto rsa_pk = make_rsa_public_key(rsa_kp->public_key_pem());
 
-  std::vector<uint8_t> wrapped =
-    ckm_rsa_aes_key_wrap(key_to_wrap.size(), rsa_pk, key_to_wrap);
-  std::vector<uint8_t> unwrapped = ckm_rsa_aes_key_unwrap(wrapped, rsa_kp);
+  std::vector<uint8_t> wrapped = ckm_rsa_aes_key_wrap(128, rsa_pk, key_to_wrap);
+  std::vector<uint8_t> unwrapped = ckm_rsa_aes_key_unwrap(rsa_kp, wrapped);
 
   REQUIRE(unwrapped == key_to_wrap);
 }

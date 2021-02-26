@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/symmetric_key.h"
+
 #include "mbedtls_wrappers.h"
 
 namespace crypto
@@ -33,5 +34,7 @@ namespace crypto
       CBuffer cipher,
       CBuffer aad,
       uint8_t* plain) const override;
+
+    virtual size_t key_size() const override;
   };
 }
