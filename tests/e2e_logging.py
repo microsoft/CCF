@@ -717,7 +717,7 @@ def test_tx_statuses(network, args):
         target_seqno = r.seqno
         SentTxs.update_status(target_view, target_seqno)
         SentTxs.update_status(target_view, target_seqno + 1)
-        SentTxs.update_status(target_view - 1, target_seqno, TxStatus.Invalid)
+        SentTxs.update_status(target_view - 1, target_seqno)
 
         end_time = time.time() + 10
         while True:

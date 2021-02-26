@@ -23,13 +23,6 @@ namespace crypto
   static constexpr CurveID service_identity_curve_choice = CurveID::SECP384R1;
   // SNIPPET_END: supported_curves
 
-  // Helper to access elliptic curve id from context
-  inline mbedtls_ecp_group_id get_mbedtls_ec_from_context(
-    const mbedtls_pk_context& ctx)
-  {
-    return mbedtls_pk_ec(ctx)->grp.id;
-  }
-
   // Get message digest algorithm to use for given elliptic curve
   inline MDType get_md_for_ec(CurveID ec)
   {
@@ -42,30 +35,6 @@ namespace crypto
       default:
       {
         throw std::logic_error(fmt::format("Unhandled CurveID: {}", ec));
-      }
-    }
-  }
-
-  inline mbedtls_md_type_t get_mbedtls_md_for_ec(
-    mbedtls_ecp_group_id ec, bool allow_none = false)
-  {
-    switch (ec)
-    {
-      case MBEDTLS_ECP_DP_SECP384R1:
-        return MBEDTLS_MD_SHA384;
-      case MBEDTLS_ECP_DP_SECP256R1:
-        return MBEDTLS_MD_SHA256;
-      default:
-      {
-        if (allow_none)
-        {
-          return MBEDTLS_MD_NONE;
-        }
-        else
-        {
-          const auto error = fmt::format("Unhandled ecp group id: {}", ec);
-          throw std::logic_error(error);
-        }
       }
     }
   }

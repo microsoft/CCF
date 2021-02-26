@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../crypto/mbedtls_wrappers.h"
+#include "../crypto/mbedtls/mbedtls_wrappers.h"
 #include "../crypto/pem.h"
 #include "../ds/buffer.h"
 
@@ -13,14 +13,14 @@ namespace tls
   class CA
   {
   private:
-    mbedtls::X509Crt ca = nullptr;
-    mbedtls::X509Crl crl = nullptr;
+    crypto::mbedtls::X509Crt ca = nullptr;
+    crypto::mbedtls::X509Crl crl = nullptr;
 
   public:
     CA(CBuffer ca_ = nullb, CBuffer crl_ = nullb)
     {
-      auto tmp_ca = mbedtls::make_unique<mbedtls::X509Crt>();
-      auto tmp_crl = mbedtls::make_unique<mbedtls::X509Crl>();
+      auto tmp_ca = crypto::mbedtls::make_unique<crypto::mbedtls::X509Crt>();
+      auto tmp_crl = crypto::mbedtls::make_unique<crypto::mbedtls::X509Crl>();
 
       if (ca_.n > 0)
       {

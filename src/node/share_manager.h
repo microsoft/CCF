@@ -53,7 +53,7 @@ namespace ccf
 
       crypto::GcmCipher encrypted_ls(ledger_secret->raw_key.size());
 
-      crypto::KeyAesGcm(data).encrypt(
+      crypto::make_key_aes_gcm(data)->encrypt(
         encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
                                    // key is never re-used for encryption
         ledger_secret->raw_key,
@@ -73,7 +73,7 @@ namespace ccf
       encrypted_ls.deserialise(wrapped_latest_ledger_secret);
       std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
-      if (!crypto::KeyAesGcm(data).decrypt(
+      if (!crypto::make_key_aes_gcm(data)->decrypt(
             encrypted_ls.hdr.get_iv(),
             encrypted_ls.hdr.tag,
             encrypted_ls.cipher,

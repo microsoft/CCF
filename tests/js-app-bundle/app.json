@@ -108,7 +108,8 @@
                 "type": "number"
               }
             }
-          ]
+          ],
+          "responses": { "default": { "description": "Default response" } }
         }
       }
     }
