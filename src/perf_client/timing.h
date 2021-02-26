@@ -85,7 +85,7 @@ namespace timing
     std::stringstream ss;
 
     const auto now = Clock::now();
-    auto now_tt = Clock::to_time_t(now);
+    time_t now_tt = now.time_since_epoch().count();
     tm now_tm;
     ::localtime_r(&now_tt, &now_tm);
 

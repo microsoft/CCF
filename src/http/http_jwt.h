@@ -3,7 +3,7 @@
 #pragma once
 
 #include "crypto/hash.h"
-#include "crypto/key_pair.h"
+#include "crypto/verifier.h"
 #include "http_consts.h"
 #include "http_parser.h"
 #include "tls/base64.h"

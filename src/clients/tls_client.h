@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 
+using namespace crypto;
+
 class TlsClient
 {
 protected:

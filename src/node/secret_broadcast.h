@@ -22,7 +22,7 @@ namespace ccf
     {
       // Encrypt secrets with a shared secret derived from backup public
       // key
-      crypto::KeyAesGcm backup_shared_secret(
+      auto backup_shared_secret = crypto::make_key_aes_gcm(
         tls::KeyExchangeContext(encryption_key, backup_pubk)
           .compute_shared_secret());
 
@@ -30,7 +30,7 @@ namespace ccf
       auto iv = crypto::create_entropy()->random(gcmcipher.hdr.get_iv().n);
       std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
 
-      backup_shared_secret.encrypt(
+      backup_shared_secret->encrypt(
         iv, plain, nullb, gcmcipher.cipher.data(), gcmcipher.hdr.tag);
 
       return gcmcipher.serialise();
@@ -113,11 +113,11 @@ namespace ccf
       gcmcipher.deserialise(cipher);
       std::vector<uint8_t> plain(gcmcipher.cipher.size());
 
-      crypto::KeyAesGcm primary_shared_key(
+      auto primary_shared_key = crypto::make_key_aes_gcm(
         tls::KeyExchangeContext(encryption_key, primary_pubk)
           .compute_shared_secret());
 
-      if (!primary_shared_key.decrypt(
+      if (!primary_shared_key->decrypt(
             gcmcipher.hdr.get_iv(),
             gcmcipher.hdr.tag,
             gcmcipher.cipher,

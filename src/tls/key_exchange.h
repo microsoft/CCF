@@ -3,7 +3,7 @@
 #pragma once
 
 #include "crypto/entropy.h"
-#include "crypto/key_pair_mbedtls.h"
+#include "crypto/mbedtls/key_pair.h"
 #include "ds/logger.h"
 #include "tls/error_string.h"
 
@@ -16,7 +16,7 @@ namespace tls
   class KeyExchangeContext
   {
   private:
-    mbedtls::ECDHContext ctx = nullptr;
+    crypto::mbedtls::ECDHContext ctx = nullptr;
     std::vector<uint8_t> own_public;
     crypto::EntropyPtr entropy;
 
@@ -31,7 +31,8 @@ namespace tls
       own_public(len_public),
       entropy(crypto::create_entropy())
     {
-      auto tmp_ctx = mbedtls::make_unique<mbedtls::ECDHContext>();
+      auto tmp_ctx =
+        crypto::mbedtls::make_unique<crypto::mbedtls::ECDHContext>();
       size_t len;
 
       int rc = mbedtls_ecp_group_load(&tmp_ctx->grp, domain_parameter);
@@ -64,7 +65,8 @@ namespace tls
       std::shared_ptr<crypto::PublicKey_mbedTLS> peer_pubk) :
       entropy(crypto::create_entropy())
     {
-      auto tmp_ctx = mbedtls::make_unique<mbedtls::ECDHContext>();
+      auto tmp_ctx =
+        crypto::mbedtls::make_unique<crypto::mbedtls::ECDHContext>();
 
       int rc = mbedtls_ecdh_get_params(
         tmp_ctx.get(),

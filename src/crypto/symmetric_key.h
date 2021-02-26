@@ -4,7 +4,6 @@
 #include "ds/buffer.h"
 #include "ds/serialized.h"
 #include "ds/thread_messaging.h"
-#include "mbedtls_wrappers.h"
 
 namespace crypto
 {
@@ -135,28 +134,24 @@ namespace crypto
 
   class KeyAesGcm
   {
-  private:
-    mutable std::
-      array<mbedtls::GcmContext, threading::ThreadMessaging::max_num_threads>
-        ctxs;
-
   public:
-    KeyAesGcm(CBuffer rawKey);
-    KeyAesGcm(const KeyAesGcm& that) = delete;
-    KeyAesGcm(KeyAesGcm&& that);
+    KeyAesGcm() = default;
+    virtual ~KeyAesGcm() = default;
 
-    void encrypt(
+    virtual void encrypt(
       CBuffer iv,
       CBuffer plain,
       CBuffer aad,
       uint8_t* cipher,
-      uint8_t tag[GCM_SIZE_TAG]) const;
+      uint8_t tag[GCM_SIZE_TAG]) const = 0;
 
-    bool decrypt(
+    virtual bool decrypt(
       CBuffer iv,
       const uint8_t tag[GCM_SIZE_TAG],
       CBuffer cipher,
       CBuffer aad,
-      uint8_t* plain) const;
+      uint8_t* plain) const = 0;
   };
+
+  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey);
 }

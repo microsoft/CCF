@@ -119,7 +119,7 @@ namespace ccf
     kv::Term term = 0;
 
   public:
-    NullTxHistory(kv::Store& store_, NodeId id_, crypto::KeyPairBase&) :
+    NullTxHistory(kv::Store& store_, NodeId id_, crypto::KeyPair&) :
       store(store_),
       id(id_)
     {}
@@ -252,7 +252,7 @@ namespace ccf
     kv::Store& store;
     T& replicated_state_tree;
     NodeId id;
-    crypto::KeyPairBase& kp;
+    crypto::KeyPair& kp;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -261,7 +261,7 @@ namespace ccf
       kv::Store& store_,
       T& replicated_state_tree_,
       NodeId id_,
-      crypto::KeyPairBase& kp_) :
+      crypto::KeyPair& kp_) :
       txid(txid_),
       commit_txid(commit_txid_),
       store(store_),
@@ -464,7 +464,7 @@ namespace ccf
     NodeId id;
     T replicated_state_tree;
 
-    crypto::KeyPairBase& kp;
+    crypto::KeyPair& kp;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
 
@@ -479,7 +479,7 @@ namespace ccf
     HashedTxHistory(
       kv::Store& store_,
       NodeId id_,
-      crypto::KeyPairBase& kp_,
+      crypto::KeyPair& kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
       bool signature_timer = false) :
