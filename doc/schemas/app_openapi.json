@@ -115,14 +115,43 @@
       },
       "GetReceipt__Out": {
         "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
+          "leaf": {
+            "$ref": "#/components/schemas/string"
+          },
+          "path": {
+            "$ref": "#/components/schemas/GetReceipt__PathEntry_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "seqno": {
+            "$ref": "#/components/schemas/int64"
           }
         },
         "required": [
-          "receipt"
+          "seqno",
+          "root",
+          "path",
+          "leaf"
         ],
         "type": "object"
+      },
+      "GetReceipt__PathEntry": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/string"
+          },
+          "right": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "GetReceipt__PathEntry_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetReceipt__PathEntry"
+        },
+        "type": "array"
       },
       "GetTxStatus__Out": {
         "properties": {
@@ -220,17 +249,6 @@
         ],
         "type": "string"
       },
-      "VerifyReceipt__In": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
-        ],
-        "type": "object"
-      },
       "VerifyReceipt__Out": {
         "properties": {
           "valid": {
@@ -263,17 +281,6 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
-      },
-      "uint8": {
-        "maximum": 255,
-        "minimum": 0,
-        "type": "integer"
-      },
-      "uint8_array": {
-        "items": {
-          "$ref": "#/components/schemas/uint8"
-        },
-        "type": "array"
       }
     },
     "securitySchemes": {
@@ -862,7 +869,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/VerifyReceipt__In"
+                "$ref": "#/components/schemas/GetReceipt__Out"
               }
             }
           },
