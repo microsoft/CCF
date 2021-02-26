@@ -1,9 +1,23 @@
+class Action
+{
+  constructor (validate, apply)
+  {
+    this.validate = validate
+    this.apply = apply
+  }
+}
+
 const actions = new Map([
   [
     "set_recovery_threshold",
-    function (args) {
-      return Number.isInteger(args.threshold) && args.threshold > 0 && args.threshold < 255 
-    }
+    new Action(
+      function (args) {
+        return Number.isInteger(args.threshold) && args.threshold > 0 && args.threshold < 255 
+      },
+      function (args, tx)
+      {
+        return true
+      })
   ]
 ])
 
@@ -12,10 +26,10 @@ export function validate(input) {
   let errors = []
   for (const action of proposal)
   {
-    const validator = actions.get(action.name);
-    if (validator)
+    const definition = actions.get(action.name);
+    if (definition)
     {
-      if (!validator(action.args))
+      if (!definition.validate(action.args))
       {
         errors.push(action.name + " failed validation")
       }
