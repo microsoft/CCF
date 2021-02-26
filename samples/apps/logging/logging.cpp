@@ -582,6 +582,7 @@ namespace loggingapp
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 
+      static constexpr auto get_historical_range_path = "log/private/historical/range";
       auto get_historical_range = [&, this](ccf::EndpointContext& args) {
         // Parse request body
         const auto query_j =
@@ -634,28 +635,33 @@ namespace loggingapp
           return;
         }
 
+        // Set a maximum range, paginate larger requests
+        static constexpr size_t max_seqno_per_page = 20;
+        const auto range_begin = in.from_seqno;
+        const auto range_end =
+          std::min(in.to_seqno, range_begin + max_seqno_per_page);
+
         // Use hash of request as RequestHandle. WARNING: This means identical
         // requests from different users will collide, and overwrite each
         // other's progress!
-        ccf::historical::RequestHandle handle;
-        {
-          auto size =
-            sizeof(in.from_seqno) + sizeof(in.to_seqno) + sizeof(in.id);
+        auto make_handle = [](size_t begin, size_t end, size_t id) {
+          auto size = sizeof(begin) + sizeof(end) + sizeof(id);
           std::vector<uint8_t> v(size);
           auto data = v.data();
-          serialized::write(data, size, in.from_seqno);
-          serialized::write(data, size, in.to_seqno);
-          serialized::write(data, size, in.id);
-          handle = std::hash<decltype(v)>()(v);
-        }
+          serialized::write(data, size, begin);
+          serialized::write(data, size, end);
+          serialized::write(data, size, id);
+          return std::hash<decltype(v)>()(v);
+        };
+
+        ccf::historical::RequestHandle handle =
+          make_handle(range_begin, range_end, in.id);
 
         // Fetch the requested range
         auto& historical_cache = context.get_historical_state();
 
-        // TODO: Add pagination limit
-
         auto stores =
-          historical_cache.get_store_range(handle, in.from_seqno, in.to_seqno);
+          historical_cache.get_store_range(handle, range_begin, range_end);
         if (stores.empty())
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
@@ -667,8 +673,8 @@ namespace loggingapp
           args.rpc_ctx->set_response_body(fmt::format(
             "Historical transactions from {} to {} are not yet "
             "available, fetching now",
-            in.from_seqno,
-            in.to_seqno));
+            range_begin,
+            range_end));
           return;
         }
 
@@ -676,7 +682,7 @@ namespace loggingapp
         LoggingGetHistoricalRange::Out response;
         for (size_t i = 0; i < stores.size(); ++i)
         {
-          const auto store_seqno = in.from_seqno + i;
+          const auto store_seqno = range_begin + i;
           auto& store = stores[i];
 
           auto historical_tx = store->create_read_only_tx();
@@ -695,6 +701,29 @@ namespace loggingapp
           // this seqno!
         }
 
+        // If this didn't cover the total requested range, begin fetching the
+        // next page and tell the caller how to retrieve it
+        if (range_end != in.to_seqno)
+        {
+          const auto next_page_start = range_end + 1;
+          const auto next_page_end =
+            std::min(in.to_seqno, next_page_start + max_seqno_per_page);
+
+          ccf::historical::RequestHandle next_page_handle =
+            make_handle(next_page_start, next_page_end, in.id);
+          historical_cache.get_store_range(
+            next_page_handle, next_page_start, next_page_end);
+
+          // NB: Make sure to tell them to continue to ask for the end of the
+          // range, even if the next response is paginated
+          response.next_link = fmt::format(
+            "/app/{}?from_seqno={}&to_seqno={}&id={}",
+            get_historical_range_path,
+            next_page_start,
+            in.to_seqno,
+            in.id);
+        }
+
         // Construct the HTTP response
         nlohmann::json j_response = response;
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
@@ -708,7 +737,7 @@ namespace loggingapp
         historical_cache.drop_request(handle);
       };
       make_endpoint(
-        "log/private/historical/range",
+        get_historical_range_path,
         HTTP_GET,
         get_historical_range,
         auth_policies)

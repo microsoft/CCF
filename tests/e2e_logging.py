@@ -458,15 +458,22 @@ def test_historical_query_range(network, args):
         with primary.client("user0") as c:
             timeout = 5
             end_time = time.time() + timeout
+            entries = []
+            path = f"/app/log/private/historical/range?from_seqno={first_seqno}&to_seqno={last_seqno}&id={target_id}"
             while time.time() < end_time:
-                r = c.get(
-                    f"/app/log/private/historical/range?from_seqno={first_seqno}&to_seqno={last_seqno}&id={target_id}"
-                )
+                r = c.get(path)
                 if r.status_code == http.HTTPStatus.OK:
-                    return r.body.json()["entries"]
+                    j_body = r.body.json()
+                    entries += j_body["entries"]
+                    if "@nextLink" in j_body:
+                        path = j_body["@nextLink"]
+                        continue
+                    else:
+                        # No @nextLink means we've reached end of range
+                        return entries
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
                     # Ignore retry-after header, just sleep briefly and retry
-                    time.sleep(0.5)
+                    time.sleep(0.2)
                 else:
                     raise ValueError(
                         f"Unexpected status code from historical range query: {r.status_code}"
@@ -973,36 +980,36 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = test(
-            network,
-            args,
-            verify=args.package != "libjs_generic",
-        )
-        network = test_illegal(network, args, verify=args.package != "libjs_generic")
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
+        # network = test(
+        #     network,
+        #     args,
+        #     verify=args.package != "libjs_generic",
+        # )
+        # network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        # network = test_large_messages(network, args)
+        # network = test_remove(network, args)
+        # network = test_forwarding_frontends(network, args)
+        # network = test_user_data_ACL(network, args)
+        # network = test_cert_prefix(network, args)
+        # network = test_anonymous_caller(network, args)
+        # network = test_multi_auth(network, args)
+        # network = test_custom_auth(network, args)
+        # network = test_raw_text(network, args)
+        # network = test_historical_query(network, args)
         network = test_historical_query_range(network, args)
-        network = test_view_history(network, args)
-        network = test_primary(network, args)
-        network = test_network_node_info(network, args)
-        network = test_metrics(network, args)
-        network = test_memory(network, args)
-        # BFT does not handle re-keying yet
-        if args.consensus == "cft":
-            network = test_liveness(network, args)
-            network = test_rekey(network, args)
-            network = test_liveness(network, args)
-        if args.package == "liblogging":
-            network = test_ws(network, args)
-            network = test_receipts(network, args)
+        # network = test_view_history(network, args)
+        # network = test_primary(network, args)
+        # network = test_network_node_info(network, args)
+        # network = test_metrics(network, args)
+        # network = test_memory(network, args)
+        # # BFT does not handle re-keying yet
+        # if args.consensus == "cft":
+        #     network = test_liveness(network, args)
+        #     network = test_rekey(network, args)
+        #     network = test_liveness(network, args)
+        # if args.package == "liblogging":
+        #     network = test_ws(network, args)
+        #     network = test_receipts(network, args)
 
 
 if __name__ == "__main__":
