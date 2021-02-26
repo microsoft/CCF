@@ -142,34 +142,24 @@ namespace ccf
       int64_t commit = 0;
     };
 
-    struct Out
+    struct PathEntry
     {
-      std::vector<std::uint8_t> receipt = {};
-    };
-  };
-
-  struct GetReceiptJson
-  {
-    struct In
-    {
-      int64_t commit = 0;
+      std::string left;
+      std::string right;
     };
 
     struct Out
     {
       int64_t seqno = 0;
       std::string root;
-      nlohmann::json path;
+      std::vector<PathEntry> path;
       std::string leaf;
     };
   };
 
   struct VerifyReceipt
   {
-    struct In
-    {
-      std::vector<std::uint8_t> receipt = {};
-    };
+    using In = GetReceipt::Out;
 
     struct Out
     {

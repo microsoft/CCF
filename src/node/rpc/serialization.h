@@ -114,16 +114,19 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetReceipt::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::In, commit)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetReceipt::PathEntry)
+  // Current limitation of the JSON macros: It is necessary to defined
+  // DECLARE_JSON_REQUIRED_FIELDS even though there are no required
+  // fields. This raises some compiler warnings that are disabled locally.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+  DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::PathEntry)
+#pragma clang diagnostic pop
+  DECLARE_JSON_OPTIONAL_FIELDS(GetReceipt::PathEntry, left, right)
   DECLARE_JSON_TYPE(GetReceipt::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::Out, receipt)
+  DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::Out, seqno, root, path, leaf)
 
-  DECLARE_JSON_TYPE(GetReceiptJson::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetReceiptJson::In, commit)
-  DECLARE_JSON_TYPE(GetReceiptJson::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetReceiptJson::Out, seqno, root, path, leaf)
-
-  DECLARE_JSON_TYPE(VerifyReceipt::In)
-  DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::In, receipt)
   DECLARE_JSON_TYPE(VerifyReceipt::Out)
   DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::Out, valid)
 

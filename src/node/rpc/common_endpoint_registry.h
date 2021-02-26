@@ -211,9 +211,22 @@ namespace ccf
         const auto in = params.get<GetReceipt::In>();
 
         GetReceipt::Out out;
-        const auto result = get_receipt_for_seqno_v1(in.commit, out.receipt);
+        kv::Receipt receipt;
+        const auto result = get_receipt_for_seqno_v1(in.commit, receipt);
         if (result == ccf::ApiResult::OK)
         {
+          out.seqno = receipt.seqno;
+          out.root = receipt.root.hex_str();
+          out.leaf = receipt.leaf.hex_str();
+          for (auto& entry : receipt.path)
+          {
+            GetReceipt::PathEntry entry_;
+            if (entry.left)
+              entry_.left = entry.hash.hex_str();
+            else
+              entry_.right = entry.hash.hex_str();
+            out.path.emplace_back(entry_);
+          }
           return make_success(out);
         }
         else
@@ -232,36 +245,6 @@ namespace ccf
         .set_auto_schema<GetReceipt>()
         .install();
 
-      auto get_receipt_json = [this](auto&, nlohmann::json&& params) {
-        const auto in = params.get<GetReceiptJson::In>();
-
-        GetReceiptJson::Out out;
-        nlohmann::json j;
-        const auto result = get_receipt_json_for_seqno_v1(in.commit, j);
-        if (result == ccf::ApiResult::OK)
-        {
-          out.seqno = in.commit;
-          out.root = std::move(j["root"]);
-          out.path = std::move(j["path"]);
-          out.leaf = std::move(j["leaf"]);
-          return make_success(out);
-        }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
-        }
-      };
-      make_command_endpoint(
-        "receipt_json",
-        HTTP_GET,
-        json_command_adapter(get_receipt_json),
-        no_auth_required)
-        .set_auto_schema<GetReceiptJson>()
-        .install();
-
       auto verify_receipt = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<VerifyReceipt::In>();
 
@@ -269,7 +252,18 @@ namespace ccf
         {
           try
           {
-            bool v = history->verify_receipt(in.receipt);
+            kv::Receipt receipt;
+            receipt.seqno = in.seqno;
+            receipt.root = crypto::Sha256Hash::from_hex(in.root);
+            receipt.leaf = crypto::Sha256Hash::from_hex(in.leaf);
+            for (auto& entry : in.path)
+            {
+              auto left = !entry.left.empty();
+              auto hash = left ? entry.left : entry.right;
+              receipt.path.push_back(
+                {left, crypto::Sha256Hash::from_hex(hash)});
+            }
+            bool v = history->verify_receipt(receipt);
             const VerifyReceipt::Out out{v};
 
             return make_success(out);

@@ -179,35 +179,13 @@ namespace ccf
      * contains the given transaction.
      */
     ApiResult get_receipt_for_seqno_v1(
-      kv::Consensus::SeqNo seqno, std::vector<uint8_t>& receipt)
+      kv::Consensus::SeqNo seqno, kv::Receipt& receipt)
     {
       if (history != nullptr)
       {
         try
         {
           receipt = history->get_receipt(seqno);
-          return ApiResult::OK;
-        }
-        catch (const std::exception& e)
-        {
-          LOG_TRACE_FMT("{}", e.what());
-          return ApiResult::InternalError;
-        }
-      }
-      else
-      {
-        return ApiResult::Uninitialised;
-      }
-    }
-
-    ApiResult get_receipt_json_for_seqno_v1(
-      kv::Consensus::SeqNo seqno, nlohmann::json& receipt)
-    {
-      if (history != nullptr)
-      {
-        try
-        {
-          receipt = history->get_receipt_json(seqno);
           return ApiResult::OK;
         }
         catch (const std::exception& e)

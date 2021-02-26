@@ -40,6 +40,25 @@ namespace crypto
     {
       default_sha256(data, h.data());
     }
+    static Sha256Hash from_hex(const std::string& s)
+    {
+      if (s.length() != 2 * SIZE)
+        throw std::runtime_error("invalid hash string");
+      Sha256Hash hash;
+      for (size_t i = 0; i < SIZE; i++)
+      {
+        int tmp;
+        sscanf(s.c_str() + 2 * i, "%02x", &tmp);
+        hash.h[i] = tmp;
+      }
+      return hash;
+    }
+    static Sha256Hash from_array(const uint8_t arr[SIZE])
+    {
+      Sha256Hash hash;
+      std::copy(arr, arr + SIZE, hash.h.begin());
+      return hash;
+    }
 
     std::array<uint8_t, SIZE> h;
 

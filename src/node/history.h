@@ -192,81 +192,18 @@ namespace ccf
       return {{term, version}, crypto::Sha256Hash(std::to_string(version))};
     }
 
-    std::vector<uint8_t> get_receipt(kv::Version) override
+    kv::Receipt get_receipt(kv::Version) override
     {
       return {};
     }
 
-    nlohmann::json get_receipt_json(kv::Version) override
-    {
-      return {};
-    }
-
-    bool verify_receipt(const std::vector<uint8_t>&) override
+    bool verify_receipt(const kv::Receipt&) override
     {
       return true;
     }
   };
 
   typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree;
-
-  class Receipt
-  {
-  private:
-    HistoryTree::Hash root;
-    std::shared_ptr<HistoryTree::Path> path = nullptr;
-
-  public:
-    Receipt() {}
-
-    Receipt(const std::vector<uint8_t>& v)
-    {
-      size_t position = 0;
-      root.apply(v, position);
-      path = std::make_shared<HistoryTree::Path>(v, position);
-    }
-
-    Receipt(HistoryTree* tree, uint64_t index)
-    {
-      root = tree->root();
-      path = tree->path(index);
-    }
-
-    Receipt(const Receipt&) = delete;
-
-    bool verify(HistoryTree* tree) const
-    {
-      return tree->max_index() == path->max_index() && tree->root() == root &&
-        path->verify(root);
-    }
-
-    std::vector<uint8_t> to_v() const
-    {
-      std::vector<uint8_t> v;
-      root.serialise(v);
-      path->serialise(v);
-      return v;
-    }
-
-    nlohmann::json to_json() const
-    {
-      nlohmann::json j;
-      j["root"] = root.to_string();
-      j["leaf"] = path->leaf().to_string();
-
-      nlohmann::json j_path;
-      for (auto& entry : *path)
-      {
-        nlohmann::json obj;
-        std::string key = entry.direction == 0 ? "left" : "right";
-        obj[key] = entry.hash.to_string();
-        j_path.push_back(obj);
-      }
-      j["path"] = std::move(j_path);
-
-      return j;
-    }
-  };
 
   template <class T>
   class MerkleTreeHistoryPendingTx : public kv::PendingTx
@@ -391,9 +328,7 @@ namespace ccf
     crypto::Sha256Hash get_root() const
     {
       const merkle::Hash& root = tree->root();
-      crypto::Sha256Hash result;
-      std::copy(root.bytes, root.bytes + root.size(), result.h.begin());
-      return result;
+      return crypto::Sha256Hash::from_array(root.bytes);
     }
 
     void operator=(const MerkleTreeHistory& rhs)
@@ -415,7 +350,7 @@ namespace ccf
       tree->retract_to(index);
     }
 
-    Receipt get_receipt(uint64_t index)
+    kv::Receipt get_receipt(uint64_t index)
     {
       if (index < begin_index())
       {
@@ -429,12 +364,35 @@ namespace ccf
         throw std::logic_error(fmt::format(
           "Cannot produce receipt for {}: index is not yet known", index));
       }
-      return Receipt(tree, index);
+
+      auto path_ = tree->path(index);
+      std::vector<kv::Receipt::PathEntry> path;
+      for (auto& entry : *path_)
+      {
+        path.push_back({entry.direction == HistoryTree::Path::PATH_LEFT,
+                        crypto::Sha256Hash::from_array(entry.hash.bytes)});
+      }
+      return kv::Receipt{index,
+                         crypto::Sha256Hash::from_array(tree->root().bytes),
+                         path,
+                         crypto::Sha256Hash::from_array(path_->leaf().bytes)};
     }
 
-    bool verify(const Receipt& r)
+    bool verify_receipt(const kv::Receipt& r)
     {
-      return r.verify(tree);
+      HistoryTree::Hash root{r.root.h};
+      HistoryTree::Hash leaf{r.leaf.h};
+      std::list<HistoryTree::Path::Element> elements;
+      for (auto& entry : r.path)
+      {
+        elements.push_back({HistoryTree::Hash{entry.hash.h},
+                            entry.left ? HistoryTree::Path::PATH_LEFT :
+                                         HistoryTree::Path::PATH_RIGHT});
+      }
+      HistoryTree::Path path{leaf, r.seqno, std::move(elements), r.seqno};
+
+      return r.seqno <= tree->max_index() && tree->root() == root &&
+        path.verify(root);
     }
 
     std::vector<uint8_t> serialise()
@@ -792,23 +750,16 @@ namespace ccf
         true);
     }
 
-    std::vector<uint8_t> get_receipt(kv::Version index) override
+    kv::Receipt get_receipt(kv::Version index) override
     {
       std::lock_guard<SpinLock> guard(state_lock);
-      return replicated_state_tree.get_receipt(index).to_v();
+      return replicated_state_tree.get_receipt(index);
     }
 
-    nlohmann::json get_receipt_json(kv::Version index) override
+    bool verify_receipt(const kv::Receipt& receipt) override
     {
       std::lock_guard<SpinLock> guard(state_lock);
-      return replicated_state_tree.get_receipt(index).to_json();
-    }
-
-    bool verify_receipt(const std::vector<uint8_t>& v) override
-    {
-      std::lock_guard<SpinLock> guard(state_lock);
-      Receipt r(v);
-      return replicated_state_tree.verify(r);
+      return replicated_state_tree.verify_receipt(receipt);
     }
 
     std::vector<uint8_t> get_raw_leaf(uint64_t index) override

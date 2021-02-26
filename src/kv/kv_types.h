@@ -200,6 +200,20 @@ namespace kv
     }
   };
 
+  struct Receipt
+  {
+    struct PathEntry
+    {
+      bool left;
+      crypto::Sha256Hash hash;
+    };
+
+    uint64_t seqno;
+    crypto::Sha256Hash root;
+    std::vector<PathEntry> path;
+    crypto::Sha256Hash leaf;
+  };
+
   class TxHistory
   {
   public:
@@ -246,9 +260,8 @@ namespace kv
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::pair<kv::TxID, crypto::Sha256Hash>
     get_replicated_state_txid_and_root() = 0;
-    virtual std::vector<uint8_t> get_receipt(Version v) = 0;
-    virtual nlohmann::json get_receipt_json(Version v) = 0;
-    virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
+    virtual Receipt get_receipt(Version v) = 0;
+    virtual bool verify_receipt(const Receipt& receipt) = 0;
     virtual bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
