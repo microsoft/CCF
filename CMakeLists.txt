@@ -123,7 +123,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
                        _LIBCPP_HAS_THREAD_API_PTHREAD
   )
 
-  target_compile_options(ccf.virtual PUBLIC -stdlib=libc++)
+  target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
   add_warning_checks(ccf.virtual)
 
   target_include_directories(
@@ -150,7 +150,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-  use_client_mbedtls(ccf.virtual)
   add_san(ccf.virtual)
   add_lvi_mitigations(ccf.virtual)
 
@@ -255,7 +254,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
     )
-    use_client_mbedtls(kv_test)
     target_link_libraries(
       kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
     )
@@ -281,33 +279,31 @@ if(BUILD_TESTS)
       raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/view_history.cpp
     )
-    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
+    target_link_libraries(raft_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
       raft_enclave_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/enclave.cpp
     )
     target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(raft_enclave_test PRIVATE ${CRYPTO_LIBRARY})
+    target_link_libraries(raft_enclave_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
       crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
     )
     target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(crypto_test PRIVATE ${CRYPTO_LIBRARY})
+    target_link_libraries(crypto_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
     )
-    target_link_libraries(
-      history_test PRIVATE ${CRYPTO_LIBRARY} http_parser.host
-    )
+    target_link_libraries(history_test PRIVATE ccfcrypto.host http_parser.host)
 
     add_unit_test(
       progress_tracker_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/progress_tracker.cpp
     )
-    target_link_libraries(progress_tracker_test PRIVATE ${CRYPTO_LIBRARY})
+    target_link_libraries(progress_tracker_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
       secret_sharing_test
@@ -317,10 +313,8 @@ if(BUILD_TESTS)
 
     add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmetric_key.cpp
     )
-    use_client_mbedtls(encryptor_test)
-    target_link_libraries(encryptor_test PRIVATE)
+    target_link_libraries(encryptor_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
       historical_queries_test
@@ -356,13 +350,11 @@ if(BUILD_TESTS)
       key_exchange_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
     )
-    use_client_mbedtls(key_exchange_test)
     target_link_libraries(key_exchange_test PRIVATE)
 
     add_unit_test(
       channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
     )
-    use_client_mbedtls(channels_test)
     target_link_libraries(channels_test PRIVATE)
 
     add_unit_test(
@@ -435,10 +427,9 @@ if(BUILD_TESTS)
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_link_libraries(
-      merkle_mem PRIVATE ccfcrypto.host ${CMAKE_THREAD_LIBS_INIT}
-                         $<BUILD_INTERFACE:merklecpp> crypto
+      merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} $<BUILD_INTERFACE:merklecpp>
+                         crypto
     )
-    use_client_mbedtls(merkle_mem)
 
     # merklecpp tests
     set(MERKLECPP_TEST_PREFIX "merklecpp-")
@@ -449,7 +440,6 @@ if(BUILD_TESTS)
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
-    use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE src/aft)
 
     add_test(
@@ -481,28 +471,13 @@ if(BUILD_TESTS)
     SRCS src/crypto/test/bench.cpp
     LINK_LIBS
   )
+  add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
+  add_picobench(history_bench SRCS src/node/test/history_bench.cpp)
   add_picobench(
-    merkle_bench
-    SRCS src/node/test/merkle_bench.cpp
-    LINK_LIBS ccfcrypto.host crypto
-  )
-  add_picobench(
-    history_bench
-    SRCS src/node/test/history_bench.cpp
-    LINK_LIBS ccfcrypto.host crypto
-  )
-  add_picobench(
-    kv_bench
-    SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
-         src/enclave/thread_local.cpp
-    LINK_LIBS ccfcrypto.host
+    kv_bench SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
   )
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
-  add_picobench(
-    digest_bench
-    SRCS src/crypto/test/digest_bench.cpp
-    LINK_LIBS ccfcrypto.host
-  )
+  add_picobench(digest_bench SRCS src/crypto/test/digest_bench.cpp)
 
   # Storing signed governance operations
   add_e2e_test(
