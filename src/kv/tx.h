@@ -330,16 +330,15 @@ namespace kv
         committed = true;
         std::tie(version, max_conflict_version) = c.value();
 
-        // This is meant to be executed on the backup and deals with the case
+        // This is executed on the backup and deals with the case
         // that for any set of transactions there may be several valid
         // serializations that do not violate the linearizability guarantees of
         // the total order. This check validates that this tx
         // does not read a key at a higher version than it's version (i.e.
-        // does not break linearizability). After ensuring we maintain
-        // linearizability on the backup we set max_conflict_version to be the
-        // same as the primary so that when this value is inserted into the
-        // Merkle tree we will have the same root between the primary and
-        // backups.
+        // does not break linearizability). After ensuring
+        // linearizability is maintained max_conflict_version is set to the
+        // same value as the one specified so that when it is inserted into the
+        // Merkle tree the same root will exist on the primary and backup.
         if (
           version > max_conflict_version &&
           version > replicated_max_conflict_version &&
@@ -348,14 +347,15 @@ namespace kv
           max_conflict_version = replicated_max_conflict_version;
         }
 
-        // The transaction is checking two things in this assert
+        // Here two conditions are checked
         // - First if there is a linearizability violation but comparing
         // max_conflict_version and version.
         // - If a new map was created the dependency must be version - 1, as
         // there no way to track dependencies across map create.
         if (
-          (!created_maps.empty() &&
-           replicated_max_conflict_version != version - 1 && replicated_max_conflict_version != kv::NoVersion && version != 0))
+          !created_maps.empty() &&
+          replicated_max_conflict_version != version - 1 &&
+          replicated_max_conflict_version != kv::NoVersion && version != 0)
         {
           // Detected a linearizability violation
           return CommitResult::FAIL_CONFLICT;

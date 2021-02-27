@@ -169,8 +169,9 @@ namespace kv::untyped
           }
           else
           {
-            // If we depend on the key existing, it must be present and have the
-            // version that we expect.
+            // If the transaction depends on the key existing, it must be
+            // present and have the the expected version. If also tracking
+            // conflicts then ensure that the read versions also match.
             if (
               !search.has_value() ||
               std::get<0>(it->second) != search.value().version ||
@@ -182,6 +183,7 @@ namespace kv::untyped
             }
           }
         }
+
         if (map.include_conflict_read_version && track_conflicts)
         {
           for (auto it = change_set.writes.begin();
@@ -202,8 +204,9 @@ namespace kv::untyped
             if (!search.has_value())
             {
               // If the key does not exist set the conflict version to version
-              // -1 as dependency tracking does not work for keys that do not
-              // exist
+              // NoVersion as dependency tracking does not work for keys that do
+              // not exist. The appropriate max_conflict_version will be set
+              // when this transaction's version is assigned.
               max_conflict_version = kv::NoVersion;
             }
           }
@@ -220,6 +223,8 @@ namespace kv::untyped
         auto current = roll.commits->get_tail();
         auto state = current->state;
 
+        // To track conflicts we need to update the read version of all keys
+        // that are read or written within a transaction.
         if (track_conflicts)
         {
           for (auto it = change_set.reads.begin(); it != change_set.reads.end();

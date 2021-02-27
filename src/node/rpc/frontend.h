@@ -405,7 +405,6 @@ namespace ccf
           return ctx->serialise_response();
         }
       }
-      LOG_INFO_FMT("Too many retries");
 
       ctx->set_error(
         HTTP_STATUS_SERVICE_UNAVAILABLE,
