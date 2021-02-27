@@ -358,7 +358,7 @@ namespace kv
           replicated_max_conflict_version != kv::NoVersion && version != 0)
         {
           // Detected a linearizability violation
-          return CommitResult::FAIL_CONFLICT;
+          throw std::logic_error("detected linearizability violation");
         }
 
         // From here, we have received a unique commit version and made
