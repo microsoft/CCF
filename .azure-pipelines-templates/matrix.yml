@@ -29,7 +29,7 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|vegeta"'
+      ctest_args: '-R "election_test_bft"'
     SGX:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta"'
     perf:
