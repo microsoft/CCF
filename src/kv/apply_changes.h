@@ -140,8 +140,9 @@ namespace kv
         // Alternatively, if the prepare could not set a version of max_conflict_version
         // then we say there is no parallelism
         if (
-          (!new_maps.empty() && version > 0) ||
-          set_max_conflict_version_to_version)
+          track_conflicts &&
+          ((!new_maps.empty() && version > 0) ||
+           set_max_conflict_version_to_version))
         {
           max_conflict_version = version - 1;
         }
@@ -174,7 +175,6 @@ namespace kv
       }
       else
       {
-        LOG_INFO_FMT("failed get_map");
         ok = false;
       }
     }

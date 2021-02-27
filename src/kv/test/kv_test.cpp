@@ -1544,22 +1544,6 @@ TEST_CASE("Backup can detect byzantine execution order")
     }
   }
 
-  // Test the maps on the backup need to be created after a synchronization
-  // point, i.e. max_conflict_version = version -1
-  {
-    kv::Store kv_store_backup;
-    MapTypes::StringString map("public:map");
-
-    TxInfo& info = txs[4];
-    auto tx = kv_store_backup.create_tx();
-    auto handle = tx.rw(map);
-    handle->get("key");
-    handle->put("key", std::to_string(info.id));
-      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
-    REQUIRE(
-      tx.commit(true, version_resolver, info.max_conflict_version) == kv::CommitResult::FAIL_CONFLICT);
-  }
-
   // Execute on backup
   {
     kv::Store kv_store_backup;
