@@ -31,7 +31,7 @@ namespace kv
 
     SpinLock version_lock;
     Version version = 0;
-    Version last_new_map = 0;
+    Version last_new_map = -1;
     Version compacted = 0;
     Term term = 0;
     Version last_replicated = 0;
