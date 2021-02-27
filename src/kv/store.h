@@ -31,6 +31,7 @@ namespace kv
 
     SpinLock version_lock;
     Version version = 0;
+    Version last_new_map = 0;
     Version compacted = 0;
     Term term = 0;
     Version last_replicated = 0;
@@ -95,7 +96,7 @@ namespace kv
       kv::ConsensusHookPtrs& hooks) override
     {
       auto c = apply_changes(
-        changes, [v]() { return v; }, hooks, new_maps);
+        changes, [v](bool) { return std::make_tuple(v, NoVersion); }, hooks, new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
@@ -457,7 +458,8 @@ namespace kv
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
       auto r = apply_changes(
-        changes, []() { return NoVersion; }, hooks, new_maps);
+        changes, [](bool) { 
+          return std::make_tuple(NoVersion, NoVersion); }, hooks, new_maps);
       if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
@@ -1015,6 +1017,25 @@ namespace kv
     void unlock() override
     {
       maps_lock.unlock();
+    }
+
+    std::tuple<Version, Version> next_version(bool commit_new_map) override
+    {
+      std::lock_guard<SpinLock> vguard(version_lock);
+
+      // Get the next global version. If we would go negative, wrap to 0.
+      ++version;
+
+      if (version < 0)
+        version = 0;
+
+      auto previous_last_new_map = last_new_map;
+      if (commit_new_map || version == 0)
+      {
+        last_new_map = version;
+      }
+
+      return std::make_tuple(version, previous_last_new_map);
     }
 
     Version next_version() override

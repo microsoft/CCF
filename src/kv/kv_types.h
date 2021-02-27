@@ -565,6 +565,7 @@ namespace kv
     virtual void unlock() = 0;
 
     virtual Version next_version() = 0;
+    virtual std::tuple<Version, Version> next_version(bool commit_new_map) = 0;
     virtual TxID next_txid() = 0;
 
     virtual Version current_version() = 0;

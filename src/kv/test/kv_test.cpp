@@ -1500,7 +1500,7 @@ TEST_CASE("Primary can create correct execution order")
       auto handle = tx.rw(map);
       handle->get(std::to_string(info.id));
       handle->put(std::to_string(info.id), std::to_string(info.id));
-      auto version_resolver = [&]() { return info.id; };
+      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
       REQUIRE(tx.commit(true, version_resolver, info.max_conflict_version) == kv::CommitResult::SUCCESS);
     }
 
@@ -1512,7 +1512,7 @@ TEST_CASE("Primary can create correct execution order")
       auto handle = tx.rw(map);
       handle->get(std::to_string(info.id));
       handle->put(std::to_string(info.id), std::to_string(info.id));
-      auto version_resolver = [&]() { return info.id; };
+      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
       REQUIRE(tx.commit(true, version_resolver, info.max_conflict_version) == kv::CommitResult::SUCCESS);
     }
   }
@@ -1555,7 +1555,7 @@ TEST_CASE("Backup can detect byzantine execution order")
     auto handle = tx.rw(map);
     handle->get("key");
     handle->put("key", std::to_string(info.id));
-    auto version_resolver = [&]() { return info.id; };
+      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
     REQUIRE(
       tx.commit(true, version_resolver, info.max_conflict_version) == kv::CommitResult::FAIL_CONFLICT);
   }
@@ -1572,7 +1572,7 @@ TEST_CASE("Backup can detect byzantine execution order")
       auto handle = tx.rw(map);
       handle->get("key");
       handle->put("key", std::to_string(info.id));
-      auto version_resolver = [&]() { return info.id; };
+      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
       REQUIRE(tx.commit(true, version_resolver, info.max_conflict_version) == kv::CommitResult::SUCCESS);
     }
 
@@ -1584,7 +1584,7 @@ TEST_CASE("Backup can detect byzantine execution order")
       auto handle = tx.rw(map);
       handle->get("key");
       handle->put("key", std::to_string(info.id));
-      auto version_resolver = [&]() { return info.id; };
+      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
       REQUIRE(tx.commit(true, version_resolver, info.max_conflict_version) == kv::CommitResult::SUCCESS);
     }
 
@@ -1595,7 +1595,7 @@ TEST_CASE("Backup can detect byzantine execution order")
       auto tx = kv_store_backup.create_tx();
       auto handle = tx.rw(map);
       handle->put("key", std::to_string(info.id));
-      auto version_resolver = [&]() { return info.id; };
+      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
       REQUIRE(
         tx.commit(true, version_resolver, info.max_conflict_version) ==
         kv::CommitResult::FAIL_CONFLICT);

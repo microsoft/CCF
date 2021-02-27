@@ -45,7 +45,7 @@ namespace kv
 
   static inline std::optional<std::tuple<Version, Version>> apply_changes(
     OrderedChanges& changes,
-    std::function<Version()> f,
+    std::function<std::tuple<Version, Version>(bool)> f,
     kv::ConsensusHookPtrs& hooks,
     const MapCollection& new_maps = {},
     const std::optional<Version>& new_maps_conflict_version = std::nullopt,
@@ -126,7 +126,9 @@ namespace kv
     if (ok && has_writes)
     {
       // Get the version number to be used for this commit.
-      version = f();
+      kv::Version version_last_new_map;
+      std::tie(version, version_last_new_map) = f(!new_maps.empty());
+      max_conflict_version = std::max(max_conflict_version, version_last_new_map);
 
       if (version > max_conflict_version || !track_conflicts)
       {
@@ -172,7 +174,12 @@ namespace kv
       }
       else
       {
-        LOG_INFO_FMT("conflict violation version:{}, max_conflict_version:{}, track_conflicts:{}", version, max_conflict_version, track_conflicts);
+        LOG_INFO_FMT(
+          "conflict violation version:{}, max_conflict_version:{}, "
+          "track_conflicts:{}",
+          version,
+          max_conflict_version,
+          track_conflicts);
         ok = false;
       }
     }

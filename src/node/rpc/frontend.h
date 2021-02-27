@@ -293,9 +293,9 @@ namespace ccf
           {
             CCF_ASSERT(
               consensus->type() == ConsensusType::BFT, "Wrong consensus type");
-            auto version_resolver = [&]() {
+            auto version_resolver = [&](bool) {
               tables.next_version();
-              return prescribed_commit_version;
+              return std::make_tuple(prescribed_commit_version, kv::NoVersion);
             };
             result = tx.commit(
               track_conflicts, version_resolver, max_conflict_version);

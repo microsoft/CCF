@@ -276,7 +276,7 @@ namespace kv
      */
     CommitResult commit(
       bool track_conflicts = false,
-      std::function<Version()> version_resolver = nullptr,
+      std::function<std::tuple<Version, Version>(bool has_new_map)> version_resolver = nullptr,
       kv::Version replicated_max_conflict_version = kv::NoVersion)
     {
       if (committed)
@@ -303,7 +303,7 @@ namespace kv
       auto c = apply_changes(
         all_changes,
         version_resolver == nullptr ?
-          [store]() { return store->next_version(); } :
+          [store](bool has_new_map) { return store->next_version(has_new_map); } :
           version_resolver,
         hooks,
         created_maps,
@@ -652,7 +652,8 @@ namespace kv
       std::vector<ConsensusHookPtr> hooks;
       auto c = apply_changes(
         all_changes,
-        [this]() { return version; },
+        [this](bool) { 
+          return std::make_tuple(version, version - 1); },
         hooks,
         created_maps,
         version);

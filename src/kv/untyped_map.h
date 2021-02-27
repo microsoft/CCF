@@ -114,9 +114,7 @@ namespace kv::untyped
       {
         auto& roll = map.get_roll();
         auto state = roll.commits->get_tail()->state;
-
         auto current = roll.commits->get_tail();
-
 
         if (map.include_conflict_read_version && track_conflicts)
         {
