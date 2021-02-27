@@ -96,7 +96,10 @@ namespace kv
       kv::ConsensusHookPtrs& hooks) override
     {
       auto c = apply_changes(
-        changes, [v](bool) { return std::make_tuple(v, NoVersion); }, hooks, new_maps);
+        changes,
+        [v](bool) { return std::make_tuple(v, v - 1); },
+        hooks,
+        new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);

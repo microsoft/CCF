@@ -174,12 +174,7 @@ namespace kv
       }
       else
       {
-        LOG_INFO_FMT(
-          "conflict violation version:{}, max_conflict_version:{}, "
-          "track_conflicts:{}",
-          version,
-          max_conflict_version,
-          track_conflicts);
+        LOG_INFO_FMT("failed get_map");
         ok = false;
       }
     }

@@ -1539,7 +1539,7 @@ namespace aft
       execute_append_entries_finish(confirm_evidence, r);
     }
 
-    void process_async_execution(
+    bool process_async_execution(
       kv::ApplyResult apply_result,
       std::unique_ptr<kv::AbstractExecutionWrapper>& ds,
       kv::Version i,
@@ -1561,7 +1561,7 @@ namespace aft
         ledger->truncate(state->last_idx);
         send_append_entries_response(
           r.from_node, AppendEntriesResponseType::FAIL);
-        return;
+        return false;
       }
 
       for (auto& hook : ds->get_hooks())
@@ -1714,7 +1714,7 @@ namespace aft
           throw std::logic_error("Unknown ApplyResult value");
         }
       }
-      return;
+      return true;
     }
 
     AsyncExecutionResult execute_append_entries_async(
@@ -1746,7 +1746,10 @@ namespace aft
         state->last_idx = i;
 
         kv::ApplyResult apply_result = ds->apply();
-        process_async_execution(apply_result, ds, i, r);
+        if (!process_async_execution(apply_result, ds, i, r))
+        {
+          return AsyncExecutionResult::COMPLETE;
+        }
       }
 
       if (async_executor.execution_status() == AsyncExecutionResult::COMPLETE)

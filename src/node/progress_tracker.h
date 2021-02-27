@@ -675,7 +675,6 @@ namespace ccf
         auto r =
           certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
             tx_id.version, CommitCert()));
-        LOG_INFO_FMT("Cert size:{}", certificates.size());
         it = r.first;
       }
       else
@@ -867,13 +866,9 @@ namespace ccf
       kv::Consensus::SeqNo seqno,
       bool should_clear_old_entries)
     {
-        if (seqno > highest_commit_level)
-        {
-          highest_commit_level = seqno;
-        }
-
-      if (cert.nonces_committed_to_ledger)
+      if (cert.nonces_committed_to_ledger && seqno > highest_commit_level)
       {
+        highest_commit_level = seqno;
         if (should_clear_old_entries)
         {
           LOG_DEBUG_FMT("Removing all entries upto:{}", seqno);
@@ -891,20 +886,20 @@ namespace ccf
           }
         }
       }
-    }
-
-    bool should_append_nonces_to_ledger(
-      CommitCert& cert, uint32_t node_count, bool is_primary)
-    {
-      if (
-        cert.nonce_set.size() >= get_message_threshold(node_count) &&
-        cert.reply_and_nonce_sent && cert.ack_sent &&
-        !cert.nonces_committed_to_ledger)
-      {
-        cert.nonces_committed_to_ledger = true;
-        return is_primary;
       }
-      return false;
-    }
-  };
+
+      bool should_append_nonces_to_ledger(
+        CommitCert& cert, uint32_t node_count, bool is_primary)
+      {
+        if (
+          cert.nonce_set.size() >= get_message_threshold(node_count) &&
+          cert.reply_and_nonce_sent && cert.ack_sent &&
+          !cert.nonces_committed_to_ledger)
+        {
+          cert.nonces_committed_to_ledger = true;
+          return is_primary;
+        }
+        return false;
+      }
+    };
 }

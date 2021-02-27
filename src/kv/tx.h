@@ -348,36 +348,53 @@ namespace kv
         }
 
         // Here two conditions are checked
-        // - First if there is a linearizability violation but comparing
+        // - First if there is a linearizability violation by comparing
         // max_conflict_version and version.
         // - If a new map was created the dependency must be version - 1, as
         // there no way to track dependencies across map create.
+        /*
         if (
           !created_maps.empty() &&
           replicated_max_conflict_version != version - 1 &&
           replicated_max_conflict_version != kv::NoVersion && version != 0)
+          */
+        if (
+          max_conflict_version > version &&
+          replicated_max_conflict_version != kv::NoVersion)
         {
           // Detected a linearizability violation
-          throw std::logic_error("detected linearizability violation");
+          LOG_INFO_FMT(
+            "Detected linearizability violation - version:{}, "
+            "max_conflict_version:{}, replicated_max_conflict_version:{}",
+            version,
+            max_conflict_version,
+            replicated_max_conflict_version);
+          return CommitResult::FAIL_CONFLICT;
         }
-
-        // From here, we have received a unique commit version and made
-        // modifications to our local kv. If we fail in any way, we cannot
-        // recover.
-        try
-        {
-          auto data = serialise();
-
-          if (data.empty())
+        else if (
+          max_conflict_version > version &&
+          replicated_max_conflict_version == kv::NoVersion)
           {
-            return CommitResult::SUCCESS;
+            max_conflict_version = version - 1;
           }
 
-          return store->commit(
-            {term, version},
-            std::make_unique<MovePendingTx>(
-              std::move(data), std::move(req_id), std::move(hooks)),
-            false);
+          // From here, we have received a unique commit version and made
+          // modifications to our local kv. If we fail in any way, we cannot
+          // recover.
+          try
+          {
+            auto data = serialise();
+
+            if (data.empty())
+            {
+              return CommitResult::SUCCESS;
+            }
+
+            return store->commit(
+              {term, version},
+              std::make_unique<MovePendingTx>(
+                std::move(data), std::move(req_id), std::move(hooks)),
+              false);
         }
         catch (const std::exception& e)
         {
