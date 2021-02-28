@@ -333,33 +333,36 @@ namespace kv
         committed = true;
         std::tie(version, max_conflict_version) = c.value();
 
-        // This is executed on the backup and deals with the case
-        // that for any set of transactions there may be several valid
-        // serializations that do not violate the linearizability guarantees of
-        // the total order. This check validates that this tx
-        // does not read a key at a higher version than it's version (i.e.
-        // does not break linearizability). After ensuring
-        // linearizability is maintained max_conflict_version is set to the
-        // same value as the one specified so that when it is inserted into the
-        // Merkle tree the same root will exist on the primary and backup.
-        if (
-          version > max_conflict_version &&
-          version > replicated_max_conflict_version &&
-          replicated_max_conflict_version != kv::NoVersion)
+        if (track_conflicts)
         {
-          max_conflict_version = replicated_max_conflict_version;
-        }
+          // This is executed on the backup and deals with the case
+          // that for any set of transactions there may be several valid
+          // serializations that do not violate the linearizability guarantees
+          // of the total order. This check validates that this tx does not read
+          // a key at a higher version than it's version (i.e. does not break
+          // linearizability). After ensuring linearizability is maintained
+          // max_conflict_version is set to the same value as the one specified
+          // so that when it is inserted into the Merkle tree the same root will
+          // exist on the primary and backup.
+          if (
+            version > max_conflict_version &&
+            version > replicated_max_conflict_version &&
+            replicated_max_conflict_version != kv::NoVersion)
+          {
+            max_conflict_version = replicated_max_conflict_version;
+          }
 
-        // Check if a linearizability violation occurred
-        if (track_conflicts && max_conflict_version > version && version != 0)
-        {
-          LOG_INFO_FMT(
-            "Detected linearizability violation - version:{}, "
-            "max_conflict_version:{}, replicated_max_conflict_version:{}",
-            version,
-            max_conflict_version,
-            replicated_max_conflict_version);
-          return CommitResult::FAIL_CONFLICT;
+          // Check if a linearizability violation occurred
+          if (max_conflict_version > version && version != 0)
+          {
+            LOG_INFO_FMT(
+              "Detected linearizability violation - version:{}, "
+              "max_conflict_version:{}, replicated_max_conflict_version:{}",
+              version,
+              max_conflict_version,
+              replicated_max_conflict_version);
+            return CommitResult::FAIL_CONFLICT;
+          }
         }
 
         // From here, we have received a unique commit version and made

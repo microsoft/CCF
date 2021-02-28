@@ -114,18 +114,16 @@ namespace kv::untyped
         bool track_conflicts, kv::Version& max_conflict_version) override
       {
         auto& roll = map.get_roll();
-        auto state = roll.commits->get_tail()->state;
-        auto current = roll.commits->get_tail();
-
         if (change_set.writes.empty())
         {
-          if (map.include_conflict_read_version && track_conflicts)
+          if (track_conflicts && map.include_conflict_read_version)
           {
+            auto state = roll.commits->get_tail()->state;
             for (auto it = change_set.reads.begin();
                  it != change_set.reads.end();
                  ++it)
             {
-              auto search = current->state.get(it->first);
+              auto search = state.get(it->first);
               if (search.has_value())
               {
                 max_conflict_version =
@@ -151,6 +149,7 @@ namespace kv::untyped
           return false;
 
         // If we have iterated over the map, check for a global version match.
+        auto current = roll.commits->get_tail();
         if (
           (change_set.read_version != NoVersion) &&
           (change_set.read_version != current->version))
@@ -191,7 +190,7 @@ namespace kv::untyped
             }
           }
 
-          if (map.include_conflict_read_version && track_conflicts)
+          if (track_conflicts && map.include_conflict_read_version)
           {
             if (search.has_value() && max_conflict_version != kv::NoVersion)
             {
@@ -205,13 +204,13 @@ namespace kv::untyped
           }
         }
 
-        if (map.include_conflict_read_version && track_conflicts)
+        if (track_conflicts && map.include_conflict_read_version)
         {
           for (auto it = change_set.writes.begin();
                it != change_set.writes.end();
                ++it)
           {
-            auto search = state.get(it->first);
+            auto search = current->state.get(it->first);
             if (search.has_value() && max_conflict_version != kv::NoVersion)
             {
               max_conflict_version =
@@ -236,8 +235,7 @@ namespace kv::untyped
       void commit(Version v, bool track_conflicts) override
       {
         auto& roll = map.get_roll();
-        auto current = roll.commits->get_tail();
-        auto state = current->state;
+        auto state = roll.commits->get_tail()->state;
 
         // To track conflicts the read version of all keys that are read or
         // written within a transaction must be updated.
