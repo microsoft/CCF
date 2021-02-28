@@ -31,6 +31,7 @@ namespace kv
 
     SpinLock version_lock;
     Version version = 0;
+    Version last_new_map = -1;
     Version compacted = 0;
     Term term = 0;
     Version last_replicated = 0;
@@ -95,7 +96,10 @@ namespace kv
       kv::ConsensusHookPtrs& hooks) override
     {
       auto c = apply_changes(
-        changes, [v]() { return v; }, hooks, new_maps);
+        changes,
+        [v](bool) { return std::make_tuple(v, v - 1); },
+        hooks,
+        new_maps);
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
@@ -284,6 +288,11 @@ namespace kv
       }
     }
 
+    bool should_track_dependencies(const std::string& name) override
+    {
+      return name.compare(ccf::Tables::AFT_REQUESTS) != 0;
+    }
+
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
     {
       if (v < commit_version())
@@ -407,7 +416,8 @@ namespace kv
             this,
             map_name,
             get_security_domain(map_name),
-            is_map_replicated(map_name));
+            is_map_replicated(map_name),
+            should_track_dependencies(map_name));
           new_maps[map_name] = map;
           LOG_DEBUG_FMT(
             "Creating map {} while deserialising snapshot at version {}",
@@ -451,7 +461,8 @@ namespace kv
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
       auto r = apply_changes(
-        changes, []() { return NoVersion; }, hooks, new_maps);
+        changes, [](bool) { 
+          return std::make_tuple(NoVersion, NoVersion); }, hooks, new_maps);
       if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
@@ -625,6 +636,7 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only,
       kv::Version& v,
+      kv::Version& max_conflict_version,
       OrderedChanges& changes,
       MapCollection& new_maps,
       bool ignore_strict_versions = false) override
@@ -647,7 +659,7 @@ namespace kv
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return false;
       }
-      std::tie(v, std::ignore) = v_.value();
+      std::tie(v, max_conflict_version) = v_.value();
 
       // Throw away any local commits that have not propagated via the
       // consensus.
@@ -682,7 +694,8 @@ namespace kv
             this,
             map_name,
             get_security_domain(map_name),
-            is_map_replicated(map_name));
+            is_map_replicated(map_name),
+            should_track_dependencies(map_name));
           map = new_map;
           new_maps[map_name] = new_map;
           LOG_DEBUG_FMT(
@@ -729,9 +742,17 @@ namespace kv
       else
       {
         kv::Version v;
+        kv::Version max_conflict_version;
         OrderedChanges changes;
         MapCollection new_maps;
-        if (!fill_maps(data, public_only, v, changes, new_maps, true))
+        if (!fill_maps(
+              data,
+              public_only,
+              v,
+              max_conflict_version,
+              changes,
+              new_maps,
+              true))
         {
           return nullptr;
         }
@@ -805,8 +826,9 @@ namespace kv
             get_history(),
             std::move(data),
             public_only,
-            std::make_unique<Tx>(this),
+            std::make_unique<Tx>(this, v),
             v,
+            max_conflict_version,
             std::move(changes),
             std::move(new_maps));
         }
@@ -964,6 +986,11 @@ namespace kv
         next_last_replicated = last_replicated + batch.size();
 
         replication_view = term;
+
+        if (consensus->type() == ConsensusType::BFT && consensus->is_backup())
+        {
+          last_replicated = next_last_replicated;
+        }
       }
 
       if (c->replicate(batch, replication_view))
@@ -971,7 +998,8 @@ namespace kv
         std::lock_guard<SpinLock> vguard(version_lock);
         if (
           last_replicated == previous_last_replicated &&
-          previous_rollback_count == rollback_count)
+          previous_rollback_count == rollback_count &&
+          !(consensus->type() == ConsensusType::BFT && consensus->is_backup()))
         {
           last_replicated = next_last_replicated;
         }
@@ -992,6 +1020,25 @@ namespace kv
     void unlock() override
     {
       maps_lock.unlock();
+    }
+
+    std::tuple<Version, Version> next_version(bool commit_new_map) override
+    {
+      std::lock_guard<SpinLock> vguard(version_lock);
+
+      // Get the next global version. If we would go negative, wrap to 0.
+      ++version;
+
+      if (version < 0)
+        version = 0;
+
+      auto previous_last_new_map = last_new_map;
+      if (commit_new_map || version == 0)
+      {
+        last_new_map = version;
+      }
+
+      return std::make_tuple(version, previous_last_new_map);
     }
 
     Version next_version() override
@@ -1086,7 +1133,11 @@ namespace kv
           auto new_map = std::make_pair(
             NoVersion,
             std::make_shared<kv::untyped::Map>(
-              this, name, SecurityDomain::PRIVATE, is_map_replicated(name)));
+              this,
+              name,
+              SecurityDomain::PRIVATE,
+              is_map_replicated(name),
+              should_track_dependencies(name)));
           maps[name] = new_map;
           map = new_map.second;
         }

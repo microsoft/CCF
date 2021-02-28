@@ -2,6 +2,23 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+// The transaction engine supports producing a transaction dependencies. This is
+// materialized by providing a sequence number after which the current
+// transaction must be run and required that transaction execution is started in
+// the total order.  The current use case for dependency tracking is to enable
+// parallel execution of transactions on the backup, and as such we only track
+// dependencies when running BFT consensus protocol.
+//
+// Dependency tracking follows the following pseudocode
+//
+// OnTxCommit:
+//   MaxSeenReadVersion = -1
+//   foreach Accessed Key-Value pair:
+//     MaxSeenReadVersion = max(MaxSeenReadVersion, pair.last_read_version)
+//     pair.last_read_version = pair.seqno
+//
+//   TxSerialize(pairs, MaxSeenReadVersion)
+
 #include "apply_changes.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_deprecated.h"
@@ -143,7 +160,8 @@ namespace kv
           store,
           map_name,
           kv::get_security_domain(map_name),
-          store->is_map_replicated(map_name));
+          store->is_map_replicated(map_name),
+          store->should_track_dependencies(map_name));
         created_maps[map_name] = new_map;
 
         abstract_map = new_map;
@@ -211,6 +229,11 @@ namespace kv
       return read_version;
     }
 
+    Version get_max_conflict_version()
+    {
+      return max_conflict_version;
+    }
+
     Version get_term()
     {
       return term;
@@ -251,7 +274,10 @@ namespace kv
      *
      * @return transaction outcome
      */
-    CommitResult commit()
+    CommitResult commit(
+      bool track_conflicts = false,
+      std::function<std::tuple<Version, Version>(bool has_new_map)> version_resolver = nullptr,
+      kv::Version replicated_max_conflict_version = kv::NoVersion)
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -272,11 +298,17 @@ namespace kv
 
       kv::ConsensusHookPtrs hooks;
 
+      std::optional<Version> new_maps_conflict_version = std::nullopt;
+
       auto c = apply_changes(
         all_changes,
-        [store]() { return store->next_version(); },
+        version_resolver == nullptr ?
+          [store](bool has_new_map) { return store->next_version(has_new_map); } :
+          version_resolver,
         hooks,
-        created_maps);
+        created_maps,
+        new_maps_conflict_version,
+        track_conflicts);
 
       if (!created_maps.empty())
         this->store->unlock();
@@ -298,23 +330,71 @@ namespace kv
         committed = true;
         std::tie(version, max_conflict_version) = c.value();
 
-        // From here, we have received a unique commit version and made
-        // modifications to our local kv. If we fail in any way, we cannot
-        // recover.
-        try
+        // This is executed on the backup and deals with the case
+        // that for any set of transactions there may be several valid
+        // serializations that do not violate the linearizability guarantees of
+        // the total order. This check validates that this tx
+        // does not read a key at a higher version than it's version (i.e.
+        // does not break linearizability). After ensuring
+        // linearizability is maintained max_conflict_version is set to the
+        // same value as the one specified so that when it is inserted into the
+        // Merkle tree the same root will exist on the primary and backup.
+        if (
+          version > max_conflict_version &&
+          version > replicated_max_conflict_version &&
+          replicated_max_conflict_version != kv::NoVersion)
         {
-          auto data = serialise();
+          max_conflict_version = replicated_max_conflict_version;
+        }
 
-          if (data.empty())
+        // Here two conditions are checked
+        // - First if there is a linearizability violation by comparing
+        // max_conflict_version and version.
+        // - If a new map was created the dependency must be version - 1, as
+        // there no way to track dependencies across map create.
+        /*
+        if (
+          !created_maps.empty() &&
+          replicated_max_conflict_version != version - 1 &&
+          replicated_max_conflict_version != kv::NoVersion && version != 0)
+          */
+        if (
+          max_conflict_version > version &&
+          replicated_max_conflict_version != kv::NoVersion)
+        {
+          // Detected a linearizability violation
+          LOG_INFO_FMT(
+            "Detected linearizability violation - version:{}, "
+            "max_conflict_version:{}, replicated_max_conflict_version:{}",
+            version,
+            max_conflict_version,
+            replicated_max_conflict_version);
+          return CommitResult::FAIL_CONFLICT;
+        }
+        else if (
+          max_conflict_version > version &&
+          replicated_max_conflict_version == kv::NoVersion)
           {
-            return CommitResult::SUCCESS;
+            max_conflict_version = version - 1;
           }
 
-          return store->commit(
-            {term, version},
-            std::make_unique<MovePendingTx>(
-              std::move(data), std::move(req_id), std::move(hooks)),
-            false);
+          // From here, we have received a unique commit version and made
+          // modifications to our local kv. If we fail in any way, we cannot
+          // recover.
+          try
+          {
+            auto data = serialise();
+
+            if (data.empty())
+            {
+              return CommitResult::SUCCESS;
+            }
+
+            return store->commit(
+              {term, version},
+              std::make_unique<MovePendingTx>(
+                std::move(data), std::move(req_id), std::move(hooks)),
+              false);
         }
         catch (const std::exception& e)
         {
@@ -589,7 +669,8 @@ namespace kv
       std::vector<ConsensusHookPtr> hooks;
       auto c = apply_changes(
         all_changes,
-        [this]() { return version; },
+        [this](bool) { 
+          return std::make_tuple(version, version - 1); },
         hooks,
         created_maps,
         version);
