@@ -130,8 +130,6 @@ namespace kv::untyped
               {
                 max_conflict_version =
                   std::max(max_conflict_version, search->version);
-                max_conflict_version =
-                  std::max(max_conflict_version, search->read_version);
               }
               else
               {
