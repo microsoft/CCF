@@ -122,6 +122,17 @@ namespace kv
       return false;
     }
 
+    Version next_version_internal()
+    {
+      // Get the next global version. If we would go negative, wrap to 0.
+      ++version;
+
+      if (version < 0)
+        version = 0;
+
+      return version;
+    }
+
   public:
     Store(bool strict_versions_ = true, bool is_historical_ = false) :
       strict_versions(strict_versions_),
@@ -1025,33 +1036,21 @@ namespace kv
     std::tuple<Version, Version> next_version(bool commit_new_map) override
     {
       std::lock_guard<SpinLock> vguard(version_lock);
-
-      // Get the next global version. If we would go negative, wrap to 0.
-      ++version;
-
-      if (version < 0)
-        version = 0;
+      Version v = next_version_internal();
 
       auto previous_last_new_map = last_new_map;
-      if (commit_new_map || version == 0)
+      if (commit_new_map)
       {
-        last_new_map = version;
+        last_new_map = v;
       }
 
-      return std::make_tuple(version, previous_last_new_map);
+      return std::make_tuple(v, previous_last_new_map);
     }
 
     Version next_version() override
     {
       std::lock_guard<SpinLock> vguard(version_lock);
-
-      // Get the next global version. If we would go negative, wrap to 0.
-      ++version;
-
-      if (version < 0)
-        version = 0;
-
-      return version;
+      return next_version_internal();
     }
 
     TxID next_txid() override

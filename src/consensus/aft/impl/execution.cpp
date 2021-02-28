@@ -52,7 +52,7 @@ namespace aft
   kv::Version ExecutorImpl::execute_request(
     std::unique_ptr<RequestMessage> request,
     bool is_create_request,
-    kv::Consensus::SeqNo commit_version,
+    kv::Consensus::SeqNo prescribed_commit_version,
     std::shared_ptr<aft::RequestTracker> request_tracker,
     kv::Consensus::SeqNo max_conflict_version)
   {
@@ -85,7 +85,7 @@ namespace aft
     ctx->execute_on_node = true;
 
     enclave::RpcHandler::ProcessBftResp rep =
-      frontend->process_bft(ctx, commit_version, max_conflict_version);
+      frontend->process_bft(ctx, prescribed_commit_version, max_conflict_version);
 
     request->callback(std::move(rep.result));
 
@@ -120,7 +120,7 @@ namespace aft
   kv::Version ExecutorImpl::commit_replayed_request(
     kv::Tx& tx,
     std::shared_ptr<aft::RequestTracker> request_tracker,
-    kv::Consensus::SeqNo committed_seqno,
+    kv::Consensus::SeqNo prescribed_commit_version,
     kv::Consensus::SeqNo max_conflict_version)
   {
     auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
@@ -138,7 +138,7 @@ namespace aft
     return execute_request(
       std::move(request_message),
       state->commit_idx == 0,
-      committed_seqno,
+      prescribed_commit_version,
       request_tracker,
       max_conflict_version);
   }

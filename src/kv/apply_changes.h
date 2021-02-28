@@ -173,11 +173,6 @@ namespace kv
           }
         }
       }
-      // TODO: does this even make sense
-      else
-      {
-        ok = false;
-      }
     }
 
     for (auto it = changes.begin(); it != changes.end(); ++it)

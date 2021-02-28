@@ -37,7 +37,7 @@ namespace aft
     virtual kv::Version execute_request(
       std::unique_ptr<RequestMessage> request,
       bool is_create_request,
-      kv::Consensus::SeqNo commit_version = kv::NoVersion,
+      kv::Consensus::SeqNo prescribed_commit_version = kv::NoVersion,
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
       kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) = 0;
 
@@ -48,7 +48,7 @@ namespace aft
     virtual kv::Version commit_replayed_request(
       kv::Tx& tx,
       std::shared_ptr<aft::RequestTracker> request_tracker,
-      kv::Consensus::SeqNo committed_seqno,
+      kv::Consensus::SeqNo prescribed_commit_version,
       kv::Consensus::SeqNo max_conflict_version) = 0;
   };
 
@@ -72,7 +72,7 @@ namespace aft
     kv::Version execute_request(
       std::unique_ptr<RequestMessage> request,
       bool is_create_request,
-      kv::Consensus::SeqNo last_idx = kv::NoVersion,
+      kv::Consensus::SeqNo prescribed_commit_version = kv::NoVersion,
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
       kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) override;
 
@@ -83,7 +83,7 @@ namespace aft
     kv::Version commit_replayed_request(
       kv::Tx& tx,
       std::shared_ptr<aft::RequestTracker> request_tracker,
-      kv::Consensus::SeqNo committed_seqno,
+      kv::Consensus::SeqNo prescribed_commit_version,
       kv::Consensus::SeqNo max_conflict_version) override;
 
   private:
