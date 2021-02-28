@@ -287,7 +287,7 @@ namespace ccf
           }
 
           kv::CommitResult result;
-          bool track_conflicts =
+          bool track_read_versions =
             (consensus != nullptr && consensus->type() == ConsensusType::BFT);
           if (prescribed_commit_version != kv::NoVersion)
           {
@@ -298,11 +298,11 @@ namespace ccf
               return std::make_tuple(prescribed_commit_version, kv::NoVersion);
             };
             result = tx.commit(
-              track_conflicts, version_resolver, max_conflict_version);
+              track_read_versions, version_resolver, max_conflict_version);
           }
           else
           {
-            result = tx.commit(track_conflicts);
+            result = tx.commit(track_read_versions);
           }
 
           switch (result)

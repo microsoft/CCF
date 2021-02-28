@@ -7,7 +7,10 @@
 // transaction must be run and required that transaction execution is started in
 // the total order.  The current use case for dependency tracking is to enable
 // parallel execution of transactions on the backup, and as such dependencies
-// are tracked when running with the BFT consensus protocol.
+// are tracked when running with the BFT consensus protocol. The backup will
+// also calculate the dependencies to ensure there is no linearizability
+// violation created by a malicious primary sending an incorrect transaction
+// dependency order.
 //
 // Dependency tracking follows the following pseudocode
 //
@@ -275,7 +278,7 @@ namespace kv
      * @return transaction outcome
      */
     CommitResult commit(
-      bool track_conflicts = false,
+      bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr,
       kv::Version replicated_max_conflict_version = kv::NoVersion)
@@ -311,7 +314,7 @@ namespace kv
         hooks,
         created_maps,
         new_maps_conflict_version,
-        track_conflicts);
+        track_read_versions);
 
       if (!created_maps.empty())
         this->store->unlock();
@@ -333,7 +336,7 @@ namespace kv
         committed = true;
         std::tie(version, max_conflict_version) = c.value();
 
-        if (track_conflicts)
+        if (track_read_versions)
         {
           // This is executed on the backup and deals with the case
           // that for any set of transactions there may be several valid

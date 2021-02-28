@@ -38,8 +38,8 @@ namespace kv
   // applied, to retrieve a unique Version for the write set and return the max
   // version which can have a conflict with the transaction.
   //
-  // The track_conflicts parameter tells the store if it needs to track the last
-  // read version for every key. This is required for backup execution as
+  // The track_read_versions parameter tells the store if it needs to track the
+  // last read version for every key. This is required for backup execution as
   // described at the top of tx.h
 
   static inline std::optional<std::tuple<Version, Version>> apply_changes(
@@ -48,7 +48,7 @@ namespace kv
     kv::ConsensusHookPtrs& hooks,
     const MapCollection& new_maps = {},
     const std::optional<Version>& new_maps_conflict_version = std::nullopt,
-    bool track_conflicts = false)
+    bool track_read_versions = false)
   {
     // All maps with pending writes are locked, transactions are prepared
     // and possibly committed, and then all maps with pending writes are
@@ -71,7 +71,7 @@ namespace kv
       {
         has_writes = true;
       }
-      if (changeset_has_writes || track_conflicts)
+      if (changeset_has_writes || track_read_versions)
       {
         it->second.map->lock();
       }
@@ -81,7 +81,7 @@ namespace kv
     bool set_max_conflict_version_to_version = false;
     for (auto it = views.begin(); it != views.end(); ++it)
     {
-      if (!it->second->prepare(track_conflicts, max_conflict_version))
+      if (!it->second->prepare(track_read_versions, max_conflict_version))
       {
         ok = false;
         break;
@@ -129,7 +129,7 @@ namespace kv
       max_conflict_version =
         std::max(max_conflict_version, version_last_new_map);
 
-      if (version > max_conflict_version || !track_conflicts)
+      if (version > max_conflict_version || !track_read_versions)
       {
         // Since the tracking of a read version is done in the key-value pair it
         // is not possible to track the dependencies of two transactions that
@@ -140,7 +140,7 @@ namespace kv
         // then the max_conflict_version is set to version - 1 once the
         // transaction's version has been obtained.
         if (
-          track_conflicts &&
+          track_read_versions &&
           ((!new_maps.empty() && version > 0) ||
            set_max_conflict_version_to_version))
         {
@@ -160,7 +160,7 @@ namespace kv
 
         for (auto it = views.begin(); it != views.end(); ++it)
         {
-          it->second->commit(version, track_conflicts);
+          it->second->commit(version, track_read_versions);
         }
 
         // Collect ConsensusHooks
@@ -182,7 +182,7 @@ namespace kv
 
     for (auto it = changes.begin(); it != changes.end(); ++it)
     {
-      if (it->second.changeset->has_writes() || track_conflicts)
+      if (it->second.changeset->has_writes() || track_read_versions)
       {
         it->second.map->unlock();
       }

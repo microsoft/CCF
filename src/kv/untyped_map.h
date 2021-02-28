@@ -111,12 +111,12 @@ namespace kv::untyped
       }
 
       bool prepare(
-        bool track_conflicts, kv::Version& max_conflict_version) override
+        bool track_read_versions, kv::Version& max_conflict_version) override
       {
         auto& roll = map.get_roll();
         if (change_set.writes.empty())
         {
-          if (track_conflicts && map.include_conflict_read_version)
+          if (track_read_versions && map.include_conflict_read_version)
           {
             auto state = roll.commits->get_tail()->state;
             for (auto it = change_set.reads.begin();
@@ -182,7 +182,7 @@ namespace kv::untyped
             if (
               !search.has_value() ||
               std::get<0>(it->second) != search.value().version ||
-              (track_conflicts &&
+              (track_read_versions &&
                std::get<1>(it->second) != search.value().read_version))
             {
               LOG_DEBUG_FMT("Read depends on invalid version of entry");
@@ -190,7 +190,7 @@ namespace kv::untyped
             }
           }
 
-          if (track_conflicts && map.include_conflict_read_version)
+          if (track_read_versions && map.include_conflict_read_version)
           {
             if (search.has_value() && max_conflict_version != kv::NoVersion)
             {
@@ -204,7 +204,7 @@ namespace kv::untyped
           }
         }
 
-        if (track_conflicts && map.include_conflict_read_version)
+        if (track_read_versions && map.include_conflict_read_version)
         {
           for (auto it = change_set.writes.begin();
                it != change_set.writes.end();
@@ -232,9 +232,9 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version v, bool track_conflicts) override
+      void commit(Version v, bool track_read_versions) override
       {
-        if (change_set.writes.empty() && !track_conflicts)
+        if (change_set.writes.empty() && !track_read_versions)
         {
           commit_version = change_set.start_version;
           return;
@@ -245,7 +245,7 @@ namespace kv::untyped
 
         // To track conflicts the read version of all keys that are read or
         // written within a transaction must be updated.
-        if (track_conflicts)
+        if (track_read_versions)
         {
           for (auto it = change_set.reads.begin(); it != change_set.reads.end();
                ++it)
