@@ -351,7 +351,7 @@ namespace kv
         }
 
         // Check if a linearizability violation occurred
-        if (max_conflict_version > version && version != 0)
+        if (track_conflicts && max_conflict_version > version && version != 0)
         {
           LOG_INFO_FMT(
             "Detected linearizability violation - version:{}, "
