@@ -293,8 +293,6 @@ namespace kv
         return CommitResult::SUCCESS;
       }
 
-      auto store = all_changes.begin()->second.map->get_store();
-
       // If this transaction creates any maps, ensure that commit gets a
       // consistent snapshot of the existing maps
       if (!created_maps.empty())
@@ -307,7 +305,7 @@ namespace kv
       auto c = apply_changes(
         all_changes,
         version_resolver == nullptr ?
-          [store](bool has_new_map) {
+          [&](bool has_new_map) {
             return store->next_version(has_new_map);
           } :
           version_resolver,
