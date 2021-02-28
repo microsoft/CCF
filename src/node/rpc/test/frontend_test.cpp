@@ -523,8 +523,8 @@ TEST_CASE("process_bft")
     enclave::InvalidSessionId, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
   ctx->execute_on_node = true;
-  constexpr auto prescribed_commit_version = 1;
-  constexpr auto max_conflict_version = 1;
+  const auto prescribed_commit_version = bft_network.tables->current_version() + 1;
+  const auto max_conflict_version = kv::NoVersion;
   frontend.process_bft(ctx, prescribed_commit_version, max_conflict_version);
 
   auto tx = bft_network.tables->create_tx();

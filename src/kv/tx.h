@@ -347,20 +347,8 @@ namespace kv
           max_conflict_version = replicated_max_conflict_version;
         }
 
-        // Here two conditions are checked
-        // - First if there is a linearizability violation by comparing
-        // max_conflict_version and version.
-        // - If a new map was created the dependency must be version - 1, as
-        // there no way to track dependencies across map create.
-        /*
-        if (
-          !created_maps.empty() &&
-          replicated_max_conflict_version != version - 1 &&
-          replicated_max_conflict_version != kv::NoVersion && version != 0)
-          */
-        if (
-          max_conflict_version > version &&
-          replicated_max_conflict_version != kv::NoVersion)
+        // Check if a linearizability violation occurred
+        if (max_conflict_version > version && version != 0)
         {
           // Detected a linearizability violation
           LOG_INFO_FMT(

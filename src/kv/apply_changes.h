@@ -173,6 +173,11 @@ namespace kv
           }
         }
       }
+      else
+      {
+        // A linearizability violation was detected
+        ok = false;
+      }
     }
 
     for (auto it = changes.begin(); it != changes.end(); ++it)
