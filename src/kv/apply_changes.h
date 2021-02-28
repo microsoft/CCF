@@ -173,10 +173,6 @@ namespace kv
           }
         }
       }
-      else
-      {
-        ok = false;
-      }
     }
 
     for (auto it = changes.begin(); it != changes.end(); ++it)
