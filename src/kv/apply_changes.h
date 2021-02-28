@@ -56,7 +56,7 @@ namespace kv
     // interleaved fashion.
     Version version = 0;
     bool has_writes = false;
-    kv::Version max_conflict_version = kv::NoVersion;
+    kv::Version max_conflict_version = 0;
 
     std::map<std::string, std::unique_ptr<AbstractCommitter>> views;
     for (const auto& [map_name, mc] : changes)

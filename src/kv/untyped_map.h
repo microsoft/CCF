@@ -190,6 +190,19 @@ namespace kv::untyped
               return false;
             }
           }
+
+          if (map.include_conflict_read_version && track_conflicts)
+          {
+            if (search.has_value() && max_conflict_version != kv::NoVersion)
+            {
+              max_conflict_version =
+                std::max(max_conflict_version, search->version);
+            }
+            else
+            {
+              max_conflict_version = kv::NoVersion;
+            }
+          }
         }
 
         if (map.include_conflict_read_version && track_conflicts)
@@ -199,7 +212,7 @@ namespace kv::untyped
                ++it)
           {
             auto search = state.get(it->first);
-            if (search.has_value())
+            if (search.has_value() && max_conflict_version != kv::NoVersion)
             {
               max_conflict_version =
                 std::max(max_conflict_version, search->version);
