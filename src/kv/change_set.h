@@ -19,8 +19,9 @@ namespace kv
 
   // This is a map of keys and with a tuple of the key's write version and the
   // version of last transaction which read the key and committed successfully
+  using LastReadVersion = Version;
   template <typename K>
-  using Read = std::map<K, std::tuple<Version, Version>>;
+  using Read = std::map<K, std::tuple<Version, LastReadVersion>>;
 
   // nullopt values represent deletions
   template <typename K, typename V>

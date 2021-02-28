@@ -234,6 +234,12 @@ namespace kv::untyped
 
       void commit(Version v, bool track_conflicts) override
       {
+        if (change_set.writes.empty() && !track_conflicts)
+        {
+          commit_version = change_set.start_version;
+          return;
+        }
+
         auto& roll = map.get_roll();
         auto state = roll.commits->get_tail()->state;
 
@@ -252,18 +258,13 @@ namespace kv::untyped
             state =
               state.put(it->first, VersionV{search->version, v, search->value});
           }
-        }
-
-        if (change_set.writes.empty())
-        {
-          commit_version = change_set.start_version;
-
-          if (track_conflicts)
+          if (change_set.writes.empty())
           {
+            commit_version = change_set.start_version;
             map.roll.commits->insert_back(map.roll.create_new_local_commit(
               commit_version, std::move(state), change_set.writes));
+            return;
           }
-          return;
         }
 
         // Record our commit time.
