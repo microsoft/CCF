@@ -174,7 +174,7 @@ def test_node_ids(network, args):
 
 @reqs.description("Checking service principals proposals")
 def test_service_principals(network, args):
-    primary, _ = network.find_nodes()
+    primary, backups = network.find_nodes()
 
     principal_id = "0xdeadbeef"
     ballot = {"ballot": {"text": "return true"}}
@@ -201,7 +201,7 @@ def test_service_principals(network, args):
             "data": principal_data,
         },
     }
-    proposal = network.consortium.get_any_active_member().propose(primary, proposal)
+    proposal = network.consortium.get_any_active_member().propose(backups[0], proposal)
     network.consortium.vote_using_majority(primary, proposal, ballot)
 
     # Confirm it can be read
@@ -219,7 +219,7 @@ def test_service_principals(network, args):
             "id": principal_id,
         },
     }
-    proposal = network.consortium.get_any_active_member().propose(primary, proposal)
+    proposal = network.consortium.get_any_active_member().propose(backups[0], proposal)
     network.consortium.vote_using_majority(primary, proposal, ballot)
 
     # Confirm it is gone
