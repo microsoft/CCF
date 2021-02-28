@@ -472,8 +472,10 @@ namespace kv
       // overall snapshot version. The commit versions for each map are
       // contained in the snapshot and applied when the snapshot is committed.
       auto r = apply_changes(
-        changes, [](bool) { 
-          return std::make_tuple(NoVersion, NoVersion); }, hooks, new_maps);
+        changes,
+        [](bool) { return std::make_tuple(NoVersion, NoVersion); },
+        hooks,
+        new_maps);
       if (!r.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);

@@ -3,7 +3,6 @@
 #pragma once
 
 #include "kv_types.h"
-#include "node/entities.h"
 #include "untyped_map_handle.h"
 
 #include <functional>
@@ -40,8 +39,8 @@ namespace kv
   // version which can have a conflict with the transaction.
   //
   // The track_conflicts parameter tells the store if it needs to track the last
-  // read version for every key. This is required for backup execution described
-  // at the top of tx.h
+  // read version for every key. This is required for backup execution as
+  // described at the top of tx.h
 
   static inline std::optional<std::tuple<Version, Version>> apply_changes(
     OrderedChanges& changes,
@@ -57,7 +56,6 @@ namespace kv
     // interleaved fashion.
     Version version = 0;
     bool has_writes = false;
-
     kv::Version max_conflict_version = kv::NoVersion;
 
     std::map<std::string, std::unique_ptr<AbstractCommitter>> views;
@@ -128,17 +126,19 @@ namespace kv
       // Get the version number to be used for this commit.
       kv::Version version_last_new_map;
       std::tie(version, version_last_new_map) = f(!new_maps.empty());
-      max_conflict_version = std::max(max_conflict_version, version_last_new_map);
+      max_conflict_version =
+        std::max(max_conflict_version, version_last_new_map);
 
       if (version > max_conflict_version || !track_conflicts)
       {
-        // Since the tracking of a read version is done in a key-value pair we
-        // cannot track the dependencies of two transactions that depend on a
-        // key-value pair on a map that does not exist yet. We therefore gate
-        // execution pipelining on map creation.
+        // Since the tracking of a read version is done in the key-value pair it
+        // is not possible to track the dependencies of two transactions that
+        // depend on a key-value pair on a map that does not exist yet.
+        // Thus, execution is gated on map creation.
         //
-        // Alternatively, if the prepare could not set a version of max_conflict_version
-        // then we say there is no parallelism
+        // Additionally, if the prepare set max_conflict_version to NoVersion
+        // then the max_conflict_version is set to version - 1 once the
+        // transaction's version has been obtained.
         if (
           track_conflicts &&
           ((!new_maps.empty() && version > 0) ||

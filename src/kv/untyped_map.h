@@ -110,30 +110,42 @@ namespace kv::untyped
         return committed_writes || change_set.has_writes();
       }
 
-      bool prepare(bool track_conflicts, kv::Version& max_conflict_version) override
+      bool prepare(
+        bool track_conflicts, kv::Version& max_conflict_version) override
       {
         auto& roll = map.get_roll();
         auto state = roll.commits->get_tail()->state;
         auto current = roll.commits->get_tail();
 
-        if (map.include_conflict_read_version && track_conflicts)
+        if (change_set.writes.empty())
         {
-          for (auto it = change_set.reads.begin(); it != change_set.reads.end();
-               ++it)
+          if (map.include_conflict_read_version && track_conflicts)
           {
-            // Get the value from the current state.
-            auto search = current->state.get(it->first);
-            if (
-              map.include_conflict_read_version &&
-              max_conflict_version < search->version && search.has_value())
+            for (auto it = change_set.reads.begin();
+                 it != change_set.reads.end();
+                 ++it)
             {
-              max_conflict_version = search->version;
+              auto search = current->state.get(it->first);
+              if (search.has_value())
+              {
+                max_conflict_version =
+                  std::max(max_conflict_version, search->version);
+                max_conflict_version =
+                  std::max(max_conflict_version, search->read_version);
+              }
+              else
+              {
+                // If the key does not exist set the conflict version to version
+                // NoVersion as dependency tracking does not work for keys that
+                // do not exist. The appropriate max_conflict_version will be
+                // set when this transaction's version is assigned.
+                max_conflict_version = kv::NoVersion;
+                break;
+              }
             }
           }
-        }
-
-        if (change_set.writes.empty())
           return true;
+        }
 
         // If the parent map has rolled back since this transaction began, this
         // transaction must fail.
@@ -189,17 +201,14 @@ namespace kv::untyped
                ++it)
           {
             auto search = state.get(it->first);
-            if (max_conflict_version < search->version && search.has_value())
+            if (search.has_value())
             {
-              max_conflict_version = search->version;
+              max_conflict_version =
+                std::max(max_conflict_version, search->version);
+              max_conflict_version =
+                std::max(max_conflict_version, search->read_version);
             }
-            if (
-              max_conflict_version < search->read_version && search.has_value())
-            {
-              max_conflict_version = search->read_version;
-            }
-
-            if (!search.has_value())
+            else
             {
               // If the key does not exist set the conflict version to version
               // NoVersion as dependency tracking does not work for keys that do
@@ -213,16 +222,14 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(
-        Version v,
-        bool track_conflicts) override
+      void commit(Version v, bool track_conflicts) override
       {
         auto& roll = map.get_roll();
         auto current = roll.commits->get_tail();
         auto state = current->state;
 
-        // To track conflicts we need to update the read version of all keys
-        // that are read or written within a transaction.
+        // To track conflicts the read version of all keys that are read or
+        // written within a transaction must be updated.
         if (track_conflicts)
         {
           for (auto it = change_set.reads.begin(); it != change_set.reads.end();

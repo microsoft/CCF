@@ -6,8 +6,8 @@
 // materialized by providing a sequence number after which the current
 // transaction must be run and required that transaction execution is started in
 // the total order.  The current use case for dependency tracking is to enable
-// parallel execution of transactions on the backup, and as such we only track
-// dependencies when running BFT consensus protocol.
+// parallel execution of transactions on the backup, and as such dependencies
+// are tracked when running with the BFT consensus protocol.
 //
 // Dependency tracking follows the following pseudocode
 //
@@ -276,7 +276,8 @@ namespace kv
      */
     CommitResult commit(
       bool track_conflicts = false,
-      std::function<std::tuple<Version, Version>(bool has_new_map)> version_resolver = nullptr,
+      std::function<std::tuple<Version, Version>(bool has_new_map)>
+        version_resolver = nullptr,
       kv::Version replicated_max_conflict_version = kv::NoVersion)
     {
       if (committed)
@@ -303,7 +304,9 @@ namespace kv
       auto c = apply_changes(
         all_changes,
         version_resolver == nullptr ?
-          [store](bool has_new_map) { return store->next_version(has_new_map); } :
+          [store](bool has_new_map) {
+            return store->next_version(has_new_map);
+          } :
           version_resolver,
         hooks,
         created_maps,
@@ -350,7 +353,6 @@ namespace kv
         // Check if a linearizability violation occurred
         if (max_conflict_version > version && version != 0)
         {
-          // Detected a linearizability violation
           LOG_INFO_FMT(
             "Detected linearizability violation - version:{}, "
             "max_conflict_version:{}, replicated_max_conflict_version:{}",
@@ -359,30 +361,24 @@ namespace kv
             replicated_max_conflict_version);
           return CommitResult::FAIL_CONFLICT;
         }
-        else if (
-          max_conflict_version > version &&
-          replicated_max_conflict_version == kv::NoVersion)
+
+        // From here, we have received a unique commit version and made
+        // modifications to our local kv. If we fail in any way, we cannot
+        // recover.
+        try
+        {
+          auto data = serialise();
+
+          if (data.empty())
           {
-            max_conflict_version = version - 1;
+            return CommitResult::SUCCESS;
           }
 
-          // From here, we have received a unique commit version and made
-          // modifications to our local kv. If we fail in any way, we cannot
-          // recover.
-          try
-          {
-            auto data = serialise();
-
-            if (data.empty())
-            {
-              return CommitResult::SUCCESS;
-            }
-
-            return store->commit(
-              {term, version},
-              std::make_unique<MovePendingTx>(
-                std::move(data), std::move(req_id), std::move(hooks)),
-              false);
+          return store->commit(
+            {term, version},
+            std::make_unique<MovePendingTx>(
+              std::move(data), std::move(req_id), std::move(hooks)),
+            false);
         }
         catch (const std::exception& e)
         {
@@ -657,8 +653,7 @@ namespace kv
       std::vector<ConsensusHookPtr> hooks;
       auto c = apply_changes(
         all_changes,
-        [this](bool) { 
-          return std::make_tuple(version, version - 1); },
+        [this](bool) { return std::make_tuple(version, version - 1); },
         hooks,
         created_maps,
         version);

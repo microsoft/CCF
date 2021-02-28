@@ -84,8 +84,8 @@ namespace aft
     ctx->is_create_request = is_create_request;
     ctx->execute_on_node = true;
 
-    enclave::RpcHandler::ProcessBftResp rep =
-      frontend->process_bft(ctx, prescribed_commit_version, max_conflict_version);
+    enclave::RpcHandler::ProcessBftResp rep = frontend->process_bft(
+      ctx, prescribed_commit_version, max_conflict_version);
 
     request->callback(std::move(rep.result));
 

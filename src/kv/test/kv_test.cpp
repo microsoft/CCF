@@ -1463,12 +1463,12 @@ TEST_CASE("Conflict resolution")
   REQUIRE_THROWS(tx2.commit());
 }
 
-TEST_CASE("Primary can create correct execution order") 
+TEST_CASE("Primary can create correct execution order")
 {
   struct TxInfo
   {
     uint32_t id;
-    kv::Version max_conflict_version;
+    kv::Version replicated_max_conflict_version;
   };
   std::vector<TxInfo> txs;
 
@@ -1485,7 +1485,7 @@ TEST_CASE("Primary can create correct execution order")
       handle->get(std::to_string(info.id));
       handle->put(std::to_string(info.id), std::to_string(info.id));
       REQUIRE(tx.commit(true) == kv::CommitResult::SUCCESS);
-      info.max_conflict_version = tx.get_max_conflict_version();
+      info.replicated_max_conflict_version = tx.get_max_conflict_version();
       txs.push_back(info);
     }
   }
@@ -1502,11 +1502,17 @@ TEST_CASE("Primary can create correct execution order")
       auto handle = tx.rw(map);
       handle->get(std::to_string(info.id));
       handle->put(std::to_string(info.id), std::to_string(info.id));
-      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
-      REQUIRE(tx.commit(true, version_resolver, info.max_conflict_version) == kv::CommitResult::SUCCESS);
+      auto version_resolver = [&](bool) {
+        return std::make_tuple(info.id, kv::NoVersion);
+      };
+      REQUIRE(
+        tx.commit(
+          true, version_resolver, info.replicated_max_conflict_version) ==
+        kv::CommitResult::SUCCESS);
     }
 
-    // Verify that we can execute the transaction is a random (reverse order) as there is no dependency
+    // Verify that we can execute the transaction is a random (reverse order) as
+    // there is no dependency
     for (uint32_t i = 4; i > 1; --i)
     {
       TxInfo& info = txs[i];
@@ -1514,8 +1520,13 @@ TEST_CASE("Primary can create correct execution order")
       auto handle = tx.rw(map);
       handle->get(std::to_string(info.id));
       handle->put(std::to_string(info.id), std::to_string(info.id));
-      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
-      REQUIRE(tx.commit(true, version_resolver, info.max_conflict_version) == kv::CommitResult::SUCCESS);
+      auto version_resolver = [&](bool) {
+        return std::make_tuple(info.id, kv::NoVersion);
+      };
+      REQUIRE(
+        tx.commit(
+          true, version_resolver, info.replicated_max_conflict_version) ==
+        kv::CommitResult::SUCCESS);
     }
   }
 }
@@ -1525,7 +1536,7 @@ TEST_CASE("Backup can detect byzantine execution order")
   struct TxInfo
   {
     uint32_t id;
-    kv::Version max_conflict_version;
+    kv::Version replicated_max_conflict_version;
   };
   std::vector<TxInfo> txs;
 
@@ -1558,8 +1569,13 @@ TEST_CASE("Backup can detect byzantine execution order")
       auto handle = tx.rw(map);
       handle->get("key");
       handle->put("key", std::to_string(info.id));
-      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
-      REQUIRE(tx.commit(true, version_resolver, info.max_conflict_version) == kv::CommitResult::SUCCESS);
+      auto version_resolver = [&](bool) {
+        return std::make_tuple(info.id, kv::NoVersion);
+      };
+      REQUIRE(
+        tx.commit(
+          true, version_resolver, info.replicated_max_conflict_version) ==
+        kv::CommitResult::SUCCESS);
     }
 
     // Run the transaction the final transaction so any transaction with a
@@ -1570,8 +1586,13 @@ TEST_CASE("Backup can detect byzantine execution order")
       auto handle = tx.rw(map);
       handle->get("key");
       handle->put("key", std::to_string(info.id));
-      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
-      REQUIRE(tx.commit(true, version_resolver, info.max_conflict_version) == kv::CommitResult::SUCCESS);
+      auto version_resolver = [&](bool) {
+        return std::make_tuple(info.id, kv::NoVersion);
+      };
+      REQUIRE(
+        tx.commit(
+          true, version_resolver, info.replicated_max_conflict_version) ==
+        kv::CommitResult::SUCCESS);
     }
 
     // Validate the incorrectly created tx order cannot commit
@@ -1581,11 +1602,14 @@ TEST_CASE("Backup can detect byzantine execution order")
       auto tx = kv_store_backup.create_tx();
       auto handle = tx.rw(map);
       handle->put("key", std::to_string(info.id));
-      auto version_resolver = [&](bool) { return std::make_tuple(info.id, kv::NoVersion); };
+      auto version_resolver = [&](bool) {
+        return std::make_tuple(info.id, kv::NoVersion);
+      };
       REQUIRE(
-        tx.commit(true, version_resolver, info.max_conflict_version) ==
+        tx.commit(
+          true, version_resolver, info.replicated_max_conflict_version) ==
         kv::CommitResult::FAIL_CONFLICT);
-    } 
+    }
   }
 }
 
