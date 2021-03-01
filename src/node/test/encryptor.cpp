@@ -248,9 +248,8 @@ TEST_CASE("KV encryption/decryption")
 
     // Initialise backup ledger secrets from primary
     auto tx = primary_store.create_tx();
-    auto secrets_so_far = primary_ledger_secrets->get(tx);
-    backup_ledger_secrets =
-      std::make_shared<ccf::LedgerSecrets>(primary_ledger_secrets->get(tx));
+    backup_ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+    backup_ledger_secrets->init_from_map(primary_ledger_secrets->get(tx));
 
     auto primary_encryptor =
       std::make_shared<ccf::NodeEncryptor>(primary_ledger_secrets);
@@ -333,9 +332,8 @@ TEST_CASE("Backup catchup from many ledger secrets")
     // Just like in the join protocol, ledger secrets are passed to the joining
     // node in advance of KV store catch up
     auto tx = primary_store.create_tx();
-    auto secrets_so_far = primary_ledger_secrets->get(tx);
-    backup_ledger_secrets =
-      std::make_shared<ccf::LedgerSecrets>(primary_ledger_secrets->get(tx));
+    backup_ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+    backup_ledger_secrets->init_from_map(primary_ledger_secrets->get(tx));
 
     auto backup_encryptor =
       std::make_shared<ccf::NodeEncryptor>(backup_ledger_secrets);

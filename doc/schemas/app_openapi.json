@@ -170,6 +170,45 @@
         ],
         "type": "object"
       },
+      "LoggingGetHistoricalRange__Entry": {
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "msg": {
+            "$ref": "#/components/schemas/string"
+          },
+          "seqno": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "seqno",
+          "id",
+          "msg"
+        ],
+        "type": "object"
+      },
+      "LoggingGetHistoricalRange__Entry_array": {
+        "items": {
+          "$ref": "#/components/schemas/LoggingGetHistoricalRange__Entry"
+        },
+        "type": "array"
+      },
+      "LoggingGetHistoricalRange__Out": {
+        "properties": {
+          "@nextLink": {
+            "$ref": "#/components/schemas/string"
+          },
+          "entries": {
+            "$ref": "#/components/schemas/LoggingGetHistoricalRange__Entry_array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
+      },
       "LoggingGet__Out": {
         "properties": {
           "msg": {
@@ -623,6 +662,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LoggingGet__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
+    "/log/private/historical/range": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from_seqno",
+            "required": false,
+            "schema": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_seqno",
+            "required": false,
+            "schema": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGetHistoricalRange__Out"
                 }
               }
             },

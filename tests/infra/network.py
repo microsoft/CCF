@@ -960,6 +960,9 @@ def network(
     try:
         yield net
     except Exception:
+        # Don't try to verify txs on Exception path
+        net.txs = None
+
         if pdb:
             import pdb
 
