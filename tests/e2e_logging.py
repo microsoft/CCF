@@ -17,6 +17,7 @@ import tempfile
 import base64
 import json
 import ccf.clients
+from ccf.log_capture import flush_info
 
 from loguru import logger as LOG
 
@@ -455,13 +456,15 @@ def test_historical_query_range(network, args):
     last_seqno = None
 
     def get_all_entries(target_id):
+        LOG.info(f"Getting historical entries from {first_seqno} to {last_seqno} for id {target_id}")
+        logs = []
         with primary.client("user0") as c:
             timeout = 5
             end_time = time.time() + timeout
             entries = []
             path = f"/app/log/private/historical/range?from_seqno={first_seqno}&to_seqno={last_seqno}&id={target_id}"
             while time.time() < end_time:
-                r = c.get(path)
+                r = c.get(path, log_capture=logs)
                 if r.status_code == http.HTTPStatus.OK:
                     j_body = r.body.json()
                     entries += j_body["entries"]
@@ -472,13 +475,18 @@ def test_historical_query_range(network, args):
                         # No @nextLink means we've reached end of range
                         return entries
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
-                    # Ignore retry-after header, just sleep briefly and retry
-                    time.sleep(0.2)
+                    # Ignore retry-after header, retry soon
+                    time.sleep(0.1)
+                    continue
                 else:
+                    LOG.error("Printing historical/range logs on unexpected status")
+                    flush_info(logs, None)
                     raise ValueError(
                         f"Unexpected status code from historical range query: {r.status_code}"
                     )
 
+        LOG.error("Printing historical/range logs on timeout")
+        flush_info(logs, None)
         raise TimeoutError(f"Historical range not available after {timeout}s")
 
     with primary.client("user0") as c:
