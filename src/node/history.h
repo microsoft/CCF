@@ -448,8 +448,6 @@ namespace ccf
 
     crypto::KeyPair& kp;
 
-    std::map<RequestID, std::vector<uint8_t>> requests;
-
     threading::Task::TimerEntry emit_signature_timer_entry;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
@@ -776,7 +774,6 @@ namespace ccf
       uint8_t frame_format) override
     {
       LOG_DEBUG_FMT("HISTORY: add_request {0}", id);
-      requests[id] = request;
 
       auto consensus = store.get_consensus();
       if (!consensus)

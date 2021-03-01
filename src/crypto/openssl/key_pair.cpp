@@ -7,6 +7,7 @@
 #include "hash.h"
 #include "openssl_wrappers.h"
 
+#include <openssl/asn1.h>
 #include <openssl/ec.h>
 #include <openssl/engine.h>
 #include <openssl/err.h>
@@ -230,8 +231,10 @@ namespace crypto
     OpenSSL::CHECKNULL(after = ASN1_TIME_new());
     OpenSSL::CHECK1(ASN1_TIME_set_string(before, "20191101000000Z"));
     OpenSSL::CHECK1(ASN1_TIME_set_string(after, "20211231235959Z"));
-    X509_set1_notBefore(crt, before);
-    X509_set1_notAfter(crt, after);
+    OpenSSL::CHECK1(ASN1_TIME_normalize(before));
+    OpenSSL::CHECK1(ASN1_TIME_normalize(after));
+    OpenSSL::CHECK1(X509_set1_notBefore(crt, before));
+    OpenSSL::CHECK1(X509_set1_notAfter(crt, after));
     ASN1_TIME_free(before);
     ASN1_TIME_free(after);
 

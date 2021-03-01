@@ -5,10 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.18.4]
+
+### Changed
+
+- `set_ca_cert`/`remove_ca_cert` proposals have been renamed `set_ca_cert_bundle`/`remove_ca_cert_bundle` and now also accept a bundle of certificates encoded as concatenated PEM string (#2221).
+
 ## [0.18.3]
 
-### Added
+### Changed
 
+- Fixed format of `notBefore` and `notAfter` in node and network certificates (#2243).
 - CCF now depends on [Open Enclave 0.14](https://github.com/openenclave/openenclave/releases/tag/v0.14.0).
 
 ## [0.18.2]
@@ -693,6 +700,9 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.18.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.4
+[0.18.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.3
+[0.18.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.2
 [0.18.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.1
 [0.18.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.0
 [0.17.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.17.2
