@@ -80,6 +80,8 @@ namespace ccf::historical
       crypto::Sha256Hash entry_digest = {};
       StorePtr store = nullptr;
       bool is_signature = false;
+      std::vector<uint8_t> signature = {};
+      std::vector<uint8_t> proof = {};
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
 
@@ -247,6 +249,9 @@ namespace ccf::historical
                     return UpdateTrustedResult::Invalidated;
                   }
 
+                  details->signature = sig->sig;
+                  auto receipt = tree.get_receipt(seqno);
+                  details->proof = receipt.to_v();
                   details->current_stage = RequestStage::Trusted;
                 }
               }
@@ -277,6 +282,9 @@ namespace ccf::historical
                     return UpdateTrustedResult::Invalidated;
                   }
 
+                  new_details->signature = sig->sig;
+                  auto receipt = tree.get_receipt(new_seqno);
+                  new_details->proof = receipt.to_v();
                   new_details->current_stage = RequestStage::Trusted;
                 }
 
@@ -303,6 +311,9 @@ namespace ccf::historical
                   return UpdateTrustedResult::Invalidated;
                 }
 
+                new_details->signature = sig->sig;
+                auto receipt = tree.get_receipt(new_seqno);
+                new_details->proof = receipt.to_v();
                 new_details->current_stage = RequestStage::Trusted;
               }
             }
