@@ -219,7 +219,7 @@ class Response:
 
         raw_body = response.read()
 
-        view, seqno = parse_tx_id(rr.headers.get(CCF_TX_ID_HEADER))
+        view, seqno = parse_tx_id(response.getheader(CCF_TX_ID_HEADER))
         return Response(
             response.status,
             body=RawResponseBody(raw_body),

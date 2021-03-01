@@ -161,7 +161,7 @@ namespace timing
     {
       return std::nullopt;
     }
-    
+
     return ccf::TxID::from_str(it->second);
   }
 
@@ -212,9 +212,7 @@ namespace timing
     }
 
     void record_receive(
-      size_t rpc_id,
-      const optional<ccf::TxID>& tx_id,
-      size_t global_seqno = 0)
+      size_t rpc_id, const optional<ccf::TxID>& tx_id, size_t global_seqno = 0)
     {
       receives.push_back(
         {Clock::now() - start_time, rpc_id, tx_id, global_seqno});
