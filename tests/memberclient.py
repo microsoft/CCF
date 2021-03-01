@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import http
 import re
-import random
 
 import infra.e2e_args
 import infra.network
@@ -17,7 +16,7 @@ from loguru import logger as LOG
 
 @reqs.description("Send an unsigned request where signature is required")
 def test_missing_signature_header(network, args):
-    node = args.choose_node(network)
+    node = network.find_node_by_role()
     member = network.consortium.get_any_active_member()
     with node.client(f"member{member.member_id}") as mc:
         r = mc.post("/gov/proposals")
@@ -81,7 +80,7 @@ def modified_signature(request):
 
 @reqs.description("Send a corrupted signature where signed request is required")
 def test_corrupted_signature(network, args):
-    node = args.choose_node(network)
+    node = network.find_node_by_role()
 
     # Test each supported curve
     for curve in infra.network.ParticipantsCurve:
@@ -115,7 +114,7 @@ def test_corrupted_signature(network, args):
 
 @reqs.description("Test various governance operations")
 def test_governance(network, args):
-    node = args.choose_node(network)
+    node = network.find_node_by_role()
     primary, _ = network.find_primary()
 
     LOG.info("Original members can ACK")
@@ -230,9 +229,6 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        args.choose_node = random.choice(
-            [lambda n: n.find_any_backup(), lambda n: n.find_primary()[0]]
-        )
 
         network = test_missing_signature_header(network, args)
         network = test_corrupted_signature(network, args)

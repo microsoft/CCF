@@ -4,7 +4,6 @@ import os
 import sys
 import http
 import subprocess
-import random
 import infra.network
 import infra.path
 import infra.proc
@@ -175,7 +174,7 @@ def test_node_ids(network, args):
 
 @reqs.description("Checking service principals proposals")
 def test_service_principals(network, args):
-    node = args.choose_node(network)
+    node = network.find_node_by_role()
 
     principal_id = "0xdeadbeef"
     ballot = {"ballot": {"text": "return true"}}
@@ -241,9 +240,6 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        args.choose_node = random.choice(
-            [lambda n: n.find_any_backup(), lambda n: n.find_primary()[0]]
-        )
 
         network = test_node_ids(network, args)
         network = test_member_data(network, args)
