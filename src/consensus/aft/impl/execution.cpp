@@ -52,7 +52,9 @@ namespace aft
   kv::Version ExecutorImpl::execute_request(
     std::unique_ptr<RequestMessage> request,
     bool is_create_request,
-    std::shared_ptr<aft::RequestTracker> request_tracker)
+    kv::Consensus::SeqNo prescribed_commit_version,
+    std::shared_ptr<aft::RequestTracker> request_tracker,
+    kv::Consensus::SeqNo max_conflict_version)
   {
     std::shared_ptr<enclave::RpcContext>& ctx = request->get_request_ctx().ctx;
     std::shared_ptr<enclave::RpcHandler>& frontend =
@@ -81,9 +83,9 @@ namespace aft
 
     ctx->is_create_request = is_create_request;
     ctx->execute_on_node = true;
-    ctx->set_apply_writes(true);
 
-    enclave::RpcHandler::ProcessBftResp rep = frontend->process_bft(ctx);
+    enclave::RpcHandler::ProcessBftResp rep = frontend->process_bft(
+      ctx, prescribed_commit_version, max_conflict_version);
 
     request->callback(std::move(rep.result));
 
@@ -118,7 +120,8 @@ namespace aft
   kv::Version ExecutorImpl::commit_replayed_request(
     kv::Tx& tx,
     std::shared_ptr<aft::RequestTracker> request_tracker,
-    kv::Consensus::SeqNo committed_seqno)
+    kv::Consensus::SeqNo prescribed_commit_version,
+    kv::Consensus::SeqNo max_conflict_version)
   {
     auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
     auto req_v = aft_requests->get(0);
@@ -133,6 +136,10 @@ namespace aft
       std::move(request.raw), request.rid, std::move(ctx), nullptr);
 
     return execute_request(
-      std::move(request_message), state->commit_idx == 0, request_tracker);
+      std::move(request_message),
+      state->commit_idx == 0,
+      prescribed_commit_version,
+      request_tracker,
+      max_conflict_version);
   }
 }

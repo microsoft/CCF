@@ -251,6 +251,12 @@ namespace aft
       {
         return 0;
       }
+
+      kv::Version get_max_conflict_version() override
+      {
+        return kv::NoVersion;
+      }
+
       ccf::PrimarySignature& get_signature() override
       {
         throw std::logic_error("Not Implemented");
