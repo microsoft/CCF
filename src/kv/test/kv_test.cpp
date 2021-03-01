@@ -1493,16 +1493,17 @@ TEST_CASE("Primary can create correct execution order")
   // Execute on backup
   {
     kv::Store kv_store_backup;
-    MapTypes::StringString map("public:map");
+    MapTypes::NumNum map("public:map");
 
     // create the map on the backup
     {
       TxInfo& info = txs[0];
       auto tx = kv_store_backup.create_tx();
       auto handle = tx.rw(map);
-      handle->get(std::to_string(info.id));
-      handle->put(std::to_string(info.id), std::to_string(info.id));
+      handle->get(info.id);
+      handle->put(info.id, info.id);
       auto version_resolver = [&](bool) {
+        kv_store_backup.next_version();
         return std::make_tuple(info.id, kv::NoVersion);
       };
       REQUIRE(
@@ -1511,22 +1512,35 @@ TEST_CASE("Primary can create correct execution order")
         kv::CommitResult::SUCCESS);
     }
 
-    // Verify that we can execute the transaction is a random (reverse order) as
+    // Verify that transactions can be execute in a random (reverse order) as
     // there is no dependency
-    for (uint32_t i = 4; i > 1; --i)
+    for (uint32_t i = 4; i > 0; --i)
     {
       TxInfo& info = txs[i];
       auto tx = kv_store_backup.create_tx();
       auto handle = tx.rw(map);
-      handle->get(std::to_string(info.id));
-      handle->put(std::to_string(info.id), std::to_string(info.id));
+      handle->get(info.id);
+      handle->put(info.id, info.id);
       auto version_resolver = [&](bool) {
-        return std::make_tuple(info.id, kv::NoVersion);
+        kv_store_backup.next_version();
+        return std::make_tuple(info.id, 0);
       };
       REQUIRE(
         tx.commit(
           true, version_resolver, info.replicated_max_conflict_version) ==
         kv::CommitResult::SUCCESS);
+    }
+
+    // Verify that the values can be read back
+    for (uint32_t i = 4; i > 1; --i)
+    {
+      TxInfo& info = txs[2];
+      auto tx = kv_store_backup.create_tx();
+      auto handle = tx.rw(map);
+      auto ret_value = handle->get(info.id);
+      REQUIRE(ret_value.has_value());
+      size_t value = ret_value.value();
+      REQUIRE(value == info.id);
     }
   }
 }
@@ -1570,6 +1584,7 @@ TEST_CASE("Backup can detect byzantine execution order")
       handle->get("key");
       handle->put("key", std::to_string(info.id));
       auto version_resolver = [&](bool) {
+        kv_store_backup.next_version();
         return std::make_tuple(info.id, kv::NoVersion);
       };
       REQUIRE(
@@ -1587,6 +1602,7 @@ TEST_CASE("Backup can detect byzantine execution order")
       handle->get("key");
       handle->put("key", std::to_string(info.id));
       auto version_resolver = [&](bool) {
+        kv_store_backup.next_version();
         return std::make_tuple(info.id, kv::NoVersion);
       };
       REQUIRE(
@@ -1603,6 +1619,7 @@ TEST_CASE("Backup can detect byzantine execution order")
       auto handle = tx.rw(map);
       handle->put("key", std::to_string(info.id));
       auto version_resolver = [&](bool) {
+        kv_store_backup.next_version();
         return std::make_tuple(info.id, kv::NoVersion);
       };
       REQUIRE(

@@ -31,7 +31,7 @@ namespace kv
 
     SpinLock version_lock;
     Version version = 0;
-    Version last_new_map = -1;
+    Version last_new_map = kv::NoVersion;
     Version compacted = 0;
     Term term = 0;
     Version last_replicated = 0;
@@ -124,7 +124,8 @@ namespace kv
 
     Version next_version_internal()
     {
-      // Get the next global version. If we would go negative, wrap to 0.
+      // Get the next global version. If the version becomes negative, wrap to
+      // 0.
       ++version;
 
       if (version < 0)

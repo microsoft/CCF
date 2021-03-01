@@ -305,9 +305,7 @@ namespace kv
       auto c = apply_changes(
         all_changes,
         version_resolver == nullptr ?
-          [&](bool has_new_map) {
-            return store->next_version(has_new_map);
-          } :
+          [&](bool has_new_map) { return store->next_version(has_new_map); } :
           version_resolver,
         hooks,
         created_maps,
