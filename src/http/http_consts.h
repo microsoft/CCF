@@ -19,7 +19,6 @@ namespace http
     static constexpr auto RETRY_AFTER = "retry-after";
     static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
 
-    // TODO: CHANGELOG
     static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
   }
 
