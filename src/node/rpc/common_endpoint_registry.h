@@ -205,6 +205,8 @@ namespace ccf
         json_command_adapter(endpoint_metrics_fn),
         no_auth_required)
         .set_auto_schema<void, EndpointMetrics::Out>()
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
       auto get_receipt = [this](auto&, nlohmann::json&& params) {

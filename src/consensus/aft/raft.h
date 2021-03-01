@@ -1414,7 +1414,10 @@ namespace aft
             if (consensus_type == ConsensusType::BFT)
             {
               state->last_idx = executor->commit_replayed_request(
-                ds->get_tx(), request_tracker, state->commit_idx);
+                ds->get_tx(),
+                request_tracker,
+                state->last_idx,
+                ds->get_max_conflict_version());
             }
             break;
           }
