@@ -357,7 +357,7 @@ def get_jwt_refresh_endpoint_metrics(network) -> dict:
 def test_jwt_key_auto_refresh(network, args):
     primary, _ = network.find_nodes()
 
-    ca_cert_name = "jwt"
+    ca_cert_bundle_name = "jwt"
     kid = "my_kid"
     issuer_host = "localhost"
     issuer_port = 12345
@@ -367,10 +367,12 @@ def test_jwt_key_auto_refresh(network, args):
     cert_pem = infra.crypto.generate_cert(key_priv_pem, cn=issuer_host)
 
     LOG.info("Add CA cert for JWT issuer")
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_fp:
-        ca_cert_fp.write(cert_pem)
-        ca_cert_fp.flush()
-        network.consortium.set_ca_cert(primary, ca_cert_name, ca_cert_fp.name)
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
+        ca_cert_bundle_fp.write(cert_pem)
+        ca_cert_bundle_fp.flush()
+        network.consortium.set_ca_cert_bundle(
+            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
+        )
 
     LOG.info("Start OpenID endpoint server")
     jwks = create_jwks(kid, cert_pem)
@@ -378,7 +380,11 @@ def test_jwt_key_auto_refresh(network, args):
         LOG.info("Add JWT issuer with auto-refresh")
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump(
-                {"issuer": issuer, "auto_refresh": True, "ca_cert_name": ca_cert_name},
+                {
+                    "issuer": issuer,
+                    "auto_refresh": True,
+                    "ca_cert_bundle_name": ca_cert_bundle_name,
+                },
                 metadata_fp,
             )
             metadata_fp.flush()
@@ -423,7 +429,7 @@ def test_jwt_key_auto_refresh(network, args):
 def test_jwt_key_initial_refresh(network, args):
     primary, _ = network.find_nodes()
 
-    ca_cert_name = "jwt"
+    ca_cert_bundle_name = "jwt"
     kid = "my_kid"
     issuer_host = "localhost"
     issuer_port = 12345
@@ -433,10 +439,12 @@ def test_jwt_key_initial_refresh(network, args):
     cert_pem = infra.crypto.generate_cert(key_priv_pem, cn=issuer_host)
 
     LOG.info("Add CA cert for JWT issuer")
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_fp:
-        ca_cert_fp.write(cert_pem)
-        ca_cert_fp.flush()
-        network.consortium.set_ca_cert(primary, ca_cert_name, ca_cert_fp.name)
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
+        ca_cert_bundle_fp.write(cert_pem)
+        ca_cert_bundle_fp.flush()
+        network.consortium.set_ca_cert_bundle(
+            primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
+        )
 
     LOG.info("Start OpenID endpoint server")
     jwks = create_jwks(kid, cert_pem)
@@ -444,7 +452,11 @@ def test_jwt_key_initial_refresh(network, args):
         LOG.info("Add JWT issuer with auto-refresh")
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump(
-                {"issuer": issuer, "auto_refresh": True, "ca_cert_name": ca_cert_name},
+                {
+                    "issuer": issuer,
+                    "auto_refresh": True,
+                    "ca_cert_bundle_name": ca_cert_bundle_name,
+                },
                 metadata_fp,
             )
             metadata_fp.flush()
