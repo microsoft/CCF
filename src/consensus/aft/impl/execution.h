@@ -37,7 +37,9 @@ namespace aft
     virtual kv::Version execute_request(
       std::unique_ptr<RequestMessage> request,
       bool is_create_request,
-      std::shared_ptr<aft::RequestTracker> request_tracker = nullptr) = 0;
+      kv::Consensus::SeqNo prescribed_commit_version = kv::NoVersion,
+      std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
+      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) = 0;
 
     virtual std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args,
@@ -46,7 +48,8 @@ namespace aft
     virtual kv::Version commit_replayed_request(
       kv::Tx& tx,
       std::shared_ptr<aft::RequestTracker> request_tracker,
-      kv::Consensus::SeqNo committed_seqno) = 0;
+      kv::Consensus::SeqNo prescribed_commit_version,
+      kv::Consensus::SeqNo max_conflict_version) = 0;
   };
 
   class ExecutorImpl : public Executor
@@ -69,7 +72,9 @@ namespace aft
     kv::Version execute_request(
       std::unique_ptr<RequestMessage> request,
       bool is_create_request,
-      std::shared_ptr<aft::RequestTracker> request_tracker = nullptr) override;
+      kv::Consensus::SeqNo prescribed_commit_version = kv::NoVersion,
+      std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
+      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) override;
 
     std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args,
@@ -78,7 +83,8 @@ namespace aft
     kv::Version commit_replayed_request(
       kv::Tx& tx,
       std::shared_ptr<aft::RequestTracker> request_tracker,
-      kv::Consensus::SeqNo committed_seqno) override;
+      kv::Consensus::SeqNo prescribed_commit_version,
+      kv::Consensus::SeqNo max_conflict_version) override;
 
   private:
     std::shared_ptr<State> state;

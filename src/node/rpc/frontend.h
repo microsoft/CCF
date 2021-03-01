@@ -141,7 +141,9 @@ namespace ccf
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
-      const PreExec& pre_exec = {})
+      const PreExec& pre_exec = {},
+      kv::Version prescribed_commit_version = kv::NoVersion,
+      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion)
     {
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
@@ -284,7 +286,26 @@ namespace ccf
             return ctx->serialise_response();
           }
 
-          switch (tx.commit())
+          kv::CommitResult result;
+          bool track_read_versions =
+            (consensus != nullptr && consensus->type() == ConsensusType::BFT);
+          if (prescribed_commit_version != kv::NoVersion)
+          {
+            CCF_ASSERT(
+              consensus->type() == ConsensusType::BFT, "Wrong consensus type");
+            auto version_resolver = [&](bool) {
+              tables.next_version();
+              return std::make_tuple(prescribed_commit_version, kv::NoVersion);
+            };
+            result = tx.commit(
+              track_read_versions, version_resolver, max_conflict_version);
+          }
+          else
+          {
+            result = tx.commit(track_read_versions);
+          }
+
+          switch (result)
           {
             case kv::CommitResult::SUCCESS:
             {
@@ -557,10 +578,13 @@ namespace ccf
     }
 
     ProcessBftResp process_bft(
-      std::shared_ptr<enclave::RpcContext> ctx) override
+      std::shared_ptr<enclave::RpcContext> ctx,
+      kv::Consensus::SeqNo prescribed_commit_version,
+      kv::Consensus::SeqNo max_conflict_version) override
     {
       auto tx = tables.create_tx();
-      return process_bft(ctx, tx);
+      return process_bft(
+        ctx, tx, prescribed_commit_version, max_conflict_version);
     }
 
     /** Process a serialised command with the associated RPC context via BFT
@@ -568,7 +592,10 @@ namespace ccf
      * @param ctx Context for this RPC
      */
     ProcessBftResp process_bft(
-      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
+      std::shared_ptr<enclave::RpcContext> ctx,
+      kv::Tx& tx,
+      kv::Consensus::SeqNo prescribed_commit_version = kv::NoVersion,
+      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) override
     {
       // Note: this can only happen if the primary is malicious,
       // and has executed a user transaction when the service wasn't
@@ -592,7 +619,8 @@ namespace ccf
            ctx.frame_format()});
       };
 
-      auto rep = process_command(ctx, tx, fn);
+      auto rep = process_command(
+        ctx, tx, fn, prescribed_commit_version, max_conflict_version);
 
       version = tx.get_version();
       return {std::move(rep.value()), version};
