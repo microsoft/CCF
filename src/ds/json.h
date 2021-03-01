@@ -505,7 +505,7 @@ namespace std
  *   std::string s;
  *  };
  *  DECLARE_JSON_TYPE(Z);
- *  DECLARE_JSON_REQUIRE_FIELDS_WITH_RENAMES(
+ *  DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
  *    Z, snake_case, camelCase, s, msg);
  *
  *  Valid JSON:
@@ -710,14 +710,14 @@ namespace std
     (POP2)(READ_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
   } \
   inline void fill_json_schema_optional_fields( \
-    nlohmann::json& j, const TYPE& t) \
+    nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(FILL_SCHEMA_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
   } \
   template <typename T> \
   void add_schema_components_optional_fields( \
-    T& doc, nlohmann::json& j, const TYPE& t) \
+    T& doc, nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__); \

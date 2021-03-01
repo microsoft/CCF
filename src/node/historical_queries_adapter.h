@@ -2,43 +2,19 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/ledger_enclave_types.h"
-#include "kv/store.h"
+#include "ccf/historical_queries_interface.h"
 #include "node/rpc/endpoint_registry.h"
-
-#include <memory>
 
 namespace ccf::historical
 {
-  using StorePtr = std::shared_ptr<kv::Store>;
-
-  class AbstractStateCache
-  {
-  public:
-    virtual ~AbstractStateCache() = default;
-
-    virtual StorePtr get_store_at(consensus::Index idx) = 0;
-  };
-
-  class StubStateCache : public AbstractStateCache
-  {
-  public:
-    StorePtr get_store_at(consensus::Index) override
-    {
-      return nullptr;
-    }
-  };
-
   using CheckAvailability = std::function<bool(
-    kv::Consensus::View view,
-    kv::Consensus::SeqNo seqno,
-    std::string& error_reason)>;
+    kv::Consensus::View view, kv::SeqNo seqno, std::string& error_reason)>;
 
   using HandleHistoricalQuery = std::function<void(
     ccf::EndpointContext& args,
     StorePtr store,
     kv::Consensus::View view,
-    kv::Consensus::SeqNo seqno)>;
+    kv::SeqNo seqno)>;
 
 // Unused in most sample apps
 #pragma clang diagnostic push
@@ -51,7 +27,7 @@ namespace ccf::historical
     return [f, &state_cache, available](EndpointContext& args) {
       // Extract the requested transaction ID
       kv::Consensus::View target_view;
-      kv::Consensus::SeqNo target_seqno;
+      kv::SeqNo target_seqno;
 
       {
         const auto target_view_opt =
@@ -125,14 +101,22 @@ namespace ccf::historical
         }
       }
 
+      // We need a handle to determine whether this request is the 'same' as a
+      // previous one. For simplicity we use target_seqno. This means we keep a
+      // lot of state around for old requests! It should be cleaned up manually
+      const auto historic_request_handle = target_seqno;
+
       // Get a store at the target version from the cache, if it is present
-      auto historical_store = state_cache.get_store_at(target_seqno);
+      auto historical_store =
+        state_cache.get_store_at(historic_request_handle, target_seqno);
       if (historical_store == nullptr)
       {
         args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
         static constexpr size_t retry_after_seconds = 3;
         args.rpc_ctx->set_response_header(
           http::headers::RETRY_AFTER, retry_after_seconds);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
         args.rpc_ctx->set_response_body(fmt::format(
           "Historical transaction at seqno {} in view {} is not currently "
           "available.",
