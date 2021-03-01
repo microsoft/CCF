@@ -9,7 +9,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   find_package(Git)
 
   execute_process(
-    COMMAND ${GIT_EXECUTABLE} describe --tags
+    COMMAND "bash" "-c" "${GIT_EXECUTABLE} describe --tags | grep ccf-"
     OUTPUT_VARIABLE "CCF_VERSION"
     OUTPUT_STRIP_TRAILING_WHITESPACE
     RESULT_VARIABLE RETURN_CODE
@@ -17,7 +17,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   if(NOT RETURN_CODE STREQUAL "0")
     message(
       FATAL_ERROR
-        "Git repository does not appear to contain any tag (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)"
+        "Git repository does not appear to contain any tag starting with ccf- (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)"
     )
   endif()
   execute_process(
