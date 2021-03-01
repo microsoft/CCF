@@ -42,9 +42,13 @@ namespace kv
   // last read version for every key. This is required for backup execution as
   // described at the top of tx.h
 
+  using VersionLastNewMap = Version;
+  using VersionResolver = std::function<std::tuple<Version, VersionLastNewMap>(
+    bool tx_contains_new_map)>;
+
   static inline std::optional<std::tuple<Version, Version>> apply_changes(
     OrderedChanges& changes,
-    std::function<std::tuple<Version, Version>(bool)> f,
+    VersionResolver version_resolver_fn,
     kv::ConsensusHookPtrs& hooks,
     const MapCollection& new_maps = {},
     const std::optional<Version>& new_maps_conflict_version = std::nullopt,
@@ -125,7 +129,8 @@ namespace kv
     {
       // Get the version number to be used for this commit.
       kv::Version version_last_new_map;
-      std::tie(version, version_last_new_map) = f(!new_maps.empty());
+      std::tie(version, version_last_new_map) =
+        version_resolver_fn(!new_maps.empty());
       max_conflict_version =
         std::max(max_conflict_version, version_last_new_map);
 
