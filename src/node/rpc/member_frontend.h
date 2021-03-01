@@ -2112,25 +2112,6 @@ namespace ccf
               "{:02x}", fmt::join(caller_identity.request_digest, ""));
           }
 
-          /*
-          Proposal proposal(in.script, in.parameter, caller_identity.member_id);
-          auto proposals = ctx.tx.rw(this->network.proposals);
-          // Introduce a read dependency, so that if identical proposal
-          creations
-          // are in-flight and reading at the same version, all except the first
-          // conflict and are re-executed. If we ever produce a proposal ID
-          which
-          // already exists, we must have a hash collision.
-          if (proposals->has(proposal_id))
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Proposal ID collision.");
-          }
-          proposals->put(proposal_id, proposal);
-          */
-
           js::JSAutoFreeRuntime rt;
           js::JSAutoFreeCtx context(rt);
           auto constitution = ctx.tx.ro(network.constitution)->get(0);
@@ -2173,11 +2154,13 @@ namespace ccf
 
           assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
           auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
+          /*
           if (JS_GetModuleExportEntriesCount(module_def) != 1)
           {
             throw std::runtime_error(
               "Endpoint module exports more than one function");
           }
+          */
           auto export_func = JS_GetModuleExportEntry(context, module_def, 0);
           if (!JS_IsFunction(context, export_func))
           {

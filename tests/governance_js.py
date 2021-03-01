@@ -71,7 +71,7 @@ def test_ballot_storage(network, args):
         assert r.status_code == 200, r.body.text()
         pid = r.body.json()["proposal_id"]
 
-        vote = {"ballot": "function (proposal, proposer_id, tx) { return true }"}
+        vote = {"ballot": "export function vote (proposal, proposer_id, tx) { return true }"}
         r = c.post(f"/gov/proposals.js/{pid}/votes", vote)
         assert r.status_code == 200, r.body.text()
 

@@ -41,3 +41,7 @@ export function validate(input) {
   }
   return { valid: errors.length == 0, description: errors.join("\n") }
 }
+
+export function resolve(proposal, votes, tx) {
+  return "PENDING" // "PASSED" "REJECTED"
+}
