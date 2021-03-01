@@ -174,13 +174,13 @@ def test_node_ids(network, args):
 
 @reqs.description("Checking service principals proposals")
 def test_service_principals(network, args):
-    primary, _ = network.find_nodes()
+    node = network.find_node_by_role()
 
     principal_id = "0xdeadbeef"
     ballot = {"ballot": {"text": "return true"}}
 
     def read_service_principal():
-        with primary.client("member0") as mc:
+        with node.client("member0") as mc:
             return mc.post(
                 "/gov/read",
                 {"table": "public:gov.service_principals", "key": principal_id},
@@ -201,8 +201,8 @@ def test_service_principals(network, args):
             "data": principal_data,
         },
     }
-    proposal = network.consortium.get_any_active_member().propose(primary, proposal)
-    network.consortium.vote_using_majority(primary, proposal, ballot)
+    proposal = network.consortium.get_any_active_member().propose(node, proposal)
+    network.consortium.vote_using_majority(node, proposal, ballot)
 
     # Confirm it can be read
     r = read_service_principal()
@@ -219,8 +219,8 @@ def test_service_principals(network, args):
             "id": principal_id,
         },
     }
-    proposal = network.consortium.get_any_active_member().propose(primary, proposal)
-    network.consortium.vote_using_majority(primary, proposal, ballot)
+    proposal = network.consortium.get_any_active_member().propose(node, proposal)
+    network.consortium.vote_using_majority(node, proposal, ballot)
 
     # Confirm it is gone
     r = read_service_principal()
@@ -240,6 +240,7 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+
         network = test_node_ids(network, args)
         network = test_member_data(network, args)
         network = test_quote(network, args)

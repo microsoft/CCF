@@ -25,6 +25,12 @@ JOIN_TIMEOUT = 40
 COMMON_FOLDER = "common"
 
 
+class NodeRole(Enum):
+    ANY = 0
+    PRIMARY = 1
+    BACKUP = 2
+
+
 class ServiceStatus(Enum):
     OPENING = 1
     OPEN = 2
@@ -737,6 +743,15 @@ class Network:
 
     def find_any_backup(self, primary=None, timeout=3):
         return random.choice(self.find_backups(primary=primary, timeout=timeout))
+
+    def find_node_by_role(self, role=NodeRole.ANY):
+        role_ = (
+            random.choice([NodeRole.PRIMARY, NodeRole.BACKUP]) if NodeRole.ANY else role
+        )
+        if role_ == NodeRole.PRIMARY:
+            return self.find_primary()[0]
+        else:
+            return self.find_any_backup()
 
     def find_nodes(self, timeout=3):
         primary, _ = self.find_primary(timeout=timeout)
