@@ -662,9 +662,9 @@ namespace ccf
       auto it = certificates.find(tx_id.version);
       if (it == certificates.end())
       {
-        // We currently do not know what the root is, so lets save this
-        // signature and and we will verify the root when we get it from the
-        // primary
+        // The root is currently not know, so this
+        // signature is saved and and will be verify when the root can be
+        // retrieved from the primary signature get it from the primary
         auto r =
           certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
             tx_id.version, CommitCert()));
@@ -677,8 +677,6 @@ namespace ccf
           !store->verify_signature(
             node_id, it->second.root, signature_size, sig.data()))
         {
-          // NOTE: We need to handle this case but for now having this make a
-          // test fail will be very handy
           throw ccf::ccf_logic_error(fmt::format(
             "add_signatures: Signature verification from {} FAILED, view:{}, "
             "seqno:{}",

@@ -175,9 +175,9 @@ namespace aft
         requests_list_.get_tail()->time > time)
       {
         // Time is not a precise measurement and can be different
-        // on different threads to ensure that the time values we store  are
-        // correctly ordered we will just reuse the time value of the last
-        // inserted item
+        // on different threads. To ensure that the time values are
+        // correctly ordered reuse the time value of the last
+        // inserted item if the new item's time is not the highest known value.
         time = requests_list_.get_tail()->time;
       }
       auto r = std::make_unique<Request>(hash, time);
