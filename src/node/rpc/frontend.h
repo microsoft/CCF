@@ -615,6 +615,7 @@ namespace ccf
 
       update_consensus();
       auto tx = tables.create_tx();
+      set_root_on_proposals(*ctx, tx);
 
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (

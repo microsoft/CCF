@@ -35,7 +35,6 @@ def mem_stats(network):
 
 
 def run(args):
-
     chosen_suite = []
 
     if not args.test_suite:
