@@ -258,7 +258,7 @@ namespace ccfapp
       else if (algo_name == "RSA-OAEP-AES-KWP")
       {
         auto aes_key_size_value =
-          auto_free(JS_GetPropertyStr(ctx, parameters, "aes_key_size"));
+          auto_free(JS_GetPropertyStr(ctx, parameters, "aesKeySize"));
         int32_t aes_key_size = 0;
         if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value) < 0)
         {

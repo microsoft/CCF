@@ -42,7 +42,7 @@ namespace crypto
      *
      * @return Wrapped data
      */
-    virtual std::vector<uint8_t> wrap(
+    virtual std::vector<uint8_t> rsa_oaep_wrap(
       const uint8_t* input,
       size_t input_size,
       const uint8_t* label = nullptr,
@@ -56,7 +56,7 @@ namespace crypto
      *
      * @return Wrapped data
      */
-    virtual std::vector<uint8_t> wrap(
+    virtual std::vector<uint8_t> rsa_oaep_wrap(
       const std::vector<uint8_t>& input,
       std::optional<std::vector<std::uint8_t>> label = std::nullopt) = 0;
 

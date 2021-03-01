@@ -24,7 +24,7 @@ namespace crypto
 
     virtual size_t key_size() const override;
 
-    virtual std::vector<uint8_t> unwrap(
+    virtual std::vector<uint8_t> rsa_oaep_unwrap(
       const std::vector<uint8_t>& input,
       std::optional<std::vector<std::uint8_t>> label = std::nullopt) override;
 

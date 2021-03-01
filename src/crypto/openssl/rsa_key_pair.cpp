@@ -43,7 +43,7 @@ namespace crypto
     return RSAPublicKey_OpenSSL::key_size();
   }
 
-  std::vector<uint8_t> RSAKeyPair_OpenSSL::unwrap(
+  std::vector<uint8_t> RSAKeyPair_OpenSSL::rsa_oaep_unwrap(
     const std::vector<uint8_t>& input,
     std::optional<std::vector<std::uint8_t>> label)
   {

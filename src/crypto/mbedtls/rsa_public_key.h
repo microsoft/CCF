@@ -30,13 +30,13 @@ namespace crypto
 
     virtual size_t key_size() const;
 
-    virtual std::vector<uint8_t> wrap(
+    virtual std::vector<uint8_t> rsa_oaep_wrap(
       const uint8_t* input,
       size_t input_size,
       const uint8_t* label = nullptr,
       size_t label_size = 0);
 
-    virtual std::vector<uint8_t> wrap(
+    virtual std::vector<uint8_t> rsa_oaep_wrap(
       const std::vector<uint8_t>& input,
       std::optional<std::vector<std::uint8_t>> label = std::nullopt);
 

@@ -36,14 +36,14 @@ interface RsaOaepParams extends WrapAlgoParams {
 }
 
 interface RsaOaepAesParams extends WrapAlgoParams {
-  aes_key_size: number; // in bits
+  aesKeySize: number; // in bits
   label?: Base64;
 }
 
 interface WrapKeyRequest {
   key: Base64; // typically an AES key
   wrappingKey: Base64; // base64 encoding of PEM-encoded RSA public key or AES key bytes
-  parameters: WrapAlgoParams; // Wrapping algorithm parameters
+  wrapAlgo: WrapAlgoParams; // Wrapping algorithm parameters
 }
 
 export function wrapKey(
@@ -52,20 +52,20 @@ export function wrapKey(
   const r = request.body.json();
   const key = b64ToBuf(r.key);
   const wrappingKey = b64ToBuf(r.wrappingKey);
-  if (r.parameters.name == "RSA-OAEP") {
-    const p = r.parameters as RsaOaepParams;
+  if (r.wrapAlgo.name == "RSA-OAEP") {
+    const p = r.wrapAlgo as RsaOaepParams;
     const l = p.label ? b64ToBuf(p.label) : undefined;
     const new_p = { name: p.name, label: l };
     const wrappedKey = ccf.ccf.wrapKey(key, wrappingKey, new_p);
     return { body: wrappedKey };
-  } else if (r.parameters.name == "RSA-OAEP-AES-KWP") {
-    const p = r.parameters as RsaOaepAesParams;
+  } else if (r.wrapAlgo.name == "RSA-OAEP-AES-KWP") {
+    const p = r.wrapAlgo as RsaOaepAesParams;
     const l = p.label ? b64ToBuf(p.label) : undefined;
-    const new_p = { name: p.name, aes_key_size: p.aes_key_size, label: l };
+    const new_p = { name: p.name, aesKeySize: p.aesKeySize, label: l };
     const wrappedKey = ccf.ccf.wrapKey(key, wrappingKey, new_p);
     return { body: wrappedKey };
   } else {
-    const wrappedKey = ccf.ccf.wrapKey(key, wrappingKey, r.parameters);
+    const wrappedKey = ccf.ccf.wrapKey(key, wrappingKey, r.wrapAlgo);
     return { body: wrappedKey };
   }
 }

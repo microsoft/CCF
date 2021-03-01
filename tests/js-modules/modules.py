@@ -272,7 +272,7 @@ def test_npm_app(network, args):
             {
                 "key": b64encode(aes_key_to_wrap).decode(),
                 "wrappingKey": b64encode(bytes(wrapping_key_pub_pem, "ascii")).decode(),
-                "parameters": {
+                "wrapAlgo": {
                     "name": "RSA-OAEP",
                     "label": b64encode(bytes(label, "ascii")).decode(),
                 },
@@ -290,7 +290,7 @@ def test_npm_app(network, args):
             {
                 "key": b64encode(aes_key_to_wrap).decode(),
                 "wrappingKey": b64encode(aes_wrapping_key).decode(),
-                "parameters": {"name": "AES-KWP"},
+                "wrapAlgo": {"name": "AES-KWP"},
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
@@ -306,9 +306,9 @@ def test_npm_app(network, args):
             {
                 "key": b64encode(aes_key_to_wrap).decode(),
                 "wrappingKey": b64encode(bytes(wrapping_key_pub_pem, "ascii")).decode(),
-                "parameters": {
+                "wrapAlgo": {
                     "name": "RSA-OAEP-AES-KWP",
-                    "aes_key_size": 256,
+                    "aesKeySize": 256,
                     "label": b64encode(bytes(label, "ascii")).decode(),
                 },
             },

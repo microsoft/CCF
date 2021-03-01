@@ -70,7 +70,7 @@ export interface CCF {
   wrapKey(
     key: ArrayBuffer,
     wrappingKey: ArrayBuffer,
-    parameters: WrapAlgoParams
+    wrapAlgo: WrapAlgoParams
   ): ArrayBuffer;
 
   kv: KVMaps;

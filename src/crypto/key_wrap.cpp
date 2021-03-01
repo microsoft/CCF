@@ -22,7 +22,7 @@ namespace crypto
     const std::vector<uint8_t>& unwrapped,
     const std::vector<uint8_t>& label)
   {
-    return wrapping_key->wrap(unwrapped, label);
+    return wrapping_key->rsa_oaep_wrap(unwrapped, label);
   }
 
   std::vector<uint8_t> ckm_rsa_pkcs_oaep_wrap(
@@ -39,7 +39,7 @@ namespace crypto
     const std::vector<uint8_t>& wrapped,
     const std::vector<uint8_t>& label)
   {
-    return wrapping_key->unwrap(wrapped, label);
+    return wrapping_key->rsa_oaep_unwrap(wrapped, label);
   }
 
   std::vector<uint8_t> ckm_rsa_pkcs_oaep_unwrap(
@@ -83,7 +83,7 @@ namespace crypto
 
     // - Wraps the AES key with the wrapping RSA key using CKM_RSA_PKCS_OAEP
     //   with parameters of OAEPParams.
-    std::vector<uint8_t> w_aeskey = wrapping_key->wrap(taeskey, label);
+    std::vector<uint8_t> w_aeskey = wrapping_key->rsa_oaep_wrap(taeskey, label);
 
     // - Wraps the target key with the temporary AES key using
     //   CKM_AES_KEY_WRAP_PAD (RFC5649).
@@ -130,7 +130,8 @@ namespace crypto
     // - Un-wraps the temporary AES key from the first part with the private RSA
     //   key using CKM_RSA_PKCS_OAEP with parameters of OAEPParams.
 
-    std::vector<uint8_t> t_aeskey = wrapping_key->unwrap(w_aeskey, label);
+    std::vector<uint8_t> t_aeskey =
+      wrapping_key->rsa_oaep_unwrap(w_aeskey, label);
 
     if (t_aeskey.size() != 16 && t_aeskey.size() != 24 && t_aeskey.size() != 32)
       throw std::runtime_error("invalid key size");

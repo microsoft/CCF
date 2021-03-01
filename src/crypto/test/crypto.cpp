@@ -309,16 +309,16 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
     auto rsa_pub = make_rsa_public_key(rsa_kp->public_key_pem());
 
     // Public key can wrap
-    auto wrapped = rsa_pub->wrap(input);
+    auto wrapped = rsa_pub->rsa_oaep_wrap(input);
 
     // Only private key can unwrap
-    auto unwrapped = rsa_kp->unwrap(wrapped);
+    auto unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped);
     // rsa_pub->unwrap(wrapped); // Doesn't compile
     REQUIRE(input == unwrapped);
 
     // Raw data
-    wrapped = rsa_pub->wrap(input.data(), input.size());
-    unwrapped = rsa_kp->unwrap(wrapped);
+    wrapped = rsa_pub->rsa_oaep_wrap(input.data(), input.size());
+    unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped);
     REQUIRE(input == unwrapped);
   }
 
@@ -328,8 +328,8 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
     auto rsa_pub = make_rsa_public_key(rsa_kp->public_key_pem());
     std::string lblstr = "my_label";
     std::vector<uint8_t> label(lblstr.begin(), lblstr.end());
-    auto wrapped = rsa_pub->wrap(input, label);
-    auto unwrapped = rsa_kp->unwrap(wrapped, label);
+    auto wrapped = rsa_pub->rsa_oaep_wrap(input, label);
+    auto unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped, label);
     REQUIRE(input == unwrapped);
   }
 }

@@ -59,7 +59,7 @@ namespace crypto
     return RSAPublicKey_mbedTLS::key_size();
   }
 
-  std::vector<uint8_t> RSAKeyPair_mbedTLS::unwrap(
+  std::vector<uint8_t> RSAKeyPair_mbedTLS::rsa_oaep_unwrap(
     const std::vector<uint8_t>& input,
     std::optional<std::vector<std::uint8_t>> label)
   {
