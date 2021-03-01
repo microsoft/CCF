@@ -456,7 +456,9 @@ def test_historical_query_range(network, args):
     last_seqno = None
 
     def get_all_entries(target_id):
-        LOG.info(f"Getting historical entries from {first_seqno} to {last_seqno} for id {target_id}")
+        LOG.info(
+            f"Getting historical entries from {first_seqno} to {last_seqno} for id {target_id}"
+        )
         logs = []
         with primary.client("user0") as c:
             timeout = 5
