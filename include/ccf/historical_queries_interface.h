@@ -77,8 +77,8 @@ namespace ccf::historical
      *  - This handle is used to request a different seqno or range
      *
      * The range is inclusive of both start_seqno and end_seqno. If a non-empty
-     * vector is returned, it will always contain the full requested range - the
-     * vector will be of length (end_seqno - start_seqno + 1), and will contain
+     * vector is returned, it will always contain the full requested range; the
+     * vector will be of length (end_seqno - start_seqno + 1) and will contain
      * no nullptrs.
      */
     virtual std::vector<StorePtr> get_store_range(
