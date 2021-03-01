@@ -237,9 +237,13 @@ namespace ccf
     bool verify(HistoryTree* tree) const
     {
       if (path->max_index() > tree->max_index())
+      {
         return false;
+      }
       else if (tree->max_index() == path->max_index())
+      {
         return tree->root() == root && path->verify(root);
+      }
       else
       {
         auto past_root = tree->past_root(path->max_index());
