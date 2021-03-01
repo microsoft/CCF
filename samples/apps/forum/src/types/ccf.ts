@@ -48,16 +48,18 @@ export interface KVMap {
 
 export type KVMaps = { [key: string]: KVMap };
 
-interface WrapAlgoBase {
+interface WrapAlgoParams {
   name: string;
 }
 
-export interface RsaOaepParams extends WrapAlgoBase {
-  // name == 'RSA-OAEP'
+export interface RsaOaepParams extends WrapAlgoParams {
+  name: "RSA-OAEP";
   label?: ArrayBuffer;
 }
 
-export type WrapAlgo = RsaOaepParams;
+export interface AESKWPParams extends WrapAlgoParams {
+  name: "AES-KWP";
+}
 
 export interface CCF {
   strToBuf(v: string): ArrayBuffer;
@@ -68,7 +70,7 @@ export interface CCF {
   wrapKey(
     key: ArrayBuffer,
     wrappingKey: ArrayBuffer,
-    wrapAlgo: WrapAlgo
+    wrapAlgo: WrapAlgoParams
   ): ArrayBuffer;
 
   kv: KVMaps;

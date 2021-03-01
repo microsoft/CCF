@@ -140,7 +140,7 @@ namespace ccf
         auto member_enc_pubk = crypto::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
-        encrypted_shares[member_id] = member_enc_pubk->wrap(raw_share);
+        encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
         share_index++;
       }
 

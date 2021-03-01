@@ -24,17 +24,19 @@ namespace crypto
     RSAKeyPair(const Pem& pem, CBuffer pw = nullb);
     virtual ~RSAKeyPair() = default;
 
+    virtual size_t key_size() const = 0;
+
     /**
-     * Unwrap data using RSA-OAEP-256
+     * Unwrap data using RSA-OAEP-256 (CKM_RSA_PKCS_OAEP)
      *
      * @param input Raw data to unwrap
      * @param label Optional string used as label during unwrapping
      *
      * @return Unwrapped data
      */
-    virtual std::vector<uint8_t> unwrap(
+    virtual std::vector<uint8_t> rsa_oaep_unwrap(
       const std::vector<uint8_t>& input,
-      std::optional<std::string> label = std::nullopt) = 0;
+      std::optional<std::vector<std::uint8_t>> label = std::nullopt) = 0;
 
     /**
      * Get the public key in PEM format

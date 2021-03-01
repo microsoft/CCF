@@ -23,20 +23,28 @@ namespace crypto
     if (n >= 256)
     {
       evp_cipher = EVP_aes_256_gcm();
+      evp_cipher_wrap_pad = EVP_aes_256_wrap_pad();
     }
     else if (n >= 192)
     {
       evp_cipher = EVP_aes_192_gcm();
+      evp_cipher_wrap_pad = EVP_aes_192_wrap_pad();
     }
     else if (n >= 128)
     {
       evp_cipher = EVP_aes_128_gcm();
+      evp_cipher_wrap_pad = EVP_aes_128_wrap_pad();
     }
     else
     {
       throw std::logic_error(
         fmt::format("Need at least {} bits, only have {}", 128, n));
     }
+  }
+
+  size_t KeyAesGcm_OpenSSL::key_size() const
+  {
+    return key.size() * 8;
   }
 
   void KeyAesGcm_OpenSSL::encrypt(
@@ -89,5 +97,39 @@ namespace crypto
       memcpy(plain, pb.data(), cipher.n);
 
     return r == 1;
+  }
+
+  std::vector<uint8_t> KeyAesGcm_OpenSSL::ckm_aes_key_wrap_pad(
+    CBuffer plain) const
+  {
+    int len = 0;
+    Unique_EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+    CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher_wrap_pad, NULL, NULL, NULL));
+    CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), NULL));
+    CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, plain.p, plain.n));
+    std::vector<uint8_t> cipher(len);
+    CHECK1(EVP_EncryptUpdate(ctx, cipher.data(), &len, plain.p, plain.n));
+    CHECK1(EVP_EncryptFinal_ex(ctx, NULL, &len));
+    return cipher;
+  }
+
+  std::vector<uint8_t> KeyAesGcm_OpenSSL::ckm_aes_key_unwrap_pad(
+    CBuffer cipher) const
+  {
+    int len = 0;
+    Unique_EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX_set_flags(ctx, EVP_CIPHER_CTX_FLAG_WRAP_ALLOW);
+    CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher_wrap_pad, NULL, NULL, NULL));
+    CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), NULL));
+    CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, cipher.p, cipher.n));
+    std::vector<uint8_t> plain(len);
+    CHECK1(EVP_DecryptUpdate(ctx, plain.data(), &len, cipher.p, cipher.n));
+    plain.resize(len);
+    if (EVP_DecryptFinal_ex(ctx, NULL, &len) != 1)
+    {
+      plain.clear();
+    }
+    return plain;
   }
 }
