@@ -285,7 +285,7 @@ namespace client
     PreparedTxs prepared_txs;
 
     timing::ResponseTimes response_times;
-    timing::TransactionID last_response_tx_id = {0, 0};
+    ccf::TxID last_response_tx_id = {0, 0};
 
     std::chrono::high_resolution_clock::time_point last_write_time;
     std::chrono::nanoseconds write_delay_ns = std::chrono::nanoseconds::zero();
@@ -711,7 +711,7 @@ namespace client
       }
     }
 
-    void wait_for_global_commit(const timing::TransactionID& target)
+    void wait_for_global_commit(const ccf::TxID& target)
     {
       response_times.wait_for_global_commit(target);
     }

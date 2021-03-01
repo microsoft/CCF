@@ -18,7 +18,7 @@ namespace ccf
     View view;
     SeqNo seqno;
 
-    std::string to_str()
+    std::string to_str() const
     {
       return std::to_string(view) + "." + std::to_string(seqno);
     }

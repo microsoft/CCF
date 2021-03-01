@@ -116,12 +116,15 @@ namespace ws
           auto seqno = serialized::read<size_t>(data, s);
           auto view = serialized::read<size_t>(data, s);
 
+          ccf::TxID tx_id;
+          tx_id.view = view;
+          tx_id.seqno = seqno;
+
           std::vector<uint8_t> body(data, data + s);
 
           proc.handle_response(
             (http_status)status,
-            {{http::headers::CCF_TX_SEQNO, fmt::format("{}", seqno)},
-             {http::headers::CCF_TX_VIEW, fmt::format("{}", view)}},
+            {{http::headers::CCF_TX_ID, tx_id.to_str()}},
             std::move(body));
           state = INIT;
           return INITIAL_READ;
