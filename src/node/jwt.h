@@ -41,16 +41,16 @@ namespace ccf
   {
     JwtIssuerKeyFilter key_filter;
     std::optional<JwtIssuerKeyPolicy> key_policy;
-    std::optional<std::string> ca_cert_name;
+    std::optional<std::string> ca_cert_bundle_name;
     bool auto_refresh = false;
 
-    MSGPACK_DEFINE(key_filter, key_policy, ca_cert_name, auto_refresh);
+    MSGPACK_DEFINE(key_filter, key_policy, ca_cert_bundle_name, auto_refresh);
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuerMetadata);
   DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerMetadata, key_filter);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JwtIssuerMetadata, key_policy, ca_cert_name, auto_refresh);
+    JwtIssuerMetadata, key_policy, ca_cert_bundle_name, auto_refresh);
 
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;
