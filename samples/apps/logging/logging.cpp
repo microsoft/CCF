@@ -274,10 +274,10 @@ namespace loggingapp
         const auto in = body_j.get<LoggingRecord::In>();
         if (in.msg.empty())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body("Cannot record an empty log message");
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            "Cannot record an empty log message");
           return;
         }
 
@@ -288,10 +288,9 @@ namespace loggingapp
           cert.get(), cert_data.data(), cert_data.size());
         if (ret != 0)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
             "Cannot parse x509 caller certificate");
           return;
         }
@@ -436,8 +435,10 @@ namespace loggingapp
         }
         else
         {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx.rpc_ctx->set_response_body("Unhandled auth type");
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InvalidInput,
+            "Unhandled auth type");
           return;
         }
       };
@@ -481,11 +482,11 @@ namespace loggingapp
             .value_or("");
         if (expected != actual)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "Expected content-type '{}'. Got '{}'.", expected, actual));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
+            ccf::errors::InvalidHeaderValue,
+            fmt::format(
+              "Expected content-type '{}'. Got '{}'.", expected, actual));
           return;
         }
 
@@ -493,11 +494,10 @@ namespace loggingapp
         const auto id_it = path_params.find("id");
         if (id_it == path_params.end())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(
-            fmt::format("Missing ID component in request path"));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            "Missing ID component in request path");
           return;
         }
 
@@ -582,7 +582,8 @@ namespace loggingapp
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 
-      static constexpr auto get_historical_range_path = "log/private/historical/range";
+      static constexpr auto get_historical_range_path =
+        "log/private/historical/range";
       auto get_historical_range = [&, this](ccf::EndpointContext& args) {
         // Parse request body
         const auto query_j =
@@ -592,23 +593,23 @@ namespace loggingapp
         // Range must be in order
         if (in.to_seqno < in.from_seqno)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "Invalid range: Starts at {} but ends at {}",
-            in.from_seqno,
-            in.to_seqno));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            fmt::format(
+              "Invalid range: Starts at {} but ends at {}",
+              in.from_seqno,
+              in.to_seqno));
           return;
         }
 
         // End of range must be committed
         if (consensus == nullptr)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body("Node is not fully operational");
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Node is not fully operational");
           return;
         }
 
@@ -623,15 +624,16 @@ namespace loggingapp
           committed_seqno);
         if (tx_status != ccf::TxStatus::Committed)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "Only committed transactions can be queried. Transaction {}.{} is "
-            "{}",
-            view_of_final_seqno,
-            in.to_seqno,
-            ccf::tx_status_to_str(tx_status)));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            fmt::format(
+              "Only committed transactions can be queried. Transaction {}.{} "
+              "is "
+              "{}",
+              view_of_final_seqno,
+              in.to_seqno,
+              ccf::tx_status_to_str(tx_status)));
           return;
         }
 
@@ -697,8 +699,10 @@ namespace loggingapp
             e.msg = v.value();
             response.entries.push_back(e);
           }
-          // We do not include an entry when the given key wasn't modified at
-          // this seqno!
+          // This response do not include any entry when the given key wasn't
+          // modified at this seqno. It could instead indicate that the store
+          // was checked with an empty tombstone object, but this approach gives
+          // smaller responses
         }
 
         // If this didn't cover the total requested range, begin fetching the
@@ -714,8 +718,8 @@ namespace loggingapp
           historical_cache.get_store_range(
             next_page_handle, next_page_start, next_page_end);
 
-          // NB: Make sure to tell them to continue to ask for the end of the
-          // range, even if the next response is paginated
+          // NB: This path tells the caller to continue to ask until the end of
+          // the range, even if the next response is paginated
           response.next_link = fmt::format(
             "/app/{}?from_seqno={}&to_seqno={}&id={}",
             get_historical_range_path,
@@ -733,7 +737,7 @@ namespace loggingapp
 
         // ALSO: Assume this response makes it all the way to the client, and
         // they're finished with it, so we can drop the retrieved state. In a
-        // real app this should be driven by a separate client request!
+        // real app this may be driven by a separate client request or an LRU
         historical_cache.drop_request(handle);
       };
       make_endpoint(
