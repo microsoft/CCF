@@ -251,6 +251,7 @@ namespace ccf
     kv::Consensus::SignableTxIndices commit_txid;
     kv::Store& store;
     T& replicated_state_tree;
+    SpinLock& state_lock; // lock to protect replicated_state_tree
     NodeId id;
     crypto::KeyPair& kp;
 
@@ -260,12 +261,14 @@ namespace ccf
       kv::Consensus::SignableTxIndices commit_txid_,
       kv::Store& store_,
       T& replicated_state_tree_,
+      SpinLock& state_lock_,
       NodeId id_,
       crypto::KeyPair& kp_) :
       txid(txid_),
       commit_txid(commit_txid_),
       store(store_),
       replicated_state_tree(replicated_state_tree_),
+      state_lock(state_lock_),
       id(id_),
       kp(kp_)
     {}
@@ -275,7 +278,11 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      crypto::Sha256Hash root = replicated_state_tree.get_root();
+      crypto::Sha256Hash root;
+      {
+        std::lock_guard<SpinLock> guard(state_lock);
+        root = replicated_state_tree.get_root();
+      }
 
       Nonce hashed_nonce;
       std::vector<uint8_t> primary_sig;
@@ -297,7 +304,7 @@ namespace ccf
             txid.version));
         }
 
-        progress_tracker->get_my_hashed_nonce(txid, hashed_nonce);
+        progress_tracker->get_node_hashed_nonce(txid, hashed_nonce);
       }
       else
       {
@@ -668,7 +675,11 @@ namespace ccf
       }
 
       crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
-      crypto::Sha256Hash root = replicated_state_tree.get_root();
+      crypto::Sha256Hash root;
+      {
+        std::lock_guard<SpinLock> guard(state_lock);
+        root = replicated_state_tree.get_root();
+      }
       log_hash(root, VERIFY);
       bool result =
         from_cert->verify_hash(root.h, sig_value.sig, crypto::MDType::SHA256);
@@ -762,7 +773,7 @@ namespace ccf
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid, commit_txid, store, replicated_state_tree, id, kp),
+          txid, commit_txid, store, replicated_state_tree, state_lock, id, kp),
         true);
     }
 
