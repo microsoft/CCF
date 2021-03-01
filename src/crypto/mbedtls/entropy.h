@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/entropy.h"
-
 #include "mbedtls_wrappers.h"
 
 #include <functional>
@@ -12,7 +11,7 @@
 
 namespace crypto
 {
-  class MbedtlsEntropy : public Entropy
+  class Entropy_mbedTLS : public Entropy
   {
   private:
     mbedtls::Entropy entropy = mbedtls::make_unique<mbedtls::Entropy>();
@@ -21,7 +20,7 @@ namespace crypto
     static bool gen(uint64_t& v);
 
   public:
-    MbedtlsEntropy()
+    Entropy_mbedTLS()
     {
       mbedtls_ctr_drbg_seed(
         drbg.get(), mbedtls_entropy_func, entropy.get(), nullptr, 0);

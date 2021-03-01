@@ -13,8 +13,6 @@
 
 extern "C"
 {
-#include "crypto/random_bytes.h"
-
 #include <sss/sss.h>
 }
 

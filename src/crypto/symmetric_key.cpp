@@ -19,4 +19,44 @@ namespace crypto
     return std::make_unique<KeyAesGcm_OpenSSL>(rawKey);
 #endif
   }
+
+  std::vector<uint8_t> aes_gcm_encrypt(
+    const std::vector<uint8_t>& key,
+    std::vector<uint8_t>& plaintext,
+    const std::vector<uint8_t>& iv,
+    const std::vector<uint8_t>& aad)
+  {
+    if (key.size() != 16 && key.size() != 24 && key.size() != 32)
+      throw std::runtime_error("unsupported key size");
+
+    std::vector<uint8_t> r(plaintext.size());
+    std::vector<uint8_t> tag(GCM_SIZE_TAG);
+    auto k = make_key_aes_gcm(key);
+    k->encrypt(iv, plaintext, aad, r.data(), tag.data());
+    r.insert(r.end(), tag.begin(), tag.end());
+    return r;
+  }
+
+  std::vector<uint8_t> aes_gcm_decrypt(
+    const std::vector<uint8_t>& key,
+    std::vector<uint8_t>& ciphertext,
+    const std::vector<uint8_t>& iv,
+    const std::vector<uint8_t>& aad)
+  {
+    if (key.size() != 16 && key.size() != 24 && key.size() != 32)
+      throw std::runtime_error("unsupported key size");
+    if (ciphertext.size() <= GCM_SIZE_TAG)
+      throw std::runtime_error("Not enough ciphertext");
+
+    size_t ciphertext_length = ciphertext.size() - GCM_SIZE_TAG;
+    std::vector<uint8_t> r(ciphertext_length);
+    auto k = make_key_aes_gcm(key);
+    k->decrypt(
+      iv,
+      ciphertext.data() + ciphertext_length,
+      {ciphertext.data(), ciphertext_length},
+      aad,
+      r.data());
+    return r;
+  }
 }

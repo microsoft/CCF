@@ -3,7 +3,6 @@
 #pragma once
 
 #include "mbedtls/hash.h"
-
 #include "openssl/hash.h"
 
 #define FMT_HEADER_ONLY
@@ -12,8 +11,12 @@
 
 namespace crypto
 {
-  typedef MBedHashProvider HashProvider;
+  typedef OpenSSLHashProvider HashProvider;
   typedef ISha256OpenSSL ISha256Hash;
+
+  // Compute the SHA256 hash of @p data
+  // @param data The data to compute the hash of
+  std::vector<uint8_t> SHA256(const std::vector<uint8_t>& data);
 }
 
 namespace fmt
