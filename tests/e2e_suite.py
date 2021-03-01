@@ -36,6 +36,10 @@ def mem_stats(network):
 
 def run(args):
 
+    args.choose_node = random.choice(
+        [lambda n: n.find_any_backup(), lambda n: n.find_primary()[0]]
+    )
+
     chosen_suite = []
 
     if not args.test_suite:
