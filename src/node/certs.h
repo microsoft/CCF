@@ -6,7 +6,7 @@
 namespace ccf
 {
   using CertDERs = kv::Map<Cert, ObjectId>;
-  using CACertDERs = kv::Map<std::string, Cert>;
+  using CACertBundlePEMs = kv::Map<std::string, std::string>;
   // Mapping from hex-encoded digest of PEM cert to entity id
   using CertDigests = kv::Map<std::string, ObjectId>;
 }
