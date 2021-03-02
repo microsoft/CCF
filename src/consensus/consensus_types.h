@@ -23,7 +23,6 @@ namespace consensus
   };
 
 #pragma pack(push, 1)
-  // TODO: Delete this struct?
   template <typename T>
   struct ConsensusHeader
   {

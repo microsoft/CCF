@@ -250,10 +250,6 @@ namespace asynchost
           // corresponding ledger entries
           auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
           auto from = serialized::read<ccf::NodeId>(data, size);
-
-          // LOG_FAIL_FMT(
-          //   "Node outbound msg {} from {} to {}", msg_type, from, to);
-
           if (
             msg_type == ccf::NodeMsgType::consensus_msg &&
             (serialized::read<aft::RaftMsgType>(data, size) ==

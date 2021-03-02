@@ -71,7 +71,7 @@ namespace ccf
     struct Out
     {
       NodeStatus node_status;
-      NodeId node_id; // TODO: Remove!
+      NodeId node_id; // Only used in BFT
 
       // Only if the caller node is trusted
       struct NetworkInfo

@@ -67,7 +67,6 @@ namespace ccf
     ERROR(UnknownCertificate)
     ERROR(VoteNotFound)
     ERROR(VoteAlreadyExists)
-    ERROR(PrimaryNotFound) // TODO: Add this?
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)
