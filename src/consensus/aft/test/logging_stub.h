@@ -227,7 +227,7 @@ namespace aft
     public:
       ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
 
-      kv::ApplyResult execute() override
+      kv::ApplyResult apply() override
       {
         return kv::ApplyResult::PASS;
       }
@@ -259,12 +259,12 @@ namespace aft
 
       ccf::PrimarySignature& get_signature() override
       {
-        throw std::logic_error("Not Implemented");
+        throw std::logic_error("get_signature not implemented");
       }
 
-      kv::Tx& get_tx() override
+      aft::Request& get_request() override
       {
-        throw std::logic_error("Not Implemented");
+        throw std::logic_error("get_request not implemented");
       }
 
     private:

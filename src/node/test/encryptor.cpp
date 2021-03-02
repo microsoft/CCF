@@ -265,8 +265,8 @@ TEST_CASE("KV encryption/decryption")
   {
     commit_one(primary_store, map);
     REQUIRE(
-      backup_store.apply(*consensus->get_latest_data(), ConsensusType::CFT)
-        ->execute() == kv::ApplyResult::PASS);
+      backup_store.deserialize(*consensus->get_latest_data(), ConsensusType::CFT)
+        ->apply() == kv::ApplyResult::PASS);
   }
 
   INFO("Rekeys");
@@ -290,8 +290,8 @@ TEST_CASE("KV encryption/decryption")
         current_version + i, std::move(ledger_secret_for_backup));
 
       REQUIRE(
-        backup_store.apply(*consensus->get_latest_data(), ConsensusType::CFT)
-          ->execute() == kv::ApplyResult::PASS);
+        backup_store.deserialize(*consensus->get_latest_data(), ConsensusType::CFT)
+          ->apply() == kv::ApplyResult::PASS);
     }
   }
 }
@@ -350,8 +350,8 @@ TEST_CASE("Backup catchup from many ledger secrets")
     {
       REQUIRE(
         backup_store
-          .apply(*std::get<1>(next_entry.value()), ConsensusType::CFT)
-          ->execute() == kv::ApplyResult::PASS);
+          .deserialize(*std::get<1>(next_entry.value()), ConsensusType::CFT)
+          ->apply() == kv::ApplyResult::PASS);
       next_entry = consensus->pop_oldest_entry();
     }
   }
@@ -387,8 +387,8 @@ TEST_CASE("KV integrity verification")
   std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
   REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
 
-  auto r = backup_store.apply(latest_data.value(), ConsensusType::CFT);
-  auto rr = r->execute();
+  auto r = backup_store.deserialize(latest_data.value(), ConsensusType::CFT);
+  auto rr = r->apply();
   REQUIRE(rr == kv::ApplyResult::FAIL);
 }
 
