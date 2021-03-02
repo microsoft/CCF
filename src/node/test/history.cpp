@@ -191,6 +191,7 @@ TEST_CASE("Check signing works across rollback")
   {
     REQUIRE(primary_history->verify_receipt(v1_receipt));
     REQUIRE(primary_history->verify_receipt(v2_receipt));
+    REQUIRE(primary_history->verify_receipt(primary_history->get_receipt(1)));
   }
 
   INFO("Check merkle roots are updating");
