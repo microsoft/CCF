@@ -41,7 +41,7 @@ def test_quote(network, args):
 
         r = c.get("/node/quotes/self")
         primary_quote_info = r.body.json()
-        assert primary_quote_info["node_id"] == 0
+        assert primary_quote_info["node_id"] == primary.node_id
         primary_mrenclave = primary_quote_info["mrenclave"]
         assert primary_mrenclave == expected_mrenclave, (
             primary_mrenclave,
