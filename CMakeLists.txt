@@ -304,11 +304,11 @@ if(BUILD_TESTS)
     )
     target_link_libraries(history_test PRIVATE ccfcrypto.host http_parser.host)
 
-    # add_unit_test(
-    #   progress_tracker_test
-    #   ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/progress_tracker.cpp
-    # )
-    # target_link_libraries(progress_tracker_test PRIVATE ccfcrypto.host)
+    add_unit_test(
+      progress_tracker_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/progress_tracker.cpp
+    )
+    target_link_libraries(progress_tracker_test PRIVATE ccfcrypto.host)
 
     add_unit_test(
       secret_sharing_test

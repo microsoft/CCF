@@ -42,7 +42,8 @@ namespace ccf
 
     size_t get_serialized_size() const
     {
-      return sizeof(node) + sizeof(hashed_nonce) + sizeof(size_t) + sig.size();
+      return sizeof(size_t) + sig.size() + sizeof(size_t) + node.size() +
+        sizeof(hashed_nonce);
     }
 
     void serialize(uint8_t*& data, size_t& size) const
@@ -52,8 +53,7 @@ namespace ccf
         data, size, reinterpret_cast<uint8_t*>(&sig_size), sizeof(sig_size));
       serialized::write(data, size, sig.data(), sig_size);
 
-      serialized::write(
-        data, size, reinterpret_cast<const uint8_t*>(&node), sizeof(node));
+      serialized::write(data, size, node);
       serialized::write(
         data,
         size,

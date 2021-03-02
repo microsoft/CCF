@@ -55,7 +55,8 @@ namespace ccf
   {
   public:
     virtual ~ProgressTrackerStore() = default;
-    virtual void write_backup_signatures(ccf::BackupSignatures& sig_value) = 0;
+    virtual void write_backup_signatures(
+      const ccf::BackupSignatures& sig_value) = 0;
     virtual std::optional<ccf::BackupSignatures> get_backup_signatures() = 0;
     virtual std::optional<ccf::ViewChangeConfirmation> get_new_view() = 0;
     virtual void write_nonces(aft::RevealedNonces& nonces) = 0;
@@ -93,7 +94,8 @@ namespace ccf
       new_views(ccf::Tables::NEW_VIEWS)
     {}
 
-    void write_backup_signatures(ccf::BackupSignatures& sig_value) override
+    void write_backup_signatures(
+      const ccf::BackupSignatures& sig_value) override
     {
       kv::Tx tx(&store);
       auto backup_sig_view = tx.rw(backup_signatures);

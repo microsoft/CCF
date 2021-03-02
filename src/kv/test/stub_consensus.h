@@ -13,6 +13,8 @@ namespace kv
 {
   static constexpr auto PrimaryNodeId = "PrimaryNodeId";
   static constexpr auto FirstBackupNodeId = "FirstBackupNodeId";
+  static constexpr auto SecondBackupNodeId = "SecondBackupNodeId";
+  static constexpr auto ThirdBackupNodeId = "ThirdBackupNodeId";
 
   class StubConsensus : public Consensus
   {
