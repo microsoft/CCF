@@ -3,6 +3,7 @@
 #pragma once
 
 #include "mbedtls/hash.h"
+
 #include "openssl/hash.h"
 
 #define FMT_HEADER_ONLY

@@ -160,6 +160,15 @@ namespace crypto
 
   std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey);
 
+  /** Check for unsupported AES key sizes
+   * @p num_bits Key size in bits
+   */
+  inline void check_supported_aes_key_size(size_t num_bits)
+  {
+    if (num_bits != 128 && num_bits != 192 && num_bits != 256)
+      throw std::runtime_error("unsupported key size");
+  }
+
   /** Default initialization vector for AES-GCM (12 zeroes) */
   static std::vector<uint8_t> default_iv(12, 0);
 

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/entropy.h"
+
 #include "mbedtls_wrappers.h"
 
 #include <functional>

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/symmetric_key.h"
+
 #include "mbedtls_wrappers.h"
 
 namespace crypto

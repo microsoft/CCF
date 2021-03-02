@@ -26,8 +26,7 @@ namespace crypto
     const std::vector<uint8_t>& iv,
     const std::vector<uint8_t>& aad)
   {
-    if (key.size() != 16 && key.size() != 24 && key.size() != 32)
-      throw std::runtime_error("unsupported key size");
+    check_supported_aes_key_size(key.size() * 8);
 
     std::vector<uint8_t> r(plaintext.size());
     std::vector<uint8_t> tag(GCM_SIZE_TAG);
@@ -43,8 +42,8 @@ namespace crypto
     const std::vector<uint8_t>& iv,
     const std::vector<uint8_t>& aad)
   {
-    if (key.size() != 16 && key.size() != 24 && key.size() != 32)
-      throw std::runtime_error("unsupported key size");
+    check_supported_aes_key_size(key.size() * 8);
+
     if (ciphertext.size() <= GCM_SIZE_TAG)
       throw std::runtime_error("Not enough ciphertext");
 

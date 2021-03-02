@@ -7,9 +7,8 @@ set(SSS_PREFIX
 )
 message(STATUS "Using sss at ${SSS_PREFIX}")
 
-set(SSS_SRC
-    ${SSS_PREFIX}/sss.c ${SSS_PREFIX}/hazmat.c ${SSS_PREFIX}/tweetnacl.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/sss_random.cpp
+set(SSS_SRC ${SSS_PREFIX}/sss.c ${SSS_PREFIX}/hazmat.c
+            ${SSS_PREFIX}/tweetnacl.c
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -25,7 +24,6 @@ endif()
 add_library(sss.host STATIC ${SSS_SRC})
 add_san(sss.host)
 set_property(TARGET sss.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_compile_options(sss.host PRIVATE ${COMPILE_LIBCXX})
 install(
   TARGETS sss.host
   EXPORT ccf
