@@ -74,14 +74,21 @@ namespace ccf::historical
       return historical_ledger_secrets->get_first();
     }
 
+    struct TxReceipt
+    {
+      TxReceipt(const std::vector<uint8_t>& s_, const std::vector<uint8_t>& p_): signature(s_), proof(p_) {}
+      std::vector<uint8_t> signature = {};
+      std::vector<uint8_t> proof = {};
+    };
+    using TxReceiptPtr = std::shared_ptr<TxReceipt>;
+
     struct StoreDetails
     {
       RequestStage current_stage = RequestStage::Fetching;
       crypto::Sha256Hash entry_digest = {};
       StorePtr store = nullptr;
       bool is_signature = false;
-      std::vector<uint8_t> signature = {};
-      std::vector<uint8_t> proof = {};
+      TxReceiptPtr receipt = nullptr;
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
 
@@ -249,9 +256,9 @@ namespace ccf::historical
                     return UpdateTrustedResult::Invalidated;
                   }
 
-                  details->signature = sig->sig;
                   auto receipt = tree.get_receipt(seqno);
-                  details->proof = receipt.to_v();
+                  details->receipt = std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
+                  LOG_FAIL_FMT("Grabbed receipt for {}", seqno);
                   details->current_stage = RequestStage::Trusted;
                 }
               }
@@ -282,9 +289,9 @@ namespace ccf::historical
                     return UpdateTrustedResult::Invalidated;
                   }
 
-                  new_details->signature = sig->sig;
                   auto receipt = tree.get_receipt(new_seqno);
-                  new_details->proof = receipt.to_v();
+                  details->receipt = std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
+                  LOG_FAIL_FMT("Grabbed receipt for {}", new_seqno);
                   new_details->current_stage = RequestStage::Trusted;
                 }
 
@@ -311,9 +318,9 @@ namespace ccf::historical
                   return UpdateTrustedResult::Invalidated;
                 }
 
-                new_details->signature = sig->sig;
                 auto receipt = tree.get_receipt(new_seqno);
-                new_details->proof = receipt.to_v();
+                details->receipt = std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
+                LOG_FAIL_FMT("Grabbed receipt for {}", seqno);
                 new_details->current_stage = RequestStage::Trusted;
               }
             }
@@ -587,7 +594,7 @@ namespace ccf::historical
       return true;
     }
 
-    std::vector<StorePtr> get_store_range_internal(
+    std::vector<std::pair<StorePtr, TxReceiptPtr>> get_store_range_internal(
       RequestHandle handle,
       kv::SeqNo start_seqno,
       size_t num_following_indices,
@@ -642,7 +649,7 @@ namespace ccf::historical
       // Reset the expiry timer as this has just been requested
       request.time_to_expiry = ms_until_expiry;
 
-      std::vector<StorePtr> trusted_stores;
+      std::vector<std::pair<StorePtr, TxReceiptPtr>> trusted_stores;
 
       for (kv::SeqNo seqno = start_seqno;
            seqno <= static_cast<kv::SeqNo>(start_seqno + num_following_indices);
@@ -652,7 +659,7 @@ namespace ccf::historical
         if (target_details->current_stage == RequestStage::Trusted)
         {
           // Have this store and trust it - add it to return list
-          trusted_stores.push_back(target_details->store);
+          trusted_stores.push_back({target_details->store, target_details->receipt});
         }
         else
         {
@@ -730,8 +737,14 @@ namespace ccf::historical
       }
 
       const auto tail_length = end_seqno - start_seqno;
-      return get_store_range_internal(
+      auto range = get_store_range_internal(
         handle, start_seqno, tail_length, seconds_until_expiry);
+      std::vector<StorePtr> stores;
+      for (size_t i=0; i<range.size(); i++)
+      {
+        stores.push_back(std::get<0>(range[i]));
+      }
+      return stores;
     }
 
     std::vector<StorePtr> get_store_range(
