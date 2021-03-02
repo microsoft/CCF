@@ -12,6 +12,7 @@ import sys
 from enum import Enum
 import random
 import os
+import re
 
 from loguru import logger as LOG
 
@@ -72,7 +73,15 @@ def run(args):
     success = True
     elapsed = args.test_duration
 
-    for i, test in enumerate(chosen_suite):
+    if args.filter is not None:
+        filter_re = re.compile(args.filter)
+        def filter_fun(x):
+            return filter_re is None or filter_re.match(x[1].__name__)
+        tests_to_run = filter(filter_fun, enumerate(chosen_suite))
+    else:
+        tests_to_run = enumerate(chosen_suite)
+
+    for i, test in tests_to_run:
         status = None
         reason = None
 
@@ -164,6 +173,12 @@ if __name__ == "__main__":
             help="List of test suites should be run",
             action="append",
             choices=s.suites.keys(),
+        )
+        parser.add_argument(
+            "--filter",
+            help="Regular expression specifying which tests of a test suite to run",
+            type=str,
+            default=None,
         )
 
     args = infra.e2e_args.cli_args(add)
