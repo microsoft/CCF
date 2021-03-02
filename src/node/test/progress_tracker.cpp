@@ -514,8 +514,8 @@ TEST_CASE("View Changes")
 
       auto vc = pt.get_view_change_message(view);
       REQUIRE(std::get<0>(vc) != nullptr);
+      i++;
     }
-    i++;
   }
 }
 
@@ -632,7 +632,7 @@ TEST_CASE("test progress_tracker apply_view_change")
 {
   using trompeloeil::_;
 
-  kv::NodeId node_id = kv::PrimaryNodeId;
+  kv::NodeId node_id = kv::FirstBackupNodeId;
   auto store = std::make_unique<StoreMock>();
   StoreMock& store_mock = *store.get();
   auto pt = std::make_unique<ccf::ProgressTracker>(std::move(store), node_id);

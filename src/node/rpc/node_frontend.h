@@ -114,7 +114,17 @@ namespace ccf
       }
 
       auto pk_pem = public_key_pem_from_cert(caller_pem);
-      NodeId joining_node_id = crypto::Sha256Hash(pk_pem.contents()).hex_str();
+
+      NodeId joining_node_id;
+      if (network.consensus_type == ConsensusType::CFT)
+      {
+        joining_node_id = crypto::Sha256Hash(pk_pem.contents()).hex_str();
+      }
+      else
+      {
+        joining_node_id = std::to_string(
+          get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
+      }
 #ifdef GET_QUOTE
 
       QuoteVerificationResult verify_result =
@@ -127,9 +137,6 @@ namespace ccf
 #else
       LOG_INFO_FMT("Skipped joining node quote verification");
 #endif
-
-      // NodeId joining_node_id =
-      //   get_next_id(tx.rw(this->network.values), NEXT_NODE_ID);
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
       if (node_status == NodeStatus::TRUSTED)

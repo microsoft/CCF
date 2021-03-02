@@ -144,12 +144,11 @@ class Network:
             return self.nodes[-1].local_node_id + 1
         return self.node_offset
 
+    # TODO: This won't work!!!
     def _adjust_local_node_ids(self, primary):
         assert (
             self.existing_network is None
         ), "Cannot adjust local node IDs if the network was started from an existing network"
-
-        # TODO: This won't work!!!
 
         with primary.client() as nc:
             r = nc.get("/node/network/nodes/primary")
@@ -705,6 +704,7 @@ class Network:
         """
         primary_id = None
         view = None
+        view_change_in_progress = False
 
         logs = []
 
@@ -721,6 +721,7 @@ class Network:
                         view = body["current_view"]
                         if "primary_id" not in body:
                             continue
+                        view_change_in_progress = body["view_change_in_progress"]
                         primary_id = body["primary_id"]
 
                     except CCFConnectionException:
@@ -732,7 +733,7 @@ class Network:
                 break
             time.sleep(0.1)
 
-        if primary_id is None:
+        if primary_id is None or view_change_in_progress:
             flush_info(logs, log_capture, 0)
             raise PrimaryNotFound
 

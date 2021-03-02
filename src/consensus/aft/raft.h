@@ -236,13 +236,11 @@ namespace aft
       }
     }
 
-    std::set<NodeId>& active_nodes()
+    std::set<NodeId> active_nodes()
     {
       // Find all nodes present in any active configuration.
       if (backup_nodes.empty())
       {
-        Configuration::Nodes active_nodes;
-
         for (auto& conf : configurations)
         {
           for (auto node : conf.nodes)
@@ -272,10 +270,20 @@ namespace aft
 
     NodeId get_primary(kv::Consensus::View view)
     {
+      CCF_ASSERT_FMT(
+        consensus_type == ConsensusType::BFT,
+        "Computing primary id from view is only supported with BFT consensus");
+
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
-      auto& active_nodes_ = active_nodes();
+      auto active_nodes_ = active_nodes();
       auto it = active_nodes_.begin();
+
+      LOG_FAIL_FMT(
+        "Get primary in view {}, advancing by {}",
+        view,
+        (view - starting_view_change));
+
       std::advance(it, (view - starting_view_change) % active_nodes_.size());
       return *it;
     }

@@ -279,14 +279,20 @@ namespace ccf
       const CurveID& curve_id) :
       sm(State::uninitialized),
       node_sign_kp(crypto::make_key_pair(curve_id)),
-      self(crypto::get_public_key_pem_hash_hex(node_sign_kp->public_key_pem())),
+
       node_encrypt_kp(std::make_shared<crypto::KeyPair_mbedTLS>(curve_id)),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
       share_manager(share_manager)
-    {}
+    {
+      if (network.consensus_type == ConsensusType::CFT)
+      {
+        self =
+          crypto::get_public_key_pem_hash_hex(node_sign_kp->public_key_pem());
+      }
+    }
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
@@ -356,6 +362,15 @@ namespace ccf
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
           network.ledger_secrets->init();
+
+          if (network.consensus_type == ConsensusType::BFT)
+          {
+            // BFT consensus requires a stable order of node IDs so that the
+            // primary node in a given view can be computed deterministically by
+            // all nodes in the network
+            // TODO: Raise issue for this (post 1.0)
+            self = "0";
+          }
 
           setup_snapshotter();
           setup_encryptor();
@@ -498,7 +513,6 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp.node_status == NodeStatus::TRUSTED)
           {
-            // TODO: Delete node id from response
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
@@ -512,6 +526,13 @@ namespace ccf
                 "responded with consensus {}",
                 network.consensus_type,
                 resp.network_info.consensus_type));
+            }
+
+            if (network.consensus_type == ConsensusType::BFT)
+            {
+              // In CFT, the node id is computed at startup, as the hash of the
+              // node's public key
+              self = resp.node_id;
             }
 
             setup_snapshotter();

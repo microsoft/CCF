@@ -54,7 +54,9 @@ namespace ccf
     {
       auto v = tx.rw(tables.values);
       for (int id_type = 0; id_type < ValueIds::END_ID; id_type++)
+      {
         v->put(id_type, 0);
+      }
     }
 
     auto finalize()
@@ -269,6 +271,9 @@ namespace ccf
 
     void add_node(NodeId id, const NodeInfo& node_info)
     {
+      // Increment the node id (only used in BFT)
+      get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
+
       auto node = tx.rw(tables.nodes);
       node->put(id, node_info);
     }
