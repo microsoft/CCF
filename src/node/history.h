@@ -236,8 +236,19 @@ namespace ccf
 
     bool verify(HistoryTree* tree) const
     {
-      return tree->max_index() == path->max_index() && tree->root() == root &&
-        path->verify(root);
+      if (path->max_index() > tree->max_index())
+      {
+        return false;
+      }
+      else if (tree->max_index() == path->max_index())
+      {
+        return tree->root() == root && path->verify(root);
+      }
+      else
+      {
+        auto past_root = tree->past_root(path->max_index());
+        return path->verify(*past_root);
+      }
     }
 
     std::vector<uint8_t> to_v() const
@@ -302,7 +313,7 @@ namespace ccf
             txid.version));
         }
 
-        progress_tracker->get_my_hashed_nonce(txid, hashed_nonce);
+        progress_tracker->get_node_hashed_nonce(txid, hashed_nonce);
       }
       else
       {
