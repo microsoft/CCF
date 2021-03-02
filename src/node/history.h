@@ -514,6 +514,7 @@ namespace ccf
 
           const int64_t sig_ms_interval = self->sig_ms_interval;
           int64_t delta_time_to_next_sig = sig_ms_interval;
+          bool should_emit_signature = false;
 
           if (mguard.try_lock())
           {
@@ -531,7 +532,7 @@ namespace ccf
               self->store.commit_gap() > 0 && time > time_of_last_signature &&
               (time - time_of_last_signature) > sig_ms_interval)
             {
-              msg->data.self->emit_signature();
+              should_emit_signature = true;
             }
 
             delta_time_to_next_sig =
@@ -543,6 +544,11 @@ namespace ccf
             {
               delta_time_to_next_sig = sig_ms_interval;
             }
+          }
+
+          if (should_emit_signature)
+          {
+            msg->data.self->emit_signature();
           }
 
           self->emit_signature_timer_entry =
@@ -733,6 +739,7 @@ namespace ccf
 
       if (store.commit_gap() >= sig_tx_interval)
       {
+        mguard.unlock();
         emit_signature();
       }
     }
