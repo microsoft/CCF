@@ -1534,7 +1534,7 @@ namespace aft
                                        static_cast<uint32_t>(sig.sig.size()),
                                        {}};
 
-      progress_tracker->get_my_hashed_nonce(
+      progress_tracker->get_node_hashed_nonce(
         {state->current_view, state->last_idx}, r.hashed_nonce);
 
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
@@ -1666,7 +1666,7 @@ namespace aft
           auto progress_tracker = store->get_progress_tracker();
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
-          nonce = progress_tracker->get_my_nonce(tx_id);
+          nonce = progress_tracker->get_node_nonce(tx_id);
           NonceRevealMsg r = {
             {bft_nonce_reveal}, tx_id.term, tx_id.version, nonce};
 

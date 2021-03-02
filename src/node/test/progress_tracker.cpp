@@ -95,7 +95,7 @@ void ordered_execution(
     {
       if (node_id == my_node_id)
       {
-        auto h = pt->get_my_hashed_nonce({view, seqno});
+        auto h = pt->get_node_hashed_nonce({view, seqno});
         std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
       }
       else
@@ -142,7 +142,7 @@ void ordered_execution(
       {
         pt->add_nonce_reveal(
           {view, seqno},
-          pt->get_my_nonce({view, seqno}),
+          pt->get_node_nonce({view, seqno}),
           node_id,
           node_count,
           am_i_primary);
