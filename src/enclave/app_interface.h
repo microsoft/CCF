@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/historical_queries_interface.h"
+#include "historical_queries_interface.h"
 #include "node/rpc/node_interface.h"
 #include "node/rpc/user_frontend.h"
 
