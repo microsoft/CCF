@@ -75,8 +75,10 @@ def run(args):
 
     if args.filter is not None:
         filter_re = re.compile(args.filter)
+
         def filter_fun(x):
             return filter_re is None or filter_re.match(x[1].__name__)
+
         tests_to_run = filter(filter_fun, enumerate(chosen_suite))
     else:
         tests_to_run = enumerate(chosen_suite)
