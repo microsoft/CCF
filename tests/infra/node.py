@@ -395,7 +395,7 @@ def node(
 ):
     """
     Context manager for Node class.
-    :param local_node_id: unique ID of node
+    :param local_node_id: infra-specific unique ID
     :param binary_directory: the directory where CCF's binaries are located
     :param library_directory: the directory where CCF's libraries are located
     :param host: node's hostname

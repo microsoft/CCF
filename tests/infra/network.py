@@ -144,21 +144,6 @@ class Network:
             return self.nodes[-1].local_node_id + 1
         return self.node_offset
 
-    # TODO: This won't work!!!
-    def _adjust_local_node_ids(self, primary):
-        assert (
-            self.existing_network is None
-        ), "Cannot adjust local node IDs if the network was started from an existing network"
-
-        with primary.client() as nc:
-            r = nc.get("/node/network/nodes/primary")
-            first_node_id = r.body.json()["node_id"]
-            assert (r.body.json()["host"] == primary.pubhost) and (
-                int(r.body.json()["port"]) == primary.pubport
-            ), "Primary is not the node that just started"
-            for n in self.nodes:
-                n.node_id = n.node_id + first_node_id
-
     def create_node(self, host):
         node_id = self._get_next_local_node_id()
         debug = (
@@ -291,17 +276,11 @@ class Network:
                             snapshot_dir=snapshot_dir,
                             **forwarded_args,
                         )
-                        # When a recovery network in started without an existing network,
-                        # it is not possible to know the local node IDs before the first
-                        # node is started and has recovered the ledger. The local node IDs
-                        # are adjusted accordingly then.
-                        if self.existing_network is None:
-                            self.wait_for_state(
-                                node,
-                                "partOfPublicNetwork",
-                                timeout=args.ledger_recovery_timeout,
-                            )
-                            self._adjust_local_node_ids(node)
+                        self.wait_for_state(
+                            node,
+                            "partOfPublicNetwork",
+                            timeout=args.ledger_recovery_timeout,
+                        )
                 else:
                     # When a new service is started, initial nodes join without a snapshot
                     self._add_node(
