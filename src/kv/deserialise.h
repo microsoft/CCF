@@ -139,7 +139,7 @@ namespace kv
       throw std::logic_error("get_request not implemented");
     }
 
-    virtual kv::Version get_max_conflict_version() override
+    kv::Version get_max_conflict_version() override
     {
       return v - 1;
     }
@@ -210,7 +210,7 @@ namespace kv
       return req;
     }
 
-    virtual kv::Version get_max_conflict_version() override
+    kv::Version get_max_conflict_version() override
     {
       return v - 1;
     }
@@ -374,7 +374,7 @@ namespace kv
     {
       if (!store->commit_deserialised(changes, v, new_maps, hooks))
       {
-        LOG_FAIL_FMT("receive_nonces commit_deserialized Failed");
+        LOG_FAIL_FMT("receive_nonces commit_deserialised Failed");
         return ApplyResult::FAIL;
       }
 
@@ -481,7 +481,7 @@ namespace kv
       return ApplyResult::PASS;
     }
 
-    virtual kv::Version get_max_conflict_version() override
+    kv::Version get_max_conflict_version() override
     {
       return max_conflict_version;
     }
