@@ -183,6 +183,14 @@ install(
   PATTERN "*/test*" EXCLUDE
 )
 
+# Install all public CCF headers
+install(
+  DIRECTORY include/
+  DESTINATION include
+  FILES_MATCHING
+  PATTERN "*.h"
+)
+
 # Install CCF Python infrastructure
 install(
   DIRECTORY tests/infra/

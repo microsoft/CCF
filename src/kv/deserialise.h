@@ -19,6 +19,7 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only,
       kv::Version& v,
+      kv::Version& max_conflict_version,
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
       bool ignore_strict_versions = false) = 0;
@@ -47,7 +48,16 @@ namespace kv
     ApplyResult execute() override
     {
       return fn(
-        store, data, history, public_only, v, &term, changes, new_maps, hooks);
+        store,
+        data,
+        history,
+        public_only,
+        v,
+        max_conflict_version,
+        &term,
+        changes,
+        new_maps,
+        hooks);
     }
 
     kv::ConsensusHookPtrs& get_hooks() override
@@ -63,6 +73,11 @@ namespace kv
     Term get_term() override
     {
       return term;
+    }
+
+    kv::Version get_max_conflict_version() override
+    {
+      return max_conflict_version;
     }
 
     kv::Version get_index() override
@@ -84,6 +99,7 @@ namespace kv
       std::shared_ptr<TxHistory> history,
       bool public_only,
       kv::Version& v,
+      kv::Version& max_conflict_version,
       Term* term,
       OrderedChanges& changes,
       MapCollection& new_maps,
@@ -94,11 +110,19 @@ namespace kv
              std::shared_ptr<TxHistory> history,
              bool public_only,
              kv::Version& v,
+             kv::Version& max_conflict_version,
              Term* term_,
              OrderedChanges& changes,
              MapCollection& new_maps,
              kv::ConsensusHookPtrs& hooks) -> ApplyResult {
-      if (!store->fill_maps(data, public_only, v, changes, new_maps, true))
+      if (!store->fill_maps(
+            data,
+            public_only,
+            v,
+            max_conflict_version,
+            changes,
+            new_maps,
+            true))
       {
         return ApplyResult::FAIL;
       }
@@ -157,6 +181,7 @@ namespace kv
     const std::vector<uint8_t> data;
     bool public_only;
     kv::Version v;
+    kv::Version max_conflict_version;
     Term term;
     OrderedChanges changes;
     MapCollection new_maps;
@@ -184,7 +209,8 @@ namespace kv
       public_only(public_only_),
       v(v_),
       changes(std::move(changes_)),
-      new_maps(std::move(new_maps_))
+      new_maps(std::move(new_maps_)),
+      max_conflict_version(kv::NoVersion)
     {}
 
     kv::ConsensusHookPtrs& get_hooks() override
@@ -217,6 +243,12 @@ namespace kv
       return *tx;
     }
 
+    kv::Version get_max_conflict_version() override
+    {
+      return max_conflict_version;
+    }
+
+  protected:
     ExecutionWrapperStore* store;
     std::shared_ptr<TxHistory> history;
     std::shared_ptr<ccf::ProgressTracker> progress_tracker;
@@ -231,6 +263,7 @@ namespace kv
     MapCollection new_maps;
     kv::ConsensusHookPtrs hooks;
     std::unique_ptr<Tx> tx;
+    kv::Version max_conflict_version;
   };
 
   class SignatureBFTExec : public BFTExecutionWrapper
@@ -585,6 +618,7 @@ namespace kv
       bool public_only_,
       std::unique_ptr<Tx> tx_,
       kv::Version v_,
+      kv::Version max_conflict_version_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -598,6 +632,7 @@ namespace kv
         std::move(changes_),
         std::move(new_maps_))
     {
+      max_conflict_version = max_conflict_version_;
       tx = std::move(tx_);
     }
 

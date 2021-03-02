@@ -419,25 +419,30 @@ def set_recovery_threshold(threshold: int, **kwargs):
 
 
 @cli_proposal
-def set_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
-    with open(cert_path) as f:
-        cert_pem = f.read()
+def set_ca_cert_bundle(cert_bundle_name, cert_bundle_path, skip_checks=False, **kwargs):
+    with open(cert_bundle_path) as f:
+        cert_bundle_pem = f.read()
 
     if not skip_checks:
-        try:
-            x509.load_pem_x509_certificate(
-                cert_pem.encode(), crypto_backends.default_backend()
-            )
-        except Exception as exc:
-            raise ValueError("Cannot parse PEM certificate") from exc
+        delim = "-----END CERTIFICATE-----"
+        for cert_pem in cert_bundle_pem.split(delim):
+            if not cert_pem.strip():
+                continue
+            cert_pem += delim
+            try:
+                x509.load_pem_x509_certificate(
+                    cert_pem.encode(), crypto_backends.default_backend()
+                )
+            except Exception as exc:
+                raise ValueError("Cannot parse PEM certificate") from exc
 
-    args = {"name": cert_name, "cert": cert_pem}
-    return build_proposal("set_ca_cert", args, **kwargs)
+    args = {"name": cert_bundle_name, "cert_bundle": cert_bundle_pem}
+    return build_proposal("set_ca_cert_bundle", args, **kwargs)
 
 
 @cli_proposal
-def remove_ca_cert(cert_name, **kwargs):
-    return build_proposal("remove_ca_cert", cert_name, **kwargs)
+def remove_ca_cert_bundle(cert_bundle_name, **kwargs):
+    return build_proposal("remove_ca_cert_bundle", cert_bundle_name, **kwargs)
 
 
 @cli_proposal
@@ -448,7 +453,7 @@ def set_jwt_issuer(json_path: str, **kwargs):
         "issuer": obj["issuer"],
         "key_filter": obj.get("key_filter", "all"),
         "key_policy": obj.get("key_policy"),
-        "ca_cert_name": obj.get("ca_cert_name"),
+        "ca_cert_bundle_name": obj.get("ca_cert_bundle_name"),
         "auto_refresh": obj.get("auto_refresh", False),
         "jwks": obj.get("jwks"),
     }

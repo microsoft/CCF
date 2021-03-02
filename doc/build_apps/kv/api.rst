@@ -51,3 +51,10 @@ Handle
 
 .. doxygenclass:: kv::MapHandle
    :project: CCF
+
+Historical Queries
+------------------
+
+.. doxygenclass:: ccf::historical::AbstractStateCache
+   :project: CCF
+   :members: set_default_expiry_duration, get_store_at, get_store_range, drop_request

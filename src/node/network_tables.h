@@ -74,7 +74,7 @@ namespace ccf
     SubmittedShares submitted_shares;
     Configuration config;
 
-    CACertDERs ca_certs;
+    CACertBundlePEMs ca_cert_bundles;
 
     JwtIssuers jwt_issuers;
     JwtPublicSigningKeys jwt_public_signing_keys;
@@ -133,7 +133,7 @@ namespace ccf
       encrypted_ledger_secrets(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
       submitted_shares(Tables::SUBMITTED_SHARES),
       config(Tables::CONFIGURATION),
-      ca_certs(Tables::CA_CERT_DERS),
+      ca_cert_bundles(Tables::CA_CERT_BUNDLE_PEMS),
       jwt_issuers(Tables::JWT_ISSUERS),
       jwt_public_signing_keys(Tables::JWT_PUBLIC_SIGNING_KEYS),
       jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
@@ -171,7 +171,7 @@ namespace ccf
         std::ref(member_acks),
         std::ref(governance_history),
         std::ref(config),
-        std::ref(ca_certs),
+        std::ref(ca_cert_bundles),
         std::ref(jwt_issuers),
         std::ref(jwt_public_signing_keys),
         std::ref(jwt_public_signing_key_issuer),
