@@ -716,7 +716,7 @@ namespace ccf
             hashed_nonce.h.begin(),
             hashed_nonce.h.end(),
             get_node_hashed_nonce_internal(tx_id).h.begin()),
-        "hashed_nonce does not match my nonce");
+        "hashed_nonce does not match the local node's nonce");
 
       BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce);
       try_match_unmatched_nonces(
