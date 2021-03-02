@@ -936,7 +936,7 @@ def test_receipts(network, args):
             num_stints = 5
             num_tx = 10
             for j in range(num_stints):
-                idx = j * (num_tx + 1)
+                idx = j * (num_tx + 1) + 10000
                 r = c.post("/app/log/private", {"id": idx, "msg": msg})
                 check_commit(r, result=True)
                 check(c.get("/app/log/private?id=%d" % idx), result={"msg": msg})
