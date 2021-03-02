@@ -313,7 +313,7 @@ namespace ccf
             txid.version));
         }
 
-        progress_tracker->get_my_hashed_nonce(txid, hashed_nonce);
+        progress_tracker->get_node_hashed_nonce(txid, hashed_nonce);
       }
       else
       {
