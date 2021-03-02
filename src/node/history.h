@@ -201,6 +201,11 @@ namespace ccf
     {
       return true;
     }
+
+    std::vector<uint8_t> serialise_tree(size_t, size_t) override
+    {
+      return {};
+    }
   };
 
   typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree;
@@ -250,7 +255,7 @@ namespace ccf
     kv::TxID txid;
     kv::Consensus::SignableTxIndices commit_txid;
     kv::Store& store;
-    T& replicated_state_tree;
+    kv::TxHistory& history;
     NodeId id;
     crypto::KeyPair& kp;
 
@@ -259,13 +264,13 @@ namespace ccf
       kv::TxID txid_,
       kv::Consensus::SignableTxIndices commit_txid_,
       kv::Store& store_,
-      T& replicated_state_tree_,
+      kv::TxHistory& history_,
       NodeId id_,
       crypto::KeyPair& kp_) :
       txid(txid_),
       commit_txid(commit_txid_),
       store(store_),
-      replicated_state_tree(replicated_state_tree_),
+      history(history_),
       id(id_),
       kp(kp_)
     {}
@@ -275,7 +280,7 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      crypto::Sha256Hash root = replicated_state_tree.get_root();
+      crypto::Sha256Hash root = history.get_replicated_state_root();
 
       Nonce hashed_nonce;
       std::vector<uint8_t> primary_sig;
@@ -315,8 +320,7 @@ namespace ccf
         root,
         hashed_nonce,
         primary_sig,
-        replicated_state_tree.serialise(
-          commit_txid.previous_version, txid.version - 1));
+        history.serialise_tree(commit_txid.previous_version, txid.version - 1));
 
       if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
       {
@@ -668,7 +672,7 @@ namespace ccf
       }
 
       crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
-      crypto::Sha256Hash root = replicated_state_tree.get_root();
+      crypto::Sha256Hash root = get_replicated_state_root();
       log_hash(root, VERIFY);
       bool result =
         from_cert->verify_hash(root.h, sig_value.sig, crypto::MDType::SHA256);
@@ -679,6 +683,12 @@ namespace ccf
       }
 
       return true;
+    }
+
+    std::vector<uint8_t> serialise_tree(size_t from, size_t to) override
+    {
+      std::lock_guard<SpinLock> guard(state_lock);
+      return replicated_state_tree.serialise(from, to);
     }
 
     void set_term(kv::Term t) override
@@ -762,7 +772,7 @@ namespace ccf
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid, commit_txid, store, replicated_state_tree, id, kp),
+          txid, commit_txid, store, *this, id, kp),
         true);
     }
 
