@@ -251,7 +251,6 @@ namespace ccf::historical
                   auto receipt = tree.get_receipt(seqno);
                   details->receipt =
                     std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
-                  LOG_FAIL_FMT("Grabbed receipt for {}", seqno);
                   details->current_stage = RequestStage::Trusted;
                 }
               }
@@ -285,7 +284,6 @@ namespace ccf::historical
                   auto receipt = tree.get_receipt(new_seqno);
                   details->receipt =
                     std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
-                  LOG_FAIL_FMT("Grabbed receipt for {}", new_seqno);
                   new_details->current_stage = RequestStage::Trusted;
                 }
 
@@ -315,7 +313,6 @@ namespace ccf::historical
                 auto receipt = tree.get_receipt(new_seqno);
                 details->receipt =
                   std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
-                LOG_FAIL_FMT("Grabbed receipt for {}", seqno);
                 new_details->current_stage = RequestStage::Trusted;
               }
             }

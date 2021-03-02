@@ -434,6 +434,28 @@ def test_historical_query(network, args):
     return network
 
 
+@reqs.description("Read historical receipts")
+@reqs.supports_methods("log/private", "log/private/historical_receipt")
+def test_historical_receipts(network, args):
+    if args.consensus == "bft":
+        LOG.warning("Skipping historical queries in BFT")
+        return network
+
+    if args.package == "liblogging":
+        node = network.find_node_by_role()
+        network.txs.issue(network, number_txs=1)
+        first_msg = network.txs.priv[1][0]
+        first_receipt = network.txs.get_receipt(
+            node, 1, first_msg["seqno"], first_msg["view"]
+        )
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
+
+    return network
+
+
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("log/private", "log/private/historical/range")
 def test_historical_query_range(network, args):
@@ -995,6 +1017,7 @@ def run(args):
             args,
             verify=args.package != "libjs_generic",
         )
+        """"
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)
@@ -1020,6 +1043,8 @@ def run(args):
         if args.package == "liblogging":
             network = test_ws(network, args)
             network = test_receipts(network, args)
+        """
+        network = test_historical_receipts(network, args)
 
 
 if __name__ == "__main__":

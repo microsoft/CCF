@@ -114,8 +114,8 @@ namespace ccf::historical
       const auto historic_request_handle = target_seqno;
 
       // Get a store at the target version from the cache, if it is present
-      auto hr =
-        state_cache.get_store_and_receipt_at(historic_request_handle, target_seqno);
+      auto hr = state_cache.get_store_and_receipt_at(
+        historic_request_handle, target_seqno);
       if (!hr.has_value())
       {
         args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
@@ -133,11 +133,15 @@ namespace ccf::historical
       }
 
       // Call the provided handler
-      f(args, std::get<0>(hr.value()), std::get<1>(hr.value()), target_view, target_seqno);
+      f(args,
+        std::get<0>(hr.value()),
+        std::get<1>(hr.value()),
+        target_view,
+        target_seqno);
     };
   }
 
-    static ccf::EndpointFunction adapter(
+  static ccf::EndpointFunction adapter(
     const HandleHistoricalQuery& f,
     AbstractStateCache& state_cache,
     const CheckAvailability& available)

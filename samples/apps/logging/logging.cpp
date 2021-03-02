@@ -7,6 +7,7 @@
 #include "node/quote.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
+#include "tls/base64.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -516,8 +517,6 @@ namespace loggingapp
         .install();
       // SNIPPET_END: log_record_text
 
-
-
       auto get_historical = [this](
                               ccf::EndpointContext& args,
                               ccf::historical::StorePtr historical_store,
@@ -584,38 +583,42 @@ namespace loggingapp
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 
-      auto get_historical_with_receipt = [this](
-                              ccf::EndpointContext& args,
-                              ccf::historical::StorePtr historical_store,
-                              ccf::historical::TxReceiptPtr /*receipt_ptr*/,
-                              kv::Consensus::View,
-                              kv::Consensus::SeqNo) {
-        const auto [pack, params] =
-          ccf::jsonhandler::get_json_params(args.rpc_ctx);
+      auto get_historical_with_receipt =
+        [this](
+          ccf::EndpointContext& args,
+          ccf::historical::StorePtr historical_store,
+          ccf::historical::TxReceiptPtr receipt_ptr,
+          kv::Consensus::View,
+          kv::Consensus::SeqNo) {
+          const auto [pack, params] =
+            ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
-        const auto in = params.get<LoggingGetHistorical::In>();
+          const auto in = params.get<LoggingGetHistorical::In>();
 
-        auto historical_tx = historical_store->create_read_only_tx();
-        auto records_handle = historical_tx.ro(records);
-        const auto v = records_handle->get(in.id);
+          auto historical_tx = historical_store->create_read_only_tx();
+          auto records_handle = historical_tx.ro(records);
+          const auto v = records_handle->get(in.id);
 
-        if (v.has_value())
-        {
-          LoggingGetHistorical::Out out;
-          out.msg = v.value();
-          nlohmann::json j = out;
-          ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
-        }
-        else
-        {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
-        }
-      };
+          if (v.has_value())
+          {
+            LoggingGetHistorical::Out out;
+            out.msg = v.value();
+            nlohmann::json j = out;
+            j["signature"] = tls::b64_from_raw(receipt_ptr->signature);
+            ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
+          }
+          else
+          {
+            args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+        };
       make_endpoint(
         "log/private/historical_receipt",
         HTTP_GET,
         ccf::historical::receipt_adapter(
-          get_historical_with_receipt, context.get_historical_state(), is_tx_committed),
+          get_historical_with_receipt,
+          context.get_historical_state(),
+          is_tx_committed),
         auth_policies)
         .set_auto_schema<LoggingGetHistorical>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
