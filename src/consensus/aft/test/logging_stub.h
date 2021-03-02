@@ -272,7 +272,7 @@ namespace aft
       kv::ConsensusHookPtrs hooks;
     };
 
-    virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
       bool public_only = false)

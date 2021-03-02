@@ -265,7 +265,8 @@ TEST_CASE("KV encryption/decryption")
   {
     commit_one(primary_store, map);
     REQUIRE(
-      backup_store.deserialize(*consensus->get_latest_data(), ConsensusType::CFT)
+      backup_store
+        .deserialize(*consensus->get_latest_data(), ConsensusType::CFT)
         ->apply() == kv::ApplyResult::PASS);
   }
 
@@ -290,7 +291,8 @@ TEST_CASE("KV encryption/decryption")
         current_version + i, std::move(ledger_secret_for_backup));
 
       REQUIRE(
-        backup_store.deserialize(*consensus->get_latest_data(), ConsensusType::CFT)
+        backup_store
+          .deserialize(*consensus->get_latest_data(), ConsensusType::CFT)
           ->apply() == kv::ApplyResult::PASS);
     }
   }

@@ -121,7 +121,8 @@ static void apply(picobench::state& s)
 
   s.start_timer();
   auto rc =
-    kv_store2.deserialize(consensus->get_latest_data().value(), ConsensusType::CFT)
+    kv_store2
+      .deserialize(consensus->get_latest_data().value(), ConsensusType::CFT)
       ->apply();
   if (rc != kv::ApplyResult::PASS)
     throw std::logic_error(
