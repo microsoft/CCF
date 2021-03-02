@@ -539,17 +539,18 @@ namespace aft
 
       return true;
     }
-    void recv_message(const uint8_t* data, size_t size)
+
+    void recv_message(const NodeId& from, const uint8_t* data, size_t size)
     {
-      recv_message(OArray({data, data + size}));
+      recv_message(from, OArray({data, data + size}));
     }
 
-    void recv_message(OArray&& d)
+    void recv_message(const NodeId& from, OArray&& d)
     {
       std::unique_ptr<AbstractMsgCallback> aee;
       const uint8_t* data = d.data();
       size_t size = d.size();
-      NodeId from = serialized::read<NodeId>(data, size);
+      // NodeId from = serialized::read<NodeId>(data, size);
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
 
       try
@@ -790,7 +791,10 @@ namespace aft
     }
 
     void recv_view_change(
-      NodeId from, RequestViewChangeMsg r, const uint8_t* data, size_t size)
+      const NodeId& from,
+      RequestViewChangeMsg r,
+      const uint8_t* data,
+      size_t size)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -825,7 +829,10 @@ namespace aft
     }
 
     void recv_view_change_evidence(
-      NodeId from, ViewChangeEvidenceMsg r, const uint8_t* data, size_t size)
+      const NodeId& from,
+      ViewChangeEvidenceMsg r,
+      const uint8_t* data,
+      size_t size)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -1041,7 +1048,7 @@ namespace aft
     };
 
     void recv_append_entries(
-      NodeId from, AppendEntries r, const uint8_t* data, size_t size)
+      const NodeId& from, AppendEntries r, const uint8_t* data, size_t size)
     {
       std::unique_lock<SpinLock> guard(state->lock);
 
@@ -1561,7 +1568,7 @@ namespace aft
     }
 
     void recv_append_entries_signed_response(
-      NodeId from, SignedAppendEntriesResponse r)
+      const NodeId& from, SignedAppendEntriesResponse r)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -1625,7 +1632,8 @@ namespace aft
       }
     }
 
-    void recv_signature_received_ack(NodeId from, SignaturesReceivedAck r)
+    void recv_signature_received_ack(
+      const NodeId& from, SignaturesReceivedAck r)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -1690,7 +1698,7 @@ namespace aft
       }
     }
 
-    void recv_nonce_reveal(NodeId from, NonceRevealMsg r)
+    void recv_nonce_reveal(const NodeId& from, NonceRevealMsg r)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -1716,7 +1724,8 @@ namespace aft
       update_commit();
     }
 
-    void recv_append_entries_response(NodeId from, AppendEntriesResponse r)
+    void recv_append_entries_response(
+      const NodeId& from, AppendEntriesResponse r)
     {
       std::lock_guard<SpinLock> guard(state->lock);
       // Ignore if we're not the leader.
@@ -1835,7 +1844,7 @@ namespace aft
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
 
-    void recv_request_vote(NodeId from, RequestVote r)
+    void recv_request_vote(const NodeId& from, RequestVote r)
     {
       std::lock_guard<SpinLock> guard(state->lock);
 
@@ -1934,7 +1943,7 @@ namespace aft
         to, ccf::NodeMsgType::consensus_msg, response);
     }
 
-    void recv_request_vote_response(NodeId from, RequestVoteResponse r)
+    void recv_request_vote_response(const NodeId& from, RequestVoteResponse r)
     {
       if (replica_state != Candidate)
       {

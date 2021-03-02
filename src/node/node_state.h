@@ -1291,17 +1291,18 @@ namespace ccf
       OArray oa(std::move(data));
       NodeMsgType msg_type =
         serialized::overlay<NodeMsgType>(oa.data(), oa.size());
+      NodeId from = serialized::read<NodeId>(oa.data(), oa.size());
 
       switch (msg_type)
       {
         case channel_msg:
         {
-          n2n_channels->recv_message(std::move(oa));
+          n2n_channels->recv_message(from, std::move(oa));
           break;
         }
         case consensus_msg:
         {
-          consensus->recv_message(std::move(oa));
+          consensus->recv_message(from, std::move(oa));
           break;
         }
 

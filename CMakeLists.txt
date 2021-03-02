@@ -439,21 +439,21 @@ if(BUILD_TESTS)
     add_subdirectory(src/libmerklecpp/test)
 
     # Raft driver and scenario test
-    # add_executable(
-    #   raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
-    # )
-    # target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
-    # use_client_mbedtls(raft_driver)
-    # target_include_directories(raft_driver PRIVATE src/aft)
+    add_executable(
+      raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
+    )
+    target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
+    use_client_mbedtls(raft_driver)
+    target_include_directories(raft_driver PRIVATE src/aft)
 
-    # add_test(
-    #   NAME raft_scenario_test
-    #   COMMAND
-    #     ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
-    #     ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios
-    #     ${CMAKE_SOURCE_DIR}
-    # )
-    # set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
+    add_test(
+      NAME raft_scenario_test
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
+        ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios
+        ${CMAKE_SOURCE_DIR}
+    )
+    set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
     add_test(NAME csr_test COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/certs.py
                                    ./cert_test

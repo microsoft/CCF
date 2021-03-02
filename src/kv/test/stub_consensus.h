@@ -140,7 +140,7 @@ namespace kv
       view_history.initialise(view_history_);
     }
 
-    void recv_message(OArray&& oa) override {}
+    void recv_message(const kv::NodeId& from, OArray&& oa) override {}
 
     void add_configuration(
       SeqNo seqno, const Configuration::Nodes& conf) override

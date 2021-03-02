@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "driver.h"
-
 #include "ds/hash.h"
 
 #include <cassert>
@@ -43,11 +42,11 @@ int main(int argc, char** argv)
         break;
       case shash("connect"):
         assert(items.size() == 3);
-        driver->connect(stoi(items[1]), stoi(items[2]));
+        driver->connect(items[1], items[2]);
         break;
       case shash("periodic_one"):
         assert(items.size() == 3);
-        driver->periodic_one(stoi(items[1]), ms(stoi(items[2])));
+        driver->periodic_one(items[1], ms(stoi(items[2])));
         break;
       case shash("periodic_all"):
         assert(items.size() == 2);
@@ -55,7 +54,7 @@ int main(int argc, char** argv)
         break;
       case shash("state_one"):
         assert(items.size() == 2);
-        driver->state_one(stoi(items[1]));
+        driver->state_one(items[1]);
         break;
       case shash("dispatch_all"):
         assert(items.size() == 1);
@@ -73,23 +72,23 @@ int main(int argc, char** argv)
         assert(items.size() == 4);
         data = std::make_shared<std::vector<uint8_t>>(
           items[3].begin(), items[3].end());
-        driver->replicate(stoi(items[1]), stoi(items[2]), data);
+        driver->replicate(items[1], stoi(items[2]), data);
         break;
       case shash("disconnect"):
         assert(items.size() == 3);
-        driver->disconnect(stoi(items[1]), stoi(items[2]));
+        driver->disconnect(items[1], items[2]);
         break;
       case shash("disconnect_node"):
         assert(items.size() == 2);
-        driver->disconnect_node(stoi(items[1]));
+        driver->disconnect_node(items[1]);
         break;
       case shash("reconnect"):
         assert(items.size() == 3);
-        driver->reconnect(stoi(items[1]), stoi(items[2]));
+        driver->reconnect(items[1], items[2]);
         break;
       case shash("reconnect_node"):
         assert(items.size() == 2);
-        driver->reconnect_node(stoi(items[1]));
+        driver->reconnect_node(items[1]);
         break;
       default:
         cerr << "Unknown action '" << items[0] << "' at line " << lineno

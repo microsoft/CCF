@@ -42,7 +42,7 @@ public:
 
     for (size_t i = 0; i < number_of_nodes; ++i)
     {
-      aft::NodeId node_id = i;
+      aft::NodeId node_id = std::to_string(i);
 
       auto kv = std::make_shared<Store>(node_id);
       auto raft = std::make_shared<TRaft>(
@@ -186,7 +186,7 @@ public:
         log_msg_details(node_id, tgt_node_id, contents);
         _nodes.at(tgt_node_id)
           .raft->recv_message(
-            reinterpret_cast<uint8_t*>(&contents), sizeof(contents));
+            node_id, reinterpret_cast<uint8_t*>(&contents), sizeof(contents));
         count++;
       }
     }

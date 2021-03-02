@@ -82,19 +82,19 @@ namespace aft
     ChannelStubProxy() {}
 
     void create_channel(
-      NodeId peer_id,
+      const NodeId& peer_id,
       const std::string& peer_hostname,
       const std::string& peer_service) override
     {}
 
-    void destroy_channel(NodeId peer_id) override {}
+    void destroy_channel(const NodeId& peer_id) override {}
 
     void destroy_all_channels() override {}
 
     void close_all_outgoing() override {}
 
     bool send_authenticated(
-      NodeId to,
+      const NodeId& to,
       ccf::NodeMsgType msg_type,
       const uint8_t* data,
       size_t size) override
@@ -131,17 +131,22 @@ namespace aft
     }
 
     bool recv_authenticated(
-      NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) override
+      const NodeId& from_node,
+      CBuffer cb,
+      const uint8_t*& data,
+      size_t& size) override
     {
       return true;
     }
 
-    void recv_message(OArray&& oa) override {}
+    void recv_message(const NodeId& from, OArray&& oa) override {}
 
-    void initialize(NodeId self_id, const crypto::Pem& network_pkey) override {}
+    void initialize(
+      const NodeId& self_id, const crypto::Pem& network_pkey) override
+    {}
 
     bool send_encrypted(
-      NodeId to,
+      const NodeId& to,
       ccf::NodeMsgType msg_type,
       CBuffer cb,
       const std::vector<uint8_t>& data) override
@@ -150,13 +155,16 @@ namespace aft
     }
 
     std::vector<uint8_t> recv_encrypted(
-      NodeId from_node, CBuffer cb, const uint8_t* data, size_t size) override
+      const NodeId& fromfpf32,
+      CBuffer cb,
+      const uint8_t* data,
+      size_t size) override
     {
       return {};
     }
 
     bool recv_authenticated_with_load(
-      NodeId from_node, const uint8_t*& data, size_t& size) override
+      const NodeId& from, const uint8_t*& data, size_t& size) override
     {
       return true;
     }

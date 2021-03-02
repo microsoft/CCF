@@ -116,9 +116,9 @@ namespace aft
       return aft->active_nodes();
     }
 
-    void recv_message(OArray&& data) override
+    void recv_message(const kv::NodeId& from, OArray&& data) override
     {
-      return aft->recv_message(std::move(data));
+      return aft->recv_message(from, std::move(data));
     }
 
     void add_configuration(

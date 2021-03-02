@@ -10,24 +10,28 @@ namespace aft
   {
   public:
     virtual void recv_append_entries(
-      kv::NodeId from, AppendEntries r, const uint8_t* data, size_t size) = 0;
+      const kv::NodeId& from,
+      AppendEntries r,
+      const uint8_t* data,
+      size_t size) = 0;
     virtual void recv_append_entries_response(
-      kv::NodeId from, AppendEntriesResponse r) = 0;
+      const kv::NodeId& from, AppendEntriesResponse r) = 0;
     virtual void recv_append_entries_signed_response(
-      kv::NodeId from, SignedAppendEntriesResponse r) = 0;
-    virtual void recv_request_vote(kv::NodeId from, RequestVote r) = 0;
+      const kv::NodeId& from, SignedAppendEntriesResponse r) = 0;
+    virtual void recv_request_vote(const kv::NodeId& from, RequestVote r) = 0;
     virtual void recv_request_vote_response(
-      kv::NodeId from, RequestVoteResponse r) = 0;
+      const kv::NodeId& from, RequestVoteResponse r) = 0;
     virtual void recv_signature_received_ack(
-      kv::NodeId from, SignaturesReceivedAck r) = 0;
-    virtual void recv_nonce_reveal(kv::NodeId from, NonceRevealMsg r) = 0;
+      const kv::NodeId& from, SignaturesReceivedAck r) = 0;
+    virtual void recv_nonce_reveal(
+      const kv::NodeId& from, NonceRevealMsg r) = 0;
     virtual void recv_view_change(
-      kv::NodeId from,
+      const kv::NodeId& from,
       RequestViewChangeMsg r,
       const uint8_t* data,
       size_t size) = 0;
     virtual void recv_view_change_evidence(
-      kv::NodeId from,
+      const kv::NodeId& from,
       ViewChangeEvidenceMsg r,
       const uint8_t* data,
       size_t size) = 0;
