@@ -11,6 +11,18 @@
 
 namespace ccf::historical
 {
+  struct TxReceipt
+  {
+    TxReceipt(const std::vector<uint8_t>& s_, const std::vector<uint8_t>& p_) :
+      signature(s_),
+      proof(p_)
+    {}
+    std::vector<uint8_t> signature = {};
+    std::vector<uint8_t> proof = {};
+  };
+
+  using TxReceiptPtr = std::shared_ptr<TxReceipt>;
+
   using StorePtr = std::shared_ptr<kv::Store>;
 
   /** This is a caller-defined key for each historical query request. For
@@ -62,6 +74,9 @@ namespace ccf::historical
      * @see get_store_at
      */
     virtual StorePtr get_store_at(RequestHandle handle, kv::SeqNo seqno) = 0;
+
+    virtual std::optional<std::pair<StorePtr, TxReceiptPtr>>
+    get_store_and_receipt_at(RequestHandle handle, kv::SeqNo seqno) = 0;
 
     /** Retrieve a range of Stores containing the state written at the given
      * indices.

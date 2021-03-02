@@ -74,14 +74,6 @@ namespace ccf::historical
       return historical_ledger_secrets->get_first();
     }
 
-    struct TxReceipt
-    {
-      TxReceipt(const std::vector<uint8_t>& s_, const std::vector<uint8_t>& p_): signature(s_), proof(p_) {}
-      std::vector<uint8_t> signature = {};
-      std::vector<uint8_t> proof = {};
-    };
-    using TxReceiptPtr = std::shared_ptr<TxReceipt>;
-
     struct StoreDetails
     {
       RequestStage current_stage = RequestStage::Fetching;
@@ -257,7 +249,8 @@ namespace ccf::historical
                   }
 
                   auto receipt = tree.get_receipt(seqno);
-                  details->receipt = std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
+                  details->receipt =
+                    std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
                   LOG_FAIL_FMT("Grabbed receipt for {}", seqno);
                   details->current_stage = RequestStage::Trusted;
                 }
@@ -290,7 +283,8 @@ namespace ccf::historical
                   }
 
                   auto receipt = tree.get_receipt(new_seqno);
-                  details->receipt = std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
+                  details->receipt =
+                    std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
                   LOG_FAIL_FMT("Grabbed receipt for {}", new_seqno);
                   new_details->current_stage = RequestStage::Trusted;
                 }
@@ -319,7 +313,8 @@ namespace ccf::historical
                 }
 
                 auto receipt = tree.get_receipt(new_seqno);
-                details->receipt = std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
+                details->receipt =
+                  std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
                 LOG_FAIL_FMT("Grabbed receipt for {}", seqno);
                 new_details->current_stage = RequestStage::Trusted;
               }
@@ -659,7 +654,8 @@ namespace ccf::historical
         if (target_details->current_stage == RequestStage::Trusted)
         {
           // Have this store and trust it - add it to return list
-          trusted_stores.push_back({target_details->store, target_details->receipt});
+          trusted_stores.push_back(
+            {target_details->store, target_details->receipt});
         }
         else
         {
@@ -722,6 +718,20 @@ namespace ccf::historical
       return get_store_at(handle, seqno, default_expiry_duration);
     }
 
+    std::optional<std::pair<StorePtr, TxReceiptPtr>> get_store_and_receipt_at(
+      RequestHandle handle, kv::SeqNo seqno) override
+    {
+      auto range =
+        get_store_range_internal(handle, seqno, 1, default_expiry_duration);
+
+      if (range.empty())
+      {
+        return std::nullopt;
+      }
+
+      return range[0];
+    }
+
     std::vector<StorePtr> get_store_range(
       RequestHandle handle,
       kv::SeqNo start_seqno,
@@ -740,7 +750,7 @@ namespace ccf::historical
       auto range = get_store_range_internal(
         handle, start_seqno, tail_length, seconds_until_expiry);
       std::vector<StorePtr> stores;
-      for (size_t i=0; i<range.size(); i++)
+      for (size_t i = 0; i < range.size(); i++)
       {
         stores.push_back(std::get<0>(range[i]));
       }
