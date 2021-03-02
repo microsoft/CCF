@@ -662,9 +662,9 @@ namespace ccf
       auto it = certificates.find(tx_id.version);
       if (it == certificates.end())
       {
-        // The root is currently not know, so this
-        // signature is saved and and will be verify when the root can be
-        // retrieved from the primary signature get it from the primary
+        // At this point the appropriate Merkle root is not known. The signature
+        // will be recorded and verified when the primary sends the apporiate
+        // Merkle root.
         auto r =
           certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
             tx_id.version, CommitCert()));
