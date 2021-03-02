@@ -687,6 +687,7 @@ namespace ccf
 
     std::vector<uint8_t> serialise_tree(size_t from, size_t to) override
     {
+      std::lock_guard<SpinLock> guard(state_lock);
       return replicated_state_tree.serialise(from, to);
     }
 
