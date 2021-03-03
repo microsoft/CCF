@@ -742,8 +742,8 @@ namespace kv
       return true;
     }
 
-    std::unique_ptr<kv::AbstractExecutionWrapper> apply(
-      const std::vector<uint8_t> data,
+    std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
+      const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
       bool public_only = false) override
     {
