@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Node unique identifier is hex-encoded string of node's identity public key (#2241).
+- Node unique identifier is the hex-encoded string of the SHA-256 digest of the node's identity public key (#2241).
 
 ## [0.18.5]
 
