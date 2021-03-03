@@ -125,6 +125,10 @@ namespace std
 
 }
 
+// Only display the first node_id_truncation_max_char_count character when
+// printing the node id to the node's log
+static constexpr size_t node_id_truncation_max_char_count = 10;
+
 FMT_BEGIN_NAMESPACE
 template <>
 struct formatter<ccf::NodeId>
@@ -139,7 +143,11 @@ struct formatter<ccf::NodeId>
   auto format(const ccf::NodeId& node_id, FormatContext& ctx)
     -> decltype(ctx.out())
   {
-    return format_to(ctx.out(), "<node {}>", node_id.id);
+    return format_to(
+      ctx.out(),
+      "{}",
+      node_id.id.substr(
+        0, std::min(node_id.id.size(), node_id_truncation_max_char_count)));
   }
 };
 FMT_END_NAMESPACE
