@@ -112,7 +112,7 @@ namespace aft
       auto p = x.lock();
       if (p)
       {
-        return p->apply(data, consensus_type, public_only);
+        return p->deserialize(data, consensus_type, public_only);
       }
       return nullptr;
     }

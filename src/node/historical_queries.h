@@ -791,7 +791,7 @@ namespace ccf::historical
         }
 
         deserialise_result =
-          store->apply(data, ConsensusType::CFT, public_only)->execute();
+          store->deserialize(data, ConsensusType::CFT, public_only)->apply();
       }
       catch (const std::exception& e)
       {
