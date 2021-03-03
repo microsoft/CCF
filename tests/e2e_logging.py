@@ -18,6 +18,7 @@ import base64
 import json
 import ccf.clients
 from ccf.log_capture import flush_info
+import ccf.receipt
 
 from loguru import logger as LOG
 
@@ -448,7 +449,8 @@ def test_historical_receipts(network, args):
         first_receipt = network.txs.get_receipt(
             node, 1, first_msg["seqno"], first_msg["view"]
         )
-        LOG.info(first_receipt.json())
+        r = first_receipt.json()
+        assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
