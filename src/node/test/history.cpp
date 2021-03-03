@@ -31,8 +31,8 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      return store->apply(*std::get<1>(entries[0]), ConsensusType::CFT)
-               ->execute() != kv::ApplyResult::FAIL;
+      return store->deserialize(*std::get<1>(entries[0]), ConsensusType::CFT)
+               ->apply() != kv::ApplyResult::FAIL;
     }
     return true;
   }
@@ -153,6 +153,9 @@ TEST_CASE("Check signing works across rollback")
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
+  auto v1_receipt =
+    primary_history->get_receipt(primary_store.current_version());
+
   INFO("Transaction that we will roll back");
   {
     auto txs = primary_store.create_tx();
@@ -179,6 +182,16 @@ TEST_CASE("Check signing works across rollback")
     {
       REQUIRE(backup_store.current_version() == 2);
     }
+  }
+
+  auto v2_receipt =
+    primary_history->get_receipt(primary_store.current_version());
+
+  INFO("Check that past & current receipts are ok");
+  {
+    REQUIRE(primary_history->verify_receipt(v1_receipt));
+    REQUIRE(primary_history->verify_receipt(v2_receipt));
+    REQUIRE(primary_history->verify_receipt(primary_history->get_receipt(1)));
   }
 
   INFO("Check merkle roots are updating");

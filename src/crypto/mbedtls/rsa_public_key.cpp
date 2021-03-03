@@ -32,7 +32,12 @@ namespace crypto
     }
   }
 
-  std::vector<uint8_t> RSAPublicKey_mbedTLS::wrap(
+  size_t RSAPublicKey_mbedTLS::key_size() const
+  {
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(*ctx.get())) * 8;
+  }
+
+  std::vector<uint8_t> RSAPublicKey_mbedTLS::rsa_oaep_wrap(
     const uint8_t* input,
     size_t input_size,
     const uint8_t* label,
@@ -68,18 +73,19 @@ namespace crypto
     return output_buf;
   }
 
-  std::vector<uint8_t> RSAPublicKey_mbedTLS::wrap(
-    const std::vector<uint8_t>& input, std::optional<std::string> label)
+  std::vector<uint8_t> RSAPublicKey_mbedTLS::rsa_oaep_wrap(
+    const std::vector<uint8_t>& input,
+    std::optional<std::vector<std::uint8_t>> label)
   {
     const unsigned char* label_ = NULL;
     size_t label_size = 0;
     if (label.has_value())
     {
-      label_ = reinterpret_cast<const unsigned char*>(label->c_str());
+      label_ = reinterpret_cast<const unsigned char*>(label->data());
       label_size = label->size();
     }
 
-    return wrap(input.data(), input.size(), label_, label_size);
+    return rsa_oaep_wrap(input.data(), input.size(), label_, label_size);
   }
 
   Pem RSAPublicKey_mbedTLS::public_key_pem() const

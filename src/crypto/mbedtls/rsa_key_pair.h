@@ -23,12 +23,14 @@ namespace crypto
     RSAKeyPair_mbedTLS(const RSAKeyPair&) = delete;
     RSAKeyPair_mbedTLS(const Pem& pem, CBuffer pw = nullb);
 
+    virtual size_t key_size() const override;
+
     virtual ~RSAKeyPair_mbedTLS() = default;
 
-    virtual std::vector<uint8_t> unwrap(
+    virtual std::vector<uint8_t> rsa_oaep_unwrap(
       const std::vector<uint8_t>& input,
-      std::optional<std::string> label = std::nullopt);
+      std::optional<std::vector<std::uint8_t>> label = std::nullopt) override;
 
-    virtual Pem public_key_pem() const;
+    virtual Pem public_key_pem() const override;
   };
 }

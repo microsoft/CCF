@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.18.5]
 
 ### Changed
 
@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Governance proposals can be submitted successfully against secondaries (#2247)
 - `set_ca_cert`/`remove_ca_cert` proposals have been renamed `set_ca_cert_bundle`/`remove_ca_cert_bundle` and now also accept a bundle of certificates encoded as concatenated PEM string (#2221).
+
+### Added
+
+- Support for multiple key wrapping algorithms for C++ and JavaScript applications (#2246)
 
 ## [0.18.3]
 
@@ -708,6 +712,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.18.5]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.5
 [0.18.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.4
 [0.18.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.3
 [0.18.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.2

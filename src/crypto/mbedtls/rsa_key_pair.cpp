@@ -3,6 +3,7 @@
 
 #include "rsa_key_pair.h"
 
+#include "crypto/mbedtls/rsa_public_key.h"
 #include "entropy.h"
 #include "mbedtls_wrappers.h"
 
@@ -53,8 +54,14 @@ namespace crypto
     }
   }
 
-  std::vector<uint8_t> RSAKeyPair_mbedTLS::unwrap(
-    const std::vector<uint8_t>& input, std::optional<std::string> label)
+  size_t RSAKeyPair_mbedTLS::key_size() const
+  {
+    return RSAPublicKey_mbedTLS::key_size();
+  }
+
+  std::vector<uint8_t> RSAKeyPair_mbedTLS::rsa_oaep_unwrap(
+    const std::vector<uint8_t>& input,
+    std::optional<std::vector<std::uint8_t>> label)
   {
     mbedtls_rsa_context* rsa_ctx = mbedtls_pk_rsa(*ctx.get());
     mbedtls_rsa_set_padding(rsa_ctx, rsa_padding_mode, rsa_padding_digest_id);
@@ -66,7 +73,7 @@ namespace crypto
     size_t label_size = 0;
     if (label.has_value())
     {
-      label_ = reinterpret_cast<const unsigned char*>(label->c_str());
+      label_ = reinterpret_cast<const unsigned char*>(label->data());
       label_size = label->size();
     }
 
