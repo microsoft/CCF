@@ -367,7 +367,6 @@ namespace ccf
             // BFT consensus requires a stable order of node IDs so that the
             // primary node in a given view can be computed deterministically by
             // all nodes in the network
-            // TODO: Raise issue for this (post 1.0)
             self = "0";
           }
 

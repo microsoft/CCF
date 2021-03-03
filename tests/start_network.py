@@ -55,7 +55,6 @@ def run(args):
             network.start_and_join(args)
 
         primary, backups = network.find_nodes()
-        max_len = len(str(len(backups)))
 
         # To be sure, confirm that the app frontend is open on each node
         for node in [primary, *backups]:

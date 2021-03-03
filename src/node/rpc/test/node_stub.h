@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv/test/stub_consensus.h"
 #include "node/rpc/node_interface.h"
 #include "node/share_manager.h"
-#include "kv/test/stub_consensus.h"
 
 namespace ccf
 {
