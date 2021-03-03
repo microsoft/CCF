@@ -609,6 +609,7 @@ namespace loggingapp
           j["root"] = receipt_ptr->root.to_string();
           j["proof"] = nlohmann::json::array();
           j["leaf"] = receipt_ptr->path->leaf().to_string();
+          j["node_id"] = receipt_ptr->node_id;
           for (const auto& node : *receipt_ptr->path)
           {
             nlohmann::json entry = nlohmann::json::object();

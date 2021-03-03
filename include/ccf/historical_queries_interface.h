@@ -17,14 +17,17 @@ namespace ccf::historical
     std::vector<uint8_t> signature = {};
     HistoryTree::Hash root = {};
     std::shared_ptr<ccf::HistoryTree::Path> path = {};
+    ccf::NodeId node_id = {};
 
     TxReceipt(
       const std::vector<uint8_t>& s_,
       const HistoryTree::Hash& r_,
-      std::shared_ptr<ccf::HistoryTree::Path> p_) :
+      std::shared_ptr<ccf::HistoryTree::Path> p_,
+      const NodeId& n_) :
       signature(s_),
       root(r_),
-      path(p_)
+      path(p_),
+      node_id(n_)
     {}
   };
 
