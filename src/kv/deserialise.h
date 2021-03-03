@@ -158,6 +158,22 @@ namespace kv
 
   class BFTExecutionWrapper : public AbstractExecutionWrapper
   {
+  protected:
+    ExecutionWrapperStore* store;
+    std::shared_ptr<TxHistory> history;
+    std::shared_ptr<ccf::ProgressTracker> progress_tracker;
+    std::shared_ptr<Consensus> consensus;
+    const std::vector<uint8_t> data;
+    bool public_only;
+    kv::Version v;
+    Term term;
+    Version version;
+    ccf::PrimarySignature sig;
+    OrderedChanges changes;
+    MapCollection new_maps;
+    kv::ConsensusHookPtrs hooks;
+    aft::Request req;
+
   public:
     BFTExecutionWrapper(
       ExecutionWrapperStore* store_,
@@ -214,22 +230,6 @@ namespace kv
     {
       return v - 1;
     }
-
-  protected:
-    ExecutionWrapperStore* store;
-    std::shared_ptr<TxHistory> history;
-    std::shared_ptr<ccf::ProgressTracker> progress_tracker;
-    std::shared_ptr<Consensus> consensus;
-    const std::vector<uint8_t> data;
-    bool public_only;
-    kv::Version v;
-    Term term;
-    Version version;
-    ccf::PrimarySignature sig;
-    OrderedChanges changes;
-    MapCollection new_maps;
-    kv::ConsensusHookPtrs hooks;
-    aft::Request req;
   };
 
   class SignatureBFTExec : public BFTExecutionWrapper
@@ -440,6 +440,10 @@ namespace kv
 
   class TxBFTExec : public BFTExecutionWrapper
   {
+  private:
+    uint64_t max_conflict_version;
+    std::unique_ptr<Tx> tx;
+
   public:
     TxBFTExec(
       ExecutionWrapperStore* store_,
@@ -485,9 +489,5 @@ namespace kv
     {
       return max_conflict_version;
     }
-
-  private:
-    uint64_t max_conflict_version;
-    std::unique_ptr<Tx> tx;
   };
 }

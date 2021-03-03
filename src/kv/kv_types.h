@@ -582,7 +582,7 @@ namespace kv
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
     virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
-      const std::vector<uint8_t> data,
+      const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
       bool public_only = false) = 0;
     virtual void compact(Version v) = 0;
