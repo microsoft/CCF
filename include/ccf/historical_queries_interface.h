@@ -4,8 +4,8 @@
 
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
-#include "node/rpc/endpoint_registry.h"
 #include "node/history.h"
+#include "node/rpc/endpoint_registry.h"
 
 #include <chrono>
 #include <memory>
@@ -14,12 +14,18 @@ namespace ccf::historical
 {
   struct TxReceipt
   {
-    TxReceipt(const std::vector<uint8_t>& s_, std::shared_ptr<ccf::HistoryTree::Path> p_) :
+    std::vector<uint8_t> signature = {};
+    HistoryTree::Hash root = {};
+    std::shared_ptr<ccf::HistoryTree::Path> path = {};
+
+    TxReceipt(
+      const std::vector<uint8_t>& s_,
+      const HistoryTree::Hash& r_,
+      std::shared_ptr<ccf::HistoryTree::Path> p_) :
       signature(s_),
+      root(r_),
       path(p_)
     {}
-    std::vector<uint8_t> signature = {};
-    std::shared_ptr<ccf::HistoryTree::Path> path = {};
   };
 
   using TxReceiptPtr = std::shared_ptr<TxReceipt>;

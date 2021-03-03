@@ -67,7 +67,8 @@ namespace merkle
       bytes.push_back(size_bytes[i]);
   }
 
-  static inline size_t deserialise_size_t(const std::vector<uint8_t>& bytes, size_t& index)
+  static inline size_t deserialise_size_t(
+    const std::vector<uint8_t>& bytes, size_t& index)
   {
     size_t result = 0;
     uint8_t* result_bytes = (uint8_t*)&result;

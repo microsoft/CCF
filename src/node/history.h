@@ -221,6 +221,11 @@ namespace ccf
       path = std::make_shared<HistoryTree::Path>(v, position);
     }
 
+    const HistoryTree::Hash& get_root() const
+    {
+      return root;
+    }
+
     std::shared_ptr<HistoryTree::Path> get_path()
     {
       return path;

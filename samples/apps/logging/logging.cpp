@@ -583,49 +583,52 @@ namespace loggingapp
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 
-      auto get_historical_with_receipt =
-        [this](
-          ccf::EndpointContext& args,
-          ccf::historical::StorePtr historical_store,
-          ccf::historical::TxReceiptPtr receipt_ptr,
-          kv::Consensus::View,
-          kv::Consensus::SeqNo) {
-          const auto [pack, params] =
-            ccf::jsonhandler::get_json_params(args.rpc_ctx);
+      auto get_historical_with_receipt = [this](
+                                           ccf::EndpointContext& args,
+                                           ccf::historical::StorePtr
+                                             historical_store,
+                                           ccf::historical::TxReceiptPtr
+                                             receipt_ptr,
+                                           kv::Consensus::View,
+                                           kv::Consensus::SeqNo) {
+        const auto [pack, params] =
+          ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
-          const auto in = params.get<LoggingGetHistorical::In>();
+        const auto in = params.get<LoggingGetHistorical::In>();
 
-          auto historical_tx = historical_store->create_read_only_tx();
-          auto records_handle = historical_tx.ro(records);
-          const auto v = records_handle->get(in.id);
+        auto historical_tx = historical_store->create_read_only_tx();
+        auto records_handle = historical_tx.ro(records);
+        const auto v = records_handle->get(in.id);
 
-          if (v.has_value())
+        if (v.has_value())
+        {
+          LoggingGetHistorical::Out out;
+          out.msg = v.value();
+          nlohmann::json j = out;
+          j["signature"] = tls::b64_from_raw(receipt_ptr->signature);
+          j["root"] = receipt_ptr->root.to_string();
+          j["proof"] = nlohmann::json::array();
+          j["leaf"] = receipt_ptr->path->leaf().to_string();
+          for (const auto& node : *receipt_ptr->path)
           {
-            LoggingGetHistorical::Out out;
-            out.msg = v.value();
-            nlohmann::json j = out;
-            j["signature"] = tls::b64_from_raw(receipt_ptr->signature);
-            j["proof"] = nlohmann::json::array();
-            for (const auto& node: *receipt_ptr->path)
+            nlohmann::json entry = nlohmann::json::object();
+            if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
             {
-              nlohmann::json entry = nlohmann::json::object();
-              if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
-              {
-                entry["left"] = node.hash.to_string();
-              }
-              else
-              {
-                entry["right"] = node.hash.to_string();
-              }
-              j["proof"].push_back(entry);
+              entry["left"] = node.hash.to_string();
             }
-            ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
+            else
+            {
+              entry["right"] = node.hash.to_string();
+            }
+            j["proof"].push_back(entry);
           }
-          else
-          {
-            args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
-          }
-        };
+          ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
+        }
+        else
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+        }
+      };
       make_endpoint(
         "log/private/historical_receipt",
         HTTP_GET,
