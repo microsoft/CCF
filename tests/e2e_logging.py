@@ -19,6 +19,9 @@ import json
 import ccf.clients
 from ccf.log_capture import flush_info
 import ccf.receipt
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec, utils
 
 from loguru import logger as LOG
 
@@ -443,7 +446,7 @@ def test_historical_receipts(network, args):
         return network
 
     if args.package == "liblogging":
-        node = network.find_node_by_role()
+        node, _ = network.find_primary()
         network.txs.issue(network, number_txs=1)
         first_msg = network.txs.priv[1][0]
         first_receipt = network.txs.get_receipt(
@@ -451,6 +454,13 @@ def test_historical_receipts(network, args):
         )
         r = first_receipt.json()
         assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
+
+        cert = os.path.join(node.common_dir, f"{node.node_id}.pem")
+        with open(cert) as c:
+            cert = load_pem_x509_certificate(c.read().encode('ascii'))
+        sig = base64.b64decode(r["signature"])
+        pk = cert.public_key()
+        assert pk.verify(sig, bytes.fromhex(r["root"]), ec.ECDSA(utils.Prehashed(hashes.SHA256())))
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
