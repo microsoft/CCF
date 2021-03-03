@@ -22,6 +22,7 @@ import ccf.receipt
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, utils
+from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
 
@@ -457,17 +458,18 @@ def test_historical_receipts(network, args):
 
         cert = os.path.join(node.common_dir, f"{node.node_id}.pem")
         with open(cert) as c:
-            cert = load_pem_x509_certificate(c.read().encode('ascii'))
+            cert = load_pem_x509_certificate(
+                c.read().encode("ascii"), default_backend()
+            )
         sig = base64.b64decode(r["signature"])
         pk = cert.public_key()
-        assert pk.verify(sig, bytes.fromhex(r["root"]), ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+        pk.verify(
+            sig, bytes.fromhex(r["root"]), ec.ECDSA(utils.Prehashed(hashes.SHA256()))
+        )
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
         )
-
-    # TODO: remove when done
-    network.txs = None
 
     return network
 
@@ -1033,7 +1035,6 @@ def run(args):
             args,
             verify=args.package != "libjs_generic",
         )
-        """"
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)
@@ -1059,7 +1060,6 @@ def run(args):
         if args.package == "liblogging":
             network = test_ws(network, args)
             network = test_receipts(network, args)
-        """
         network = test_historical_receipts(network, args)
 
 
