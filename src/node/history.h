@@ -92,7 +92,8 @@ namespace ccf
     NodeId id;
 
   public:
-    NullTxHistoryPendingTx(kv::TxID txid_, kv::Store& store_, NodeId id_) :
+    NullTxHistoryPendingTx(
+      kv::TxID txid_, kv::Store& store_, const NodeId& id_) :
       txid(txid_),
       store(store_),
       id(id_)
@@ -119,7 +120,7 @@ namespace ccf
     kv::Term term = 0;
 
   public:
-    NullTxHistory(kv::Store& store_, NodeId id_, crypto::KeyPair&) :
+    NullTxHistory(kv::Store& store_, const NodeId& id_, crypto::KeyPair&) :
       store(store_),
       id(id_)
     {}
@@ -491,7 +492,7 @@ namespace ccf
   public:
     HashedTxHistory(
       kv::Store& store_,
-      NodeId id_,
+      const NodeId& id_,
       crypto::KeyPair& kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
@@ -580,7 +581,7 @@ namespace ccf
         emit_signature_timer_entry);
     }
 
-    void set_node_id(NodeId id_)
+    void set_node_id(const NodeId& id_)
     {
       id = id_;
     }

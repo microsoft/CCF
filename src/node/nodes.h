@@ -3,6 +3,7 @@
 #pragma once
 #include "entities.h"
 #include "kv/map.h"
+#include "node_id.h"
 #include "node_info_network.h"
 #include "quote_info.h"
 
@@ -54,11 +55,6 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno);
 
   using Nodes = kv::Map<NodeId, NodeInfo>;
-  // using Nodes = kv::MapSerialisedWith<
-  //   NodeId,
-  //   NodeInfo,
-  //   kv::serialisers::BlitSerialiser,
-  //   kv::serialisers::MsgPackSerialiser>; // TODO: To change to JSON!
 }
 
 FMT_BEGIN_NAMESPACE

@@ -269,7 +269,7 @@ namespace ccf
       return true;
     }
 
-    void add_node(NodeId id, const NodeInfo& node_info)
+    void add_node(const NodeId& id, const NodeInfo& node_info)
     {
       // Increment the node id (only used in BFT)
       get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
@@ -386,7 +386,8 @@ namespace ccf
       return true;
     }
 
-    void trust_node(NodeId node_id, kv::Version latest_ledger_secret_seqno)
+    void trust_node(
+      const NodeId& node_id, kv::Version latest_ledger_secret_seqno)
     {
       auto nodes = tx.rw(tables.nodes);
       auto node_info = nodes->get(node_id);

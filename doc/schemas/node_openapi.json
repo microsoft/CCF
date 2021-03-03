@@ -119,7 +119,7 @@
             "$ref": "#/components/schemas/int64"
           },
           "primary_id": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/NodeId"
           },
           "service_status": {
             "$ref": "#/components/schemas/ServiceStatus"
@@ -147,7 +147,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/NodeId"
           },
           "port": {
             "$ref": "#/components/schemas/string"
@@ -218,7 +218,7 @@
             "$ref": "#/components/schemas/int64"
           },
           "node_id": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/NodeId"
           },
           "recovery_target_seqno": {
             "$ref": "#/components/schemas/int64"
@@ -272,6 +272,10 @@
         ],
         "type": "object"
       },
+      "NodeId": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
       "NodeStatus": {
         "enum": [
           "PENDING",
@@ -292,7 +296,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/NodeId"
           },
           "raw": {
             "$ref": "#/components/schemas/string"

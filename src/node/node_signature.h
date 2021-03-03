@@ -14,7 +14,7 @@ namespace ccf
   struct NodeSignature
   {
     std::vector<uint8_t> sig;
-    ccf::NodeId node;
+    NodeId node;
     Nonce hashed_nonce;
 
     NodeSignature(const NodeSignature& ns) :
@@ -23,16 +23,18 @@ namespace ccf
       hashed_nonce(ns.hashed_nonce)
     {}
     NodeSignature(
-      const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
+      const std::vector<uint8_t>& sig_,
+      const NodeId& node_,
+      Nonce hashed_nonce_) :
       sig(sig_),
       node(node_),
       hashed_nonce(hashed_nonce_)
     {}
-    NodeSignature(ccf::NodeId node_, Nonce hashed_nonce_) :
+    NodeSignature(const NodeId& node_, Nonce hashed_nonce_) :
       node(node_),
       hashed_nonce(hashed_nonce_)
     {}
-    NodeSignature(ccf::NodeId node_) : node(node_) {}
+    NodeSignature(const NodeId& node_) : node(node_) {}
     NodeSignature() = default;
 
     bool operator==(const NodeSignature& o) const
@@ -53,7 +55,7 @@ namespace ccf
         data, size, reinterpret_cast<uint8_t*>(&sig_size), sizeof(sig_size));
       serialized::write(data, size, sig.data(), sig_size);
 
-      serialized::write(data, size, node);
+      serialized::write(data, size, node.value());
       serialized::write(
         data,
         size,
@@ -67,7 +69,7 @@ namespace ccf
 
       size_t sig_size = serialized::read<size_t>(data, size);
       n.sig = serialized::read(data, size, sig_size);
-      n.node = serialized::read<ccf::NodeId>(data, size);
+      n.node = serialized::read<NodeId::Value>(data, size);
       n.hashed_nonce = serialized::read<Nonce>(data, size);
 
       return n;

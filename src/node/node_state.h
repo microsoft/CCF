@@ -1291,7 +1291,7 @@ namespace ccf
       OArray oa(std::move(data));
       NodeMsgType msg_type =
         serialized::overlay<NodeMsgType>(oa.data(), oa.size());
-      NodeId from = serialized::read<NodeId>(oa.data(), oa.size());
+      NodeId from = serialized::read<NodeId::Value>(oa.data(), oa.size());
 
       switch (msg_type)
       {

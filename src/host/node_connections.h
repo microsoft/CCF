@@ -17,6 +17,9 @@ namespace asynchost
   private:
     class ConnectionBehaviour : public TCPBehaviour
     {
+    private:
+      static constexpr auto UnassociatedNode = "UnassociatedNode";
+
     public:
       NodeConnections& parent;
       std::optional<ccf::NodeId> node;
@@ -32,10 +35,10 @@ namespace asynchost
 
       void on_read(size_t len, uint8_t*& incoming)
       {
-        LOG_DEBUG_FMT(
-          "from node {} received {} bytes",
-          node.value_or(ccf::UnknownNodeId),
-          len);
+        // LOG_DEBUG_FMT(
+        //   "from node {} received {} bytes",
+        //   node.value_or(UnassociatedNode),
+        //   len);
 
         pending.insert(pending.end(), incoming, incoming + len);
 
@@ -58,18 +61,18 @@ namespace asynchost
 
           if (size < msg_size)
           {
-            LOG_DEBUG_FMT(
-              "from node {} have {}/{} bytes",
-              node.value_or(ccf::UnknownNodeId),
-              size,
-              msg_size);
+            // LOG_DEBUG_FMT(
+            //   "from node {} have {}/{} bytes",
+            //   node.value_or(UnassociatedNode),
+            //   size,
+            //   msg_size);
             break;
           }
 
           auto p = data;
           auto psize = size;
           auto msg_type = serialized::read<ccf::NodeMsgType>(p, psize);
-          auto from = serialized::read<ccf::NodeId>(p, psize);
+          ccf::NodeId from = serialized::read<ccf::NodeId::Value>(p, psize);
 
           if (!node.has_value())
           {
@@ -99,7 +102,7 @@ namespace asynchost
         }
       }
 
-      virtual void associate(ccf::NodeId) {}
+      virtual void associate(const ccf::NodeId&) {}
     };
 
     class IncomingBehaviour : public ConnectionBehaviour
@@ -124,7 +127,7 @@ namespace asynchost
         }
       }
 
-      virtual void associate(ccf::NodeId n)
+      virtual void associate(const ccf::NodeId& n)
       {
         node = n;
         parent.associated.emplace(node.value(), parent.incoming.at(id));
@@ -135,7 +138,7 @@ namespace asynchost
     class OutgoingBehaviour : public ConnectionBehaviour
     {
     public:
-      OutgoingBehaviour(NodeConnections& parent, ccf::NodeId node) :
+      OutgoingBehaviour(NodeConnections& parent, const ccf::NodeId& node) :
         ConnectionBehaviour(parent, node)
       {}
 
@@ -235,7 +238,7 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, ccf::node_outbound, [this](const uint8_t* data, size_t size) {
-          auto to = serialized::read<ccf::NodeId>(data, size);
+          ccf::NodeId to = serialized::read<ccf::NodeId::Value>(data, size);
           auto node = find(to, true);
 
           if (!node)
@@ -249,7 +252,7 @@ namespace asynchost
           // If the message is a consensus append entries message, affix the
           // corresponding ledger entries
           auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
-          auto from = serialized::read<ccf::NodeId>(data, size);
+          ccf::NodeId from = serialized::read<ccf::NodeId::Value>(data, size);
           if (
             msg_type == ccf::NodeMsgType::consensus_msg &&
             (serialized::read<aft::RaftMsgType>(data, size) ==
@@ -301,7 +304,7 @@ namespace asynchost
         });
     }
 
-    void request_reconnect(ccf::NodeId node)
+    void request_reconnect(const ccf::NodeId& node)
     {
       reconnect_queue.insert(node);
     }
@@ -328,7 +331,9 @@ namespace asynchost
 
   private:
     bool add_node(
-      ccf::NodeId node, const std::string& host, const std::string& service)
+      const ccf::NodeId& node,
+      const std::string& host,
+      const std::string& service)
     {
       if (outgoing.find(node) != outgoing.end())
       {
@@ -352,7 +357,7 @@ namespace asynchost
       return true;
     }
 
-    std::optional<TCP> find(ccf::NodeId node, bool use_incoming = false)
+    std::optional<TCP> find(const ccf::NodeId& node, bool use_incoming = false)
     {
       auto s = outgoing.find(node);
 
@@ -375,7 +380,7 @@ namespace asynchost
       return {};
     }
 
-    bool remove_node(ccf::NodeId node)
+    bool remove_node(const ccf::NodeId& node)
     {
       if (outgoing.erase(node) < 1)
       {

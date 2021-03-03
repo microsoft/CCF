@@ -1205,7 +1205,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     auto forwarded_msg = channel_stub->get_pop_back();
     auto fwd_ctx = backup_forwarder->recv_forwarded_command(
-      "", forwarded_msg.data(), forwarded_msg.size());
+      kv::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
     {
       INFO("Invalid caller");
@@ -1234,7 +1234,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     auto forwarded_msg = channel_stub->get_pop_back();
     auto fwd_ctx = backup_forwarder->recv_forwarded_command(
-      "", forwarded_msg.data(), forwarded_msg.size());
+      kv::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
     // Processing forwarded response by a backup frontend (here, the same
     // frontend that the command was originally issued to)
@@ -1273,7 +1273,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     auto forwarded_msg = channel_stub->get_pop_back();
     auto fwd_ctx = backup_forwarder->recv_forwarded_command(
-      "", forwarded_msg.data(), forwarded_msg.size());
+      kv::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
     auto response =
       parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
@@ -1331,7 +1331,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto forwarded_msg = channel_stub->get_pop_back();
   auto fwd_ctx = backup_forwarder->recv_forwarded_command(
-    "", forwarded_msg.data(), forwarded_msg.size());
+    kv::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(node_frontend_primary.process_forwarded(fwd_ctx));
@@ -1373,7 +1373,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto forwarded_msg = channel_stub->get_pop_back();
   auto fwd_ctx = backup_forwarder->recv_forwarded_command(
-    "", forwarded_msg.data(), forwarded_msg.size());
+    kv::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
@@ -1419,7 +1419,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto forwarded_msg = channel_stub->get_pop_back();
   auto fwd_ctx = backup_forwarder->recv_forwarded_command(
-    "", forwarded_msg.data(), forwarded_msg.size());
+    kv::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(member_frontend_primary.process_forwarded(fwd_ctx));

@@ -278,12 +278,6 @@ namespace aft
       // https://github.com/microsoft/CCF/issues/1852
       auto active_nodes_ = active_nodes();
       auto it = active_nodes_.begin();
-
-      LOG_FAIL_FMT(
-        "Get primary in view {}, advancing by {}",
-        view,
-        (view - starting_view_change));
-
       std::advance(it, (view - starting_view_change) % active_nodes_.size());
       return *it;
     }
@@ -550,7 +544,6 @@ namespace aft
       std::unique_ptr<AbstractMsgCallback> aee;
       const uint8_t* data = d.data();
       size_t size = d.size();
-      // NodeId from = serialized::read<NodeId>(data, size);
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
 
       try
@@ -965,7 +958,7 @@ namespace aft
       return state->view_history.view_at(idx);
     }
 
-    void send_append_entries(NodeId to, Index start_idx)
+    void send_append_entries(const NodeId& to, Index start_idx)
     {
       Index end_idx = (state->last_idx == 0) ?
         0 :
@@ -983,7 +976,8 @@ namespace aft
       }
     }
 
-    void send_append_entries_range(NodeId to, Index start_idx, Index end_idx)
+    void send_append_entries_range(
+      const NodeId& to, Index start_idx, Index end_idx)
     {
       const auto prev_idx = start_idx - 1;
       const auto prev_term = get_term_internal(prev_idx);
@@ -1826,7 +1820,7 @@ namespace aft
       update_commit();
     }
 
-    void send_request_vote(NodeId to)
+    void send_request_vote(const NodeId& to)
     {
       auto last_committable_idx = last_committable_index();
       LOG_INFO_FMT(
@@ -1928,7 +1922,7 @@ namespace aft
       send_request_vote_response(from, answer);
     }
 
-    void send_request_vote_response(NodeId to, bool answer)
+    void send_request_vote_response(const NodeId& to, bool answer)
     {
       LOG_INFO_FMT(
         "Send request vote response from {} to {}: {}",
@@ -2120,7 +2114,7 @@ namespace aft
       channels->destroy_all_channels();
     }
 
-    void add_vote_for_me(NodeId from)
+    void add_vote_for_me(const NodeId& from)
     {
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
       votes_for_me.insert(from);

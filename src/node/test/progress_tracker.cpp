@@ -1,12 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/progress_tracker.h"
-
 #include "consensus/aft/impl/view_change_tracker.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "node/nodes.h"
+#include "node/progress_tracker.h"
 #include "node/request_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -32,7 +31,7 @@ public:
   MAKE_MOCK0(get_nonces, std::optional<aft::RevealedNonces>(), override);
   MAKE_MOCK4(
     verify_signature,
-    bool(kv::NodeId, crypto::Sha256Hash&, uint32_t, uint8_t*),
+    bool(const kv::NodeId&, crypto::Sha256Hash&, uint32_t, uint8_t*),
     override);
   MAKE_MOCK3(
     sign_view_change_request,
@@ -45,13 +44,13 @@ public:
     verify_view_change_request,
     bool(
       ccf::ViewChangeRequest& view_change,
-      kv::NodeId from,
+      const kv::NodeId& from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno),
     override);
   MAKE_MOCK2(
     verify_view_change_request_confirmation,
-    bool(ccf::ViewChangeConfirmation& new_view, kv::NodeId from),
+    bool(ccf::ViewChangeConfirmation& new_view, const kv::NodeId& from),
     override);
   MAKE_MOCK1(
     write_view_change_confirmation,
@@ -685,7 +684,7 @@ TEST_CASE("test progress_tracker apply_view_change")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(false);
 
     ccf::ViewChangeRequest v;
-    v.signatures.push_back(ccf::NodeSignature("UnknownNodeId"));
+    v.signatures.push_back(ccf::NodeSignature(kv::PrimaryNodeId));
 
     bool result =
       pt->apply_view_change_message(v, kv::FirstBackupNodeId, 1, 42);

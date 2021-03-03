@@ -493,7 +493,7 @@ namespace ccf
         .install();
 
       auto get_node_info = [this](auto& args, nlohmann::json&&) {
-        NodeId node_id;
+        std::string node_id;
         std::string error;
         if (!get_path_param(
               args.rpc_ctx->get_request_path_params(),
@@ -519,7 +519,11 @@ namespace ccf
         bool is_primary = false;
         if (consensus != nullptr)
         {
-          is_primary = consensus->primary() == node_id;
+          auto primary = consensus->primary();
+          if (primary.has_value() && primary.value() == node_id)
+          {
+            is_primary = true;
+          }
         }
         auto ni = info.value();
         return make_success(GetNode::Out{node_id,
@@ -553,7 +557,7 @@ namespace ccf
               "https://{}:{}/node/network/nodes/{}",
               info->pubhost,
               info->pubport,
-              node_id));
+              node_id.value()));
           return;
         }
 
@@ -594,7 +598,7 @@ namespace ccf
                 "https://{}:{}/node/network/nodes/{}",
                 info->pubhost,
                 info->pubport,
-                primary_id.value()));
+                primary_id->value()));
             return;
           }
         }
@@ -659,7 +663,7 @@ namespace ccf
           {
             nlohmann::json n;
             n["address"] = fmt::format("{}:{}", ninfo.hostname, ninfo.port);
-            c[fmt::format("{}", nid)] = n;
+            c[nid.value()] = n;
           }
           args.rpc_ctx->set_response_body(c.dump());
         }

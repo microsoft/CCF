@@ -1,12 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/historical_queries.h"
-
 #include "crypto/rsa_key_pair.h"
 #include "ds/messaging.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/historical_queries.h"
 #include "node/history.h"
 #include "node/share_manager.h"
 
@@ -88,7 +87,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   }
 
   // Make history to produce signatures
-  const auto node_id = "node_id";
+  const ccf::NodeId node_id = std::string("node_id");
   ts.kv_store->set_history(
     std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *node_kp));
 

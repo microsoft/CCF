@@ -6,6 +6,7 @@
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
+#include "node/node_id.h"
 #include "serialiser_declare.h"
 
 #include <array>
@@ -39,9 +40,7 @@ namespace kv
   // all accepted kv modifications. Terms are handled by Consensus via the
   // TermHistory
   using Term = int64_t;
-
-  using NodeId =
-    std::string; // < Hex-encoded hash of node's identity public key
+  using NodeId = ccf::NodeId;
 
   struct TxID
   {
@@ -285,7 +284,7 @@ namespace kv
     // primary changes
     using View = int64_t;
 
-    Consensus(NodeId id) : state(Backup), local_id(id) {}
+    Consensus(const NodeId& id) : state(Backup), local_id(id) {}
     virtual ~Consensus() {}
 
     virtual NodeId id()

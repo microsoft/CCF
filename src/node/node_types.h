@@ -83,6 +83,6 @@ namespace ccf
 }
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ccf::add_node, ccf::NodeId, std::string, std::string);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::remove_node, ccf::NodeId);
+  ccf::add_node, ccf::NodeId::Value, std::string, std::string);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::remove_node, ccf::NodeId::Value);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::node_inbound, std::vector<uint8_t>);

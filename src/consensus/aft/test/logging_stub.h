@@ -20,7 +20,7 @@ namespace aft
     std::vector<std::shared_ptr<std::vector<uint8_t>>> ledger;
     uint64_t skip_count = 0;
 
-    LedgerStubProxy(NodeId id) : _id(id) {}
+    LedgerStubProxy(const NodeId& id) : _id(id) {}
 
     void put_entry(
       const std::vector<uint8_t>& data,

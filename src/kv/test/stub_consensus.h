@@ -11,22 +11,22 @@
 
 namespace kv
 {
-  static constexpr auto PrimaryNodeId = "PrimaryNodeId";
-  static constexpr auto FirstBackupNodeId = "FirstBackupNodeId";
-  static constexpr auto SecondBackupNodeId = "SecondBackupNodeId";
-  static constexpr auto ThirdBackupNodeId = "ThirdBackupNodeId";
+  static NodeId PrimaryNodeId = std::string("PrimaryNodeId");
+  static NodeId FirstBackupNodeId = std::string("FirstBackupNodeId");
+  static NodeId SecondBackupNodeId = std::string("SecondBackupNodeId");
+  static NodeId ThirdBackupNodeId = std::string("ThirdBackupNodeId");
 
   class StubConsensus : public Consensus
   {
   private:
-    std::vector<kv::BatchVector::value_type> replica;
+    std::vector<BatchVector::value_type> replica;
     ConsensusType consensus_type;
 
   public:
     aft::ViewHistory view_history;
 
     StubConsensus(ConsensusType consensus_type_ = ConsensusType::CFT) :
-      Consensus(kv::PrimaryNodeId),
+      Consensus(PrimaryNodeId),
       replica(),
       consensus_type(consensus_type_)
     {}
@@ -55,7 +55,7 @@ namespace kv
       }
     }
 
-    std::optional<kv::BatchVector::value_type> pop_oldest_entry()
+    std::optional<BatchVector::value_type> pop_oldest_entry()
     {
       if (!replica.empty())
       {
@@ -116,7 +116,7 @@ namespace kv
 
     NodeId id() override
     {
-      return 0;
+      return PrimaryNodeId;
     }
 
     View get_view(SeqNo seqno) override
@@ -140,7 +140,7 @@ namespace kv
       view_history.initialise(view_history_);
     }
 
-    void recv_message(const kv::NodeId& from, OArray&& oa) override {}
+    void recv_message(const NodeId& from, OArray&& oa) override {}
 
     void add_configuration(
       SeqNo seqno, const Configuration::Nodes& conf) override

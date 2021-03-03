@@ -4,6 +4,7 @@
 
 #include "node/rpc/node_interface.h"
 #include "node/share_manager.h"
+#include "kv/test/stub_consensus.h"
 
 namespace ccf
 {
@@ -65,7 +66,7 @@ namespace ccf
 
     NodeId get_node_id() const override
     {
-      return 0;
+      return kv::PrimaryNodeId;
     }
 
     void set_is_public(bool is_public_)

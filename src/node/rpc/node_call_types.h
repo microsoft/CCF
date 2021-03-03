@@ -47,7 +47,7 @@ namespace ccf
     {
       std::vector<MemberPubInfo> members_info;
       std::string gov_script;
-      std::string node_id;
+      NodeId node_id;
       crypto::Pem node_cert;
       crypto::Pem network_cert;
       QuoteInfo quote_info;

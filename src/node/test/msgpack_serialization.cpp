@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../members.h"
-#include "../proposals.h"
-#include "../signatures.h"
+#include "node/members.h"
+#include "node/proposals.h"
+#include "node/signatures.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -198,7 +198,7 @@ TEST_CASE("Signature")
     INFO("Rand sig");
     PrimarySignature sig;
     fill_rand(sig.sig, 256);
-    sig.node = rand();
+    sig.node = "node";
     sig.seqno = rand();
     sig.view = rand();
     sig.commit_seqno = rand();

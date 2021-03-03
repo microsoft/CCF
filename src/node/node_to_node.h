@@ -257,7 +257,6 @@ namespace ccf
     {
       const uint8_t* data = oa.data();
       size_t size = oa.size();
-      // auto from = serialized::read<NodeId>(data, size);
       switch (serialized::read<ChannelMsg>(data, size))
       {
         case key_exchange:

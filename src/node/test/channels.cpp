@@ -30,8 +30,8 @@ using namespace ccf;
 static constexpr auto msg_size = 64;
 using MsgType = std::array<uint8_t, msg_size>;
 
-static constexpr auto self = "self";
-static constexpr auto peer = "peer";
+static NodeId self = std::string("self");
+static NodeId peer = std::string("peer");
 
 template <typename T>
 struct NodeOutboundMsg
@@ -53,9 +53,10 @@ auto read_outbound_msgs(ringbuffer::Circuit& circuit)
       {
         case node_outbound:
         {
-          serialized::read<NodeId>(data, size); // Ignore destination node id
+          serialized::read<NodeId::Value>(
+            data, size); // Ignore destination node id
           auto msg_type = serialized::read<NodeMsgType>(data, size);
-          auto from = serialized::read<NodeId>(data, size);
+          NodeId from = serialized::read<NodeId::Value>(data, size);
           auto aad = serialized::read<T>(data, size);
           auto payload = serialized::read(data, size, size);
           msgs.push_back(NodeOutboundMsg<T>{from, msg_type, aad, payload});
@@ -339,26 +340,24 @@ TEST_CASE("Replay and out-of-order")
 
 TEST_CASE("Host connections")
 {
-  NodeId self = "self";
   auto network_kp = crypto::make_key_pair();
   auto channel_manager =
     ChannelManager(wf1, network_kp->private_key_pem(), self);
-  NodeId peer_id = "peer";
 
   INFO("New channel creates host connection");
   {
-    channel_manager.create_channel(peer_id, "hostname", "port");
+    channel_manager.create_channel(peer, "hostname", "port");
     auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 1);
     REQUIRE(remove_node_msgs.size() == 0);
-    REQUIRE(std::get<0>(add_node_msgs[0]) == peer_id);
+    REQUIRE(std::get<0>(add_node_msgs[0]) == peer);
     REQUIRE(std::get<1>(add_node_msgs[0]) == "hostname");
     REQUIRE(std::get<2>(add_node_msgs[0]) == "port");
   }
 
   INFO("Retrieving unknown channel does not create host connection");
   {
-    NodeId unknown_peer_id = "unknown_peer";
+    NodeId unknown_peer_id = std::string("unknown_peer");
     channel_manager.get(unknown_peer_id);
     auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 0);
@@ -367,7 +366,7 @@ TEST_CASE("Host connections")
 
   INFO("Destroying channel closes host connection");
   {
-    channel_manager.destroy_channel(peer_id);
+    channel_manager.destroy_channel(peer);
     auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 0);
     REQUIRE(remove_node_msgs.size() == 1);

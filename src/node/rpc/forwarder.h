@@ -45,7 +45,7 @@ namespace ccf
       consensus_type(consensus_type_)
     {}
 
-    void initialize(NodeId self_)
+    void initialize(const NodeId& self_)
     {
       self = self_;
     }
@@ -58,7 +58,7 @@ namespace ccf
 
     bool forward_command(
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
-      NodeId to,
+      const NodeId& to,
       std::set<NodeId> nodes,
       const std::vector<uint8_t>& caller_cert)
     {
@@ -100,7 +100,7 @@ namespace ccf
     void send_request_hash_to_nodes(
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
       std::set<NodeId> nodes,
-      NodeId skip_node)
+      const NodeId& skip_node)
     {
       const auto& raw_request = rpc_ctx->get_serialised_request();
       auto data_ = raw_request.data();
@@ -123,7 +123,7 @@ namespace ccf
     }
 
     std::shared_ptr<enclave::RpcContext> recv_forwarded_command(
-      NodeId from, const uint8_t* data, size_t size)
+      const NodeId& from, const uint8_t* data, size_t size)
     {
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
       try
@@ -171,7 +171,7 @@ namespace ccf
 
     bool send_forwarded_response(
       size_t client_session_id,
-      NodeId from_node,
+      const NodeId& from_node,
       const std::vector<uint8_t>& data)
     {
       std::vector<uint8_t> plain(sizeof(client_session_id) + data.size());
@@ -189,7 +189,8 @@ namespace ccf
     }
 
     std::optional<std::pair<size_t, std::vector<uint8_t>>>
-    recv_forwarded_response(NodeId from, const uint8_t* data, size_t size)
+    recv_forwarded_response(
+      const NodeId& from, const uint8_t* data, size_t size)
     {
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
       try
@@ -214,7 +215,7 @@ namespace ccf
     }
 
     std::optional<MessageHash> recv_request_hash(
-      kv::NodeId from, const uint8_t* data, size_t size)
+      const NodeId& from, const uint8_t* data, size_t size)
     {
       MessageHash m;
 
@@ -236,7 +237,7 @@ namespace ccf
     {
       serialized::skip(data, size, sizeof(NodeMsgType));
 
-      auto from = serialized::read<NodeId>(data, size);
+      NodeId from = serialized::read<NodeId::Value>(data, size);
       auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
 
       switch (forwarded_msg)

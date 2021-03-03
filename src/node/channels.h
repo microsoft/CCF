@@ -7,6 +7,7 @@
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "entities.h"
+#include "node/node_id.h"
 #include "node_types.h"
 #include "tls/key_exchange.h"
 
@@ -158,9 +159,9 @@ namespace ccf
     {
       to_host->write(
         node_outbound,
-        peer_id,
+        peer_id.value(),
         NodeMsgType::channel_msg,
-        self,
+        self.value(),
         ChannelMsg::key_exchange,
         get_signed_public());
 
@@ -171,8 +172,8 @@ namespace ccf
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
       crypto::KeyPairPtr network_kp_,
-      NodeId self_,
-      NodeId peer_id_,
+      const NodeId& self_,
+      const NodeId& peer_id_,
       const std::string& peer_hostname_,
       const std::string& peer_service_) :
       self(self_),
@@ -184,14 +185,14 @@ namespace ccf
       outgoing(true)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        ccf::add_node, to_host, peer_id, peer_hostname, peer_service);
+        ccf::add_node, to_host, peer_id.value(), peer_hostname, peer_service);
     }
 
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
       crypto::KeyPairPtr network_kp_,
-      NodeId self_,
-      NodeId peer_id_) :
+      const NodeId& self_,
+      const NodeId& peer_id_) :
       self(self_),
       network_kp(network_kp_),
       to_host(writer_factory.create_writer_to_outside()),
@@ -203,7 +204,7 @@ namespace ccf
     {
       if (outgoing)
       {
-        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
+        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id.value());
       }
     }
 
@@ -231,7 +232,7 @@ namespace ccf
       if (!outgoing)
       {
         RINGBUFFER_WRITE_MESSAGE(
-          ccf::add_node, to_host, peer_id, peer_hostname, peer_service);
+          ccf::add_node, to_host, peer_id.value(), peer_hostname, peer_service);
       }
       outgoing = true;
     }
@@ -240,7 +241,7 @@ namespace ccf
     {
       if (outgoing)
       {
-        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
+        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id.value());
       }
       outgoing = false;
     }
@@ -349,9 +350,9 @@ namespace ccf
       {
         to_host->write(
           node_outbound,
-          peer_id,
+          peer_id.value(),
           NodeMsgType::channel_msg,
-          self,
+          self.value(),
           ChannelMsg::key_exchange_response,
           get_signed_public());
       }
@@ -377,9 +378,9 @@ namespace ccf
 
       to_host->write(
         node_outbound,
-        peer_id,
+        peer_id.value(),
         type,
-        self,
+        self.value(),
         serializer::ByteRange{aad.p, aad.n},
         gcm_hdr,
         cipher);
@@ -470,14 +471,16 @@ namespace ccf
     ChannelManager(
       ringbuffer::AbstractWriterFactory& writer_factory_,
       const crypto::Pem& network_pkey,
-      NodeId self_) :
+      const NodeId& self_) :
       writer_factory(writer_factory_),
       network_kp(crypto::make_key_pair(network_pkey)),
       self(self_)
     {}
 
     void create_channel(
-      NodeId peer_id, const std::string& hostname, const std::string& service)
+      const NodeId& peer_id,
+      const std::string& hostname,
+      const std::string& service)
     {
       std::lock_guard<SpinLock> guard(lock);
       auto search = channels.find(peer_id);
@@ -502,7 +505,7 @@ namespace ccf
       }
     }
 
-    void destroy_channel(NodeId peer_id)
+    void destroy_channel(const NodeId& peer_id)
     {
       std::lock_guard<SpinLock> guard(lock);
       auto search = channels.find(peer_id);
@@ -535,7 +538,7 @@ namespace ccf
       }
     }
 
-    std::shared_ptr<Channel> get(NodeId peer_id)
+    std::shared_ptr<Channel> get(const NodeId& peer_id)
     {
       std::lock_guard<SpinLock> guard(lock);
       auto search = channels.find(peer_id);

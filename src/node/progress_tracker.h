@@ -5,6 +5,7 @@
 #include "crypto/entropy.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_exception.h"
+#include "entities.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 #include "nodes.h"
@@ -20,7 +21,7 @@ namespace ccf
   {
   public:
     ProgressTracker(
-      std::shared_ptr<ProgressTrackerStore> store_, kv::NodeId id_) :
+      std::shared_ptr<ProgressTrackerStore> store_, const NodeId& id_) :
       store(store_),
       id(id_),
       entropy(crypto::create_entropy())
@@ -30,7 +31,7 @@ namespace ccf
 
     kv::TxHistory::Result add_signature(
       kv::TxID tx_id,
-      kv::NodeId node_id,
+      NodeId node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce hashed_nonce,
@@ -50,7 +51,7 @@ namespace ccf
 
     kv::TxHistory::Result record_primary(
       kv::TxID tx_id,
-      kv::NodeId node_id,
+      NodeId node_id,
       crypto::Sha256Hash& root,
       std::vector<uint8_t>& sig,
       Nonce hashed_nonce,
@@ -83,7 +84,7 @@ namespace ccf
         try_match_unmatched_nonces(
           cert, bft_node_sig, tx_id.term, tx_id.version, node_id);
         cert.sigs.insert(
-          std::pair<kv::NodeId, BftNodeSignature>(node_id, bft_node_sig));
+          std::pair<NodeId, BftNodeSignature>(node_id, bft_node_sig));
 
         certificates.insert(
           std::pair<kv::Consensus::SeqNo, CommitCert>(tx_id.version, cert));
@@ -130,7 +131,7 @@ namespace ccf
             tx_id.version);
         }
         cert.sigs.insert(
-          std::pair<kv::NodeId, BftNodeSignature>(node_id, bft_node_sig));
+          std::pair<NodeId, BftNodeSignature>(node_id, bft_node_sig));
       }
 
       auto& cert = it->second;
@@ -319,7 +320,7 @@ namespace ccf
     }
 
     kv::TxHistory::Result add_signature_ack(
-      kv::TxID tx_id, kv::NodeId node_id, uint32_t node_count = 0)
+      kv::TxID tx_id, const NodeId& node_id, uint32_t node_count = 0)
     {
       std::unique_lock<SpinLock> guard(lock);
       auto it = certificates.find(tx_id.version);
@@ -353,7 +354,7 @@ namespace ccf
     void add_nonce_reveal(
       kv::TxID tx_id,
       Nonce nonce,
-      kv::NodeId node_id,
+      NodeId node_id,
       uint32_t node_count,
       bool is_primary)
     {
@@ -376,8 +377,7 @@ namespace ccf
       auto it_node_sig = cert.sigs.find(node_id);
       if (it_node_sig == cert.sigs.end())
       {
-        cert.unmatched_nonces.insert(
-          std::pair<kv::NodeId, Nonce>(node_id, nonce));
+        cert.unmatched_nonces.insert(std::pair<NodeId, Nonce>(node_id, nonce));
         return;
       }
 
@@ -450,7 +450,7 @@ namespace ccf
       hash_data(nonce, hash);
     }
 
-    void set_node_id(kv::NodeId id_)
+    void set_node_id(const NodeId& id_)
     {
       id = id_;
     }
@@ -499,7 +499,7 @@ namespace ccf
 
     bool apply_view_change_message(
       ViewChangeRequest& view_change,
-      kv::NodeId from,
+      NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno)
     {
@@ -550,14 +550,14 @@ namespace ccf
           continue;
         }
         it->second.sigs.insert(
-          std::pair<kv::NodeId, BftNodeSignature>(sig.node, sig));
+          std::pair<NodeId, BftNodeSignature>(sig.node, sig));
       }
 
       return verified_signatures;
     }
 
     bool apply_new_view(
-      kv::NodeId from,
+      NodeId from,
       uint32_t node_count,
       kv::Consensus::View& view_,
       kv::Consensus::SeqNo& seqno_) const
@@ -599,7 +599,7 @@ namespace ccf
 
       for (auto& vcp : new_view->view_change_messages)
       {
-        kv::NodeId id = vcp.first;
+        NodeId id = vcp.first;
         ccf::ViewChangeRequest& vc = vcp.second;
 
         if (!store->verify_view_change_request(vc, id, view, seqno))
@@ -632,7 +632,7 @@ namespace ccf
     }
 
   private:
-    kv::NodeId id;
+    NodeId id;
     std::shared_ptr<crypto::Entropy> entropy;
     kv::Consensus::SeqNo highest_commit_level = 0;
     kv::TxID highest_prepared_level = {0, 0};
@@ -642,7 +642,7 @@ namespace ccf
 
     kv::TxHistory::Result add_signature_internal(
       kv::TxID tx_id,
-      kv::NodeId node_id,
+      NodeId node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce hashed_nonce,
@@ -716,8 +716,8 @@ namespace ccf
       BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce);
       try_match_unmatched_nonces(
         cert, bft_node_sig, tx_id.term, tx_id.version, node_id);
-      cert.sigs.insert(std::pair<kv::NodeId, BftNodeSignature>(
-        node_id, std::move(bft_node_sig)));
+      cert.sigs.insert(
+        std::pair<NodeId, BftNodeSignature>(node_id, std::move(bft_node_sig)));
 
       if (can_send_sig_ack(cert, tx_id, node_count))
       {
@@ -767,7 +767,7 @@ namespace ccf
       BftNodeSignature& bft_node_sig,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
-      kv::NodeId node_id)
+      NodeId node_id)
     {
       auto it_unmatched_nonces = cert.unmatched_nonces.find(node_id);
       if (it_unmatched_nonces != cert.unmatched_nonces.end())

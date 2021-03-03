@@ -418,8 +418,8 @@ namespace std
  * transformation. Missing elements will cause errors to be raised. This assumes
  * that from_json, to_json, are implemented for each member
  * field type, either manually or through these macros. Additionally, you will
- * schema_name, fill_json_schema, and add_schema_components to be defined for
- * OpenAPI schema generation.
+ * need schema_name, fill_json_schema, and add_schema_components to be defined
+ * for OpenAPI schema generation.
  * // clang-format off
  *  ie, the following must compile, for each foo in T:
  *    T t; nlohmann::json j, schema;

@@ -25,7 +25,7 @@ namespace aft
       kv::Consensus::SeqNo seqno;
       bool new_view_sent;
 
-      std::map<kv::NodeId, ccf::ViewChangeRequest> received_view_changes;
+      std::map<NodeId, ccf::ViewChangeRequest> received_view_changes;
     };
 
   public:
@@ -74,7 +74,7 @@ namespace aft
 
     ResultAddView add_request_view_change(
       ccf::ViewChangeRequest& v,
-      kv::NodeId from,
+      NodeId from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
       uint32_t node_count)

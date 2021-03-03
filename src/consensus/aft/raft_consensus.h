@@ -101,7 +101,7 @@ namespace aft
       return aft->get_commit_idx();
     }
 
-    std::optional<kv::NodeId> primary() override
+    std::optional<NodeId> primary() override
     {
       return aft->leader();
     }
@@ -111,12 +111,12 @@ namespace aft
       return aft->view_change_in_progress();
     }
 
-    std::set<kv::NodeId> active_nodes() override
+    std::set<NodeId> active_nodes() override
     {
       return aft->active_nodes();
     }
 
-    void recv_message(const kv::NodeId& from, OArray&& data) override
+    void recv_message(const NodeId& from, OArray&& data) override
     {
       return aft->recv_message(from, std::move(data));
     }

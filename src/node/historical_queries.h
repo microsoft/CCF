@@ -351,7 +351,7 @@ namespace ccf::historical
       }
     }
 
-    std::optional<ccf::NodeInfo> get_node_info(ccf::NodeId node_id)
+    std::optional<ccf::NodeInfo> get_node_info(const ccf::NodeId& node_id)
     {
       // Current solution: Use current state of Nodes table from real store.
       // This only works while entries are never deleted from this table, and

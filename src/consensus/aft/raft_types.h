@@ -9,6 +9,7 @@
 #include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
 #include "mbedtls/ecdsa.h"
+#include "node/node_id.h"
 #include "node/progress_tracker.h"
 
 #include <array>
@@ -20,7 +21,7 @@ namespace aft
 {
   using Index = int64_t;
   using Term = int64_t;
-  using NodeId = kv::NodeId;
+  using NodeId = ccf::NodeId;
   using Node2NodeMsg = uint64_t;
   using Nonce = crypto::Sha256Hash;
 

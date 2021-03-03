@@ -16,10 +16,6 @@ namespace ccf
   using Index = int64_t;
   using Node2NodeMsg = uint64_t;
 
-  static constexpr auto UnknownNodeId = "UnknownNodeId";
-  using NodeId =
-    std::string; // < Hex-encoded hash of node's identity public key
-
   using MemberId = ObjectId;
   using UserId = ObjectId;
   using CallerId = ObjectId;
