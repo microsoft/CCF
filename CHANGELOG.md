@@ -5,12 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- `x-ccf-tx-view` and `x-ccf-tx-seqno` response headers have been removed, and replaced with `x-ms-ccf-transaction-id`. This includes both original fields, separated by a single `.`. Historical queries using `ccf::historical::adapter` should also pass a single combined `x-ms-ccf-transaction-id` header (#2257).
+
 ## [0.18.5]
 
 ### Changed
 
 - Historical query system now supports range queries.
-- `x-ccf-tx-view` and `x-ccf-tx-seqno` response headers have been removed, and replaced with `x-ms-ccf-transaction-id`. This includes both original fields, separated by a single `.`. Historical queries using `ccf::historical::adapter` should also pass a single combined `x-ms-ccf-transaction-id` header.
 
 ## [0.18.4]
 
