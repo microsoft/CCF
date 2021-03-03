@@ -971,29 +971,46 @@ def test_receipts(network, args):
         msg = "Hello world"
 
         LOG.info("Write/Read on primary")
+        receipts = []
         with primary.client("user0") as c:
-            r = c.post("/app/log/private", {"id": 10000, "msg": msg})
-            check_commit(r, result=True)
-            check(c.get("/app/log/private?id=10000"), result={"msg": msg})
-            for _ in range(10):
-                c.post(
-                    "/app/log/private",
-                    {"id": 10001, "msg": "Additional messages"},
+            num_stints = 5
+            num_tx = 10
+            for j in range(num_stints):
+                idx = j * (num_tx + 1) + 10000
+                r = c.post("/app/log/private", {"id": idx, "msg": msg})
+                check_commit(r, result=True)
+                check(c.get("/app/log/private?id=%d" % idx), result={"msg": msg})
+                for i in range(1, num_tx):
+                    c.post(
+                        "/app/log/private",
+                        {"id": idx + i, "msg": "Additional messages"},
+                    )
+                check_commit(
+                    c.post(
+                        "/app/log/private",
+                        {"id": idx + i + 1, "msg": "A final message"},
+                    ),
+                    result=True,
                 )
-            check_commit(
-                c.post("/app/log/private", {"id": 10001, "msg": "A final message"}),
-                result=True,
-            )
-            r = c.get(f"/app/receipt?commit={r.seqno}")
+                r = c.get(f"/app/receipt?commit={r.seqno}")
 
-            rv = c.post("/app/receipt/verify", {"receipt": r.body.json()["receipt"]})
-            assert rv.body.json() == {"valid": True}
+                receipt = r.body.json()["receipt"]
+                rv = c.post("/app/receipt/verify", {"receipt": receipt})
+                assert rv.body.json() == {"valid": True}
 
-            invalid = r.body.json()["receipt"]
-            invalid[-3] += 1
+                receipts.append(receipt)
 
-            rv = c.post("/app/receipt/verify", {"receipt": invalid})
-            assert rv.body.json() == {"valid": False}
+                invalid = r.body.json()["receipt"]
+                invalid[-3] += 1
+
+                rv = c.post("/app/receipt/verify", {"receipt": invalid})
+                assert rv.body.json() == {"valid": False}
+
+        LOG.info("Verify recorded (historical) receipts")
+        for r in receipts:
+            with primary.client("user0") as c:
+                rv = c.post("/app/receipt/verify", {"receipt": r})
+                assert rv.body.json() == {"valid": True}
 
     return network
 

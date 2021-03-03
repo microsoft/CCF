@@ -1303,7 +1303,7 @@ namespace aft
         auto& [ds, i] = ae;
         state->last_idx = i;
 
-        kv::ApplyResult apply_success = ds->execute();
+        kv::ApplyResult apply_success = ds->apply();
         if (apply_success == kv::ApplyResult::FAIL)
         {
           // Setting last_idx to i-1 is a work around that should be fixed
@@ -1414,7 +1414,7 @@ namespace aft
             if (consensus_type == ConsensusType::BFT)
             {
               state->last_idx = executor->commit_replayed_request(
-                ds->get_tx(),
+                ds->get_request(),
                 request_tracker,
                 state->last_idx,
                 ds->get_max_conflict_version());
@@ -1510,7 +1510,7 @@ namespace aft
         static_cast<uint32_t>(sig.sig.size()),
         {}};
 
-      progress_tracker->get_my_hashed_nonce(
+      progress_tracker->get_node_hashed_nonce(
         {state->current_view, state->last_idx}, r.hashed_nonce);
 
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
@@ -1642,7 +1642,7 @@ namespace aft
           auto progress_tracker = store->get_progress_tracker();
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
-          nonce = progress_tracker->get_my_nonce(tx_id);
+          nonce = progress_tracker->get_node_nonce(tx_id);
           NonceRevealMsg r = {{bft_nonce_reveal, state->my_node_id},
                               tx_id.term,
                               tx_id.version,

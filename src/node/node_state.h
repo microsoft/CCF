@@ -749,8 +749,8 @@ namespace ccf
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
       // When reading the public ledger, deserialise in the real store
-      auto r = store->apply(ledger_entry, ConsensusType::CFT, true);
-      auto result = r->execute();
+      auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
+      auto result = r->apply();
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
@@ -988,7 +988,7 @@ namespace ccf
 
       // When reading the private ledger, deserialise in the recovery store
       auto result =
-        recovery_store->apply(ledger_entry, ConsensusType::CFT)->execute();
+        recovery_store->deserialize(ledger_entry, ConsensusType::CFT)->apply();
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
