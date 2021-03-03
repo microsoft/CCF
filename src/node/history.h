@@ -80,7 +80,7 @@ namespace ccf
     return os;
   }
 
-  static void log_hash(const crypto::Sha256Hash& h, HashOp flag)
+  static inline void log_hash(const crypto::Sha256Hash& h, HashOp flag)
   {
     LOG_DEBUG_FMT("History [{}] {}", flag, h);
   }
@@ -219,6 +219,11 @@ namespace ccf
       size_t position = 0;
       root.apply(v, position);
       path = std::make_shared<HistoryTree::Path>(v, position);
+    }
+
+    std::shared_ptr<HistoryTree::Path> get_path()
+    {
+      return path;
     }
 
     Receipt(HistoryTree* tree, uint64_t index)

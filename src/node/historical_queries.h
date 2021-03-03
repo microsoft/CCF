@@ -250,7 +250,7 @@ namespace ccf::historical
 
                   auto receipt = tree.get_receipt(seqno);
                   details->receipt =
-                    std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
+                    std::make_shared<TxReceipt>(sig->sig, receipt.get_path());
                   details->current_stage = RequestStage::Trusted;
                 }
               }
@@ -283,7 +283,7 @@ namespace ccf::historical
 
                   auto receipt = tree.get_receipt(new_seqno);
                   details->receipt =
-                    std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
+                    std::make_shared<TxReceipt>(sig->sig, receipt.get_path());
                   new_details->current_stage = RequestStage::Trusted;
                 }
 
@@ -312,7 +312,7 @@ namespace ccf::historical
 
                 auto receipt = tree.get_receipt(new_seqno);
                 details->receipt =
-                  std::make_shared<TxReceipt>(sig->sig, receipt.to_v());
+                  std::make_shared<TxReceipt>(sig->sig, receipt.get_path());
                 new_details->current_stage = RequestStage::Trusted;
               }
             }

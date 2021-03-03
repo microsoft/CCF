@@ -448,10 +448,14 @@ def test_historical_receipts(network, args):
         first_receipt = network.txs.get_receipt(
             node, 1, first_msg["seqno"], first_msg["view"]
         )
+        LOG.info(first_receipt.json())
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
         )
+
+    # TODO: remove when done
+    network.txs = None
 
     return network
 

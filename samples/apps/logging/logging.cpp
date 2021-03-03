@@ -605,6 +605,20 @@ namespace loggingapp
             out.msg = v.value();
             nlohmann::json j = out;
             j["signature"] = tls::b64_from_raw(receipt_ptr->signature);
+            j["proof"] = nlohmann::json::array();
+            for (const auto& node: *receipt_ptr->path)
+            {
+              nlohmann::json entry = nlohmann::json::object();
+              if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
+              {
+                entry["left"] = node.hash.to_string();
+              }
+              else
+              {
+                entry["right"] = node.hash.to_string();
+              }
+              j["proof"].push_back(entry);
+            }
             ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
           }
           else
