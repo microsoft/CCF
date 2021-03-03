@@ -92,10 +92,12 @@ class Identity:
 
 def parse_tx_id(s: Optional[str]):
     try:
-        view_s, seqno_s = s.split(".")
-        return int(view_s), int(seqno_s)
+        if s is not None:
+            view_s, seqno_s = s.split(".")
+            return int(view_s), int(seqno_s)
     except (AttributeError, ValueError):
-        return None, None
+        pass
+    return None, None
 
 
 class FakeSocket:
