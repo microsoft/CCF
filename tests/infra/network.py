@@ -79,6 +79,7 @@ class Network:
         "worker_threads",
         "ledger_chunk_bytes",
         "domain",
+        "san",
         "snapshot_tx_interval",
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",
