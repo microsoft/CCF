@@ -59,17 +59,3 @@ To obtain a receipt, a user needs to issue a ``GET /receipt`` RPC for a particul
     {
       "receipt": [ ... ],
     }
-
-Receipts can be verified with the ``POST /receipt/verify`` RPC:
-
-.. code-block:: bash
-
-    $ cat verify_receipt.json
-    {
-      "receipt": [ ... ]
-    }
-
-    $ curl https://<ccf-node-address>/app/receipt/verify --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @verify_receipt.json
-    {
-      "valid": true,
-    }

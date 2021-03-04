@@ -233,40 +233,6 @@ namespace ccf
         no_auth_required)
         .set_auto_schema<GetReceipt>()
         .install();
-
-      auto verify_receipt = [this](auto&, nlohmann::json&& params) {
-        const auto in = params.get<VerifyReceipt::In>();
-
-        if (history != nullptr)
-        {
-          try
-          {
-            bool v = history->verify_receipt(in.receipt);
-            const VerifyReceipt::Out out{v};
-
-            return make_success(out);
-          }
-          catch (const std::exception& e)
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              fmt::format("Unable to verify receipt: {}", e.what()));
-          }
-        }
-
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Unable to verify receipt.");
-      };
-      make_command_endpoint(
-        "receipt/verify",
-        HTTP_POST,
-        json_command_adapter(verify_receipt),
-        no_auth_required)
-        .set_auto_schema<VerifyReceipt>()
-        .install();
     }
   };
 }
