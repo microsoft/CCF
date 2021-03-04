@@ -8,6 +8,7 @@
 #include "node/client_signatures.h"
 #include "node/entities.h"
 #include "node/rpc/error.h"
+#include "tx_id.h"
 
 #include <llhttp/llhttp.h>
 #include <variant>
@@ -182,8 +183,7 @@ namespace enclave
     virtual void set_response_status(int status) = 0;
     virtual int get_response_status() const = 0;
 
-    virtual void set_seqno(kv::Version) = 0;
-    virtual void set_view(kv::Consensus::View) = 0;
+    virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
 
     virtual void set_response_header(
       const std::string_view& name, const std::string_view& value) = 0;

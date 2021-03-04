@@ -324,8 +324,10 @@ namespace ccf
               {
                 if (cv != kv::NoVersion)
                 {
-                  ctx->set_seqno(cv);
-                  ctx->set_view(tx.commit_term());
+                  ccf::TxID tx_id;
+                  tx_id.view = tx.commit_term();
+                  tx_id.seqno = cv;
+                  ctx->set_tx_id(tx_id);
                 }
 
                 if (history != nullptr && consensus->is_primary())
