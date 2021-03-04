@@ -129,6 +129,7 @@ namespace aft
     struct AsyncExecution;
     AsyncExecutor async_executor;
     std::unique_ptr<threading::Tmsg<AsyncExecution>> async_exec_msg;
+    uint64_t next_exec_thread = 0;
 
     // Timeouts
     std::chrono::milliseconds request_timeout;
@@ -1051,7 +1052,8 @@ namespace aft
         append_entries(std::move(append_entries_)),
         from(from_),
         r(std::move(r_)),
-        confirm_evidence(confirm_evidence_)
+        confirm_evidence(confirm_evidence_),
+        next_append_entry_index(0)
       {}
 
       Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
@@ -1061,7 +1063,7 @@ namespace aft
       ccf::NodeId from;
       AppendEntries r;
       bool confirm_evidence;
-      uint64_t next_append_entry_index = 0;
+      uint64_t next_append_entry_index;
     };
 
     void recv_append_entries(
@@ -1310,7 +1312,7 @@ namespace aft
       }
       else
       {
-        apply(std::move(msg));
+        apply_execution_message(std::move(msg));
       }
     }
 
@@ -1329,10 +1331,11 @@ namespace aft
     {
       auto self = msg->data.self;
       std::unique_lock<SpinLock> guard(self->state->lock);
-      self->apply(std::move(msg));
+      self->apply_execution_message(std::move(msg));
     }
 
-    void apply(std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
+    void apply_execution_message(
+      std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
     {
       auto self = msg->data.self;
       if (self->consensus_type == ConsensusType::CFT)
@@ -1391,8 +1394,6 @@ namespace aft
       uint16_t scheduler_thread;
       std::shared_ptr<AsyncExecutor> ctx;
     };
-
-    uint64_t next_exec_thread = 0;
 
     void execute_append_entries_sync(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
@@ -1632,7 +1633,8 @@ namespace aft
                       self->async_executor.decrement_pending() ==
                       AsyncExecutionResult::COMPLETE)
                     {
-                      self->apply(std::move(self->async_exec_msg));
+                      self->apply_execution_message(
+                        std::move(self->async_exec_msg));
                     }
                   });
                 uint16_t scheduler_thread = msg->data.scheduler_thread;
@@ -1679,9 +1681,8 @@ namespace aft
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
       // This function is responsible for selecting the next batch of
-      // transactions we can execute concurrently and then starting said
-      // execution. If there are more pending entries after we select the batch
-      // we will return to this function.
+      // transactions to execute concurrently and then starting said
+      // execution.
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries = msg->data.append_entries;
@@ -1739,7 +1740,7 @@ namespace aft
         return;
       }
 
-      // After entries have been deserialised, we try to commit the leader's
+      // After entries have been deserialised, try to commit the leader's
       // commit index and update our term history accordingly
       commit_if_possible(r.leader_commit_idx);
 

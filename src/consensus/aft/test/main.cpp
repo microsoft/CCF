@@ -1153,7 +1153,7 @@ DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
     aec.execute_as_far_as_possible(0);
     for (uint32_t i = 0; i < 20; ++i)
     {
-      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 10));
+      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(i % 2, 10));
       DOCTEST_REQUIRE(
         aec.execution_status() == aft::AsyncExecutionResult::COMPLETE);
     }
