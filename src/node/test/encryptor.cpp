@@ -3,7 +3,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "kv/encryptor.h"
-
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
@@ -225,7 +224,7 @@ TEST_CASE("Additional data")
 
 TEST_CASE("KV encryption/decryption")
 {
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
   StringString map("map");
   kv::Store primary_store;
   kv::Store backup_store;
@@ -293,7 +292,7 @@ TEST_CASE("KV encryption/decryption")
 
 TEST_CASE("Backup catchup from many ledger secrets")
 {
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
   StringString map("map");
   kv::Store primary_store;
   kv::Store backup_store;
@@ -352,7 +351,7 @@ TEST_CASE("Backup catchup from many ledger secrets")
 
 TEST_CASE("KV integrity verification")
 {
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
   StringString map("map");
   kv::Store primary_store;
   kv::Store backup_store;

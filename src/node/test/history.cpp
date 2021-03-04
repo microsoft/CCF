@@ -1,13 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "node/history.h"
-
 #include "enclave/app_interface.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
+#include "node/history.h"
 #include "node/nodes.h"
 #include "node/signatures.h"
 
@@ -19,7 +18,7 @@ threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 using MapT = kv::Map<size_t, size_t>;
 
-class DummyConsensus : public kv::StubConsensus
+class DummyConsensus : public kv::test::StubConsensus
 {
 public:
   kv::Store* store;
@@ -49,12 +48,12 @@ public:
 
   std::optional<kv::NodeId> primary() override
   {
-    return kv::FirstBackupNodeId;
+    return kv::test::FirstBackupNodeId;
   }
 
   kv::NodeId id() override
   {
-    return kv::PrimaryNodeId;
+    return kv::test::PrimaryNodeId;
   }
 };
 
@@ -82,12 +81,12 @@ TEST_CASE("Check signature verification")
 
   std::shared_ptr<kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      primary_store, kv::PrimaryNodeId, *kp);
+      primary_store, kv::test::PrimaryNodeId, *kp);
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      backup_store, kv::FirstBackupNodeId, *kp);
+      backup_store, kv::test::FirstBackupNodeId, *kp);
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
@@ -96,7 +95,7 @@ TEST_CASE("Check signature verification")
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
-    tx->put(kv::PrimaryNodeId, ni);
+    tx->put(kv::test::PrimaryNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -110,7 +109,7 @@ TEST_CASE("Check signature verification")
   {
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(signatures);
-    ccf::PrimarySignature bogus(kv::PrimaryNodeId, 0);
+    ccf::PrimarySignature bogus(kv::test::PrimaryNodeId, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
     tx->put(0, bogus);
     REQUIRE(txs.commit() == kv::CommitResult::FAIL_NO_REPLICATE);
@@ -139,12 +138,12 @@ TEST_CASE("Check signing works across rollback")
 
   std::shared_ptr<kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      primary_store, kv::PrimaryNodeId, *kp);
+      primary_store, kv::test::PrimaryNodeId, *kp);
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      backup_store, kv::FirstBackupNodeId, *kp);
+      backup_store, kv::test::FirstBackupNodeId, *kp);
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
@@ -153,7 +152,7 @@ TEST_CASE("Check signing works across rollback")
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
-    tx->put(kv::PrimaryNodeId, ni);
+    tx->put(kv::test::PrimaryNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -165,7 +164,7 @@ TEST_CASE("Check signing works across rollback")
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
-    tx->put(kv::FirstBackupNodeId, ni);
+    tx->put(kv::test::FirstBackupNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -209,7 +208,7 @@ TEST_CASE("Check signing works across rollback")
   }
 }
 
-class CompactingConsensus : public kv::StubConsensus
+class CompactingConsensus : public kv::test::StubConsensus
 {
 public:
   kv::Store* store;
@@ -240,12 +239,12 @@ public:
 
   std::optional<kv::NodeId> primary() override
   {
-    return kv::PrimaryNodeId;
+    return kv::test::PrimaryNodeId;
   }
 
   kv::NodeId id() override
   {
-    return kv::PrimaryNodeId;
+    return kv::test::PrimaryNodeId;
   }
 
   View get_view(kv::Version version) override
@@ -322,7 +321,7 @@ TEST_CASE(
   }
 }
 
-class RollbackConsensus : public kv::StubConsensus
+class RollbackConsensus : public kv::test::StubConsensus
 {
 public:
   kv::Store* store;
@@ -360,12 +359,12 @@ public:
 
   std::optional<kv::NodeId> primary() override
   {
-    return kv::PrimaryNodeId;
+    return kv::test::PrimaryNodeId;
   }
 
   kv::NodeId id() override
   {
-    return kv::PrimaryNodeId;
+    return kv::test::PrimaryNodeId;
   }
 
   View get_view(SeqNo seqno) override

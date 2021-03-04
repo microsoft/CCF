@@ -522,7 +522,8 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
 DOCTEST_TEST_CASE("Accept node")
 {
   NetworkState network;
-  NodeId node_id = kv::PrimaryNodeId;
+  NodeId node_id =
+    crypto::Sha256Hash(crypto::make_key_pair()->public_key_der()).hex_str();
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
@@ -1299,7 +1300,8 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   // Operator issues a proposal that is an operator change
   // and gets it through without member votes
   NetworkState network;
-  NodeId node_id = kv::PrimaryNodeId;
+  NodeId node_id =
+    crypto::Sha256Hash(crypto::make_key_pair()->public_key_der()).hex_str();
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
@@ -1481,7 +1483,8 @@ DOCTEST_TEST_CASE(
   // Member proposes an operator change
   // A majority of members pass the vote
   NetworkState network;
-  NodeId node_id = kv::PrimaryNodeId;
+  NodeId node_id =
+    crypto::Sha256Hash(crypto::make_key_pair()->public_key_der()).hex_str();
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
@@ -1752,7 +1755,7 @@ DOCTEST_TEST_CASE("User data")
 DOCTEST_TEST_CASE("Submit recovery shares")
 {
   NetworkState network;
-  NodeId node_id = kv::PrimaryNodeId;
+  NodeId node_id = kv::test::PrimaryNodeId;
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
 

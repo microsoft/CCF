@@ -1,12 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/progress_tracker.h"
-
 #include "consensus/aft/impl/view_change_tracker.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "node/nodes.h"
+#include "node/progress_tracker.h"
 #include "node/request_tracker.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
@@ -14,10 +13,10 @@
 #include <string>
 #include <trompeloeil/include/trompeloeil.hpp>
 
-std::vector<kv::NodeId> node_ids = {kv::PrimaryNodeId,
-                                    kv::FirstBackupNodeId,
-                                    kv::SecondBackupNodeId,
-                                    kv::ThirdBackupNodeId};
+std::vector<kv::NodeId> node_ids = {kv::test::PrimaryNodeId,
+                                    kv::test::FirstBackupNodeId,
+                                    kv::test::SecondBackupNodeId,
+                                    kv::test::ThirdBackupNodeId};
 
 class StoreMock : public ccf::ProgressTrackerStore
 {
@@ -67,7 +66,7 @@ void ordered_execution(
   uint32_t node_count = 4;
   uint32_t node_count_quorum =
     2; // Takes into account that counting starts at 0
-  bool am_i_primary = (my_node_id == kv::PrimaryNodeId);
+  bool am_i_primary = (my_node_id == kv::test::PrimaryNodeId);
 
   crypto::Sha256Hash root;
   std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
@@ -81,7 +80,7 @@ void ordered_execution(
   {
     auto result = pt->record_primary(
       {view, seqno},
-      kv::PrimaryNodeId,
+      kv::test::PrimaryNodeId,
       root,
       primary_sig,
       hashed_nonce,
@@ -193,7 +192,7 @@ void run_ordered_execution(kv::NodeId my_node_id)
     .RETURN(true)
     .TIMES(AT_LEAST(2));
 
-  if (my_node_id == kv::PrimaryNodeId)
+  if (my_node_id == kv::test::PrimaryNodeId)
   {
     ordered_execution_primary(my_node_id, std::move(pt), store_mock);
   }
@@ -328,7 +327,7 @@ TEST_CASE("Request tracker")
 
 TEST_CASE("Record primary signature")
 {
-  kv::NodeId my_node_id = kv::PrimaryNodeId;
+  kv::NodeId my_node_id = kv::test::PrimaryNodeId;
   kv::Consensus::View view = 0;
   kv::Consensus::SeqNo seqno = 42;
   crypto::Sha256Hash root;
@@ -338,7 +337,7 @@ TEST_CASE("Record primary signature")
   ccf::ProgressTracker pt(nullptr, my_node_id);
 
   auto result = pt.record_primary(
-    {view, seqno}, kv::PrimaryNodeId, root, primary_sig, nonce);
+    {view, seqno}, kv::test::PrimaryNodeId, root, primary_sig, nonce);
   REQUIRE(result == kv::TxHistory::Result::OK);
 
   primary_sig = {1};
@@ -352,7 +351,7 @@ TEST_CASE("View Changes")
 {
   using trompeloeil::_;
 
-  kv::NodeId my_node_id = kv::PrimaryNodeId;
+  kv::NodeId my_node_id = kv::test::PrimaryNodeId;
   auto store = std::make_unique<StoreMock>();
   StoreMock& store_mock = *store.get();
   ccf::ProgressTracker pt(std::move(store), my_node_id);
@@ -380,7 +379,7 @@ TEST_CASE("View Changes")
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, seqno},
-      kv::PrimaryNodeId,
+      kv::test::PrimaryNodeId,
       root,
       primary_sig,
       hashed_nonce,
@@ -390,7 +389,7 @@ TEST_CASE("View Changes")
     size_t i = 1;
     for (auto const& node_id : node_ids)
     {
-      if (node_id == kv::PrimaryNodeId)
+      if (node_id == kv::test::PrimaryNodeId)
       {
         continue;
       }
@@ -432,7 +431,7 @@ TEST_CASE("View Changes")
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, new_seqno},
-      kv::PrimaryNodeId,
+      kv::test::PrimaryNodeId,
       root,
       primary_sig,
       hashed_nonce,
@@ -442,7 +441,7 @@ TEST_CASE("View Changes")
     size_t i = 1;
     for (auto const& node_id : node_ids)
     {
-      if (node_id == kv::PrimaryNodeId)
+      if (node_id == kv::test::PrimaryNodeId)
       {
         continue;
       }
@@ -485,7 +484,7 @@ TEST_CASE("View Changes")
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, new_seqno},
-      kv::PrimaryNodeId,
+      kv::test::PrimaryNodeId,
       root,
       primary_sig,
       hashed_nonce,
@@ -495,7 +494,7 @@ TEST_CASE("View Changes")
     size_t i = 1;
     for (auto const& node_id : node_ids)
     {
-      if (node_id == kv::PrimaryNodeId)
+      if (node_id == kv::test::PrimaryNodeId)
       {
         continue;
       }
@@ -633,7 +632,7 @@ TEST_CASE("test progress_tracker apply_view_change")
 {
   using trompeloeil::_;
 
-  kv::NodeId node_id = kv::FirstBackupNodeId;
+  kv::NodeId node_id = kv::test::FirstBackupNodeId;
   auto store = std::make_unique<StoreMock>();
   StoreMock& store_mock = *store.get();
   auto pt = std::make_unique<ccf::ProgressTracker>(std::move(store), node_id);
@@ -651,7 +650,8 @@ TEST_CASE("test progress_tracker apply_view_change")
     REQUIRE_CALL(store_mock, verify_view_change_request(_, _, _, _))
       .RETURN(false);
     ccf::ViewChangeRequest v;
-    bool result = pt->apply_view_change_message(v, kv::FirstBackupNodeId, 1, 1);
+    bool result =
+      pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 1);
     REQUIRE(result == false);
   }
 
@@ -661,7 +661,7 @@ TEST_CASE("test progress_tracker apply_view_change")
       .RETURN(true);
     ccf::ViewChangeRequest v;
     bool result =
-      pt->apply_view_change_message(v, kv::FirstBackupNodeId, 1, 999);
+      pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 999);
     REQUIRE(result == false);
   }
 
@@ -671,10 +671,10 @@ TEST_CASE("test progress_tracker apply_view_change")
       .RETURN(true);
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(true);
     ccf::ViewChangeRequest v;
-    v.signatures.push_back(ccf::NodeSignature(kv::PrimaryNodeId));
+    v.signatures.push_back(ccf::NodeSignature(kv::test::PrimaryNodeId));
 
     bool result =
-      pt->apply_view_change_message(v, kv::FirstBackupNodeId, 1, 42);
+      pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 42);
     REQUIRE(result);
   }
 
@@ -685,10 +685,10 @@ TEST_CASE("test progress_tracker apply_view_change")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(false);
 
     ccf::ViewChangeRequest v;
-    v.signatures.push_back(ccf::NodeSignature(kv::PrimaryNodeId));
+    v.signatures.push_back(ccf::NodeSignature(kv::test::PrimaryNodeId));
 
     bool result =
-      pt->apply_view_change_message(v, kv::FirstBackupNodeId, 1, 42);
+      pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 42);
     REQUIRE(result == false);
   }
 }

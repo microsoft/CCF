@@ -17,10 +17,10 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 {
-  auto source_consensus = std::make_shared<kv::StubConsensus>();
+  auto source_consensus = std::make_shared<kv::test::StubConsensus>();
   kv::Store source_store(source_consensus);
 
-  ccf::NodeId source_node_id = kv::PrimaryNodeId;
+  ccf::NodeId source_node_id = kv::test::PrimaryNodeId;
   auto source_node_kp = crypto::make_key_pair();
 
   auto source_history = std::make_shared<ccf::MerkleTxHistory>(
@@ -83,7 +83,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto target_node_kp = crypto::make_key_pair();
 
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
-        target_store, kv::PrimaryNodeId, *target_node_kp);
+        target_store, kv::test::PrimaryNodeId, *target_node_kp);
       target_store.set_history(target_history);
     }
 

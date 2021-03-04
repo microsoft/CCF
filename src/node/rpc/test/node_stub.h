@@ -66,7 +66,7 @@ namespace ccf
 
     NodeId get_node_id() const override
     {
-      return kv::PrimaryNodeId;
+      return kv::test::PrimaryNodeId;
     }
 
     void set_is_public(bool is_public_)

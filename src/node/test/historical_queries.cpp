@@ -1,12 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/historical_queries.h"
-
 #include "crypto/rsa_key_pair.h"
 #include "ds/messaging.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/historical_queries.h"
 #include "node/history.h"
 #include "node/share_manager.h"
 
@@ -78,7 +77,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   TestState ts;
 
   ts.kv_store =
-    std::make_shared<kv::Store>(std::make_shared<kv::StubConsensus>());
+    std::make_shared<kv::Store>(std::make_shared<kv::test::StubConsensus>());
 
   // Generate node's keypair once, on first call to this function
   static crypto::KeyPairPtr node_kp = nullptr;
@@ -223,7 +222,7 @@ void validate_business_transaction(
 std::map<kv::SeqNo, std::vector<uint8_t>> construct_host_ledger(
   std::shared_ptr<kv::Consensus> c)
 {
-  auto consensus = dynamic_cast<kv::StubConsensus*>(c.get());
+  auto consensus = dynamic_cast<kv::test::StubConsensus*>(c.get());
   REQUIRE(consensus != nullptr);
 
   INFO("Rebuild ledger as seen by host");

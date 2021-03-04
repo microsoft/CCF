@@ -1117,7 +1117,7 @@ TEST_CASE("Deserialise return status")
   auto kp = crypto::make_key_pair();
 
   auto history =
-    std::make_shared<ccf::NullTxHistory>(store, kv::PrimaryNodeId, *kp);
+    std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   {
@@ -1135,7 +1135,7 @@ TEST_CASE("Deserialise return status")
   {
     auto tx = store.create_reserved_tx(store.next_version());
     auto sig_handle = tx.rw(signatures);
-    ccf::PrimarySignature sigv(kv::PrimaryNodeId, 2);
+    ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
@@ -1150,7 +1150,7 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_version());
     auto sig_handle = tx.rw(signatures);
     auto data_handle = tx.rw(data);
-    ccf::PrimarySignature sigv(kv::PrimaryNodeId, 2);
+    ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     data_handle->put(43, 43);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
