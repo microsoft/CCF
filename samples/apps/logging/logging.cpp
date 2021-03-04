@@ -592,7 +592,7 @@ namespace loggingapp
         const auto [pack, params] =
           ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
-        const auto in = params.get<LoggingGetHistorical::In>();
+        const auto in = params.get<LoggingGetReceipt::In>();
 
         auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle = historical_tx.ro(records);
@@ -600,15 +600,14 @@ namespace loggingapp
 
         if (v.has_value())
         {
-          LoggingGetHistorical::Out out;
+          LoggingGetReceipt::Out out;
           out.msg = v.value();
-          nlohmann::json j = out;
-          j["signature"] =
+          out.signature =
             tls::b64_from_raw(historical_state->receipt->signature);
-          j["root"] = historical_state->receipt->root.to_string();
-          j["proof"] = nlohmann::json::array();
-          j["leaf"] = historical_state->receipt->path->leaf().to_string();
-          j["node_id"] = historical_state->receipt->node_id;
+          out.root = historical_state->receipt->root.to_string();
+          out.proof = {};
+          out.leaf = historical_state->receipt->path->leaf().to_string();
+          out.node_id = historical_state->receipt->node_id;
           for (const auto& node : *historical_state->receipt->path)
           {
             nlohmann::json entry = nlohmann::json::object();
@@ -620,9 +619,9 @@ namespace loggingapp
             {
               entry["right"] = node.hash.to_string();
             }
-            j["proof"].push_back(entry);
+            out.proof.push_back(entry);
           }
-          ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
+          ccf::jsonhandler::set_response(std::move(out), args.rpc_ctx, pack);
         }
         else
         {
@@ -637,7 +636,7 @@ namespace loggingapp
           context.get_historical_state(),
           is_tx_committed),
         auth_policies)
-        .set_auto_schema<LoggingGetHistorical>()
+        .set_auto_schema<LoggingGetReceipt>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 

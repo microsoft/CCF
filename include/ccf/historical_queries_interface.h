@@ -102,6 +102,9 @@ namespace ccf::historical
      */
     virtual StorePtr get_store_at(RequestHandle handle, kv::SeqNo seqno) = 0;
 
+    /** Retrieve a full state at a given seqno, including the Store, the TxID
+     * assigned by consensus, and an offline-verifiable receipt for the Tx.
+     */
     virtual StatePtr get_state_at(RequestHandle handle, kv::SeqNo seqno) = 0;
 
     /** Retrieve a range of Stores containing the state written at the given
