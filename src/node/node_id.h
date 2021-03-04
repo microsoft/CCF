@@ -4,6 +4,8 @@
 
 #include "ds/json.h"
 
+#include <algorithm>
+#include <cctype>
 #include <fmt/format.h>
 #include <string>
 
@@ -13,6 +15,8 @@ namespace ccf
   {
     // The underlying value type should be blit-serialisable so that it can be
     // written to and read from the ring buffer
+    static constexpr size_t LENGTH = 64; // hex-encoded SHA-256 hash
+
     using Value =
       std::string; // < hex-encoded hash of node's identity public key
     Value id;
@@ -73,12 +77,28 @@ namespace ccf
   {
     if (j.is_string())
     {
+      auto value = j.get<std::string>();
+      if (value.length() != NodeId::LENGTH)
+      {
+        throw JsonParseError(fmt::format(
+          "Node id should be of length {} (found: {})",
+          NodeId::LENGTH,
+          value.length()));
+      }
+
+      if (!std::all_of(value.begin(), value.end(), [](unsigned char c) {
+            return std::isxdigit(c);
+          }))
+      {
+        throw JsonParseError(
+          fmt::format("Node id {} should be hex-encoded", value));
+      }
       node_id = j.get<std::string>();
     }
     else
     {
-      throw std::runtime_error(
-        fmt::format("Unable to parse Node ID from this JSON: {}", j.dump()));
+      throw JsonParseError(
+        fmt::format("Unable to parse Node id from this JSON: {}", j.dump()));
     }
   }
 

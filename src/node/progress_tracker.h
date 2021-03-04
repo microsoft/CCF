@@ -31,7 +31,7 @@ namespace ccf
 
     kv::TxHistory::Result add_signature(
       kv::TxID tx_id,
-      NodeId node_id,
+      const NodeId& node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce hashed_nonce,
@@ -354,7 +354,7 @@ namespace ccf
     void add_nonce_reveal(
       kv::TxID tx_id,
       Nonce nonce,
-      NodeId node_id,
+      const NodeId& node_id,
       uint32_t node_count,
       bool is_primary)
     {
@@ -499,7 +499,7 @@ namespace ccf
 
     bool apply_view_change_message(
       ViewChangeRequest& view_change,
-      NodeId from,
+      const NodeId& from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno)
     {
@@ -557,7 +557,7 @@ namespace ccf
     }
 
     bool apply_new_view(
-      NodeId from,
+      const NodeId& from,
       uint32_t node_count,
       kv::Consensus::View& view_,
       kv::Consensus::SeqNo& seqno_) const
@@ -642,7 +642,7 @@ namespace ccf
 
     kv::TxHistory::Result add_signature_internal(
       kv::TxID tx_id,
-      NodeId node_id,
+      const NodeId& node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce hashed_nonce,
@@ -767,7 +767,7 @@ namespace ccf
       BftNodeSignature& bft_node_sig,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
-      NodeId node_id)
+      const NodeId& node_id)
     {
       auto it_unmatched_nonces = cert.unmatched_nonces.find(node_id);
       if (it_unmatched_nonces != cert.unmatched_nonces.end())

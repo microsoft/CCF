@@ -74,7 +74,7 @@ namespace aft
 
     ResultAddView add_request_view_change(
       ccf::ViewChangeRequest& v,
-      NodeId from,
+      const NodeId& from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
       uint32_t node_count)

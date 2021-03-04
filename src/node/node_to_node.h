@@ -238,7 +238,6 @@ namespace ccf
     {
       // Called on channel target when a key exchange message is received from
       // the initiator
-      // const auto& ke = serialized::overlay<ChannelHeader>(data, size);
       auto n2n_channel = channels->get(from);
       n2n_channel->load_peer_signed_public(false, data, size);
     }
@@ -248,7 +247,6 @@ namespace ccf
     {
       // Called on channel initiator when a key exchange response message is
       // received from the target
-      // const auto& ke = serialized::overlay<ChannelHeader>(data, size);
       auto n2n_channel = channels->get(from);
       n2n_channel->load_peer_signed_public(true, data, size);
     }

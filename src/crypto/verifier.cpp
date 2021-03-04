@@ -48,11 +48,6 @@ namespace crypto
     return make_verifier(der)->cert_pem();
   }
 
-  std::vector<uint8_t> cert_pem_to_der(const std::string& pem_string)
-  {
-    return make_verifier(Pem(pem_string).raw())->cert_der();
-  }
-
   std::vector<uint8_t> public_key_der_from_cert(const std::vector<uint8_t>& der)
   {
     return make_unique_verifier(der)->public_key_der();

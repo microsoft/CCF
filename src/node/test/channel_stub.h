@@ -40,7 +40,7 @@ namespace ccf
 
     template <class T>
     std::pair<T, std::vector<uint8_t>> recv_encrypted(
-      NodeId from, const uint8_t* data, size_t size)
+      const NodeId& from, const uint8_t* data, size_t size)
     {
       T msg;
       return std::make_pair(msg, std::vector<uint8_t>(data, data + size));

@@ -277,7 +277,7 @@ namespace ccf
       kv::Consensus::SignableTxIndices commit_txid_,
       kv::Store& store_,
       kv::TxHistory& history_,
-      NodeId id_,
+      const NodeId& id_,
       crypto::KeyPair& kp_) :
       txid(txid_),
       commit_txid(commit_txid_),

@@ -1022,7 +1022,7 @@ namespace aft
         std::vector<std::tuple<
           std::unique_ptr<kv::AbstractExecutionWrapper>,
           kv::Version>>&& append_entries_,
-        NodeId from_,
+        const NodeId& from_,
         AppendEntries&& r_,
         bool confirm_evidence_) :
         self(self_),
@@ -1323,7 +1323,7 @@ namespace aft
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries,
-      NodeId from,
+      const NodeId& from,
       AppendEntries& r,
       bool confirm_evidence)
     {

@@ -3,12 +3,10 @@
 #pragma once
 
 #include "curve.h"
-#include "ds/logger.h" // TODO: Remove!
 #include "hash.h"
 #include "pem.h"
 #include "public_key.h"
 #include "san.h"
-#include "tls/base64.h" // TODO: Remove!
 
 #include <cstdint>
 #include <optional>

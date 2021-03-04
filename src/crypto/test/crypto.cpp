@@ -334,17 +334,16 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
   }
 }
 
-// TODO: Remove?
 TEST_CASE("Extract public key from cert")
 {
   for (const auto curve : supported_curves)
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_key_pair(curve);
-    auto pk = kp->public_key_();
+    auto pk = kp->public_key_der();
     auto cert = kp->self_sign("CN=name");
-
-    auto pubk = public_key_pem_from_cert(cert);
+    auto cert_der = make_verifier(cert.raw())->cert_der();
+    auto pubk = public_key_der_from_cert(cert_der);
     REQUIRE(pk == pubk);
   }
 }

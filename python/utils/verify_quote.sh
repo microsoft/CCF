@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set -ex
+set -e
 
 quote_file_name="quote.bin"
 endorsements_file_name="endorsements.bin"

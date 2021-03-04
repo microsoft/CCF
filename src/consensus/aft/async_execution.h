@@ -48,7 +48,7 @@ namespace aft
   public:
     AppendEntryCallback(
       AbstractConsensusCallback& store_,
-      NodeId from_,
+      const NodeId& from_,
       AppendEntries&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -80,7 +80,7 @@ namespace aft
   public:
     AppendEntryResponseCallback(
       AbstractConsensusCallback& store_,
-      NodeId from_,
+      const NodeId& from_,
       AppendEntriesResponse&& hdr_) :
       store(store_),
       from(from_),
@@ -103,7 +103,7 @@ namespace aft
   public:
     SignedAppendEntryResponseCallback(
       AbstractConsensusCallback& store_,
-      NodeId from_,
+      const NodeId& from_,
       SignedAppendEntriesResponse&& hdr_) :
       store(store_),
       from(from_),
@@ -149,7 +149,7 @@ namespace aft
   public:
     RequestVoteResponseCallback(
       AbstractConsensusCallback& store_,
-      NodeId from_,
+      const NodeId& from_,
       RequestVoteResponse&& hdr_) :
       store(store_),
       from(from_),
@@ -172,7 +172,7 @@ namespace aft
   public:
     SignatureAckCallback(
       AbstractConsensusCallback& store_,
-      NodeId from_,
+      const NodeId& from_,
       SignaturesReceivedAck&& hdr_) :
       store(store_),
       from(from_),
@@ -218,7 +218,7 @@ namespace aft
   public:
     ViewChangeCallback(
       AbstractConsensusCallback& store_,
-      NodeId from_,
+      const NodeId& from_,
       RequestViewChangeMsg&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -250,7 +250,7 @@ namespace aft
   public:
     ViewChangeEvidenceCallback(
       AbstractConsensusCallback& store_,
-      NodeId from_,
+      const NodeId& from_,
       ViewChangeEvidenceMsg&& hdr_,
       const uint8_t* data_,
       size_t size_,
