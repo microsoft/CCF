@@ -130,7 +130,7 @@ namespace ccf
 
 #ifdef GET_QUOTE
       QuoteVerificationResult verify_result =
-        this->node.verify_quote(tx, in.quote_info, pk_pem);
+        this->node.verify_quote(tx, in.quote_info, pk_der);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);

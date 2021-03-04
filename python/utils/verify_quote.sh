@@ -2,26 +2,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set -e
+set -ex
 
 quote_file_name="quote.bin"
 endorsements_file_name="endorsements.bin"
 open_enclave_path=${OPEN_ENCLAVE_PATH:-"/opt/openenclave"}
-
-# Re-enable once oeverify displays custom claims
-# See https://github.com/openenclave/openenclave/pull/3817
-if [ -z "${CCF_VERIFY_QUOTED_CERT}" ]; then
-    verify_quoted_cert=false
-else
-    verify_quoted_cert=true
-fi
 
 function usage()
 {
     echo "Usage:"
     echo "  $0 https://<node-address> [--mrenclave <mrenclave_hex>] [CURL_OPTIONS]"
     echo "Verify target node's remote attestation quote."
-    echo "Verification involves confirming that the public key of the node certificate matches the SGX report data and that the mrenclave included in the quote is trusted."
+    echo "Verification involves confirming that the public key (DER encoded) of the node certificate matches the SGX report data and that the mrenclave included in the quote is trusted."
     echo "A specific trusted mrenclave can be specified with --mrenclave. If specified, the quoted mrenclave must match this exactly. If unspecified, the service's currently accepted code versions will be retrieved from the target node, and verification will succeed only if the quoted mrenclave is present in this list."
 }
 
@@ -81,7 +73,7 @@ if [ ! -s "${tmp_dir}/${quote_file_name}" ]; then
     exit 1
 fi
 
-echo "Node quote successfully retrieved. Verifying quote..."
+echo "Node quote successfully retrieved."
 
 oeverify_output=$("${open_enclave_path}"/bin/oeverify -r "${tmp_dir}"/"${quote_file_name}" -e "${tmp_dir}"/"${endorsements_file_name}")
 
@@ -90,9 +82,9 @@ oeverify_report_data=$(echo "${oeverify_output}" | grep "sgx_report_data" | cut 
 # Extract hex sha-256 (64 char) from report data (128 char)
 extracted_report_data=$(echo "${oeverify_report_data#*0x}" | head -c 64)
 
-# Remove protocol and compute hash of target node's public key
+# Remove protocol and compute hash of target node's public key (DER)
 stripped_node_address=${node_address#*//}
-node_pubk_hash=$(echo | openssl s_client -showcerts -connect "${stripped_node_address}" 2>/dev/null | openssl x509 -pubkey -noout | sha256sum | awk '{ print $1 }')
+node_pubk_hash=$(echo | openssl s_client -showcerts -connect "${stripped_node_address}" 2>/dev/null | openssl x509 -pubkey -noout | openssl ec -pubin -outform der 2>/dev/null | sha256sum | awk '{ print $1 }')
 
 # Extract mrenclave
 is_mrenclave_valid=false
@@ -104,7 +96,7 @@ for mrenclave in "${trusted_mrenclaves[@]}"; do
     fi
 done
 
-if [ "${verify_quoted_cert}" = true ] && [ "${extracted_report_data}" != "${node_pubk_hash}" ]; then
+if [ "${extracted_report_data}" != "${node_pubk_hash}" ]; then
     echo "Error: quote verification failed."
     echo "Reported quote data does not match node certificate public key:"
     echo "\"${extracted_report_data}\" != \"${node_pubk_hash}\""
