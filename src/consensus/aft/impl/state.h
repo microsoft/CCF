@@ -78,24 +78,24 @@ namespace aft
   class Replica
   {
   public:
-    Replica(const NodeId& id_, const std::vector<uint8_t>& cert_) :
+    Replica(const ccf::NodeId& id_, const std::vector<uint8_t>& cert_) :
       id(id_),
       verifier(crypto::make_unique_verifier(cert_))
     {}
 
-    NodeId get_id() const
+    ccf::NodeId get_id() const
     {
       return id;
     }
 
   private:
-    NodeId id;
+    ccf::NodeId id;
     crypto::VerifierUniquePtr verifier;
   };
 
   struct State
   {
-    State(const NodeId& my_node_id_) :
+    State(const ccf::NodeId& my_node_id_) :
       my_node_id(my_node_id_),
       current_view(0),
       last_idx(0),
@@ -104,9 +104,9 @@ namespace aft
     {}
 
     SpinLock lock;
-    std::map<NodeId, std::shared_ptr<Replica>> configuration;
+    std::map<ccf::NodeId, std::shared_ptr<Replica>> configuration;
 
-    NodeId my_node_id;
+    ccf::NodeId my_node_id;
     kv::Consensus::View current_view;
     kv::Version last_idx;
     kv::Version commit_idx;
@@ -116,6 +116,6 @@ namespace aft
 
     ViewHistory view_history;
     kv::Version new_view_idx;
-    std::optional<NodeId> requested_evidence_from = std::nullopt;
+    std::optional<ccf::NodeId> requested_evidence_from = std::nullopt;
   };
 }

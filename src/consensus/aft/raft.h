@@ -84,11 +84,11 @@ namespace aft
     std::unique_ptr<Store> store;
 
     // Persistent
-    std::optional<NodeId> voted_for = std::nullopt;
+    std::optional<ccf::NodeId> voted_for = std::nullopt;
 
     // Volatile
-    std::optional<NodeId> leader_id = std::nullopt;
-    std::unordered_set<NodeId> votes_for_me;
+    std::optional<ccf::NodeId> leader_id = std::nullopt;
+    std::unordered_set<ccf::NodeId> votes_for_me;
 
     ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
@@ -127,7 +127,7 @@ namespace aft
 
     // Configurations
     std::list<Configuration> configurations;
-    std::unordered_map<NodeId, NodeState> nodes;
+    std::unordered_map<ccf::NodeId, NodeState> nodes;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -153,7 +153,7 @@ namespace aft
     std::shared_ptr<SnapshotterProxy> snapshotter;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
-    std::set<NodeId> backup_nodes;
+    std::set<ccf::NodeId> backup_nodes;
 
   public:
     Aft(
@@ -216,7 +216,7 @@ namespace aft
 
     virtual ~Aft() = default;
 
-    std::optional<NodeId> leader()
+    std::optional<ccf::NodeId> leader()
     {
       return leader_id;
     }
@@ -236,7 +236,7 @@ namespace aft
       }
     }
 
-    std::set<NodeId> active_nodes()
+    std::set<ccf::NodeId> active_nodes()
     {
       // Find all nodes present in any active configuration.
       if (backup_nodes.empty())
@@ -253,7 +253,7 @@ namespace aft
       return backup_nodes;
     }
 
-    NodeId id()
+    ccf::NodeId id()
     {
       return state->my_node_id;
     }
@@ -268,7 +268,7 @@ namespace aft
       return replica_state == Follower;
     }
 
-    NodeId get_primary(kv::Consensus::View view)
+    ccf::NodeId get_primary(kv::Consensus::View view)
     {
       CCF_ASSERT_FMT(
         consensus_type == ConsensusType::BFT,
@@ -534,12 +534,12 @@ namespace aft
       return true;
     }
 
-    void recv_message(const NodeId& from, const uint8_t* data, size_t size)
+    void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
       recv_message(from, OArray({data, data + size}));
     }
 
-    void recv_message(const NodeId& from, OArray&& d)
+    void recv_message(const ccf::NodeId& from, OArray&& d)
     {
       std::unique_ptr<AbstractMsgCallback> aee;
       const uint8_t* data = d.data();
@@ -784,7 +784,7 @@ namespace aft
     }
 
     void recv_view_change(
-      const NodeId& from,
+      const ccf::NodeId& from,
       RequestViewChangeMsg r,
       const uint8_t* data,
       size_t size)
@@ -822,7 +822,7 @@ namespace aft
     }
 
     void recv_view_change_evidence(
-      const NodeId& from,
+      const ccf::NodeId& from,
       ViewChangeEvidenceMsg r,
       const uint8_t* data,
       size_t size)
@@ -958,7 +958,7 @@ namespace aft
       return state->view_history.view_at(idx);
     }
 
-    void send_append_entries(const NodeId& to, Index start_idx)
+    void send_append_entries(const ccf::NodeId& to, Index start_idx)
     {
       Index end_idx = (state->last_idx == 0) ?
         0 :
@@ -977,7 +977,7 @@ namespace aft
     }
 
     void send_append_entries_range(
-      const NodeId& to, Index start_idx, Index end_idx)
+      const ccf::NodeId& to, Index start_idx, Index end_idx)
     {
       const auto prev_idx = start_idx - 1;
       const auto prev_term = get_term_internal(prev_idx);
@@ -1022,7 +1022,7 @@ namespace aft
         std::vector<std::tuple<
           std::unique_ptr<kv::AbstractExecutionWrapper>,
           kv::Version>>&& append_entries_,
-        const NodeId& from_,
+        const ccf::NodeId& from_,
         AppendEntries&& r_,
         bool confirm_evidence_) :
         self(self_),
@@ -1036,13 +1036,16 @@ namespace aft
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
         append_entries;
-      NodeId from;
+      ccf::NodeId from;
       AppendEntries r;
       bool confirm_evidence;
     };
 
     void recv_append_entries(
-      const NodeId& from, AppendEntries r, const uint8_t* data, size_t size)
+      const ccf::NodeId& from,
+      AppendEntries r,
+      const uint8_t* data,
+      size_t size)
     {
       std::unique_lock<SpinLock> guard(state->lock);
 
@@ -1323,7 +1326,7 @@ namespace aft
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>&
         append_entries,
-      const NodeId& from,
+      const ccf::NodeId& from,
       AppendEntries& r,
       bool confirm_evidence)
     {
@@ -1498,7 +1501,7 @@ namespace aft
     }
 
     void send_append_entries_response(
-      NodeId to, AppendEntriesResponseType answer)
+      ccf::NodeId to, AppendEntriesResponseType answer)
     {
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
@@ -1517,7 +1520,7 @@ namespace aft
     }
 
     void send_append_entries_signed_response(
-      NodeId to, ccf::PrimarySignature& sig)
+      ccf::NodeId to, ccf::PrimarySignature& sig)
     {
       LOG_DEBUG_FMT(
         "Send append entries signed response from {} to {} for index {}",
@@ -1562,7 +1565,7 @@ namespace aft
     }
 
     void recv_append_entries_signed_response(
-      const NodeId& from, SignedAppendEntriesResponse r)
+      const ccf::NodeId& from, SignedAppendEntriesResponse r)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -1627,7 +1630,7 @@ namespace aft
     }
 
     void recv_signature_received_ack(
-      const NodeId& from, SignaturesReceivedAck r)
+      const ccf::NodeId& from, SignaturesReceivedAck r)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -1692,7 +1695,7 @@ namespace aft
       }
     }
 
-    void recv_nonce_reveal(const NodeId& from, NonceRevealMsg r)
+    void recv_nonce_reveal(const ccf::NodeId& from, NonceRevealMsg r)
     {
       auto node = nodes.find(from);
       if (node == nodes.end())
@@ -1719,7 +1722,7 @@ namespace aft
     }
 
     void recv_append_entries_response(
-      const NodeId& from, AppendEntriesResponse r)
+      const ccf::NodeId& from, AppendEntriesResponse r)
     {
       std::lock_guard<SpinLock> guard(state->lock);
       // Ignore if we're not the leader.
@@ -1820,7 +1823,7 @@ namespace aft
       update_commit();
     }
 
-    void send_request_vote(const NodeId& to)
+    void send_request_vote(const ccf::NodeId& to)
     {
       auto last_committable_idx = last_committable_index();
       LOG_INFO_FMT(
@@ -1838,7 +1841,7 @@ namespace aft
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }
 
-    void recv_request_vote(const NodeId& from, RequestVote r)
+    void recv_request_vote(const ccf::NodeId& from, RequestVote r)
     {
       std::lock_guard<SpinLock> guard(state->lock);
 
@@ -1922,7 +1925,7 @@ namespace aft
       send_request_vote_response(from, answer);
     }
 
-    void send_request_vote_response(const NodeId& to, bool answer)
+    void send_request_vote_response(const ccf::NodeId& to, bool answer)
     {
       LOG_INFO_FMT(
         "Send request vote response from {} to {}: {}",
@@ -1937,7 +1940,8 @@ namespace aft
         to, ccf::NodeMsgType::consensus_msg, response);
     }
 
-    void recv_request_vote_response(const NodeId& from, RequestVoteResponse r)
+    void recv_request_vote_response(
+      const ccf::NodeId& from, RequestVoteResponse r)
     {
       if (replica_state != Candidate)
       {
@@ -2114,7 +2118,7 @@ namespace aft
       channels->destroy_all_channels();
     }
 
-    void add_vote_for_me(const NodeId& from)
+    void add_vote_for_me(const ccf::NodeId& from)
     {
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
       votes_for_me.insert(from);
@@ -2342,7 +2346,7 @@ namespace aft
 
       // Remove all nodes in the node state that are not present in any active
       // configuration.
-      std::vector<NodeId> to_remove;
+      std::vector<ccf::NodeId> to_remove;
 
       for (auto& node : nodes)
       {

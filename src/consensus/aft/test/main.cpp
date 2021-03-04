@@ -28,7 +28,7 @@ std::vector<uint8_t> cert;
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
-  aft::NodeId node_id = kv::test::PrimaryNodeId;
+  ccf::NodeId node_id = kv::test::PrimaryNodeId;
   auto kv_store = std::make_shared<Store>(node_id);
   ms election_timeout(150);
 
@@ -73,7 +73,7 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 
 DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 {
-  aft::NodeId node_id = kv::test::PrimaryNodeId;
+  ccf::NodeId node_id = kv::test::PrimaryNodeId;
   auto kv_store = std::make_shared<Store>(node_id);
   ms election_timeout(150);
 
@@ -123,9 +123,9 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 DOCTEST_TEST_CASE(
   "Multiple nodes startup and election" * doctest::test_suite("multiple"))
 {
-  aft::NodeId node_id0 = kv::test::PrimaryNodeId;
-  aft::NodeId node_id1 = kv::test::FirstBackupNodeId;
-  aft::NodeId node_id2 = kv::test::SecondBackupNodeId;
+  ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = kv::test::SecondBackupNodeId;
 
   auto kv_store0 = std::make_shared<Store>(node_id0);
   auto kv_store1 = std::make_shared<Store>(node_id1);
@@ -295,7 +295,7 @@ DOCTEST_TEST_CASE(
 
 template <class NodeMap, class Messages>
 static size_t dispatch_all(
-  NodeMap& nodes, const aft::NodeId& from, Messages& messages)
+  NodeMap& nodes, const ccf::NodeId& from, Messages& messages)
 {
   size_t count = 0;
   while (messages.size())
@@ -314,7 +314,7 @@ static size_t dispatch_all(
 template <class NodeMap, class Messages, class Assertion>
 static size_t dispatch_all_and_DOCTEST_CHECK(
   NodeMap& nodes,
-  const aft::NodeId& from,
+  const ccf::NodeId& from,
   Messages& messages,
   const Assertion& assertion)
 {
@@ -336,9 +336,9 @@ static size_t dispatch_all_and_DOCTEST_CHECK(
 DOCTEST_TEST_CASE(
   "Multiple nodes append entries" * doctest::test_suite("multiple"))
 {
-  aft::NodeId node_id0 = kv::test::PrimaryNodeId;
-  aft::NodeId node_id1 = kv::test::FirstBackupNodeId;
-  aft::NodeId node_id2 = kv::test::SecondBackupNodeId;
+  ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = kv::test::SecondBackupNodeId;
 
   auto kv_store0 = std::make_shared<Store>(node_id0);
   auto kv_store1 = std::make_shared<Store>(node_id1);
@@ -404,7 +404,7 @@ DOCTEST_TEST_CASE(
   r1.add_configuration(0, config);
   r2.add_configuration(0, config);
 
-  map<aft::NodeId, TRaft*> nodes;
+  map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
   nodes[node_id2] = &r2;
@@ -528,9 +528,9 @@ DOCTEST_TEST_CASE(
 
 DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 {
-  aft::NodeId node_id0 = kv::test::PrimaryNodeId;
-  aft::NodeId node_id1 = kv::test::FirstBackupNodeId;
-  aft::NodeId node_id2 = kv::test::SecondBackupNodeId;
+  ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = kv::test::SecondBackupNodeId;
 
   auto kv_store0 = std::make_shared<Store>(node_id0);
   auto kv_store1 = std::make_shared<Store>(node_id1);
@@ -596,7 +596,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
 
-  map<aft::NodeId, TRaft*> nodes;
+  map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -703,8 +703,8 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 
 DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
 {
-  aft::NodeId node_id0 = kv::test::PrimaryNodeId;
-  aft::NodeId node_id1 = kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
 
   auto kv_store0 = std::make_shared<Store>(node_id0);
   auto kv_store1 = std::make_shared<Store>(node_id1);
@@ -752,7 +752,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
-  map<aft::NodeId, TRaft*> nodes;
+  map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 
@@ -933,9 +933,9 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 {
   logger::config::level() = logger::INFO;
 
-  aft::NodeId node_id0 = kv::test::PrimaryNodeId;
-  aft::NodeId node_id1 = kv::test::FirstBackupNodeId;
-  aft::NodeId node_id2 = kv::test::SecondBackupNodeId;
+  ccf::NodeId node_id0 = kv::test::PrimaryNodeId;
+  ccf::NodeId node_id1 = kv::test::FirstBackupNodeId;
+  ccf::NodeId node_id2 = kv::test::SecondBackupNodeId;
 
   auto kv_store0 = std::make_shared<Store>(node_id0);
   auto kv_store1 = std::make_shared<Store>(node_id1);
@@ -1001,7 +1001,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
-  map<aft::NodeId, TRaft*> nodes;
+  map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
   nodes[node_id1] = &r1;
 

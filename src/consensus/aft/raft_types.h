@@ -21,7 +21,6 @@ namespace aft
 {
   using Index = int64_t;
   using Term = int64_t;
-  using NodeId = ccf::NodeId;
   using Node2NodeMsg = uint64_t;
   using Nonce = crypto::Sha256Hash;
 

@@ -10,27 +10,28 @@ namespace aft
   {
   public:
     virtual void recv_append_entries(
-      const NodeId& from,
+      const ccf::NodeId& from,
       AppendEntries r,
       const uint8_t* data,
       size_t size) = 0;
     virtual void recv_append_entries_response(
-      const NodeId& from, AppendEntriesResponse r) = 0;
+      const ccf::NodeId& from, AppendEntriesResponse r) = 0;
     virtual void recv_append_entries_signed_response(
-      const NodeId& from, SignedAppendEntriesResponse r) = 0;
-    virtual void recv_request_vote(const NodeId& from, RequestVote r) = 0;
+      const ccf::NodeId& from, SignedAppendEntriesResponse r) = 0;
+    virtual void recv_request_vote(const ccf::NodeId& from, RequestVote r) = 0;
     virtual void recv_request_vote_response(
-      const NodeId& from, RequestVoteResponse r) = 0;
+      const ccf::NodeId& from, RequestVoteResponse r) = 0;
     virtual void recv_signature_received_ack(
-      const NodeId& from, SignaturesReceivedAck r) = 0;
-    virtual void recv_nonce_reveal(const NodeId& from, NonceRevealMsg r) = 0;
+      const ccf::NodeId& from, SignaturesReceivedAck r) = 0;
+    virtual void recv_nonce_reveal(
+      const ccf::NodeId& from, NonceRevealMsg r) = 0;
     virtual void recv_view_change(
-      const NodeId& from,
+      const ccf::NodeId& from,
       RequestViewChangeMsg r,
       const uint8_t* data,
       size_t size) = 0;
     virtual void recv_view_change_evidence(
-      const NodeId& from,
+      const ccf::NodeId& from,
       ViewChangeEvidenceMsg r,
       const uint8_t* data,
       size_t size) = 0;
@@ -48,7 +49,7 @@ namespace aft
   public:
     AppendEntryCallback(
       AbstractConsensusCallback& store_,
-      const NodeId& from_,
+      const ccf::NodeId& from_,
       AppendEntries&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -68,7 +69,7 @@ namespace aft
 
   private:
     AbstractConsensusCallback& store;
-    NodeId from;
+    ccf::NodeId from;
     AppendEntries hdr;
     const uint8_t* data;
     size_t size;
@@ -80,7 +81,7 @@ namespace aft
   public:
     AppendEntryResponseCallback(
       AbstractConsensusCallback& store_,
-      const NodeId& from_,
+      const ccf::NodeId& from_,
       AppendEntriesResponse&& hdr_) :
       store(store_),
       from(from_),
@@ -94,7 +95,7 @@ namespace aft
 
   private:
     AbstractConsensusCallback& store;
-    NodeId from;
+    ccf::NodeId from;
     AppendEntriesResponse hdr;
   };
 
@@ -103,7 +104,7 @@ namespace aft
   public:
     SignedAppendEntryResponseCallback(
       AbstractConsensusCallback& store_,
-      const NodeId& from_,
+      const ccf::NodeId& from_,
       SignedAppendEntriesResponse&& hdr_) :
       store(store_),
       from(from_),
@@ -117,7 +118,7 @@ namespace aft
 
   private:
     AbstractConsensusCallback& store;
-    NodeId from;
+    ccf::NodeId from;
     SignedAppendEntriesResponse hdr;
   };
 
@@ -126,7 +127,7 @@ namespace aft
   public:
     RequestVoteCallback(
       AbstractConsensusCallback& store_,
-      const NodeId& from_,
+      const ccf::NodeId& from_,
       RequestVote&& hdr_) :
       store(store_),
       from(from_),
@@ -140,7 +141,7 @@ namespace aft
 
   private:
     AbstractConsensusCallback& store;
-    NodeId from;
+    ccf::NodeId from;
     RequestVote hdr;
   };
 
@@ -149,7 +150,7 @@ namespace aft
   public:
     RequestVoteResponseCallback(
       AbstractConsensusCallback& store_,
-      const NodeId& from_,
+      const ccf::NodeId& from_,
       RequestVoteResponse&& hdr_) :
       store(store_),
       from(from_),
@@ -163,7 +164,7 @@ namespace aft
 
   private:
     AbstractConsensusCallback& store;
-    NodeId from;
+    ccf::NodeId from;
     RequestVoteResponse hdr;
   };
 
@@ -172,7 +173,7 @@ namespace aft
   public:
     SignatureAckCallback(
       AbstractConsensusCallback& store_,
-      const NodeId& from_,
+      const ccf::NodeId& from_,
       SignaturesReceivedAck&& hdr_) :
       store(store_),
       from(from_),
@@ -186,7 +187,7 @@ namespace aft
 
   private:
     AbstractConsensusCallback& store;
-    NodeId from;
+    ccf::NodeId from;
     SignaturesReceivedAck hdr;
   };
 
@@ -195,7 +196,7 @@ namespace aft
   public:
     NonceRevealCallback(
       AbstractConsensusCallback& store_,
-      const NodeId& from_,
+      const ccf::NodeId& from_,
       NonceRevealMsg&& hdr_) :
       store(store_),
       from(from_),
@@ -209,7 +210,7 @@ namespace aft
 
   private:
     AbstractConsensusCallback& store;
-    NodeId from;
+    ccf::NodeId from;
     NonceRevealMsg hdr;
   };
 
@@ -218,7 +219,7 @@ namespace aft
   public:
     ViewChangeCallback(
       AbstractConsensusCallback& store_,
-      const NodeId& from_,
+      const ccf::NodeId& from_,
       RequestViewChangeMsg&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -238,7 +239,7 @@ namespace aft
 
   private:
     AbstractConsensusCallback& store;
-    NodeId from;
+    ccf::NodeId from;
     RequestViewChangeMsg hdr;
     const uint8_t* data;
     size_t size;
@@ -250,7 +251,7 @@ namespace aft
   public:
     ViewChangeEvidenceCallback(
       AbstractConsensusCallback& store_,
-      const NodeId& from_,
+      const ccf::NodeId& from_,
       ViewChangeEvidenceMsg&& hdr_,
       const uint8_t* data_,
       size_t size_,
@@ -270,7 +271,7 @@ namespace aft
 
   private:
     AbstractConsensusCallback& store;
-    NodeId from;
+    ccf::NodeId from;
     ViewChangeEvidenceMsg hdr;
     const uint8_t* data;
     size_t size;
