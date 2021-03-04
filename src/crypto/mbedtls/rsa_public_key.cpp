@@ -1,9 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "rsa_public_key.h"
+
 #include "entropy.h"
 #include "mbedtls_wrappers.h"
-#include "rsa_public_key.h"
 
 namespace crypto
 {

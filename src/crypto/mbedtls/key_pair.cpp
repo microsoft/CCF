@@ -1,10 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "key_pair.h"
+
 #include "curve.h"
 #include "ds/net.h"
 #include "entropy.h"
-#include "key_pair.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

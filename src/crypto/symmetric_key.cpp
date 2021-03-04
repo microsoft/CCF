@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "crypto/mbedtls/symmetric_key.h"
+
 #include "crypto/openssl/symmetric_key.h"
 #include "crypto/rsa_key_pair.h"
 #include "symmetric_key.h"

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../key_pair.h"
+
 #include "openssl_wrappers.h"
 #include "public_key.h"
 

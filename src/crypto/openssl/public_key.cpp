@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "openssl_wrappers.h"
 #include "public_key.h"
+
+#include "openssl_wrappers.h"
 
 #include <openssl/ec.h>
 #include <openssl/engine.h>
