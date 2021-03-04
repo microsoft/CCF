@@ -16,13 +16,13 @@ import time
 import tempfile
 import base64
 import json
+import hashlib
 import ccf.clients
 from ccf.log_capture import flush_info
 import ccf.receipt
 from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import ec, utils
 from cryptography.hazmat.backends import default_backend
+from cryptography.exceptions import InvalidSignature
 
 from loguru import logger as LOG
 
@@ -448,24 +448,33 @@ def test_historical_receipts(network, args):
 
     if args.package == "liblogging":
         node, _ = network.find_primary()
-        network.txs.issue(network, number_txs=1)
-        first_msg = network.txs.priv[1][0]
-        first_receipt = network.txs.get_receipt(
-            node, 1, first_msg["seqno"], first_msg["view"]
-        )
-        r = first_receipt.json()
-        assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
-
         cert = os.path.join(node.common_dir, f"{node.node_id}.pem")
         with open(cert) as c:
-            cert = load_pem_x509_certificate(
+            node_cert = load_pem_x509_certificate(
                 c.read().encode("ascii"), default_backend()
             )
-        sig = base64.b64decode(r["signature"])
-        pk = cert.public_key()
-        pk.verify(
-            sig, bytes.fromhex(r["root"]), ec.ECDSA(utils.Prehashed(hashes.SHA256()))
-        )
+
+        TXS_COUNT = 5
+        network.txs.issue(network, number_txs=5)
+        for idx in range(1, TXS_COUNT + 1):
+            first_msg = network.txs.priv[idx][0]
+            first_receipt = network.txs.get_receipt(
+                node, idx, first_msg["seqno"], first_msg["view"]
+            )
+            r = first_receipt.json()
+            assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
+            ccf.receipt.verify(r["root"], r["signature"], node_cert)
+
+        # receipt.verify() raises if it fails, but does not return anything
+        verified = True
+        try:
+            ccf.receipt.verify(
+                hashlib.sha256(b"").hexdigest(), r["signature"], node_cert
+            )
+        except InvalidSignature:
+            verified = False
+        assert not verified
+
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"

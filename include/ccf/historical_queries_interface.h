@@ -32,8 +32,25 @@ namespace ccf::historical
   };
 
   using TxReceiptPtr = std::shared_ptr<TxReceipt>;
-
   using StorePtr = std::shared_ptr<kv::Store>;
+
+  struct State
+  {
+    StorePtr store = nullptr;
+    TxReceiptPtr receipt = nullptr;
+    kv::TxID transaction_id;
+
+    State(
+      const StorePtr& store_,
+      const TxReceiptPtr& receipt_,
+      const kv::TxID& transaction_id_) :
+      store(store_),
+      receipt(receipt_),
+      transaction_id(transaction_id_)
+    {}
+  };
+
+  using StatePtr = std::shared_ptr<State>;
 
   /** This is a caller-defined key for each historical query request. For
    * instance, you may wish to use callerID or sessionID to allow a single
@@ -85,8 +102,7 @@ namespace ccf::historical
      */
     virtual StorePtr get_store_at(RequestHandle handle, kv::SeqNo seqno) = 0;
 
-    virtual std::optional<std::pair<StorePtr, TxReceiptPtr>>
-    get_store_and_receipt_at(RequestHandle handle, kv::SeqNo seqno) = 0;
+    virtual StatePtr get_state_at(RequestHandle handle, kv::SeqNo seqno) = 0;
 
     /** Retrieve a range of Stores containing the state written at the given
      * indices.

@@ -138,7 +138,7 @@ namespace merkle
       size_t num_chars = 2 * num_bytes;
       std::string r(num_chars, '_');
       for (size_t i = 0; i < num_bytes; i++)
-        snprintf(r.data() + 2 * i, num_chars + 1 - 2 * i, "%02X", bytes[i]);
+        snprintf(r.data() + 2 * i, num_chars + 1 - 2 * i, "%02x", bytes[i]);
       return r;
     }
 

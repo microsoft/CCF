@@ -215,8 +215,7 @@ class LoggingTxs:
 
         cmd = "/app/log/private/historical_receipt"
         headers = {
-            ccf.clients.CCF_TX_VIEW_HEADER: str(view),
-            ccf.clients.CCF_TX_SEQNO_HEADER: str(seqno),
+            ccf.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}",
         }
 
         found = False

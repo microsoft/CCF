@@ -81,6 +81,7 @@ namespace ccf::historical
       StorePtr store = nullptr;
       bool is_signature = false;
       TxReceiptPtr receipt = nullptr;
+      kv::TxID transaction_id;
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
 
@@ -254,6 +255,7 @@ namespace ccf::historical
                     receipt.get_root(),
                     receipt.get_path(),
                     sig->node);
+                  details->transaction_id = {sig->view, seqno};
                   details->current_stage = RequestStage::Trusted;
                 }
               }
@@ -290,6 +292,7 @@ namespace ccf::historical
                     receipt.get_root(),
                     receipt.get_path(),
                     sig->node);
+                  details->transaction_id = {sig->view, new_seqno};
                   new_details->current_stage = RequestStage::Trusted;
                 }
 
@@ -319,6 +322,7 @@ namespace ccf::historical
                 auto receipt = tree.get_receipt(new_seqno);
                 details->receipt = std::make_shared<TxReceipt>(
                   sig->sig, receipt.get_root(), receipt.get_path(), sig->node);
+                details->transaction_id = {sig->view, new_seqno};
                 new_details->current_stage = RequestStage::Trusted;
               }
             }
@@ -592,7 +596,7 @@ namespace ccf::historical
       return true;
     }
 
-    std::vector<std::pair<StorePtr, TxReceiptPtr>> get_store_range_internal(
+    std::vector<StatePtr> get_store_range_internal(
       RequestHandle handle,
       kv::SeqNo start_seqno,
       size_t num_following_indices,
@@ -647,7 +651,7 @@ namespace ccf::historical
       // Reset the expiry timer as this has just been requested
       request.time_to_expiry = ms_until_expiry;
 
-      std::vector<std::pair<StorePtr, TxReceiptPtr>> trusted_stores;
+      std::vector<StatePtr> trusted_states;
 
       for (kv::SeqNo seqno = start_seqno;
            seqno <= static_cast<kv::SeqNo>(start_seqno + num_following_indices);
@@ -656,9 +660,13 @@ namespace ccf::historical
         auto target_details = request.get_store_details(seqno);
         if (target_details->current_stage == RequestStage::Trusted)
         {
-          // Have this store and trust it - add it to return list
-          trusted_stores.push_back(
-            {target_details->store, target_details->receipt});
+          // Have this store, associated txid and receipt and trust it - add it
+          // to return list
+          StatePtr state = std::make_shared<State>(
+            target_details->store,
+            target_details->receipt,
+            target_details->transaction_id);
+          trusted_states.push_back(state);
         }
         else
         {
@@ -668,7 +676,7 @@ namespace ccf::historical
         }
       }
 
-      return trusted_stores;
+      return trusted_states;
     }
 
     // Used when we received an invalid entry, to drop any requests which were
@@ -721,15 +729,14 @@ namespace ccf::historical
       return get_store_at(handle, seqno, default_expiry_duration);
     }
 
-    std::optional<std::pair<StorePtr, TxReceiptPtr>> get_store_and_receipt_at(
-      RequestHandle handle, kv::SeqNo seqno) override
+    StatePtr get_state_at(RequestHandle handle, kv::SeqNo seqno) override
     {
       auto range =
         get_store_range_internal(handle, seqno, 1, default_expiry_duration);
 
       if (range.empty())
       {
-        return std::nullopt;
+        return nullptr;
       }
 
       return range[0];
@@ -755,7 +762,7 @@ namespace ccf::historical
       std::vector<StorePtr> stores;
       for (size_t i = 0; i < range.size(); i++)
       {
-        stores.push_back(std::get<0>(range[i]));
+        stores.push_back(range[i]->store);
       }
       return stores;
     }

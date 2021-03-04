@@ -519,7 +519,7 @@ namespace loggingapp
 
       auto get_historical = [this](
                               ccf::EndpointContext& args,
-                              ccf::historical::StorePtr historical_store,
+                              ccf::historical::StatePtr historical_state,
                               kv::Consensus::View,
                               kv::Consensus::SeqNo) {
         const auto [pack, params] =
@@ -527,7 +527,7 @@ namespace loggingapp
 
         const auto in = params.get<LoggingGetHistorical::In>();
 
-        auto historical_tx = historical_store->create_read_only_tx();
+        auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle = historical_tx.ro(records);
         const auto v = records_handle->get(in.id);
 
@@ -585,10 +585,8 @@ namespace loggingapp
 
       auto get_historical_with_receipt = [this](
                                            ccf::EndpointContext& args,
-                                           ccf::historical::StorePtr
-                                             historical_store,
-                                           ccf::historical::TxReceiptPtr
-                                             receipt_ptr,
+                                           ccf::historical::StatePtr
+                                             historical_state,
                                            kv::Consensus::View,
                                            kv::Consensus::SeqNo) {
         const auto [pack, params] =
@@ -596,7 +594,7 @@ namespace loggingapp
 
         const auto in = params.get<LoggingGetHistorical::In>();
 
-        auto historical_tx = historical_store->create_read_only_tx();
+        auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle = historical_tx.ro(records);
         const auto v = records_handle->get(in.id);
 
@@ -605,12 +603,13 @@ namespace loggingapp
           LoggingGetHistorical::Out out;
           out.msg = v.value();
           nlohmann::json j = out;
-          j["signature"] = tls::b64_from_raw(receipt_ptr->signature);
-          j["root"] = receipt_ptr->root.to_string();
+          j["signature"] =
+            tls::b64_from_raw(historical_state->receipt->signature);
+          j["root"] = historical_state->receipt->root.to_string();
           j["proof"] = nlohmann::json::array();
-          j["leaf"] = receipt_ptr->path->leaf().to_string();
-          j["node_id"] = receipt_ptr->node_id;
-          for (const auto& node : *receipt_ptr->path)
+          j["leaf"] = historical_state->receipt->path->leaf().to_string();
+          j["node_id"] = historical_state->receipt->node_id;
+          for (const auto& node : *historical_state->receipt->path)
           {
             nlohmann::json entry = nlohmann::json::object();
             if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
@@ -633,7 +632,7 @@ namespace loggingapp
       make_endpoint(
         "log/private/historical_receipt",
         HTTP_GET,
-        ccf::historical::receipt_adapter(
+        ccf::historical::adapter(
           get_historical_with_receipt,
           context.get_historical_state(),
           is_tx_committed),
