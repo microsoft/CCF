@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "key_pair.h"
-
 #include "mbedtls/key_pair.h"
 #include "mbedtls/public_key.h"
 #include "openssl/key_pair.h"

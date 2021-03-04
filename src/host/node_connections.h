@@ -12,14 +12,14 @@
 
 namespace asynchost
 {
+  static const ccf::NodeId UnassociatedNode = std::string("Unknown");
+
   class NodeConnections
   {
   private:
     class ConnectionBehaviour : public TCPBehaviour
     {
     private:
-      static constexpr auto UnassociatedNode = "UnassociatedNode";
-
     public:
       NodeConnections& parent;
       std::optional<ccf::NodeId> node;
@@ -35,10 +35,10 @@ namespace asynchost
 
       void on_read(size_t len, uint8_t*& incoming)
       {
-        // LOG_DEBUG_FMT(
-        //   "from node {} received {} bytes",
-        //   node.value_or(UnassociatedNode),
-        //   len);
+        LOG_DEBUG_FMT(
+          "from node {} received {} bytes",
+          node.value_or(UnassociatedNode),
+          len);
 
         pending.insert(pending.end(), incoming, incoming + len);
 
@@ -61,11 +61,11 @@ namespace asynchost
 
           if (size < msg_size)
           {
-            // LOG_DEBUG_FMT(
-            //   "from node {} have {}/{} bytes",
-            //   node.value_or(UnassociatedNode),
-            //   size,
-            //   msg_size);
+            LOG_DEBUG_FMT(
+              "from node {} have {}/{} bytes",
+              node.value_or(UnassociatedNode),
+              size,
+              msg_size);
             break;
           }
 

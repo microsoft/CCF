@@ -3,7 +3,6 @@
 #pragma once
 
 #include "../key_pair.h"
-
 #include "openssl_wrappers.h"
 #include "public_key.h"
 
@@ -22,6 +21,7 @@ namespace crypto
 
     virtual Pem private_key_pem() const override;
     virtual Pem public_key_pem() const override;
+    virtual std::vector<uint8_t> public_key_der() const override;
 
     using PublicKey_OpenSSL::verify;
 

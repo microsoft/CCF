@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "rsa_key_pair.h"
-
 #include "crypto/mbedtls/rsa_public_key.h"
 #include "entropy.h"
 #include "mbedtls_wrappers.h"
+#include "rsa_key_pair.h"
 
 namespace crypto
 {
@@ -102,5 +101,10 @@ namespace crypto
   Pem RSAKeyPair_mbedTLS::public_key_pem() const
   {
     return PublicKey_mbedTLS::public_key_pem();
+  }
+
+  std::vector<uint8_t> RSAKeyPair_mbedTLS::public_key_der() const
+  {
+    return PublicKey_mbedTLS::public_key_der();
   }
 }

@@ -47,10 +47,12 @@ namespace ccf
 
     std::optional<ExistingNodeInfo> check_node_exists(
       kv::Tx& tx,
-      const crypto::Pem& node_pem,
+      const std::vector<uint8_t>& node_der,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
       auto nodes = tx.rw(network.nodes);
+
+      auto node_pem = crypto::cert_der_to_pem(node_der);
 
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
       nodes->foreach([&existing_node_info, &node_pem, &node_status](
@@ -92,7 +94,7 @@ namespace ccf
 
     auto add_node(
       kv::Tx& tx,
-      const crypto::Pem& caller_pem,
+      const std::vector<uint8_t>& node_der,
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status)
     {
@@ -113,20 +115,20 @@ namespace ccf
             conflicting_node_id.value()));
       }
 
-      auto pk_pem = public_key_pem_from_cert(caller_pem);
+      auto pk_der = crypto::public_key_der_from_cert(node_der);
 
       NodeId joining_node_id;
       if (network.consensus_type == ConsensusType::CFT)
       {
-        joining_node_id = crypto::Sha256Hash(pk_pem.contents()).hex_str();
+        joining_node_id = crypto::Sha256Hash(pk_der).hex_str();
       }
       else
       {
         joining_node_id = std::to_string(
           get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
       }
-#ifdef GET_QUOTE
 
+#ifdef GET_QUOTE
       QuoteVerificationResult verify_result =
         this->node.verify_quote(tx, in.quote_info, pk_pem);
       if (verify_result != QuoteVerificationResult::Verified)
@@ -148,7 +150,7 @@ namespace ccf
       nodes->put(
         joining_node_id,
         {in.node_info_network,
-         caller_pem,
+         crypto::cert_der_to_pem(node_der),
          in.quote_info,
          in.public_encryption_key,
          node_status,
@@ -226,19 +228,14 @@ namespace ccf
               "No service is available to accept new node.");
           }
 
-          // Convert caller cert from DER to PEM as PEM certificates
-          // are quoted
-          auto caller_pem =
-            crypto::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
-
           if (active_service->status == ServiceStatus::OPENING)
           {
             // If the service is opening, new nodes are trusted straight away
             NodeStatus joining_node_status = NodeStatus::TRUSTED;
 
             // If the node is already trusted, return network secrets
-            auto existing_node_info =
-              check_node_exists(args.tx, caller_pem, joining_node_status);
+            auto existing_node_info = check_node_exists(
+              args.tx, args.rpc_ctx->session->caller_cert, joining_node_status);
             if (existing_node_info.has_value())
             {
               JoinNetworkNodeToNode::Out rep;
@@ -253,7 +250,11 @@ namespace ccf
               return make_success(rep);
             }
 
-            return add_node(args.tx, caller_pem, in, joining_node_status);
+            return add_node(
+              args.tx,
+              args.rpc_ctx->session->caller_cert,
+              in,
+              joining_node_status);
           }
 
           // If the service is open, new nodes are first added as pending and
@@ -261,7 +262,8 @@ namespace ccf
           // node polls the network to retrieve the network secrets until it is
           // trusted
 
-          auto existing_node_info = check_node_exists(args.tx, caller_pem);
+          auto existing_node_info =
+            check_node_exists(args.tx, args.rpc_ctx->session->caller_cert);
           if (existing_node_info.has_value())
           {
             JoinNetworkNodeToNode::Out rep;
@@ -297,7 +299,11 @@ namespace ccf
           else
           {
             // If the node does not exist, add it to the KV in state pending
-            return add_node(args.tx, caller_pem, in, NodeStatus::PENDING);
+            return add_node(
+              args.tx,
+              args.rpc_ctx->session->caller_cert,
+              in,
+              NodeStatus::PENDING);
           }
         };
       make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)

@@ -3,10 +3,12 @@
 #pragma once
 
 #include "curve.h"
+#include "ds/logger.h" // TODO: Remove!
 #include "hash.h"
 #include "pem.h"
 #include "public_key.h"
 #include "san.h"
+#include "tls/base64.h" // TODO: Remove!
 
 #include <cstdint>
 #include <optional>
@@ -22,6 +24,7 @@ namespace crypto
 
     virtual Pem private_key_pem() const = 0;
     virtual Pem public_key_pem() const = 0;
+    virtual std::vector<uint8_t> public_key_der() const = 0;
 
     virtual bool verify(
       const std::vector<uint8_t>& contents,

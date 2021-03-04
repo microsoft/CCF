@@ -14,12 +14,6 @@
 
 namespace crypto
 {
-  static inline std::string get_public_key_pem_hash_hex(
-    const crypto::Pem& public_key)
-  {
-    return crypto::Sha256Hash(public_key.contents()).hex_str();
-  }
-
   class PublicKey
   {
   public:
@@ -110,7 +104,7 @@ namespace crypto
      * @param hash Hash of some content
      * @param hash_size length of @p hash
      * @param sig Signature as a sequence of bytes
-     * @param sig_size Length og @p sig
+     * @param sig_size Length of @p sig
      * @param md_type Digest algorithm
      *
      * @return Whether the signature matches the hash and the key
@@ -126,5 +120,10 @@ namespace crypto
      * Get the public key in PEM format
      */
     virtual Pem public_key_pem() const = 0;
+
+    /**
+     * Get the public key in DER format
+     */
+    virtual std::vector<uint8_t> public_key_der() const = 0;
   };
 }

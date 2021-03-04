@@ -288,8 +288,7 @@ namespace ccf
     {
       if (network.consensus_type == ConsensusType::CFT)
       {
-        self =
-          crypto::get_public_key_pem_hash_hex(node_sign_kp->public_key_pem());
+        self = crypto::Sha256Hash(node_sign_kp->public_key_der()).hex_str();
       }
     }
 
@@ -342,14 +341,12 @@ namespace ccf
 
       config = std::move(config_);
 
-      LOG_INFO_FMT("Creating node {}", self);
-
       create_node_cert();
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
       quote_info = enclave_attestation_provider.generate_quote(
-        node_sign_kp->public_key_pem());
+        node_sign_kp->public_key_der());
       node_code_id = enclave_attestation_provider.get_code_id(quote_info);
 #endif
 
@@ -396,6 +393,7 @@ namespace ccf
           reset_data(quote_info.endorsements);
           sm.advance(State::partOfNetwork);
 
+          LOG_INFO_FMT("Created new node {}", self.value());
           return {node_cert, network.identity->cert};
         }
         case StartType::Join:
@@ -414,6 +412,7 @@ namespace ccf
             sm.advance(State::pending);
           }
 
+          LOG_INFO_FMT("Created join node {}", self.value());
           return {node_cert, {}};
         }
         case StartType::Recover:
@@ -445,6 +444,8 @@ namespace ccf
           accept_network_tls_connections();
 
           sm.advance(State::readingPublicLedger);
+
+          LOG_INFO_FMT("Created recovery node {}", self.value());
           return {node_cert, network.identity->cert};
         }
         default:

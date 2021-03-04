@@ -443,7 +443,6 @@ if(BUILD_TESTS)
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
-    use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE src/aft)
 
     add_test(

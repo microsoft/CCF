@@ -232,7 +232,7 @@ class Node:
 
         if kwargs.get("consensus") == "cft":
             with open(os.path.join(self.common_dir, f"{self.local_node_id}.pem")) as f:
-                self.node_id = infra.crypto.compute_public_key_pem_hash_hex_from_pem(
+                self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
                     f.read()
                 )
         else:

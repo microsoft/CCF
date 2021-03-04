@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "public_key.h"
-
 #include "openssl_wrappers.h"
+#include "public_key.h"
 
 #include <openssl/ec.h>
 #include <openssl/engine.h>
@@ -121,5 +120,16 @@ namespace crypto
     BUF_MEM* bptr;
     BIO_get_mem_ptr(buf, &bptr);
     return Pem((uint8_t*)bptr->data, bptr->length);
+  }
+
+  std::vector<uint8_t> PublicKey_OpenSSL::public_key_der() const
+  {
+    Unique_BIO buf;
+
+    OpenSSL::CHECK1(i2d_PUBKEY_bio(buf, key));
+
+    BUF_MEM* bptr;
+    BIO_get_mem_ptr(buf, &bptr);
+    return {bptr->data, bptr->data + bptr->length};
   }
 }

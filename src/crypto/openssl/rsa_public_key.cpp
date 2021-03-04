@@ -104,4 +104,9 @@ namespace crypto
   {
     return PublicKey_OpenSSL::public_key_pem();
   }
+
+  std::vector<uint8_t> RSAPublicKey_OpenSSL::public_key_der() const
+  {
+    return PublicKey_OpenSSL::public_key_der();
+  }
 }

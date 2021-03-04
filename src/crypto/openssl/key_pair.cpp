@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "key_pair.h"
-
 #include "crypto/curve.h"
 #include "hash.h"
+#include "key_pair.h"
 #include "openssl_wrappers.h"
 
 #include <openssl/asn1.h>
@@ -94,6 +93,11 @@ namespace crypto
   Pem KeyPair_OpenSSL::public_key_pem() const
   {
     return PublicKey_OpenSSL::public_key_pem();
+  }
+
+  std::vector<uint8_t> KeyPair_OpenSSL::public_key_der() const
+  {
+    return PublicKey_OpenSSL::public_key_der();
   }
 
   bool KeyPair_OpenSSL::verify(

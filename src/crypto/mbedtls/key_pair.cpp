@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "key_pair.h"
-
 #include "curve.h"
 #include "ds/net.h"
 #include "entropy.h"
+#include "key_pair.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -107,6 +106,11 @@ namespace crypto
   Pem KeyPair_mbedTLS::public_key_pem() const
   {
     return PublicKey_mbedTLS::public_key_pem();
+  }
+
+  std::vector<uint8_t> KeyPair_mbedTLS::public_key_der() const
+  {
+    return PublicKey_mbedTLS::public_key_der();
   }
 
   bool KeyPair_mbedTLS::verify(

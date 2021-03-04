@@ -68,13 +68,15 @@ def run(args):
         LOG.info("Started CCF network with the following nodes:")
         LOG.info(
             "  Node [{}] = https://{}:{}".format(
-                primary.node_id, primary.pubhost, primary.pubport
+                primary.local_node_id, primary.pubhost, primary.pubport
             )
         )
 
         for b in backups:
             LOG.info(
-                "  Node [{}] = https://{}:{}".format(b.node_id, b.pubhost, b.pubport)
+                "  Node [{}] = https://{}:{}".format(
+                    b.local_node_id, b.pubhost, b.pubport
+                )
             )
 
         LOG.info(

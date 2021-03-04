@@ -162,9 +162,9 @@ def are_certs_equal(pem1: str, pem2: str) -> bool:
     return cert1 == cert2
 
 
-def compute_public_key_pem_hash_hex_from_pem(pem: str):
+def compute_public_key_der_hash_hex_from_pem(pem: str):
     cert = load_pem_x509_certificate(pem.encode(), default_backend())
     pub_key = cert.public_key().public_bytes(
-        Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
+        Encoding.DER, PublicFormat.SubjectPublicKeyInfo
     )
     return hashlib.sha256(pub_key).hexdigest()

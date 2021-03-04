@@ -115,6 +115,11 @@ namespace crypto
     {
       return public_key->public_key_pem();
     }
+
+    virtual std::vector<uint8_t> public_key_der() const
+    {
+      return public_key->public_key_der();
+    }
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;
@@ -137,7 +142,8 @@ namespace crypto
 
   std::vector<uint8_t> cert_pem_to_der(const std::string& pem_string);
 
-  Pem public_key_pem_from_cert(const Pem& cert);
+  std::vector<uint8_t> public_key_der_from_cert(
+    const std::vector<uint8_t>& der);
 
   void check_is_cert(const CBuffer& der);
 }
