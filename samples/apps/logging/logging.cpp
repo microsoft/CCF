@@ -117,7 +117,7 @@ namespace loggingapp
   public:
     // SNIPPET_START: constructor
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
-      ccf::UserEndpointRegistry(context.get_node_state()),
+      ccf::UserEndpointRegistry(context),
       records("records"),
       public_records("public:records"),
       // SNIPPET_END: constructor

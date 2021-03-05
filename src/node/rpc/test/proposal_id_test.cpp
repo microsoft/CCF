@@ -23,8 +23,8 @@ DOCTEST_TEST_CASE("Unique proposal ids")
   gen.finalize();
 
   ShareManager share_manager(network);
-  StubNodeState node;
-  MemberRpcFrontend frontend(network, node, share_manager);
+  StubNodeContext context;
+  MemberRpcFrontend frontend(network, context, share_manager);
 
   frontend.open();
   const auto proposed_member = get_cert(2, kp);
@@ -152,8 +152,8 @@ DOCTEST_TEST_CASE("Compaction conflict")
   network.tables->compact(cv);
 
   ShareManager share_manager(network);
-  StubNodeState node;
-  MemberRpcFrontend frontend(network, node, share_manager);
+  StubNodeContext context;
+  MemberRpcFrontend frontend(network, context, share_manager);
 
   frontend.open();
   const auto proposed_member = get_cert(2, kp);

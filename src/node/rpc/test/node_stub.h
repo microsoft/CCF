@@ -4,6 +4,7 @@
 
 #include "node/rpc/node_interface.h"
 #include "node/share_manager.h"
+#include "historical_queries_interface.h"
 
 namespace ccf
 {
@@ -87,6 +88,50 @@ namespace ccf
     {
       return QuoteVerificationResult::Verified;
     }
+  };
+
+  class StubNodeStateCache: public historical::AbstractStateCache
+  {
+  public:
+    void set_default_expiry_duration(
+      historical::ExpiryDuration seconds_until_expiry) {}
+
+    historical::StorePtr get_store_at(
+      historical::RequestHandle handle,
+      kv::SeqNo seqno,
+      historical::ExpiryDuration seconds_until_expiry) { return nullptr; }
+
+    historical::StorePtr get_store_at(historical::RequestHandle handle, kv::SeqNo seqno) { return nullptr; }
+
+    historical::StatePtr get_state_at(historical::RequestHandle handle, kv::SeqNo seqno) { return nullptr; }
+
+    std::vector<historical::StorePtr> get_store_range(
+      historical::RequestHandle handle,
+      kv::SeqNo start_seqno,
+      kv::SeqNo end_seqno,
+      historical::ExpiryDuration seconds_until_expiry) { return {}; }
+
+    std::vector<historical::StorePtr> get_store_range(
+      historical::RequestHandle handle, kv::SeqNo start_seqno, kv::SeqNo end_seqno) { return {}; }
+
+    bool drop_request(historical::RequestHandle handle) { return true; }
+  };
+
+  struct StubNodeContext: public ccfapp::AbstractNodeContext
+  {
+    public:
+      StubNodeState state = {};
+      StubNodeStateCache cache = {};
+
+      ccf::historical::AbstractStateCache& get_historical_state()
+      {
+        return cache;
+      }
+
+      StubNodeState& get_node_state()
+      {
+        return state;
+      }
   };
 
   class StubRecoverableNodeState : public StubNodeState

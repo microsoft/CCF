@@ -3,6 +3,7 @@
 #pragma once
 
 #include "base_endpoint_registry.h"
+#include "enclave/node_context.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
 #include "json_handler.h"
@@ -24,9 +25,9 @@ namespace ccf
   public:
     CommonEndpointRegistry(
       const std::string& method_prefix_,
-      AbstractNodeState& node_state,
+      ccfapp::AbstractNodeContext& context_,
       const std::string& certs_table_name_ = "") :
-      BaseEndpointRegistry(method_prefix_, node_state),
+      BaseEndpointRegistry(method_prefix_, context_),
       certs_table_name(certs_table_name_)
     {}
 
@@ -207,31 +208,6 @@ namespace ccf
         .set_auto_schema<void, EndpointMetrics::Out>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
-        .install();
-
-      auto get_receipt = [this](auto&, nlohmann::json&& params) {
-        const auto in = params.get<GetReceipt::In>();
-
-        GetReceipt::Out out;
-        const auto result = get_receipt_for_seqno_v1(in.commit, out.receipt);
-        if (result == ccf::ApiResult::OK)
-        {
-          return make_success(out);
-        }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
-        }
-      };
-      make_command_endpoint(
-        "receipt",
-        HTTP_GET,
-        json_command_adapter(get_receipt),
-        no_auth_required)
-        .set_auto_schema<GetReceipt>()
         .install();
     }
   };
