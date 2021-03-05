@@ -174,9 +174,13 @@ def test_governance(network, args):
     assert response.status_code == params_error
 
     LOG.info("New non-active member should get insufficient rights response")
+    current_recovery_thresold = network.consortium.recovery_threshold
     try:
-        proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(0)
-        new_member.propose(node, proposal_trust_0)
+        (
+            proposal_recovery_threshold,
+            careful_vote,
+        ) = ccf.proposal_generator.set_recovery_threshold(current_recovery_thresold)
+        new_member.propose(node, proposal_recovery_threshold)
         assert False, "New non-active member should get insufficient rights response"
     except infra.proposal.ProposalNotCreated as e:
         assert e.response.status_code == http.HTTPStatus.FORBIDDEN.value
@@ -184,43 +188,44 @@ def test_governance(network, args):
     LOG.debug("New member ACK")
     new_member.ack(node)
 
-    LOG.info("New member is now active and send an accept node proposal")
-    trust_node_proposal_0 = new_member.propose(node, proposal_trust_0)
-    trust_node_proposal_0.vote_for = careful_vote
+    LOG.info("New member is now active and send a proposal")
+    proposal = new_member.propose(node, proposal_recovery_threshold)
+    proposal.vote_for = careful_vote
 
-    LOG.debug("Members vote to accept the accept node proposal")
-    network.consortium.vote_using_majority(node, trust_node_proposal_0, careful_vote)
-    assert trust_node_proposal_0.state == infra.proposal.ProposalState.Accepted
+    LOG.debug("Members vote for proposal")
+    network.consortium.vote_using_majority(node, proposal, careful_vote)
+    assert proposal.state == infra.proposal.ProposalState.Accepted
 
     LOG.info("New member makes a new proposal")
-    proposal_trust_1, careful_vote = ccf.proposal_generator.trust_node(1)
-    trust_node_proposal = new_member.propose(node, proposal_trust_1)
+    (
+        proposal_recovery_threshold,
+        careful_vote,
+    ) = ccf.proposal_generator.set_recovery_threshold(current_recovery_thresold)
+    proposal = new_member.propose(node, proposal_recovery_threshold)
 
     LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
-    response = network.consortium.get_member_by_id(1).withdraw(
-        node, trust_node_proposal
-    )
+    response = network.consortium.get_member_by_id(1).withdraw(node, proposal)
     assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
     LOG.debug("Proposer withdraws their proposal")
-    response = new_member.withdraw(node, trust_node_proposal)
+    response = new_member.withdraw(node, proposal)
     assert response.status_code == http.HTTPStatus.OK.value
-    assert trust_node_proposal.state == infra.proposal.ProposalState.Withdrawn
+    assert proposal.state == infra.proposal.ProposalState.Withdrawn
 
     proposals = network.consortium.get_proposals(primary)
     proposal_entry = next(
-        (p for p in proposals if p.proposal_id == trust_node_proposal.proposal_id),
+        (p for p in proposals if p.proposal_id == proposal.proposal_id),
         None,
     )
     assert proposal_entry
     assert proposal_entry.state == ProposalState.Withdrawn
 
     LOG.debug("Further withdraw proposals fail")
-    response = new_member.withdraw(node, trust_node_proposal)
+    response = new_member.withdraw(node, proposal)
     assert response.status_code == params_error
 
     LOG.debug("Further votes fail")
-    response = new_member.vote(node, trust_node_proposal, careful_vote)
+    response = new_member.vote(node, proposal, careful_vote)
     assert response.status_code == params_error
 
 

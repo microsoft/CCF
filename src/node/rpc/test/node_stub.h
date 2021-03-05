@@ -3,6 +3,7 @@
 #pragma once
 
 #include "historical_queries_interface.h"
+#include "kv/test/stub_consensus.h"
 #include "node/rpc/node_interface.h"
 #include "node/share_manager.h"
 
@@ -66,7 +67,7 @@ namespace ccf
 
     NodeId get_node_id() const override
     {
-      return 0;
+      return kv::test::PrimaryNodeId;
     }
 
     void set_is_public(bool is_public_)
@@ -84,7 +85,7 @@ namespace ccf
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
-      const crypto::Pem& expected_node_public_key) override
+      const std::vector<uint8_t>& expected_node_public_key_der) override
     {
       return QuoteVerificationResult::Verified;
     }

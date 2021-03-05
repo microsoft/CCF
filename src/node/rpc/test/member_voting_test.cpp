@@ -301,7 +301,6 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   constexpr auto n_new_members = 7;
   constexpr auto max_members = 8;
   NetworkState network;
-  NodeId node_id = 0;
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
@@ -523,7 +522,8 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
 DOCTEST_TEST_CASE("Accept node")
 {
   NetworkState network;
-  NodeId node_id = 0;
+  NodeId node_id =
+    crypto::Sha256Hash(crypto::make_key_pair()->public_key_der()).hex_str();
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
@@ -547,7 +547,7 @@ DOCTEST_TEST_CASE("Accept node")
   auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni;
   ni.cert = new_ca;
-  gen.add_node(ni);
+  gen.add_node(node_id, ni);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
@@ -557,7 +557,7 @@ DOCTEST_TEST_CASE("Accept node")
   // check node exists with status pending
   {
     auto read_values =
-      create_request(read_params<int>(node_id, Tables::NODES), "read");
+      create_request(read_params<NodeId>(node_id, Tables::NODES), "read");
     const auto r = parse_response_body<NodeInfo>(
       frontend_process(frontend, read_values, member_0_cert));
 
@@ -612,7 +612,7 @@ DOCTEST_TEST_CASE("Accept node")
   // check node exists with status pending
   {
     const auto read_values =
-      create_request(read_params<int>(node_id, Tables::NODES), "read");
+      create_request(read_params<NodeId>(node_id, Tables::NODES), "read");
     const auto r = parse_response_body<NodeInfo>(
       frontend_process(frontend, read_values, member_0_cert));
     DOCTEST_CHECK(r.status == NodeStatus::TRUSTED);
@@ -662,7 +662,7 @@ DOCTEST_TEST_CASE("Accept node")
   // check that node exists with status retired
   {
     auto read_values =
-      create_request(read_params<int>(node_id, Tables::NODES), "read");
+      create_request(read_params<NodeId>(node_id, Tables::NODES), "read");
     const auto r = parse_response_body<NodeInfo>(
       frontend_process(frontend, read_values, member_0_cert));
     DOCTEST_CHECK(r.status == NodeStatus::RETIRED);
@@ -1300,7 +1300,8 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   // Operator issues a proposal that is an operator change
   // and gets it through without member votes
   NetworkState network;
-  NodeId node_id = 0;
+  NodeId node_id =
+    crypto::Sha256Hash(crypto::make_key_pair()->public_key_der()).hex_str();
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
@@ -1312,7 +1313,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni;
   ni.cert = new_ca;
-  gen.add_node(ni);
+  gen.add_node(node_id, ni);
 
   // Operating member, as indicated by member data
   const auto operator_cert = get_cert(0, kp);
@@ -1348,7 +1349,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   {
     DOCTEST_INFO("Check node exists with status pending");
     auto read_values =
-      create_request(read_params<int>(node_id, Tables::NODES), "read");
+      create_request(read_params<NodeId>(node_id, Tables::NODES), "read");
     const auto r = parse_response_body<NodeInfo>(
       frontend_process(frontend, read_values, operator_cert));
 
@@ -1482,7 +1483,8 @@ DOCTEST_TEST_CASE(
   // Member proposes an operator change
   // A majority of members pass the vote
   NetworkState network;
-  NodeId node_id = 0;
+  NodeId node_id =
+    crypto::Sha256Hash(crypto::make_key_pair()->public_key_der()).hex_str();
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
   init_network(network);
@@ -1494,7 +1496,7 @@ DOCTEST_TEST_CASE(
   auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni;
   ni.cert = new_ca;
-  gen.add_node(ni);
+  gen.add_node(node_id, ni);
 
   // Not operating member
   const auto proposer_cert = get_cert(0, kp);
@@ -1529,7 +1531,7 @@ DOCTEST_TEST_CASE(
   {
     DOCTEST_INFO("Check node exists with status pending");
     const auto read_values =
-      create_request(read_params<int>(node_id, Tables::NODES), "read");
+      create_request(read_params<NodeId>(node_id, Tables::NODES), "read");
     const auto r = parse_response_body<NodeInfo>(
       frontend_process(frontend, read_values, proposer_cert));
     DOCTEST_CHECK(r.status == NodeStatus::PENDING);
@@ -1753,7 +1755,7 @@ DOCTEST_TEST_CASE("User data")
 DOCTEST_TEST_CASE("Submit recovery shares")
 {
   NetworkState network;
-  NodeId node_id = 0;
+  NodeId node_id = kv::test::PrimaryNodeId;
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->init();
 

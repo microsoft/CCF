@@ -61,8 +61,8 @@ namespace ccf
     {
       ServiceStatus service_status;
       std::optional<kv::Consensus::View> current_view;
-      std::optional<NodeId> primary_id;
       std::optional<bool> view_change_in_progress;
+      std::optional<NodeId> primary_id;
     };
   };
 

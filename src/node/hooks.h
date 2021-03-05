@@ -64,7 +64,9 @@ namespace ccf
         }
       }
       if (!cfg_delta.empty())
+      {
         consensus->add_configuration(version, configuration);
+      }
     }
   };
 }

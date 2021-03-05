@@ -78,7 +78,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   TestState ts;
 
   ts.kv_store =
-    std::make_shared<kv::Store>(std::make_shared<kv::StubConsensus>());
+    std::make_shared<kv::Store>(std::make_shared<kv::test::StubConsensus>());
 
   // Generate node's keypair once, on first call to this function
   static crypto::KeyPairPtr node_kp = nullptr;
@@ -88,7 +88,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   }
 
   // Make history to produce signatures
-  const auto node_id = 0;
+  const ccf::NodeId node_id = std::string("node_id");
   ts.kv_store->set_history(
     std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *node_kp));
 
@@ -223,7 +223,7 @@ void validate_business_transaction(
 std::map<kv::SeqNo, std::vector<uint8_t>> construct_host_ledger(
   std::shared_ptr<kv::Consensus> c)
 {
-  auto consensus = dynamic_cast<kv::StubConsensus*>(c.get());
+  auto consensus = dynamic_cast<kv::test::StubConsensus*>(c.get());
   REQUIRE(consensus != nullptr);
 
   INFO("Rebuild ledger as seen by host");

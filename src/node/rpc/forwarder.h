@@ -45,7 +45,7 @@ namespace ccf
       consensus_type(consensus_type_)
     {}
 
-    void initialize(NodeId self_)
+    void initialize(const NodeId& self_)
     {
       self = self_;
     }
@@ -58,7 +58,7 @@ namespace ccf
 
     bool forward_command(
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
-      NodeId to,
+      const NodeId& to,
       std::set<NodeId> nodes,
       const std::vector<uint8_t>& caller_cert)
     {
@@ -85,8 +85,8 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-      ForwardedHeader msg = {
-        ForwardedMsg::forwarded_cmd, self, rpc_ctx->frame_format()};
+      ForwardedHeader msg = {ForwardedMsg::forwarded_cmd,
+                             rpc_ctx->frame_format()};
 
       if (consensus_type == ConsensusType::BFT && !nodes.empty())
       {
@@ -94,26 +94,26 @@ namespace ccf
       }
 
       return n2n_channels->send_encrypted(
-        NodeMsgType::forwarded_msg, to, plain, msg);
+        to, NodeMsgType::forwarded_msg, plain, msg);
     }
 
     void send_request_hash_to_nodes(
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
       std::set<NodeId> nodes,
-      NodeId skip_node)
+      const NodeId& skip_node)
     {
       const auto& raw_request = rpc_ctx->get_serialised_request();
       auto data_ = raw_request.data();
       auto size_ = raw_request.size();
 
-      MessageHash msg(ForwardedMsg::request_hash, self);
-      msg.hash = crypto::Sha256Hash({data_, size_});
+      MessageHash msg(
+        ForwardedMsg::request_hash, crypto::Sha256Hash({data_, size_}));
 
       for (auto to : nodes)
       {
         if (self != to && skip_node != to)
         {
-          n2n_channels->send_authenticated(NodeMsgType::forwarded_msg, to, msg);
+          n2n_channels->send_authenticated(to, NodeMsgType::forwarded_msg, msg);
         }
       }
 
@@ -122,19 +122,20 @@ namespace ccf
         threading::ThreadMessaging::thread_messaging.get_current_time_offset());
     }
 
-    std::optional<std::tuple<std::shared_ptr<enclave::RpcContext>, NodeId>>
-    recv_forwarded_command(const uint8_t* data, size_t size)
+    std::shared_ptr<enclave::RpcContext> recv_forwarded_command(
+      const NodeId& from, const uint8_t* data, size_t size)
     {
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
       try
       {
-        r = n2n_channels->template recv_encrypted<ForwardedHeader>(data, size);
+        r = n2n_channels->template recv_encrypted<ForwardedHeader>(
+          from, data, size);
       }
       catch (const std::logic_error& err)
       {
         LOG_FAIL_FMT("Invalid forwarded command");
         LOG_DEBUG_FMT("Invalid forwarded command: {}", err.what());
-        return std::nullopt;
+        return nullptr;
       }
 
       std::vector<uint8_t> caller_cert;
@@ -157,21 +158,20 @@ namespace ccf
 
       try
       {
-        auto context = enclave::make_fwd_rpc_context(
+        return enclave::make_fwd_rpc_context(
           session, raw_request, r.first.frame_format);
-        return std::make_tuple(context, r.first.from_node);
       }
       catch (const std::exception& err)
       {
         LOG_FAIL_FMT("Invalid forwarded request");
         LOG_DEBUG_FMT("Invalid forwarded request: {}", err.what());
-        return std::nullopt;
+        return nullptr;
       }
     }
 
     bool send_forwarded_response(
       size_t client_session_id,
-      NodeId from_node,
+      const NodeId& from_node,
       const std::vector<uint8_t>& data)
     {
       std::vector<uint8_t> plain(sizeof(client_session_id) + data.size());
@@ -182,19 +182,21 @@ namespace ccf
 
       // frame_format is deliberately unset, the forwarder ignores it
       // and expects the same format they forwarded.
-      ForwardedHeader msg = {ForwardedMsg::forwarded_response, self};
+      ForwardedHeader msg = {ForwardedMsg::forwarded_response};
 
       return n2n_channels->send_encrypted(
-        NodeMsgType::forwarded_msg, from_node, plain, msg);
+        from_node, NodeMsgType::forwarded_msg, plain, msg);
     }
 
     std::optional<std::pair<size_t, std::vector<uint8_t>>>
-    recv_forwarded_response(const uint8_t* data, size_t size)
+    recv_forwarded_response(
+      const NodeId& from, const uint8_t* data, size_t size)
     {
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
       try
       {
-        r = n2n_channels->template recv_encrypted<ForwardedHeader>(data, size);
+        r = n2n_channels->template recv_encrypted<ForwardedHeader>(
+          from, data, size);
       }
       catch (const std::logic_error& err)
       {
@@ -213,13 +215,14 @@ namespace ccf
     }
 
     std::optional<MessageHash> recv_request_hash(
-      const uint8_t* data, size_t size)
+      const NodeId& from, const uint8_t* data, size_t size)
     {
       MessageHash m;
 
       try
       {
-        m = n2n_channels->template recv_authenticated<MessageHash>(data, size);
+        m = n2n_channels->template recv_authenticated<MessageHash>(
+          from, data, size);
       }
       catch (const std::logic_error& err)
       {
@@ -234,6 +237,7 @@ namespace ccf
     {
       serialized::skip(data, size, sizeof(NodeMsgType));
 
+      NodeId from = serialized::read<NodeId::Value>(data, size);
       auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
 
       switch (forwarded_msg)
@@ -242,14 +246,12 @@ namespace ccf
         {
           if (rpc_map)
           {
-            auto r = recv_forwarded_command(data, size);
-            if (!r.has_value())
+            auto ctx = recv_forwarded_command(from, data, size);
+            if (ctx == nullptr)
             {
               LOG_FAIL_FMT("Failed to receive forwarded command");
               return;
             }
-
-            auto [ctx, from_node] = std::move(r.value());
 
             const auto actor_opt = http::extract_actor(*ctx);
             if (!actor_opt.has_value())
@@ -286,15 +288,14 @@ namespace ccf
 
             if (!send_forwarded_response(
                   ctx->session->client_session_id,
-                  from_node,
+                  from,
                   fwd_handler->process_forwarded(ctx)))
             {
-              LOG_FAIL_FMT(
-                "Could not send forwarded response to {}", from_node);
+              LOG_FAIL_FMT("Could not send forwarded response to {}", from);
             }
             else
             {
-              LOG_DEBUG_FMT("Sending forwarded response to {}", from_node);
+              LOG_DEBUG_FMT("Sending forwarded response to {}", from);
             }
           }
           break;
@@ -302,9 +303,11 @@ namespace ccf
 
         case ForwardedMsg::forwarded_response:
         {
-          auto rep = recv_forwarded_response(data, size);
+          auto rep = recv_forwarded_response(from, data, size);
           if (!rep.has_value())
+          {
             return;
+          }
 
           LOG_DEBUG_FMT(
             "Sending forwarded response to RPC endpoint {}", rep->first);
@@ -319,7 +322,7 @@ namespace ccf
 
         case ForwardedMsg::request_hash:
         {
-          auto hash = recv_request_hash(data, size);
+          auto hash = recv_request_hash(from, data, size);
           if (!hash.has_value())
           {
             return;

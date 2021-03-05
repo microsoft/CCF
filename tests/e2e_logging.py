@@ -448,7 +448,7 @@ def test_historical_receipts(network, args):
 
     if args.package == "liblogging":
         node, _ = network.find_primary()
-        cert = os.path.join(node.common_dir, f"{node.node_id}.pem")
+        cert = os.path.join(node.common_dir, f"{node.local_node_id}.pem")
         with open(cert) as c:
             node_cert = load_pem_x509_certificate(
                 c.read().encode("ascii"), default_backend()
@@ -972,7 +972,7 @@ def test_ws(network, args):
 @reqs.at_least_n_nodes(2)
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
-    cert = os.path.join(primary.common_dir, f"{primary.node_id}.pem")
+    cert = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
     with open(cert) as c:
         node_cert = load_pem_x509_certificate(
             c.read().encode("ascii"), default_backend()
