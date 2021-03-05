@@ -19,7 +19,7 @@ threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 using MapT = kv::Map<size_t, size_t>;
 
-class DummyConsensus : public kv::StubConsensus
+class DummyConsensus : public kv::test::StubConsensus
 {
 public:
   kv::Store* store;
@@ -47,14 +47,14 @@ public:
     return 0;
   }
 
-  kv::NodeId primary() override
+  std::optional<kv::NodeId> primary() override
   {
-    return 1;
+    return kv::test::FirstBackupNodeId;
   }
 
   kv::NodeId id() override
   {
-    return 0;
+    return kv::test::PrimaryNodeId;
   }
 };
 
@@ -81,11 +81,13 @@ TEST_CASE("Check signature verification")
   backup_store.set_consensus(null_consensus);
 
   std::shared_ptr<kv::TxHistory> primary_history =
-    std::make_shared<ccf::MerkleTxHistory>(primary_store, 0, *kp);
+    std::make_shared<ccf::MerkleTxHistory>(
+      primary_store, kv::test::PrimaryNodeId, *kp);
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
-    std::make_shared<ccf::MerkleTxHistory>(backup_store, 1, *kp);
+    std::make_shared<ccf::MerkleTxHistory>(
+      backup_store, kv::test::FirstBackupNodeId, *kp);
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
@@ -94,7 +96,7 @@ TEST_CASE("Check signature verification")
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
-    tx->put(0, ni);
+    tx->put(kv::test::PrimaryNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -108,7 +110,7 @@ TEST_CASE("Check signature verification")
   {
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(signatures);
-    ccf::PrimarySignature bogus(0, 0);
+    ccf::PrimarySignature bogus(kv::test::PrimaryNodeId, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
     tx->put(0, bogus);
     REQUIRE(txs.commit() == kv::CommitResult::FAIL_NO_REPLICATE);
@@ -136,11 +138,13 @@ TEST_CASE("Check signing works across rollback")
   backup_store.set_consensus(null_consensus);
 
   std::shared_ptr<kv::TxHistory> primary_history =
-    std::make_shared<ccf::MerkleTxHistory>(primary_store, 0, *kp);
+    std::make_shared<ccf::MerkleTxHistory>(
+      primary_store, kv::test::PrimaryNodeId, *kp);
   primary_store.set_history(primary_history);
 
   std::shared_ptr<kv::TxHistory> backup_history =
-    std::make_shared<ccf::MerkleTxHistory>(backup_store, 1, *kp);
+    std::make_shared<ccf::MerkleTxHistory>(
+      backup_store, kv::test::FirstBackupNodeId, *kp);
   backup_store.set_history(backup_history);
 
   INFO("Write certificate");
@@ -149,7 +153,7 @@ TEST_CASE("Check signing works across rollback")
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
-    tx->put(0, ni);
+    tx->put(kv::test::PrimaryNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -161,7 +165,7 @@ TEST_CASE("Check signing works across rollback")
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
-    tx->put(1, ni);
+    tx->put(kv::test::FirstBackupNodeId, ni);
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -205,7 +209,7 @@ TEST_CASE("Check signing works across rollback")
   }
 }
 
-class CompactingConsensus : public kv::StubConsensus
+class CompactingConsensus : public kv::test::StubConsensus
 {
 public:
   kv::Store* store;
@@ -234,14 +238,14 @@ public:
     return 0;
   }
 
-  kv::NodeId primary() override
+  std::optional<kv::NodeId> primary() override
   {
-    return 1;
+    return kv::test::PrimaryNodeId;
   }
 
   kv::NodeId id() override
   {
-    return 0;
+    return kv::test::PrimaryNodeId;
   }
 
   View get_view(kv::Version version) override
@@ -318,7 +322,7 @@ TEST_CASE(
   }
 }
 
-class RollbackConsensus : public kv::StubConsensus
+class RollbackConsensus : public kv::test::StubConsensus
 {
 public:
   kv::Store* store;
@@ -354,14 +358,14 @@ public:
     return 0;
   }
 
-  kv::NodeId primary() override
+  std::optional<kv::NodeId> primary() override
   {
-    return 1;
+    return kv::test::PrimaryNodeId;
   }
 
   kv::NodeId id() override
   {
-    return 0;
+    return kv::test::PrimaryNodeId;
   }
 
   View get_view(SeqNo seqno) override

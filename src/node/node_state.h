@@ -116,9 +116,8 @@ namespace ccf
     StateMachine<State> sm;
     SpinLock lock;
 
-    static constexpr NodeId invalid_node_id = -1;
-    NodeId self = invalid_node_id;
     crypto::KeyPairPtr node_sign_kp;
+    NodeId self;
     std::shared_ptr<crypto::KeyPair_mbedTLS> node_encrypt_kp;
     crypto::Pem node_cert;
     QuoteInfo quote_info;
@@ -279,7 +278,6 @@ namespace ccf
       ShareManager& share_manager,
       const CurveID& curve_id) :
       sm(State::uninitialized),
-      self(INVALID_ID),
       node_sign_kp(crypto::make_key_pair(curve_id)),
       node_encrypt_kp(std::make_shared<crypto::KeyPair_mbedTLS>(curve_id)),
       writer_factory(writer_factory),
@@ -287,20 +285,25 @@ namespace ccf
       network(network),
       rpcsessions(rpcsessions),
       share_manager(share_manager)
-    {}
+    {
+      if (network.consensus_type == ConsensusType::CFT)
+      {
+        self = crypto::Sha256Hash(node_sign_kp->public_key_der()).hex_str();
+      }
+    }
 
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
-      const crypto::Pem& expected_node_public_key) override
+      const std::vector<uint8_t>& expected_node_public_key_der) override
     {
 #ifdef GET_QUOTE
       return enclave_attestation_provider.verify_quote_against_store(
-        tx, quote_info, expected_node_public_key);
+        tx, quote_info, expected_node_public_key_der);
 #else
       (void)tx;
       (void)quote_info;
-      (void)expected_node_public_key;
+      (void)expected_node_public_key_der;
       return QuoteVerificationResult::Verified;
 #endif
     }
@@ -343,7 +346,7 @@ namespace ccf
 
 #ifdef GET_QUOTE
       quote_info = enclave_attestation_provider.generate_quote(
-        node_sign_kp->public_key_pem());
+        node_sign_kp->public_key_der());
       node_code_id = enclave_attestation_provider.get_code_id(quote_info);
 #endif
 
@@ -351,11 +354,18 @@ namespace ccf
       {
         case StartType::New:
         {
-          set_node_id(0); // The first node id is always 0
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
           network.ledger_secrets->init();
+
+          if (network.consensus_type == ConsensusType::BFT)
+          {
+            // BFT consensus requires a stable order of node IDs so that the
+            // primary node in a given view can be computed deterministically by
+            // all nodes in the network
+            self = "0";
+          }
 
           setup_snapshotter();
           setup_encryptor();
@@ -383,6 +393,7 @@ namespace ccf
           reset_data(quote_info.endorsements);
           sm.advance(State::partOfNetwork);
 
+          LOG_INFO_FMT("Created new node {}", self.value());
           return {node_cert, network.identity->cert};
         }
         case StartType::Join:
@@ -401,6 +412,7 @@ namespace ccf
             sm.advance(State::pending);
           }
 
+          LOG_INFO_FMT("Created join node {}", self.value());
           return {node_cert, {}};
         }
         case StartType::Recover:
@@ -432,6 +444,8 @@ namespace ccf
           accept_network_tls_connections();
 
           sm.advance(State::readingPublicLedger);
+
+          LOG_INFO_FMT("Created recovery node {}", self.value());
           return {node_cert, network.identity->cert};
         }
         default:
@@ -498,7 +512,6 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp.node_status == NodeStatus::TRUSTED)
           {
-            set_node_id(resp.node_id);
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
 
@@ -512,6 +525,13 @@ namespace ccf
                 "responded with consensus {}",
                 network.consensus_type,
                 resp.network_info.consensus_type));
+            }
+
+            if (network.consensus_type == ConsensusType::BFT)
+            {
+              // In CFT, the node id is computed at startup, as the hash of the
+              // node's public key
+              self = resp.node_id;
             }
 
             setup_snapshotter();
@@ -906,11 +926,13 @@ namespace ccf
       g.create_service(network.identity->cert);
       g.retire_active_nodes();
 
-      set_node_id(g.add_node({node_info_network,
-                              node_cert,
-                              quote_info,
-                              node_encrypt_kp->public_key_pem().raw(),
-                              NodeStatus::PENDING}));
+      g.add_node(
+        self,
+        {node_info_network,
+         node_cert,
+         quote_info,
+         node_encrypt_kp->public_key_pem().raw(),
+         NodeStatus::PENDING});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -1269,17 +1291,18 @@ namespace ccf
       OArray oa(std::move(data));
       NodeMsgType msg_type =
         serialized::overlay<NodeMsgType>(oa.data(), oa.size());
+      NodeId from = serialized::read<NodeId::Value>(oa.data(), oa.size());
 
       switch (msg_type)
       {
         case channel_msg:
         {
-          n2n_channels->recv_message(std::move(oa));
+          n2n_channels->recv_message(from, std::move(oa));
           break;
         }
         case consensus_msg:
         {
-          consensus->recv_message(std::move(oa));
+          consensus->recv_message(from, std::move(oa));
           break;
         }
 
@@ -1375,18 +1398,6 @@ namespace ccf
     }
 
   private:
-    void set_node_id(NodeId n)
-    {
-      LOG_INFO_FMT("Setting self node ID: {}", n);
-      if (self != invalid_node_id)
-      {
-        throw std::logic_error(fmt::format(
-          "Trying to reset node ID. Was previously {}, proposed {}", self, n));
-      }
-
-      self = n;
-    }
-
     crypto::SubjectAltName get_subject_alt_name()
     {
       // If a domain is passed at node creation, record domain in SAN for node
@@ -1462,6 +1473,7 @@ namespace ccf
       }
 
       create_params.gov_script = config.genesis.gov_script;
+      create_params.node_id = self;
       create_params.node_cert = node_cert;
       create_params.network_cert = network.identity->cert;
       create_params.quote_info = quote_info;

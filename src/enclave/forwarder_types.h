@@ -22,13 +22,13 @@ namespace enclave
 
     virtual bool forward_command(
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
-      ccf::NodeId to,
+      const ccf::NodeId& to,
       std::set<ccf::NodeId> nodes,
       const std::vector<uint8_t>& caller_cert) = 0;
 
     virtual void send_request_hash_to_nodes(
       std::shared_ptr<enclave::RpcContext> rpc_ctx,
       std::set<ccf::NodeId> nodes,
-      ccf::NodeId skip_node) = 0;
+      const ccf::NodeId& skip_node) = 0;
   };
 }

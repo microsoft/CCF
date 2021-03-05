@@ -6,6 +6,7 @@ import base64
 from enum import IntEnum
 import secrets
 import datetime
+import hashlib
 
 from cryptography import x509
 from cryptography.x509.oid import NameOID
@@ -159,3 +160,11 @@ def are_certs_equal(pem1: str, pem2: str) -> bool:
     cert1 = load_pem_x509_certificate(pem1.encode(), default_backend())
     cert2 = load_pem_x509_certificate(pem2.encode(), default_backend())
     return cert1 == cert2
+
+
+def compute_public_key_der_hash_hex_from_pem(pem: str):
+    cert = load_pem_x509_certificate(pem.encode(), default_backend())
+    pub_key = cert.public_key().public_bytes(
+        Encoding.DER, PublicFormat.SubjectPublicKeyInfo
+    )
+    return hashlib.sha256(pub_key).hexdigest()

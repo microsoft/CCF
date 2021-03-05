@@ -41,5 +41,6 @@ namespace crypto
       std::optional<std::vector<std::uint8_t>> label = std::nullopt);
 
     virtual Pem public_key_pem() const;
+    virtual std::vector<uint8_t> public_key_der() const;
   };
 }

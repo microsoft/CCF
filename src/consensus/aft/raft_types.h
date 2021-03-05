@@ -9,6 +9,7 @@
 #include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
 #include "mbedtls/ecdsa.h"
+#include "node/node_id.h"
 #include "node/progress_tracker.h"
 
 #include <array>
@@ -20,7 +21,6 @@ namespace aft
 {
   using Index = int64_t;
   using Term = int64_t;
-  using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
   using Nonce = crypto::Sha256Hash;
 
@@ -29,8 +29,6 @@ namespace aft
     kv::TxHistory::RequestID caller_rid,
     int status,
     std::vector<uint8_t>&& data)>;
-
-  static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
 
   static constexpr size_t starting_view_change = 2;
 
@@ -138,11 +136,9 @@ namespace aft
   struct RaftHeader
   {
     RaftMsgType msg;
-    NodeId from_node;
   };
 
-  struct AppendEntries : consensus::ConsensusHeader<RaftMsgType>,
-                         consensus::AppendEntriesIndex
+  struct AppendEntries : RaftHeader, consensus::AppendEntriesIndex
   {
     Term term;
     Term prev_term;

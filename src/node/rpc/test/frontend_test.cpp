@@ -386,8 +386,8 @@ auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 NetworkState bft_network(ConsensusType::BFT);
 auto history_kp = crypto::make_key_pair();
 
-auto history =
-  std::make_shared<NullTxHistory>(*bft_network.tables, 0, *history_kp);
+auto history = std::make_shared<NullTxHistory>(
+  *bft_network.tables, kv::test::PrimaryNodeId, *history_kp);
 
 auto create_simple_request(
   const std::string& method = "empty_function",
@@ -472,7 +472,7 @@ void prepare_callers(NetworkState& network)
   // It is necessary to set a consensus before committing the first transaction,
   // so that the KV batching done before calling into replicate() stays in
   // order.
-  auto backup_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
   auto tx = network.tables->create_tx();
@@ -493,7 +493,7 @@ void add_callers_bft_store()
   bft_network.tables->set_encryptor(encryptor);
   bft_network.tables->set_history(history);
   auto backup_consensus =
-    std::make_shared<kv::PrimaryStubConsensus>(ConsensusType::BFT);
+    std::make_shared<kv::test::PrimaryStubConsensus>(ConsensusType::BFT);
   bft_network.tables->set_consensus(backup_consensus);
 
   GenesisGenerator g(bft_network, gen_tx);
@@ -1130,7 +1130,7 @@ TEST_CASE("Signed read requests can be executed on backup")
   prepare_callers(network);
   TestUserFrontend frontend(*network.tables);
 
-  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
   auto signed_call = create_signed_request(user_caller);
@@ -1151,13 +1151,13 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   TestForwardingUserFrontEnd user_frontend_primary(*network_primary.tables);
   TestForwardingUserFrontEnd user_frontend_backup(*network_backup.tables);
 
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr, ConsensusType::CFT);
-  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto simple_call = create_simple_request();
@@ -1204,10 +1204,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
-    auto [fwd_ctx, node_id] =
-      backup_forwarder
-        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-        .value();
+    auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
     {
       INFO("Invalid caller");
@@ -1235,10 +1233,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
-    auto [fwd_ctx, node_id] =
-      backup_forwarder
-        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-        .value();
+    auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
     // Processing forwarded response by a backup frontend (here, the same
     // frontend that the command was originally issued to)
@@ -1276,10 +1272,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
-    auto [fwd_ctx, node_id] =
-      backup_forwarder
-        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-        .value();
+    auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
     auto response =
       parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
@@ -1316,13 +1310,13 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr, ConsensusType::CFT);
   node_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1336,10 +1330,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
-  auto [fwd_ctx, node_id] =
-    backup_forwarder
-      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-      .value();
+  auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+    kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(node_frontend_primary.process_forwarded(fwd_ctx));
@@ -1362,13 +1354,13 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr, ConsensusType::CFT);
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1380,10 +1372,8 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
-  auto [fwd_ctx, node_id] =
-    backup_forwarder
-      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-      .value();
+  auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+    kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
@@ -1410,13 +1400,13 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
     *network_backup.tables, network_backup, stub_node, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr, ConsensusType::CFT);
   member_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1428,10 +1418,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
-  auto [fwd_ctx, node_id] =
-    backup_forwarder
-      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-      .value();
+  auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+    kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(member_frontend_primary.process_forwarded(fwd_ctx));

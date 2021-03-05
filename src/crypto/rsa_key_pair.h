@@ -42,6 +42,11 @@ namespace crypto
      * Get the public key in PEM format
      */
     virtual Pem public_key_pem() const = 0;
+
+    /**
+     * Get the public key in DER format
+     */
+    virtual std::vector<uint8_t> public_key_der() const = 0;
   };
 
   using RSAPublicKeyPtr = std::shared_ptr<RSAPublicKey>;

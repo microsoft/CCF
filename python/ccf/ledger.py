@@ -127,6 +127,8 @@ class PublicDomain:
                     if map_name in self._msgpacked_tables:
                         k = msgpack.unpackb(k, **UNPACK_ARGS)
                         val = msgpack.unpackb(val, **UNPACK_ARGS)
+                    if map_name == NODES_TABLE_NAME:
+                        k = str(k)
                     records[k] = val
 
             remove_count = self._read_next()
@@ -254,9 +256,11 @@ class LedgerValidator:
             for nodeid, values in signature_table.items():
                 current_seqno = values[self.EXPECTED_NODE_SEQNO_INDEX]
                 current_view = values[self.EXPECTED_NODE_VIEW_INDEX]
-                signing_node = values[self.EXPECTED_NODE_SIGNATURE_INDEX][
-                    self.EXPECTED_SIGNING_NODE_ID_INDEX
-                ]
+                signing_node = str(
+                    values[self.EXPECTED_NODE_SIGNATURE_INDEX][
+                        self.EXPECTED_SIGNING_NODE_ID_INDEX
+                    ]
+                )
 
                 # Get binary representations for the cert, existing root, and signature
                 cert = b"".join(self.node_certificates[signing_node])
