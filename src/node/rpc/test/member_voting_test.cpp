@@ -736,8 +736,8 @@ ProposalInfo test_raw_writes(
   bool explicit_proposer_vote = false)
 {
   std::vector<crypto::Pem> member_certs;
-  auto frontend =
-    init_frontend(network, gen, context, share_manager, n_members, member_certs);
+  auto frontend = init_frontend(
+    network, gen, context, share_manager, n_members, member_certs);
   frontend.open();
 
   // check values before
@@ -1629,7 +1629,7 @@ DOCTEST_TEST_CASE("User data")
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
 
   ShareManager share_manager(network);
-  StubNodeContext context;
+  StubRecoverableNodeContext context(share_manager);
   MemberRpcFrontend frontend(network, context, share_manager);
   frontend.open();
 
@@ -1758,7 +1758,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   network.ledger_secrets->init();
 
   ShareManager share_manager(network);
-  StubNodeContext context;
+  StubRecoverableNodeContext context(share_manager);
   MemberRpcFrontend frontend(network, context, share_manager);
   std::map<size_t, std::pair<crypto::Pem, crypto::RSAKeyPairPtr>> members;
 

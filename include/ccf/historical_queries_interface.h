@@ -39,7 +39,7 @@ namespace ccf::historical
     j["leaf"] = r.path->leaf().to_string();
     j["node_id"] = r.node_id;
     j["proof"] = nlohmann::json::array();
-    for (const auto& node: *r.path)
+    for (const auto& node : *r.path)
     {
       nlohmann::json entry = nlohmann::json::object();
       if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)

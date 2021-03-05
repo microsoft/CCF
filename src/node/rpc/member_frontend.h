@@ -897,7 +897,8 @@ namespace ccf
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            if (context.get_node_state().is_part_of_public_network())
            {
-             const auto accept_recovery = context.get_node_state().accept_recovery(tx);
+             const auto accept_recovery =
+               context.get_node_state().accept_recovery(tx);
              if (!accept_recovery)
              {
                LOG_FAIL_FMT("Proposal {}: Accept recovery failed", proposal_id);
@@ -946,7 +947,8 @@ namespace ccf
         {"rekey_ledger",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           const auto ledger_rekeyed = context.get_node_state().rekey_ledger(tx);
+           const auto ledger_rekeyed =
+             context.get_node_state().rekey_ledger(tx);
            if (!ledger_rekeyed)
            {
              LOG_FAIL_FMT("Proposal {}: Ledger rekey failed", proposal_id);

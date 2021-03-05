@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ds/json.h"
-#include "endpoint_registry.h"
 #include "enclave/node_context.h"
+#include "endpoint_registry.h"
 #include "node/quote.h"
 #include "node/rpc/node_interface.h"
 
@@ -78,7 +78,8 @@ namespace ccf
 
   public:
     BaseEndpointRegistry(
-      const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_) :
+      const std::string& method_prefix_,
+      ccfapp::AbstractNodeContext& context_) :
       EndpointRegistry(method_prefix_),
       context(context_)
     {}
