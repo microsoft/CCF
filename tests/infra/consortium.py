@@ -24,7 +24,7 @@ class Consortium:
         common_dir,
         key_generator,
         share_script,
-        member_ids=None,
+        members_info=None,
         curve=None,
         remote_node=None,
         authenticate_session=True,
@@ -38,11 +38,11 @@ class Consortium:
         self.authenticate_session = authenticate_session
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the state of CCF.
-        if member_ids is not None:
+        if members_info is not None:
             self.recovery_threshold = 0
-            for m_id, has_share, m_data in member_ids:
+            for m_local_id, has_share, m_data in members_info:
                 new_member = infra.member.Member(
-                    m_id,
+                    m_local_id,
                     curve,
                     common_dir,
                     share_script,
@@ -55,6 +55,7 @@ class Consortium:
                     self.recovery_threshold += 1
                 self.members.append(new_member)
         else:
+            # TODO: Why do we still need this?
             with remote_node.client("member0") as mc:
                 r = mc.post(
                     "/gov/query",
@@ -137,9 +138,9 @@ class Consortium:
     ):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
-        new_member_id = len(self.members)
+        new_member_local_id = len(self.members)
         new_member = infra.member.Member(
-            new_member_id,
+            new_member_local_id,
             curve,
             self.common_dir,
             self.share_script,
@@ -150,8 +151,8 @@ class Consortium:
 
         proposal_body, careful_vote = self.make_proposal(
             "new_member",
-            os.path.join(self.common_dir, f"member{new_member_id}_cert.pem"),
-            os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem")
+            os.path.join(self.common_dir, f"member{new_member_local_id}_cert.pem"),
+            os.path.join(self.common_dir, f"member{new_member_local_id}_enc_pubk.pem")
             if recovery_member
             else None,
             member_data,
@@ -207,10 +208,25 @@ class Consortium:
         else:
             return random.choice(self.get_active_members())
 
-    def get_member_by_id(self, member_id):
+    def get_member_by_local_id(self, local_member_id):
         return next(
-            (member for member in self.members if member.member_id == member_id), None
+            (
+                member
+                for member in self.members
+                if member.local_member_id == local_member_id
+            ),
+            None,
         )
+
+    def get_member_service_id_from_local_id(self, local_member_id):
+        return next(
+            (
+                member
+                for member in self.members
+                if member.local_member_id == local_member_id
+            ),
+            None,
+        ).member_id
 
     def vote_using_majority(
         self, remote_node, proposal, ballot, wait_for_global_commit=True, timeout=3
@@ -270,7 +286,7 @@ class Consortium:
                 proposals.append(
                     infra.proposal.Proposal(
                         proposal_id=proposal_id,
-                        proposer_id=int(attr["proposer"]),
+                        proposer_id=attr["proposer"],
                         state=infra.proposal.ProposalState(attr["state"]),
                     )
                 )

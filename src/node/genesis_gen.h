@@ -134,6 +134,8 @@ namespace ccf
       {
         ma->put(id, MemberAck(s->root));
       }
+
+      LOG_FAIL_FMT("Added member {}", id);
     }
 
     void activate_member(MemberId member_id)

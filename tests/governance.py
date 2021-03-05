@@ -135,11 +135,12 @@ def test_member_data(network, args):
         for member in network.get_members():
             if member.member_data:
                 assert (
-                    member_info(member.member_id)["member_data"] == member.member_data
+                    member_info(member.local_member_id)["member_data"]
+                    == member.member_data
                 )
                 md_count += 1
             else:
-                assert "member_data" not in member_info(member.member_id)
+                assert "member_data" not in member_info(member.local_member_id)
         assert md_count == args.initial_operator_count
 
     return network

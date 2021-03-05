@@ -174,7 +174,9 @@ def recovery_shares_scenario(args):
 
         # However, retiring a non-recovery member is allowed
         LOG.info("Retiring a non-recovery member is still possible")
-        member_to_retire = network.consortium.get_member_by_id(non_recovery_member_id)
+        member_to_retire = network.consortium.get_member_by_id(
+            network.consortium.get_member_by_local_id(non_recovery_member_id)
+        )
         test_retire_member(network, args, member_to_retire=member_to_retire)
 
         LOG.info("Adding one non-recovery member")

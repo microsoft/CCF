@@ -81,7 +81,7 @@ def test_jwt_without_key_policy(network, args):
 
     LOG.info("Check if JWT signing key was stored correctly")
     with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
+        f"member{network.consortium.get_any_active_member().local_member_id}"
     ) as c:
         r = c.post(
             "/gov/read", {"table": "public:ccf.gov.jwt.public_signing_keys", "key": kid}
@@ -101,7 +101,7 @@ def test_jwt_without_key_policy(network, args):
 
     LOG.info("Check if JWT signing key was deleted")
     with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
+        f"member{network.consortium.get_any_active_member().local_member_id}"
     ) as c:
         r = c.post(
             "/gov/read", {"table": "public:ccf.gov.jwt.public_signing_keys", "key": kid}
@@ -116,7 +116,7 @@ def test_jwt_without_key_policy(network, args):
 
     LOG.info("Check if JWT signing key was stored correctly")
     with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
+        f"member{network.consortium.get_any_active_member().local_member_id}"
     ) as c:
         r = c.post(
             "/gov/read", {"table": "public:ccf.gov.jwt.public_signing_keys", "key": kid}
@@ -243,7 +243,7 @@ def test_jwt_with_sgx_key_filter(network, args):
 
     LOG.info("Check that only SGX cert was added")
     with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
+        f"member{network.consortium.get_any_active_member().local_member_id}"
     ) as c:
         r = c.post(
             "/gov/read",
@@ -317,7 +317,7 @@ class OpenIDProviderServer(AbstractContextManager):
 def check_kv_jwt_key_matches(network, kid, cert_pem):
     primary, _ = network.find_nodes()
     with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
+        f"member{network.consortium.get_any_active_member().local_member_id}"
     ) as c:
         r = c.post(
             "/gov/read",
@@ -340,7 +340,7 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
 def get_jwt_refresh_endpoint_metrics(network) -> dict:
     primary, _ = network.find_nodes()
     with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
+        f"member{network.consortium.get_any_active_member().local_member_id}"
     ) as c:
         r = c.get("/gov/api/metrics")
         m = next(

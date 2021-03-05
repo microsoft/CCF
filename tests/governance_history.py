@@ -102,7 +102,7 @@ def run(args):
         proposals_issued += 1
 
         with primary.client() as c:
-            response = network.consortium.get_member_by_id(
+            response = network.consortium.get_member_by_local_id(
                 new_member_proposal.proposer_id
             ).withdraw(primary, new_member_proposal)
             infra.checker.Checker(c)(response)

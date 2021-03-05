@@ -1726,26 +1726,32 @@ namespace ccf
       //! A member asks for a fresher state digest
       auto update_state_digest =
         [this](EndpointContext& ctx, nlohmann::json&&) {
-          MemberId member_id = "";
-          // const auto member_id = get_caller_member_id(ctx);
-          // TODO: Check for authorization
+          const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Caller is a not a valid member id");
+          }
 
           auto mas = ctx.tx.rw(this->network.member_acks);
           auto sig = ctx.tx.rw(this->network.signatures);
-          auto ma = mas->get(member_id);
+          auto ma = mas->get(member_id.value());
           if (!ma)
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
-              fmt::format("No ACK record exists for caller {}.", member_id));
+              fmt::format(
+                "No ACK record exists for caller {}.", member_id.value()));
           }
 
           auto s = sig->get(0);
           if (s)
           {
             ma->state_digest = s->root.hex_str();
-            mas->put(member_id, ma.value());
+            mas->put(member_id.value(), ma.value());
           }
           nlohmann::json j;
           j["state_digest"] = ma->state_digest;

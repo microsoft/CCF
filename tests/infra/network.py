@@ -851,7 +851,7 @@ class Network:
                 current_commit_seqno = r.body.json()["seqno"]
                 if current_commit_seqno >= seqno:
                     with node.client(
-                        f"member{self.consortium.get_any_active_member().member_id}"
+                        f"member{self.consortium.get_any_active_member().local_member_id}"
                     ) as nc:
                         # Using update_state_digest here as a convenient write tx
                         # that is app agnostic
