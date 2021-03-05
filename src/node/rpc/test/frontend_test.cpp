@@ -408,9 +408,8 @@ http::Request create_signed_request(
 
   s.set_body(body);
 
-  const auto contents = caller_cert.contents();
-  crypto::Sha256Hash hash({contents.data(), contents.size()});
-  const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
+  auto caller_cert_der = crypto::cert_pem_to_der(caller_cert);
+  const auto key_id = crypto::Sha256Hash(caller_cert_der).hex_str();
 
   http::sign_request(s, kp, key_id);
 

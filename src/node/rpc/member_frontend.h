@@ -1240,26 +1240,25 @@ namespace ccf
                                                 member_signature_auth_policy};
 
       auto read = [this](EndpointContext& ctx, nlohmann::json&& params) {
-        // TODO: Remove this?
-        // const auto member_id = get_caller_member_id(ctx);
-        // if (!member_id.has_value())
-        // {
-        //   return make_error(
-        //     HTTP_STATUS_FORBIDDEN,
-        //     ccf::errors::AuthorizationFailed,
-        //     "Member is not active or accepted.");
-        // }
+        const auto member_id = get_caller_member_id(ctx);
+        if (!member_id.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is unknown.");
+        }
 
-        // if (!check_member_status(
-        //       ctx.tx,
-        //       member_id,
-        //       {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
-        // {
-        //   return make_error(
-        //     HTTP_STATUS_FORBIDDEN,
-        //     ccf::errors::AuthorizationFailed,
-        //     "Member is not active or accepted.");
-        // }
+        if (!check_member_status(
+              ctx.tx,
+              member_id.value(),
+              {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active or accepted.");
+        }
 
         const auto in = params.get<KVRead::In>();
 
@@ -1292,14 +1291,21 @@ namespace ccf
         .install();
 
       auto query = [this](EndpointContext& ctx, nlohmann::json&& params) {
-        // const auto member_id = get_caller_member_id(ctx);
-        // if (!check_member_accepted(ctx.tx, member_id))
-        // {
-        //   return make_error(
-        //     HTTP_STATUS_FORBIDDEN,
-        //     ccf::errors::AuthorizationFailed,
-        //     "Member is not accepted.");
-        // }
+        const auto member_id = get_caller_member_id(ctx);
+        if (!member_id.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is unknown.");
+        }
+        if (!check_member_accepted(ctx.tx, member_id.value()))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not accepted.");
+        }
 
         const auto script = params.get<ccf::Script>();
         return make_success(tsr.run<nlohmann::json>(
@@ -1393,14 +1399,22 @@ namespace ccf
 
       auto get_proposal =
         [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          // const auto member_id = get_caller_member_id(ctx);
-          // if (!check_member_active(ctx.tx, member_id))
-          // {
-          //   return make_error(
-          //     HTTP_STATUS_FORBIDDEN,
-          //     ccf::errors::AuthorizationFailed,
-          //     "Member is not active.");
-          // }
+          const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is unknown.");
+          }
+
+          if (!check_member_active(ctx.tx, member_id.value()))
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is not active.");
+          }
 
           ProposalId proposal_id;
           std::string error;
@@ -1576,14 +1590,22 @@ namespace ccf
         .install();
 
       auto get_vote = [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-        // const auto caller_member_id = get_caller_member_id(ctx);
-        // if (!check_member_active(ctx.tx, caller_member_id))
-        // {
-        //   return make_error(
-        //     HTTP_STATUS_FORBIDDEN,
-        //     ccf::errors::AuthorizationFailed,
-        //     "Member is not active.");
-        // }
+        const auto member_id = get_caller_member_id(ctx);
+        if (!member_id.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is unknown.");
+        }
+
+        if (!check_member_active(ctx.tx, member_id.value()))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
+        }
 
         std::string error;
         ProposalId proposal_id;
@@ -1766,34 +1788,39 @@ namespace ccf
         .set_auto_schema<void, StateDigest>()
         .install();
 
-      auto get_encrypted_recovery_share = [this](
-                                            EndpointContext& ctx,
-                                            nlohmann::json&&) {
-        // TODO: Fix!
-        // const auto member_id = get_caller_member_id(ctx);
-        // if (!check_member_active(ctx.tx, member_id))
-        // {
-        //   return make_error(
-        //     HTTP_STATUS_FORBIDDEN,
-        //     ccf::errors::AuthorizationFailed,
-        //     "Only active members are given recovery shares.");
-        // }
-        MemberId member_id = "";
+      auto get_encrypted_recovery_share =
+        [this](EndpointContext& ctx, nlohmann::json&&) {
+          const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is unknown.");
+          }
+          if (!check_member_active(ctx.tx, member_id.value()))
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Only active members are given recovery shares.");
+          }
 
-        auto encrypted_share =
-          share_manager.get_encrypted_share(ctx.tx, member_id);
+          auto encrypted_share =
+            share_manager.get_encrypted_share(ctx.tx, member_id.value());
 
-        if (!encrypted_share.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            fmt::format("Recovery share not found for member {}.", member_id));
-        }
+          if (!encrypted_share.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              fmt::format(
+                "Recovery share not found for member {}.", member_id.value()));
+          }
 
-        return make_success(
-          GetRecoveryShare::Out{tls::b64_from_raw(encrypted_share.value())});
-      };
+          return make_success(
+            GetRecoveryShare::Out{tls::b64_from_raw(encrypted_share.value())});
+        };
       make_endpoint(
         "recovery_share",
         HTTP_GET,

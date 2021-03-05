@@ -13,6 +13,7 @@ from http.client import HTTPResponse
 from io import BytesIO
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
 import struct
 import base64
 import re
@@ -349,6 +350,7 @@ class CurlClient:
                 LOG.error(rc.stderr)
                 raise RuntimeError(f"Curl failed with return code {rc.returncode}")
 
+            LOG.error(rc.stderr)  # TODO: Delete
             return Response.from_raw(rc.stdout)
 
 
@@ -395,7 +397,13 @@ class RequestClient:
             self.session.cert = (self.session_auth.cert, self.session_auth.key)
         if self.signing_auth:
             with open(self.signing_auth.cert) as cert_file:
-                self.key_id = hashlib.sha256(cert_file.read().encode()).hexdigest()
+                self.key_id = (
+                    x509.load_pem_x509_certificate(
+                        cert_file.read().encode(), default_backend()
+                    )
+                    .fingerprint(hashes.SHA256())
+                    .hex()
+                )
 
     def request(
         self,

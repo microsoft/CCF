@@ -119,8 +119,10 @@ content-length: $content_length"
 # https://tools.ietf.org/html/draft-cavage-http-signatures-12#appendix-E.2
 signature_algorithm="hs2019"
 
-# Compute key ID
-key_id=$(openssl dgst -sha256 "$signing_cert" | cut -d ' ' -f 2)
+# Compute key ID, as the SHA-256 fingerprint of the signing certificate
+key_id=$(openssl x509 -in "$signing_cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
+
+>&2 echo "KEY ID: ${key_id}"
 
 if [ "$is_print_digest_to_sign" == true ]; then
     hash_to_sign=$(echo -n "$string_to_sign" | openssl dgst -binary -sha384 | openssl base64 -A)

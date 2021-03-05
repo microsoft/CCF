@@ -57,10 +57,9 @@ namespace ccf
     //
     // Governance tables
     //
-    // members, member_certs and member_digests tables should always be in sync
+    // members and member_certs tables should always be in sync
     Members members;
     CertDERs member_certs;
-    CertDigests member_digests;
 
     Scripts gov_scripts;
     Modules modules;
@@ -83,10 +82,9 @@ namespace ccf
     //
     // User tables
     //
-    // users, user_certs and user_digests tables should always be in sync
+    // users and user_certs should always be in sync
     Users users;
     CertDERs user_certs;
-    CertDigests user_digests;
 
     ServicePrincipals service_principals;
 
@@ -121,7 +119,6 @@ namespace ccf
       tables(make_store(consensus_type)),
       members(Tables::MEMBERS),
       member_certs(Tables::MEMBER_CERT_DERS),
-      member_digests(Tables::MEMBER_DIGESTS),
       gov_scripts(Tables::GOV_SCRIPTS),
       modules(Tables::MODULES),
       proposals(Tables::PROPOSALS),
@@ -139,7 +136,6 @@ namespace ccf
       jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
       users(Tables::USERS),
       user_certs(Tables::USER_CERT_DERS),
-      user_digests(Tables::USER_DIGESTS),
       service_principals(Tables::SERVICE_PRINCIPALS),
       nodes(Tables::NODES),
       app_scripts(Tables::APP_SCRIPTS),

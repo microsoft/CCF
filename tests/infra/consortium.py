@@ -218,15 +218,11 @@ class Consortium:
             None,
         )
 
-    def get_member_service_id_from_local_id(self, local_member_id):
+    def get_member_by_service_id(self, member_id):
         return next(
-            (
-                member
-                for member in self.members
-                if member.local_member_id == local_member_id
-            ),
+            (member for member in self.members if member.member_id == member_id),
             None,
-        ).member_id
+        )
 
     def vote_using_majority(
         self, remote_node, proposal, ballot, wait_for_global_commit=True, timeout=3

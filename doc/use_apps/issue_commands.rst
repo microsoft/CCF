@@ -36,7 +36,7 @@ In some situations CCF requires signed requests, for example for member votes.
 The signing scheme is compatible with the `IETF HTTP Signatures draft RFC <https://tools.ietf.org/html/draft-cavage-http-signatures-12>`_.
 We provide a wrapper script (``scurl.sh``) around ``curl`` to submit signed requests from the command line.
 
-CCF identifies the signing identity for a request via the SHA-256 digest of its certificate, represented as a hex string.
+CCF identifies the signing identity for a request via the SHA-256 digest of its certificate (DER encoded), represented as a hex string.
 That value must be set in the ``keyId`` field of the ``Authorization`` HTTP header for a signed request.
 
 These commands can also be signed and transmitted by external libraries.

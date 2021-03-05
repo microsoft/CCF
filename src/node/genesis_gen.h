@@ -103,7 +103,6 @@ namespace ccf
     {
       auto m = tx.rw(tables.members);
       auto mc = tx.rw(tables.member_certs);
-      auto md = tx.rw(tables.member_digests);
       auto ma = tx.rw(tables.member_acks);
       auto sig = tx.rw(tables.signatures);
 
@@ -121,9 +120,6 @@ namespace ccf
       auto id = crypto::Sha256Hash(member_cert_der).hex_str();
       m->put(id, MemberInfo(member_pub_info, MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
-
-      crypto::Sha256Hash member_cert_digest(member_pub_info.cert.contents());
-      md->put(member_cert_digest.hex_str(), id);
 
       auto s = sig->get(0);
       if (!s)
@@ -227,7 +223,6 @@ namespace ccf
     {
       auto u = tx.rw(tables.users);
       auto uc = tx.rw(tables.user_certs);
-      auto ud = tx.rw(tables.user_digests);
 
       auto user_cert_der = crypto::make_verifier(user_info.cert)->cert_der();
 
@@ -242,9 +237,6 @@ namespace ccf
       auto id = crypto::Sha256Hash(user_cert_der).hex_str();
       u->put(id, user_info);
       uc->put(user_cert_der, id);
-
-      crypto::Sha256Hash user_cert_digest(user_info.cert.contents());
-      ud->put(user_cert_digest.hex_str(), id);
     }
 
     bool remove_user(UserId user_id)

@@ -159,7 +159,7 @@ def recovery_shares_scenario(args):
             r = mc.get("/gov/recovery_share")
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value
             assert (
-                f"Recovery share not found for member {non_recovery_member_id}"
+                f"Recovery share not found for member {network.consortium.get_member_by_local_id(non_recovery_member_id).member_id}"
                 in r.body.json()["error"]["message"]
             )
 
@@ -174,15 +174,17 @@ def recovery_shares_scenario(args):
 
         # However, retiring a non-recovery member is allowed
         LOG.info("Retiring a non-recovery member is still possible")
-        member_to_retire = network.consortium.get_member_by_id(
-            network.consortium.get_member_by_local_id(non_recovery_member_id)
+        member_to_retire = network.consortium.get_member_by_local_id(
+            non_recovery_member_id
         )
         test_retire_member(network, args, member_to_retire=member_to_retire)
 
+        input("")
         LOG.info("Adding one non-recovery member")
         assert_recovery_shares_update(
             False, test_add_member, network, args, recovery_member=False
         )
+        input("")
         LOG.info("Adding one recovery member")
         assert_recovery_shares_update(
             True, test_add_member, network, args, recovery_member=True

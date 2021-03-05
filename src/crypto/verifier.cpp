@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "crypto/mbedtls/verifier.h"
-
 #include "crypto/openssl/verifier.h"
 #include "verifier.h"
 
@@ -47,6 +46,11 @@ namespace crypto
   crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der)
   {
     return make_verifier(der)->cert_pem();
+  }
+
+  std::vector<uint8_t> cert_pem_to_der(const crypto::Pem& pem)
+  {
+    return make_verifier(pem)->cert_der();
   }
 
   std::vector<uint8_t> public_key_der_from_cert(const std::vector<uint8_t>& der)
