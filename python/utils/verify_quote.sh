@@ -13,7 +13,7 @@ function usage()
     echo "Usage:"
     echo "  $0 https://<node-address> [--mrenclave <mrenclave_hex>] [CURL_OPTIONS]"
     echo "Verify target node's remote attestation quote."
-    echo "Verification involves confirming that the public key (DER encoded) of the node certificate matches the SGX report data and that the mrenclave included in the quote is trusted."
+    echo "Verification involves confirming that the public key (DER encoded) of the node certificate matches the SGX report data and that the MRENCLAVE included in the quote is trusted."
     echo "A specific trusted mrenclave can be specified with --mrenclave. If specified, the quoted mrenclave must match this exactly. If unspecified, the service's currently accepted code versions will be retrieved from the target node, and verification will succeed only if the quoted mrenclave is present in this list."
 }
 
