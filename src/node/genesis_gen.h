@@ -97,12 +97,11 @@ namespace ccf
       return active_members_info;
     }
 
-    MemberId add_member(const MemberPubInfo& member_pub_info)
+    void add_member(const MemberPubInfo& member_pub_info)
     {
       auto m = tx.rw(tables.members);
       auto mc = tx.rw(tables.member_certs);
       auto md = tx.rw(tables.member_digests);
-      auto v = tx.rw(tables.values);
       auto ma = tx.rw(tables.member_acks);
       auto sig = tx.rw(tables.signatures);
 
@@ -110,7 +109,6 @@ namespace ccf
       // the DER peer cert retrieved from the connection
       auto member_cert_der =
         crypto::make_verifier(member_pub_info.cert)->cert_der();
-
       auto member_id = mc->get(member_cert_der);
       if (member_id.has_value())
       {
@@ -118,7 +116,7 @@ namespace ccf
           "Member certificate already exists (member {})", member_id.value()));
       }
 
-      const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
+      auto id = crypto::Sha256Hash(member_cert_der).hex_str();
       m->put(id, MemberInfo(member_pub_info, MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
 
@@ -134,7 +132,6 @@ namespace ccf
       {
         ma->put(id, MemberAck(s->root));
       }
-      return id;
     }
 
     void activate_member(MemberId member_id)
@@ -222,12 +219,11 @@ namespace ccf
       return member.value();
     }
 
-    auto add_user(const ccf::UserInfo& user_info)
+    void add_user(const ccf::UserInfo& user_info)
     {
       auto u = tx.rw(tables.users);
       auto uc = tx.rw(tables.user_certs);
       auto ud = tx.rw(tables.user_digests);
-      auto v = tx.rw(tables.values);
 
       auto user_cert_der = crypto::make_verifier(user_info.cert)->cert_der();
 
@@ -239,13 +235,12 @@ namespace ccf
           "User certificate already exists (user {})", user_id.value()));
       }
 
-      const auto id = get_next_id(v, ValueIds::NEXT_USER_ID);
+      auto id = crypto::Sha256Hash(user_cert_der).hex_str();
       u->put(id, user_info);
       uc->put(user_cert_der, id);
 
       crypto::Sha256Hash user_cert_digest(user_info.cert.contents());
       ud->put(user_cert_digest.hex_str(), id);
-      return id;
     }
 
     bool remove_user(UserId user_id)

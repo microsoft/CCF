@@ -279,7 +279,7 @@ namespace ccf
       ShareManager& share_manager,
       const CurveID& curve_id) :
       sm(State::uninitialized),
-      self(INVALID_ID),
+      self(0),
       node_sign_kp(crypto::make_key_pair(curve_id)),
       node_encrypt_kp(std::make_shared<crypto::KeyPair_mbedTLS>(curve_id)),
       writer_factory(writer_factory),
@@ -807,7 +807,8 @@ namespace ccf
 
         if (
           startup_snapshot_info && startup_snapshot_info->has_evidence &&
-          last_sig->commit_seqno >= startup_snapshot_info->evidence_seqno)
+          static_cast<consensus::Index>(last_sig->commit_seqno) >=
+            startup_snapshot_info->evidence_seqno)
         {
           startup_snapshot_info->is_evidence_committed = true;
         }

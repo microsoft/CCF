@@ -5,21 +5,26 @@
 #include <limits>
 #include <map>
 #include <stdint.h>
+#include <string>
 #include <vector>
 
 namespace ccf
 {
-  using ObjectId = uint64_t;
+  // using ObjectId = uint64_t;
+  using ObjectId = std::string;
 
-  constexpr ObjectId INVALID_ID = (std::numeric_limits<ObjectId>::max)();
+  // constexpr ObjectId INVALID_ID = (std::numeric_limits<ObjectId>::max)();
+  static ObjectId INVALID_ID = ""; // TODO: Remove
 
   using NodeId = uint64_t;
   using Index = int64_t;
   using Node2NodeMsg = uint64_t;
 
-  using MemberId = ObjectId;
-  using UserId = ObjectId;
-  using CallerId = ObjectId;
+  // using MemberId = ObjectId;
+  using MemberId = std::string;
+  using UserId = std::string;
+  using CallerId = std::string;
+
   using Cert = std::vector<uint8_t>;
 
   // SGX MRENCLAVE is SHA256 digest

@@ -15,8 +15,8 @@ namespace ccf
   {
     kv::Consensus::SeqNo seqno = 0;
     kv::Consensus::View view = 0;
-    ObjectId commit_seqno = 0;
-    ObjectId commit_view = 0;
+    kv::Consensus::SeqNo commit_seqno = 0;
+    kv::Consensus::View commit_view = 0;
     crypto::Sha256Hash root;
     std::vector<uint8_t> tree = {0};
 

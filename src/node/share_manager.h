@@ -454,7 +454,7 @@ namespace ccf
     {
       auto submitted_shares = tx.rw(network.submitted_shares);
 
-      std::vector<uint8_t> submitted_share_ids = {};
+      std::vector<MemberId> submitted_share_ids = {};
 
       submitted_shares->foreach(
         [&submitted_share_ids](

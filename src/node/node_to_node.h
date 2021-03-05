@@ -134,14 +134,14 @@ namespace ccf
 
   public:
     NodeToNodeImpl(ringbuffer::AbstractWriterFactory& writer_factory_) :
-      self(INVALID_ID),
+      self(0), // TODO: Fix
       writer_factory(writer_factory_)
     {}
 
     void initialize(NodeId self_id, const crypto::Pem& network_pkey) override
     {
       CCF_ASSERT_FMT(
-        self == INVALID_ID,
+        self == 0,
         "Calling initialize more than once, previous id:{}, new id:{}",
         self,
         self_id);
