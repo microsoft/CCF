@@ -199,17 +199,6 @@
         ],
         "type": "object"
       },
-      "GetReceipt__Out": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
-        ],
-        "type": "object"
-      },
       "GetState__Out": {
         "properties": {
           "last_recovered_seqno": {
@@ -337,28 +326,6 @@
         ],
         "type": "string"
       },
-      "VerifyReceipt__In": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
-        ],
-        "type": "object"
-      },
-      "VerifyReceipt__Out": {
-        "properties": {
-          "valid": {
-            "$ref": "#/components/schemas/boolean"
-          }
-        },
-        "required": [
-          "valid"
-        ],
-        "type": "object"
-      },
       "boolean": {
         "type": "boolean"
       },
@@ -388,17 +355,6 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
-      },
-      "uint8": {
-        "maximum": 255,
-        "minimum": 0,
-        "type": "integer"
-      },
-      "uint8_array": {
-        "items": {
-          "$ref": "#/components/schemas/uint8"
-        },
-        "type": "array"
       }
     },
     "securitySchemes": {
@@ -732,53 +688,8 @@
     },
     "/receipt": {
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "commit",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetReceipt__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/receipt/verify": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyReceipt__In"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VerifyReceipt__Out"
-                }
-              }
-            },
             "description": "Default response description"
           }
         }

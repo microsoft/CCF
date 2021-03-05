@@ -968,58 +968,42 @@ def test_ws(network, args):
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("receipt", "receipt/verify", "log/private")
+@reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
+    cert = os.path.join(primary.common_dir, f"{primary.node_id}.pem")
+    with open(cert) as c:
+        node_cert = load_pem_x509_certificate(
+            c.read().encode("ascii"), default_backend()
+        )
 
     with primary.client() as mc:
         check_commit = infra.checker.Checker(mc)
-        check = infra.checker.Checker()
-
         msg = "Hello world"
 
         LOG.info("Write/Read on primary")
-        receipts = []
         with primary.client("user0") as c:
-            num_stints = 5
-            num_tx = 10
-            for j in range(num_stints):
-                idx = j * (num_tx + 1) + 10000
+            for j in range(10):
+                idx = j + 10000
                 r = c.post("/app/log/private", {"id": idx, "msg": msg})
                 check_commit(r, result=True)
-                check(c.get("/app/log/private?id=%d" % idx), result={"msg": msg})
-                for i in range(1, num_tx):
-                    c.post(
-                        "/app/log/private",
-                        {"id": idx + i, "msg": "Additional messages"},
-                    )
-                check_commit(
-                    c.post(
-                        "/app/log/private",
-                        {"id": idx + i + 1, "msg": "A final message"},
-                    ),
-                    result=True,
-                )
-                r = c.get(f"/app/receipt?commit={r.seqno}")
-
-                receipt = r.body.json()["receipt"]
-                rv = c.post("/app/receipt/verify", {"receipt": receipt})
-                assert rv.body.json() == {"valid": True}
-
-                receipts.append(receipt)
-
-                invalid = r.body.json()["receipt"]
-                invalid[-3] += 1
-
-                rv = c.post("/app/receipt/verify", {"receipt": invalid})
-                assert rv.body.json() == {"valid": False}
-
-        LOG.info("Verify recorded (historical) receipts")
-        for r in receipts:
-            with primary.client("user0") as c:
-                rv = c.post("/app/receipt/verify", {"receipt": r})
-                assert rv.body.json() == {"valid": True}
+                start_time = time.time()
+                while time.time() < (start_time + 3.0):
+                    rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
+                    if rc.status_code == http.HTTPStatus.OK:
+                        receipt = rc.body.json()
+                        assert receipt["root"] == ccf.receipt.root(
+                            receipt["leaf"], receipt["proof"]
+                        )
+                        ccf.receipt.verify(
+                            receipt["root"], receipt["signature"], node_cert
+                        )
+                        break
+                    elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                        time.sleep(0.5)
+                    else:
+                        assert False, rc
 
     return network
 

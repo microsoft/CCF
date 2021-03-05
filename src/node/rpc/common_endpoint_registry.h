@@ -3,14 +3,52 @@
 #pragma once
 
 #include "base_endpoint_registry.h"
+#include "ds/nonstd.h"
 #include "enclave/node_context.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
 #include "json_handler.h"
 #include "node/code_id.h"
+#include "node/historical_queries_adapter.h"
 
 namespace ccf
 {
+  static inline std::optional<ccf::TxID> txid_from_query_string(
+    EndpointContext& args)
+  {
+    const std::string prefix("transaction_id=");
+    const auto& path_params = args.rpc_ctx->get_request_query();
+
+    if (!nonstd::starts_with(path_params, prefix))
+    {
+      args.rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidInput,
+        "Query string must contain a single \'transaction_id\' parameter");
+      return std::nullopt;
+    }
+
+    const auto& txid_str =
+      path_params.substr(prefix.size(), path_params.size() - prefix.size());
+
+    const auto tx_id_opt = ccf::TxID::from_str(txid_str);
+    if (!tx_id_opt.has_value())
+    {
+      args.rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidHeaderValue,
+        fmt::format(
+          "The value '{}' passed as \'transaction_id\' '{}' could not be "
+          "converted to a valid "
+          "Tx ID.",
+          txid_str,
+          http::headers::CCF_TX_ID));
+      return std::nullopt;
+    }
+
+    return tx_id_opt;
+  }
+
   /*
    * Extends the BaseEndpointRegistry by installing common endpoints we expect
    * to be available on most services. Override init_handlers or inherit from
@@ -208,6 +246,63 @@ namespace ccf
         .set_auto_schema<void, EndpointMetrics::Out>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
+
+      auto is_tx_committed = [this](
+                               kv::Consensus::View view,
+                               kv::Consensus::SeqNo seqno,
+                               std::string& error_reason) {
+        if (consensus == nullptr)
+        {
+          error_reason = "Node is not fully configured";
+          return false;
+        }
+
+        const auto tx_view = consensus->get_view(seqno);
+        const auto committed_seqno = consensus->get_committed_seqno();
+        const auto committed_view = consensus->get_view(committed_seqno);
+
+        const auto tx_status = ccf::evaluate_tx_status(
+          view, seqno, tx_view, committed_view, committed_seqno);
+        if (tx_status != ccf::TxStatus::Committed)
+        {
+          error_reason = fmt::format(
+            "Only committed transactions can be queried. Transaction {}.{} is "
+            "{}",
+            view,
+            seqno,
+            ccf::tx_status_to_str(tx_status));
+          return false;
+        }
+
+        return true;
+      };
+
+      auto get_receipt = [](
+                           ccf::EndpointContext& args,
+                           ccf::historical::StatePtr historical_state,
+                           kv::Consensus::View,
+                           kv::Consensus::SeqNo) {
+        const auto [pack, params] =
+          ccf::jsonhandler::get_json_params(args.rpc_ctx);
+
+        // const auto in = params.get<GetReceipt::In>();
+        nlohmann::json r;
+        to_json(r, *historical_state->receipt);
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ccf::jsonhandler::set_response(r, args.rpc_ctx, pack);
+      };
+
+      make_endpoint(
+        "receipt",
+        HTTP_GET,
+        ccf::historical::adapter(
+          get_receipt,
+          context.get_historical_state(),
+          is_tx_committed,
+          txid_from_query_string),
+        no_auth_required)
+        .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
     }
   };

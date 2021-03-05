@@ -17,46 +17,63 @@ namespace ccf::historical
     kv::Consensus::View view,
     kv::SeqNo seqno)>;
 
+  using TxIDExtractor =
+    std::function<std::optional<ccf::TxID>(EndpointContext& args)>;
+
+  static inline std::optional<ccf::TxID> txid_from_header(EndpointContext& args)
+  {
+    const auto tx_id_header =
+      args.rpc_ctx->get_request_header(http::headers::CCF_TX_ID);
+    if (!tx_id_header.has_value())
+    {
+      args.rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::MissingRequiredHeader,
+        fmt::format(
+          "Historical query is missing '{}' header.",
+          http::headers::CCF_TX_ID));
+      return std::nullopt;
+    }
+
+    const auto tx_id_opt = ccf::TxID::from_str(tx_id_header.value());
+    if (!tx_id_opt.has_value())
+    {
+      args.rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidHeaderValue,
+        fmt::format(
+          "The value '{}' in header '{}' could not be converted to a valid "
+          "Tx ID.",
+          tx_id_header.value(),
+          http::headers::CCF_TX_ID));
+      return std::nullopt;
+    }
+
+    return tx_id_opt;
+  }
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 
   static ccf::EndpointFunction adapter(
     const HandleHistoricalQuery& f,
     AbstractStateCache& state_cache,
-    const CheckAvailability& available)
+    const CheckAvailability& available,
+    const TxIDExtractor& extractor = txid_from_header)
   {
-    return [f, &state_cache, available](EndpointContext& args) {
+    return [f, &state_cache, available, extractor](EndpointContext& args) {
       // Extract the requested transaction ID
       ccf::TxID target_tx_id;
       {
-        const auto tx_id_header =
-          args.rpc_ctx->get_request_header(http::headers::CCF_TX_ID);
-        if (!tx_id_header.has_value())
+        const auto tx_id_opt = extractor(args);
+        if (tx_id_opt.has_value())
         {
-          args.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::MissingRequiredHeader,
-            fmt::format(
-              "Historical query is missing '{}' header.",
-              http::headers::CCF_TX_ID));
+          target_tx_id = tx_id_opt.value();
+        }
+        else
+        {
           return;
         }
-
-        const auto tx_id_opt = ccf::TxID::from_str(tx_id_header.value());
-        if (!tx_id_opt.has_value())
-        {
-          args.rpc_ctx->set_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidHeaderValue,
-            fmt::format(
-              "The value '{}' in header '{}' could not be converted to a valid "
-              "Tx ID.",
-              tx_id_header.value(),
-              http::headers::CCF_TX_ID));
-          return;
-        }
-
-        target_tx_id = tx_id_opt.value();
       }
 
       // Check that the requested transaction ID is available
