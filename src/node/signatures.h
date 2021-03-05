@@ -31,7 +31,7 @@ namespace ccf
 
     PrimarySignature() {}
 
-    PrimarySignature(ccf::NodeId node_, kv::Consensus::SeqNo seqno_) :
+    PrimarySignature(const ccf::NodeId& node_, kv::Consensus::SeqNo seqno_) :
       NodeSignature(node_),
       seqno(seqno_)
     {}
@@ -39,7 +39,7 @@ namespace ccf
     PrimarySignature(const crypto::Sha256Hash& root_) : root(root_) {}
 
     PrimarySignature(
-      ccf::NodeId node_,
+      const ccf::NodeId& node_,
       kv::Consensus::SeqNo seqno_,
       kv::Consensus::View view_,
       kv::Consensus::SeqNo commit_seqno_,

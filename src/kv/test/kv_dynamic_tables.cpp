@@ -349,7 +349,7 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 
 TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
 {
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
   kv::Store kv_store(consensus);

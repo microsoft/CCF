@@ -19,7 +19,7 @@ namespace threading
 
 using namespace ccf;
 
-class DummyConsensus : public kv::StubConsensus
+class DummyConsensus : public kv::test::StubConsensus
 {
 public:
   DummyConsensus() {}
@@ -78,7 +78,7 @@ static void append(picobench::state& s)
   store.set_consensus(consensus);
 
   std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp);
+    std::make_shared<ccf::MerkleTxHistory>(store, kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
@@ -115,7 +115,7 @@ static void append_compact(picobench::state& s)
   store.set_consensus(consensus);
 
   std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp);
+    std::make_shared<ccf::MerkleTxHistory>(store, kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;

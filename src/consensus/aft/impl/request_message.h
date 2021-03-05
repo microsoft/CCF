@@ -19,12 +19,10 @@ namespace aft
   {
     RequestMessageRep() = default;
     RequestMessageRep(
-      aft::NodeId from_node,
       uint16_t command_size_,
       uint16_t session_id_,
       kv::TxHistory::RequestID rid_) :
-      consensus::ConsensusHeader<RaftMsgType>(
-        RaftMsgType::bft_request, from_node),
+      consensus::ConsensusHeader<RaftMsgType>(RaftMsgType::bft_request),
       command_size(command_size_),
       session_id(session_id_),
       rid(rid_)
@@ -68,10 +66,9 @@ namespace aft
       }
     }
 
-    void serialize_message(
-      aft::NodeId from_node, uint8_t* data, size_t size) const override
+    void serialize_message(uint8_t* data, size_t size) const override
     {
-      RequestMessageRep rep(from_node, request.size(), 0, rid);
+      RequestMessageRep rep(request.size(), 0, rid);
 
       serialized::write(
         data,

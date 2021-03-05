@@ -54,7 +54,9 @@ namespace ccf
     {
       auto v = tx.rw(tables.values);
       for (int id_type = 0; id_type < ValueIds::END_ID; id_type++)
+      {
         v->put(id_type, 0);
+      }
     }
 
     auto finalize()
@@ -262,15 +264,13 @@ namespace ccf
       return true;
     }
 
-    auto add_node(const NodeInfo& node_info)
+    void add_node(const NodeId& id, const NodeInfo& node_info)
     {
-      auto node_id = get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
-
-      auto raw_cert = crypto::make_verifier(node_info.cert)->cert_der();
+      // Increment the node id (only used in BFT)
+      get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
 
       auto node = tx.rw(tables.nodes);
-      node->put(node_id, node_info);
-      return node_id;
+      node->put(id, node_info);
     }
 
     auto get_trusted_nodes(std::optional<NodeId> self_to_exclude = std::nullopt)
@@ -381,7 +381,8 @@ namespace ccf
       return true;
     }
 
-    void trust_node(NodeId node_id, kv::Version latest_ledger_secret_seqno)
+    void trust_node(
+      const NodeId& node_id, kv::Version latest_ledger_secret_seqno)
     {
       auto nodes = tx.rw(tables.nodes);
       auto node_info = nodes->get(node_id);

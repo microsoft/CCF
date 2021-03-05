@@ -94,7 +94,7 @@ static void apply(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
   kv::Store kv_store(consensus);
   kv::Store kv_store2;
 

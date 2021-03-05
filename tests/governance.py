@@ -41,7 +41,7 @@ def test_quote(network, args):
 
         r = c.get("/node/quotes/self")
         primary_quote_info = r.body.json()
-        assert primary_quote_info["node_id"] == 0
+        assert primary_quote_info["node_id"] == primary.node_id
         primary_mrenclave = primary_quote_info["mrenclave"]
         assert primary_mrenclave == expected_mrenclave, (
             primary_mrenclave,
@@ -111,7 +111,9 @@ def test_no_quote(network, args):
         args.package, "local://localhost", args
     )
     with untrusted_node.client(
-        ca=os.path.join(untrusted_node.common_dir, f"{untrusted_node.node_id}.pem")
+        ca=os.path.join(
+            untrusted_node.common_dir, f"{untrusted_node.local_node_id}.pem"
+        )
     ) as uc:
         r = uc.get("/node/quotes/self")
         assert r.status_code == http.HTTPStatus.NOT_FOUND

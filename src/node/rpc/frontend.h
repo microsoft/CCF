@@ -91,10 +91,10 @@ namespace ccf
           auto primary_id = consensus->primary();
 
           if (
-            primary_id != NoNode &&
+            primary_id.has_value() &&
             cmd_forwarder->forward_command(
               ctx,
-              primary_id,
+              primary_id.value(),
               endpoint->properties.execute_outside_consensus ==
                   ExecuteOutsideConsensus::Never ?
                 consensus->active_nodes() :
@@ -102,7 +102,7 @@ namespace ccf
               ctx->session->caller_cert))
           {
             // Indicate that the RPC has been forwarded to primary
-            LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id);
+            LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
             return std::nullopt;
           }
         }
@@ -120,10 +120,18 @@ namespace ccf
         ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
         if (consensus != nullptr)
         {
-          NodeId primary_id = consensus->primary();
+          auto primary_id = consensus->primary();
+          if (!primary_id.has_value())
+          {
+            ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "RPC could not be redirected to unknown primary.");
+          }
+
           auto tx = tables.create_tx();
           auto nodes = tx.ro<Nodes>(Tables::NODES);
-          auto info = nodes->get(primary_id);
+          auto info = nodes->get(primary_id.value());
 
           if (info)
           {

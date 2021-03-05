@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "verifier.h"
-
 #include "crypto/mbedtls/verifier.h"
+
 #include "crypto/openssl/verifier.h"
+#include "verifier.h"
 
 namespace crypto
 {
@@ -49,14 +49,9 @@ namespace crypto
     return make_verifier(der)->cert_pem();
   }
 
-  std::vector<uint8_t> cert_pem_to_der(const std::string& pem_string)
+  std::vector<uint8_t> public_key_der_from_cert(const std::vector<uint8_t>& der)
   {
-    return make_verifier(Pem(pem_string).raw())->cert_der();
-  }
-
-  Pem public_key_pem_from_cert(const Pem& cert)
-  {
-    return make_unique_verifier(cert)->public_key_pem();
+    return make_unique_verifier(der)->public_key_der();
   }
 
   void check_is_cert(const CBuffer& der)

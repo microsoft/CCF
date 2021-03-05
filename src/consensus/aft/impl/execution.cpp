@@ -61,8 +61,7 @@ namespace aft
       request->get_request_ctx().frontend;
 
     ctx->bft_raw.resize(request->size());
-    request->serialize_message(
-      NoNode, ctx->bft_raw.data(), ctx->bft_raw.size());
+    request->serialize_message(ctx->bft_raw.data(), ctx->bft_raw.size());
 
     if (request_tracker != nullptr)
     {
