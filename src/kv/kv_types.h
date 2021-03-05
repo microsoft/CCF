@@ -6,6 +6,7 @@
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
+#include "node/node_id.h"
 #include "serialiser_declare.h"
 
 #include <array>
@@ -44,7 +45,7 @@ namespace kv
   // all accepted kv modifications. Terms are handled by Consensus via the
   // TermHistory
   using Term = int64_t;
-  using NodeId = uint64_t;
+  using NodeId = ccf::NodeId;
 
   struct TxID
   {
@@ -288,7 +289,7 @@ namespace kv
     // primary changes
     using View = int64_t;
 
-    Consensus(NodeId id) : state(Backup), local_id(id) {}
+    Consensus(const NodeId& id) : state(Backup), local_id(id) {}
     virtual ~Consensus() {}
 
     virtual NodeId id()
@@ -338,11 +339,11 @@ namespace kv
     virtual std::vector<SeqNo> get_view_history(SeqNo) = 0;
     virtual void initialise_view_history(const std::vector<SeqNo>&) = 0;
     virtual SeqNo get_committed_seqno() = 0;
-    virtual NodeId primary() = 0;
+    virtual std::optional<NodeId> primary() = 0;
     virtual bool view_change_in_progress() = 0;
     virtual std::set<NodeId> active_nodes() = 0;
 
-    virtual void recv_message(OArray&& oa) = 0;
+    virtual void recv_message(const NodeId& from, OArray&& oa) = 0;
 
     virtual bool on_request(const TxHistory::RequestCallbackArgs&)
     {

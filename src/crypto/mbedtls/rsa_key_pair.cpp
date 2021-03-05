@@ -103,4 +103,9 @@ namespace crypto
   {
     return PublicKey_mbedTLS::public_key_pem();
   }
+
+  std::vector<uint8_t> RSAKeyPair_mbedTLS::public_key_der() const
+  {
+    return PublicKey_mbedTLS::public_key_der();
+  }
 }

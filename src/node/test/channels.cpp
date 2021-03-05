@@ -30,9 +30,13 @@ using namespace ccf;
 static constexpr auto msg_size = 64;
 using MsgType = std::array<uint8_t, msg_size>;
 
+static NodeId self = std::string("self");
+static NodeId peer = std::string("peer");
+
 template <typename T>
 struct NodeOutboundMsg
 {
+  NodeId from;
   NodeMsgType type;
   T authenticated_hdr;
   std::vector<uint8_t> payload;
@@ -49,11 +53,13 @@ auto read_outbound_msgs(ringbuffer::Circuit& circuit)
       {
         case node_outbound:
         {
-          serialized::read<NodeId>(data, size); // Ignore destination node id
+          serialized::read<NodeId::Value>(
+            data, size); // Ignore destination node id
           auto msg_type = serialized::read<NodeMsgType>(data, size);
+          NodeId from = serialized::read<NodeId::Value>(data, size);
           auto aad = serialized::read<T>(data, size);
           auto payload = serialized::read(data, size, size);
-          msgs.push_back(NodeOutboundMsg<T>{msg_type, aad, payload});
+          msgs.push_back(NodeOutboundMsg<T>{from, msg_type, aad, payload});
           break;
         }
         case add_node:
@@ -109,8 +115,8 @@ auto read_node_msgs(ringbuffer::Circuit& circuit)
 TEST_CASE("Client/Server key exchange")
 {
   auto network_kp = crypto::make_key_pair();
-  auto channel1 = Channel(wf1, network_kp, 1, 2);
-  auto channel2 = Channel(wf2, network_kp, 2, 1);
+  auto channel1 = Channel(wf1, network_kp, self, peer);
+  auto channel2 = Channel(wf2, network_kp, peer, self);
 
   MsgType msg;
   msg.fill(0x42);
@@ -251,8 +257,8 @@ TEST_CASE("Client/Server key exchange")
 TEST_CASE("Replay and out-of-order")
 {
   auto network_kp = crypto::make_key_pair();
-  auto channel1 = Channel(wf1, network_kp, 1, 2);
-  auto channel2 = Channel(wf2, network_kp, 2, 1);
+  auto channel1 = Channel(wf1, network_kp, self, peer);
+  auto channel2 = Channel(wf2, network_kp, peer, self);
 
   MsgType msg;
   msg.fill(0x42);
@@ -277,6 +283,7 @@ TEST_CASE("Replay and out-of-order")
     auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
     REQUIRE(outbound_msgs.size() == 1);
     first_msg = outbound_msgs[0];
+    REQUIRE(first_msg.from == self);
     auto msg_copy = first_msg;
     first_msg_copy = first_msg;
     const auto* data_ = first_msg.payload.data();
@@ -333,26 +340,24 @@ TEST_CASE("Replay and out-of-order")
 
 TEST_CASE("Host connections")
 {
-  NodeId self = 1;
   auto network_kp = crypto::make_key_pair();
   auto channel_manager =
     ChannelManager(wf1, network_kp->private_key_pem(), self);
-  NodeId peer_id = 2;
 
   INFO("New channel creates host connection");
   {
-    channel_manager.create_channel(peer_id, "hostname", "port");
+    channel_manager.create_channel(peer, "hostname", "port");
     auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 1);
     REQUIRE(remove_node_msgs.size() == 0);
-    REQUIRE(std::get<0>(add_node_msgs[0]) == peer_id);
+    REQUIRE(std::get<0>(add_node_msgs[0]) == peer);
     REQUIRE(std::get<1>(add_node_msgs[0]) == "hostname");
     REQUIRE(std::get<2>(add_node_msgs[0]) == "port");
   }
 
   INFO("Retrieving unknown channel does not create host connection");
   {
-    NodeId unknown_peer_id = 3;
+    NodeId unknown_peer_id = std::string("unknown_peer");
     channel_manager.get(unknown_peer_id);
     auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 0);
@@ -361,7 +366,7 @@ TEST_CASE("Host connections")
 
   INFO("Destroying channel closes host connection");
   {
-    channel_manager.destroy_channel(peer_id);
+    channel_manager.destroy_channel(peer);
     auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 0);
     REQUIRE(remove_node_msgs.size() == 1);

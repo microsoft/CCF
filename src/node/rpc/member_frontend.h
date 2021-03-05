@@ -1909,20 +1909,13 @@ namespace ccf
         // recovery member is added before the service is opened.
         g.init_configuration(in.configuration);
 
-        size_t self = g.add_node({in.node_info_network,
-                                  in.node_cert,
-                                  {in.quote_info},
-                                  in.public_encryption_key,
-                                  NodeStatus::TRUSTED});
-
-        LOG_INFO_FMT("Create node id: {}", self);
-        if (self != 0)
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Starting node ID is not 0.");
-        }
+        g.add_node(
+          in.node_id,
+          {in.node_info_network,
+           in.node_cert,
+           {in.quote_info},
+           in.public_encryption_key,
+           NodeStatus::TRUSTED});
 
 #ifdef GET_QUOTE
         CodeDigest node_code_id;
@@ -1963,8 +1956,17 @@ namespace ccf
         }
 
         auto primary_id = consensus->primary();
+        if (!primary_id.has_value())
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: primary unknown");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Primary is unknown");
+        }
+
         auto nodes = ctx.tx.ro(this->network.nodes);
-        auto info = nodes->get(primary_id);
+        auto info = nodes->get(primary_id.value());
         if (!info.has_value())
         {
           LOG_FAIL_FMT(

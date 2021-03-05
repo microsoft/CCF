@@ -22,6 +22,7 @@ namespace crypto
 
     virtual Pem private_key_pem() const = 0;
     virtual Pem public_key_pem() const = 0;
+    virtual std::vector<uint8_t> public_key_der() const = 0;
 
     virtual bool verify(
       const std::vector<uint8_t>& contents,

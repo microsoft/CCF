@@ -14,13 +14,13 @@ namespace aft
   class LedgerStubProxy
   {
   private:
-    NodeId _id;
+    ccf::NodeId _id;
 
   public:
     std::vector<std::shared_ptr<std::vector<uint8_t>>> ledger;
     uint64_t skip_count = 0;
 
-    LedgerStubProxy(NodeId id) : _id(id) {}
+    LedgerStubProxy(const ccf::NodeId& id) : _id(id) {}
 
     void put_entry(
       const std::vector<uint8_t>& data,
@@ -72,30 +72,30 @@ namespace aft
   {
   public:
     // Capture what is being sent out
-    std::list<std::pair<NodeId, RequestVote>> sent_request_vote;
-    std::list<std::pair<NodeId, AppendEntries>> sent_append_entries;
-    std::list<std::pair<NodeId, RequestVoteResponse>>
+    std::list<std::pair<ccf::NodeId, RequestVote>> sent_request_vote;
+    std::list<std::pair<ccf::NodeId, AppendEntries>> sent_append_entries;
+    std::list<std::pair<ccf::NodeId, RequestVoteResponse>>
       sent_request_vote_response;
-    std::list<std::pair<NodeId, AppendEntriesResponse>>
+    std::list<std::pair<ccf::NodeId, AppendEntriesResponse>>
       sent_append_entries_response;
 
     ChannelStubProxy() {}
 
     void create_channel(
-      NodeId peer_id,
+      const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
       const std::string& peer_service) override
     {}
 
-    void destroy_channel(NodeId peer_id) override {}
+    void destroy_channel(const ccf::NodeId& peer_id) override {}
 
     void destroy_all_channels() override {}
 
     void close_all_outgoing() override {}
 
     bool send_authenticated(
-      const ccf::NodeMsgType& msg_type,
-      NodeId to,
+      const ccf::NodeId& to,
+      ccf::NodeMsgType msg_type,
       const uint8_t* data,
       size_t size) override
     {
@@ -131,32 +131,40 @@ namespace aft
     }
 
     bool recv_authenticated(
-      NodeId from_node, CBuffer cb, const uint8_t*& data, size_t& size) override
+      const ccf::NodeId& from_node,
+      CBuffer cb,
+      const uint8_t*& data,
+      size_t& size) override
     {
       return true;
     }
 
-    void recv_message(OArray&& oa) override {}
+    void recv_message(const ccf::NodeId& from, OArray&& oa) override {}
 
-    void initialize(NodeId self_id, const crypto::Pem& network_pkey) override {}
+    void initialize(
+      const ccf::NodeId& self_id, const crypto::Pem& network_pkey) override
+    {}
 
     bool send_encrypted(
-      const ccf::NodeMsgType& msg_type,
+      const ccf::NodeId& to,
+      ccf::NodeMsgType msg_type,
       CBuffer cb,
-      NodeId to,
       const std::vector<uint8_t>& data) override
     {
       return true;
     }
 
     std::vector<uint8_t> recv_encrypted(
-      NodeId from_node, CBuffer cb, const uint8_t* data, size_t size) override
+      const ccf::NodeId& fromfpf32,
+      CBuffer cb,
+      const uint8_t* data,
+      size_t size) override
     {
       return {};
     }
 
     bool recv_authenticated_with_load(
-      NodeId from_node, const uint8_t*& data, size_t& size) override
+      const ccf::NodeId& from, const uint8_t*& data, size_t& size) override
     {
       return true;
     }
@@ -165,10 +173,10 @@ namespace aft
   class LoggingStubStore
   {
   private:
-    aft::NodeId _id;
+    ccf::NodeId _id;
 
   public:
-    LoggingStubStore(aft::NodeId id) : _id(id) {}
+    LoggingStubStore(ccf::NodeId id) : _id(id) {}
 
     virtual void compact(Index i)
     {
@@ -294,7 +302,7 @@ namespace aft
   class LoggingStubStoreSig : public LoggingStubStore
   {
   public:
-    LoggingStubStoreSig(aft::NodeId id) : LoggingStubStore(id) {}
+    LoggingStubStoreSig(ccf::NodeId id) : LoggingStubStore(id) {}
 
     kv::ApplyResult apply(
       const std::vector<uint8_t>& data,
