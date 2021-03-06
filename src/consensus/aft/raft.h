@@ -1416,7 +1416,7 @@ namespace aft
           state->last_idx = i - 1;
           ledger->truncate(state->last_idx);
           send_append_entries_response(
-            msg->data.from, AppendEntriesResponseType::FAIL);
+            from, AppendEntriesResponseType::FAIL);
           return;
         }
 
