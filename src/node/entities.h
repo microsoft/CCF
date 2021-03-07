@@ -14,15 +14,14 @@ namespace ccf
   using ObjectId = std::string;
 
   // constexpr ObjectId INVALID_ID = (std::numeric_limits<ObjectId>::max)();
-  static ObjectId INVALID_ID = ""; // TODO: Remove
+  // static ObjectId INVALID_ID = ""; // TODO: Remove
 
   using Index = int64_t;
   using Node2NodeMsg = uint64_t;
 
-  // using MemberId = ObjectId;
-  using MemberId = std::string;
-  using UserId = std::string;
   using CallerId = std::string;
+  using MemberId = CallerId;
+  using UserId = CallerId;
 
   using Cert = std::vector<uint8_t>;
 

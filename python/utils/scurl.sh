@@ -45,7 +45,7 @@ for item in "$@" ; do
     fi
     if [ "$next_is_signing_cert" == true ]; then
         signing_cert=$item
-        next_is_signing_privk=false
+        next_is_signing_cert=false
         continue
     fi
     if [ "$item" == "--url" ]; then

@@ -280,12 +280,12 @@ def new_user(user_cert_path: str, user_data: Any = None, **kwargs):
 
 
 @cli_proposal
-def remove_user(user_id: int, **kwargs):
+def remove_user(user_id: str, **kwargs):
     return build_proposal("remove_user", user_id, **kwargs)
 
 
 @cli_proposal
-def set_user_data(user_id: int, user_data: Any, **kwargs):
+def set_user_data(user_id: str, user_data: Any, **kwargs):
     proposal_args = {"user_id": user_id, "user_data": user_data}
     return build_proposal("set_user_data", proposal_args, **kwargs)
 

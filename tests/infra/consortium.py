@@ -62,9 +62,9 @@ class Consortium:
                     {
                         "text": """tables = ...
                         non_retired_members = {}
-                        tables["public:ccf.gov.members.info"]:foreach(function(member_id, info)
+                        tables["public:ccf.gov.members.info"]:foreach(function(service_id, info)
                         if info["status"] ~= "RETIRED" then
-                            table.insert(non_retired_members, {member_id, info})
+                            table.insert(non_retired_members, {service_id, info})
                         end
                         end)
                         return non_retired_members
@@ -208,19 +208,15 @@ class Consortium:
         else:
             return random.choice(self.get_active_members())
 
-    def get_member_by_local_id(self, local_member_id):
+    def get_member_by_local_id(self, local_id):
         return next(
-            (
-                member
-                for member in self.members
-                if member.local_member_id == local_member_id
-            ),
+            (member for member in self.members if member.local_id == local_id),
             None,
         )
 
-    def get_member_by_service_id(self, member_id):
+    def get_member_by_service_id(self, service_id):
         return next(
-            (member for member in self.members if member.member_id == member_id),
+            (member for member in self.members if member.service_id == service_id),
             None,
         )
 
@@ -326,7 +322,7 @@ class Consortium:
 
     def retire_member(self, remote_node, member_to_retire):
         proposal_body, careful_vote = self.make_proposal(
-            "retire_member", member_to_retire.member_id
+            "retire_member", member_to_retire.service_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -387,10 +383,10 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_member_data(self, remote_node, member_id, member_data):
+    def set_member_data(self, remote_node, service_id, member_data):
         proposal, careful_vote = self.make_proposal(
             "set_member_data",
-            member_id,
+            service_id,
             member_data,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal)

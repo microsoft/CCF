@@ -33,5 +33,7 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(BackupSignatures);
   DECLARE_JSON_REQUIRED_FIELDS(BackupSignatures, view, seqno, root, signatures)
-  using BackupSignaturesMap = kv::Map<ObjectId, BackupSignatures>;
+
+  // Always recorded at key `0`
+  using BackupSignaturesMap = kv::Map<size_t, BackupSignatures>;
 }

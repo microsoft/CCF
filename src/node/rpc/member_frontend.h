@@ -1833,15 +1833,21 @@ namespace ccf
                                      EndpointContext& ctx,
                                      nlohmann::json&& params) {
         // Only active members can submit their shares for recovery
-        // const auto member_id = get_caller_member_id(ctx);
-        // if (!check_member_active(ctx.tx, member_id))
-        // {
-        //   return make_error(
-        //     HTTP_STATUS_FORBIDDEN,
-        //     errors::AuthorizationFailed,
-        //     "Member is not active");
-        // }
-        MemberId member_id = "";
+        const auto member_id = get_caller_member_id(ctx);
+        if (!member_id.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is unknown.");
+        }
+        if (!check_member_active(ctx.tx, member_id.value()))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            errors::AuthorizationFailed,
+            "Member is not active");
+        }
 
         GenesisGenerator g(this->network, ctx.tx);
         if (
@@ -1868,7 +1874,7 @@ namespace ccf
         try
         {
           submitted_shares_count = share_manager.submit_recovery_share(
-            ctx.tx, member_id, raw_recovery_share);
+            ctx.tx, member_id.value(), raw_recovery_share);
         }
         catch (const std::exception& e)
         {

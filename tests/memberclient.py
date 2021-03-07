@@ -18,7 +18,7 @@ from loguru import logger as LOG
 def test_missing_signature_header(network, args):
     node = network.find_node_by_role()
     member = network.consortium.get_any_active_member()
-    with node.client(f"member{member.local_member_id}") as mc:
+    with node.client(f"member{member.local_id}") as mc:
         r = mc.post("/gov/proposals")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         www_auth = "www-authenticate"

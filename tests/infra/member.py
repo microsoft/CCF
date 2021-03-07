@@ -36,7 +36,7 @@ class MemberInfo(NamedTuple):
 class Member:
     def __init__(
         self,
-        local_member_id,
+        local_id,
         curve,
         common_dir,
         share_script,
@@ -46,7 +46,7 @@ class Member:
         authenticate_session=True,
     ):
         self.common_dir = common_dir
-        self.local_member_id = local_member_id
+        self.local_id = local_id
         self.status_code = MemberStatus.ACCEPTED
         self.share_script = share_script
         self.member_data = member_data
@@ -54,15 +54,13 @@ class Member:
         self.authenticate_session = authenticate_session
 
         self.member_info = MemberInfo(
-            f"member{self.local_member_id}_cert.pem",
-            f"member{self.local_member_id}_enc_pubk.pem"
-            if is_recovery_member
-            else None,
-            f"member{self.local_member_id}_data.json" if member_data else None,
+            f"member{self.local_id}_cert.pem",
+            f"member{self.local_id}_enc_pubk.pem" if is_recovery_member else None,
+            f"member{self.local_id}_data.json" if member_data else None,
         )
 
         if key_generator is not None:
-            member = f"member{local_member_id}"
+            member = f"member{local_id}"
 
             key_generator_args = [
                 "--name",
@@ -86,7 +84,7 @@ class Member:
             # If no key generator is passed in, the identity of the member
             # should have been created in advance (e.g. by a previous network)
             assert os.path.isfile(
-                os.path.join(self.common_dir, f"member{self.local_member_id}_privk.pem")
+                os.path.join(self.common_dir, f"member{self.local_id}_privk.pem")
             )
             assert os.path.isfile(
                 os.path.join(self.common_dir, self.member_info.certificate_file)
@@ -101,21 +99,21 @@ class Member:
         with open(
             os.path.join(self.common_dir, self.member_info.certificate_file)
         ) as c:
-            self.member_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
+            self.service_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
 
-        LOG.info(f"Member {self.local_member_id} created: {self.member_id}")
+        LOG.info(f"Member {self.local_id} created: {self.service_id}")
 
     def auth(self, write=False):
         if self.authenticate_session:
             if write:
                 return (
-                    f"member{self.local_member_id}",
-                    f"member{self.local_member_id}",
+                    f"member{self.local_id}",
+                    f"member{self.local_id}",
                 )
             else:
-                return (f"member{self.local_member_id}", None)
+                return (f"member{self.local_id}", None)
         else:
-            return (None, f"member{self.local_member_id}")
+            return (None, f"member{self.local_id}")
 
     def is_active(self):
         return self.status_code == MemberStatus.ACTIVE
@@ -131,7 +129,7 @@ class Member:
                 raise infra.proposal.ProposalNotCreated(r)
 
             return infra.proposal.Proposal(
-                proposer_id=self.local_member_id,
+                proposer_id=self.local_id,
                 proposal_id=r.body.json()["proposal_id"],
                 state=infra.proposal.ProposalState(r.body.json()["state"]),
                 view=r.view,
@@ -169,9 +167,7 @@ class Member:
 
     def get_and_decrypt_recovery_share(self, remote_node):
         if not self.is_recovery_member:
-            raise ValueError(
-                f"Member {self.local_member_id} does not have a recovery share"
-            )
+            raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
         with remote_node.client(*self.auth()) as mc:
             r = mc.get("/gov/recovery_share")
@@ -179,9 +175,7 @@ class Member:
                 raise NoRecoveryShareFound(r)
 
             with open(
-                os.path.join(
-                    self.common_dir, f"member{self.local_member_id}_enc_privk.pem"
-                ),
+                os.path.join(self.common_dir, f"member{self.local_id}_enc_privk.pem"),
                 "r",
             ) as priv_enc_key:
                 return infra.crypto.unwrap_key_rsa_oaep(
@@ -191,21 +185,17 @@ class Member:
 
     def get_and_submit_recovery_share(self, remote_node):
         if not self.is_recovery_member:
-            raise ValueError(
-                f"Member {self.local_member_id} does not have a recovery share"
-            )
+            raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
         res = infra.proc.ccall(
             self.share_script,
             f"https://{remote_node.pubhost}:{remote_node.pubport}",
             "--member-enc-privk",
-            os.path.join(
-                self.common_dir, f"member{self.local_member_id}_enc_privk.pem"
-            ),
+            os.path.join(self.common_dir, f"member{self.local_id}_enc_privk.pem"),
             "--cert",
-            os.path.join(self.common_dir, f"member{self.local_member_id}_cert.pem"),
+            os.path.join(self.common_dir, f"member{self.local_id}_cert.pem"),
             "--key",
-            os.path.join(self.common_dir, f"member{self.local_member_id}_privk.pem"),
+            os.path.join(self.common_dir, f"member{self.local_id}_privk.pem"),
             "--cacert",
             os.path.join(self.common_dir, "networkcert.pem"),
             log_output=True,

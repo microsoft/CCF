@@ -1113,9 +1113,6 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
 
     auto tx1 = network.tables->create_tx();
-    const auto uid = tx1.rw(network.values)->get(ValueIds::NEXT_USER_ID);
-    DOCTEST_CHECK(uid);
-    DOCTEST_CHECK(*uid == 1);
     user_der = crypto::make_verifier(user_cert)->cert_der();
     const auto uid1 = tx1.rw(network.user_certs)->get(user_der);
     DOCTEST_CHECK(uid1);
@@ -1183,7 +1180,7 @@ DOCTEST_TEST_CASE(
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, crypto::Pem> members;
+  std::map<MemberId, crypto::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert(i, kp);
@@ -1322,7 +1319,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, crypto::Pem> members;
+  std::map<MemberId, crypto::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert(i, kp);
@@ -1504,7 +1501,7 @@ DOCTEST_TEST_CASE(
   gen.activate_member(proposer_id);
 
   // Non-operating members
-  std::map<size_t, crypto::Pem> members;
+  std::map<MemberId, crypto::Pem> members;
   for (size_t i = 1; i < 3; i++)
   {
     auto cert = get_cert(i, kp);
@@ -1566,8 +1563,8 @@ DOCTEST_TEST_CASE(
     check_result_state(r, ProposalState::OPEN);
   }
 
-  size_t first_voter_id = 1;
-  size_t second_voter_id = 2;
+  size_t first_voter_id = members.begin()->second;
+  size_t second_voter_id = std::next(members.begin)->second;
 
   {
     DOCTEST_INFO("First member votes for proposal");
@@ -1762,12 +1759,12 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   ShareManager share_manager(network);
   StubRecoverableNodeState node(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
-  std::map<size_t, std::pair<crypto::Pem, crypto::RSAKeyPairPtr>> members;
+  std::map<MemberId, std::pair<crypto::Pem, crypto::RSAKeyPairPtr>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 2;
   DOCTEST_REQUIRE(recovery_threshold <= members_count);
-  std::map<size_t, std::vector<uint8_t>> retrieved_shares;
+  std::map<MemberId, std::vector<uint8_t>> retrieved_shares;
 
   DOCTEST_INFO("Setup state");
   {
@@ -1921,7 +1918,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  std::map<size_t, crypto::Pem> members;
+  std::map<MemberId, crypto::Pem> members;
 
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
@@ -1985,7 +1982,7 @@ DOCTEST_TEST_CASE("Open network sequence")
   ShareManager share_manager(network);
   StubNodeState node;
   MemberRpcFrontend frontend(network, node, share_manager);
-  std::map<size_t, std::pair<crypto::Pem, std::vector<uint8_t>>> members;
+  std::map<MemberId, std::pair<crypto::Pem, std::vector<uint8_t>>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 100;

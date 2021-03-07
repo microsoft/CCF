@@ -24,15 +24,15 @@ def count_governance_operations(ledger):
             tables = tr.get_public_domain().get_tables()
             if "public:ccf.internal.members.certs_der" in tables:
                 members_table = tables["public:ccf.internal.members.certs_der"]
-                for cert, member_id in members_table.items():
+                for cert, service_id in members_table.items():
                     cert_unpacked = ccf.ledger.extract_msgpacked_data(cert)
-                    member_id_unpacked = ccf.ledger.extract_msgpacked_data(member_id)
+                    member_id_unpacked = ccf.ledger.extract_msgpacked_data(service_id)
                     members[member_id_unpacked] = cert_unpacked
 
             if "public:ccf.gov.history" in tables:
                 governance_history_table = tables["public:ccf.gov.history"]
-                for member_id, signed_request in governance_history_table.items():
-                    member_id_unpacked = ccf.ledger.extract_msgpacked_data(member_id)
+                for service_id, signed_request in governance_history_table.items():
+                    member_id_unpacked = ccf.ledger.extract_msgpacked_data(service_id)
                     signed_request_unpacked = ccf.ledger.extract_msgpacked_data(
                         signed_request
                     )

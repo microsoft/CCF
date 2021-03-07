@@ -4,7 +4,7 @@
       "CallerInfo": {
         "properties": {
           "caller_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
@@ -175,7 +175,7 @@
             "$ref": "#/components/schemas/json"
           },
           "proposer": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/string"
           },
           "script": {
             "$ref": "#/components/schemas/Script"
@@ -184,7 +184,7 @@
             "$ref": "#/components/schemas/ProposalState"
           },
           "votes": {
-            "$ref": "#/components/schemas/uint64_to_Script"
+            "$ref": "#/components/schemas/named_Script"
           }
         },
         "required": [
@@ -202,7 +202,7 @@
             "$ref": "#/components/schemas/string"
           },
           "proposer_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/string"
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
@@ -334,6 +334,12 @@
         "type": "integer"
       },
       "json": {},
+      "named_Script": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Script"
+        },
+        "type": "object"
+      },
       "string": {
         "type": "string"
       },
@@ -341,24 +347,6 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
-      },
-      "uint64_to_Script": {
-        "items": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/uint64"
-              },
-              {
-                "$ref": "#/components/schemas/Script"
-              }
-            ]
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
-        },
-        "type": "array"
       },
       "uint8": {
         "maximum": 255,

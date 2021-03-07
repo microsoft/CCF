@@ -87,19 +87,19 @@ def test_user(network, args, verify=True):
     # Note: This test should not be chained in the test suite as it creates
     # a new user and uses its own LoggingTxs
     primary, _ = network.find_nodes()
-    new_user_id = 3
-    network.create_user(new_user_id, args.participants_curve)
+    new_user_local_id = 3
+    new_user = network.create_user(new_user_local_id, args.participants_curve)
     user_data = {"lifetime": "temporary"}
-    network.consortium.add_user(primary, new_user_id, user_data)
-    txs = app.LoggingTxs(user_id=new_user_id)
+    network.consortium.add_user(primary, new_user.local_id, user_data)
+    txs = app.LoggingTxs(user_id=new_user.local_id)
     txs.issue(
         network=network,
         number_txs=1,
     )
     if verify:
         txs.verify()
-    network.consortium.remove_user(primary, new_user_id)
-    with primary.client(f"user{new_user_id}") as c:
+    network.consortium.remove_user(primary, new_user.service_id)
+    with primary.client(f"user{new_user_local_id}") as c:
         r = c.get("/app/log/private")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value
     return network
@@ -135,12 +135,11 @@ def test_member_data(network, args):
         for member in network.get_members():
             if member.member_data:
                 assert (
-                    member_info(member.local_member_id)["member_data"]
-                    == member.member_data
+                    member_info(member.service_id)["member_data"] == member.member_data
                 )
                 md_count += 1
             else:
-                assert "member_data" not in member_info(member.local_member_id)
+                assert "member_data" not in member_info(member.service_id)
         assert md_count == args.initial_operator_count
 
     return network
@@ -149,13 +148,16 @@ def test_member_data(network, args):
 @reqs.description("Check caller_id")
 def test_caller_id(network, args):
     primary, _ = network.find_nodes()
+    target_user = network.users[1]
     with primary.client("user0") as uc:
-        with open(network.consortium.user_cert_path(1), "r") as ucert:
+        with open(
+            network.consortium.user_cert_path(target_user.local_id), "r"
+        ) as ucert:
             pem = ucert.read()
         json_pem = json.dumps(pem)
         r = uc.get(f"/app/caller_id?cert={urllib.parse.quote_plus(json_pem)}")
         assert r.status_code == http.HTTPStatus.OK.value
-        assert r.body.json()["caller_id"] == 1
+        assert r.body.json()["caller_id"] == target_user.service_id
     return network
 
 

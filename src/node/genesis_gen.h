@@ -99,7 +99,7 @@ namespace ccf
       return active_members_info;
     }
 
-    void add_member(const MemberPubInfo& member_pub_info)
+    MemberId add_member(const MemberPubInfo& member_pub_info)
     {
       auto m = tx.rw(tables.members);
       auto mc = tx.rw(tables.member_certs);
@@ -131,10 +131,11 @@ namespace ccf
         ma->put(id, MemberAck(s->root));
       }
 
-      LOG_FAIL_FMT("Added member {}", id);
+      LOG_FAIL_FMT("Added member {}", id); // TODO: Delete
+      return id;
     }
 
-    void activate_member(MemberId member_id)
+    void activate_member(const MemberId& member_id)
     {
       auto members = tx.rw(tables.members);
       auto member = members->get(member_id);
@@ -219,7 +220,7 @@ namespace ccf
       return member.value();
     }
 
-    void add_user(const ccf::UserInfo& user_info)
+    UserId add_user(const ccf::UserInfo& user_info)
     {
       auto u = tx.rw(tables.users);
       auto uc = tx.rw(tables.user_certs);
@@ -237,6 +238,8 @@ namespace ccf
       auto id = crypto::Sha256Hash(user_cert_der).hex_str();
       u->put(id, user_info);
       uc->put(user_cert_der, id);
+
+      return id;
     }
 
     bool remove_user(UserId user_id)

@@ -17,7 +17,6 @@ from cryptography.hazmat.primitives import hashes
 import struct
 import base64
 import re
-import hashlib
 from typing import Union, Optional, List, Any
 
 import requests
@@ -350,7 +349,6 @@ class CurlClient:
                 LOG.error(rc.stderr)
                 raise RuntimeError(f"Curl failed with return code {rc.returncode}")
 
-            LOG.error(rc.stderr)  # TODO: Delete
             return Response.from_raw(rc.stdout)
 
 

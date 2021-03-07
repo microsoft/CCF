@@ -58,7 +58,7 @@ def test_cert_store(network, args):
         network.consortium.set_ca_cert_bundle(primary, cert_name, cert_pem_fp.name)
 
     with primary.client(
-        f"member{network.consortium.get_any_active_member().local_member_id}"
+        f"member{network.consortium.get_any_active_member().local_id}"
     ) as c:
         r = c.post(
             "/gov/read",
@@ -75,7 +75,7 @@ def test_cert_store(network, args):
     network.consortium.remove_ca_cert_bundle(primary, cert_name)
 
     with primary.client(
-        f"member{network.consortium.get_any_active_member().local_member_id}"
+        f"member{network.consortium.get_any_active_member().local_id}"
     ) as c:
         r = c.post(
             "/gov/read",

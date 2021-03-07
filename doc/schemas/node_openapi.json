@@ -4,7 +4,7 @@
       "CallerInfo": {
         "properties": {
           "caller_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [

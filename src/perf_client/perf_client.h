@@ -7,6 +7,7 @@
 
 // CCF
 #include "clients/rpc_tls_client.h"
+#include "crypto/verifier.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
