@@ -367,14 +367,13 @@ if(BUILD_TESTS)
     )
     target_link_libraries(http_test PRIVATE http_parser.host)
 
-    # add_unit_test(
-    #   frontend_test
-    #   ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-    # )
-    # target_link_libraries(
-    #   frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host
-    #                         sss.host
-    # )
+    add_unit_test(
+      frontend_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
+    )
+    target_link_libraries(
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host sss.host
+    )
 
     add_unit_test(
       tx_status_test

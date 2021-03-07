@@ -282,7 +282,7 @@ class RpcContextRecorder
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
   crypto::Pem last_caller_cert;
-  CallerId last_caller_id = INVALID_ID;
+  std::optional<CallerId> last_caller_id = std::nullopt;
 
   void record_ctx(EndpointContext& ctx)
   {
@@ -298,7 +298,7 @@ public:
     }
     else
     {
-      last_caller_id = INVALID_ID;
+      last_caller_id.reset();
     }
   }
 };
@@ -460,11 +460,10 @@ auto member_session = make_shared<enclave::SessionContext>(
 auto anonymous_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, anonymous_caller_der);
 
-UserId user_id = INVALID_ID;
-UserId invalid_user_id = INVALID_ID;
+UserId user_id;
 
-MemberId member_id = INVALID_ID;
-MemberId invalid_member_id = INVALID_ID;
+MemberId member_id;
+MemberId invalid_member_id;
 
 void prepare_callers(NetworkState& network)
 {
@@ -1337,7 +1336,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(node_frontend_primary.last_caller_cert == node_caller);
-  CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
+  CHECK(!node_frontend_primary.last_caller_id.has_value());
 }
 
 TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
@@ -1379,7 +1378,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(user_frontend_primary.last_caller_cert == user_caller);
-  CHECK(user_frontend_primary.last_caller_id == 0);
+  CHECK(user_frontend_primary.last_caller_id.value() == user_id);
 }
 
 TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
@@ -1425,7 +1424,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(member_frontend_primary.last_caller_cert == member_caller);
-  CHECK(member_frontend_primary.last_caller_id == 0);
+  CHECK(member_frontend_primary.last_caller_id.value() == member_id);
 }
 
 class TestConflictFrontend : public BaseTestFrontend
