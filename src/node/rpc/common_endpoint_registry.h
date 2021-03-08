@@ -286,11 +286,10 @@ namespace ccf
         const auto [pack, params] =
           ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
-        // const auto in = params.get<GetReceipt::In>();
-        nlohmann::json r;
-        to_json(r, *historical_state->receipt);
+        GetReceipt::Out out;
+        out.from_receipt(historical_state->receipt);
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ccf::jsonhandler::set_response(r, args.rpc_ctx, pack);
+        ccf::jsonhandler::set_response(out, args.rpc_ctx, pack);
       };
 
       make_endpoint(
@@ -302,7 +301,9 @@ namespace ccf
           is_tx_committed,
           txid_from_query_string),
         no_auth_required)
-        .set_forwarding_required(ccf::ForwardingRequired::Never)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .set_auto_schema<GetReceipt>()
         .install();
     }
   };

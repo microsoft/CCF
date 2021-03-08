@@ -113,6 +113,50 @@
         ],
         "type": "object"
       },
+      "GetReceipt__Node": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/string"
+          },
+          "right": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "GetReceipt__Node_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetReceipt__Node"
+        },
+        "type": "array"
+      },
+      "GetReceipt__Out": {
+        "properties": {
+          "leaf": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/NodeId"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/GetReceipt__Node_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "signature",
+          "root",
+          "proof",
+          "leaf",
+          "node_id"
+        ],
+        "type": "object"
+      },
       "GetTxStatus__Out": {
         "properties": {
           "seqno": {
@@ -207,7 +251,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/NodeId"
           },
           "proof": {
             "$ref": "#/components/schemas/json_array"
@@ -254,6 +298,10 @@
           "msg"
         ],
         "type": "object"
+      },
+      "NodeId": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
       },
       "Report": {
         "properties": {
@@ -948,8 +996,25 @@
     },
     "/receipt": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetReceipt__Out"
+                }
+              }
+            },
             "description": "Default response description"
           }
         }

@@ -198,6 +198,50 @@
         ],
         "type": "object"
       },
+      "GetReceipt__Node": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/string"
+          },
+          "right": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "GetReceipt__Node_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetReceipt__Node"
+        },
+        "type": "array"
+      },
+      "GetReceipt__Out": {
+        "properties": {
+          "leaf": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/NodeId"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/GetReceipt__Node_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "signature",
+          "root",
+          "proof",
+          "leaf",
+          "node_id"
+        ],
+        "type": "object"
+      },
       "GetState__Out": {
         "properties": {
           "last_recovered_seqno": {
@@ -691,8 +735,25 @@
     },
     "/receipt": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetReceipt__Out"
+                }
+              }
+            },
             "description": "Default response description"
           }
         }
