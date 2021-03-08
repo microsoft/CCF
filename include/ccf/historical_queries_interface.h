@@ -5,7 +5,6 @@
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
 #include "node/history.h"
-#include "tls/base64.h"
 
 #include <chrono>
 #include <memory>

@@ -7,7 +7,6 @@
 #include "node/quote.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
-#include "tls/base64.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY

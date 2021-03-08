@@ -171,7 +171,7 @@ namespace ccf
           {
             n.right = node.hash.to_string();
           }
-          proof.push_back(std::move(n));
+          proof.emplace_back(std::move(n));
         }
         leaf = r->path->leaf().to_string();
         node_id = r->node_id;
