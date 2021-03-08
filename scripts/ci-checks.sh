@@ -12,6 +12,8 @@ fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+PYTHON=python3.8
+
 echo "Shell scripts"
 git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091,SC2181
 
@@ -38,7 +40,7 @@ echo "OpenAPI"
 find doc/schemas/*.json -exec npx swagger-cli validate {} \;
 
 echo "Copyright notice headers"
-python3.8 "$SCRIPT_DIR"/notice-check.py
+$PYTHON "$SCRIPT_DIR"/notice-check.py
 
 echo "CMake format"
 if [ $FIX -ne 0 ]; then
@@ -50,7 +52,7 @@ fi
 # Virtual Environment w/ dependencies for Python steps
 if [ ! -f "scripts/env/bin/activate" ]
     then
-        python3.8 -m venv scripts/env
+        $PYTHON -m venv scripts/env
 fi
 
 source scripts/env/bin/activate
@@ -68,7 +70,7 @@ pip --disable-pip-version-check install -U -r tests/requirements.txt 1>/dev/null
 pip --disable-pip-version-check install -U -r python/requirements.txt 1>/dev/null
 
 echo "Python lint"
-git ls-files tests/ python/ | grep -e '\.py$' | xargs python -m pylint
+git ls-files tests/ python/ | grep -e '\.py$' | xargs $PYTHON -m pylint
 
 echo "Python types"
 git ls-files python/ | grep -e '\.py$' | xargs mypy
