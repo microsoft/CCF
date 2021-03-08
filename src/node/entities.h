@@ -12,15 +12,8 @@
 
 namespace ccf
 {
-  // using ObjectId = uint64_t;
-  // using ObjectId = std::string;
-
   using Index = int64_t;
   using Node2NodeMsg = uint64_t;
-
-  // using CallerId = std::string;
-  // using MemberId = CallerId;
-  // using UserId = CallerId;
 
   using Cert = std::vector<uint8_t>;
 

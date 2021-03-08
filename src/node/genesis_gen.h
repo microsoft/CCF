@@ -130,8 +130,6 @@ namespace ccf
       {
         ma->put(id, MemberAck(s->root));
       }
-
-      LOG_FAIL_FMT("Added member {}", id); // TODO: Delete
       return id;
     }
 
