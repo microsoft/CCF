@@ -448,8 +448,8 @@ def test_historical_receipts(network, args):
 
     if args.package == "liblogging":
         node, _ = network.find_primary()
-        cert = os.path.join(node.common_dir, f"{node.local_node_id}.pem")
-        with open(cert) as c:
+        cert_path = os.path.join(node.common_dir, f"{node.local_node_id}.pem")
+        with open(cert_path) as c:
             node_cert = load_pem_x509_certificate(
                 c.read().encode("ascii"), default_backend()
             )
