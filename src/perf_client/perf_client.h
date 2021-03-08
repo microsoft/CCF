@@ -306,7 +306,7 @@ namespace client
         key = crypto::Pem(raw_key);
 
         auto cert_der = crypto::cert_pem_to_der(raw_cert);
-        const auto key_id = crypto::Sha256Hash(cert_der).hex_str();
+        key_id = crypto::Sha256Hash(cert_der).hex_str();
 
         tls_cert = std::make_shared<tls::Cert>(
           std::make_shared<tls::CA>(ca), raw_cert, key);
