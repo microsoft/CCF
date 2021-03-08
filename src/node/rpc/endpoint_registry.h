@@ -962,7 +962,7 @@ namespace ccf
       throw std::logic_error(error_string);
     }
 
-    virtual void tick(std::chrono::milliseconds, kv::Consensus::Statistics) {}
+    virtual void tick(std::chrono::milliseconds, size_t) {}
 
     void set_consensus(kv::Consensus* c)
     {

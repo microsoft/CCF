@@ -49,8 +49,6 @@ namespace metrics
     struct TxStatistics
     {
       uint32_t tx_count = 0;
-      uint32_t cumulative_time = 0;
-      uint32_t time_samples = 0;
     };
     std::array<TxStatistics, 100> times;
 
@@ -87,19 +85,6 @@ namespace metrics
         }
       }
 
-      LOG_INFO << "Printing time series"
-               << ", this:" << (uint64_t)this << std::endl;
-      for (uint32_t i = 0; i < times.size(); ++i)
-      {
-        uint32_t latency = 0;
-        if (times[i].time_samples != 0)
-        {
-          latency = (times[i].cumulative_time / times[i].time_samples);
-        }
-
-        LOG_INFO_FMT("{} - {}, {}", i, times[i].tx_count, latency);
-      }
-
       return result;
     }
 
@@ -110,7 +95,7 @@ namespace metrics
     }
 
     void track_tx_rates(
-      const std::chrono::milliseconds& elapsed, kv::Consensus::Statistics stats)
+      const std::chrono::milliseconds& elapsed, size_t tx_count)
     {
       if (elapsed.count() == 0)
       {
@@ -118,8 +103,8 @@ namespace metrics
       }
 
       // calculate how many tx/sec we have processed in this tick
-      auto duration = elapsed.count() / 1000.0;
-      auto tx_rate = stats.tx_count / duration;
+      double duration = elapsed.count() / 1000.0;
+      double tx_rate = tx_count / duration;
       histogram.record(tx_rate);
       // keep time since beginning
       rate_time_elapsed += elapsed;
@@ -127,7 +112,7 @@ namespace metrics
       {
         if (tick_count < TX_RATE_BUCKETS_LEN)
         {
-          auto rate_duration = rate_time_elapsed.count() / 1000.0;
+          double rate_duration = rate_time_elapsed.count() / 1000.0;
           tx_rates[tick_count] = tx_rate;
           tx_time_passed[tick_count] = rate_duration;
         }
@@ -136,9 +121,7 @@ namespace metrics
       uint32_t bucket = rate_time_elapsed.count() / 1000.0;
       if (bucket < times.size())
       {
-        times[bucket].tx_count += stats.tx_count;
-        times[bucket].cumulative_time += stats.time_spent;
-        times[bucket].time_samples += stats.count_num_samples;
+        times[bucket].tx_count += tx_count;
       }
     }
   };

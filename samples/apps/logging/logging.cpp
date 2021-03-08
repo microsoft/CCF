@@ -4,7 +4,6 @@
 #include "formatters.h"
 #include "logging_schema.h"
 #include "node/historical_queries_adapter.h"
-#include "node/quote.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
 
@@ -840,11 +839,11 @@ namespace loggingapp
 
     void tick(
       std::chrono::milliseconds elapsed,
-      kv::Consensus::Statistics stats) override
+      size_t tx_count) override
     {
-      metrics_tracker.tick(elapsed, stats);
+      metrics_tracker.tick(elapsed, tx_count);
 
-      ccf::UserEndpointRegistry::tick(elapsed, stats);
+      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
 

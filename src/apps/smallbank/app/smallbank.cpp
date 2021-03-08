@@ -454,11 +454,11 @@ namespace ccfapp
 
     void tick(
       std::chrono::milliseconds elapsed,
-      kv::Consensus::Statistics stats) override
+      size_t tx_count) override
     {
-      metrics_tracker.tick(elapsed, stats);
+      metrics_tracker.tick(elapsed, tx_count);
 
-      ccf::UserEndpointRegistry::tick(elapsed, stats);
+      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
 

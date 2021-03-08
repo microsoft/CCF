@@ -353,16 +353,6 @@ namespace kv
     virtual void periodic(std::chrono::milliseconds) {}
     virtual void periodic_end() {}
 
-    struct Statistics
-    {
-      uint32_t time_spent = 0;
-      uint32_t count_num_samples = 0;
-      uint32_t tx_count = 0;
-    };
-    virtual Statistics get_statistics()
-    {
-      return Statistics();
-    }
     virtual void enable_all_domains() {}
 
     virtual uint32_t node_count() = 0;

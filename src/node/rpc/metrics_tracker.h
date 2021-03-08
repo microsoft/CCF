@@ -36,9 +36,9 @@ namespace metrics
     }
 
     void tick(
-      std::chrono::milliseconds elapsed, kv::Consensus::Statistics stats)
+      std::chrono::milliseconds elapsed, size_t tx_count)
     {
-      metrics.track_tx_rates(elapsed, stats);
+      metrics.track_tx_rates(elapsed, tx_count);
     }
   };
 }
