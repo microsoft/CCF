@@ -58,7 +58,7 @@ namespace ccf
   void add_schema_components(T&, nlohmann::json& j, const NodeId&)
   {
     j["type"] = "string";
-    j["pattern"] = "^[a-f0-9]{64}$";
+    j["pattern"] = fmt::format("^[a-f0-9]{{{}}}$", EntityId::LENGTH);
   }
 }
 
