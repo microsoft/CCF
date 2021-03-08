@@ -3,7 +3,6 @@
 #pragma once
 
 #include "kv_types.h"
-#include "node/entities.h"
 #include "untyped_map_handle.h"
 
 #include <functional>

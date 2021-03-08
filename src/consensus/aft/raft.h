@@ -23,7 +23,7 @@
 //
 
 #include "async_execution.h"
-#include "async_execution_coordinator.h"
+#include "async_executor.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/spin_lock.h"
@@ -690,7 +690,9 @@ namespace aft
     {
       if (threading::ThreadMessaging::thread_count > 1)
       {
-        periodic(std::chrono::milliseconds(0));
+        {
+          do_periodic();
+        }
         while (!is_execution_pending && !execution_backlog.empty())
         {
           auto pe = std::move(execution_backlog.front());
@@ -704,16 +706,22 @@ namespace aft
           execution_backlog.empty(), "No message should be run asynchronously");
       }
     }
-
     void periodic(std::chrono::milliseconds elapsed)
     {
-      std::unique_lock<SpinLock> guard(state->lock);
-      timeout_elapsed += elapsed;
-      if (is_execution_pending)
       {
-        return;
+        std::unique_lock<SpinLock> guard(state->lock);
+        timeout_elapsed += elapsed;
+        if (is_execution_pending)
+        {
+          return;
+        }
       }
+      do_periodic();
+    }
 
+    void do_periodic()
+    {
+      std::unique_lock<SpinLock> guard(state->lock);
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
@@ -1346,7 +1354,7 @@ namespace aft
       {
         if (
           self->execute_append_entries_async(msg) ==
-          AsyncExecutionResult::PENDING)
+          AsyncSchedulingResult::SYNCH_POINT)
         {
           return;
         }
@@ -1395,6 +1403,9 @@ namespace aft
       std::shared_ptr<AsyncExecutor> ctx;
     };
 
+    // This code is duplicated in part by execute_append_entries_async. This is
+    // done to de-risk the version 1.0 released. These two functions should be
+    // combined post 1.0.
     void execute_append_entries_sync(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
@@ -1563,7 +1574,7 @@ namespace aft
             // happened in sig_term. We reflect this in the history.
             if (r.term_of_idx == aft::ViewHistory::InvalidView)
             {
-              state->last_idx = executor->commit_replayed_request(
+              state->last_idx = executor->execute_request(
                 ds->get_request(),
                 request_tracker,
                 state->last_idx,
@@ -1615,7 +1626,7 @@ namespace aft
             auto tmsg = std::make_unique<threading::Tmsg<AsyncExecTxMsg>>(
               [](std::unique_ptr<threading::Tmsg<AsyncExecTxMsg>> msg) {
                 auto self = msg->data.self;
-                self->executor->commit_replayed_request(
+                self->executor->execute_request(
                   msg->data.ds->get_request(),
                   self->request_tracker,
                   msg->data.last_idx,
@@ -1631,7 +1642,7 @@ namespace aft
                     auto self = msg->data.self;
                     if (
                       self->async_executor.decrement_pending() ==
-                      AsyncExecutionResult::COMPLETE)
+                      AsyncSchedulingResult::DONE)
                     {
                       self->apply_execution_message(
                         std::move(self->async_exec_msg));
@@ -1655,7 +1666,7 @@ namespace aft
           }
           else
           {
-            executor->commit_replayed_request(
+            executor->execute_request(
               ds->get_request(),
               request_tracker,
               state->last_idx,
@@ -1677,7 +1688,7 @@ namespace aft
       return true;
     }
 
-    AsyncExecutionResult execute_append_entries_async(
+    AsyncSchedulingResult execute_append_entries_async(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
     {
       // This function is responsible for selecting the next batch of
@@ -1699,7 +1710,7 @@ namespace aft
         if (!async_executor.should_exec_next_append_entry(
               ds->support_async_execution(), ds->get_max_conflict_version()))
         {
-          return AsyncExecutionResult::PENDING;
+          return AsyncSchedulingResult::SYNCH_POINT;
         }
 
         ++async_exec_msg->data.next_append_entry_index;
@@ -1708,16 +1719,16 @@ namespace aft
         kv::ApplyResult apply_result = ds->apply();
         if (!process_async_execution(apply_result, ds, i, r, from))
         {
-          return AsyncExecutionResult::COMPLETE;
+          return AsyncSchedulingResult::DONE;
         }
       }
 
-      if (async_executor.execution_status() == AsyncExecutionResult::COMPLETE)
+      if (async_executor.execution_status() == AsyncSchedulingResult::DONE)
       {
         execute_append_entries_finish(confirm_evidence, r, from);
-        return AsyncExecutionResult::COMPLETE;
+        return AsyncSchedulingResult::DONE;
       }
-      return AsyncExecutionResult::PENDING;
+      return AsyncSchedulingResult::SYNCH_POINT;
     }
 
     void execute_append_entries_finish(

@@ -1150,25 +1150,24 @@ DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
   DOCTEST_INFO("With 1 thread");
   {
     aft::AsyncExecutor aec(1);
-    aec.execute_as_far_as_possible(0);
     for (uint32_t i = 0; i < 20; ++i)
     {
       DOCTEST_REQUIRE(aec.should_exec_next_append_entry(i % 2, 10));
       DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncExecutionResult::COMPLETE);
+        aec.execution_status() == aft::AsyncSchedulingResult::DONE);
     }
   }
 
-  DOCTEST_INFO("multithreaded run upto sync point");
+  DOCTEST_INFO("multithreaded run upto max specified tx");
   {
     aft::AsyncExecutor aec(2);
     aec.execute_as_far_as_possible(5);
-    for (uint32_t i = 0; i < 4; ++i)
+    for (uint32_t i = 0; i < 5; ++i)
     {
       DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
       aec.increment_pending();
       DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncExecutionResult::PENDING);
+        aec.execution_status() == aft::AsyncSchedulingResult::SYNCH_POINT);
     }
     DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 5) == false);
   }
@@ -1177,13 +1176,41 @@ DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
   {
     aft::AsyncExecutor aec(2);
     aec.execute_as_far_as_possible(10);
-    for (uint32_t i = 0; i < 4; ++i)
+    for (uint32_t i = 0; i < 5; ++i)
     {
       DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
       aec.increment_pending();
       DOCTEST_REQUIRE(
-        aec.execution_status() == aft::AsyncExecutionResult::PENDING);
+        aec.execution_status() == aft::AsyncSchedulingResult::SYNCH_POINT);
     }
-    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 5) == false);
+
+    {
+      // execute a transaction that does not support async execution
+      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 5) == false);
+      aec.increment_pending();
+    }
+
+    // Reset for next round of execution
+    aec.execute_as_far_as_possible(10);
+    for (uint32_t i = 5; i < 10; ++i)
+    {
+      DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, i));
+      aec.increment_pending();
+      DOCTEST_REQUIRE(
+        aec.execution_status() == aft::AsyncSchedulingResult::SYNCH_POINT);
+    }
+  }
+
+  DOCTEST_INFO("test first tx does not allow async execution");
+  {
+    aft::AsyncExecutor aec(2);
+    aec.execute_as_far_as_possible(5);
+
+    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(false, 0));
+
+    // As the first execution did not support async it should have been executed
+    // inline as no other transaction was pending. therefore is is safe to run
+    // the next transaction.
+    DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 1));
   }
 }
