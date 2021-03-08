@@ -124,8 +124,10 @@ namespace ccf
       }
       else
       {
-        joining_node_id = std::to_string(
-          get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
+        // Pad node id string to avoid memory alignment issues on
+        // node-to-node messages
+        joining_node_id = fmt::format(
+          "{:#08}", get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
       }
 
 #ifdef GET_QUOTE
