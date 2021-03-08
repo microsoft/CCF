@@ -69,7 +69,7 @@ namespace aft
         return true;
       }
 
-      if (state==AsyncExecutorState::SYNCH_POINT)
+      if (state == AsyncExecutorState::SYNCH_POINT)
       {
         return false;
       }
@@ -90,7 +90,7 @@ namespace aft
       }
 
       if (
-     !support_async_execution &&
+        !support_async_execution &&
         (execution_status() == AsyncSchedulingResult::SYNCH_POINT))
       {
         state = AsyncExecutorState::SYNCH_POINT;
