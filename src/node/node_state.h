@@ -364,7 +364,11 @@ namespace ccf
             // BFT consensus requires a stable order of node IDs so that the
             // primary node in a given view can be computed deterministically by
             // all nodes in the network
-            self = NodeId("0");
+            // See https://github.com/microsoft/CCF/issues/1852
+
+            // Pad node id string to avoid memory alignment issues on
+            // node-to-node messages
+            self = NodeId(fmt::format("{:#08}", 0));
           }
 
           setup_snapshotter();
