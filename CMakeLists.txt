@@ -91,7 +91,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            aft.enclave
            sss.enclave
-           $<BUILD_INTERFACE:merklecpp>
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -142,7 +141,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            sss.host
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
-           $<BUILD_INTERFACE:merklecpp>
   )
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -429,14 +427,7 @@ if(BUILD_TESTS)
 
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
-    target_link_libraries(
-      merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} $<BUILD_INTERFACE:merklecpp>
-                         crypto
-    )
-
-    # merklecpp tests
-    set(MERKLECPP_TEST_PREFIX "merklecpp-")
-    add_subdirectory(src/libmerklecpp/test)
+    target_link_libraries(merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} crypto)
 
     # Raft driver and scenario test
     add_executable(
