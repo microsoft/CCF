@@ -49,13 +49,21 @@ If the network is unable to reach consensus, it will trigger a leadership electi
 Transaction Receipts
 --------------------
 
-Once a transaction has been committed, it is possible to get a receipt for it. That receipt can later be checked against either a CCF service, or offline against the ledger, to prove that the transaction did happen at a particular commit.
+Once a transaction has been committed, it is possible to get a receipt for it. That receipt can be checked offline, to prove that the transaction did happen at a particular commit.
 
-To obtain a receipt, a user needs to issue a ``GET /receipt`` RPC for a particular commit:
+To obtain a receipt, a user needs to issue a ``GET /receipt`` RPC for a particular transaction ID. Because fetching the information necessary to produce a receipt likely involves a round trip to the ledger, the endpoint is implemented as a historical query.
+This means that the request may return 202 at first, with a suggested Retry-After. A subsequent call will return the actual receipt, which will look like:
 
 .. code-block:: bash
 
-    $ curl -X GET "https://<ccf-node-address>/app/receipt?commit=23" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
-    {
-      "receipt": [ ... ],
-    }
+    $ curl -X GET "https://<ccf-node-address>/app/receipt?transaction_id=2.23" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
+    {'leaf': 'fdc977c49d3a8bdf986176984e9432a09b5f6fe0c04e0b1c2dd177c03fdca9ec',
+     'node_id': '682c161e1bc0aec694cac58a6ea456e1caa6c9c56d8dd873da9455c341947065',
+     'proof': [{'left': 'f847e5efe3965b0dacb5c15c666602807a11fdecd465d0976779eed27121ffa3'},
+               {'left': 'a56ce9efb73957f561f12d60513281fd2aaf16440234e2fd56e7d3d2ff4be8b0'},
+               {'left': 'd91c982f525302244b13b6add92cd0925e1e0fb621ff2a7bb408ecc51be8528e'},
+               {'left': '6d87faceda763ce65914f95dfcc04b37ea3f26bc552764752a0f2720039f76be'},
+               {'left': 'e0cc83ea2fae6c535fc44605fb25ba9fdfb319e0e577b3541760f9a3565c549b'},
+               {'left': 'f0e95ed85f5f6c0197aed4f6685b93dc56edd823a2532bd717558a5ab77267cb'}],
+     'root': '06fef62c80b6471c7005c1b114166fd1b0e077845f5ad544ad4eea4fb1d31f78',
+     'signature': 'MGQCMACklXqd0ge+gBS8WzewrwtwzRzSKy+bfrLZVx0YHmQvtsqs7dExYESsqrUrB8ZcKwIwS3NPKaGq0w2QlPlCqUC3vQoQvhcZgPHPu2GkFYa7JEOdSKLknNPHaCRv80zx2RGF'}

@@ -24,7 +24,7 @@ namespace ccf
       args.rpc_ctx->set_error(
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidInput,
-        "Query string must contain a single \'transaction_id\' parameter");
+        "Query string must contain a single 'transaction_id' parameter");
       return std::nullopt;
     }
 
@@ -38,7 +38,7 @@ namespace ccf
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidHeaderValue,
         fmt::format(
-          "The value '{}' passed as \'transaction_id\' '{}' could not be "
+          "The value '{}' passed as 'transaction_id' '{}' could not be "
           "converted to a valid "
           "Tx ID.",
           txid_str,

@@ -5,12 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.19.0]
 
 ### Changed
 
 - `x-ccf-tx-view` and `x-ccf-tx-seqno` response headers have been removed, and replaced with `x-ms-ccf-transaction-id`. This includes both original fields, separated by a single `.`. Historical queries using `ccf::historical::adapter` should also pass a single combined `x-ms-ccf-transaction-id` header (#2257).
 - Node unique identifier is the hex-encoded string of the SHA-256 digest of the node's identity public key, which is also used as the node's quote report data (#2241).
+- The receipt interface has changed, `/app/receipt?commit=23` is replaced by `/app/receipt?transaction_id=2.23`. Receipt fetching is now implemented as a historical query, which means that the first reponse(s) may be a 202 with a Retry-After header. Receipts are now structured JSON, and `/app/receipt/verify` has been removed in favour of an [offline verification sample]().
 
 ## [0.18.5]
 
@@ -718,6 +719,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.19.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.0
 [0.18.5]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.5
 [0.18.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.4
 [0.18.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.3
