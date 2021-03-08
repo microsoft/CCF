@@ -244,32 +244,16 @@
       },
       "LoggingGetReceipt__Out": {
         "properties": {
-          "leaf": {
-            "$ref": "#/components/schemas/string"
-          },
           "msg": {
             "$ref": "#/components/schemas/string"
           },
-          "node_id": {
-            "$ref": "#/components/schemas/NodeId"
-          },
-          "proof": {
-            "$ref": "#/components/schemas/json_array"
-          },
-          "root": {
-            "$ref": "#/components/schemas/string"
-          },
-          "signature": {
-            "$ref": "#/components/schemas/string"
+          "receipt": {
+            "$ref": "#/components/schemas/GetReceipt__Out"
           }
         },
         "required": [
           "msg",
-          "signature",
-          "root",
-          "proof",
-          "leaf",
-          "node_id"
+          "receipt"
         ],
         "type": "object"
       },
@@ -341,12 +325,6 @@
         "type": "integer"
       },
       "json": {},
-      "json_array": {
-        "items": {
-          "$ref": "#/components/schemas/json"
-        },
-        "type": "array"
-      },
       "string": {
         "type": "string"
       },

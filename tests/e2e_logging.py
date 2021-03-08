@@ -461,7 +461,7 @@ def test_historical_receipts(network, args):
             first_receipt = network.txs.get_receipt(
                 node, idx, first_msg["seqno"], first_msg["view"]
             )
-            r = first_receipt.json()
+            r = first_receipt.json()["receipt"]
             assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
             ccf.receipt.verify(r["root"], r["signature"], node_cert)
 

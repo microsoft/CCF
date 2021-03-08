@@ -31,29 +31,6 @@ namespace ccf::historical
     {}
   };
 
-  inline void to_json(nlohmann::json& j, const TxReceipt& r)
-  {
-    j = nlohmann::json::object();
-    j["signature"] = tls::b64_from_raw(r.signature);
-    j["root"] = r.root.to_string();
-    j["leaf"] = r.path->leaf().to_string();
-    j["node_id"] = r.node_id;
-    j["proof"] = nlohmann::json::array();
-    for (const auto& node : *r.path)
-    {
-      nlohmann::json entry = nlohmann::json::object();
-      if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
-      {
-        entry["left"] = node.hash.to_string();
-      }
-      else
-      {
-        entry["right"] = node.hash.to_string();
-      }
-      j["proof"].push_back(std::move(entry));
-    }
-  }
-
   using TxReceiptPtr = std::shared_ptr<TxReceipt>;
   using StorePtr = std::shared_ptr<kv::Store>;
 
