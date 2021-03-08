@@ -1127,12 +1127,12 @@ namespace ccf
       return get_proposal_info(proposal_id, proposal);
     }
 
-    bool check_member_active(kv::ReadOnlyTx& tx, MemberId id)
+    bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
     {
       return check_member_status(tx, id, {MemberStatus::ACTIVE});
     }
 
-    bool check_member_accepted(kv::ReadOnlyTx& tx, MemberId id)
+    bool check_member_accepted(kv::ReadOnlyTx& tx, const MemberId& id)
     {
       return check_member_status(
         tx, id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED});
@@ -1140,7 +1140,7 @@ namespace ccf
 
     bool check_member_status(
       kv::ReadOnlyTx& tx,
-      MemberId id,
+      const MemberId& id,
       std::initializer_list<MemberStatus> allowed)
     {
       auto member = tx.ro(this->network.members)->get(id);
@@ -1159,7 +1159,7 @@ namespace ccf
     }
 
     void record_voting_history(
-      kv::Tx& tx, MemberId caller_id, const SignedReq& signed_request)
+      kv::Tx& tx, const MemberId& caller_id, const SignedReq& signed_request)
     {
       auto governance_history = tx.rw(network.governance_history);
       governance_history->put(caller_id, {signed_request});

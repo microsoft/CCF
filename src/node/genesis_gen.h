@@ -240,7 +240,7 @@ namespace ccf
       return id;
     }
 
-    bool remove_user(UserId user_id)
+    bool remove_user(const UserId& user_id)
     {
       auto u = tx.rw(tables.users);
       auto uc = tx.rw(tables.user_certs);

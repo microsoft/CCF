@@ -185,7 +185,7 @@ auto get_proposal(
 auto get_vote(
   MemberRpcFrontend& frontend,
   ProposalId proposal_id,
-  MemberId voter,
+  const MemberId& voter,
   const crypto::Pem& caller)
 {
   const auto getter = create_request(

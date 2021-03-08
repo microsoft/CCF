@@ -328,7 +328,7 @@ namespace ccf
     }
 
     std::optional<EncryptedShare> get_encrypted_share(
-      kv::Tx& tx, MemberId member_id)
+      kv::Tx& tx, const MemberId& member_id)
     {
       auto recovery_shares_info = tx.rw(network.shares)->get(0);
       if (!recovery_shares_info.has_value())
@@ -458,7 +458,7 @@ namespace ccf
 
       submitted_shares->foreach(
         [&submitted_share_ids](
-          const MemberId member_id, const std::vector<uint8_t>&) {
+          const MemberId& member_id, const std::vector<uint8_t>&) {
           submitted_share_ids.push_back(member_id);
           return true;
         });
