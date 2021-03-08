@@ -73,18 +73,21 @@ namespace ccf
       nlohmann::json openapi;
       bool openapi_hidden = false;
 
+      bool historical = false;
+
       MSGPACK_DEFINE(
         forwarding_required,
         execute_outside_consensus,
         authn_policies,
         openapi,
-        openapi_hidden);
+        openapi_hidden,
+        historical);
     };
 
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
     DECLARE_JSON_REQUIRED_FIELDS(
       EndpointProperties, forwarding_required, authn_policies);
-    DECLARE_JSON_OPTIONAL_FIELDS(EndpointProperties, openapi, openapi_hidden);
+    DECLARE_JSON_OPTIONAL_FIELDS(EndpointProperties, openapi, openapi_hidden, historical);
 
     struct EndpointDefinition
     {

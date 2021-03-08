@@ -765,6 +765,7 @@ namespace ccfapp
   {
   private:
     NetworkTables& network;
+    ccfapp::AbstractNodeContext& node_context;
 
     JSClassDef kv_class_def = {};
     JSClassExoticMethods kv_exotic_methods = {};
@@ -775,7 +776,7 @@ namespace ccfapp
 
     metrics::Tracker metrics_tracker;
 
-    static JSValue create_ccf_obj(EndpointContext& args, JSContext* ctx)
+    static JSValue create_ccf_obj(kv::Tx& tx, JSContext* ctx)
     {
       auto ccf = JS_NewObject(ctx);
 
@@ -813,7 +814,7 @@ namespace ccfapp
         JS_NewCFunction(ctx, ccfapp::js_wrap_key, "wrapKey", 3));
 
       auto kv = JS_NewObjectClass(ctx, kv_class_id);
-      JS_SetOpaque(kv, &args.tx);
+      JS_SetOpaque(kv, &tx);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
 
       return ccf;
@@ -829,12 +830,12 @@ namespace ccfapp
       return console;
     }
 
-    static void populate_global_obj(EndpointContext& args, JSContext* ctx)
+    static void populate_global_obj(kv::Tx& tx, JSContext* ctx)
     {
       auto global_obj = JS_GetGlobalObject(ctx);
 
       JS_SetPropertyStr(ctx, global_obj, "console", create_console_obj(ctx));
-      JS_SetPropertyStr(ctx, global_obj, "ccf", create_ccf_obj(args, ctx));
+      JS_SetPropertyStr(ctx, global_obj, "ccf", create_ccf_obj(tx, ctx));
 
       JS_FreeValue(ctx, global_obj);
     }
@@ -995,6 +996,94 @@ namespace ccfapp
       const ccf::RESTVerb& verb,
       EndpointContext& args)
     {
+      // Is this a historical endpoint?
+      auto endpoints = args.tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto info = endpoints->get(ccf::endpoints::EndpointKey{method, verb});
+
+      if (info.value().historical)
+      {
+        // TODO avoid duplication with src/node/historical_queries_adapter.h
+        // TODO update to latest code with receipts
+        ccf::TxID target_tx_id;
+        const auto tx_id_header = args.rpc_ctx->get_request_header(http::headers::CCF_TX_ID);
+        const auto tx_id_opt = ccf::TxID::from_str(tx_id_header.value());
+        target_tx_id = tx_id_opt.value();
+
+        auto is_tx_committed = [this](
+                                kv::Consensus::View view,
+                                kv::Consensus::SeqNo seqno,
+                                std::string& error_reason) {
+          if (consensus == nullptr)
+          {
+            error_reason = "Node is not fully configured";
+            return false;
+          }
+
+          const auto tx_view = consensus->get_view(seqno);
+          const auto committed_seqno = consensus->get_committed_seqno();
+          const auto committed_view = consensus->get_view(committed_seqno);
+
+          const auto tx_status = ccf::evaluate_tx_status(
+            view, seqno, tx_view, committed_view, committed_seqno);
+          if (tx_status != ccf::TxStatus::Committed)
+          {
+            error_reason = fmt::format(
+              "Only committed transactions can be queried. Transaction {}.{} is "
+              "{}",
+              view,
+              seqno,
+              ccf::tx_status_to_str(tx_status));
+            return false;
+          }
+
+          return true;
+        };
+
+        // Check that the requested transaction ID is available
+        {
+          auto error_reason = fmt::format(
+            "Transaction {} is not available.", target_tx_id.to_str());
+          if (!is_tx_committed(target_tx_id.view, target_tx_id.seqno, error_reason))
+          {
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::TransactionNotFound,
+              std::move(error_reason));
+            return;
+          }
+        }
+
+        const auto historic_request_handle = target_tx_id.seqno;
+        auto& state_cache = node_context.get_historical_state();
+        auto historical_store = state_cache.get_store_at(historic_request_handle, target_tx_id.seqno);
+        if (historical_store == nullptr)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+          static constexpr size_t retry_after_seconds = 3;
+          args.rpc_ctx->set_response_header(
+            http::headers::RETRY_AFTER, retry_after_seconds);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "Historical transaction {} is not currently available.",
+            target_tx_id.to_str()));
+          return;
+        }
+        auto tx = historical_store->create_tx();
+        do_execute_request(method, verb, args, tx);
+      }
+      else
+      {
+        do_execute_request(method, verb, args, args.tx);
+      }
+    }
+
+    void do_execute_request(
+      const std::string& method,
+      const ccf::RESTVerb& verb,
+      EndpointContext& args,
+      kv::Tx& target_tx)
+    {
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
       const auto scripts = args.tx.ro(this->network.app_scripts);
@@ -1081,7 +1170,7 @@ namespace ccfapp
       JS_SetClassProto(ctx, body_class_id, body_proto);
 
       // Populate globalThis with console and ccf globals
-      populate_global_obj(args, ctx);
+      populate_global_obj(target_tx, ctx);
 
       // Compile module
       if (!handler_script.value().text.has_value())
@@ -1305,9 +1394,10 @@ namespace ccfapp
     {};
 
   public:
-    JSHandlers(NetworkTables& network, ccf::AbstractNodeState& node_state) :
-      UserEndpointRegistry(node_state),
-      network(network)
+    JSHandlers(NetworkTables& network, ccfapp::AbstractNodeContext& node_context) :
+      UserEndpointRegistry(node_context.get_node_state()),
+      network(network),
+      node_context(node_context)
     {
       JS_NewClassID(&kv_class_id);
       kv_exotic_methods.get_own_property = js_kv_lookup;
@@ -1504,7 +1594,7 @@ namespace ccfapp
   public:
     JS(NetworkTables& network, ccfapp::AbstractNodeContext& node_context) :
       ccf::UserRpcFrontend(*network.tables, js_handlers),
-      js_handlers(network, node_context.get_node_state())
+      js_handlers(network, node_context)
     {}
   };
 
