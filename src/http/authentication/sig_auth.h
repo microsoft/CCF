@@ -176,7 +176,6 @@ namespace ccf
         auto member = members->get(signed_request->key_id);
         if (member.has_value())
         {
-          LOG_FAIL_FMT("Keyid: {}", signed_request->key_id);
           std::vector<uint8_t> digest;
           auto verifier = verifiers.get_verifier(member->cert);
           if (verifier->verify(

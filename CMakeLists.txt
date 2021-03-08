@@ -380,15 +380,20 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
     )
 
-    # Re-enable!
-    # add_unit_test(
-    #   member_voting_test
-    #   ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
-    # )
-    # target_link_libraries(
-    #   member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-    #                              http_parser.host sss.host
-    # )
+    add_unit_test(
+      member_voting_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
+    )
+    target_link_libraries(
+      member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                                 http_parser.host sss.host
+    )
+
+    set_tests_properties(
+      member_voting_test
+      PROPERTIES ENVIRONMENT
+                 RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
+    )
 
     add_unit_test(
       proposal_id_test
@@ -408,13 +413,7 @@ if(BUILD_TESTS)
                                  http_parser.host sss.host
     )
 
-    if(NOT ENV{RUNTIME_CONFIG_DIR})
-      # set_tests_properties(
-      #   member_voting_test
-      #   PROPERTIES ENVIRONMENT
-      #              RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
-      # )
-    endif()
+
 
     add_unit_test(
       lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
