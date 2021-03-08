@@ -1,7 +1,8 @@
 jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
     variables:
-      skipComponentGovernanceDetection: true
+      - name: skipComponentGovernanceDetection
+        value: $[eq(variables['Build.Reason'], 'PullRequest')]
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
 
