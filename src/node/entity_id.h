@@ -7,11 +7,12 @@
 #include <msgpack/msgpack.hpp>
 #include <string>
 
-// TODO: Refactor with node_id.h
 namespace ccf
 {
   struct EntityId
   {
+    // The underlying value type should be blit-serialisable so that it can be
+    // written to and read from the ring buffer
     using Value =
       std::string; // < hex-encoded hash of caller's DER-encoded certificate
     Value id;
@@ -76,6 +77,7 @@ namespace ccf
   {
     if (j.is_string())
     {
+      // TODO: Check that this is valid hex!
       entity_id = j.get<std::string>();
     }
     else

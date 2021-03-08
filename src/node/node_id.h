@@ -3,65 +3,18 @@
 #pragma once
 
 #include "ds/json.h"
+#include "entity_id.h"
 
 #include <fmt/format.h>
 #include <string>
 
 namespace ccf
 {
-  struct NodeId
+  struct NodeId : EntityId
   {
-    // The underlying value type should be blit-serialisable so that it can be
-    // written to and read from the ring buffer
-    using Value =
-      std::string; // < hex-encoded hash of node's identity public key
-    Value id;
-
     NodeId() = default;
 
-    NodeId(const Value& id_) : id(id_) {}
-
-    void operator=(const NodeId& other)
-    {
-      id = other.id;
-    }
-
-    void operator=(const Value& id_)
-    {
-      id = id_;
-    }
-
-    bool operator==(const NodeId& other) const
-    {
-      return id == other.id;
-    }
-
-    bool operator!=(const NodeId& other) const
-    {
-      return !(*this == other);
-    }
-
-    bool operator<(const NodeId& other) const
-    {
-      return id < other.id;
-    }
-
-    operator Value() const
-    {
-      return id;
-    }
-
-    auto& value() const
-    {
-      return id;
-    }
-
-    size_t size() const
-    {
-      return id.size();
-    }
-
-    MSGPACK_DEFINE(id);
+    NodeId(const Value& id_) : EntityId(id_) {}
   };
 
   inline void to_json(nlohmann::json& j, const NodeId& node_id)
@@ -111,25 +64,19 @@ namespace ccf
 
 namespace std
 {
-  static inline std::ostream& operator<<(
-    std::ostream& os, const ccf::NodeId& node_id)
-  {
-    os << node_id.id;
-    return os;
-  }
-
   template <>
   struct hash<ccf::NodeId>
   {
     size_t operator()(const ccf::NodeId& node_id) const
     {
-      return std::hash<std::string>{}(node_id.id);
+      return std::hash<ccf::EntityId>{}(node_id);
     }
   };
 }
 
-// Only display the first node_id_truncation_max_char_count character when
-// printing the node id to the node's log
+// Node ids are printed in many places (e.g. consensus) so only display the
+// first node_id_truncation_max_char_count characters when printing it to the
+// node's log (e.g. using the LOG_..._FMT() macros)
 static constexpr size_t node_id_truncation_max_char_count = 10;
 
 FMT_BEGIN_NAMESPACE
@@ -149,8 +96,8 @@ struct formatter<ccf::NodeId>
     return format_to(
       ctx.out(),
       "{}",
-      node_id.id.substr(
-        0, std::min(node_id.id.size(), node_id_truncation_max_char_count)));
+      node_id.value().substr(
+        0, std::min(node_id.size(), node_id_truncation_max_char_count)));
   }
 };
 FMT_END_NAMESPACE

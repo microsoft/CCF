@@ -179,12 +179,10 @@ def recovery_shares_scenario(args):
         )
         test_retire_member(network, args, member_to_retire=member_to_retire)
 
-        input("")
         LOG.info("Adding one non-recovery member")
         assert_recovery_shares_update(
             False, test_add_member, network, args, recovery_member=False
         )
-        input("")
         LOG.info("Adding one recovery member")
         assert_recovery_shares_update(
             True, test_add_member, network, args, recovery_member=True

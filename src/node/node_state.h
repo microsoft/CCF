@@ -364,7 +364,7 @@ namespace ccf
             // BFT consensus requires a stable order of node IDs so that the
             // primary node in a given view can be computed deterministically by
             // all nodes in the network
-            self = "0";
+            self = NodeId("0");
           }
 
           setup_snapshotter();
