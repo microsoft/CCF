@@ -4,7 +4,7 @@
       "CallerInfo": {
         "properties": {
           "caller_id": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/EntityId"
           }
         },
         "required": [
@@ -65,6 +65,10 @@
           "metrics"
         ],
         "type": "object"
+      },
+      "EntityId": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
       },
       "GetCode__Out": {
         "properties": {

@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "entity_id.h"
+
 #include <limits>
 #include <map>
 #include <stdint.h>
@@ -11,17 +13,14 @@
 namespace ccf
 {
   // using ObjectId = uint64_t;
-  using ObjectId = std::string;
-
-  // constexpr ObjectId INVALID_ID = (std::numeric_limits<ObjectId>::max)();
-  // static ObjectId INVALID_ID = ""; // TODO: Remove
+  // using ObjectId = std::string;
 
   using Index = int64_t;
   using Node2NodeMsg = uint64_t;
 
-  using CallerId = std::string;
-  using MemberId = CallerId;
-  using UserId = CallerId;
+  // using CallerId = std::string;
+  // using MemberId = CallerId;
+  // using UserId = CallerId;
 
   using Cert = std::vector<uint8_t>;
 

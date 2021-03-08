@@ -4,7 +4,7 @@
       "CallerInfo": {
         "properties": {
           "caller_id": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/EntityId"
           }
         },
         "required": [
@@ -65,6 +65,28 @@
           "metrics"
         ],
         "type": "object"
+      },
+      "EntityId": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "EntityId_to_Script": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "$ref": "#/components/schemas/Script"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
       },
       "GetCode__Out": {
         "properties": {
@@ -175,7 +197,7 @@
             "$ref": "#/components/schemas/json"
           },
           "proposer": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/EntityId"
           },
           "script": {
             "$ref": "#/components/schemas/Script"
@@ -184,7 +206,7 @@
             "$ref": "#/components/schemas/ProposalState"
           },
           "votes": {
-            "$ref": "#/components/schemas/named_Script"
+            "$ref": "#/components/schemas/EntityId_to_Script"
           }
         },
         "required": [
@@ -202,7 +224,7 @@
             "$ref": "#/components/schemas/string"
           },
           "proposer_id": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/EntityId"
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
@@ -334,12 +356,6 @@
         "type": "integer"
       },
       "json": {},
-      "named_Script": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/Script"
-        },
-        "type": "object"
-      },
       "string": {
         "type": "string"
       },

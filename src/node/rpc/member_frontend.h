@@ -1184,7 +1184,7 @@ namespace ccf
       MemberId& member_id,
       std::string& error)
     {
-      return get_path_param(params, "member_id", member_id, error);
+      return get_path_param(params, "member_id", member_id.id, error);
     }
 
     NetworkState& network;

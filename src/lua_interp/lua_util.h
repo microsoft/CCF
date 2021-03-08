@@ -3,11 +3,14 @@
 #pragma once
 
 #define FMT_HEADER_ONLY
+#include "node/entity_id.h"
+
 #include <fmt/format.h>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <vector>
+
 extern "C"
 {
 #include "../../3rdparty/lua/lauxlib.h"
@@ -94,6 +97,11 @@ namespace ccf
     inline void push_raw(lua_State* l, std::nullptr_t)
     {
       lua_pushnil(l);
+    }
+
+    inline void push_raw(lua_State* l, const ccf::EntityId& entity)
+    {
+      lua_pushstring(l, entity.id.c_str());
     }
 
     /** The base push case. Specialize this to push other types onto the lua

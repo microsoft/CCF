@@ -51,7 +51,7 @@ namespace ccf
       return id;
     }
 
-    auto value() const
+    auto& value() const
     {
       return id;
     }
@@ -126,7 +126,6 @@ namespace std
       return std::hash<std::string>{}(node_id.id);
     }
   };
-
 }
 
 // Only display the first node_id_truncation_max_char_count character when

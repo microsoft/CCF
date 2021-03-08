@@ -83,7 +83,7 @@ TEST_CASE("Proposal")
     INFO("Initial proposal");
     Script s("return true");
     nlohmann::json p("hello world");
-    MemberId m = "member";
+    auto m = MemberId("member");
     Proposal proposal(s, p, m);
     const auto converted = msgpack_roundtrip(proposal);
     CHECK(proposal == converted);
@@ -93,12 +93,13 @@ TEST_CASE("Proposal")
     INFO("Voted proposal");
     Script s("return true");
     nlohmann::json p("hello world");
-    MemberId m = "member";
+    auto m = MemberId("member");
     Proposal proposal(s, p, m);
-    proposal.votes["member1"] = Script("return true");
-    proposal.votes["member2"] = Script("return false");
-    proposal.votes["member3"] = Script("return RoN");
-    proposal.votes["member4"] = Script("Robert'); DROP TABLE Students;--");
+    proposal.votes[MemberId("member1")] = Script("return true");
+    proposal.votes[MemberId("member2")] = Script("return false");
+    proposal.votes[MemberId("member3")] = Script("return RoN");
+    proposal.votes[MemberId("member4")] =
+      Script("Robert'); DROP TABLE Students;--");
     const auto converted = msgpack_roundtrip(proposal);
     CHECK(proposal == converted);
   }
