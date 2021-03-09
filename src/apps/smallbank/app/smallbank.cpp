@@ -51,8 +51,8 @@ namespace ccfapp
     }
 
   public:
-    SmallBankHandlers(ccf::AbstractNodeState& node_state) :
-      UserEndpointRegistry(node_state),
+    SmallBankHandlers(AbstractNodeContext& context) :
+      UserEndpointRegistry(context),
       tables()
     {}
 
@@ -468,15 +468,15 @@ namespace ccfapp
     SmallBankHandlers sb_handlers;
 
   public:
-    SmallBank(kv::Store& store, ccfapp::AbstractNodeContext& node_context) :
+    SmallBank(kv::Store& store, AbstractNodeContext& context) :
       UserRpcFrontend(store, sb_handlers),
-      sb_handlers(node_context.get_node_state())
+      sb_handlers(context)
     {}
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& nwt, ccfapp::AbstractNodeContext& node_context)
+    NetworkTables& nwt, AbstractNodeContext& context)
   {
-    return make_shared<SmallBank>(*nwt.tables, node_context);
+    return make_shared<SmallBank>(*nwt.tables, context);
   }
 }
