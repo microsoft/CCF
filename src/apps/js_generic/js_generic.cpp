@@ -776,7 +776,7 @@ namespace ccfapp
 
     metrics::Tracker metrics_tracker;
 
-    static JSValue create_ccf_obj(kv::Tx& tx, JSContext* ctx)
+    static JSValue create_ccf_obj(kv::Tx& tx, historical::TxReceiptPtr receipt, JSContext* ctx)
     {
       auto ccf = JS_NewObject(ctx);
 
@@ -816,24 +816,83 @@ namespace ccfapp
       auto kv = JS_NewObjectClass(ctx, kv_class_id);
       JS_SetOpaque(kv, &tx);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
-/*
-      // auto state = JS_NewObject(ctx);
+
+      auto state = JS_NewObject(ctx);
       auto kv_tx_id = tx.get_read_tx_id();
       ccf::TxID tx_id;
       tx_id.view = static_cast<ccf::View>(kv_tx_id.term);
       tx_id.seqno = static_cast<ccf::SeqNo>(kv_tx_id.version);
-      std::string tx_id_str = tx_id.to_str();
-      const char* tx_id_cstr = tx_id_str.c_str();
-      auto s = JS_NewString(ctx, tx_id_cstr);
       // FIXME why does this lead to uncollected garbage??
       JS_SetPropertyStr(
         ctx,
-        ccf, //state,
+        state,
         "transactionId",
-        s);
-      // TODO receipt
-      // JS_SetPropertyStr(ctx, ccf, "state", state);
-*/
+        JS_NewString(ctx, tx_id.to_str().c_str()));
+
+      if (receipt)
+      {
+        ccf::GetReceipt::Out receipt_out;
+        receipt_out.from_receipt(receipt);
+        auto js_receipt = JS_NewObject(ctx);
+        JS_SetPropertyStr(
+          ctx,
+          js_receipt,
+          "signature",
+          JS_NewString(ctx, receipt_out.signature.c_str())
+          );
+        JS_SetPropertyStr(
+          ctx,
+          js_receipt,
+          "root",
+          JS_NewString(ctx, receipt_out.root.c_str())
+          );
+        JS_SetPropertyStr(
+          ctx,
+          js_receipt,
+          "leaf",
+          JS_NewString(ctx, receipt_out.leaf.c_str())
+          );
+        JS_SetPropertyStr(
+          ctx,
+          js_receipt,
+          "node_id",
+          JS_NewString(ctx, receipt_out.node_id.value().c_str())
+          );
+        auto proof = JS_NewArray(ctx);
+        uint32_t i = 0;
+        for (auto& element : receipt_out.proof)
+        {
+          auto js_element = JS_NewObject(ctx);
+          auto is_left = element.left.has_value();
+          JS_SetPropertyStr(
+            ctx,
+            js_element,
+            is_left ? "left" : "right",
+            JS_NewString(ctx, (is_left ? element.left : element.right).value().c_str())
+            );
+          JS_DefinePropertyValueUint32(
+            ctx,
+            proof,
+            i++,
+            js_element,
+            JS_PROP_C_W_E);
+        }
+        JS_SetPropertyStr(
+          ctx,
+          js_receipt,
+          "proof",
+          proof
+          );
+        
+        JS_SetPropertyStr(
+          ctx,
+          state,
+          "receipt",
+          js_receipt);
+      }
+
+      JS_SetPropertyStr(ctx, ccf, "state", state);
+
       return ccf;
     }
 
@@ -847,12 +906,12 @@ namespace ccfapp
       return console;
     }
 
-    static void populate_global_obj(kv::Tx& tx, JSContext* ctx)
+    static void populate_global_obj(kv::Tx& tx, ccf::historical::TxReceiptPtr receipt, JSContext* ctx)
     {
       auto global_obj = JS_GetGlobalObject(ctx);
 
       JS_SetPropertyStr(ctx, global_obj, "console", create_console_obj(ctx));
-      JS_SetPropertyStr(ctx, global_obj, "ccf", create_ccf_obj(tx, ctx));
+      JS_SetPropertyStr(ctx, global_obj, "ccf", create_ccf_obj(tx, receipt, ctx));
 
       JS_FreeValue(ctx, global_obj);
     }
@@ -1056,15 +1115,14 @@ namespace ccfapp
 
         ccf::historical::adapter([this, &method, &verb](ccf::EndpointContext& args, ccf::historical::StatePtr state) {
           auto tx = state->store->create_tx();
-          // TODO forward receipt
           auto receipt = state->receipt;
-          do_execute_request(method, verb, args, tx);
+          do_execute_request(method, verb, args, tx, receipt);
         },
         context.get_historical_state(), is_tx_committed)(args);
       }
       else
       {
-        do_execute_request(method, verb, args, args.tx);
+        do_execute_request(method, verb, args, args.tx, nullptr);
       }
     }
 
@@ -1072,7 +1130,8 @@ namespace ccfapp
       const std::string& method,
       const ccf::RESTVerb& verb,
       EndpointContext& args,
-      kv::Tx& target_tx)
+      kv::Tx& target_tx,
+      ccf::historical::TxReceiptPtr receipt)
     {
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
@@ -1160,7 +1219,7 @@ namespace ccfapp
       JS_SetClassProto(ctx, body_class_id, body_proto);
 
       // Populate globalThis with console and ccf globals
-      populate_global_obj(target_tx, ctx);
+      populate_global_obj(target_tx, receipt, ctx);
 
       // Compile module
       if (!handler_script.value().text.has_value())

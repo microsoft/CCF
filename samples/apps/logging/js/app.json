@@ -41,6 +41,18 @@
         "openapi": {}
       }
     },
+    "/log/private/historical_receipt": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "get_historical_with_receipt",
+        "forwarding_required": "never",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt", "user_cert"],
+        "historical": true,
+        "readonly": true,
+        "openapi": {}
+      }
+    },
     "/log/public": {
       "get": {
         "js_module": "logging.js",
