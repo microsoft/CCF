@@ -45,10 +45,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-    LOG.warning("Hello")
     args = infra.e2e_args.cli_args()
-
-    LOG.warning(args.package)
 
     args.nodes = infra.e2e_args.min_nodes(args, f=0)
     run(args)
