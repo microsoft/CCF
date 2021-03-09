@@ -53,6 +53,11 @@ namespace ccf
       return id;
     }
 
+    auto& value()
+    {
+      return id;
+    }
+
     auto& value() const
     {
       return id;
