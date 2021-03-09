@@ -38,11 +38,11 @@ def sample_list(l, n):
 
 
 class LoggingTxs:
-    def __init__(self, user_id=0):
+    def __init__(self, user_id="user0"):
         self.pub = defaultdict(list)
         self.priv = defaultdict(list)
         self.idx = 0
-        self.user = f"user{user_id}"
+        self.user = user_id
         self.network = None
 
     def get_last_tx(self, priv=True, idx=None):

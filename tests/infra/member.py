@@ -54,17 +54,15 @@ class Member:
         self.authenticate_session = authenticate_session
 
         self.member_info = MemberInfo(
-            f"member{self.local_id}_cert.pem",
-            f"member{self.local_id}_enc_pubk.pem" if is_recovery_member else None,
-            f"member{self.local_id}_data.json" if member_data else None,
+            f"{self.local_id}_cert.pem",
+            f"{self.local_id}_enc_pubk.pem" if is_recovery_member else None,
+            f"{self.local_id}_data.json" if member_data else None,
         )
 
         if key_generator is not None:
-            member = f"member{local_id}"
-
             key_generator_args = [
                 "--name",
-                f"{member}",
+                self.local_id,
                 "--curve",
                 f"{curve.name}",
             ]
@@ -84,7 +82,7 @@ class Member:
             # If no key generator is passed in, the identity of the member
             # should have been created in advance (e.g. by a previous network)
             assert os.path.isfile(
-                os.path.join(self.common_dir, f"member{self.local_id}_privk.pem")
+                os.path.join(self.common_dir, f"{self.local_id}_privk.pem")
             )
             assert os.path.isfile(
                 os.path.join(self.common_dir, self.member_info.certificate_file)
@@ -106,14 +104,11 @@ class Member:
     def auth(self, write=False):
         if self.authenticate_session:
             if write:
-                return (
-                    f"member{self.local_id}",
-                    f"member{self.local_id}",
-                )
+                return (self.local_id, self.local_id)
             else:
-                return (f"member{self.local_id}", None)
+                return (self.local_id, None)
         else:
-            return (None, f"member{self.local_id}")
+            return (None, self.local_id)
 
     def is_active(self):
         return self.status_code == MemberStatus.ACTIVE
@@ -175,7 +170,7 @@ class Member:
                 raise NoRecoveryShareFound(r)
 
             with open(
-                os.path.join(self.common_dir, f"member{self.local_id}_enc_privk.pem"),
+                os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
                 "r",
             ) as priv_enc_key:
                 return infra.crypto.unwrap_key_rsa_oaep(
@@ -191,11 +186,11 @@ class Member:
             self.share_script,
             f"https://{remote_node.pubhost}:{remote_node.pubport}",
             "--member-enc-privk",
-            os.path.join(self.common_dir, f"member{self.local_id}_enc_privk.pem"),
+            os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
             "--cert",
-            os.path.join(self.common_dir, f"member{self.local_id}_cert.pem"),
+            os.path.join(self.common_dir, f"{self.local_id}_cert.pem"),
             "--key",
-            os.path.join(self.common_dir, f"member{self.local_id}_privk.pem"),
+            os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
             "--cacert",
             os.path.join(self.common_dir, "networkcert.pem"),
             log_output=True,

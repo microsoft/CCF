@@ -157,12 +157,12 @@ def test_cert_prefix(network, args):
         primary, _ = network.find_primary()
 
         for user in network.users:
-            with primary.client(f"user{user.local_id}") as c:
+            with primary.client(user.local_id) as c:
                 log_id = 101
                 msg = "This message will be prefixed"
                 c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
                 r = c.get(f"/app/log/private?id={log_id}")
-                assert f"CN=user{user.local_id}" in r.body.json()["msg"], r
+                assert f"CN={user.local_id}" in r.body.json()["msg"], r
 
     else:
         LOG.warning(
@@ -179,7 +179,7 @@ def test_anonymous_caller(network, args):
         primary, _ = network.find_primary()
 
         # Create a new user but do not record its identity
-        network.create_user(5, args.participants_curve, record=False)
+        network.create_user("user5", args.participants_curve, record=False)
 
         log_id = 101
         msg = "This message is anonymous"
@@ -208,7 +208,7 @@ def test_multi_auth(network, args):
     user = network.users[0]
     member = network.consortium.members[0]
 
-    with primary.client(f"user{user.local_id}") as c:
+    with primary.client(user.local_id) as c:
         response = c.get("/app/api")
         supported_methods = response.body.json()["paths"]
         if "/multi_auth" in supported_methods.keys():
@@ -226,7 +226,7 @@ def test_multi_auth(network, args):
                 require_new_response(r)
 
             LOG.info("Authenticate as a user, via TLS cert")
-            with primary.client(f"user{user.local_id}") as c:
+            with primary.client(user.local_id) as c:
                 r = c.get("/app/multi_auth")
                 require_new_response(r)
 
@@ -234,7 +234,7 @@ def test_multi_auth(network, args):
             network.consortium.set_user_data(
                 primary, user.service_id, {"some": ["interesting", "data", 42]}
             )
-            with primary.client(f"user{user.local_id}") as c:
+            with primary.client(user.local_id) as c:
                 r = c.get("/app/multi_auth")
                 require_new_response(r)
 
@@ -244,7 +244,7 @@ def test_multi_auth(network, args):
                 require_new_response(r)
 
             LOG.info("Authenticate as a member, via TLS cert")
-            with primary.client(f"member{member.local_id}") as c:
+            with primary.client(member.local_id) as c:
                 r = c.get("/app/multi_auth")
                 require_new_response(r)
 
@@ -252,7 +252,7 @@ def test_multi_auth(network, args):
             network.consortium.set_member_data(
                 primary, member.service_id, {"distinct": {"arbitrary": ["data"]}}
             )
-            with primary.client(f"member{member.local_id}") as c:
+            with primary.client(member.local_id) as c:
                 r = c.get("/app/multi_auth")
                 require_new_response(r)
 
@@ -262,12 +262,12 @@ def test_multi_auth(network, args):
                 require_new_response(r)
 
             LOG.info("Authenticate as a user, via HTTP signature")
-            with primary.client(None, f"user{user.local_id}") as c:
+            with primary.client(None, user.local_id) as c:
                 r = c.get("/app/multi_auth")
                 require_new_response(r)
 
             LOG.info("Authenticate as a member, via HTTP signature")
-            with primary.client(None, f"member{member.local_id}") as c:
+            with primary.client(None, member.local_id) as c:
                 r = c.get("/app/multi_auth")
                 require_new_response(r)
 
@@ -276,7 +276,7 @@ def test_multi_auth(network, args):
                 r = c.get("/app/multi_auth")
                 require_new_response(r)
 
-            network.create_user(5, args.participants_curve, record=False)
+            network.create_user("user5", args.participants_curve, record=False)
 
             LOG.info("Authenticate as invalid user5 but sign as valid user3")
             with primary.client("user5", "user3") as c:
@@ -581,7 +581,7 @@ def test_user_data_ACL(network, args):
         network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
         # Confirm that user can now use this endpoint
-        with primary.client(f"user{user.local_id}") as c:
+        with primary.client(user.local_id) as c:
             r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
             assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
@@ -594,7 +594,7 @@ def test_user_data_ACL(network, args):
         network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
         # Confirm that user is now forbidden on this endpoint
-        with primary.client(f"user{user.local_id}") as c:
+        with primary.client(user.local_id) as c:
             r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
             assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r.status_code
 

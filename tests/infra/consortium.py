@@ -42,7 +42,7 @@ class Consortium:
             self.recovery_threshold = 0
             for m_local_id, has_share, m_data in members_info:
                 new_member = infra.member.Member(
-                    m_local_id,
+                    f"member{m_local_id}",
                     curve,
                     common_dir,
                     share_script,
@@ -73,7 +73,7 @@ class Consortium:
                 )
                 for m_id, info in r.body.json():
                     new_member = infra.member.Member(
-                        m_id,
+                        f"member{m_id}",
                         curve,
                         self.common_dir,
                         share_script,
@@ -138,7 +138,7 @@ class Consortium:
     ):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
-        new_member_local_id = len(self.members)
+        new_member_local_id = f"member{len(self.members)}"
         new_member = infra.member.Member(
             new_member_local_id,
             curve,
@@ -151,8 +151,8 @@ class Consortium:
 
         proposal_body, careful_vote = self.make_proposal(
             "new_member",
-            os.path.join(self.common_dir, f"member{new_member_local_id}_cert.pem"),
-            os.path.join(self.common_dir, f"member{new_member_local_id}_enc_pubk.pem")
+            os.path.join(self.common_dir, f"{new_member_local_id}_cert.pem"),
+            os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
             if recovery_member
             else None,
             member_data,
@@ -352,7 +352,7 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def user_cert_path(self, user_id):
-        return os.path.join(self.common_dir, f"user{user_id}_cert.pem")
+        return os.path.join(self.common_dir, f"{user_id}_cert.pem")
 
     def add_user(self, remote_node, user_id, user_data=None):
         proposal, careful_vote = self.make_proposal(

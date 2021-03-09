@@ -87,7 +87,7 @@ def test_user(network, args, verify=True):
     # Note: This test should not be chained in the test suite as it creates
     # a new user and uses its own LoggingTxs
     primary, _ = network.find_nodes()
-    new_user_local_id = 3
+    new_user_local_id = f"user{3}"
     new_user = network.create_user(new_user_local_id, args.participants_curve)
     user_data = {"lifetime": "temporary"}
     network.consortium.add_user(primary, new_user.local_id, user_data)
@@ -99,7 +99,7 @@ def test_user(network, args, verify=True):
     if verify:
         txs.verify()
     network.consortium.remove_user(primary, new_user.service_id)
-    with primary.client(f"user{new_user_local_id}") as c:
+    with primary.client(new_user_local_id) as c:
         r = c.get("/app/log/private")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value
     return network

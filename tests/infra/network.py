@@ -375,7 +375,9 @@ class Network:
             args.participants_curve,
             authenticate_session=not args.disable_member_session_auth,
         )
-        initial_users = list(range(max(0, args.initial_user_count)))
+        initial_users = [
+            f"user{user_id}" for user_id in list(range(max(0, args.initial_user_count)))
+        ]
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
@@ -632,14 +634,14 @@ class Network:
         infra.proc.ccall(
             self.key_generator,
             "--name",
-            f"user{local_user_id}",
+            local_user_id,
             "--curve",
             f"{curve.name}",
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
 
-        with open(os.path.join(self.common_dir, f"user{local_user_id}_cert.pem")) as c:
+        with open(os.path.join(self.common_dir, f"{local_user_id}_cert.pem")) as c:
             service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
         new_user = UserInfo(
             local_user_id,
@@ -867,7 +869,7 @@ class Network:
                 current_commit_seqno = r.body.json()["seqno"]
                 if current_commit_seqno >= seqno:
                     with node.client(
-                        f"member{self.consortium.get_any_active_member().local_id}"
+                        self.consortium.get_any_active_member().local_id
                     ) as nc:
                         # Using update_state_digest here as a convenient write tx
                         # that is app agnostic

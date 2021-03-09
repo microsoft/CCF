@@ -136,7 +136,7 @@ def recovery_shares_scenario(args):
     # Members 0 and 1 are recovery members, member 2 isn't
     args.initial_member_count = 3
     args.initial_recovery_member_count = 2
-    non_recovery_member_id = 2
+    non_recovery_member_id = "member2"
 
     # Recovery threshold is initially set to number of recovery members (2)
     with infra.network.network(
@@ -155,7 +155,7 @@ def recovery_shares_scenario(args):
 
         LOG.info("Non-recovery member does not have a recovery share")
         primary, _ = network.find_primary()
-        with primary.client(f"member{non_recovery_member_id}") as mc:
+        with primary.client(non_recovery_member_id) as mc:
             r = mc.get("/gov/recovery_share")
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value
             assert (
