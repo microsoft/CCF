@@ -1,11 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-cmake_minimum_required(VERSION 3.13)
-
-project(nobuiltins LANGUAGES C CXX)
-find_package(ccf REQUIRED)
-
 add_ccf_app(nobuiltins SRCS nobuiltins.cpp)
 
 # Generate an ephemeral signing key
@@ -15,7 +10,8 @@ add_custom_command(
           3072
 )
 add_custom_target(
-  nobuiltins_signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
+  nobuiltins_signing_key ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
 sign_app_library(

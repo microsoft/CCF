@@ -638,7 +638,8 @@ if(BUILD_TESTS)
     NAME nobuiltins_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nobuiltins.py
     CONSENSUS cft
-    ADDITIONAL_ARGS -p ${CMAKE_BINARY_DIR}/samples/apps/nobuiltins/libnobuiltins
+    ADDITIONAL_ARGS -p
+                    ${CMAKE_BINARY_DIR}/samples/apps/nobuiltins/libnobuiltins
   )
 
   if(QUOTES_ENABLED)
