@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/json.h"
+#include "enclave/node_context.h"
 #include "endpoint_registry.h"
 #include "node/quote.h"
 #include "node/rpc/node_interface.h"
@@ -73,13 +74,14 @@ namespace ccf
   class BaseEndpointRegistry : public EndpointRegistry
   {
   protected:
-    AbstractNodeState& node;
+    ccfapp::AbstractNodeContext& context;
 
   public:
     BaseEndpointRegistry(
-      const std::string& method_prefix_, AbstractNodeState& node_state) :
+      const std::string& method_prefix_,
+      ccfapp::AbstractNodeContext& context_) :
       EndpointRegistry(method_prefix_),
-      node(node_state)
+      context(context_)
     {}
 
     /** Get the status of a transaction by ID, provided as a view+seqno pair.
@@ -174,32 +176,6 @@ namespace ccf
       }
     }
 
-    /** Get a receipt for the transaction at the specified sequence number
-     * containing a merkle tree path which proves that the service's ledger
-     * contains the given transaction.
-     */
-    ApiResult get_receipt_for_seqno_v1(
-      kv::Consensus::SeqNo seqno, std::vector<uint8_t>& receipt)
-    {
-      if (history != nullptr)
-      {
-        try
-        {
-          receipt = history->get_receipt(seqno);
-          return ApiResult::OK;
-        }
-        catch (const std::exception& e)
-        {
-          LOG_TRACE_FMT("{}", e.what());
-          return ApiResult::InternalError;
-        }
-      }
-      else
-      {
-        return ApiResult::Uninitialised;
-      }
-    }
-
     /** Get a quote attesting to the hardware this node is running on.
      */
     ApiResult get_quote_for_this_node_v1(
@@ -207,7 +183,7 @@ namespace ccf
     {
       try
       {
-        const auto node_id = node.get_node_id();
+        const auto node_id = context.get_node_state().get_node_id();
         auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
         const auto node_info = nodes->get(node_id);
 
