@@ -226,5 +226,35 @@ namespace ccf
         return ApiResult::InternalError;
       }
     }
+
+    /** Get the view associated with a given seqno, to construct a valid TxID
+     */
+    ApiResult get_view_for_seqno_v1(kv::SeqNo seqno, kv::View& view)
+    {
+      try
+      {
+        if (consensus != nullptr)
+        {
+          const auto v = consensus->get_view(seqno);
+          if (v != ccf::VIEW_UNKNOWN)
+          {
+            view = v;
+            return ApiResult::OK;
+          }
+          else
+          {
+            return ApiResult::NotFound;
+          }
+        }
+        else
+        {
+          return ApiResult::Uninitialised;
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_TRACE_FMT("{}", e.what());
+        return ApiResult::InternalError;
+      }
   };
 }
