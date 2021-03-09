@@ -1,7 +1,7 @@
 jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
     variables:
-      skipComponentGovernanceDetection: true
+      skipComponentGovernanceDetection: false
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
 
@@ -11,6 +11,12 @@ jobs:
       - checkout: self
         clean: true
         fetchDepth: 10000
+
+      - task: ComponentGovernanceComponentDetection@0
+        inputs:
+          scanType: 'Register'
+          verbosity: 'Verbose'
+          alertWarningLevel: 'High'
 
       - template: cmake.yml
         parameters:
