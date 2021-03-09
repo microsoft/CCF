@@ -4,8 +4,7 @@
 
 #include "ds/json.h"
 
-#include <algorithm>
-#include <cctype>
+#include <fmt/format.h>
 #include <msgpack/msgpack.hpp>
 #include <string>
 
@@ -81,24 +80,7 @@ namespace ccf
   {
     if (j.is_string())
     {
-      auto value = j.get<std::string>();
-      if (value.length() != EntityId::LENGTH)
-      {
-        throw JsonParseError(fmt::format(
-          "Entity id should be of length {} (found: {})",
-          EntityId::LENGTH,
-          value.length()));
-      }
-
-      if (!std::all_of(value.begin(), value.end(), [](unsigned char c) {
-            return std::isxdigit(c);
-          }))
-      {
-        throw JsonParseError(
-          fmt::format("Entity id {} should be hex-encoded", value));
-      }
-
-      entity_id = value;
+      entity_id = j.get<std::string>();
     }
     else
     {
@@ -132,6 +114,7 @@ namespace ccf
   using CallerId = EntityId;
   using MemberId = EntityId;
   using UserId = EntityId;
+  using NodeId = EntityId;
 }
 
 namespace std
@@ -152,3 +135,31 @@ namespace std
     }
   };
 }
+
+// Node ids are printed in many places (e.g. consensus) so only display the
+// first node_id_truncation_max_char_count characters when printing it to the
+// node's log (e.g. using the LOG_..._FMT() macros)
+static constexpr size_t node_id_truncation_max_char_count = 10;
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::NodeId>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::NodeId& node_id, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    return format_to(
+      ctx.out(),
+      "{}",
+      node_id.value().substr(
+        0, std::min(node_id.size(), node_id_truncation_max_char_count)));
+  }
+};
+FMT_END_NAMESPACE

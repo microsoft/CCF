@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "entities.h"
+#include "entity_id.h"
 #include "kv/map.h"
-#include "node_id.h"
 #include "node_info_network.h"
 #include "quote_info.h"
 

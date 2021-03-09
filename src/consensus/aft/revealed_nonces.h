@@ -4,7 +4,7 @@
 
 #include "crypto/hash.h"
 #include "kv/map.h"
-#include "node/node_id.h"
+#include "node/entity_id.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
