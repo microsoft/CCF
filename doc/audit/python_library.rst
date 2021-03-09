@@ -70,3 +70,6 @@ API
 
 .. autoclass:: ccf.ledger.PublicDomain
     :members:
+
+.. automodule:: ccf.receipt
+    :members:

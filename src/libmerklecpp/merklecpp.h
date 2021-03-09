@@ -59,7 +59,7 @@
 
 namespace merkle
 {
-  void serialise_size_t(size_t size, std::vector<uint8_t>& bytes)
+  static inline void serialise_size_t(size_t size, std::vector<uint8_t>& bytes)
   {
     size_t size_be = htobe64(size);
     uint8_t* size_bytes = (uint8_t*)&size_be;
@@ -67,7 +67,8 @@ namespace merkle
       bytes.push_back(size_bytes[i]);
   }
 
-  size_t deserialise_size_t(const std::vector<uint8_t>& bytes, size_t& index)
+  static inline size_t deserialise_size_t(
+    const std::vector<uint8_t>& bytes, size_t& index)
   {
     size_t result = 0;
     uint8_t* result_bytes = (uint8_t*)&result;
@@ -137,7 +138,7 @@ namespace merkle
       size_t num_chars = 2 * num_bytes;
       std::string r(num_chars, '_');
       for (size_t i = 0; i < num_bytes; i++)
-        snprintf(r.data() + 2 * i, num_chars + 1 - 2 * i, "%02X", bytes[i]);
+        snprintf(r.data() + 2 * i, num_chars + 1 - 2 * i, "%02x", bytes[i]);
       return r;
     }
 
@@ -1503,7 +1504,7 @@ namespace merkle
   };
 
   // clang-format off
-  void sha256_compress(const HashT<32> &l, const HashT<32> &r, HashT<32> &out) {
+  void static sha256_compress(const HashT<32> &l, const HashT<32> &r, HashT<32> &out) {
     static const uint32_t constants[] = {
       0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
       0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -1563,7 +1564,7 @@ namespace merkle
 
 #ifdef HAVE_OPENSSL
   // Note: Some versions of OpenSSL don't provide SHA256_Transform.
-  inline void sha256_compress_openssl(
+  static inline void sha256_compress_openssl(
     const HashT<32>& l, const HashT<32>& r, HashT<32>& out)
   {
     unsigned char block[32 * 2];
@@ -1579,7 +1580,7 @@ namespace merkle
       ((uint32_t*)out.bytes)[i] = htobe32(((uint32_t*)ctx.h)[i]);
   }
 
-  inline void sha256_openssl(
+  static inline void sha256_openssl(
     const merkle::HashT<32>& l,
     const merkle::HashT<32>& r,
     merkle::HashT<32>& out)
@@ -1594,7 +1595,7 @@ namespace merkle
 #ifdef HAVE_MBEDTLS
   // Note: Technically, mbedtls_internal_sha256_process is for internal use
   // only.
-  inline void sha256_compress_mbedtls(
+  static inline void sha256_compress_mbedtls(
     const HashT<32>& l, const HashT<32>& r, HashT<32>& out)
   {
     unsigned char block[32 * 2];
@@ -1610,7 +1611,7 @@ namespace merkle
       ((uint32_t*)out.bytes)[i] = htobe32(ctx.state[i]);
   }
 
-  inline void sha256_mbedtls(
+  static inline void sha256_mbedtls(
     const merkle::HashT<32>& l,
     const merkle::HashT<32>& r,
     merkle::HashT<32>& out)

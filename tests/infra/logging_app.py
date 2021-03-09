@@ -210,3 +210,50 @@ class LoggingTxs:
             raise LoggingTxsVerifyException(
                 f"Unable to retrieve entry at {idx} (seqno: {seqno}, view: {view}) after {timeout}s"
             )
+
+    def get_receipt(self, node, idx, seqno, view, timeout=3):
+
+        cmd = "/app/log/private/historical_receipt"
+        headers = {
+            ccf.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}",
+        }
+
+        found = False
+        start_time = time.time()
+        while time.time() < (start_time + timeout):
+            with node.client(self.user) as c:
+                ccf.commit.wait_for_commit(c, seqno, view, timeout)
+
+                rep = c.get(f"{cmd}?id={idx}", headers=headers)
+                if rep.status_code == http.HTTPStatus.OK:
+                    return rep.body
+                elif rep.status_code == http.HTTPStatus.NOT_FOUND:
+                    LOG.warning("User frontend is not yet opened")
+                    continue
+
+                if rep.status_code == http.HTTPStatus.ACCEPTED:
+                    retry_after = rep.headers.get("retry-after")
+                    if retry_after is None:
+                        raise ValueError(
+                            f"Response with status {rep.status_code} is missing 'retry-after' header"
+                        )
+                    sleep_time = 0.5
+                    LOG.info(
+                        f"Sleeping for {sleep_time}s waiting for historical query processing..."
+                    )
+                    time.sleep(sleep_time)
+                elif rep.status_code == http.HTTPStatus.NO_CONTENT:
+                    raise ValueError(
+                        f"Historical query response claims there was no write to {idx} at {view}.{seqno}"
+                    )
+                else:
+                    raise ValueError(
+                        f"Unexpected response status code {rep.status_code}: {rep.body}"
+                    )
+
+                time.sleep(0.1)
+
+        if not found:
+            raise LoggingTxsVerifyException(
+                f"Unable to retrieve entry at {idx} (seqno: {seqno}, view: {view}) after {timeout}s"
+            )
