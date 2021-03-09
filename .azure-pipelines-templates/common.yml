@@ -10,6 +10,12 @@ jobs:
         clean: true
         fetchDepth: 10000
 
+      - task: ComponentGovernanceComponentDetection@0
+        inputs:
+          scanType: 'Register'
+          verbosity: 'Verbose'
+          alertWarningLevel: 'High'
+
       - template: cmake.yml
         parameters:
           cmake_args: "${{ parameters.cmake_args }}"
