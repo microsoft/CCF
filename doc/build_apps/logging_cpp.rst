@@ -175,15 +175,23 @@ This app can then define its own endpoints from a blank slate. If it wants to pr
 Historical Queries
 ~~~~~~~~~~~~~~~~~~
 
-.. literalinclude:: ../samples/apps/logging/logging.cpp
+This sample demonstrates how to define a historical query endpoint with the help of :cpp:func:`ccf::historical::adapter`.
+
+The handler passed to the adapter is very similar to a read-only endpoint definition, but receives a read-only :cpp:struct:`ccf::historical::State` rather than a transaction.
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: get_historical
     :end-before: SNIPPET_END: get_historical
+    :dedent: 6
 
 Receipts
 ~~~~~~~~
 
-.. literalinclude:: ../samples/apps/logging/logging.cpp
+Historical state always contains a receipt. Users wishing to implement a receipt endpoint may return it directly, or include it along with other historical state in the response.
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: get_historical_with_receipt
     :end-before: SNIPPET_END: get_historical_with_receipt
+    :dedent: 6

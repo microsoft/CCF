@@ -49,14 +49,15 @@ If the network is unable to reach consensus, it will trigger a leadership electi
 Transaction Receipts
 --------------------
 
-Once a transaction has been committed, it is possible to get a receipt for it. That receipt can be checked offline, to prove that the transaction did happen at a particular commit.
+Once a transaction has been committed, it is possible to get a cryptographic receipt over the entry produced in the ledger. That receipt can be verified offline.
 
-To obtain a receipt, a user needs to issue a ``GET /receipt`` RPC for a particular transaction ID. Because fetching the information necessary to produce a receipt likely involves a round trip to the ledger, the endpoint is implemented as a historical query.
-This means that the request may return 202 at first, with a suggested Retry-After. A subsequent call will return the actual receipt, which will look like:
+To obtain a receipt, a user needs to call a :http:get:`/receipt` for a particular transaction ID. Because fetching the information necessary to produce a receipt likely involves a round trip to the ledger, the endpoint is implemented as a historical query.
+This means that the request may return ``202 Accepted`` at first, with a suggested ``Retry-After`` header. A subsequent call will return the actual receipt, for example:
 
 .. code-block:: bash
 
     $ curl -X GET "https://<ccf-node-address>/app/receipt?transaction_id=2.23" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
+    
     {'leaf': 'fdc977c49d3a8bdf986176984e9432a09b5f6fe0c04e0b1c2dd177c03fdca9ec',
      'node_id': '682c161e1bc0aec694cac58a6ea456e1caa6c9c56d8dd873da9455c341947065',
      'proof': [{'left': 'f847e5efe3965b0dacb5c15c666602807a11fdecd465d0976779eed27121ffa3'},
@@ -67,3 +68,10 @@ This means that the request may return 202 at first, with a suggested Retry-Afte
                {'left': 'f0e95ed85f5f6c0197aed4f6685b93dc56edd823a2532bd717558a5ab77267cb'}],
      'root': '06fef62c80b6471c7005c1b114166fd1b0e077845f5ad544ad4eea4fb1d31f78',
      'signature': 'MGQCMACklXqd0ge+gBS8WzewrwtwzRzSKy+bfrLZVx0YHmQvtsqs7dExYESsqrUrB8ZcKwIwS3NPKaGq0w2QlPlCqUC3vQoQvhcZgPHPu2GkFYa7JEOdSKLknNPHaCRv80zx2RGF'}
+
+Verifying a receipt is a two-phase process:
+
+  - Combine ``leaf`` with the successive elements in ``proof`` to reproduce the value of ``root``. See :py:func:`ccf.receipt.root` for a reference implementation.
+  - Verify ``signature`` over the ``root`` using the certificate of the node identified by ``node_id``. See :py:func:`ccf.receipt.verify` for a reference implementation.
+
+When a node certificate is first obtained, it is necessary to check it has been endorsed by the network identity.

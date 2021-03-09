@@ -35,8 +35,11 @@ namespace ccf::historical
 
   struct State
   {
+    /// Read-only historical store at transaction_id
     StorePtr store = nullptr;
+    /// Receipt for ledger entry at transaction_id
     TxReceiptPtr receipt = nullptr;
+    /// View and Sequence Number for the State
     kv::TxID transaction_id;
 
     State(

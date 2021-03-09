@@ -516,6 +516,7 @@ namespace loggingapp
         .install();
       // SNIPPET_END: log_record_text
 
+      // SNIPPET_START: get_historical
       auto get_historical = [this](
                               ccf::EndpointContext& args,
                               ccf::historical::StatePtr historical_state) {
@@ -579,6 +580,7 @@ namespace loggingapp
         .set_auto_schema<LoggingGetHistorical>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
+      // SNIPPET_END: get_historical
 
       // SNIPPET_START: get_historical_with_receipt
       auto get_historical_with_receipt =
