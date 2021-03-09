@@ -605,7 +605,7 @@ namespace ccf
              // A retired member with recovery share should not have access to
              // the private ledger going forward so rekey ledger, issuing new
              // share to remaining active members
-             if (!node.rekey_ledger(tx))
+             if (!context.get_node_state().rekey_ledger(tx))
              {
                return false;
              }
@@ -897,9 +897,10 @@ namespace ccf
         {"accept_recovery",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           if (node.is_part_of_public_network())
+           if (context.get_node_state().is_part_of_public_network())
            {
-             const auto accept_recovery = node.accept_recovery(tx);
+             const auto accept_recovery =
+               context.get_node_state().accept_recovery(tx);
              if (!accept_recovery)
              {
                LOG_FAIL_FMT("Proposal {}: Accept recovery failed", proposal_id);
@@ -941,14 +942,15 @@ namespace ccf
            }
            else
            {
-             node.open_user_frontend();
+             context.get_node_state().open_user_frontend();
            }
            return network_opened;
          }},
         {"rekey_ledger",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           const auto ledger_rekeyed = node.rekey_ledger(tx);
+           const auto ledger_rekeyed =
+             context.get_node_state().rekey_ledger(tx);
            if (!ledger_rekeyed)
            {
              LOG_FAIL_FMT("Proposal {}: Ledger rekey failed", proposal_id);
@@ -1196,11 +1198,11 @@ namespace ccf
   public:
     MemberEndpoints(
       NetworkState& network,
-      AbstractNodeState& node_state,
+      ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::members),
-        node_state,
+        context,
         Tables::MEMBER_CERT_DERS),
       network(network),
       share_manager(share_manager),
@@ -1806,7 +1808,7 @@ namespace ccf
             "Service is not waiting for recovery shares");
         }
 
-        if (node.is_reading_private_ledger())
+        if (context.get_node_state().is_reading_private_ledger())
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1849,7 +1851,7 @@ namespace ccf
 
         try
         {
-          node.initiate_private_recovery(ctx.tx);
+          context.get_node_state().initiate_private_recovery(ctx.tx);
         }
         catch (const std::exception& e)
         {
@@ -2437,10 +2439,10 @@ namespace ccf
   public:
     MemberRpcFrontend(
       NetworkState& network,
-      AbstractNodeState& node,
+      ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
       RpcFrontend(*network.tables, member_endpoints),
-      member_endpoints(network, node, share_manager),
+      member_endpoints(network, context, share_manager),
       members(&network.members)
     {}
   };
