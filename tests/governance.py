@@ -11,8 +11,6 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
-import json
-import urllib.parse
 
 from loguru import logger as LOG
 
