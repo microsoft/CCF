@@ -3,6 +3,8 @@
 #include "ds/json.h"
 #include "enclave/app_interface.h"
 
+#include <charconv>
+
 namespace nobuiltins
 {
   struct NodeSummary
@@ -130,6 +132,67 @@ namespace nobuiltins
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, ccf::GetCommit::Out>()
+        .install();
+
+      auto get_txid = [this](auto& ctx, nlohmann::json&&) {
+        const auto query_string = ctx.rpc_ctx->get_request_query();
+        const auto query_params = nonstd::split(query_string, "&");
+        for (const auto& query_param : query_params)
+        {
+          const auto& [query_key, query_value] =
+            nonstd::split_1(query_param, "=");
+          if (query_key == "seqno")
+          {
+            kv::SeqNo seqno;
+            const auto qv_begin = query_value.data();
+            const auto qv_end = qv_begin + query_value.size();
+            const auto [p, ec] = std::from_chars(qv_begin, qv_end, seqno);
+            if (ec != std::errc() || p != qv_end)
+            {
+              return ccf::make_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidQueryParameterValue,
+                fmt::format(
+                  "Query parameter '{}' cannot be parsed as a seqno",
+                  query_value));
+            }
+
+            kv::Consensus::View view;
+            const auto result = get_view_for_seqno_v1(seqno, view);
+            if (result == ccf::ApiResult::OK)
+            {
+              ccf::TxID tx_id;
+              tx_id.view = view;
+              tx_id.seqno = seqno;
+              nlohmann::json out = nlohmann::json::object();
+
+              out["transaction_id"] = tx_id.to_str();
+              return ccf::make_success(out);
+            }
+            else
+            {
+              return ccf::make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format(
+                  "Unable to construct TxID: {}",
+                  ccf::api_result_to_str(result)));
+            }
+          }
+        }
+
+        return ccf::make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidInput,
+          fmt::format("Missing query parameter '{}'", "seqno"));
+      };
+      make_command_endpoint(
+        "tx_id",
+        HTTP_GET,
+        ccf::json_command_adapter(get_txid),
+        ccf::no_auth_required)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
     }
   };
