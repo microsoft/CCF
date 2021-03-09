@@ -816,20 +816,24 @@ namespace ccfapp
       auto kv = JS_NewObjectClass(ctx, kv_class_id);
       JS_SetOpaque(kv, &tx);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
-
-      auto state = JS_NewObject(ctx);
+/*
+      // auto state = JS_NewObject(ctx);
       auto kv_tx_id = tx.get_read_tx_id();
       ccf::TxID tx_id;
       tx_id.view = static_cast<ccf::View>(kv_tx_id.term);
       tx_id.seqno = static_cast<ccf::SeqNo>(kv_tx_id.version);
+      std::string tx_id_str = tx_id.to_str();
+      const char* tx_id_cstr = tx_id_str.c_str();
+      auto s = JS_NewString(ctx, tx_id_cstr);
+      // FIXME why does this lead to uncollected garbage??
       JS_SetPropertyStr(
         ctx,
-        state,
+        ccf, //state,
         "transactionId",
-        JS_NewString(ctx, tx_id.to_str().c_str()));
+        s);
       // TODO receipt
-      JS_SetPropertyStr(ctx, ccf, "state", state);
-
+      // JS_SetPropertyStr(ctx, ccf, "state", state);
+*/
       return ccf;
     }
 
@@ -1018,13 +1022,8 @@ namespace ccfapp
       }
       if (info.value().historical)
       {
-        // TODO avoid duplication with src/node/historical_queries_adapter.h
-        // TODO update to latest code with receipts
-        ccf::TxID target_tx_id;
-        const auto tx_id_header = args.rpc_ctx->get_request_header(http::headers::CCF_TX_ID);
-        const auto tx_id_opt = ccf::TxID::from_str(tx_id_header.value());
-        target_tx_id = tx_id_opt.value();
-
+        // TODO doesn't really belong here
+        // (copied from samples/apps/logging/logging.cpp)
         auto is_tx_committed = [this](
                                 kv::Consensus::View view,
                                 kv::Consensus::SeqNo seqno,
@@ -1055,38 +1054,13 @@ namespace ccfapp
           return true;
         };
 
-        // Check that the requested transaction ID is available
-        {
-          auto error_reason = fmt::format(
-            "Transaction {} is not available.", target_tx_id.to_str());
-          if (!is_tx_committed(target_tx_id.view, target_tx_id.seqno, error_reason))
-          {
-            args.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::TransactionNotFound,
-              std::move(error_reason));
-            return;
-          }
-        }
-
-        const auto historic_request_handle = target_tx_id.seqno;
-        auto& state_cache = context.get_historical_state();
-        auto historical_store = state_cache.get_store_at(historic_request_handle, target_tx_id.seqno);
-        if (historical_store == nullptr)
-        {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
-          static constexpr size_t retry_after_seconds = 3;
-          args.rpc_ctx->set_response_header(
-            http::headers::RETRY_AFTER, retry_after_seconds);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "Historical transaction {} is not currently available.",
-            target_tx_id.to_str()));
-          return;
-        }
-        auto tx = historical_store->create_tx();
-        do_execute_request(method, verb, args, tx);
+        ccf::historical::adapter([this, &method, &verb](ccf::EndpointContext& args, ccf::historical::StatePtr state) {
+          auto tx = state->store->create_tx();
+          // TODO forward receipt
+          auto receipt = state->receipt;
+          do_execute_request(method, verb, args, tx);
+        },
+        context.get_historical_state(), is_tx_committed)(args);
       }
       else
       {
