@@ -229,7 +229,7 @@ namespace ccf
 
     /** Get the view associated with a given seqno, to construct a valid TxID
      */
-    ApiResult get_view_for_seqno_v1(kv::SeqNo seqno, kv::View& view)
+    ApiResult get_view_for_seqno_v1(kv::SeqNo seqno, kv::Consensus::View& view)
     {
       try
       {
@@ -256,5 +256,6 @@ namespace ccf
         LOG_TRACE_FMT("{}", e.what());
         return ApiResult::InternalError;
       }
+    }
   };
 }
