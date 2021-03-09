@@ -34,5 +34,7 @@ namespace crypto
       CBuffer cipher,
       CBuffer aad,
       uint8_t* plain) const override;
+
+    virtual size_t key_size() const override;
   };
 }

@@ -109,6 +109,11 @@ namespace crypto
     return PublicKey_mbedTLS::public_key_pem();
   }
 
+  std::vector<uint8_t> KeyPair_mbedTLS::public_key_der() const
+  {
+    return PublicKey_mbedTLS::public_key_der();
+  }
+
   bool KeyPair_mbedTLS::verify(
     const std::vector<uint8_t>& contents, const std::vector<uint8_t>& signature)
   {

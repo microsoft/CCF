@@ -1,8 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
 #include "crypto/hash.h"
 #include "kv/map.h"
+#include "node/node_id.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -13,12 +15,12 @@ namespace aft
   using Nonce = crypto::Sha256Hash;
   struct RevealedNonce
   {
-    kv::NodeId node_id;
+    ccf::NodeId node_id;
     Nonce nonce;
 
     MSGPACK_DEFINE(node_id, nonce);
 
-    RevealedNonce(ccf::NodeId node_id_, Nonce nonce_) :
+    RevealedNonce(const ccf::NodeId& node_id_, Nonce nonce_) :
       node_id(node_id_),
       nonce(nonce_)
     {}

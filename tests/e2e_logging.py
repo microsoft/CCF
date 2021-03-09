@@ -17,6 +17,7 @@ import tempfile
 import base64
 import json
 import ccf.clients
+from ccf.log_capture import flush_info
 
 from loguru import logger as LOG
 
@@ -433,6 +434,107 @@ def test_historical_query(network, args):
     return network
 
 
+@reqs.description("Read range of historical state")
+@reqs.supports_methods("log/private", "log/private/historical/range")
+def test_historical_query_range(network, args):
+    if args.consensus == "bft":
+        LOG.warning("Skipping historical queries in BFT")
+        return network
+
+    if args.package != "liblogging":
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
+        return network
+
+    primary, _ = network.find_primary()
+
+    id_a = 100
+    id_b = 101
+
+    first_seqno = None
+    last_seqno = None
+
+    def get_all_entries(target_id):
+        LOG.info(
+            f"Getting historical entries from {first_seqno} to {last_seqno} for id {target_id}"
+        )
+        logs = []
+        with primary.client("user0") as c:
+            timeout = 5
+            end_time = time.time() + timeout
+            entries = []
+            path = f"/app/log/private/historical/range?from_seqno={first_seqno}&to_seqno={last_seqno}&id={target_id}"
+            while time.time() < end_time:
+                r = c.get(path, log_capture=logs)
+                if r.status_code == http.HTTPStatus.OK:
+                    j_body = r.body.json()
+                    entries += j_body["entries"]
+                    if "@nextLink" in j_body:
+                        path = j_body["@nextLink"]
+                        continue
+                    else:
+                        # No @nextLink means we've reached end of range
+                        return entries
+                elif r.status_code == http.HTTPStatus.ACCEPTED:
+                    # Ignore retry-after header, retry soon
+                    time.sleep(0.1)
+                    continue
+                else:
+                    LOG.error("Printing historical/range logs on unexpected status")
+                    flush_info(logs, None)
+                    raise ValueError(
+                        f"Unexpected status code from historical range query: {r.status_code}"
+                    )
+
+        LOG.error("Printing historical/range logs on timeout")
+        flush_info(logs, None)
+        raise TimeoutError(f"Historical range not available after {timeout}s")
+
+    with primary.client("user0") as c:
+        # Submit many transactions, overwriting the same IDs
+        # Need to submit through network.txs so these can be verified at shutdown, but also need to submit one at a
+        # time to retrieve the submitted transactions
+        msgs = dict()
+        n_entries = 100
+        for i in range(n_entries):
+            idx = id_b if i % 3 == 0 else id_a
+            network.txs.issue(network, repeat=True, idx=idx, wait_for_sync=False)
+            _, tx = network.txs.get_last_tx(idx=idx)
+            msg = tx["msg"]
+            seqno = tx["seqno"]
+            view = tx["view"]
+            msgs[seqno] = msg
+
+            if first_seqno is None:
+                first_seqno = seqno
+
+            last_seqno = seqno
+
+        ccf.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
+
+        entries_a = get_all_entries(id_a)
+        entries_b = get_all_entries(id_b)
+        actual_len = len(entries_a) + len(entries_b)
+        assert (
+            n_entries == actual_len
+        ), f"Expected {n_entries} total entries, got {actual_len}"
+
+        # Iterate through both lists, by i, checking retrieved entries match expectations
+        for i in range(n_entries):
+            entries = entries_b if i % 3 == 0 else entries_a
+            expected_id = id_b if i % 3 == 0 else id_a
+            entry = entries.pop(0)
+            assert entry["id"] == expected_id
+            assert entry["msg"] == msgs[entry["seqno"]]
+
+        # Make sure this has checked every entry
+        assert len(entries_a) == 0
+        assert len(entries_b) == 0
+
+    return network
+
+
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("log/private")
 @reqs.at_least_n_nodes(2)
@@ -829,34 +931,51 @@ def test_receipts(network, args):
         msg = "Hello world"
 
         LOG.info("Write/Read on primary")
+        receipts = []
         with primary.client("user0") as c:
-            r = c.post("/app/log/private", {"id": 10000, "msg": msg})
-            check_commit(r, result=True)
-            check(c.get("/app/log/private?id=10000"), result={"msg": msg})
-            for _ in range(10):
-                c.post(
-                    "/app/log/private",
-                    {"id": 10001, "msg": "Additional messages"},
+            num_stints = 5
+            num_tx = 10
+            for j in range(num_stints):
+                idx = j * (num_tx + 1) + 10000
+                r = c.post("/app/log/private", {"id": idx, "msg": msg})
+                check_commit(r, result=True)
+                check(c.get("/app/log/private?id=%d" % idx), result={"msg": msg})
+                for i in range(1, num_tx):
+                    c.post(
+                        "/app/log/private",
+                        {"id": idx + i, "msg": "Additional messages"},
+                    )
+                check_commit(
+                    c.post(
+                        "/app/log/private",
+                        {"id": idx + i + 1, "msg": "A final message"},
+                    ),
+                    result=True,
                 )
-            check_commit(
-                c.post("/app/log/private", {"id": 10001, "msg": "A final message"}),
-                result=True,
-            )
-            r = c.get(f"/app/receipt?commit={r.seqno}")
+                r = c.get(f"/app/receipt?commit={r.seqno}")
 
-            rv = c.post("/app/receipt/verify", {"receipt": r.body.json()["receipt"]})
-            assert rv.body.json() == {"valid": True}
+                receipt = r.body.json()["receipt"]
+                rv = c.post("/app/receipt/verify", {"receipt": receipt})
+                assert rv.body.json() == {"valid": True}
 
-            invalid = r.body.json()["receipt"]
-            invalid[-3] += 1
+                receipts.append(receipt)
 
-            rv = c.post("/app/receipt/verify", {"receipt": invalid})
-            assert rv.body.json() == {"valid": False}
+                invalid = r.body.json()["receipt"]
+                invalid[-3] += 1
+
+                rv = c.post("/app/receipt/verify", {"receipt": invalid})
+                assert rv.body.json() == {"valid": False}
+
+        LOG.info("Verify recorded (historical) receipts")
+        for r in receipts:
+            with primary.client("user0") as c:
+                rv = c.post("/app/receipt/verify", {"receipt": r})
+                assert rv.body.json() == {"valid": True}
 
     return network
 
 
-@reqs.description("TTest basic app liveness")
+@reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
 def test_liveness(network, args):
     txs = app.LoggingTxs()
@@ -904,6 +1023,7 @@ def run(args):
         network = test_custom_auth(network, args)
         network = test_raw_text(network, args)
         network = test_historical_query(network, args)
+        network = test_historical_query_range(network, args)
         network = test_view_history(network, args)
         network = test_primary(network, args)
         network = test_network_node_info(network, args)

@@ -38,14 +38,20 @@ namespace crypto
     }
   }
 
-  std::vector<uint8_t> RSAKeyPair_OpenSSL::unwrap(
-    const std::vector<uint8_t>& input, std::optional<std::string> label)
+  size_t RSAKeyPair_OpenSSL::key_size() const
+  {
+    return RSAPublicKey_OpenSSL::key_size();
+  }
+
+  std::vector<uint8_t> RSAKeyPair_OpenSSL::rsa_oaep_unwrap(
+    const std::vector<uint8_t>& input,
+    std::optional<std::vector<std::uint8_t>> label)
   {
     const unsigned char* label_ = NULL;
     size_t label_size = 0;
     if (label.has_value())
     {
-      label_ = reinterpret_cast<const unsigned char*>(label->c_str());
+      label_ = label->data();
       label_size = label->size();
     }
 
@@ -81,5 +87,10 @@ namespace crypto
   Pem RSAKeyPair_OpenSSL::public_key_pem() const
   {
     return PublicKey_OpenSSL::public_key_pem();
+  }
+
+  std::vector<uint8_t> RSAKeyPair_OpenSSL::public_key_der() const
+  {
+    return PublicKey_OpenSSL::public_key_der();
   }
 }

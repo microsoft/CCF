@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/entities.h"
+#include "node/nodes.h"
 
 #include <msgpack/msgpack.hpp>
 #include <stdint.h>
@@ -27,13 +27,9 @@ namespace consensus
   struct ConsensusHeader
   {
     ConsensusHeader() = default;
-    ConsensusHeader(T msg_, ccf::NodeId from_node_) :
-      msg(msg_),
-      from_node(from_node_)
-    {}
+    ConsensusHeader(T msg_) : msg(msg_) {}
 
     T msg;
-    ccf::NodeId from_node;
   };
 
   struct AppendEntriesIndex

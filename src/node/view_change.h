@@ -71,7 +71,7 @@ namespace ccf
     kv::Consensus::SeqNo seqno = 0;
     std::vector<uint8_t> signature;
 
-    std::map<kv::NodeId, ViewChangeRequest> view_change_messages;
+    std::map<NodeId, ViewChangeRequest> view_change_messages;
 
     ViewChangeConfirmation() = default;
     ViewChangeConfirmation(

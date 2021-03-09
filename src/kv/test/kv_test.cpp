@@ -5,6 +5,7 @@
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
+#include "kv/test/stub_consensus.h"
 #include "node/entities.h"
 #include "node/history.h"
 
@@ -1101,7 +1102,8 @@ TEST_CASE("Deserialising from other Store")
   clone.set_encryptor(encryptor);
 
   REQUIRE(
-    clone.apply(data, ConsensusType::CFT)->execute() == kv::ApplyResult::PASS);
+    clone.deserialize(data, ConsensusType::CFT)->apply() ==
+    kv::ApplyResult::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -1114,7 +1116,8 @@ TEST_CASE("Deserialise return status")
 
   auto kp = crypto::make_key_pair();
 
-  auto history = std::make_shared<ccf::NullTxHistory>(store, 0, *kp);
+  auto history =
+    std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   {
@@ -1125,20 +1128,20 @@ TEST_CASE("Deserialise return status")
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.apply(data, ConsensusType::CFT)->execute() ==
+      store.deserialize(data, ConsensusType::CFT)->apply() ==
       kv::ApplyResult::PASS);
   }
 
   {
     auto tx = store.create_reserved_tx(store.next_version());
     auto sig_handle = tx.rw(signatures);
-    ccf::PrimarySignature sigv(0, 2);
+    ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.apply(data, ConsensusType::CFT)->execute() ==
+      store.deserialize(data, ConsensusType::CFT)->apply() ==
       kv::ApplyResult::PASS_SIGNATURE);
   }
 
@@ -1147,14 +1150,14 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_version());
     auto sig_handle = tx.rw(signatures);
     auto data_handle = tx.rw(data);
-    ccf::PrimarySignature sigv(0, 2);
+    ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     data_handle->put(43, 43);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.apply(data, ConsensusType::CFT)->execute() ==
+      store.deserialize(data, ConsensusType::CFT)->apply() ==
       kv::ApplyResult::FAIL);
   }
 }

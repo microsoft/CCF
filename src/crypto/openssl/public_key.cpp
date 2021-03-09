@@ -122,4 +122,15 @@ namespace crypto
     BIO_get_mem_ptr(buf, &bptr);
     return Pem((uint8_t*)bptr->data, bptr->length);
   }
+
+  std::vector<uint8_t> PublicKey_OpenSSL::public_key_der() const
+  {
+    Unique_BIO buf;
+
+    OpenSSL::CHECK1(i2d_PUBKEY_bio(buf, key));
+
+    BUF_MEM* bptr;
+    BIO_get_mem_ptr(buf, &bptr);
+    return {bptr->data, bptr->data + bptr->length};
+  }
 }

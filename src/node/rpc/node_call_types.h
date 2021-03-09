@@ -48,6 +48,7 @@ namespace ccf
       std::vector<MemberPubInfo> members_info;
       std::string gov_script;
       std::string constitution;
+      NodeId node_id;
       crypto::Pem node_cert;
       crypto::Pem network_cert;
       QuoteInfo quote_info;
@@ -71,7 +72,7 @@ namespace ccf
     struct Out
     {
       NodeStatus node_status;
-      NodeId node_id;
+      NodeId node_id; // Only used in BFT
 
       // Only if the caller node is trusted
       struct NetworkInfo

@@ -21,6 +21,7 @@ namespace crypto
 
     virtual Pem private_key_pem() const override;
     virtual Pem public_key_pem() const override;
+    virtual std::vector<uint8_t> public_key_der() const override;
 
     using PublicKey_mbedTLS::verify;
 

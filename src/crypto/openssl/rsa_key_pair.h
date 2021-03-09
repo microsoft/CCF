@@ -22,10 +22,13 @@ namespace crypto
     RSAKeyPair_OpenSSL(const Pem& pem, CBuffer pw = nullb);
     virtual ~RSAKeyPair_OpenSSL() = default;
 
-    virtual std::vector<uint8_t> unwrap(
-      const std::vector<uint8_t>& input,
-      std::optional<std::string> label = std::nullopt);
+    virtual size_t key_size() const override;
 
-    virtual Pem public_key_pem() const;
+    virtual std::vector<uint8_t> rsa_oaep_unwrap(
+      const std::vector<uint8_t>& input,
+      std::optional<std::vector<std::uint8_t>> label = std::nullopt) override;
+
+    virtual Pem public_key_pem() const override;
+    virtual std::vector<uint8_t> public_key_der() const override;
   };
 }

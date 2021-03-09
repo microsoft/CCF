@@ -92,7 +92,8 @@ namespace ccf
     NodeId id;
 
   public:
-    NullTxHistoryPendingTx(kv::TxID txid_, kv::Store& store_, NodeId id_) :
+    NullTxHistoryPendingTx(
+      kv::TxID txid_, kv::Store& store_, const NodeId& id_) :
       txid(txid_),
       store(store_),
       id(id_)
@@ -119,7 +120,7 @@ namespace ccf
     kv::Term term = 0;
 
   public:
-    NullTxHistory(kv::Store& store_, NodeId id_, crypto::KeyPair&) :
+    NullTxHistory(kv::Store& store_, const NodeId& id_, crypto::KeyPair&) :
       store(store_),
       id(id_)
     {}
@@ -201,6 +202,11 @@ namespace ccf
     {
       return true;
     }
+
+    std::vector<uint8_t> serialise_tree(size_t, size_t) override
+    {
+      return {};
+    }
   };
 
   typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree;
@@ -231,8 +237,19 @@ namespace ccf
 
     bool verify(HistoryTree* tree) const
     {
-      return tree->max_index() == path->max_index() && tree->root() == root &&
-        path->verify(root);
+      if (path->max_index() > tree->max_index())
+      {
+        return false;
+      }
+      else if (tree->max_index() == path->max_index())
+      {
+        return tree->root() == root && path->verify(root);
+      }
+      else
+      {
+        auto past_root = tree->past_root(path->max_index());
+        return path->verify(*past_root);
+      }
     }
 
     std::vector<uint8_t> to_v() const
@@ -250,7 +267,7 @@ namespace ccf
     kv::TxID txid;
     kv::Consensus::SignableTxIndices commit_txid;
     kv::Store& store;
-    T& replicated_state_tree;
+    kv::TxHistory& history;
     NodeId id;
     crypto::KeyPair& kp;
 
@@ -259,13 +276,13 @@ namespace ccf
       kv::TxID txid_,
       kv::Consensus::SignableTxIndices commit_txid_,
       kv::Store& store_,
-      T& replicated_state_tree_,
-      NodeId id_,
+      kv::TxHistory& history_,
+      const NodeId& id_,
       crypto::KeyPair& kp_) :
       txid(txid_),
       commit_txid(commit_txid_),
       store(store_),
-      replicated_state_tree(replicated_state_tree_),
+      history(history_),
       id(id_),
       kp(kp_)
     {}
@@ -275,7 +292,7 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      crypto::Sha256Hash root = replicated_state_tree.get_root();
+      crypto::Sha256Hash root = history.get_replicated_state_root();
 
       Nonce hashed_nonce;
       std::vector<uint8_t> primary_sig;
@@ -297,7 +314,7 @@ namespace ccf
             txid.version));
         }
 
-        progress_tracker->get_my_hashed_nonce(txid, hashed_nonce);
+        progress_tracker->get_node_hashed_nonce(txid, hashed_nonce);
       }
       else
       {
@@ -315,8 +332,7 @@ namespace ccf
         root,
         hashed_nonce,
         primary_sig,
-        replicated_state_tree.serialise(
-          commit_txid.previous_version, txid.version - 1));
+        history.serialise_tree(commit_txid.previous_version, txid.version - 1));
 
       if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
       {
@@ -476,7 +492,7 @@ namespace ccf
   public:
     HashedTxHistory(
       kv::Store& store_,
-      NodeId id_,
+      const NodeId& id_,
       crypto::KeyPair& kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
@@ -510,6 +526,7 @@ namespace ccf
 
           const int64_t sig_ms_interval = self->sig_ms_interval;
           int64_t delta_time_to_next_sig = sig_ms_interval;
+          bool should_emit_signature = false;
 
           if (mguard.try_lock())
           {
@@ -527,7 +544,7 @@ namespace ccf
               self->store.commit_gap() > 0 && time > time_of_last_signature &&
               (time - time_of_last_signature) > sig_ms_interval)
             {
-              msg->data.self->emit_signature();
+              should_emit_signature = true;
             }
 
             delta_time_to_next_sig =
@@ -539,6 +556,11 @@ namespace ccf
             {
               delta_time_to_next_sig = sig_ms_interval;
             }
+          }
+
+          if (should_emit_signature)
+          {
+            msg->data.self->emit_signature();
           }
 
           self->emit_signature_timer_entry =
@@ -559,7 +581,7 @@ namespace ccf
         emit_signature_timer_entry);
     }
 
-    void set_node_id(NodeId id_)
+    void set_node_id(const NodeId& id_)
     {
       id = id_;
     }
@@ -668,7 +690,7 @@ namespace ccf
       }
 
       crypto::VerifierPtr from_cert = crypto::make_verifier(ni.value().cert);
-      crypto::Sha256Hash root = replicated_state_tree.get_root();
+      crypto::Sha256Hash root = get_replicated_state_root();
       log_hash(root, VERIFY);
       bool result =
         from_cert->verify_hash(root.h, sig_value.sig, crypto::MDType::SHA256);
@@ -679,6 +701,12 @@ namespace ccf
       }
 
       return true;
+    }
+
+    std::vector<uint8_t> serialise_tree(size_t from, size_t to) override
+    {
+      std::lock_guard<SpinLock> guard(state_lock);
+      return replicated_state_tree.serialise(from, to);
     }
 
     void set_term(kv::Term t) override
@@ -723,6 +751,7 @@ namespace ccf
 
       if (store.commit_gap() >= sig_tx_interval)
       {
+        mguard.unlock();
         emit_signature();
       }
     }
@@ -762,7 +791,7 @@ namespace ccf
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid, commit_txid, store, replicated_state_tree, id, kp),
+          txid, commit_txid, store, *this, id, kp),
         true);
     }
 

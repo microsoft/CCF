@@ -5,6 +5,8 @@
 
 #include <mbedtls/aes.h>
 #include <mbedtls/error.h>
+#include <mbedtls/pk.h>
+#include <stdexcept>
 
 namespace crypto
 {
@@ -44,6 +46,12 @@ namespace crypto
         throw std::logic_error(error_string(rc));
       }
     }
+  }
+
+  size_t KeyAesGcm_mbedTLS::key_size() const
+  {
+    auto ctx = ctxs[threading::get_current_thread_id()].get();
+    return ctx->cipher_ctx.key_bitlen;
   }
 
   void KeyAesGcm_mbedTLS::encrypt(
@@ -93,4 +101,5 @@ namespace crypto
       cipher.p,
       plain);
   }
+
 }

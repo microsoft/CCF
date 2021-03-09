@@ -26,6 +26,7 @@ namespace crypto
   using namespace mbedtls;
 
   static constexpr size_t max_pem_key_size = 2048;
+  static constexpr size_t max_der_key_size = 2048;
 
   PublicKey_mbedTLS::PublicKey_mbedTLS() {}
 
@@ -136,9 +137,22 @@ namespace crypto
     return Pem(data, len);
   }
 
+  std::vector<uint8_t> PublicKey_mbedTLS::public_key_der() const
+  {
+    uint8_t data[max_der_key_size];
+
+    int len = mbedtls_pk_write_pubkey_der(ctx.get(), data, max_der_key_size);
+    if (len < 0)
+    {
+      throw std::logic_error(
+        "mbedtls_pk_write_pubkey_der: " + error_string(len));
+    }
+
+    return {data + max_der_key_size - len, data + max_der_key_size};
+  };
+
   mbedtls_pk_context* PublicKey_mbedTLS::get_raw_context() const
   {
     return ctx.get();
   }
-
 }

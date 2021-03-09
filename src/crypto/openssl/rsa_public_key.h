@@ -21,16 +21,19 @@ namespace crypto
     RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der);
     virtual ~RSAPublicKey_OpenSSL() = default;
 
-    virtual std::vector<uint8_t> wrap(
+    virtual size_t key_size() const;
+
+    virtual std::vector<uint8_t> rsa_oaep_wrap(
       const uint8_t* input,
       size_t input_size,
       const uint8_t* label = nullptr,
       size_t label_size = 0);
 
-    virtual std::vector<uint8_t> wrap(
+    virtual std::vector<uint8_t> rsa_oaep_wrap(
       const std::vector<uint8_t>& input,
-      std::optional<std::string> label = std::nullopt);
+      std::optional<std::vector<std::uint8_t>> label = std::nullopt);
 
     virtual Pem public_key_pem() const;
+    virtual std::vector<uint8_t> public_key_der() const;
   };
 }

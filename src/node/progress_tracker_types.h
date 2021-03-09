@@ -11,7 +11,7 @@
 
 namespace ccf
 {
-  struct BftNodeSignature : public ccf::NodeSignature
+  struct BftNodeSignature : public NodeSignature
   {
     bool is_primary;
     Nonce nonce;
@@ -22,7 +22,9 @@ namespace ccf
     {}
 
     BftNodeSignature(
-      const std::vector<uint8_t>& sig_, NodeId node_, Nonce hashed_nonce_) :
+      const std::vector<uint8_t>& sig_,
+      const NodeId& node_,
+      Nonce hashed_nonce_) :
       NodeSignature(sig_, node_, hashed_nonce_),
       is_primary(false)
     {}
@@ -39,10 +41,10 @@ namespace ccf
     CommitCert() = default;
 
     crypto::Sha256Hash root;
-    std::map<kv::NodeId, BftNodeSignature> sigs;
-    std::set<kv::NodeId> sig_acks;
-    std::set<kv::NodeId> nonce_set;
-    std::map<kv::NodeId, Nonce> unmatched_nonces;
+    std::map<NodeId, BftNodeSignature> sigs;
+    std::set<NodeId> sig_acks;
+    std::set<NodeId> nonce_set;
+    std::map<NodeId, Nonce> unmatched_nonces;
     Nonce my_nonce;
     bool have_primary_signature = false;
     bool ack_sent = false;
@@ -55,13 +57,13 @@ namespace ccf
   {
   public:
     virtual ~ProgressTrackerStore() = default;
-    virtual void write_backup_signatures(ccf::BackupSignatures& sig_value) = 0;
-    virtual std::optional<ccf::BackupSignatures> get_backup_signatures() = 0;
-    virtual std::optional<ccf::ViewChangeConfirmation> get_new_view() = 0;
+    virtual void write_backup_signatures(const BackupSignatures& sig_value) = 0;
+    virtual std::optional<BackupSignatures> get_backup_signatures() = 0;
+    virtual std::optional<ViewChangeConfirmation> get_new_view() = 0;
     virtual void write_nonces(aft::RevealedNonces& nonces) = 0;
     virtual std::optional<aft::RevealedNonces> get_nonces() = 0;
     virtual bool verify_signature(
-      kv::NodeId node_id,
+      const NodeId& node_id,
       crypto::Sha256Hash& root,
       uint32_t sig_size,
       uint8_t* sig) = 0;
@@ -71,13 +73,13 @@ namespace ccf
       kv::Consensus::SeqNo seqno) = 0;
     virtual bool verify_view_change_request(
       ViewChangeRequest& view_change,
-      kv::NodeId from,
+      const NodeId& from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) = 0;
     virtual kv::Consensus::SeqNo write_view_change_confirmation(
-      ccf::ViewChangeConfirmation& new_view) = 0;
+      ViewChangeConfirmation& new_view) = 0;
     virtual bool verify_view_change_request_confirmation(
-      ccf::ViewChangeConfirmation& new_view, kv::NodeId from) = 0;
+      ViewChangeConfirmation& new_view, const NodeId& from) = 0;
   };
 
   class ProgressTrackerStoreAdapter : public ProgressTrackerStore
@@ -87,13 +89,13 @@ namespace ccf
       kv::AbstractStore& store_, crypto::KeyPair& kp_) :
       store(store_),
       kp(kp_),
-      nodes(ccf::Tables::NODES),
-      backup_signatures(ccf::Tables::BACKUP_SIGNATURES),
-      revealed_nonces(ccf::Tables::NONCES),
-      new_views(ccf::Tables::NEW_VIEWS)
+      nodes(Tables::NODES),
+      backup_signatures(Tables::BACKUP_SIGNATURES),
+      revealed_nonces(Tables::NONCES),
+      new_views(Tables::NEW_VIEWS)
     {}
 
-    void write_backup_signatures(ccf::BackupSignatures& sig_value) override
+    void write_backup_signatures(const BackupSignatures& sig_value) override
     {
       kv::Tx tx(&store);
       auto backup_sig_view = tx.rw(backup_signatures);
@@ -107,7 +109,7 @@ namespace ccf
         r);
     }
 
-    std::optional<ccf::BackupSignatures> get_backup_signatures() override
+    std::optional<BackupSignatures> get_backup_signatures() override
     {
       kv::Tx tx(&store);
       auto sigs_tv = tx.rw(backup_signatures);
@@ -115,12 +117,12 @@ namespace ccf
       if (!sigs.has_value())
       {
         LOG_FAIL_FMT("No signatures found in signatures map");
-        throw ccf::ccf_logic_error("No signatures found in signatures map");
+        throw ccf_logic_error("No signatures found in signatures map");
       }
       return sigs;
     }
 
-    std::optional<ccf::ViewChangeConfirmation> get_new_view() override
+    std::optional<ViewChangeConfirmation> get_new_view() override
     {
       kv::Tx tx(&store);
       auto new_views_tv = tx.rw(new_views);
@@ -128,7 +130,7 @@ namespace ccf
       if (!new_view.has_value())
       {
         LOG_FAIL_FMT("No new_view found in new_view map");
-        throw ccf::ccf_logic_error("No new_view found in new_view map");
+        throw ccf_logic_error("No new_view found in new_view map");
       }
       return new_view;
     }
@@ -146,7 +148,7 @@ namespace ccf
           "Failed to write nonces, view:{}, seqno:{}",
           nonces.tx_id.term,
           nonces.tx_id.version);
-        throw ccf::ccf_logic_error(fmt::format(
+        throw ccf_logic_error(fmt::format(
           "Failed to write nonces, view:{}, seqno:{}",
           nonces.tx_id.term,
           nonces.tx_id.version));
@@ -161,13 +163,13 @@ namespace ccf
       if (!nonces.has_value())
       {
         LOG_FAIL_FMT("No signatures found in signatures map");
-        throw ccf::ccf_logic_error("No signatures found in signatures map");
+        throw ccf_logic_error("No signatures found in signatures map");
       }
       return nonces;
     }
 
     bool verify_signature(
-      kv::NodeId node_id,
+      const NodeId& node_id,
       crypto::Sha256Hash& root,
       uint32_t sig_size,
       uint8_t* sig) override
@@ -198,7 +200,7 @@ namespace ccf
 
     bool verify_view_change_request(
       ViewChangeRequest& view_change,
-      kv::NodeId from,
+      const NodeId& from,
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) override
     {
@@ -219,7 +221,7 @@ namespace ccf
     }
 
     bool verify_view_change_request_confirmation(
-      ViewChangeConfirmation& new_view, kv::NodeId from) override
+      ViewChangeConfirmation& new_view, const NodeId& from) override
     {
       kv::Tx tx(&store);
       auto ni_tv = tx.rw(nodes);
@@ -237,7 +239,7 @@ namespace ccf
     }
 
     kv::Consensus::SeqNo write_view_change_confirmation(
-      ccf::ViewChangeConfirmation& new_view) override
+      ViewChangeConfirmation& new_view) override
     {
       kv::Tx tx(&store);
       auto new_views_tv = tx.rw(new_views);
@@ -253,7 +255,7 @@ namespace ccf
           "Failed to write new_view, view:{}, seqno:{}",
           new_view.view,
           new_view.seqno);
-        throw ccf::ccf_logic_error(fmt::format(
+        throw ccf_logic_error(fmt::format(
           "Failed to write new_view, view:{}, seqno:{}",
           new_view.view,
           new_view.seqno));
@@ -262,7 +264,7 @@ namespace ccf
       return tx.commit_version();
     }
 
-    crypto::Sha256Hash hash_new_view(ccf::ViewChangeConfirmation& new_view)
+    crypto::Sha256Hash hash_new_view(ViewChangeConfirmation& new_view)
     {
       crypto::ISha256Hash ch;
       ch.update(new_view.view);
@@ -279,10 +281,10 @@ namespace ccf
   private:
     kv::AbstractStore& store;
     crypto::KeyPair& kp;
-    ccf::Nodes nodes;
-    ccf::BackupSignaturesMap backup_signatures;
+    Nodes nodes;
+    BackupSignaturesMap backup_signatures;
     aft::RevealedNoncesMap revealed_nonces;
-    ccf::NewViewsMap new_views;
+    NewViewsMap new_views;
 
     crypto::Sha256Hash hash_view_change(
       const ViewChangeRequest& v,

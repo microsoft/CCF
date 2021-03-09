@@ -4,6 +4,8 @@
 #include "crypto/mbedtls/symmetric_key.h"
 
 #include "crypto/openssl/symmetric_key.h"
+#include "crypto/rsa_key_pair.h"
+#include "symmetric_key.h"
 
 namespace crypto
 {

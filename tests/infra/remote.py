@@ -576,6 +576,7 @@ class CCFRemote(object):
         binary_dir=".",
         ledger_chunk_bytes=(5 * 1000 * 1000),
         domain=None,
+        san=None,
         snapshot_tx_interval=None,
         jwt_key_refresh_interval_s=None,
     ):
@@ -660,6 +661,9 @@ class CCFRemote(object):
 
         if domain:
             cmd += [f"--domain={domain}"]
+
+        if san:
+            cmd += [f"--san={s}" for s in san]
 
         if snapshot_tx_interval:
             cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]

@@ -3,34 +3,42 @@
 #pragma once
 
 #include "consensus/aft/raft_types.h"
-#include "host/timer.h"
 #include "ledger.h"
 #include "node/node_types.h"
 #include "tcp.h"
+#include "timer.h"
 
 #include <unordered_map>
 
 namespace asynchost
 {
+  static const ccf::NodeId UnassociatedNode = std::string("Unknown");
+
   class NodeConnections
   {
   private:
     class ConnectionBehaviour : public TCPBehaviour
     {
+    private:
     public:
       NodeConnections& parent;
-      ccf::NodeId node;
+      std::optional<ccf::NodeId> node;
       uint32_t msg_size = (uint32_t)-1;
       std::vector<uint8_t> pending;
 
-      ConnectionBehaviour(NodeConnections& parent, ccf::NodeId node) :
+      ConnectionBehaviour(
+        NodeConnections& parent,
+        std::optional<ccf::NodeId> node = std::nullopt) :
         parent(parent),
         node(node)
       {}
 
       void on_read(size_t len, uint8_t*& incoming)
       {
-        LOG_DEBUG_FMT("from node {} received {} bytes", node, len);
+        LOG_DEBUG_FMT(
+          "from node {} received {} bytes",
+          node.value_or(UnassociatedNode),
+          len);
 
         pending.insert(pending.end(), incoming, incoming + len);
 
@@ -43,7 +51,9 @@ namespace asynchost
           if (msg_size == (uint32_t)-1)
           {
             if (size < sizeof(uint32_t))
+            {
               break;
+            }
 
             msg_size = serialized::read<uint32_t>(data, size);
             used += sizeof(uint32_t);
@@ -52,21 +62,26 @@ namespace asynchost
           if (size < msg_size)
           {
             LOG_DEBUG_FMT(
-              "from node {} have {}/{} bytes", node, size, msg_size);
+              "from node {} have {}/{} bytes",
+              node.value_or(UnassociatedNode),
+              size,
+              msg_size);
             break;
           }
 
           auto p = data;
           auto psize = size;
           auto msg_type = serialized::read<ccf::NodeMsgType>(p, psize);
-          auto header = serialized::read<ccf::Header>(p, psize);
+          ccf::NodeId from = serialized::read<ccf::NodeId::Value>(p, psize);
 
-          if (node == ccf::NoNode)
-            associate(header.from_node);
+          if (!node.has_value())
+          {
+            associate(from);
+          }
 
           LOG_DEBUG_FMT(
             "node in: from node {}, size {}, type {}",
-            node,
+            node.value(),
             msg_size,
             msg_type);
 
@@ -82,10 +97,12 @@ namespace asynchost
         }
 
         if (used > 0)
+        {
           pending.erase(pending.begin(), pending.begin() + used);
+        }
       }
 
-      virtual void associate(ccf::NodeId) {}
+      virtual void associate(const ccf::NodeId&) {}
     };
 
     class IncomingBehaviour : public ConnectionBehaviour
@@ -94,56 +111,58 @@ namespace asynchost
       size_t id;
 
       IncomingBehaviour(NodeConnections& parent, size_t id) :
-        ConnectionBehaviour(parent, ccf::NoNode),
+        ConnectionBehaviour(parent),
         id(id)
       {}
 
       void on_disconnect()
       {
-        LOG_DEBUG_FMT("node incoming disconnect {} with node {}", id, node);
-
         parent.incoming.erase(id);
 
-        if (node != ccf::NoNode)
-          parent.associated.erase(node);
+        if (node.has_value())
+        {
+          LOG_DEBUG_FMT(
+            "node incoming disconnect {} with node {}", id, node.value());
+          parent.associated.erase(node.value());
+        }
       }
 
-      virtual void associate(ccf::NodeId n)
+      virtual void associate(const ccf::NodeId& n)
       {
         node = n;
-        parent.associated.emplace(node, parent.incoming.at(id));
-        LOG_DEBUG_FMT("node incoming {} associated with {}", id, node);
+        parent.associated.emplace(node.value(), parent.incoming.at(id));
+        LOG_DEBUG_FMT("node incoming {} associated with {}", id, node.value());
       }
     };
 
     class OutgoingBehaviour : public ConnectionBehaviour
     {
     public:
-      OutgoingBehaviour(NodeConnections& parent, ccf::NodeId node) :
+      OutgoingBehaviour(NodeConnections& parent, const ccf::NodeId& node) :
         ConnectionBehaviour(parent, node)
       {}
 
       void on_resolve_failed()
       {
-        LOG_DEBUG_FMT("node resolve failed {}", node);
+        LOG_DEBUG_FMT("node resolve failed {}", node.value());
         reconnect();
       }
 
       void on_connect_failed()
       {
-        LOG_DEBUG_FMT("node connect failed {}", node);
+        LOG_DEBUG_FMT("node connect failed {}", node.value());
         reconnect();
       }
 
       void on_disconnect()
       {
-        LOG_DEBUG_FMT("node disconnect failed {}", node);
+        LOG_DEBUG_FMT("node disconnect failed {}", node.value());
         reconnect();
       }
 
       void reconnect()
       {
-        parent.request_reconnect(node);
+        parent.request_reconnect(node.value());
       }
     };
 
@@ -219,11 +238,13 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, ccf::node_outbound, [this](const uint8_t* data, size_t size) {
-          auto to = serialized::read<ccf::NodeId>(data, size);
+          ccf::NodeId to = serialized::read<ccf::NodeId::Value>(data, size);
           auto node = find(to, true);
 
           if (!node)
+          {
             return;
+          }
 
           auto data_to_send = data;
           auto size_to_send = size;
@@ -231,20 +252,15 @@ namespace asynchost
           // If the message is a consensus append entries message, affix the
           // corresponding ledger entries
           auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
+          ccf::NodeId from = serialized::read<ccf::NodeId::Value>(data, size);
           if (
             msg_type == ccf::NodeMsgType::consensus_msg &&
-            (serialized::peek<aft::RaftMsgType>(data, size) ==
+            (serialized::read<aft::RaftMsgType>(data, size) ==
              aft::raft_append_entries))
           {
             // Parse the indices to be sent to the recipient.
-            auto p = data;
-            auto psize = size;
-
-            serialized::overlay<consensus::ConsensusHeader<ccf::Node2NodeMsg>>(
-              p, psize);
-
             const auto& ae =
-              serialized::overlay<consensus::AppendEntriesIndex>(p, psize);
+              serialized::overlay<consensus::AppendEntriesIndex>(data, size);
 
             // Find the total frame size, and write it along with the header.
             uint32_t frame = (uint32_t)size_to_send;
@@ -288,7 +304,7 @@ namespace asynchost
         });
     }
 
-    void request_reconnect(ccf::NodeId node)
+    void request_reconnect(const ccf::NodeId& node)
     {
       reconnect_queue.insert(node);
     }
@@ -315,7 +331,9 @@ namespace asynchost
 
   private:
     bool add_node(
-      ccf::NodeId node, const std::string& host, const std::string& service)
+      const ccf::NodeId& node,
+      const std::string& host,
+      const std::string& service)
     {
       if (outgoing.find(node) != outgoing.end())
       {
@@ -339,26 +357,30 @@ namespace asynchost
       return true;
     }
 
-    std::optional<TCP> find(ccf::NodeId node, bool use_incoming = false)
+    std::optional<TCP> find(const ccf::NodeId& node, bool use_incoming = false)
     {
       auto s = outgoing.find(node);
 
       if (s != outgoing.end())
+      {
         return s->second;
+      }
 
       if (use_incoming)
       {
         auto s = associated.find(node);
 
         if (s != associated.end())
+        {
           return s->second;
+        }
       }
 
       LOG_FAIL_FMT("Unknown node connection {}", node);
       return {};
     }
 
-    bool remove_node(ccf::NodeId node)
+    bool remove_node(const ccf::NodeId& node)
     {
       if (outgoing.erase(node) < 1)
       {
@@ -366,7 +388,7 @@ namespace asynchost
         return false;
       }
 
-      LOG_DEBUG_FMT("Removed node connection with {}", node);
+      LOG_DEBUG_FMT("Removed outgoing node connection with {}", node);
 
       return true;
     }
@@ -376,7 +398,9 @@ namespace asynchost
       auto id = next_id++;
 
       while (incoming.find(id) != incoming.end())
+      {
         id = next_id++;
+      }
 
       return id;
     }

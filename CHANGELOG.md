@@ -5,12 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- `x-ccf-tx-view` and `x-ccf-tx-seqno` response headers have been removed, and replaced with `x-ms-ccf-transaction-id`. This includes both original fields, separated by a single `.`. Historical queries using `ccf::historical::adapter` should also pass a single combined `x-ms-ccf-transaction-id` header (#2257).
+- Node unique identifier is the hex-encoded string of the SHA-256 digest of the node's identity public key, which is also used as the node's quote report data (#2241).
+
+## [0.18.5]
+
+### Changed
+
+- Historical query system now supports range queries.
+
 ## [0.18.4]
 
 ### Changed
 
 - Governance proposals can be submitted successfully against secondaries (#2247)
 - `set_ca_cert`/`remove_ca_cert` proposals have been renamed `set_ca_cert_bundle`/`remove_ca_cert_bundle` and now also accept a bundle of certificates encoded as concatenated PEM string (#2221).
+
+### Added
+
+- Support for multiple key wrapping algorithms for C++ and JavaScript applications (#2246)
 
 ## [0.18.3]
 
@@ -701,6 +718,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.18.5]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.5
 [0.18.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.4
 [0.18.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.3
 [0.18.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.2

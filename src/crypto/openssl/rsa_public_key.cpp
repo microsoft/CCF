@@ -46,7 +46,12 @@ namespace crypto
     RSA_free(rsa);
   }
 
-  std::vector<uint8_t> RSAPublicKey_OpenSSL::wrap(
+  size_t RSAPublicKey_OpenSSL::key_size() const
+  {
+    return EVP_PKEY_bits(key);
+  }
+
+  std::vector<uint8_t> RSAPublicKey_OpenSSL::rsa_oaep_wrap(
     const uint8_t* input,
     size_t input_size,
     const uint8_t* label,
@@ -80,22 +85,28 @@ namespace crypto
     return output;
   }
 
-  std::vector<uint8_t> RSAPublicKey_OpenSSL::wrap(
-    const std::vector<uint8_t>& input, std::optional<std::string> label)
+  std::vector<uint8_t> RSAPublicKey_OpenSSL::rsa_oaep_wrap(
+    const std::vector<uint8_t>& input,
+    std::optional<std::vector<std::uint8_t>> label)
   {
     const unsigned char* label_ = NULL;
     size_t label_size = 0;
     if (label.has_value())
     {
-      label_ = reinterpret_cast<const unsigned char*>(label->c_str());
+      label_ = label->data();
       label_size = label->size();
     }
 
-    return wrap(input.data(), input.size(), label_, label_size);
+    return rsa_oaep_wrap(input.data(), input.size(), label_, label_size);
   }
 
   Pem RSAPublicKey_OpenSSL::public_key_pem() const
   {
     return PublicKey_OpenSSL::public_key_pem();
+  }
+
+  std::vector<uint8_t> RSAPublicKey_OpenSSL::public_key_der() const
+  {
+    return PublicKey_OpenSSL::public_key_der();
   }
 }

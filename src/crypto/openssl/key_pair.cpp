@@ -96,6 +96,11 @@ namespace crypto
     return PublicKey_OpenSSL::public_key_pem();
   }
 
+  std::vector<uint8_t> KeyPair_OpenSSL::public_key_der() const
+  {
+    return PublicKey_OpenSSL::public_key_der();
+  }
+
   bool KeyPair_OpenSSL::verify(
     const std::vector<uint8_t>& contents, const std::vector<uint8_t>& signature)
   {

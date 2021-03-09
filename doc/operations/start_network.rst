@@ -33,6 +33,8 @@ CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported
 
 When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
 
+The unique identifier of a CCF node is the hex-encoded string of the SHA-256 digest the public key contained in its identity certificate (e.g. ``50211327a77fc16dd2fba8fae5fffac3df909fceeb307cf804a4125ae2679007``). This unique identifier should be used by operators and members to refer to this node with CCF (for example, when :ref:`governance/common_member_operations:Trusting a New Node`).
+
 .. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using ``curl``, this is passed as the ``--cacert`` argument.
 
 The certificates, encryption public keys and member data of initial members of the consortium are specified via ``--member-info``. For example:
