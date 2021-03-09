@@ -142,7 +142,7 @@ namespace ccf
       std::string transaction_id;
     };
 
-    struct Node
+    struct Element
     {
       std::optional<std::string> left = std::nullopt;
       std::optional<std::string> right = std::nullopt;
@@ -152,7 +152,7 @@ namespace ccf
     {
       std::string signature;
       std::string root;
-      std::vector<Node> proof = {};
+      std::vector<Element> proof = {};
       std::string leaf;
       ccf::NodeId node_id;
 
@@ -162,7 +162,7 @@ namespace ccf
         root = r->root.to_string();
         for (const auto& node : *r->path)
         {
-          Node n;
+          Element n;
           if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
           {
             n.left = node.hash.to_string();
