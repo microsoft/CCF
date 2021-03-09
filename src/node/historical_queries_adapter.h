@@ -11,11 +11,8 @@ namespace ccf::historical
   using CheckAvailability = std::function<bool(
     kv::Consensus::View view, kv::SeqNo seqno, std::string& error_reason)>;
 
-  using HandleHistoricalQuery = std::function<void(
-    ccf::EndpointContext& args,
-    StatePtr state,
-    kv::Consensus::View view,
-    kv::SeqNo seqno)>;
+  using HandleHistoricalQuery =
+    std::function<void(ccf::EndpointContext& args, StatePtr state)>;
 
   using TxIDExtractor =
     std::function<std::optional<ccf::TxID>(EndpointContext& args)>;
@@ -114,7 +111,7 @@ namespace ccf::historical
       }
 
       // Call the provided handler
-      f(args, historical_state, target_tx_id.view, target_tx_id.seqno);
+      f(args, historical_state);
     };
   }
 #pragma clang diagnostic pop

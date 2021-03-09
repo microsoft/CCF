@@ -113,7 +113,7 @@
         ],
         "type": "object"
       },
-      "GetReceipt__Node": {
+      "GetReceipt__Element": {
         "properties": {
           "left": {
             "$ref": "#/components/schemas/string"
@@ -124,9 +124,9 @@
         },
         "type": "object"
       },
-      "GetReceipt__Node_array": {
+      "GetReceipt__Element_array": {
         "items": {
-          "$ref": "#/components/schemas/GetReceipt__Node"
+          "$ref": "#/components/schemas/GetReceipt__Element"
         },
         "type": "array"
       },
@@ -139,7 +139,7 @@
             "$ref": "#/components/schemas/NodeId"
           },
           "proof": {
-            "$ref": "#/components/schemas/GetReceipt__Node_array"
+            "$ref": "#/components/schemas/GetReceipt__Element_array"
           },
           "root": {
             "$ref": "#/components/schemas/string"

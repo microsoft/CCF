@@ -171,3 +171,19 @@ This app can then define its own endpoints from a blank slate. If it wants to pr
     :start-after: SNIPPET_START: get_quote_api_v1
     :end-before: SNIPPET_END: get_quote_api_v1
     :dedent: 10
+
+Historical Queries
+~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: get_historical
+    :end-before: SNIPPET_END: get_historical
+
+Receipts
+~~~~~~~~
+
+.. literalinclude:: ../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: get_historical_with_receipt
+    :end-before: SNIPPET_END: get_historical_with_receipt

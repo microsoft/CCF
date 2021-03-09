@@ -280,9 +280,7 @@ namespace ccf
 
       auto get_receipt = [](
                            ccf::EndpointContext& args,
-                           ccf::historical::StatePtr historical_state,
-                           kv::Consensus::View,
-                           kv::Consensus::SeqNo) {
+                           ccf::historical::StatePtr historical_state) {
         const auto [pack, params] =
           ccf::jsonhandler::get_json_params(args.rpc_ctx);
 

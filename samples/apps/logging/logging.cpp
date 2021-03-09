@@ -518,9 +518,7 @@ namespace loggingapp
 
       auto get_historical = [this](
                               ccf::EndpointContext& args,
-                              ccf::historical::StatePtr historical_state,
-                              kv::Consensus::View,
-                              kv::Consensus::SeqNo) {
+                              ccf::historical::StatePtr historical_state) {
         const auto [pack, params] =
           ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
@@ -582,12 +580,11 @@ namespace loggingapp
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 
+      // SNIPPET_START: get_historical_with_receipt
       auto get_historical_with_receipt =
         [this](
           ccf::EndpointContext& args,
-          ccf::historical::StatePtr historical_state,
-          kv::Consensus::View,
-          kv::Consensus::SeqNo) {
+          ccf::historical::StatePtr historical_state) {
           const auto [pack, params] =
             ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
@@ -620,6 +617,7 @@ namespace loggingapp
         .set_auto_schema<LoggingGetReceipt>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
+      // SNIPPET_END: get_historical_with_receipt
 
       static constexpr auto get_historical_range_path =
         "log/private/historical/range";

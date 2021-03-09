@@ -11,7 +11,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `x-ccf-tx-view` and `x-ccf-tx-seqno` response headers have been removed, and replaced with `x-ms-ccf-transaction-id`. This includes both original fields, separated by a single `.`. Historical queries using `ccf::historical::adapter` should also pass a single combined `x-ms-ccf-transaction-id` header (#2257).
 - Node unique identifier is the hex-encoded string of the SHA-256 digest of the node's identity public key, which is also used as the node's quote report data (#2241).
-- The receipt interface has changed, `/app/receipt?commit=23` is replaced by `/app/receipt?transaction_id=2.23`. Receipt fetching is now implemented as a historical query, which means that the first reponse(s) may be a 202 with a Retry-After header. Receipts are now structured JSON, and `/app/receipt/verify` has been removed in favour of an [offline verification sample]().
+- The receipt interface has changed, `/app/receipt?commit=23` is replaced by `/app/receipt?transaction_id=2.23`. Receipt fetching is now implemented as a historical query, which means that the first reponse(s) may be 202 with a Retry-After header. Receipts are now structured JSON, as opposed to a flat byte sequence, and `/app/receipt/verify` has been removed in favour of an [offline verification sample](https://microsoft.github.io/CCF/ccf-0.19.0/use_apps/verify_tx.html#transaction-receipts).
+- `ccfapp::get_rpc_handler()` now takes a reference to a `ccf::AbstractNodeContext` rather than `ccf::AbstractNodeState`. The node state can be obtained from the context via `get_node_state()`.
+
+### Removed
+
+- `get_receipt_for_seqno_v1` has been removed. Handlers wanting to return receipts must now use the historical API, and can obtain a receipt via `ccf::historical::StatePtr`. See the [historical query with receipt sample](https://microsoft.github.io/CCF/ccf-0.19.0/build_apps/logging_cpp.html#receipts) for reference.
 
 ## [0.18.5]
 
