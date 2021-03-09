@@ -46,6 +46,10 @@ namespace ccf
       {
         return "InvalidArgs";
       }
+      case ApiResult::NotFound:
+      {
+        return "NotFound";
+      }
       case ApiResult::InternalError:
       {
         return "InternalError";
