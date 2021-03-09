@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "base_endpoint_registry.h"
+#include "ccf/base_endpoint_registry.h"
+#include "ccf/historical_queries_adapter.h"
 #include "ds/nonstd.h"
 #include "enclave/node_context.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
-#include "json_handler.h"
 #include "node/code_id.h"
-#include "node/historical_queries_adapter.h"
+#include "node/rpc/json_handler.h"
 
 namespace ccf
 {
@@ -285,7 +285,7 @@ namespace ccf
           ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
         GetReceipt::Out out;
-        out.from_receipt(historical_state->receipt);
+        historical_state->receipt->describe_receipt(out);
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ccf::jsonhandler::set_response(out, args.rpc_ctx, pack);
       };

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "common_endpoint_registry.h"
+#include "ccf/common_endpoint_registry.h"
 #include "consensus/aft/request.h"
 #include "crypto/verifier.h"
 #include "ds/buffer.h"

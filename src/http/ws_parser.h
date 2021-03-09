@@ -4,7 +4,7 @@
 
 #include "enclave/tls_endpoint.h"
 #include "http_proc.h"
-#include "tx_id.h"
+#include "ccf/tx_id.h"
 #include "ws_consts.h"
 
 #include <algorithm>

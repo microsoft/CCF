@@ -8,7 +8,7 @@
 #include "node/client_signatures.h"
 #include "node/entities.h"
 #include "node/rpc/error.h"
-#include "tx_id.h"
+#include "ccf/tx_id.h"
 
 #include <llhttp/llhttp.h>
 #include <variant>

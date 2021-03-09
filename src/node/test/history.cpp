@@ -157,8 +157,8 @@ TEST_CASE("Check signing works across rollback")
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
-  auto v1_receipt =
-    primary_history->get_receipt(primary_store.current_version());
+  auto v1_proof =
+    primary_history->get_proof(primary_store.current_version());
 
   INFO("Transaction that we will roll back");
   {
@@ -188,14 +188,14 @@ TEST_CASE("Check signing works across rollback")
     }
   }
 
-  auto v2_receipt =
-    primary_history->get_receipt(primary_store.current_version());
+  auto v2_proof =
+    primary_history->get_proof(primary_store.current_version());
 
-  INFO("Check that past & current receipts are ok");
+  INFO("Check that past & current proofs are ok");
   {
-    REQUIRE(primary_history->verify_receipt(v1_receipt));
-    REQUIRE(primary_history->verify_receipt(v2_receipt));
-    REQUIRE(primary_history->verify_receipt(primary_history->get_receipt(1)));
+    REQUIRE(primary_history->verify_proof(v1_proof));
+    REQUIRE(primary_history->verify_proof(v2_proof));
+    REQUIRE(primary_history->verify_proof(primary_history->get_proof(1)));
   }
 
   INFO("Check merkle roots are updating");

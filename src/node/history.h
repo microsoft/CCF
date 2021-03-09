@@ -194,12 +194,12 @@ namespace ccf
       return {{term, version}, crypto::Sha256Hash(std::to_string(version))};
     }
 
-    std::vector<uint8_t> get_receipt(kv::Version) override
+    std::vector<uint8_t> get_proof(kv::Version) override
     {
       return {};
     }
 
-    bool verify_receipt(const std::vector<uint8_t>&) override
+    bool verify_proof(const std::vector<uint8_t>&) override
     {
       return true;
     }
@@ -212,16 +212,16 @@ namespace ccf
 
   typedef merkle::TreeT<32, merkle::sha256_openssl> HistoryTree;
 
-  class Receipt
+  class Proof
   {
   private:
     HistoryTree::Hash root;
     std::shared_ptr<HistoryTree::Path> path = nullptr;
 
   public:
-    Receipt() {}
+    Proof() {}
 
-    Receipt(const std::vector<uint8_t>& v)
+    Proof(const std::vector<uint8_t>& v)
     {
       size_t position = 0;
       root.apply(v, position);
@@ -238,13 +238,13 @@ namespace ccf
       return path;
     }
 
-    Receipt(HistoryTree* tree, uint64_t index)
+    Proof(HistoryTree* tree, uint64_t index)
     {
       root = tree->root();
       path = tree->path(index);
     }
 
-    Receipt(const Receipt&) = delete;
+    Proof(const Proof&) = delete;
 
     bool verify(HistoryTree* tree) const
     {
@@ -418,24 +418,24 @@ namespace ccf
       tree->retract_to(index);
     }
 
-    Receipt get_receipt(uint64_t index)
+    Proof get_proof(uint64_t index)
     {
       if (index < begin_index())
       {
         throw std::logic_error(fmt::format(
-          "Cannot produce receipt for {}: index is too old and has been "
+          "Cannot produce proof for {}: index is too old and has been "
           "flushed from memory",
           index));
       }
       if (index > end_index())
       {
         throw std::logic_error(fmt::format(
-          "Cannot produce receipt for {}: index is not yet known", index));
+          "Cannot produce proof for {}: index is not yet known", index));
       }
-      return Receipt(tree, index);
+      return Proof(tree, index);
     }
 
-    bool verify(const Receipt& r)
+    bool verify(const Proof& r)
     {
       return r.verify(tree);
     }
@@ -806,17 +806,17 @@ namespace ccf
         true);
     }
 
-    std::vector<uint8_t> get_receipt(kv::Version index) override
+    std::vector<uint8_t> get_proof(kv::Version index) override
     {
       std::lock_guard<SpinLock> guard(state_lock);
-      return replicated_state_tree.get_receipt(index).to_v();
+      return replicated_state_tree.get_proof(index).to_v();
     }
 
-    bool verify_receipt(const std::vector<uint8_t>& v) override
+    bool verify_proof(const std::vector<uint8_t>& v) override
     {
       std::lock_guard<SpinLock> guard(state_lock);
-      Receipt r(v);
-      return replicated_state_tree.verify(r);
+      Proof proof(v);
+      return replicated_state_tree.verify(proof);
     }
 
     std::vector<uint8_t> get_raw_leaf(uint64_t index) override

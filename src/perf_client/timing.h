@@ -4,7 +4,7 @@
 
 // CCF
 #include "clients/rpc_tls_client.h"
-#include "tx_id.h"
+#include "ccf/tx_id.h"
 
 // STL/3rdparty
 #include <chrono>

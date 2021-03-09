@@ -1,9 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "enclave/app_interface.h"
+
+// This app's includes
 #include "formatters.h"
 #include "logging_schema.h"
-#include "node/historical_queries_adapter.h"
+
+// CCF
+#include "ccf/historical_queries_adapter.h"
+#include "enclave/app_interface.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
 
@@ -599,7 +603,7 @@ namespace loggingapp
           {
             LoggingGetReceipt::Out out;
             out.msg = v.value();
-            out.receipt.from_receipt(historical_state->receipt);
+            historical_state->receipt->describe_receipt(out.receipt);
             ccf::jsonhandler::set_response(std::move(out), args.rpc_ctx, pack);
           }
           else
@@ -837,9 +841,7 @@ namespace loggingapp
       metrics_tracker.install_endpoint(*this);
     }
 
-    void tick(
-      std::chrono::milliseconds elapsed,
-      size_t tx_count) override
+    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
     {
       metrics_tracker.tick(elapsed, tx_count);
 

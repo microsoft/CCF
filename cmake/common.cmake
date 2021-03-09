@@ -67,7 +67,7 @@ endif()
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-include_directories(${CCF_DIR}/include/ccf)
+include_directories(${CCF_DIR}/include)
 include_directories(${CCF_DIR}/src)
 
 include_directories(SYSTEM ${CCF_DIR}/3rdparty)

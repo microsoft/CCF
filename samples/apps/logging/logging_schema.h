@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json.h"
+#include "node/rpc/call_types.h" // For GetReceipt
 
 namespace loggingapp
 {
