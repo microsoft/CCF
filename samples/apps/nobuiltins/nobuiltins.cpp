@@ -34,7 +34,7 @@ namespace nobuiltins
   {
   public:
     NoBuiltinsRegistry(ccfapp::AbstractNodeContext& context) :
-      ccf::BaseEndpointRegistry("app", context.get_node_state())
+      ccf::BaseEndpointRegistry("app", context)
     {
       auto node_summary = [this](ccf::EndpointContext& ctx) {
         ccf::ApiResult result;
