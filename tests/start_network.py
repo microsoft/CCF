@@ -54,11 +54,11 @@ def run(args):
         else:
             network.start_and_join(args)
 
-        primary, backups = network.find_nodes()
-        max_len = len(str(len(backups)))
+        nodes = network.get_joined_nodes()
+        max_len = max([len(str(node.local_node_id)) for node in nodes])
 
         # To be sure, confirm that the app frontend is open on each node
-        for node in [primary, *backups]:
+        for node in nodes:
             with node.client("user0") as c:
                 if args.verbose:
                     r = c.get("/app/commit")
@@ -70,16 +70,10 @@ def run(args):
             return (f"{{:{max_len}d}}").format(nid)
 
         LOG.info("Started CCF network with the following nodes:")
-        LOG.info(
-            "  Node [{}] = https://{}:{}".format(
-                pad_node_id(primary.local_node_id), primary.pubhost, primary.pubport
-            )
-        )
-
-        for b in backups:
+        for node in nodes:
             LOG.info(
                 "  Node [{}] = https://{}:{}".format(
-                    pad_node_id(b.local_node_id), b.pubhost, b.pubport
+                    pad_node_id(node.local_node_id), node.pubhost, node.pubport
                 )
             )
 
