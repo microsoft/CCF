@@ -422,14 +422,9 @@ def test_historical_query(network, args):
         LOG.warning("Skipping historical queries in BFT")
         return network
 
-    if args.package == "liblogging":
-        network.txs.issue(network, number_txs=2)
-        network.txs.issue(network, number_txs=2, repeat=True)
-        network.txs.verify()
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
-        )
+    network.txs.issue(network, number_txs=2)
+    network.txs.issue(network, number_txs=2, repeat=True)
+    network.txs.verify()
 
     return network
 

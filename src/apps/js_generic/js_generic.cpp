@@ -817,6 +817,19 @@ namespace ccfapp
       JS_SetOpaque(kv, &tx);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
 
+      auto state = JS_NewObject(ctx);
+      auto kv_tx_id = tx.get_read_tx_id();
+      ccf::TxID tx_id;
+      tx_id.view = static_cast<ccf::View>(kv_tx_id.term);
+      tx_id.seqno = static_cast<ccf::SeqNo>(kv_tx_id.version);
+      JS_SetPropertyStr(
+        ctx,
+        state,
+        "transactionId",
+        JS_NewString(ctx, tx_id.to_str().c_str()));
+      // TODO receipt
+      JS_SetPropertyStr(ctx, ccf, "state", state);
+
       return ccf;
     }
 
@@ -1000,6 +1013,9 @@ namespace ccfapp
       auto endpoints = args.tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
       auto info = endpoints->get(ccf::endpoints::EndpointKey{method, verb});
 
+      if (!info.has_value()) {
+        throw std::logic_error("no endpoint info found");
+      }
       if (info.value().historical)
       {
         // TODO avoid duplication with src/node/historical_queries_adapter.h

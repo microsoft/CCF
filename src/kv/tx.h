@@ -242,6 +242,21 @@ namespace kv
       return term;
     }
 
+    TxID get_read_tx_id()
+    {
+      if (read_version != NoVersion)
+      {
+        TxID tx_id;
+        tx_id.term = term;
+        tx_id.version = read_version;
+        return tx_id;
+      }
+      else
+      {
+        throw std::logic_error("Read version not set");
+      }
+    }
+
     void set_read_version_and_term(Version v, Term t)
     {
       if (read_version == NoVersion)

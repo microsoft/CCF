@@ -29,6 +29,10 @@ export function get_private(request) {
   return get_record(ccf.kv["records"], id);
 }
 
+export function get_historical(request) {
+   return get_private(request);
+}
+
 export function get_public(request) {
   const id = get_id_from_request_query(request);
   return get_record(ccf.kv["public:records"], id);
