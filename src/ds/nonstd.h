@@ -62,7 +62,7 @@ namespace nonstd
   template <class T>
   using remove_cvref_t = typename remove_cvref<T>::type;
 
-  /** more generic std::string member functions are present in C++20
+  /** These generic std::string member functions are present in C++20
    */
   static inline bool starts_with(
     const std::string& s, const std::string& prefix)
@@ -76,7 +76,48 @@ namespace nonstd
       s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
   }
 
-  /** converts strings to upper or lower case, in-place
+  /** split is based on Python's str.split
+   */
+  static inline std::vector<std::string> split(
+    const std::string& s,
+    const std::string& separator = " ",
+    size_t max_split = SIZE_MAX)
+  {
+    std::vector<std::string> result;
+
+    auto separator_end = 0;
+    auto next_separator_start = s.find(separator);
+    while (next_separator_start != std::string::npos &&
+           result.size() < max_split)
+    {
+      result.push_back(
+        s.substr(separator_end, next_separator_start - separator_end));
+
+      separator_end = next_separator_start + separator.size();
+      next_separator_start = s.find(separator, separator_end);
+    }
+
+    result.push_back(s.substr(separator_end));
+    return result;
+  }
+
+  /* split_1 wraps split and allows writing things like:
+   * auto [host, port] = nonstd::split_1("1.2.3.4:8000", ":")
+   */
+  static inline std::tuple<std::string, std::string> split_1(
+    const std::string& s, const std::string& separator)
+  {
+    const auto v = split(s, separator, 1);
+    if (v.size() > 1)
+    {
+      // If separator is not present, return {s, ""};
+      return std::make_tuple(v[0], "");
+    }
+
+    return std::make_tuple(v[0], v[1]);
+  }
+
+  /** These convert strings to upper or lower case, in-place
    */
   static inline void to_upper(std::string& s)
   {
