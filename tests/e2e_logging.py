@@ -441,40 +441,34 @@ def test_historical_receipts(network, args):
         LOG.warning("Skipping historical queries in BFT")
         return network
 
-    if args.package == "liblogging":
-        primary, backups = network.find_nodes()
-        cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-        with open(cert_path) as c:
-            primary_cert = load_pem_x509_certificate(
-                c.read().encode("ascii"), default_backend()
-            )
-
-        TXS_COUNT = 5
-        network.txs.issue(network, number_txs=5)
-        for idx in range(1, TXS_COUNT + 1):
-            for node in [primary, backups[0]]:
-                first_msg = network.txs.priv[idx][0]
-                first_receipt = network.txs.get_receipt(
-                    node, idx, first_msg["seqno"], first_msg["view"]
-                )
-                r = first_receipt.json()["receipt"]
-                assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
-                ccf.receipt.verify(r["root"], r["signature"], primary_cert)
-
-        # receipt.verify() raises if it fails, but does not return anything
-        verified = True
-        try:
-            ccf.receipt.verify(
-                hashlib.sha256(b"").hexdigest(), r["signature"], primary_cert
-            )
-        except InvalidSignature:
-            verified = False
-        assert not verified
-
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+    primary, backups = network.find_nodes()
+    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
+    with open(cert_path) as c:
+        primary_cert = load_pem_x509_certificate(
+            c.read().encode("ascii"), default_backend()
         )
+
+    TXS_COUNT = 5
+    network.txs.issue(network, number_txs=5)
+    for idx in range(1, TXS_COUNT + 1):
+        for node in [primary, backups[0]]:
+            first_msg = network.txs.priv[idx][0]
+            first_receipt = network.txs.get_receipt(
+                node, idx, first_msg["seqno"], first_msg["view"]
+            )
+            r = first_receipt.json()["receipt"]
+            assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
+            ccf.receipt.verify(r["root"], r["signature"], primary_cert)
+
+    # receipt.verify() raises if it fails, but does not return anything
+    verified = True
+    try:
+        ccf.receipt.verify(
+            hashlib.sha256(b"").hexdigest(), r["signature"], primary_cert
+        )
+    except InvalidSignature:
+        verified = False
+    assert not verified
 
     return network
 
@@ -1036,36 +1030,36 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = test(
-            network,
-            args,
-            verify=args.package != "libjs_generic",
-        )
-        network = test_illegal(network, args, verify=args.package != "libjs_generic")
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_raw_text(network, args)
+        # network = test(
+        #     network,
+        #     args,
+        #     verify=args.package != "libjs_generic",
+        # )
+        # network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        # network = test_large_messages(network, args)
+        # network = test_remove(network, args)
+        # network = test_forwarding_frontends(network, args)
+        # network = test_user_data_ACL(network, args)
+        # network = test_cert_prefix(network, args)
+        # network = test_anonymous_caller(network, args)
+        # network = test_multi_auth(network, args)
+        # network = test_custom_auth(network, args)
+        # network = test_raw_text(network, args)
         network = test_historical_query(network, args)
-        network = test_historical_query_range(network, args)
-        network = test_view_history(network, args)
-        network = test_primary(network, args)
-        network = test_network_node_info(network, args)
-        network = test_metrics(network, args)
-        network = test_memory(network, args)
-        # BFT does not handle re-keying yet
-        if args.consensus == "cft":
-            network = test_liveness(network, args)
-            network = test_rekey(network, args)
-            network = test_liveness(network, args)
-        if args.package == "liblogging":
-            network = test_ws(network, args)
-            network = test_receipts(network, args)
+        # network = test_historical_query_range(network, args)
+        # network = test_view_history(network, args)
+        # network = test_primary(network, args)
+        # network = test_network_node_info(network, args)
+        # network = test_metrics(network, args)
+        # network = test_memory(network, args)
+        # # BFT does not handle re-keying yet
+        # if args.consensus == "cft":
+        #     network = test_liveness(network, args)
+        #     network = test_rekey(network, args)
+        #     network = test_liveness(network, args)
+        # if args.package == "liblogging":
+        #     network = test_ws(network, args)
+        #     network = test_receipts(network, args)
         network = test_historical_receipts(network, args)
 
 
