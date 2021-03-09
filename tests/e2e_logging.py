@@ -16,8 +16,13 @@ import time
 import tempfile
 import base64
 import json
+import hashlib
 import ccf.clients
 from ccf.log_capture import flush_info
+import ccf.receipt
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.backends import default_backend
+from cryptography.exceptions import InvalidSignature
 
 from loguru import logger as LOG
 
@@ -426,6 +431,51 @@ def test_historical_query(network, args):
         network.txs.issue(network, number_txs=2)
         network.txs.issue(network, number_txs=2, repeat=True)
         network.txs.verify()
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
+
+    return network
+
+
+@reqs.description("Read historical receipts")
+@reqs.supports_methods("log/private", "log/private/historical_receipt")
+def test_historical_receipts(network, args):
+    if args.consensus == "bft":
+        LOG.warning("Skipping historical queries in BFT")
+        return network
+
+    if args.package == "liblogging":
+        primary, backups = network.find_nodes()
+        cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
+        with open(cert_path) as c:
+            primary_cert = load_pem_x509_certificate(
+                c.read().encode("ascii"), default_backend()
+            )
+
+        TXS_COUNT = 5
+        network.txs.issue(network, number_txs=5)
+        for idx in range(1, TXS_COUNT + 1):
+            for node in [primary, backups[0]]:
+                first_msg = network.txs.priv[idx][0]
+                first_receipt = network.txs.get_receipt(
+                    node, idx, first_msg["seqno"], first_msg["view"]
+                )
+                r = first_receipt.json()["receipt"]
+                assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
+                ccf.receipt.verify(r["root"], r["signature"], primary_cert)
+
+        # receipt.verify() raises if it fails, but does not return anything
+        verified = True
+        try:
+            ccf.receipt.verify(
+                hashlib.sha256(b"").hexdigest(), r["signature"], primary_cert
+            )
+        except InvalidSignature:
+            verified = False
+        assert not verified
+
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
@@ -919,58 +969,42 @@ def test_ws(network, args):
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("receipt", "receipt/verify", "log/private")
+@reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
+    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
+    with open(cert_path) as c:
+        node_cert = load_pem_x509_certificate(
+            c.read().encode("ascii"), default_backend()
+        )
 
     with primary.client() as mc:
         check_commit = infra.checker.Checker(mc)
-        check = infra.checker.Checker()
-
         msg = "Hello world"
 
         LOG.info("Write/Read on primary")
-        receipts = []
         with primary.client("user0") as c:
-            num_stints = 5
-            num_tx = 10
-            for j in range(num_stints):
-                idx = j * (num_tx + 1) + 10000
+            for j in range(10):
+                idx = j + 10000
                 r = c.post("/app/log/private", {"id": idx, "msg": msg})
                 check_commit(r, result=True)
-                check(c.get("/app/log/private?id=%d" % idx), result={"msg": msg})
-                for i in range(1, num_tx):
-                    c.post(
-                        "/app/log/private",
-                        {"id": idx + i, "msg": "Additional messages"},
-                    )
-                check_commit(
-                    c.post(
-                        "/app/log/private",
-                        {"id": idx + i + 1, "msg": "A final message"},
-                    ),
-                    result=True,
-                )
-                r = c.get(f"/app/receipt?commit={r.seqno}")
-
-                receipt = r.body.json()["receipt"]
-                rv = c.post("/app/receipt/verify", {"receipt": receipt})
-                assert rv.body.json() == {"valid": True}
-
-                receipts.append(receipt)
-
-                invalid = r.body.json()["receipt"]
-                invalid[-3] += 1
-
-                rv = c.post("/app/receipt/verify", {"receipt": invalid})
-                assert rv.body.json() == {"valid": False}
-
-        LOG.info("Verify recorded (historical) receipts")
-        for r in receipts:
-            with primary.client("user0") as c:
-                rv = c.post("/app/receipt/verify", {"receipt": r})
-                assert rv.body.json() == {"valid": True}
+                start_time = time.time()
+                while time.time() < (start_time + 3.0):
+                    rc = c.get(f"/app/receipt?transaction_id={r.view}.{r.seqno}")
+                    if rc.status_code == http.HTTPStatus.OK:
+                        receipt = rc.body.json()
+                        assert receipt["root"] == ccf.receipt.root(
+                            receipt["leaf"], receipt["proof"]
+                        )
+                        ccf.receipt.verify(
+                            receipt["root"], receipt["signature"], node_cert
+                        )
+                        break
+                    elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                        time.sleep(0.5)
+                    else:
+                        assert False, rc
 
     return network
 
@@ -1037,6 +1071,7 @@ def run(args):
         if args.package == "liblogging":
             network = test_ws(network, args)
             network = test_receipts(network, args)
+        network = test_historical_receipts(network, args)
 
 
 if __name__ == "__main__":

@@ -132,7 +132,7 @@ namespace ccf
 
 #ifdef GET_QUOTE
       QuoteVerificationResult verify_result =
-        this->node.verify_quote(tx, in.quote_info, pk_der);
+        this->context.get_node_state().verify_quote(tx, in.quote_info, pk_der);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -167,8 +167,8 @@ namespace ccf
       if (node_status == NodeStatus::TRUSTED)
       {
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
-          node.is_part_of_public_network(),
-          node.get_last_recovered_signed_idx(),
+          context.get_node_state().is_part_of_public_network(),
+          context.get_node_state().get_last_recovered_signed_idx(),
           this->network.consensus_type,
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get()};
@@ -177,8 +177,8 @@ namespace ccf
     }
 
   public:
-    NodeEndpoints(NetworkState& network, AbstractNodeState& node_state) :
-      CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), node_state),
+    NodeEndpoints(NetworkState& network, ccfapp::AbstractNodeContext& context) :
+      CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context),
       network(network)
     {
       openapi_info.title = "CCF Public Node API";
@@ -196,9 +196,9 @@ namespace ccf
           const auto in = params.get<JoinNetworkNodeToNode::In>();
 
           if (
-            !this->node.is_part_of_network() &&
-            !this->node.is_part_of_public_network() &&
-            !this->node.is_reading_private_ledger())
+            !this->context.get_node_state().is_part_of_network() &&
+            !this->context.get_node_state().is_part_of_public_network() &&
+            !this->context.get_node_state().is_reading_private_ledger())
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -243,12 +243,13 @@ namespace ccf
               JoinNetworkNodeToNode::Out rep;
               rep.node_status = joining_node_status;
               rep.node_id = existing_node_info->first;
-              rep.network_info = {node.is_part_of_public_network(),
-                                  node.get_last_recovered_signed_idx(),
-                                  this->network.consensus_type,
-                                  this->network.ledger_secrets->get(
-                                    args.tx, existing_node_info->second),
-                                  *this->network.identity.get()};
+              rep.network_info = {
+                context.get_node_state().is_part_of_public_network(),
+                context.get_node_state().get_last_recovered_signed_idx(),
+                this->network.consensus_type,
+                this->network.ledger_secrets->get(
+                  args.tx, existing_node_info->second),
+                *this->network.identity.get()};
               return make_success(rep);
             }
 
@@ -277,12 +278,13 @@ namespace ccf
             rep.node_status = node_status;
             if (node_status == NodeStatus::TRUSTED)
             {
-              rep.network_info = {node.is_part_of_public_network(),
-                                  node.get_last_recovered_signed_idx(),
-                                  this->network.consensus_type,
-                                  this->network.ledger_secrets->get(
-                                    args.tx, existing_node_info->second),
-                                  *this->network.identity.get()};
+              rep.network_info = {
+                context.get_node_state().is_part_of_public_network(),
+                context.get_node_state().get_last_recovered_signed_idx(),
+                this->network.consensus_type,
+                this->network.ledger_secrets->get(
+                  args.tx, existing_node_info->second),
+                *this->network.identity.get()};
               return make_success(rep);
             }
             else if (node_status == NodeStatus::PENDING)
@@ -314,8 +316,8 @@ namespace ccf
 
       auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;
-        auto [s, rts, lrs] = this->node.state();
-        result.node_id = this->node.get_node_id();
+        auto [s, rts, lrs] = this->context.get_node_state().state();
+        result.node_id = this->context.get_node_state().get_node_id();
         result.state = s;
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
@@ -346,7 +348,7 @@ namespace ccf
         if (result == ApiResult::OK)
         {
           Quote q;
-          q.node_id = node.get_node_id();
+          q.node_id = context.get_node_state().get_node_id();
           q.raw = fmt::format("{:02x}", fmt::join(node_quote_info.quote, ""));
           q.endorsements =
             fmt::format("{:02x}", fmt::join(node_quote_info.endorsements, ""));
@@ -553,7 +555,7 @@ namespace ccf
         .install();
 
       auto get_self_node = [this](ReadOnlyEndpointContext& args) {
-        auto node_id = this->node.get_node_id();
+        auto node_id = this->context.get_node_state().get_node_id();
         auto nodes = args.tx.ro(this->network.nodes);
         auto info = nodes->get(node_id);
         if (info)
@@ -584,7 +586,7 @@ namespace ccf
       auto get_primary_node = [this](ReadOnlyEndpointContext& args) {
         if (consensus != nullptr)
         {
-          auto node_id = this->node.get_node_id();
+          auto node_id = this->context.get_node_state().get_node_id();
           auto primary_id = consensus->primary();
           if (!primary_id.has_value())
           {
@@ -624,7 +626,7 @@ namespace ccf
         .install();
 
       auto is_primary = [this](ReadOnlyEndpointContext& args) {
-        if (this->node.is_primary())
+        if (this->context.get_node_state().is_primary())
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         }
@@ -726,9 +728,10 @@ namespace ccf
     NodeEndpoints node_endpoints;
 
   public:
-    NodeRpcFrontend(NetworkState& network, AbstractNodeState& node) :
+    NodeRpcFrontend(
+      NetworkState& network, ccfapp::AbstractNodeContext& context) :
       RpcFrontend(*network.tables, node_endpoints),
-      node_endpoints(network, node)
+      node_endpoints(network, context)
     {}
   };
 }
