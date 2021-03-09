@@ -41,7 +41,7 @@ class CCFDigestType(IntEnum):
 
 
 def verify_request_sig(raw_cert, sig, req, request_body, md):
-    cert = x509.load_der_x509_certificate(raw_cert, backend=default_backend())
+    cert = x509.load_pem_x509_certificate(raw_cert, backend=default_backend())
 
     # Verify that the request digest matches the hash of the body
     h = hashes.Hash(hashes.SHA256(), backend=default_backend())

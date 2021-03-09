@@ -18,16 +18,10 @@ namespace ccf
    */
   class CommonEndpointRegistry : public BaseEndpointRegistry
   {
-  protected:
-    std::string certs_table_name;
-
   public:
     CommonEndpointRegistry(
-      const std::string& method_prefix_,
-      AbstractNodeState& node_state,
-      const std::string& certs_table_name_ = "") :
-      BaseEndpointRegistry(method_prefix_, node_state),
-      certs_table_name(certs_table_name_)
+      const std::string& method_prefix_, AbstractNodeState& node_state) :
+      BaseEndpointRegistry(method_prefix_, node_state)
     {}
 
     void init_handlers() override
@@ -90,65 +84,6 @@ namespace ccf
         .set_auto_schema<GetTxStatus>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
-        .install();
-
-      auto get_caller_id = [this](auto& args, nlohmann::json&& params) {
-        GetCallerId::Out out;
-
-        if (!params.is_null())
-        {
-          const GetCallerId::In in = params;
-          auto certs = args.tx.template ro<CertDERs>(certs_table_name);
-          std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
-          std::vector<uint8_t> der = crypto::make_verifier(pem)->cert_der();
-          auto caller_id_opt = certs->get(der);
-
-          if (!caller_id_opt.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::UnknownCertificate,
-              "Certificate not recognised.");
-          }
-
-          out.caller_id = caller_id_opt.value();
-        }
-        else if (
-          auto user_cert_ident =
-            args.template try_get_caller<ccf::UserCertAuthnIdentity>())
-        {
-          out.caller_id = user_cert_ident->user_id;
-        }
-        else if (
-          auto member_cert_ident =
-            args.template try_get_caller<ccf::MemberCertAuthnIdentity>())
-        {
-          out.caller_id = member_cert_ident->member_id;
-        }
-        else if (
-          auto user_sig_ident =
-            args.template try_get_caller<ccf::UserSignatureAuthnIdentity>())
-        {
-          out.caller_id = user_cert_ident->user_id;
-        }
-        else if (
-          auto member_sig_ident =
-            args.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
-        {
-          out.caller_id = member_cert_ident->member_id;
-        }
-
-        return make_success(out);
-      };
-      make_read_only_endpoint(
-        "caller_id",
-        HTTP_GET,
-        json_read_only_adapter(get_caller_id),
-        {user_cert_auth_policy,
-         user_signature_auth_policy,
-         member_cert_auth_policy,
-         member_signature_auth_policy})
-        .set_auto_schema<GetCallerId::In, GetCallerId::Out>()
         .install();
 
       auto get_code = [](auto& args, nlohmann::json&&) {

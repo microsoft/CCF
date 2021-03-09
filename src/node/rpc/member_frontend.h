@@ -1196,10 +1196,7 @@ namespace ccf
       NetworkState& network,
       AbstractNodeState& node_state,
       ShareManager& share_manager) :
-      CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::members),
-        node_state,
-        Tables::MEMBER_CERT_DERS),
+      CommonEndpointRegistry(get_actor_prefix(ActorsType::members), node_state),
       network(network),
       share_manager(share_manager),
       tsr(network)

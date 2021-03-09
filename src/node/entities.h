@@ -60,13 +60,9 @@ namespace ccf
     // Member identities
     static constexpr auto MEMBERS = "public:ccf.gov.members.info";
     static constexpr auto MEMBER_ACKS = "public:ccf.gov.members.acks";
-    static constexpr auto MEMBER_CERT_DERS =
-      "public:ccf.internal.members.certs_der";
 
     // User identities
     static constexpr auto USERS = "public:ccf.gov.users.info";
-    static constexpr auto USER_CERT_DERS =
-      "public:ccf.internal.users.certs_der";
 
     // Nodes identities and allowed code ids
     static constexpr auto NODES = "public:ccf.gov.nodes.info";

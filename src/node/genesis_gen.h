@@ -102,24 +102,20 @@ namespace ccf
     MemberId add_member(const MemberPubInfo& member_pub_info)
     {
       auto m = tx.rw(tables.members);
-      auto mc = tx.rw(tables.member_certs);
       auto ma = tx.rw(tables.member_acks);
-      auto sig = tx.rw(tables.signatures);
+      auto sig = tx.ro(tables.signatures);
 
-      // The key to a CertDERs table must be a DER, for easy comparison against
-      // the DER peer cert retrieved from the connection
       auto member_cert_der =
         crypto::make_verifier(member_pub_info.cert)->cert_der();
-      auto member_id = mc->get(member_cert_der);
-      if (member_id.has_value())
+      auto id = crypto::Sha256Hash(member_cert_der).hex_str();
+
+      auto member = m->get(id);
+      if (member.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Member certificate already exists (member {})", member_id.value()));
+        throw std::logic_error(fmt::format("Member already exists: {}", id));
       }
 
-      auto id = crypto::Sha256Hash(member_cert_der).hex_str();
       m->put(id, MemberInfo(member_pub_info, MemberStatus::ACCEPTED));
-      mc->put(member_cert_der, id);
 
       auto s = sig->get(0);
       if (!s)
@@ -221,41 +217,31 @@ namespace ccf
     UserId add_user(const ccf::UserInfo& user_info)
     {
       auto u = tx.rw(tables.users);
-      auto uc = tx.rw(tables.user_certs);
 
       auto user_cert_der = crypto::make_verifier(user_info.cert)->cert_der();
+      auto id = crypto::Sha256Hash(user_cert_der).hex_str();
 
       // Cert should be unique
-      auto user_id = uc->get(user_cert_der);
-      if (user_id.has_value())
+      auto user = u->get(id);
+      if (user.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "User certificate already exists (user {})", user_id.value()));
+        throw std::logic_error(
+          fmt::format("User certificate already exists: {}", id));
       }
 
-      auto id = crypto::Sha256Hash(user_cert_der).hex_str();
       u->put(id, user_info);
-      uc->put(user_cert_der, id);
-
       return id;
     }
 
     bool remove_user(const UserId& user_id)
     {
       auto u = tx.rw(tables.users);
-      auto uc = tx.rw(tables.user_certs);
-
       auto user_info = u->get(user_id);
       if (!user_info.has_value())
       {
         return false;
       }
-
-      auto pem = crypto::Pem(user_info.value().cert);
-      auto user_cert_der = crypto::make_verifier(pem)->cert_der();
-
       u->remove(user_id);
-      uc->remove(user_cert_der);
       return true;
     }
 

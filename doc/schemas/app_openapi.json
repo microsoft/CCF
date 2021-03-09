@@ -1,17 +1,6 @@
 {
   "components": {
     "schemas": {
-      "CallerInfo": {
-        "properties": {
-          "caller_id": {
-            "$ref": "#/components/schemas/EntityId"
-          }
-        },
-        "required": [
-          "caller_id"
-        ],
-        "type": "object"
-      },
       "CodeStatus": {
         "enum": [
           "ALLOWED_TO_JOIN"
@@ -65,10 +54,6 @@
           "metrics"
         ],
         "type": "object"
-      },
-      "EntityId": {
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
       },
       "GetCode__Out": {
         "properties": {
@@ -374,40 +359,6 @@
             "description": "Default response description"
           }
         }
-      }
-    },
-    "/caller_id": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "cert",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallerInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "user_signature": []
-          },
-          {
-            "member_signature": []
-          }
-        ]
       }
     },
     "/code": {

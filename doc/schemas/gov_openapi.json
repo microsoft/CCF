@@ -1,17 +1,6 @@
 {
   "components": {
     "schemas": {
-      "CallerInfo": {
-        "properties": {
-          "caller_id": {
-            "$ref": "#/components/schemas/EntityId"
-          }
-        },
-        "required": [
-          "caller_id"
-        ],
-        "type": "object"
-      },
       "CodeStatus": {
         "enum": [
           "ALLOWED_TO_JOIN"
@@ -381,11 +370,6 @@
         "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
         "scheme": "signature",
         "type": "http"
-      },
-      "user_signature": {
-        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
-        "scheme": "signature",
-        "type": "http"
       }
     }
   },
@@ -471,40 +455,6 @@
             "description": "Default response description"
           }
         }
-      }
-    },
-    "/caller_id": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "cert",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallerInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "user_signature": []
-          },
-          {
-            "member_signature": []
-          }
-        ]
       }
     },
     "/code": {

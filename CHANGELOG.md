@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `x-ccf-tx-view` and `x-ccf-tx-seqno` response headers have been removed, and replaced with `x-ms-ccf-transaction-id`. This includes both original fields, separated by a single `.`. Historical queries using `ccf::historical::adapter` should also pass a single combined `x-ms-ccf-transaction-id` header (#2257).
 - Node unique identifier is the hex-encoded string of the SHA-256 digest of the node's DER-encoded identity public key, which is also used as the node's quote report data (#2241).
 - Members and users unique identifier is the hex-encoded string of the SHA-256 digest of their DER-encoded identity certificate (i.e. fingerprint), which has to be specified as the `keyId` field for signed HTTP requests (#2279).
+- Removed `/caller_id` endpoint. Members and users can compute their unique identifier without interacting with CCF (#2279).
+- Removed `public:ccf.internal.members.certs_der` and `public:ccf.internal.users.certs_der` tables (#2279).
 
 ## [0.18.5]
 

@@ -57,9 +57,7 @@ namespace ccf
     //
     // Governance tables
     //
-    // members and member_certs tables should always be in sync
     Members members;
-    CertDERs member_certs;
 
     Scripts gov_scripts;
     Modules modules;
@@ -82,9 +80,7 @@ namespace ccf
     //
     // User tables
     //
-    // users and user_certs should always be in sync
     Users users;
-    CertDERs user_certs;
 
     ServicePrincipals service_principals;
 
@@ -118,7 +114,6 @@ namespace ccf
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(make_store(consensus_type)),
       members(Tables::MEMBERS),
-      member_certs(Tables::MEMBER_CERT_DERS),
       gov_scripts(Tables::GOV_SCRIPTS),
       modules(Tables::MODULES),
       proposals(Tables::PROPOSALS),
@@ -135,7 +130,6 @@ namespace ccf
       jwt_public_signing_keys(Tables::JWT_PUBLIC_SIGNING_KEYS),
       jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
       users(Tables::USERS),
-      user_certs(Tables::USER_CERT_DERS),
       service_principals(Tables::SERVICE_PRINCIPALS),
       nodes(Tables::NODES),
       app_scripts(Tables::APP_SCRIPTS),
@@ -158,7 +152,6 @@ namespace ccf
     {
       return std::make_tuple(
         std::ref(members),
-        std::ref(member_certs),
         std::ref(gov_scripts),
         std::ref(modules),
         std::ref(proposals),
@@ -172,7 +165,6 @@ namespace ccf
         std::ref(jwt_public_signing_keys),
         std::ref(jwt_public_signing_key_issuer),
         std::ref(users),
-        std::ref(user_certs),
         std::ref(service_principals),
         std::ref(nodes),
         std::ref(service),
