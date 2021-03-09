@@ -855,7 +855,7 @@ namespace ccfapp
         JS_SetPropertyStr(
           ctx,
           js_receipt,
-          "node_id",
+          "nodeId",
           JS_NewString(ctx, receipt_out.node_id.value().c_str())
           );
         auto proof = JS_NewArray(ctx);
