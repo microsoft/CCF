@@ -89,8 +89,8 @@ TEST_CASE("Add a node to an opening service")
   gen.init_values();
 
   ShareManager share_manager(network);
-  StubNodeState node;
-  NodeRpcFrontend frontend(network, node);
+  StubNodeContext context;
+  NodeRpcFrontend frontend(network, context);
   frontend.open();
 
   network.identity = std::make_unique<NetworkIdentity>();
@@ -216,9 +216,9 @@ TEST_CASE("Add a node to an open service")
   gen.init_values();
 
   ShareManager share_manager(network);
-  StubNodeState node;
-  node.set_is_public(true);
-  NodeRpcFrontend frontend(network, node);
+  StubNodeContext context;
+  context.get_node_state().set_is_public(true);
+  NodeRpcFrontend frontend(network, context);
   frontend.open();
 
   network.identity = std::make_unique<NetworkIdentity>();
@@ -298,7 +298,9 @@ TEST_CASE("Add a node to an open service")
   {
     // In a real scenario, nodes are trusted via member governance.
     GenesisGenerator g(network, tx);
-    g.trust_node(0, network.ledger_secrets->get_latest(tx).first);
+    g.trust_node(
+      crypto::Sha256Hash(kp->public_key_der()).hex_str(),
+      network.ledger_secrets->get_latest(tx).first);
     REQUIRE(g.finalize() == kv::CommitResult::SUCCESS);
 
     // In the meantime, a new ledger secret is added. The new ledger secret

@@ -72,7 +72,6 @@ bool corrupt_serialised_tx(
 
 TEST_CASE("Simple encryption/decryption")
 {
-  uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
   ccf::NodeEncryptor encryptor(ledger_secrets);
@@ -102,7 +101,6 @@ TEST_CASE("Simple encryption/decryption")
 
 TEST_CASE("Subsequent ciphers from same plaintext are different")
 {
-  uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
   ccf::NodeEncryptor encryptor(ledger_secrets);
@@ -130,7 +128,6 @@ TEST_CASE("Subsequent ciphers from same plaintext are different")
 
 TEST_CASE("Ciphers at same seqno with different terms are different")
 {
-  uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
   ccf::NodeEncryptor encryptor(ledger_secrets);
@@ -157,7 +154,6 @@ TEST_CASE("Ciphers at same seqno with different terms are different")
 
 TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
 {
-  uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
   ccf::NodeEncryptor encryptor(ledger_secrets);
@@ -196,7 +192,6 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
 
 TEST_CASE("Additional data")
 {
-  uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
   ccf::NodeEncryptor encryptor(ledger_secrets);
@@ -230,13 +225,11 @@ TEST_CASE("Additional data")
 
 TEST_CASE("KV encryption/decryption")
 {
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
   StringString map("map");
   kv::Store primary_store;
   kv::Store backup_store;
 
-  ccf::NodeId primary_id = 0;
-  ccf::NodeId backup_id = 1;
   std::shared_ptr<ccf::LedgerSecrets> primary_ledger_secrets;
   std::shared_ptr<ccf::LedgerSecrets> backup_ledger_secrets;
 
@@ -248,9 +241,8 @@ TEST_CASE("KV encryption/decryption")
 
     // Initialise backup ledger secrets from primary
     auto tx = primary_store.create_tx();
-    auto secrets_so_far = primary_ledger_secrets->get(tx);
-    backup_ledger_secrets =
-      std::make_shared<ccf::LedgerSecrets>(primary_ledger_secrets->get(tx));
+    backup_ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+    backup_ledger_secrets->init_from_map(primary_ledger_secrets->get(tx));
 
     auto primary_encryptor =
       std::make_shared<ccf::NodeEncryptor>(primary_ledger_secrets);
@@ -266,8 +258,9 @@ TEST_CASE("KV encryption/decryption")
   {
     commit_one(primary_store, map);
     REQUIRE(
-      backup_store.apply(*consensus->get_latest_data(), ConsensusType::CFT)
-        ->execute() == kv::ApplyResult::PASS);
+      backup_store
+        .deserialize(*consensus->get_latest_data(), ConsensusType::CFT)
+        ->apply() == kv::ApplyResult::PASS);
   }
 
   INFO("Rekeys");
@@ -291,21 +284,20 @@ TEST_CASE("KV encryption/decryption")
         current_version + i, std::move(ledger_secret_for_backup));
 
       REQUIRE(
-        backup_store.apply(*consensus->get_latest_data(), ConsensusType::CFT)
-          ->execute() == kv::ApplyResult::PASS);
+        backup_store
+          .deserialize(*consensus->get_latest_data(), ConsensusType::CFT)
+          ->apply() == kv::ApplyResult::PASS);
     }
   }
 }
 
 TEST_CASE("Backup catchup from many ledger secrets")
 {
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
   StringString map("map");
   kv::Store primary_store;
   kv::Store backup_store;
 
-  ccf::NodeId primary_id = 0;
-  ccf::NodeId backup_id = 1;
   std::shared_ptr<ccf::LedgerSecrets> primary_ledger_secrets;
   std::shared_ptr<ccf::LedgerSecrets> backup_ledger_secrets;
 
@@ -333,9 +325,8 @@ TEST_CASE("Backup catchup from many ledger secrets")
     // Just like in the join protocol, ledger secrets are passed to the joining
     // node in advance of KV store catch up
     auto tx = primary_store.create_tx();
-    auto secrets_so_far = primary_ledger_secrets->get(tx);
-    backup_ledger_secrets =
-      std::make_shared<ccf::LedgerSecrets>(primary_ledger_secrets->get(tx));
+    backup_ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+    backup_ledger_secrets->init_from_map(primary_ledger_secrets->get(tx));
 
     auto backup_encryptor =
       std::make_shared<ccf::NodeEncryptor>(backup_ledger_secrets);
@@ -352,8 +343,8 @@ TEST_CASE("Backup catchup from many ledger secrets")
     {
       REQUIRE(
         backup_store
-          .apply(*std::get<1>(next_entry.value()), ConsensusType::CFT)
-          ->execute() == kv::ApplyResult::PASS);
+          .deserialize(*std::get<1>(next_entry.value()), ConsensusType::CFT)
+          ->apply() == kv::ApplyResult::PASS);
       next_entry = consensus->pop_oldest_entry();
     }
   }
@@ -361,12 +352,11 @@ TEST_CASE("Backup catchup from many ledger secrets")
 
 TEST_CASE("KV integrity verification")
 {
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
   StringString map("map");
   kv::Store primary_store;
   kv::Store backup_store;
 
-  uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
   auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);
@@ -389,8 +379,8 @@ TEST_CASE("KV integrity verification")
   std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
   REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
 
-  auto r = backup_store.apply(latest_data.value(), ConsensusType::CFT);
-  auto rr = r->execute();
+  auto r = backup_store.deserialize(latest_data.value(), ConsensusType::CFT);
+  auto rr = r->apply();
   REQUIRE(rr == kv::ApplyResult::FAIL);
 }
 
@@ -399,7 +389,6 @@ TEST_CASE("Encryptor rollback")
   StringString map("map");
   kv::Store store;
 
-  uint64_t node_id = 0;
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
   auto encryptor = std::make_shared<ccf::NodeEncryptor>(ledger_secrets);

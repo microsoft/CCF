@@ -5,6 +5,7 @@
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
+#include "kv/test/stub_consensus.h"
 #include "node/entities.h"
 #include "node/history.h"
 
@@ -1101,7 +1102,8 @@ TEST_CASE("Deserialising from other Store")
   clone.set_encryptor(encryptor);
 
   REQUIRE(
-    clone.apply(data, ConsensusType::CFT)->execute() == kv::ApplyResult::PASS);
+    clone.deserialize(data, ConsensusType::CFT)->apply() ==
+    kv::ApplyResult::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -1114,7 +1116,8 @@ TEST_CASE("Deserialise return status")
 
   auto kp = crypto::make_key_pair();
 
-  auto history = std::make_shared<ccf::NullTxHistory>(store, 0, *kp);
+  auto history =
+    std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   {
@@ -1125,20 +1128,20 @@ TEST_CASE("Deserialise return status")
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.apply(data, ConsensusType::CFT)->execute() ==
+      store.deserialize(data, ConsensusType::CFT)->apply() ==
       kv::ApplyResult::PASS);
   }
 
   {
     auto tx = store.create_reserved_tx(store.next_version());
     auto sig_handle = tx.rw(signatures);
-    ccf::PrimarySignature sigv(0, 2);
+    ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.apply(data, ConsensusType::CFT)->execute() ==
+      store.deserialize(data, ConsensusType::CFT)->apply() ==
       kv::ApplyResult::PASS_SIGNATURE);
   }
 
@@ -1147,14 +1150,14 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_version());
     auto sig_handle = tx.rw(signatures);
     auto data_handle = tx.rw(data);
-    ccf::PrimarySignature sigv(0, 2);
+    ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     data_handle->put(43, 43);
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.apply(data, ConsensusType::CFT)->execute() ==
+      store.deserialize(data, ConsensusType::CFT)->apply() ==
       kv::ApplyResult::FAIL);
   }
 }
@@ -1461,6 +1464,173 @@ TEST_CASE("Conflict resolution")
   // Re-running a _committed_ transaction is exceptionally bad
   REQUIRE_THROWS(tx1.commit());
   REQUIRE_THROWS(tx2.commit());
+}
+
+TEST_CASE("Primary can create correct execution order")
+{
+  struct TxInfo
+  {
+    uint32_t id;
+    kv::Version replicated_max_conflict_version;
+  };
+  std::vector<TxInfo> txs;
+
+  // Execute on primary
+  {
+    kv::Store kv_store_primary;
+    MapTypes::StringString map("public:map");
+
+    for (uint32_t i = 0; i < 5; ++i)
+    {
+      TxInfo info = {i, kv::NoVersion};
+      auto tx = kv_store_primary.create_tx();
+      auto handle = tx.rw(map);
+      handle->get(std::to_string(info.id));
+      handle->put(std::to_string(info.id), std::to_string(info.id));
+      REQUIRE(tx.commit(true) == kv::CommitResult::SUCCESS);
+      info.replicated_max_conflict_version = tx.get_max_conflict_version();
+      txs.push_back(info);
+    }
+  }
+
+  // Execute on backup
+  {
+    kv::Store kv_store_backup;
+    MapTypes::NumNum map("public:map");
+
+    // create the map on the backup
+    {
+      TxInfo& info = txs[0];
+      auto tx = kv_store_backup.create_tx();
+      auto handle = tx.rw(map);
+      handle->get(info.id);
+      handle->put(info.id, info.id);
+      auto version_resolver = [&](bool) {
+        kv_store_backup.next_version();
+        return std::make_tuple(info.id, kv::NoVersion);
+      };
+      REQUIRE(
+        tx.commit(
+          true, version_resolver, info.replicated_max_conflict_version) ==
+        kv::CommitResult::SUCCESS);
+    }
+
+    // Verify that transactions can be execute in a random (reverse order) as
+    // there is no dependency
+    for (uint32_t i = 4; i > 0; --i)
+    {
+      TxInfo& info = txs[i];
+      auto tx = kv_store_backup.create_tx();
+      auto handle = tx.rw(map);
+      handle->get(info.id);
+      handle->put(info.id, info.id);
+      auto version_resolver = [&](bool) {
+        kv_store_backup.next_version();
+        return std::make_tuple(info.id, 0);
+      };
+      REQUIRE(
+        tx.commit(
+          true, version_resolver, info.replicated_max_conflict_version) ==
+        kv::CommitResult::SUCCESS);
+    }
+
+    // Verify that the values can be read back
+    for (uint32_t i = 4; i > 1; --i)
+    {
+      TxInfo& info = txs[2];
+      auto tx = kv_store_backup.create_tx();
+      auto handle = tx.rw(map);
+      auto ret_value = handle->get(info.id);
+      REQUIRE(ret_value.has_value());
+      size_t value = ret_value.value();
+      REQUIRE(value == info.id);
+    }
+  }
+}
+
+TEST_CASE("Backup can detect byzantine execution order")
+{
+  struct TxInfo
+  {
+    uint32_t id;
+    kv::Version replicated_max_conflict_version;
+  };
+  std::vector<TxInfo> txs;
+
+  // Execute on primary
+  {
+    kv::Store kv_store_primary;
+    MapTypes::StringString map("public:map");
+
+    for (uint32_t i = 0; i < 5; ++i)
+    {
+      TxInfo info = {i, 0};
+      auto tx = kv_store_primary.create_tx();
+      auto handle = tx.rw(map);
+      handle->get("key");
+      handle->put("key", std::to_string(info.id));
+      REQUIRE(tx.commit(true) == kv::CommitResult::SUCCESS);
+      txs.push_back(info);
+    }
+  }
+
+  // Execute on backup
+  {
+    kv::Store kv_store_backup;
+    MapTypes::StringString map("public:map");
+
+    // Run the transaction that creates the map
+    {
+      TxInfo& info = txs[0];
+      auto tx = kv_store_backup.create_tx();
+      auto handle = tx.rw(map);
+      handle->get("key");
+      handle->put("key", std::to_string(info.id));
+      auto version_resolver = [&](bool) {
+        kv_store_backup.next_version();
+        return std::make_tuple(info.id, kv::NoVersion);
+      };
+      REQUIRE(
+        tx.commit(
+          true, version_resolver, info.replicated_max_conflict_version) ==
+        kv::CommitResult::SUCCESS);
+    }
+
+    // Run the transaction the final transaction so any transaction with a
+    // version before this one will result a linearlizability exception
+    {
+      TxInfo& info = txs[4];
+      auto tx = kv_store_backup.create_tx();
+      auto handle = tx.rw(map);
+      handle->get("key");
+      handle->put("key", std::to_string(info.id));
+      auto version_resolver = [&](bool) {
+        kv_store_backup.next_version();
+        return std::make_tuple(info.id, kv::NoVersion);
+      };
+      REQUIRE(
+        tx.commit(
+          true, version_resolver, info.replicated_max_conflict_version) ==
+        kv::CommitResult::SUCCESS);
+    }
+
+    // Validate the incorrectly created tx order cannot commit
+    for (uint32_t i = 1; i < 4; ++i)
+    {
+      TxInfo& info = txs[i];
+      auto tx = kv_store_backup.create_tx();
+      auto handle = tx.rw(map);
+      handle->put("key", std::to_string(info.id));
+      auto version_resolver = [&](bool) {
+        kv_store_backup.next_version();
+        return std::make_tuple(info.id, kv::NoVersion);
+      };
+      REQUIRE(
+        tx.commit(
+          true, version_resolver, info.replicated_max_conflict_version) ==
+        kv::CommitResult::FAIL_CONFLICT);
+    }
+  }
 }
 
 TEST_CASE("Mid-tx compaction")

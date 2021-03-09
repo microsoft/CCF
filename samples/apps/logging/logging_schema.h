@@ -37,6 +37,20 @@ namespace loggingapp
     using Out = bool;
   };
 
+  struct LoggingGetReceipt
+  {
+    struct In
+    {
+      size_t id;
+    };
+
+    struct Out
+    {
+      std::string msg;
+      ccf::GetReceipt::Out receipt;
+    };
+  };
+
   DECLARE_JSON_TYPE(LoggingRecord::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
 
@@ -44,9 +58,49 @@ namespace loggingapp
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::In, id);
   DECLARE_JSON_TYPE(LoggingGet::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::Out, msg);
+
+  DECLARE_JSON_TYPE(LoggingGetReceipt::In);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::In, id);
+  DECLARE_JSON_TYPE(LoggingGetReceipt::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::Out, msg, receipt);
   // SNIPPET_END: macro_validation_macros
 
   using LoggingGetHistorical = LoggingGet;
+
+  struct LoggingGetHistoricalRange
+  {
+    struct In
+    {
+      size_t from_seqno;
+      size_t to_seqno;
+      size_t id;
+    };
+
+    struct Entry
+    {
+      size_t seqno;
+      size_t id;
+      std::string msg;
+    };
+
+    struct Out
+    {
+      std::vector<Entry> entries;
+      std::optional<std::string> next_link;
+    };
+  };
+  DECLARE_JSON_TYPE(LoggingGetHistoricalRange::In);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    LoggingGetHistoricalRange::In, from_seqno, to_seqno, id);
+
+  DECLARE_JSON_TYPE(LoggingGetHistoricalRange::Entry);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    LoggingGetHistoricalRange::Entry, seqno, id, msg);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(LoggingGetHistoricalRange::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetHistoricalRange::Out, entries);
+  DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
+    LoggingGetHistoricalRange::Out, next_link, "@nextLink");
 
   // Public record/get
   // Manual schemas, verified then parsed in handler

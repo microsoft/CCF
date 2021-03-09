@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "crypto/mbedtls/hash.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
 
@@ -18,7 +19,7 @@ namespace threading
 
 using namespace ccf;
 
-class DummyConsensus : public kv::StubConsensus
+class DummyConsensus : public kv::test::StubConsensus
 {
 public:
   DummyConsensus() {}
@@ -58,7 +59,7 @@ static void hash_only(picobench::state& s)
     (void)_;
     auto data = txs[idx++];
     crypto::Sha256Hash h;
-    crypto::Sha256Hash::mbedtls_sha256({data}, h.h.data());
+    crypto::mbedtls_sha256({data}, h.h.data());
     do_not_optimize(h);
     clobber_memory();
   }
@@ -77,7 +78,7 @@ static void append(picobench::state& s)
   store.set_consensus(consensus);
 
   std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp);
+    std::make_shared<ccf::MerkleTxHistory>(store, kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
@@ -114,7 +115,7 @@ static void append_compact(picobench::state& s)
   store.set_consensus(consensus);
 
   std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp);
+    std::make_shared<ccf::MerkleTxHistory>(store, kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;

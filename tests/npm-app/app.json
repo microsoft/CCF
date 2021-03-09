@@ -109,6 +109,7 @@
           },
           "responses": {
             "200": {
+              "description": "Generated key",
               "content": {
                 "application/octet-stream": {}
               }
@@ -117,10 +118,10 @@
         }
       }
     },
-    "/wrapKeyRsaOaep": {
+    "/wrapKey": {
       "post": {
         "js_module": "src/endpoints/crypto.js",
-        "js_function": "wrapKeyRsaOaep",
+        "js_function": "wrapKey",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
@@ -138,8 +139,8 @@
                     "wrappingKey": {
                       "type": "string"
                     },
-                    "label": {
-                      "type": "string"
+                    "parameters": {
+                      "type": "object"
                     }
                   },
                   "type": "object"
@@ -149,6 +150,7 @@
           },
           "responses": {
             "200": {
+              "description": "Wrapped key",
               "content": {
                 "application/octet-stream": {}
               }
@@ -213,6 +215,7 @@
           },
           "responses": {
             "200": {
+              "description": "Protobuf encoded data",
               "content": {
                 "application/x-protobuf": {}
               }

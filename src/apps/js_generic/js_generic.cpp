@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "crypto/entropy.h"
-#include "crypto/rsa_key_pair.h"
+#include "crypto/key_wrap.h"
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
@@ -11,6 +11,7 @@
 #include <memory>
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
+#include <stdexcept>
 #include <vector>
 
 namespace ccfapp
@@ -213,9 +214,10 @@ namespace ccfapp
     void* auto_free_ptr = JS_GetContextOpaque(ctx);
     JSAutoFreeCtx& auto_free = *(JSAutoFreeCtx*)auto_free_ptr;
 
-    JSValue wrap_algo = argv[2];
-    auto wrap_algo_name_val =
-      auto_free(JS_GetPropertyStr(ctx, wrap_algo, "name"));
+    auto parameters = argv[2];
+    JSValue wrap_algo_name_val =
+      auto_free(JS_GetPropertyStr(ctx, parameters, "name"));
+
     auto wrap_algo_name_cstr = auto_free(JS_ToCString(ctx, wrap_algo_name_val));
 
     if (!wrap_algo_name_cstr)
@@ -224,26 +226,81 @@ namespace ccfapp
       return JS_EXCEPTION;
     }
 
-    if (std::string(wrap_algo_name_cstr) != "RSA-OAEP")
+    try
     {
-      JS_ThrowRangeError(
-        ctx, "unsupported key wrapping algorithm, supported: RSA-OAEP");
+      auto algo_name = std::string(wrap_algo_name_cstr);
+      if (algo_name == "RSA-OAEP")
+      {
+        // key can in principle be arbitrary data (see note on maximum size
+        // in rsa_key_pair.h). wrapping_key is a public RSA key.
+
+        auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
+        size_t label_buf_size = 0;
+        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
+
+        auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
+          Pem(wrapping_key, wrapping_key_size),
+          {key, key + key_size},
+          {label_buf, label_buf + label_buf_size});
+
+        return JS_NewArrayBufferCopy(
+          ctx, wrapped_key.data(), wrapped_key.size());
+      }
+      else if (algo_name == "AES-KWP")
+      {
+        std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
+          {wrapping_key, wrapping_key + wrapping_key_size},
+          {key, key + key_size});
+
+        return JS_NewArrayBufferCopy(
+          ctx, wrapped_key.data(), wrapped_key.size());
+      }
+      else if (algo_name == "RSA-OAEP-AES-KWP")
+      {
+        auto aes_key_size_value =
+          auto_free(JS_GetPropertyStr(ctx, parameters, "aesKeySize"));
+        int32_t aes_key_size = 0;
+        if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value) < 0)
+        {
+          js_dump_error(ctx);
+          return JS_EXCEPTION;
+        }
+
+        auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
+        size_t label_buf_size = 0;
+        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
+
+        auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
+          aes_key_size,
+          Pem(wrapping_key, wrapping_key_size),
+          {key, key + key_size},
+          {label_buf, label_buf + label_buf_size});
+
+        return JS_NewArrayBufferCopy(
+          ctx, wrapped_key.data(), wrapped_key.size());
+      }
+      else
+      {
+        JS_ThrowRangeError(
+          ctx,
+          "unsupported key wrapping algorithm, supported: RSA-OAEP, AES-KWP, "
+          "RSA-OAEP-AES-KWP");
+        js_dump_error(ctx);
+        return JS_EXCEPTION;
+      }
+    }
+    catch (std::exception& ex)
+    {
+      JS_ThrowRangeError(ctx, "%s", ex.what());
       js_dump_error(ctx);
       return JS_EXCEPTION;
     }
-
-    // key can in principle be arbitrary data (see note on maximum size
-    // in rsa_key_pair.h). wrapping_key is a public RSA key.
-
-    auto label_val = auto_free(JS_GetPropertyStr(ctx, wrap_algo, "label"));
-    size_t label_buf_size;
-    uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
-
-    auto wrapped_key =
-      crypto::make_rsa_public_key(wrapping_key, wrapping_key_size)
-        ->wrap(key, key_size, label_buf, label_buf_size);
-
-    return JS_NewArrayBufferCopy(ctx, wrapped_key.data(), wrapped_key.size());
+    catch (...)
+    {
+      JS_ThrowRangeError(ctx, "caught unknown exception");
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
   }
 
   static void js_free_arraybuffer_cstring(JSRuntime*, void* opaque, void* ptr)
@@ -1248,8 +1305,8 @@ namespace ccfapp
     {};
 
   public:
-    JSHandlers(NetworkTables& network, ccf::AbstractNodeState& node_state) :
-      UserEndpointRegistry(node_state),
+    JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
+      UserEndpointRegistry(context),
       network(network)
     {
       JS_NewClassID(&kv_class_id);
@@ -1404,9 +1461,20 @@ namespace ccfapp
         if (!properties.openapi_hidden)
         {
           auto& path_op = ds::openapi::path_operation(
-            ds::openapi::path(document, key.uri_path), http_verb.value());
+            ds::openapi::path(document, key.uri_path),
+            http_verb.value(),
+            false);
+          LOG_INFO_FMT(
+            "Building OpenAPI for {} {}", key.verb.c_str(), key.uri_path);
+          const auto dumped = document.dump(2);
+          LOG_INFO_FMT(
+            "Starting from: {}", std::string(dumped.begin(), dumped.end()));
           if (!properties.openapi.empty())
           {
+            for (const auto& [k, v] : properties.openapi.items())
+            {
+              LOG_INFO_FMT("Inserting field {}", k);
+            }
             path_op.insert(
               properties.openapi.cbegin(), properties.openapi.cend());
           }
@@ -1434,15 +1502,15 @@ namespace ccfapp
     JSHandlers js_handlers;
 
   public:
-    JS(NetworkTables& network, ccfapp::AbstractNodeContext& node_context) :
+    JS(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
       ccf::UserRpcFrontend(*network.tables, js_handlers),
-      js_handlers(network, node_context.get_node_state())
+      js_handlers(network, context)
     {}
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, ccfapp::AbstractNodeContext& node_context)
+    NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<JS>(network, node_context);
+    return make_shared<JS>(network, context);
   }
 } // namespace ccfapp

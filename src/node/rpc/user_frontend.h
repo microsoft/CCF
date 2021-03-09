@@ -27,9 +27,9 @@ namespace ccf
   class UserEndpointRegistry : public CommonEndpointRegistry
   {
   public:
-    UserEndpointRegistry(ccf::AbstractNodeState& node) :
+    UserEndpointRegistry(ccfapp::AbstractNodeContext& context) :
       CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::users), node, Tables::USER_CERT_DERS)
+        get_actor_prefix(ActorsType::users), context, Tables::USER_CERT_DERS)
     {}
   };
 
@@ -40,9 +40,9 @@ namespace ccf
 
   public:
     SimpleUserRpcFrontend(
-      kv::Store& tables, ccf::AbstractNodeState& node_state) :
+      kv::Store& tables, ccfapp::AbstractNodeContext& context) :
       UserRpcFrontend(tables, common_handlers),
-      common_handlers(node_state)
+      common_handlers(context)
     {}
 
     // Forward these methods so that apps can write foo(...); rather than

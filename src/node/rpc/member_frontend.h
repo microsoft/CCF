@@ -171,13 +171,13 @@ namespace ccf
   DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
   DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
 
-  struct SetCaCert
+  struct SetCaCertBundle
   {
     std::string name;
-    std::string cert;
+    std::string cert_bundle;
   };
-  DECLARE_JSON_TYPE(SetCaCert)
-  DECLARE_JSON_REQUIRED_FIELDS(SetCaCert, name, cert)
+  DECLARE_JSON_TYPE(SetCaCertBundle)
+  DECLARE_JSON_REQUIRED_FIELDS(SetCaCertBundle, name, cert_bundle)
 
   class MemberEndpoints : public CommonEndpointRegistry
   {
@@ -603,7 +603,7 @@ namespace ccf
              // A retired member with recovery share should not have access to
              // the private ledger going forward so rekey ledger, issuing new
              // share to remaining active members
-             if (!node.rekey_ledger(tx))
+             if (!context.get_node_state().rekey_ledger(tx))
              {
                return false;
              }
@@ -679,35 +679,35 @@ namespace ccf
            users->put(parsed.user_id, user_info.value());
            return true;
          }},
-        {"set_ca_cert",
+        {"set_ca_cert_bundle",
          [this](
            const ProposalId& proposal_id,
            kv::Tx& tx,
            const nlohmann::json& args) {
-           const auto parsed = args.get<SetCaCert>();
-           auto ca_certs = tx.rw(this->network.ca_certs);
-           std::vector<uint8_t> cert_der;
+           const auto parsed = args.get<SetCaCertBundle>();
+           auto ca_cert_bundles = tx.rw(this->network.ca_cert_bundles);
            try
            {
-             cert_der = crypto::cert_pem_to_der(parsed.cert);
+             tls::CA(parsed.cert_bundle);
            }
-           catch (const std::invalid_argument& e)
+           catch (const std::logic_error& e)
            {
              LOG_FAIL_FMT(
-               "Proposal {}: certificate is not a valid X.509 certificate in "
+               "Proposal {}: 'cert_bundle' is not a valid X.509 certificate "
+               "bundle in "
                "PEM format: {}",
                proposal_id,
                e.what());
              return false;
            }
-           ca_certs->put(parsed.name, cert_der);
+           ca_cert_bundles->put(parsed.name, parsed.cert_bundle);
            return true;
          }},
-        {"remove_ca_cert",
+        {"remove_ca_cert_bundle",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto cert_name = args.get<std::string>();
-           auto ca_certs = tx.rw(this->network.ca_certs);
-           ca_certs->remove(cert_name);
+           const auto cert_bundle_name = args.get<std::string>();
+           auto ca_cert_bundles = tx.rw(this->network.ca_cert_bundles);
+           ca_cert_bundles->remove(cert_bundle_name);
            return true;
          }},
         {"set_jwt_issuer",
@@ -717,24 +717,24 @@ namespace ccf
            const nlohmann::json& args) {
            const auto parsed = args.get<SetJwtIssuer>();
            auto issuers = tx.rw(this->network.jwt_issuers);
-           auto ca_certs = tx.ro(this->network.ca_certs);
+           auto ca_cert_bundles = tx.ro(this->network.ca_cert_bundles);
 
            if (parsed.auto_refresh)
            {
-             if (!parsed.ca_cert_name.has_value())
+             if (!parsed.ca_cert_bundle_name.has_value())
              {
                LOG_FAIL_FMT(
-                 "Proposal {}: ca_cert_name is missing but required if "
+                 "Proposal {}: ca_cert_bundle_name is missing but required if "
                  "auto_refresh is true",
                  proposal_id);
                return false;
              }
-             if (!ca_certs->has(parsed.ca_cert_name.value()))
+             if (!ca_cert_bundles->has(parsed.ca_cert_bundle_name.value()))
              {
                LOG_FAIL_FMT(
-                 "Proposal {}: No CA cert found with name '{}'",
+                 "Proposal {}: No CA cert list found with name '{}'",
                  proposal_id,
-                 parsed.ca_cert_name.value());
+                 parsed.ca_cert_bundle_name.value());
                return false;
              }
              http::URL issuer_url;
@@ -895,9 +895,10 @@ namespace ccf
         {"accept_recovery",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           if (node.is_part_of_public_network())
+           if (context.get_node_state().is_part_of_public_network())
            {
-             const auto accept_recovery = node.accept_recovery(tx);
+             const auto accept_recovery =
+               context.get_node_state().accept_recovery(tx);
              if (!accept_recovery)
              {
                LOG_FAIL_FMT("Proposal {}: Accept recovery failed", proposal_id);
@@ -939,14 +940,15 @@ namespace ccf
            }
            else
            {
-             node.open_user_frontend();
+             context.get_node_state().open_user_frontend();
            }
            return network_opened;
          }},
         {"rekey_ledger",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           const auto ledger_rekeyed = node.rekey_ledger(tx);
+           const auto ledger_rekeyed =
+             context.get_node_state().rekey_ledger(tx);
            if (!ledger_rekeyed)
            {
              LOG_FAIL_FMT("Proposal {}: Ledger rekey failed", proposal_id);
@@ -1194,11 +1196,11 @@ namespace ccf
   public:
     MemberEndpoints(
       NetworkState& network,
-      AbstractNodeState& node_state,
+      ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::members),
-        node_state,
+        context,
         Tables::MEMBER_CERT_DERS),
       network(network),
       share_manager(share_manager),
@@ -1804,7 +1806,7 @@ namespace ccf
             "Service is not waiting for recovery shares");
         }
 
-        if (node.is_reading_private_ledger())
+        if (context.get_node_state().is_reading_private_ledger())
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1847,7 +1849,7 @@ namespace ccf
 
         try
         {
-          node.initiate_private_recovery(ctx.tx);
+          context.get_node_state().initiate_private_recovery(ctx.tx);
         }
         catch (const std::exception& e)
         {
@@ -1909,20 +1911,13 @@ namespace ccf
         // recovery member is added before the service is opened.
         g.init_configuration(in.configuration);
 
-        size_t self = g.add_node({in.node_info_network,
-                                  in.node_cert,
-                                  {in.quote_info},
-                                  in.public_encryption_key,
-                                  NodeStatus::TRUSTED});
-
-        LOG_INFO_FMT("Create node id: {}", self);
-        if (self != 0)
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Starting node ID is not 0.");
-        }
+        g.add_node(
+          in.node_id,
+          {in.node_info_network,
+           in.node_cert,
+           {in.quote_info},
+           in.public_encryption_key,
+           NodeStatus::TRUSTED});
 
 #ifdef GET_QUOTE
         CodeDigest node_code_id;
@@ -1963,8 +1958,17 @@ namespace ccf
         }
 
         auto primary_id = consensus->primary();
+        if (!primary_id.has_value())
+        {
+          LOG_FAIL_FMT("JWT key auto-refresh: primary unknown");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Primary is unknown");
+        }
+
         auto nodes = ctx.tx.ro(this->network.nodes);
-        auto info = nodes->get(primary_id);
+        auto info = nodes->get(primary_id.value());
         if (!info.has_value())
         {
           LOG_FAIL_FMT(
@@ -2066,10 +2070,10 @@ namespace ccf
   public:
     MemberRpcFrontend(
       NetworkState& network,
-      AbstractNodeState& node,
+      ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
       RpcFrontend(*network.tables, member_endpoints),
-      member_endpoints(network, node, share_manager),
+      member_endpoints(network, context, share_manager),
       members(&network.members)
     {}
   };

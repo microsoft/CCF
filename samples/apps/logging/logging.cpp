@@ -3,6 +3,7 @@
 #include "enclave/app_interface.h"
 #include "formatters.h"
 #include "logging_schema.h"
+#include "node/historical_queries_adapter.h"
 #include "node/quote.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
@@ -115,7 +116,7 @@ namespace loggingapp
   public:
     // SNIPPET_START: constructor
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
-      ccf::UserEndpointRegistry(context.get_node_state()),
+      ccf::UserEndpointRegistry(context),
       records("records"),
       public_records("public:records"),
       // SNIPPET_END: constructor
@@ -273,10 +274,10 @@ namespace loggingapp
         const auto in = body_j.get<LoggingRecord::In>();
         if (in.msg.empty())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body("Cannot record an empty log message");
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            "Cannot record an empty log message");
           return;
         }
 
@@ -287,10 +288,9 @@ namespace loggingapp
           cert.get(), cert_data.data(), cert_data.size());
         if (ret != 0)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
             "Cannot parse x509 caller certificate");
           return;
         }
@@ -435,8 +435,10 @@ namespace loggingapp
         }
         else
         {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx.rpc_ctx->set_response_body("Unhandled auth type");
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InvalidInput,
+            "Unhandled auth type");
           return;
         }
       };
@@ -480,11 +482,11 @@ namespace loggingapp
             .value_or("");
         if (expected != actual)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "Expected content-type '{}'. Got '{}'.", expected, actual));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
+            ccf::errors::InvalidHeaderValue,
+            fmt::format(
+              "Expected content-type '{}'. Got '{}'.", expected, actual));
           return;
         }
 
@@ -492,11 +494,10 @@ namespace loggingapp
         const auto id_it = path_params.find("id");
         if (id_it == path_params.end())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(
-            fmt::format("Missing ID component in request path"));
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            "Missing ID component in request path");
           return;
         }
 
@@ -515,17 +516,16 @@ namespace loggingapp
         .install();
       // SNIPPET_END: log_record_text
 
+      // SNIPPET_START: get_historical
       auto get_historical = [this](
                               ccf::EndpointContext& args,
-                              ccf::historical::StorePtr historical_store,
-                              kv::Consensus::View,
-                              kv::Consensus::SeqNo) {
+                              ccf::historical::StatePtr historical_state) {
         const auto [pack, params] =
           ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
         const auto in = params.get<LoggingGetHistorical::In>();
 
-        auto historical_tx = historical_store->create_read_only_tx();
+        auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle = historical_tx.ro(records);
         const auto v = records_handle->get(in.id);
 
@@ -578,6 +578,213 @@ namespace loggingapp
           get_historical, context.get_historical_state(), is_tx_committed),
         auth_policies)
         .set_auto_schema<LoggingGetHistorical>()
+        .set_forwarding_required(ccf::ForwardingRequired::Never)
+        .install();
+      // SNIPPET_END: get_historical
+
+      // SNIPPET_START: get_historical_with_receipt
+      auto get_historical_with_receipt =
+        [this](
+          ccf::EndpointContext& args,
+          ccf::historical::StatePtr historical_state) {
+          const auto [pack, params] =
+            ccf::jsonhandler::get_json_params(args.rpc_ctx);
+
+          const auto in = params.get<LoggingGetReceipt::In>();
+
+          auto historical_tx = historical_state->store->create_read_only_tx();
+          auto records_handle = historical_tx.ro(records);
+          const auto v = records_handle->get(in.id);
+
+          if (v.has_value())
+          {
+            LoggingGetReceipt::Out out;
+            out.msg = v.value();
+            out.receipt.from_receipt(historical_state->receipt);
+            ccf::jsonhandler::set_response(std::move(out), args.rpc_ctx, pack);
+          }
+          else
+          {
+            args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+        };
+      make_endpoint(
+        "log/private/historical_receipt",
+        HTTP_GET,
+        ccf::historical::adapter(
+          get_historical_with_receipt,
+          context.get_historical_state(),
+          is_tx_committed),
+        auth_policies)
+        .set_auto_schema<LoggingGetReceipt>()
+        .set_forwarding_required(ccf::ForwardingRequired::Never)
+        .install();
+      // SNIPPET_END: get_historical_with_receipt
+
+      static constexpr auto get_historical_range_path =
+        "log/private/historical/range";
+      auto get_historical_range = [&, this](ccf::EndpointContext& args) {
+        // Parse request body
+        const auto query_j =
+          ccf::jsonhandler::get_params_from_query(args.rpc_ctx);
+        const auto in = query_j.get<LoggingGetHistoricalRange::In>();
+
+        // Range must be in order
+        if (in.to_seqno < in.from_seqno)
+        {
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            fmt::format(
+              "Invalid range: Starts at {} but ends at {}",
+              in.from_seqno,
+              in.to_seqno));
+          return;
+        }
+
+        // End of range must be committed
+        if (consensus == nullptr)
+        {
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Node is not fully operational");
+          return;
+        }
+
+        const auto view_of_final_seqno = consensus->get_view(in.to_seqno);
+        const auto committed_seqno = consensus->get_committed_seqno();
+        const auto committed_view = consensus->get_view(committed_seqno);
+        const auto tx_status = ccf::evaluate_tx_status(
+          view_of_final_seqno,
+          in.to_seqno,
+          view_of_final_seqno,
+          committed_view,
+          committed_seqno);
+        if (tx_status != ccf::TxStatus::Committed)
+        {
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            fmt::format(
+              "Only committed transactions can be queried. Transaction {}.{} "
+              "is "
+              "{}",
+              view_of_final_seqno,
+              in.to_seqno,
+              ccf::tx_status_to_str(tx_status)));
+          return;
+        }
+
+        // Set a maximum range, paginate larger requests
+        static constexpr size_t max_seqno_per_page = 20;
+        const auto range_begin = in.from_seqno;
+        const auto range_end =
+          std::min(in.to_seqno, range_begin + max_seqno_per_page);
+
+        // Use hash of request as RequestHandle. WARNING: This means identical
+        // requests from different users will collide, and overwrite each
+        // other's progress!
+        auto make_handle = [](size_t begin, size_t end, size_t id) {
+          auto size = sizeof(begin) + sizeof(end) + sizeof(id);
+          std::vector<uint8_t> v(size);
+          auto data = v.data();
+          serialized::write(data, size, begin);
+          serialized::write(data, size, end);
+          serialized::write(data, size, id);
+          return std::hash<decltype(v)>()(v);
+        };
+
+        ccf::historical::RequestHandle handle =
+          make_handle(range_begin, range_end, in.id);
+
+        // Fetch the requested range
+        auto& historical_cache = context.get_historical_state();
+
+        auto stores =
+          historical_cache.get_store_range(handle, range_begin, range_end);
+        if (stores.empty())
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+          static constexpr size_t retry_after_seconds = 3;
+          args.rpc_ctx->set_response_header(
+            http::headers::RETRY_AFTER, retry_after_seconds);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "Historical transactions from {} to {} are not yet "
+            "available, fetching now",
+            range_begin,
+            range_end));
+          return;
+        }
+
+        // Process the fetched Stores
+        LoggingGetHistoricalRange::Out response;
+        for (size_t i = 0; i < stores.size(); ++i)
+        {
+          const auto store_seqno = range_begin + i;
+          auto& store = stores[i];
+
+          auto historical_tx = store->create_read_only_tx();
+          auto records_handle = historical_tx.ro(records);
+          const auto v = records_handle->get(in.id);
+
+          if (v.has_value())
+          {
+            LoggingGetHistoricalRange::Entry e;
+            e.seqno = store_seqno;
+            e.id = in.id;
+            e.msg = v.value();
+            response.entries.push_back(e);
+          }
+          // This response do not include any entry when the given key wasn't
+          // modified at this seqno. It could instead indicate that the store
+          // was checked with an empty tombstone object, but this approach gives
+          // smaller responses
+        }
+
+        // If this didn't cover the total requested range, begin fetching the
+        // next page and tell the caller how to retrieve it
+        if (range_end != in.to_seqno)
+        {
+          const auto next_page_start = range_end + 1;
+          const auto next_page_end =
+            std::min(in.to_seqno, next_page_start + max_seqno_per_page);
+
+          ccf::historical::RequestHandle next_page_handle =
+            make_handle(next_page_start, next_page_end, in.id);
+          historical_cache.get_store_range(
+            next_page_handle, next_page_start, next_page_end);
+
+          // NB: This path tells the caller to continue to ask until the end of
+          // the range, even if the next response is paginated
+          response.next_link = fmt::format(
+            "/app/{}?from_seqno={}&to_seqno={}&id={}",
+            get_historical_range_path,
+            next_page_start,
+            in.to_seqno,
+            in.id);
+        }
+
+        // Construct the HTTP response
+        nlohmann::json j_response = response;
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        args.rpc_ctx->set_response_body(j_response.dump());
+
+        // ALSO: Assume this response makes it all the way to the client, and
+        // they're finished with it, so we can drop the retrieved state. In a
+        // real app this may be driven by a separate client request or an LRU
+        historical_cache.drop_request(handle);
+      };
+      make_endpoint(
+        get_historical_range_path,
+        HTTP_GET,
+        get_historical_range,
+        auth_policies)
+        .set_auto_schema<LoggingGetHistoricalRange>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 

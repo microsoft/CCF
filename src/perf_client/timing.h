@@ -4,6 +4,7 @@
 
 // CCF
 #include "clients/rpc_tls_client.h"
+#include "tx_id.h"
 
 // STL/3rdparty
 #include <chrono>
@@ -66,17 +67,11 @@ namespace timing
     const bool expects_commit;
   };
 
-  struct TransactionID
-  {
-    size_t view;
-    size_t seqno;
-  };
-
   struct ReceivedReply
   {
     TimeDelta receive_time;
     size_t rpc_id;
-    optional<TransactionID> commit;
+    optional<ccf::TxID> commit;
     size_t global_seqno;
   };
 
@@ -85,7 +80,7 @@ namespace timing
     std::stringstream ss;
 
     const auto now = Clock::now();
-    auto now_tt = Clock::to_time_t(now);
+    time_t now_tt = now.time_since_epoch().count();
     tm now_tm;
     ::localtime_r(&now_tt, &now_tm);
 
@@ -157,26 +152,17 @@ namespace timing
     vector<PerRound> per_round;
   };
 
-  static std::optional<TransactionID> extract_transaction_id(
+  static std::optional<ccf::TxID> extract_transaction_id(
     const RpcTlsClient::Response& response)
   {
     const auto& h = response.headers;
-    const auto view_it = h.find(http::headers::CCF_TX_VIEW);
-    if (view_it == h.end())
+    const auto it = h.find(http::headers::CCF_TX_ID);
+    if (it == h.end())
     {
       return std::nullopt;
     }
 
-    const auto seqno_it = h.find(http::headers::CCF_TX_SEQNO);
-    if (seqno_it == h.end())
-    {
-      return std::nullopt;
-    }
-
-    const auto view = std::strtoul(view_it->second.c_str(), nullptr, 0);
-    const auto seqno = std::strtoul(seqno_it->second.c_str(), nullptr, 0);
-
-    return {{view, seqno}};
+    return ccf::TxID::from_str(it->second);
   }
 
   class ResponseTimes
@@ -226,9 +212,7 @@ namespace timing
     }
 
     void record_receive(
-      size_t rpc_id,
-      const optional<TransactionID>& tx_id,
-      size_t global_seqno = 0)
+      size_t rpc_id, const optional<ccf::TxID>& tx_id, size_t global_seqno = 0)
     {
       receives.push_back(
         {Clock::now() - start_time, rpc_id, tx_id, global_seqno});
@@ -238,7 +222,7 @@ namespace timing
     // committed (or will never be committed), returns first confirming
     // response. Calls record_[send/response], if record is true.
     // Throws on errors, or if target is rolled back
-    void wait_for_global_commit(const TransactionID& target, bool record = true)
+    void wait_for_global_commit(const ccf::TxID& target, bool record = true)
     {
       auto params = nlohmann::json::object();
       params["view"] = target.view;

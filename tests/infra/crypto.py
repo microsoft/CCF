@@ -6,6 +6,7 @@ import base64
 from enum import IntEnum
 import secrets
 import datetime
+import hashlib
 
 from cryptography import x509
 from cryptography.x509.oid import NameOID
@@ -22,7 +23,7 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
     NoEncryption,
 )
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, keywrap
 from cryptography.hazmat.backends import default_backend
 
 import jwt
@@ -117,6 +118,23 @@ def unwrap_key_rsa_oaep(
     return unwrapped
 
 
+def unwrap_key_aes_pad(wrapped_key: bytes, wrapping_key: bytes) -> bytes:
+    return keywrap.aes_key_unwrap_with_padding(wrapping_key, wrapped_key)
+
+
+def unwrap_key_rsa_oaep_aes_pad(
+    data: bytes, oaep_key_priv_pem: str, label: Optional[bytes] = None
+) -> bytes:
+    oaep_key = load_pem_private_key(
+        oaep_key_priv_pem.encode("ascii"), None, default_backend()
+    )
+    w_aes_sz = oaep_key.key_size // 8
+    w_aes_key = data[:w_aes_sz]
+    w_target_key = data[w_aes_sz:]
+    t_aes_key = unwrap_key_rsa_oaep(w_aes_key, oaep_key_priv_pem, label)
+    return unwrap_key_aes_pad(w_target_key, t_aes_key)
+
+
 def pub_key_pem_to_der(pem: str) -> bytes:
     cert = load_pem_public_key(pem.encode("ascii"), default_backend())
     return cert.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
@@ -142,3 +160,11 @@ def are_certs_equal(pem1: str, pem2: str) -> bool:
     cert1 = load_pem_x509_certificate(pem1.encode(), default_backend())
     cert2 = load_pem_x509_certificate(pem2.encode(), default_backend())
     return cert1 == cert2
+
+
+def compute_public_key_der_hash_hex_from_pem(pem: str):
+    cert = load_pem_x509_certificate(pem.encode(), default_backend())
+    pub_key = cert.public_key().public_bytes(
+        Encoding.DER, PublicFormat.SubjectPublicKeyInfo
+    )
+    return hashlib.sha256(pub_key).hexdigest()

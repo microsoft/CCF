@@ -2,6 +2,26 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+// The transaction engine supports producing a transaction dependencies. This is
+// materialized by providing a sequence number after which the current
+// transaction must be run and required that transaction execution is started in
+// the total order.  The current use case for dependency tracking is to enable
+// parallel execution of transactions on the backup, and as such dependencies
+// are tracked when running with the BFT consensus protocol. The backup will
+// also calculate the dependencies to ensure there is no linearizability
+// violation created by a malicious primary sending an incorrect transaction
+// dependency order.
+//
+// Dependency tracking follows the following pseudocode
+//
+// OnTxCommit:
+//   MaxSeenReadVersion = -1
+//   foreach Accessed Key-Value pair:
+//     MaxSeenReadVersion = max(MaxSeenReadVersion, pair.last_read_version)
+//     pair.last_read_version = pair.seqno
+//
+//   TxSerialize(pairs, MaxSeenReadVersion)
+
 #include "apply_changes.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_deprecated.h"
@@ -143,7 +163,8 @@ namespace kv
           store,
           map_name,
           kv::get_security_domain(map_name),
-          store->is_map_replicated(map_name));
+          store->is_map_replicated(map_name),
+          store->should_track_dependencies(map_name));
         created_maps[map_name] = new_map;
 
         abstract_map = new_map;
@@ -211,6 +232,11 @@ namespace kv
       return read_version;
     }
 
+    Version get_max_conflict_version()
+    {
+      return max_conflict_version;
+    }
+
     Version get_term()
     {
       return term;
@@ -251,7 +277,11 @@ namespace kv
      *
      * @return transaction outcome
      */
-    CommitResult commit()
+    CommitResult commit(
+      bool track_read_versions = false,
+      std::function<std::tuple<Version, Version>(bool has_new_map)>
+        version_resolver = nullptr,
+      kv::Version replicated_max_conflict_version = kv::NoVersion)
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -263,8 +293,6 @@ namespace kv
         return CommitResult::SUCCESS;
       }
 
-      auto store = all_changes.begin()->second.map->get_store();
-
       // If this transaction creates any maps, ensure that commit gets a
       // consistent snapshot of the existing maps
       if (!created_maps.empty())
@@ -272,11 +300,17 @@ namespace kv
 
       kv::ConsensusHookPtrs hooks;
 
+      std::optional<Version> new_maps_conflict_version = std::nullopt;
+
       auto c = apply_changes(
         all_changes,
-        [store]() { return store->next_version(); },
+        version_resolver == nullptr ?
+          [&](bool has_new_map) { return store->next_version(has_new_map); } :
+          version_resolver,
         hooks,
-        created_maps);
+        created_maps,
+        new_maps_conflict_version,
+        track_read_versions);
 
       if (!created_maps.empty())
         this->store->unlock();
@@ -297,6 +331,38 @@ namespace kv
       {
         committed = true;
         std::tie(version, max_conflict_version) = c.value();
+
+        if (track_read_versions)
+        {
+          // This is executed on the backup and deals with the case
+          // that for any set of transactions there may be several valid
+          // serializations that do not violate the linearizability guarantees
+          // of the total order. This check validates that this tx does not read
+          // a key at a higher version than it's version (i.e. does not break
+          // linearizability). After ensuring linearizability is maintained
+          // max_conflict_version is set to the same value as the one specified
+          // so that when it is inserted into the Merkle tree the same root will
+          // exist on the primary and backup.
+          if (
+            version > max_conflict_version &&
+            version > replicated_max_conflict_version &&
+            replicated_max_conflict_version != kv::NoVersion)
+          {
+            max_conflict_version = replicated_max_conflict_version;
+          }
+
+          // Check if a linearizability violation occurred
+          if (max_conflict_version > version && version != 0)
+          {
+            LOG_INFO_FMT(
+              "Detected linearizability violation - version:{}, "
+              "max_conflict_version:{}, replicated_max_conflict_version:{}",
+              version,
+              max_conflict_version,
+              replicated_max_conflict_version);
+            return CommitResult::FAIL_CONFLICT;
+          }
+        }
 
         // From here, we have received a unique commit version and made
         // modifications to our local kv. If we fail in any way, we cannot
@@ -589,7 +655,7 @@ namespace kv
       std::vector<ConsensusHookPtr> hooks;
       auto c = apply_changes(
         all_changes,
-        [this]() { return version; },
+        [this](bool) { return std::make_tuple(version, version - 1); },
         hooks,
         created_maps,
         version);

@@ -6,6 +6,7 @@
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
+#include "node/node_id.h"
 #include "serialiser_declare.h"
 
 #include <array>
@@ -20,6 +21,11 @@
 namespace ccf
 {
   struct PrimarySignature;
+}
+
+namespace aft
+{
+  struct Request;
 }
 
 namespace kv
@@ -39,7 +45,7 @@ namespace kv
   // all accepted kv modifications. Terms are handled by Consensus via the
   // TermHistory
   using Term = int64_t;
-  using NodeId = uint64_t;
+  using NodeId = ccf::NodeId;
 
   struct TxID
   {
@@ -261,6 +267,7 @@ namespace kv
     virtual void rollback(Version v, kv::Term) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
+    virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;
   };
 
   class Consensus : public ConfigurableConsensus
@@ -282,7 +289,7 @@ namespace kv
     // primary changes
     using View = int64_t;
 
-    Consensus(NodeId id) : state(Backup), local_id(id) {}
+    Consensus(const NodeId& id) : state(Backup), local_id(id) {}
     virtual ~Consensus() {}
 
     virtual NodeId id()
@@ -332,11 +339,11 @@ namespace kv
     virtual std::vector<SeqNo> get_view_history(SeqNo) = 0;
     virtual void initialise_view_history(const std::vector<SeqNo>&) = 0;
     virtual SeqNo get_committed_seqno() = 0;
-    virtual NodeId primary() = 0;
+    virtual std::optional<NodeId> primary() = 0;
     virtual bool view_change_in_progress() = 0;
     virtual std::set<NodeId> active_nodes() = 0;
 
-    virtual void recv_message(OArray&& oa) = 0;
+    virtual void recv_message(const NodeId& from, OArray&& oa) = 0;
 
     virtual bool on_request(const TxHistory::RequestCallbackArgs&)
     {
@@ -457,8 +464,8 @@ namespace kv
     virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool prepare(Version& max_conflict_version) = 0;
-    virtual void commit(Version v) = 0;
+    virtual bool prepare(bool track_commits, Version& max_conflict_version) = 0;
+    virtual void commit(Version v, bool track_read_versions) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
@@ -529,13 +536,14 @@ namespace kv
   {
   public:
     virtual ~AbstractExecutionWrapper() = default;
-    virtual kv::ApplyResult execute() = 0;
+    virtual kv::ApplyResult apply() = 0;
     virtual kv::ConsensusHookPtrs& get_hooks() = 0;
     virtual const std::vector<uint8_t>& get_entry() = 0;
     virtual kv::Term get_term() = 0;
     virtual kv::Version get_index() = 0;
     virtual ccf::PrimarySignature& get_signature() = 0;
-    virtual kv::Tx& get_tx() = 0;
+    virtual aft::Request& get_request() = 0;
+    virtual kv::Version get_max_conflict_version() = 0;
   };
 
   class AbstractStore
@@ -556,6 +564,7 @@ namespace kv
     virtual void unlock() = 0;
 
     virtual Version next_version() = 0;
+    virtual std::tuple<Version, Version> next_version(bool commit_new_map) = 0;
     virtual TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
@@ -568,12 +577,13 @@ namespace kv
     virtual void add_dynamic_map(
       Version v, const std::shared_ptr<AbstractMap>& map) = 0;
     virtual bool is_map_replicated(const std::string& map_name) = 0;
+    virtual bool should_track_dependencies(const std::string& name) = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
-    virtual std::unique_ptr<AbstractExecutionWrapper> apply(
-      const std::vector<uint8_t> data,
+    virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
+      const std::vector<uint8_t>& data,
       ConsensusType consensus_type,
       bool public_only = false) = 0;
     virtual void compact(Version v) = 0;

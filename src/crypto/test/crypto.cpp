@@ -2,14 +2,24 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "crypto/key_pair.h"
+#include "crypto/key_wrap.h"
+#include "crypto/mbedtls/entropy.h"
+#include "crypto/mbedtls/key_pair.h"
+#include "crypto/mbedtls/rsa_key_pair.h"
+#include "crypto/mbedtls/symmetric_key.h"
+#include "crypto/mbedtls/verifier.h"
+#include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/rsa_key_pair.h"
+#include "crypto/openssl/symmetric_key.h"
+#include "crypto/openssl/verifier.h"
 #include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "tls/base64.h"
 
 #include <chrono>
+#include <cstring>
 #include <doctest/doctest.h>
-#include <string>
 
 using namespace std;
 using namespace tls;
@@ -25,6 +35,8 @@ static const string contents_ =
   "cillum dolore eu fugiat nulla pariatur. Excepteur "
   "sint occaecat cupidatat non proident, sunt in culpa "
   "qui officia deserunt mollit anim id est laborum.";
+
+vector<uint8_t> contents(contents_.begin(), contents_.end());
 
 template <typename T>
 void corrupt(T& buf)
@@ -297,16 +309,16 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
     auto rsa_pub = make_rsa_public_key(rsa_kp->public_key_pem());
 
     // Public key can wrap
-    auto wrapped = rsa_pub->wrap(input);
+    auto wrapped = rsa_pub->rsa_oaep_wrap(input);
 
     // Only private key can unwrap
-    auto unwrapped = rsa_kp->unwrap(wrapped);
+    auto unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped);
     // rsa_pub->unwrap(wrapped); // Doesn't compile
     REQUIRE(input == unwrapped);
 
     // Raw data
-    wrapped = rsa_pub->wrap(input.data(), input.size());
-    unwrapped = rsa_kp->unwrap(wrapped);
+    wrapped = rsa_pub->rsa_oaep_wrap(input.data(), input.size());
+    unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped);
     REQUIRE(input == unwrapped);
   }
 
@@ -314,9 +326,10 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
   {
     auto rsa_kp = make_rsa_key_pair();
     auto rsa_pub = make_rsa_public_key(rsa_kp->public_key_pem());
-    std::string label = "my_label";
-    auto wrapped = rsa_pub->wrap(input, label);
-    auto unwrapped = rsa_kp->unwrap(wrapped, label);
+    std::string lblstr = "my_label";
+    std::vector<uint8_t> label(lblstr.begin(), lblstr.end());
+    auto wrapped = rsa_pub->rsa_oaep_wrap(input, label);
+    auto unwrapped = rsa_kp->rsa_oaep_unwrap(wrapped, label);
     REQUIRE(input == unwrapped);
   }
 }
@@ -327,10 +340,10 @@ TEST_CASE("Extract public key from cert")
   {
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_key_pair(curve);
-    auto pk = kp->public_key_pem();
+    auto pk = kp->public_key_der();
     auto cert = kp->self_sign("CN=name");
-
-    auto pubk = public_key_pem_from_cert(cert);
+    auto cert_der = make_verifier(cert.raw())->cert_der();
+    auto pubk = public_key_der_from_cert(cert_der);
     REQUIRE(pk == pubk);
   }
 }
@@ -375,15 +388,141 @@ static const vector<uint8_t>& getRawKey()
 
 TEST_CASE("ExtendedIv0")
 {
-  KeyAesGcm k(getRawKey());
+  auto k = crypto::make_key_aes_gcm(getRawKey());
   // setup plain text
   unsigned char rawP[100];
   memset(rawP, 'x', sizeof(rawP));
   Buffer p{rawP, sizeof(rawP)};
   // test large IV
   GcmHeader<1234> h;
-  k.encrypt(h.get_iv(), p, nullb, p.p, h.tag);
+  k->encrypt(h.get_iv(), p, nullb, p.p, h.tag);
 
-  KeyAesGcm k2(getRawKey());
-  REQUIRE(k2.decrypt(h.get_iv(), h.tag, p, nullb, p.p));
+  auto k2 = crypto::make_key_aes_gcm(getRawKey());
+  REQUIRE(k2->decrypt(h.get_iv(), h.tag, p, nullb, p.p));
+}
+
+TEST_CASE("AES mbedTLS vs OpenSSL")
+{
+  auto key = getRawKey();
+
+  GcmHeader<1234> h;
+
+  { // mbedTLS -> OpenSSL
+    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
+    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+    std::vector<uint8_t> encrypted(contents_.size());
+    mbed->encrypt(h.get_iv(), contents_, nullb, encrypted.data(), h.tag);
+
+    std::vector<unsigned char> rawP(contents_.size(), 'x');
+    Buffer p{rawP.data(), rawP.size()};
+
+    std::vector<uint8_t> decrypted(contents_.size());
+    REQUIRE(ossl->decrypt(
+      h.get_iv(),
+      h.tag,
+      {encrypted.data(), encrypted.size()},
+      nullb,
+      decrypted.data()));
+
+    REQUIRE(decrypted == contents);
+  }
+
+  { // OpenSSL -> mbedTLS
+    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
+    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+    std::vector<uint8_t> encrypted(contents_.size());
+    ossl->encrypt(h.get_iv(), contents_, nullb, encrypted.data(), h.tag);
+
+    std::vector<unsigned char> rawP(contents_.size(), 'x');
+    Buffer p{rawP.data(), rawP.size()};
+
+    std::vector<uint8_t> decrypted(contents_.size());
+    CBuffer encbuf{encrypted.data(), encrypted.size()};
+    REQUIRE(mbed->decrypt(h.get_iv(), h.tag, encbuf, nullb, decrypted.data()));
+
+    REQUIRE(decrypted == contents);
+  }
+}
+
+TEST_CASE("AES mbedTLS vs OpenSSL + AAD")
+{
+  auto key = getRawKey();
+
+  GcmHeader<1234> h;
+  std::vector<uint8_t> aad(123, 'y');
+
+  {
+    INFO("mbedTLS -> OpenSSL");
+
+    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
+    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+    std::vector<uint8_t> encrypted(contents_.size());
+    mbed->encrypt(h.get_iv(), contents_, aad, encrypted.data(), h.tag);
+
+    std::vector<unsigned char> rawP(contents_.size(), 'x');
+    Buffer p{rawP.data(), rawP.size()};
+
+    std::vector<uint8_t> decrypted(contents_.size());
+    REQUIRE(ossl->decrypt(
+      h.get_iv(),
+      h.tag,
+      {encrypted.data(), encrypted.size()},
+      aad,
+      decrypted.data()));
+
+    REQUIRE(decrypted == contents);
+  }
+
+  {
+    INFO("OpenSSL -> mbedTLS");
+
+    auto mbed = std::make_unique<KeyAesGcm_mbedTLS>(key);
+    auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+    std::vector<uint8_t> encrypted(contents_.size());
+    ossl->encrypt(h.get_iv(), contents_, aad, encrypted.data(), h.tag);
+
+    std::vector<unsigned char> rawP(contents_.size(), 'x');
+    Buffer p{rawP.data(), rawP.size()};
+
+    std::vector<uint8_t> decrypted(contents_.size());
+    CBuffer encbuf{encrypted.data(), encrypted.size()};
+    REQUIRE(mbed->decrypt(h.get_iv(), h.tag, encbuf, aad, decrypted.data()));
+
+    REQUIRE(decrypted == contents);
+  }
+}
+
+TEST_CASE("AES Key wrap with padding")
+{
+  auto key = getRawKey();
+  GcmHeader<1234> h;
+  std::vector<uint8_t> aad(123, 'y');
+
+  std::vector<uint8_t> key_to_wrap = create_entropy()->random(997);
+
+  auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
+
+  std::vector<uint8_t> wrapped = ossl->ckm_aes_key_wrap_pad(key_to_wrap);
+  std::vector<uint8_t> unwrapped = ossl->ckm_aes_key_unwrap_pad(wrapped);
+
+  REQUIRE(wrapped != unwrapped);
+  REQUIRE(key_to_wrap == unwrapped);
+}
+
+TEST_CASE("CKM_RSA_AES_KEY_WRAP")
+{
+  std::vector<uint8_t> key_to_wrap = create_entropy()->random(256);
+
+  auto rsa_kp = make_rsa_key_pair();
+  auto rsa_pk = make_rsa_public_key(rsa_kp->public_key_pem());
+
+  std::vector<uint8_t> wrapped = ckm_rsa_aes_key_wrap(128, rsa_pk, key_to_wrap);
+  std::vector<uint8_t> unwrapped = ckm_rsa_aes_key_unwrap(rsa_kp, wrapped);
+
+  REQUIRE(wrapped != unwrapped);
+  REQUIRE(unwrapped == key_to_wrap);
 }

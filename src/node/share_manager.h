@@ -53,7 +53,7 @@ namespace ccf
 
       crypto::GcmCipher encrypted_ls(ledger_secret->raw_key.size());
 
-      crypto::KeyAesGcm(data).encrypt(
+      crypto::make_key_aes_gcm(data)->encrypt(
         encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
                                    // key is never re-used for encryption
         ledger_secret->raw_key,
@@ -73,7 +73,7 @@ namespace ccf
       encrypted_ls.deserialise(wrapped_latest_ledger_secret);
       std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
-      if (!crypto::KeyAesGcm(data).decrypt(
+      if (!crypto::make_key_aes_gcm(data)->decrypt(
             encrypted_ls.hdr.get_iv(),
             encrypted_ls.hdr.tag,
             encrypted_ls.cipher,
@@ -140,7 +140,7 @@ namespace ccf
         auto member_enc_pubk = crypto::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
-        encrypted_shares[member_id] = member_enc_pubk->wrap(raw_share);
+        encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
         share_index++;
       }
 

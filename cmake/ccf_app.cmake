@@ -30,7 +30,7 @@ if((NOT ${IS_VALID_TARGET}))
 endif()
 
 # Find OpenEnclave package
-find_package(OpenEnclave 0.13 CONFIG REQUIRED)
+find_package(OpenEnclave 0.14 CONFIG REQUIRED)
 # As well as pulling in openenclave:: targets, this sets variables which can be
 # used for our edge cases (eg - for virtual libraries). These do not follow the
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
@@ -231,7 +231,6 @@ function(add_ccf_app name)
 
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-    use_client_mbedtls(${virt_name})
     add_san(${virt_name})
     add_lvi_mitigations(${virt_name})
 

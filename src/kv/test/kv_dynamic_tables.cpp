@@ -349,7 +349,7 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 
 TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
 {
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
   kv::Store kv_store(consensus);
@@ -375,8 +375,8 @@ TEST_CASE("Dynamic map serialisation" * doctest::test_suite("dynamic"))
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(
-      kv_store_target.apply(latest_data.value(), ConsensusType::CFT)
-        ->execute() == kv::ApplyResult::PASS);
+      kv_store_target.deserialize(latest_data.value(), ConsensusType::CFT)
+        ->apply() == kv::ApplyResult::PASS);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target = tx_target.rw<MapTypes::StringString>(map_name);

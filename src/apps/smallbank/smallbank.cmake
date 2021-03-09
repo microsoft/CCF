@@ -5,16 +5,18 @@
 add_picobench(
   small_bank_serdes_bench
   SRCS ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_serdes_bench.cpp
-       src/crypto/symmetric_key.cpp src/enclave/thread_local.cpp
+       src/enclave/thread_local.cpp
   INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR}
-  LINK_LIBS ccfcrypto.host crypto
+  LINK_LIBS
 )
 
 add_client_exe(
   small_bank_client
   SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/small_bank_client.cpp
 )
-target_link_libraries(small_bank_client PRIVATE http_parser.host ccfcrypto.host)
+target_link_libraries(
+  small_bank_client PRIVATE http_parser.host ccfcrypto.host c++fs
+)
 
 # SmallBank application
 add_ccf_app(smallbank SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp)

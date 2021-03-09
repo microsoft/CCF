@@ -13,7 +13,6 @@ namespace ccf
 
   constexpr ObjectId INVALID_ID = (std::numeric_limits<ObjectId>::max)();
 
-  using NodeId = uint64_t;
   using Index = int64_t;
   using Node2NodeMsg = uint64_t;
 
@@ -96,8 +95,11 @@ namespace ccf
     static constexpr auto ENDPOINTS = "public:gov.endpoints";
     static constexpr auto SERVICE_PRINCIPALS = "public:gov.service_principals";
 
+    // TLS
+    static constexpr auto CA_CERT_BUNDLE_PEMS =
+      "public:ccf.gov.tls.ca_cert_bundles";
+
     // JWT issuers
-    static constexpr auto CA_CERT_DERS = "public:ccf.gov.jwt.ca_certs_der";
     static constexpr auto JWT_ISSUERS = "public:ccf.gov.jwt.issuers";
     static constexpr auto JWT_PUBLIC_SIGNING_KEYS =
       "public:ccf.gov.jwt.public_signing_keys";

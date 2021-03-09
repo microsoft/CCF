@@ -113,24 +113,65 @@
         ],
         "type": "object"
       },
+      "GetReceipt__Element": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/string"
+          },
+          "right": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "GetReceipt__Element_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetReceipt__Element"
+        },
+        "type": "array"
+      },
       "GetReceipt__Out": {
         "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
+          "leaf": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/NodeId"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/GetReceipt__Element_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
-          "receipt"
+          "signature",
+          "root",
+          "proof",
+          "leaf",
+          "node_id"
         ],
         "type": "object"
       },
       "GetTxStatus__Out": {
         "properties": {
+          "seqno": {
+            "$ref": "#/components/schemas/int64"
+          },
           "status": {
             "$ref": "#/components/schemas/TxStatus"
+          },
+          "view": {
+            "$ref": "#/components/schemas/int64"
           }
         },
         "required": [
+          "view",
+          "seqno",
           "status"
         ],
         "type": "object"
@@ -162,6 +203,60 @@
         ],
         "type": "object"
       },
+      "LoggingGetHistoricalRange__Entry": {
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "msg": {
+            "$ref": "#/components/schemas/string"
+          },
+          "seqno": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "seqno",
+          "id",
+          "msg"
+        ],
+        "type": "object"
+      },
+      "LoggingGetHistoricalRange__Entry_array": {
+        "items": {
+          "$ref": "#/components/schemas/LoggingGetHistoricalRange__Entry"
+        },
+        "type": "array"
+      },
+      "LoggingGetHistoricalRange__Out": {
+        "properties": {
+          "@nextLink": {
+            "$ref": "#/components/schemas/string"
+          },
+          "entries": {
+            "$ref": "#/components/schemas/LoggingGetHistoricalRange__Entry_array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
+      },
+      "LoggingGetReceipt__Out": {
+        "properties": {
+          "msg": {
+            "$ref": "#/components/schemas/string"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/GetReceipt__Out"
+          }
+        },
+        "required": [
+          "msg",
+          "receipt"
+        ],
+        "type": "object"
+      },
       "LoggingGet__Out": {
         "properties": {
           "msg": {
@@ -188,6 +283,10 @@
         ],
         "type": "object"
       },
+      "NodeId": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
       "Report": {
         "properties": {
           "histogram": {
@@ -212,28 +311,6 @@
         ],
         "type": "string"
       },
-      "VerifyReceipt__In": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
-        ],
-        "type": "object"
-      },
-      "VerifyReceipt__Out": {
-        "properties": {
-          "valid": {
-            "$ref": "#/components/schemas/boolean"
-          }
-        },
-        "required": [
-          "valid"
-        ],
-        "type": "object"
-      },
       "boolean": {
         "type": "boolean"
       },
@@ -255,17 +332,6 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
-      },
-      "uint8": {
-        "maximum": 255,
-        "minimum": 0,
-        "type": "integer"
-      },
-      "uint8_array": {
-        "items": {
-          "$ref": "#/components/schemas/uint8"
-        },
-        "type": "array"
       }
     },
     "securitySchemes": {
@@ -628,6 +694,92 @@
         ]
       }
     },
+    "/log/private/historical/range": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from_seqno",
+            "required": false,
+            "schema": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_seqno",
+            "required": false,
+            "schema": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGetHistoricalRange__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
+    "/log/private/historical_receipt": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": false,
+            "schema": {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGetReceipt__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
     "/log/private/prefix_cert": {
       "post": {
         "requestBody": {
@@ -825,12 +977,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "commit",
+            "name": "transaction_id",
             "required": false,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -840,32 +990,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetReceipt__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/receipt/verify": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyReceipt__In"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VerifyReceipt__Out"
                 }
               }
             },

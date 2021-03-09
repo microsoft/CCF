@@ -23,8 +23,8 @@ DOCTEST_TEST_CASE("Unique proposal ids")
   gen.finalize();
 
   ShareManager share_manager(network);
-  StubNodeState node;
-  MemberRpcFrontend frontend(network, node, share_manager);
+  StubNodeContext context;
+  MemberRpcFrontend frontend(network, context, share_manager);
 
   frontend.open();
   const auto proposed_member = get_cert(2, kp);
@@ -93,7 +93,7 @@ class NullTxHistoryWithOverride : public ccf::NullTxHistory
 
 public:
   NullTxHistoryWithOverride(
-    kv::Store& store_, NodeId id_, crypto::KeyPairBase& kp_) :
+    kv::Store& store_, const NodeId& id_, crypto::KeyPair& kp_) :
     ccf::NullTxHistory(store_, id_, kp_)
   {}
 
@@ -123,10 +123,10 @@ DOCTEST_TEST_CASE("Compaction conflict")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  auto history =
-    std::make_shared<NullTxHistoryWithOverride>(*network.tables, 0, *kp);
+  auto history = std::make_shared<NullTxHistoryWithOverride>(
+    *network.tables, kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network.tables->set_consensus(consensus);
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
@@ -152,8 +152,8 @@ DOCTEST_TEST_CASE("Compaction conflict")
   network.tables->compact(cv);
 
   ShareManager share_manager(network);
-  StubNodeState node;
-  MemberRpcFrontend frontend(network, node, share_manager);
+  StubNodeContext context;
+  MemberRpcFrontend frontend(network, context, share_manager);
 
   frontend.open();
   const auto proposed_member = get_cert(2, kp);

@@ -82,6 +82,7 @@ all_tests_suite = [
     memberclient.test_corrupted_signature,
     # receipts:
     e2e_logging.test_receipts,
+    e2e_logging.test_historical_receipts,
     # reconfiguration:
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_from_backup,

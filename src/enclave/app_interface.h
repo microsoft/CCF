@@ -2,20 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/historical_queries_interface.h"
-#include "node/rpc/node_interface.h"
+#include "enclave/node_context.h"
 #include "node/rpc/user_frontend.h"
 
 namespace ccfapp
 {
-  struct AbstractNodeContext
-  {
-    virtual ~AbstractNodeContext() = default;
-
-    virtual ccf::historical::AbstractStateCache& get_historical_state() = 0;
-    virtual ccf::AbstractNodeState& get_node_state() = 0;
-  };
-
   // SNIPPET_START: rpc_handler
   /** To be implemented by the application to be registered by CCF.
    *

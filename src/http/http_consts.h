@@ -19,8 +19,7 @@ namespace http
     static constexpr auto RETRY_AFTER = "retry-after";
     static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
 
-    static constexpr auto CCF_TX_SEQNO = "x-ccf-tx-seqno";
-    static constexpr auto CCF_TX_VIEW = "x-ccf-tx-view";
+    static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
   }
 
   namespace headervalues

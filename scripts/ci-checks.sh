@@ -16,13 +16,13 @@ echo "Shell scripts"
 git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091,SC2181
 
 echo "TODOs"
-"$SCRIPT_DIR"/check-todo.sh src
+"$SCRIPT_DIR"/check-todo.sh include src
 
 echo "C/C++ format"
 if [ $FIX -ne 0 ]; then
-  "$SCRIPT_DIR"/check-format.sh -f src samples
+  "$SCRIPT_DIR"/check-format.sh -f include src samples
 else
-  "$SCRIPT_DIR"/check-format.sh src samples
+  "$SCRIPT_DIR"/check-format.sh include src samples
 fi
 
 npm --loglevel=error install prettier 1>/dev/null

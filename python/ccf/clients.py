@@ -42,8 +42,7 @@ def truncate(string: str, max_len: int = 128):
         return string
 
 
-CCF_TX_SEQNO_HEADER = "x-ccf-tx-seqno"
-CCF_TX_VIEW_HEADER = "x-ccf-tx-view"
+CCF_TX_ID_HEADER = "x-ms-ccf-transaction-id"
 
 DEFAULT_CONNECTION_TIMEOUT_SEC = 3
 DEFAULT_REQUEST_TIMEOUT_SEC = 10
@@ -91,8 +90,14 @@ class Identity:
     description: str
 
 
-def int_or_none(v):
-    return int(v) if v is not None else None
+def parse_tx_id(s: Optional[str]):
+    try:
+        if s is not None:
+            view_s, seqno_s = s.split(".")
+            return int(view_s), int(seqno_s)
+    except (AttributeError, ValueError):
+        pass
+    return None, None
 
 
 class FakeSocket:
@@ -190,11 +195,12 @@ class Response:
 
     @staticmethod
     def from_requests_response(rr):
+        view, seqno = parse_tx_id(rr.headers.get(CCF_TX_ID_HEADER))
         return Response(
             status_code=rr.status_code,
             body=RequestsResponseBody(rr),
-            seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
-            view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
+            seqno=seqno,
+            view=view,
             headers=rr.headers,
         )
 
@@ -215,11 +221,12 @@ class Response:
 
         raw_body = response.read()
 
+        view, seqno = parse_tx_id(response.getheader(CCF_TX_ID_HEADER))
         return Response(
             response.status,
             body=RawResponseBody(raw_body),
-            seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
-            view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
+            seqno=seqno,
+            view=view,
             headers=response.headers,
         )
 

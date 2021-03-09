@@ -221,7 +221,7 @@ auto get_cert(uint64_t member_id, crypto::KeyPairPtr& kp_mem)
 auto init_frontend(
   NetworkState& network,
   GenesisGenerator& gen,
-  StubNodeState& node,
+  StubNodeContext& context,
   ShareManager& share_manager,
   const int n_members,
   std::vector<crypto::Pem>& member_certs)
@@ -237,14 +237,15 @@ auto init_frontend(
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
 
-  return MemberRpcFrontend(network, node, share_manager);
+  return MemberRpcFrontend(network, context, share_manager);
 }
 
 void init_network(NetworkState& network)
 {
   network.tables->set_encryptor(encryptor);
-  auto history = std::make_shared<ccf::NullTxHistory>(*network.tables, 0, *kp);
+  auto history = std::make_shared<ccf::NullTxHistory>(
+    *network.tables, kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network.tables->set_consensus(consensus);
 }

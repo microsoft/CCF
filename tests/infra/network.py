@@ -25,6 +25,12 @@ JOIN_TIMEOUT = 40
 COMMON_FOLDER = "common"
 
 
+class NodeRole(Enum):
+    ANY = 0
+    PRIMARY = 1
+    BACKUP = 2
+
+
 class ServiceStatus(Enum):
     OPENING = 1
     OPEN = 2
@@ -73,6 +79,7 @@ class Network:
         "worker_threads",
         "ledger_chunk_bytes",
         "domain",
+        "san",
         "snapshot_tx_interval",
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",
@@ -135,22 +142,8 @@ class Network:
 
     def _get_next_local_node_id(self):
         if len(self.nodes):
-            return self.nodes[-1].node_id + 1
+            return self.nodes[-1].local_node_id + 1
         return self.node_offset
-
-    def _adjust_local_node_ids(self, primary):
-        assert (
-            self.existing_network is None
-        ), "Cannot adjust local node IDs if the network was started from an existing network"
-
-        with primary.client() as nc:
-            r = nc.get("/node/network/nodes/primary")
-            first_node_id = r.body.json()["node_id"]
-            assert (r.body.json()["host"] == primary.pubhost) and (
-                int(r.body.json()["port"]) == primary.pubport
-            ), "Primary is not the node that just started"
-            for n in self.nodes:
-                n.node_id = n.node_id + first_node_id
 
     def create_node(self, host):
         node_id = self._get_next_local_node_id()
@@ -284,17 +277,11 @@ class Network:
                             snapshot_dir=snapshot_dir,
                             **forwarded_args,
                         )
-                        # When a recovery network in started without an existing network,
-                        # it is not possible to know the local node IDs before the first
-                        # node is started and has recovered the ledger. The local node IDs
-                        # are adjusted accordingly then.
-                        if self.existing_network is None:
-                            self.wait_for_state(
-                                node,
-                                "partOfPublicNetwork",
-                                timeout=args.ledger_recovery_timeout,
-                            )
-                            self._adjust_local_node_ids(node)
+                        self.wait_for_state(
+                            node,
+                            "partOfPublicNetwork",
+                            timeout=args.ledger_recovery_timeout,
+                        )
                 else:
                     # When a new service is started, initial nodes join without a snapshot
                     self._add_node(
@@ -687,7 +674,7 @@ class Network:
                 time.sleep(0.1)
         raise TimeoutError(f"Application frontend was not open after {timeout}s")
 
-    def _get_node_by_id(self, node_id):
+    def _get_node_by_service_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
     def find_primary(self, timeout=3, log_capture=None):
@@ -697,6 +684,7 @@ class Network:
         """
         primary_id = None
         view = None
+        view_change_in_progress = False
 
         logs = []
 
@@ -707,11 +695,15 @@ class Network:
                     try:
                         logs = []
                         res = c.get("/node/network", log_capture=logs)
-                        assert res.status_code == 200, res
+                        assert res.status_code == http.HTTPStatus.OK.value, res
+
                         body = res.body.json()
-                        primary_id = body["primary_id"]
                         view = body["current_view"]
+                        if "primary_id" not in body:
+                            continue
+
                         view_change_in_progress = body["view_change_in_progress"]
+                        primary_id = body["primary_id"]
                         if primary_id is not None:
                             break
 
@@ -719,6 +711,7 @@ class Network:
                         LOG.warning(
                             f"Could not successfully connect to node {node.node_id}. Retrying..."
                         )
+
             if primary_id is not None:
                 break
             time.sleep(0.1)
@@ -728,7 +721,8 @@ class Network:
             raise PrimaryNotFound
 
         flush_info(logs, log_capture, 0)
-        return (self._get_node_by_id(primary_id), view)
+
+        return (self._get_node_by_service_id(primary_id), view)
 
     def find_backups(self, primary=None, timeout=3):
         if primary is None:
@@ -737,6 +731,15 @@ class Network:
 
     def find_any_backup(self, primary=None, timeout=3):
         return random.choice(self.find_backups(primary=primary, timeout=timeout))
+
+    def find_node_by_role(self, role=NodeRole.ANY):
+        role_ = (
+            random.choice([NodeRole.PRIMARY, NodeRole.BACKUP]) if NodeRole.ANY else role
+        )
+        if role_ == NodeRole.PRIMARY:
+            return self.find_primary()[0]
+        else:
+            return self.find_any_backup()
 
     def find_nodes(self, timeout=3):
         primary, _ = self.find_primary(timeout=timeout)
@@ -945,6 +948,9 @@ def network(
     try:
         yield net
     except Exception:
+        # Don't try to verify txs on Exception path
+        net.txs = None
+
         if pdb:
             import pdb
 

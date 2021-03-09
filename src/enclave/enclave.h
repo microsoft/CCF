@@ -38,7 +38,6 @@ namespace enclave
     std::chrono::milliseconds last_tick_time;
     ENGINE* rdrand_engine = nullptr;
 
-    CCFConfig ccf_config;
     StartType start_type;
 
     struct NodeContext : public ccfapp::AbstractNodeContext
@@ -59,7 +58,9 @@ namespace enclave
       {
         return *node_state;
       }
-    } context;
+    };
+
+    std::unique_ptr<NodeContext> context = nullptr;
 
   public:
     Enclave(
@@ -83,9 +84,7 @@ namespace enclave
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
-        rpcsessions, n2n_channels, rpc_map, consensus_type_)),
-      context(ccf::historical::StateCache(
-        network, writer_factory.create_writer_to_outside()))
+        rpcsessions, n2n_channels, rpc_map, consensus_type_))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
@@ -105,19 +104,26 @@ namespace enclave
 
       to_host = writer_factory.create_writer_to_outside();
 
+      network.ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
+
       node = std::make_unique<ccf::NodeState>(
         writer_factory, network, rpcsessions, share_manager, curve_id);
-      context.node_state = node.get();
+
+      context = std::make_unique<NodeContext>(ccf::historical::StateCache(
+        *network.tables,
+        network.ledger_secrets,
+        writer_factory.create_writer_to_outside()));
+      context->node_state = node.get();
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
-          network, *node, share_manager));
+          network, *context, share_manager));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
-        ccfapp::get_rpc_handler(network, context));
+        ccfapp::get_rpc_handler(network, *context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
-        std::make_unique<ccf::NodeRpcFrontend>(network, *node));
+        std::make_unique<ccf::NodeRpcFrontend>(network, *context));
 
       for (auto& [actor, fe] : rpc_map->frontends())
       {
@@ -147,7 +153,7 @@ namespace enclave
 
     bool create_new_node(
       StartType start_type_,
-      const CCFConfig& ccf_config_,
+      CCFConfig&& ccf_config_,
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
@@ -160,12 +166,11 @@ namespace enclave
       // <= node_cert_size is checked by the EDL-generated wrapper
 
       start_type = start_type_;
-      ccf_config = ccf_config_;
 
       ccf::NodeCreateInfo r;
       try
       {
-        r = node->create(start_type, ccf_config);
+        r = node->create(start_type, std::move(ccf_config_));
       }
       catch (const std::runtime_error& e)
       {
@@ -245,6 +250,7 @@ namespace enclave
               last_tick_time = time_now;
 
               node->tick(elapsed_ms);
+              context->historical_state_cache.tick(elapsed_ms);
               threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
@@ -301,7 +307,8 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context.historical_state_cache.handle_ledger_entry(index, body);
+                context->historical_state_cache.handle_ledger_entry(
+                  index, body);
                 break;
               }
               default:
@@ -323,7 +330,7 @@ namespace enclave
               {
                 if (node->is_verifying_snapshot())
                 {
-                  node->verify_snapshot_end(ccf_config);
+                  node->verify_snapshot_end();
                 }
                 else
                 {
@@ -333,7 +340,7 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context.historical_state_cache.handle_no_entry(index);
+                context->historical_state_cache.handle_no_entry(index);
                 break;
               }
               default:
@@ -349,13 +356,13 @@ namespace enclave
         {
           // When joining from a snapshot, deserialise ledger suffix to verify
           // snapshot evidence. Otherwise, attempt to join straight away
-          if (!ccf_config.startup_snapshot.empty())
+          if (node->is_verifying_snapshot())
           {
             node->start_ledger_recovery();
           }
           else
           {
-            node->join(ccf_config);
+            node->join();
           }
         }
         else if (start_type == StartType::Recover)
