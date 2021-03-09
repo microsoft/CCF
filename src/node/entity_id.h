@@ -85,7 +85,7 @@ namespace ccf
     else
     {
       throw JsonParseError(
-        fmt::format("Unable to parse entity id from this JSON: {}", j.dump()));
+        fmt::format("Entity id should be hex-encoded string: {}", j.dump()));
     }
   }
 
@@ -136,14 +136,11 @@ namespace std
   };
 }
 
-// Node ids are printed in many places (e.g. consensus) so only display the
-// first node_id_truncation_max_char_count characters when printing it to the
-// node's log (e.g. using the LOG_..._FMT() macros)
-static constexpr size_t node_id_truncation_max_char_count = 10;
+static constexpr size_t entity_id_truncation_max_char_count = 10;
 
 FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<ccf::NodeId>
+struct formatter<ccf::EntityId>
 {
   template <typename ParseContext>
   auto parse(ParseContext& ctx)
@@ -152,14 +149,14 @@ struct formatter<ccf::NodeId>
   }
 
   template <typename FormatContext>
-  auto format(const ccf::NodeId& node_id, FormatContext& ctx)
+  auto format(const ccf::EntityId& entity_id, FormatContext& ctx)
     -> decltype(ctx.out())
   {
     return format_to(
       ctx.out(),
       "{}",
-      node_id.value().substr(
-        0, std::min(node_id.size(), node_id_truncation_max_char_count)));
+      entity_id.value().substr(
+        0, std::min(entity_id.size(), entity_id_truncation_max_char_count)));
   }
 };
 FMT_END_NAMESPACE
