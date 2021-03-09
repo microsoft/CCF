@@ -101,7 +101,7 @@ namespace ccf
 
     inline void push_raw(lua_State* l, const ccf::EntityId& entity)
     {
-      lua_pushstring(l, entity.id.c_str());
+      lua_pushstring(l, entity.value().c_str());
     }
 
     /** The base push case. Specialize this to push other types onto the lua

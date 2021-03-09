@@ -12,14 +12,16 @@ namespace ccf
 {
   struct EntityId
   {
+  public:
     // The underlying value type should be blit-serialisable so that it can be
     // written to and read from the ring buffer
     static constexpr size_t LENGTH = 64; // hex-encoded SHA-256 hash
+    using Value = std::string; // < hex-encoded hash
 
-    using Value =
-      std::string; // < hex-encoded hash of caller's DER-encoded certificate
+  private:
     Value id;
 
+  public:
     EntityId() = default;
     EntityId(const Value& id_) : id(id_) {}
 
@@ -53,17 +55,17 @@ namespace ccf
       return id;
     }
 
-    auto& value()
+    Value& value()
     {
       return id;
     }
 
-    auto& value() const
+    const Value& value() const
     {
       return id;
     }
 
-    auto data() const
+    char const* data() const
     {
       return id.data();
     }
@@ -78,7 +80,7 @@ namespace ccf
 
   inline void to_json(nlohmann::json& j, const EntityId& entity_id)
   {
-    j = entity_id.id;
+    j = entity_id.value();
   }
 
   inline void from_json(const nlohmann::json& j, EntityId& entity_id)
@@ -127,7 +129,7 @@ namespace std
   static inline std::ostream& operator<<(
     std::ostream& os, const ccf::EntityId& entity_id)
   {
-    os << entity_id.id;
+    os << entity_id.value();
     return os;
   }
 
@@ -136,7 +138,7 @@ namespace std
   {
     size_t operator()(const ccf::EntityId& entity_id) const
     {
-      return std::hash<std::string>{}(entity_id.id);
+      return std::hash<std::string>{}(entity_id.value());
     }
   };
 }
