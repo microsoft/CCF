@@ -190,7 +190,7 @@ auto get_vote(
 {
   const auto getter = create_request(
     nullptr,
-    fmt::format("proposals/{}/votes/{}", proposal_id, voter),
+    fmt::format("proposals/{}/votes/{}", proposal_id, voter.value()),
     HTTP_GET);
 
   return parse_response_body<Script>(

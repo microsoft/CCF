@@ -1812,7 +1812,7 @@ namespace ccf
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ResourceNotFound,
               fmt::format(
-                "Recovery share not found for member {}.", member_id.value()));
+                "Recovery share not found for member {}.", member_id->value()));
           }
 
           return make_success(
