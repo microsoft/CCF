@@ -37,6 +37,20 @@ namespace loggingapp
     using Out = bool;
   };
 
+  struct LoggingGetReceipt
+  {
+    struct In
+    {
+      size_t id;
+    };
+
+    struct Out
+    {
+      std::string msg;
+      ccf::GetReceipt::Out receipt;
+    };
+  };
+
   DECLARE_JSON_TYPE(LoggingRecord::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
 
@@ -44,6 +58,11 @@ namespace loggingapp
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::In, id);
   DECLARE_JSON_TYPE(LoggingGet::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::Out, msg);
+
+  DECLARE_JSON_TYPE(LoggingGetReceipt::In);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::In, id);
+  DECLARE_JSON_TYPE(LoggingGetReceipt::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetReceipt::Out, msg, receipt);
   // SNIPPET_END: macro_validation_macros
 
   using LoggingGetHistorical = LoggingGet;

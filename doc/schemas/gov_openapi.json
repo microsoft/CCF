@@ -113,14 +113,47 @@
         ],
         "type": "object"
       },
+      "GetReceipt__Element": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/string"
+          },
+          "right": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "GetReceipt__Element_array": {
+        "items": {
+          "$ref": "#/components/schemas/GetReceipt__Element"
+        },
+        "type": "array"
+      },
       "GetReceipt__Out": {
         "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
+          "leaf": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/NodeId"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/GetReceipt__Element_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
-          "receipt"
+          "signature",
+          "root",
+          "proof",
+          "leaf",
+          "node_id"
         ],
         "type": "object"
       },
@@ -168,6 +201,10 @@
           "key"
         ],
         "type": "object"
+      },
+      "NodeId": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
       },
       "Proposal": {
         "properties": {
@@ -292,28 +329,6 @@
         ],
         "type": "string"
       },
-      "VerifyReceipt__In": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
-        ],
-        "type": "object"
-      },
-      "VerifyReceipt__Out": {
-        "properties": {
-          "valid": {
-            "$ref": "#/components/schemas/boolean"
-          }
-        },
-        "required": [
-          "valid"
-        ],
-        "type": "object"
-      },
       "Vote": {
         "properties": {
           "ballot": {
@@ -324,9 +339,6 @@
           "ballot"
         ],
         "type": "object"
-      },
-      "boolean": {
-        "type": "boolean"
       },
       "int64": {
         "maximum": 9223372036854775807,
@@ -813,12 +825,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "commit",
+            "name": "transaction_id",
             "required": false,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -828,32 +838,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetReceipt__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/receipt/verify": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyReceipt__In"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VerifyReceipt__Out"
                 }
               }
             },

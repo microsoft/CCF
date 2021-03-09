@@ -41,8 +41,11 @@ Endpoint
    :project: CCF
    :members:
 
-Authentication Identities
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Authentication
+--------------
+
+Identities
+~~~~~~~~~~
 
 .. doxygenstruct:: ccf::UserCertAuthnIdentity
    :project: CCF
@@ -65,3 +68,16 @@ Supporting Types
 .. doxygenenum:: ccf::ApiResult
    :project: CCF
 
+Historical Queries
+------------------
+
+.. doxygenfunction:: ccf::historical::adapter
+   :project: CCF
+
+.. doxygenclass:: ccf::historical::AbstractStateCache
+   :project: CCF
+   :members: set_default_expiry_duration, get_store_at, get_store_range, drop_request
+
+.. doxygenstruct:: ccf::historical::State
+   :project: CCF
+   :members:

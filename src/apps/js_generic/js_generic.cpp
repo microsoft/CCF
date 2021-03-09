@@ -765,7 +765,7 @@ namespace ccfapp
   {
   private:
     NetworkTables& network;
-    ccfapp::AbstractNodeContext& node_context;
+    ccfapp::AbstractNodeContext& context;
 
     JSClassDef kv_class_def = {};
     JSClassExoticMethods kv_exotic_methods = {};
@@ -1070,7 +1070,7 @@ namespace ccfapp
         }
 
         const auto historic_request_handle = target_tx_id.seqno;
-        auto& state_cache = node_context.get_historical_state();
+        auto& state_cache = context.get_historical_state();
         auto historical_store = state_cache.get_store_at(historic_request_handle, target_tx_id.seqno);
         if (historical_store == nullptr)
         {
@@ -1410,10 +1410,10 @@ namespace ccfapp
     {};
 
   public:
-    JSHandlers(NetworkTables& network, ccfapp::AbstractNodeContext& node_context) :
-      UserEndpointRegistry(node_context.get_node_state()),
+    JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
+      UserEndpointRegistry(context),
       network(network),
-      node_context(node_context)
+      context(context)
     {
       JS_NewClassID(&kv_class_id);
       kv_exotic_methods.get_own_property = js_kv_lookup;
@@ -1608,15 +1608,15 @@ namespace ccfapp
     JSHandlers js_handlers;
 
   public:
-    JS(NetworkTables& network, ccfapp::AbstractNodeContext& node_context) :
+    JS(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
       ccf::UserRpcFrontend(*network.tables, js_handlers),
-      js_handlers(network, node_context)
+      js_handlers(network, context)
     {}
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, ccfapp::AbstractNodeContext& node_context)
+    NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<JS>(network, node_context);
+    return make_shared<JS>(network, context);
   }
 } // namespace ccfapp

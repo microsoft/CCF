@@ -36,9 +36,9 @@ static constexpr auto default_pack = serdes::Pack::MsgPack;
 class BaseTestFrontend : public SimpleUserRpcFrontend
 {
 public:
-  ccf::StubNodeState stub_node;
+  ccf::StubNodeContext context;
 
-  BaseTestFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables, stub_node)
+  BaseTestFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables, context)
   {}
 
   // For testing only, we don't need to specify auth policies everywhere and
@@ -234,9 +234,9 @@ class TestMemberFrontend : public MemberRpcFrontend
 public:
   TestMemberFrontend(
     ccf::NetworkState& network,
-    ccf::StubNodeState& node,
+    ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, node, share_manager)
+    MemberRpcFrontend(network, context, share_manager)
   {
     open();
 
@@ -335,8 +335,8 @@ class TestForwardingNodeFrontEnd : public NodeRpcFrontend,
 {
 public:
   TestForwardingNodeFrontEnd(
-    ccf::NetworkState& network, ccf::StubNodeState& node) :
-    NodeRpcFrontend(network, node)
+    ccf::NetworkState& network, ccf::StubNodeContext& context) :
+    NodeRpcFrontend(network, context)
   {
     open();
 
@@ -360,9 +360,9 @@ public:
   TestForwardingMemberFrontEnd(
     kv::Store& tables,
     ccf::NetworkState& network,
-    ccf::StubNodeState& node,
+    ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, node, share_manager)
+    MemberRpcFrontend(network, context, share_manager)
   {
     open();
 
@@ -753,11 +753,11 @@ TEST_CASE("Member caller")
   prepare_callers(network);
 
   ShareManager share_manager(network);
-  StubNodeState stub_node;
+  StubNodeContext context;
 
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestMemberFrontend frontend(network, stub_node, share_manager);
+  TestMemberFrontend frontend(network, context, share_manager);
 
   SUBCASE("valid caller")
   {
@@ -1303,10 +1303,10 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   prepare_callers(network_backup);
 
   ShareManager share_manager(network_primary);
-  StubNodeState stub_node;
+  StubNodeContext context;
 
-  TestForwardingNodeFrontEnd node_frontend_primary(network_primary, stub_node);
-  TestForwardingNodeFrontEnd node_frontend_backup(network_backup, stub_node);
+  TestForwardingNodeFrontEnd node_frontend_primary(network_primary, context);
+  TestForwardingNodeFrontEnd node_frontend_backup(network_backup, context);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
@@ -1392,12 +1392,12 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   prepare_callers(network_backup);
 
   ShareManager share_manager(network_primary);
-  StubNodeState stub_node;
+  StubNodeContext context;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network_primary.tables, network_primary, stub_node, share_manager);
+    *network_primary.tables, network_primary, context, share_manager);
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network_backup.tables, network_backup, stub_node, share_manager);
+    *network_backup.tables, network_backup, context, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
