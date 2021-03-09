@@ -103,7 +103,7 @@ namespace ccf
     else
     {
       throw JsonParseError(
-        fmt::format("Unable to parse entity id from this JSON: {}", j.dump()));
+        fmt::format("Entity id should be hex-encoded string: {}", j.dump()));
     }
   }
 
