@@ -30,7 +30,7 @@ Members that are registered in CCF `with` a public encryption key are recovery m
 
 The member’s identity and encryption private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_privk.pem``) should be stored on a trusted device (e.g. HSM) while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pubk.pem``) should be registered in CCF by members.
 
-The CCF unique member identity is the hex-encoded string of the SHA-256 hash of the DER-encoded certificate, and can be computed without interacting with CCF as:
+The CCF unique member identity is the hex-encoded string of the SHA-256 hash of the DER-encoded certificate, and can be computed without interacting with CCF:
 
 .. code-block:: bash
 
