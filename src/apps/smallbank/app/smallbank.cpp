@@ -462,19 +462,19 @@ namespace ccfapp
     }
   };
 
-  class SmallBank : public ccf::UserRpcFrontend
+  class SmallBank : public ccf::RpcFrontend
   {
   private:
     SmallBankHandlers sb_handlers;
 
   public:
     SmallBank(kv::Store& store, AbstractNodeContext& context) :
-      UserRpcFrontend(store, sb_handlers),
+      RpcFrontend(store, sb_handlers),
       sb_handlers(context)
     {}
   };
 
-  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
+  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     NetworkTables& nwt, AbstractNodeContext& context)
   {
     return make_shared<SmallBank>(*nwt.tables, context);

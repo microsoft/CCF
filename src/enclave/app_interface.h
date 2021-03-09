@@ -15,7 +15,7 @@ namespace ccfapp
    *
    * @return Shared pointer to the application handler instance
    */
-  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
+  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     ccf::NetworkTables& network, AbstractNodeContext& context);
   // SNIPPET_END: rpc_handler
 }

@@ -847,20 +847,20 @@ namespace loggingapp
     }
   };
 
-  class Logger : public ccf::UserRpcFrontend
+  class Logger : public ccf::RpcFrontend
   {
   private:
     LoggerHandlers logger_handlers;
 
   public:
     Logger(ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::UserRpcFrontend(*network.tables, logger_handlers),
+      ccf::RpcFrontend(*network.tables, logger_handlers),
       logger_handlers(context)
     {}
 
     void open(std::optional<crypto::Pem*> identity = std::nullopt) override
     {
-      ccf::UserRpcFrontend::open(identity);
+      ccf::RpcFrontend::open(identity);
       logger_handlers.openapi_info.title = "CCF Sample Logging App";
       logger_handlers.openapi_info.description =
         "This CCF sample app implements a simple logging application, securely "
@@ -873,7 +873,7 @@ namespace loggingapp
 namespace ccfapp
 {
   // SNIPPET_START: rpc_handler
-  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
+  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
   {
     return make_shared<loggingapp::Logger>(nwt, context);

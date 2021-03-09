@@ -1496,19 +1496,19 @@ namespace ccfapp
 
 #pragma clang diagnostic pop
 
-  class JS : public ccf::UserRpcFrontend
+  class JS : public ccf::RpcFrontend
   {
   private:
     JSHandlers js_handlers;
 
   public:
     JS(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::UserRpcFrontend(*network.tables, js_handlers),
+      ccf::RpcFrontend(*network.tables, js_handlers),
       js_handlers(network, context)
     {}
   };
 
-  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
+  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
     return make_shared<JS>(network, context);
