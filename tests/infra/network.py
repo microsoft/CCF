@@ -713,14 +713,17 @@ class Network:
                     try:
                         logs = []
                         res = c.get("/node/network", log_capture=logs)
-                        if res.status_code != 200:
-                            continue
+                        assert res.status_code == http.HTTPStatus.OK.value, res
+
                         body = res.body.json()
                         view = body["current_view"]
                         if "primary_id" not in body:
                             continue
+
                         view_change_in_progress = body["view_change_in_progress"]
                         primary_id = body["primary_id"]
+                        if primary_id is not None:
+                            break
 
                     except CCFConnectionException:
                         LOG.warning(
