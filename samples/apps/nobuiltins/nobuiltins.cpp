@@ -21,6 +21,14 @@ namespace nobuiltins
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeSummary, quote_format, quote, committed_view, committed_seqno)
 
+  struct TransactionIDResponse
+  {
+    std::string transaction_id;
+  };
+
+  DECLARE_JSON_TYPE(TransactionIDResponse)
+  DECLARE_JSON_REQUIRED_FIELDS(TransactionIDResponse, transaction_id)
+
   // SNIPPET: registry_inheritance
   class NoBuiltinsRegistry : public ccf::BaseEndpointRegistry
   {
@@ -164,10 +172,11 @@ namespace nobuiltins
               ccf::TxID tx_id;
               tx_id.view = view;
               tx_id.seqno = seqno;
-              nlohmann::json out = nlohmann::json::object();
 
-              out["transaction_id"] = tx_id.to_str();
-              return ccf::make_success(out);
+              TransactionIDResponse resp;
+              resp.transaction_id = tx_id.to_str();
+
+              return ccf::make_success(resp);
             }
             else
             {
@@ -193,6 +202,7 @@ namespace nobuiltins
         ccf::no_auth_required)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .set_auto_schema<void, TransactionIDResponse>()
         .install();
     }
   };
