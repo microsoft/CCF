@@ -71,7 +71,7 @@ namespace crypto
     /** Verify a signature
      * @param contents Contents over which the signature was generated
      * @param signature Signature
-     * @param hash_bytes Output buffer for the hash
+     * @param md_type Hash algorithm
      * @return Boolean indicating success
      */
     virtual bool verify(
@@ -132,7 +132,7 @@ namespace crypto
 
     /** Verify a signature over a hash
      * @param hash Hash over which the signature was generated
-     * @param sig Signature
+     * @param signature Signature
      * @param md_type Hash algorithm
      * @return Boolean indicating success
      */

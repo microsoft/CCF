@@ -80,7 +80,7 @@ namespace crypto
     const std::vector<uint8_t>& label = {});
 
   /// PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP wrap
-  /// @param key_size Key size 128, 192 or 256.
+  /// @param aes_key_size Key size 128, 192 or 256.
   /// @param wrapping_key The wrapping (encryption) key
   /// @param unwrapped The key to wrap
   /// @param label Optional label
