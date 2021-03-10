@@ -1042,7 +1042,7 @@ namespace ccf
         }
 
         // does the voter agree?
-        votes[vote.first] = tsr.run<bool>(
+        votes[vote.first.value()] = tsr.run<bool>(
           tx,
           {vote.second,
            {}, // can't write

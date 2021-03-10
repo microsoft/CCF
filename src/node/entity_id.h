@@ -4,7 +4,6 @@
 
 #include "ds/json.h"
 
-#include <fmt/format.h>
 #include <msgpack/msgpack.hpp>
 #include <string>
 
@@ -50,9 +49,15 @@ namespace ccf
       return id < other.id;
     }
 
-    operator std::string() const
+    std::string trim() const
     {
+#ifdef VERBOSE_LOGGING
+      static constexpr size_t entity_id_truncation_max_char_count = 10;
+      return id.substr(
+        0, std::min(size(), entity_id_truncation_max_char_count));
+#else
       return id;
+#endif
     }
 
     Value& value()
@@ -142,28 +147,3 @@ namespace std
     }
   };
 }
-
-static constexpr size_t entity_id_truncation_max_char_count = 10;
-
-FMT_BEGIN_NAMESPACE
-template <>
-struct formatter<ccf::EntityId>
-{
-  template <typename ParseContext>
-  auto parse(ParseContext& ctx)
-  {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(const ccf::EntityId& entity_id, FormatContext& ctx)
-    -> decltype(ctx.out())
-  {
-    return format_to(
-      ctx.out(),
-      "{}",
-      entity_id.value().substr(
-        0, std::min(entity_id.size(), entity_id_truncation_max_char_count)));
-  }
-};
-FMT_END_NAMESPACE

@@ -397,7 +397,7 @@ namespace ccf
           reset_data(quote_info.endorsements);
           sm.advance(State::partOfNetwork);
 
-          LOG_INFO_FMT("Created new node {}", self.value());
+          LOG_INFO_FMT("Created new node {}", self);
           return {node_cert, network.identity->cert};
         }
         case StartType::Join:
@@ -416,7 +416,7 @@ namespace ccf
             sm.advance(State::pending);
           }
 
-          LOG_INFO_FMT("Created join node {}", self.value());
+          LOG_INFO_FMT("Created join node {}", self);
           return {node_cert, {}};
         }
         case StartType::Recover:
@@ -449,7 +449,7 @@ namespace ccf
 
           sm.advance(State::readingPublicLedger);
 
-          LOG_INFO_FMT("Created recovery node {}", self.value());
+          LOG_INFO_FMT("Created recovery node {}", self);
           return {node_cert, network.identity->cert};
         }
         default:
