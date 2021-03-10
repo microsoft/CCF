@@ -187,7 +187,7 @@ namespace crypto
   /// AES-GCM Decryption with @p key of @p data
   /// @param key The key
   /// @param ciphertext The (encrypted) data
-  /// @param iv Intialization vector
+  /// @param iv Initialization vector
   /// @param aad Additional authenticated data
   /// @return plaintext
   std::vector<uint8_t> aes_gcm_decrypt(
