@@ -7,8 +7,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
-add_subdirectory(${CCF_DIR}/src/libmerklecpp)
-
 set(PYTHON unbuffer python3)
 
 set(DISTRIBUTE_PERF_TESTS
@@ -198,7 +196,6 @@ function(add_unit_test name)
   enable_coverage(${name})
   target_link_libraries(
     ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
-                    $<BUILD_INTERFACE:merklecpp>
   )
   add_san(${name})
 
@@ -602,7 +599,7 @@ function(add_picobench name)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
-                    $<BUILD_INTERFACE:merklecpp> ccfcrypto.host
+                    ccfcrypto.host
   )
 
   # -Wall -Werror catches a number of warnings in picobench
