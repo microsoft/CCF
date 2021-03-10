@@ -10,16 +10,43 @@ Hashing
 .. doxygenfunction:: crypto::SHA256
   :project: CCF
 
-.. doxygenclass:: crypto::HashProvider
+.. doxygenClass:: crypto::HashProvider
+  :project: CCF
+
+.. doxygenfunction:: crypto::make_hash_provider
   :project: CCF
 
 
-Asymmetric Cryptography
+Asymmetric Keys
 -----------------------
 
+CCF supports EC and RSA keys; public keys are held in (RSA)PublicKey objects and
+private keys in (RSA)KeyPair objects. (RSA)KeyPairs automatically generate random
+keys when constructed via
+:cpp:func:`crypto::make_key_pair`
+or
+:cpp:func:`crypto::make_rsa_key_pair`
 
-Symmetric Encryption
+.. doxygenclass:: crypto::PublicKey
+  :project: CCF
+
+.. doxygenclass:: crypto::KeyPair
+  :project: CCF
+
+.. doxygenclass:: crypto::RSAPublicKey
+  :project: CCF
+
+.. doxygenclass:: crypto::RSAKeyPair
+  :project: CCF
+
+
+Symmetric Keys
 --------------------
+
+Currently, only AES-GCM is supported for symmetric encryption. New keys are generated via `crypto::entropy::random`
+
+.. doxygenfunction:: crypto::entropy::random
+  :project: CCF
 
 .. doxygenfunction:: crypto::aes_gcm_encrypt
   :project: CCF
@@ -54,7 +81,6 @@ PKCS11 2.14.3 CKM_AES_KEY_WRAP_PAD (RFC 5649)
 PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP
 
 .. doxygenfunction:: crypto::ckm_rsa_aes_key_wrap
-
   :project: CCF
 
 .. doxygenfunction:: crypto::ckm_rsa_aes_key_unwrap

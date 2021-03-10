@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash_base.h"
+#include "crypto/hash_provider.h"
 
 #include <openssl/evp.h>
 #include <openssl/sha.h>
@@ -37,7 +37,7 @@ namespace crypto
   }
 
   // Hash Provider (OpenSSL)
-  class OpenSSLHashProvider : public HashProviderBase
+  class OpenSSLHashProvider : public HashProvider
   {
   public:
     // @brief Generic Hash function
@@ -57,7 +57,7 @@ namespace crypto
     }
   };
 
-  class ISha256OpenSSL : public ISha256HashBase
+  class ISha256OpenSSL : public ISha256Hash
   {
   public:
     ISha256OpenSSL();

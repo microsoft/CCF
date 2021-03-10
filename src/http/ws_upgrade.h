@@ -25,9 +25,8 @@ namespace http
       const auto data = reinterpret_cast<const uint8_t*>(string_to_hash.data());
       const auto size = string_to_hash.size();
 
-      crypto::HashProvider hp;
       crypto::HashBytes accept_string_hash =
-        hp.Hash(data, size, crypto::MDType::SHA1);
+        crypto::make_hash_provider()->Hash(data, size, crypto::MDType::SHA1);
 
       return tls::b64_from_raw(
         accept_string_hash.data(), accept_string_hash.size());

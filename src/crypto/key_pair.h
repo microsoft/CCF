@@ -75,25 +75,34 @@ namespace crypto
   /**
    * Construct PublicKey from a raw public key in PEM format
    *
-   * @param public_pem Sequence of bytes containing the key in PEM format
+   * @param pem Sequence of bytes containing the key in PEM format
+   * @return Public key
    */
   PublicKeyPtr make_public_key(const Pem& pem);
 
   /**
    * Construct PublicKey from a raw public key in DER format
    *
-   * @param public_der Sequence of bytes containing the key in DER format
+   * @param der Sequence of bytes containing the key in DER format
+   * @return Public key
    */
   PublicKeyPtr make_public_key(const std::vector<uint8_t> der);
 
   /**
    * Create a new public / private ECDSA key pair on specified curve and
    * implementation
+   *
+   * @param curve_id Elliptic curve to use
+   * @return Key pair
    */
   KeyPairPtr make_key_pair(CurveID curve_id = service_identity_curve_choice);
 
   /**
    * Create a public / private ECDSA key pair from existing private key data
+   *
+   * @param pkey PEM key to load
+   * @param pw Password
+   * @return Key pair
    */
   KeyPairPtr make_key_pair(const Pem& pkey, CBuffer pw = nullb);
 }
