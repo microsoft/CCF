@@ -116,3 +116,4 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     kv/index
     upgrading_app
     api
+    crypto
