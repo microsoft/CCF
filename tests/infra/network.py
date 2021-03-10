@@ -12,6 +12,7 @@ import infra.node
 import infra.consortium
 from ccf.tx_status import TxStatus
 import random
+from dataclasses import dataclass
 from math import ceil
 import http
 
@@ -59,6 +60,12 @@ class NodeShutdownError(Exception):
 
 def get_common_folder_name(workspace, label):
     return os.path.join(workspace, f"{label}_{COMMON_FOLDER}")
+
+
+@dataclass
+class UserInfo:
+    local_id: int
+    service_id: str
 
 
 class Network:
@@ -116,7 +123,7 @@ class Network:
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
-        self.user_ids = []
+        self.users = []
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
@@ -368,7 +375,9 @@ class Network:
             args.participants_curve,
             authenticate_session=not args.disable_member_session_auth,
         )
-        initial_users = list(range(max(0, args.initial_user_count)))
+        initial_users = [
+            f"user{user_id}" for user_id in list(range(max(0, args.initial_user_count)))
+        ]
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
@@ -621,22 +630,31 @@ class Network:
 
         return new_node
 
-    def create_user(self, user_id, curve, record=True):
+    def create_user(self, local_user_id, curve, record=True):
         infra.proc.ccall(
             self.key_generator,
             "--name",
-            f"user{user_id}",
+            local_user_id,
             "--curve",
             f"{curve.name}",
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
-        if record:
-            self.user_ids.append(user_id)
 
-    def create_users(self, user_ids, curve):
-        for user_id in user_ids:
-            self.create_user(user_id, curve)
+        with open(os.path.join(self.common_dir, f"{local_user_id}_cert.pem")) as c:
+            service_user_id = infra.crypto.compute_cert_der_hash_hex_from_pem(c.read())
+        new_user = UserInfo(
+            local_user_id,
+            service_user_id,
+        )
+        if record:
+            self.users.append(new_user)
+
+        return new_user
+
+    def create_users(self, local_user_ids, curve):
+        for local_user_id in local_user_ids:
+            self.create_user(local_user_id, curve)
 
     def get_members(self):
         return self.consortium.members
@@ -849,7 +867,7 @@ class Network:
                 current_commit_seqno = r.body.json()["seqno"]
                 if current_commit_seqno >= seqno:
                     with node.client(
-                        f"member{self.consortium.get_any_active_member().member_id}"
+                        self.consortium.get_any_active_member().local_id
                     ) as nc:
                         # Using update_state_digest here as a convenient write tx
                         # that is app agnostic

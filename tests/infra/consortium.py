@@ -24,7 +24,7 @@ class Consortium:
         common_dir,
         key_generator,
         share_script,
-        member_ids=None,
+        members_info=None,
         curve=None,
         remote_node=None,
         authenticate_session=True,
@@ -38,11 +38,11 @@ class Consortium:
         self.authenticate_session = authenticate_session
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the state of CCF.
-        if member_ids is not None:
+        if members_info is not None:
             self.recovery_threshold = 0
-            for m_id, has_share, m_data in member_ids:
+            for m_local_id, has_share, m_data in members_info:
                 new_member = infra.member.Member(
-                    m_id,
+                    f"member{m_local_id}",
                     curve,
                     common_dir,
                     share_script,
@@ -55,15 +55,16 @@ class Consortium:
                     self.recovery_threshold += 1
                 self.members.append(new_member)
         else:
+            # TODO: Why do we still need this?
             with remote_node.client("member0") as mc:
                 r = mc.post(
                     "/gov/query",
                     {
                         "text": """tables = ...
                         non_retired_members = {}
-                        tables["public:ccf.gov.members.info"]:foreach(function(member_id, info)
+                        tables["public:ccf.gov.members.info"]:foreach(function(service_id, info)
                         if info["status"] ~= "RETIRED" then
-                            table.insert(non_retired_members, {member_id, info})
+                            table.insert(non_retired_members, {service_id, info})
                         end
                         end)
                         return non_retired_members
@@ -72,7 +73,7 @@ class Consortium:
                 )
                 for m_id, info in r.body.json():
                     new_member = infra.member.Member(
-                        m_id,
+                        f"member{m_id}",
                         curve,
                         self.common_dir,
                         share_script,
@@ -137,9 +138,9 @@ class Consortium:
     ):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
-        new_member_id = len(self.members)
+        new_member_local_id = f"member{len(self.members)}"
         new_member = infra.member.Member(
-            new_member_id,
+            new_member_local_id,
             curve,
             self.common_dir,
             self.share_script,
@@ -150,8 +151,8 @@ class Consortium:
 
         proposal_body, careful_vote = self.make_proposal(
             "new_member",
-            os.path.join(self.common_dir, f"member{new_member_id}_cert.pem"),
-            os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem")
+            os.path.join(self.common_dir, f"{new_member_local_id}_cert.pem"),
+            os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
             if recovery_member
             else None,
             member_data,
@@ -207,9 +208,16 @@ class Consortium:
         else:
             return random.choice(self.get_active_members())
 
-    def get_member_by_id(self, member_id):
+    def get_member_by_local_id(self, local_id):
         return next(
-            (member for member in self.members if member.member_id == member_id), None
+            (member for member in self.members if member.local_id == local_id),
+            None,
+        )
+
+    def get_member_by_service_id(self, service_id):
+        return next(
+            (member for member in self.members if member.service_id == service_id),
+            None,
         )
 
     def vote_using_majority(
@@ -270,7 +278,7 @@ class Consortium:
                 proposals.append(
                     infra.proposal.Proposal(
                         proposal_id=proposal_id,
-                        proposer_id=int(attr["proposer"]),
+                        proposer_id=attr["proposer"],
                         state=infra.proposal.ProposalState(attr["state"]),
                     )
                 )
@@ -314,7 +322,7 @@ class Consortium:
 
     def retire_member(self, remote_node, member_to_retire):
         proposal_body, careful_vote = self.make_proposal(
-            "retire_member", member_to_retire.member_id
+            "retire_member", member_to_retire.service_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -344,7 +352,7 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def user_cert_path(self, user_id):
-        return os.path.join(self.common_dir, f"user{user_id}_cert.pem")
+        return os.path.join(self.common_dir, f"{user_id}_cert.pem")
 
     def add_user(self, remote_node, user_id, user_data=None):
         proposal, careful_vote = self.make_proposal(
@@ -375,10 +383,10 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_member_data(self, remote_node, member_id, member_data):
+    def set_member_data(self, remote_node, service_id, member_data):
         proposal, careful_vote = self.make_proposal(
             "set_member_data",
-            member_id,
+            service_id,
             member_data,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal)

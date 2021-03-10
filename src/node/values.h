@@ -10,15 +10,14 @@ namespace ccf
 {
   using ValueId = uint8_t;
   using Value = uint64_t;
+
+  // This table is only used to keep track of node IDs for the BFT variant of
+  // the consensus
   using Values = kv::Map<ValueId, Value>;
 
   enum ValueIds : ValueId
   {
-    NEXT_MEMBER_ID = 0,
-    NEXT_USER_ID = 1,
-    NEXT_NODE_ID = 2,
-    NEXT_PROPOSAL_ID = 3,
-    NEXT_CODE_ID = 4,
+    NEXT_NODE_ID = 0,
     // not to be used
     END_ID
   };
