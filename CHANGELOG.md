@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Governance proposals can be submitted successfully against secondaries (#2247)
-- `set_ca_cert`/`remove_ca_cert` proposals have been renamed `set_ca_cert_bundle`/`remove_ca_cert_bundle` and now also accept a bundle of certificates encoded as concatenated PEM string (#2221).
+- `set_ca_cert`/`remove_ca_cert` proposals have been renamed `set_ca_cert_bundle`/`remove_ca_cert_bundle` and now also accept a bundle of certificates encoded as concatenated PEM string (#2221). The `ca_cert_name` parameter to the `set_jwt_issuer` proposal has been renamed to `ca_cert_bundle_name`.
 
 ### Added
 
