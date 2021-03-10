@@ -6,6 +6,7 @@
 #include "logging_schema.h"
 
 // CCF
+// TODO: Test installed build headers
 #include "ccf/historical_queries_adapter.h"
 #include "enclave/app_interface.h"
 #include "node/rpc/metrics_tracker.h"
