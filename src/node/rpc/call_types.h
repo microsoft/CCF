@@ -138,12 +138,43 @@ namespace ccf
   {
     struct In
     {
-      int64_t commit = 0;
+      std::string transaction_id;
+    };
+
+    struct Element
+    {
+      std::optional<std::string> left = std::nullopt;
+      std::optional<std::string> right = std::nullopt;
     };
 
     struct Out
     {
-      std::vector<std::uint8_t> receipt = {};
+      std::string signature;
+      std::string root;
+      std::vector<Element> proof = {};
+      std::string leaf;
+      ccf::NodeId node_id;
+
+      void from_receipt(const historical::TxReceiptPtr& r)
+      {
+        signature = tls::b64_from_raw(r->signature);
+        root = r->root.to_string();
+        for (const auto& node : *r->path)
+        {
+          Element n;
+          if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
+          {
+            n.left = node.hash.to_string();
+          }
+          else
+          {
+            n.right = node.hash.to_string();
+          }
+          proof.emplace_back(std::move(n));
+        }
+        leaf = r->path->leaf().to_string();
+        node_id = r->node_id;
+      }
     };
   };
 
