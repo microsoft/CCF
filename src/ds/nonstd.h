@@ -78,16 +78,16 @@ namespace nonstd
 
   /** split is based on Python's str.split
    */
-  static inline std::vector<std::string> split(
-    const std::string& s,
-    const std::string& separator = " ",
+  static inline std::vector<std::string_view> split(
+    const std::string_view& s,
+    const std::string_view& separator = " ",
     size_t max_split = SIZE_MAX)
   {
-    std::vector<std::string> result;
+    std::vector<std::string_view> result;
 
     auto separator_end = 0;
     auto next_separator_start = s.find(separator);
-    while (next_separator_start != std::string::npos &&
+    while (next_separator_start != std::string_view::npos &&
            result.size() < max_split)
     {
       result.push_back(
@@ -104,8 +104,8 @@ namespace nonstd
   /* split_1 wraps split and allows writing things like:
    * auto [host, port] = nonstd::split_1("1.2.3.4:8000", ":")
    */
-  static inline std::tuple<std::string, std::string> split_1(
-    const std::string& s, const std::string& separator)
+  static inline std::tuple<std::string_view, std::string_view> split_1(
+    const std::string_view& s, const std::string_view& separator)
   {
     const auto v = split(s, separator, 1);
     if (v.size() > 1)
