@@ -1,7 +1,5 @@
 jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
-    variables:
-      skipComponentGovernanceDetection: true
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
 
