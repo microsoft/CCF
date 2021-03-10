@@ -6,6 +6,7 @@
 #include "ds/nonstd.h"
 #include "enclave/node_context.h"
 #include "http/http_consts.h"
+#include "http/http_query.h"
 #include "http/ws_consts.h"
 #include "json_handler.h"
 #include "node/code_id.h"
@@ -16,33 +17,33 @@ namespace ccf
   static inline std::optional<ccf::TxID> txid_from_query_string(
     EndpointContext& args)
   {
-    const std::string prefix("transaction_id=");
-    const auto& path_params = args.rpc_ctx->get_request_query();
+    const auto parsed_query =
+      http::parse_query(args.rpc_ctx->get_request_query());
+    constexpr auto param_key = "transaction_id";
 
-    if (!nonstd::starts_with(path_params, prefix))
+    const auto it = parsed_query.find(param_key);
+    if (it == parsed_query.end())
     {
       args.rpc_ctx->set_error(
         HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidInput,
-        "Query string must contain a single 'transaction_id' parameter");
+        ccf::errors::InvalidQueryParameterValue,
+        fmt::format("Query string must contain a '{}' parameter", param_key));
       return std::nullopt;
     }
 
-    const auto& txid_str =
-      path_params.substr(prefix.size(), path_params.size() - prefix.size());
+    const auto& txid_str = it->second;
 
     const auto tx_id_opt = ccf::TxID::from_str(txid_str);
     if (!tx_id_opt.has_value())
     {
       args.rpc_ctx->set_error(
         HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidHeaderValue,
+        ccf::errors::InvalidQueryParameterValue,
         fmt::format(
-          "The value '{}' passed as 'transaction_id' '{}' could not be "
-          "converted to a valid "
-          "Tx ID.",
+          "The value '{}' passed as '{}' could not be "
+          "converted to a valid Tx ID.",
           txid_str,
-          http::headers::CCF_TX_ID));
+          param_key));
       return std::nullopt;
     }
 
