@@ -69,13 +69,6 @@ namespace loggingapp
 
   struct LoggingGetHistoricalRange
   {
-    struct In
-    {
-      size_t from_seqno;
-      size_t to_seqno;
-      size_t id;
-    };
-
     struct Entry
     {
       size_t seqno;
@@ -89,10 +82,6 @@ namespace loggingapp
       std::optional<std::string> next_link;
     };
   };
-  DECLARE_JSON_TYPE(LoggingGetHistoricalRange::In);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    LoggingGetHistoricalRange::In, from_seqno, to_seqno, id);
-
   DECLARE_JSON_TYPE(LoggingGetHistoricalRange::Entry);
   DECLARE_JSON_REQUIRED_FIELDS(
     LoggingGetHistoricalRange::Entry, seqno, id, msg);

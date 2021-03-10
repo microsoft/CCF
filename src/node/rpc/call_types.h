@@ -27,12 +27,6 @@ namespace ccf
 
   struct GetTxStatus
   {
-    struct In
-    {
-      kv::Consensus::View view;
-      kv::Consensus::SeqNo seqno;
-    };
-
     struct Out
     {
       kv::Consensus::View view;

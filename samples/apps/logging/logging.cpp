@@ -624,21 +624,39 @@ namespace loggingapp
       static constexpr auto get_historical_range_path =
         "log/private/historical/range";
       auto get_historical_range = [&, this](ccf::EndpointContext& args) {
-        // Parse request body
-        const auto query_j =
-          ccf::jsonhandler::get_params_from_query(args.rpc_ctx);
-        const auto in = query_j.get<LoggingGetHistoricalRange::In>();
+        // Parse arguments from query
+        const auto parsed_query =
+          http::parse_query(args.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+
+        size_t from_seqno;
+        size_t to_seqno;
+        size_t id;
+        if (
+          !http::get_query_value(
+            parsed_query, "from_seqno", from_seqno, error_reason) ||
+          !http::get_query_value(
+            parsed_query, "to_seqno", to_seqno, error_reason) ||
+          !http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+          return;
+        }
 
         // Range must be in order
-        if (in.to_seqno < in.from_seqno)
+        if (to_seqno < from_seqno)
         {
           args.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format(
               "Invalid range: Starts at {} but ends at {}",
-              in.from_seqno,
-              in.to_seqno));
+              from_seqno,
+              to_seqno));
           return;
         }
 
@@ -652,12 +670,12 @@ namespace loggingapp
           return;
         }
 
-        const auto view_of_final_seqno = consensus->get_view(in.to_seqno);
+        const auto view_of_final_seqno = consensus->get_view(to_seqno);
         const auto committed_seqno = consensus->get_committed_seqno();
         const auto committed_view = consensus->get_view(committed_seqno);
         const auto tx_status = ccf::evaluate_tx_status(
           view_of_final_seqno,
-          in.to_seqno,
+          to_seqno,
           view_of_final_seqno,
           committed_view,
           committed_seqno);
@@ -671,16 +689,16 @@ namespace loggingapp
               "is "
               "{}",
               view_of_final_seqno,
-              in.to_seqno,
+              to_seqno,
               ccf::tx_status_to_str(tx_status)));
           return;
         }
 
         // Set a maximum range, paginate larger requests
         static constexpr size_t max_seqno_per_page = 20;
-        const auto range_begin = in.from_seqno;
+        const auto range_begin = from_seqno;
         const auto range_end =
-          std::min(in.to_seqno, range_begin + max_seqno_per_page);
+          std::min(to_seqno, range_begin + max_seqno_per_page);
 
         // Use hash of request as RequestHandle. WARNING: This means identical
         // requests from different users will collide, and overwrite each
@@ -696,7 +714,7 @@ namespace loggingapp
         };
 
         ccf::historical::RequestHandle handle =
-          make_handle(range_begin, range_end, in.id);
+          make_handle(range_begin, range_end, id);
 
         // Fetch the requested range
         auto& historical_cache = context.get_historical_state();
@@ -728,13 +746,13 @@ namespace loggingapp
 
           auto historical_tx = store->create_read_only_tx();
           auto records_handle = historical_tx.ro(records);
-          const auto v = records_handle->get(in.id);
+          const auto v = records_handle->get(id);
 
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
             e.seqno = store_seqno;
-            e.id = in.id;
+            e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
           }
@@ -746,14 +764,14 @@ namespace loggingapp
 
         // If this didn't cover the total requested range, begin fetching the
         // next page and tell the caller how to retrieve it
-        if (range_end != in.to_seqno)
+        if (range_end != to_seqno)
         {
           const auto next_page_start = range_end + 1;
           const auto next_page_end =
-            std::min(in.to_seqno, next_page_start + max_seqno_per_page);
+            std::min(to_seqno, next_page_start + max_seqno_per_page);
 
           ccf::historical::RequestHandle next_page_handle =
-            make_handle(next_page_start, next_page_end, in.id);
+            make_handle(next_page_start, next_page_end, id);
           historical_cache.get_store_range(
             next_page_handle, next_page_start, next_page_end);
 
@@ -763,8 +781,8 @@ namespace loggingapp
             "/app/{}?from_seqno={}&to_seqno={}&id={}",
             get_historical_range_path,
             next_page_start,
-            in.to_seqno,
-            in.id);
+            to_seqno,
+            id);
         }
 
         // Construct the HTTP response
@@ -784,7 +802,7 @@ namespace loggingapp
         HTTP_GET,
         get_historical_range,
         auth_policies)
-        .set_auto_schema<LoggingGetHistoricalRange>()
+        .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 

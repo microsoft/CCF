@@ -97,16 +97,31 @@ namespace ccf
         .set_auto_schema<void, GetCommit::Out>()
         .install();
 
-      auto get_tx_status = [this](auto&, nlohmann::json&& params) {
-        const auto in = params.get<GetTxStatus::In>();
+      auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {
+        // Parse arguments from query
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+
+        kv::Consensus::View view;
+        kv::Consensus::SeqNo seqno;
+        if (
+          !http::get_query_value(parsed_query, "view", view, error_reason) ||
+          !http::get_query_value(parsed_query, "seqno", seqno, error_reason))
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+        }
 
         GetTxStatus::Out out;
-        const auto result =
-          get_status_for_txid_v1(in.view, in.seqno, out.status);
+        const auto result = get_status_for_txid_v1(view, seqno, out.status);
         if (result == ccf::ApiResult::OK)
         {
-          out.view = in.view;
-          out.seqno = in.seqno;
+          out.view = view;
+          out.seqno = seqno;
           return make_success(out);
         }
         else
@@ -119,7 +134,7 @@ namespace ccf
       };
       make_command_endpoint(
         "tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
-        .set_auto_schema<GetTxStatus>()
+        .set_auto_schema<void, GetTxStatus::Out>()
         .install();
 
       make_command_endpoint(
@@ -127,7 +142,8 @@ namespace ccf
         HTTP_GET,
         json_command_adapter(get_tx_status),
         no_auth_required)
-        .set_auto_schema<GetTxStatus>()
+        // TODO: Add a way to document query params
+        .set_auto_schema<void, GetTxStatus::Out>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
