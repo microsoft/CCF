@@ -1,0 +1,42 @@
+trigger:
+  batch: true
+  branches:
+    include:
+      - main
+      - "refs/tags/ccf-*"
+
+pr:
+  autoCancel: true
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - .azure-pipelines-templates/*
+      - .daily_canary
+
+schedules:
+  - cron: "0 3 * * Mon-Fri"
+    displayName: Daily Component Governance Check
+    branches:
+      include:
+        - main
+    always: true
+
+jobs:
+  - job: ComponentGovernance
+    displayName: "Component Governance"
+
+    ${{ insert }}: ${{ parameters.env }}
+
+    steps:
+      - checkout: self
+        clean: true
+        fetchDepth: 1
+
+      - task: ComponentGovernanceComponentDetection@0
+        inputs:
+          ignoreDirectories: 'tests'
+          scanType: 'Register'
+          verbosity: 'Verbose'
+          alertWarningLevel: 'High'
