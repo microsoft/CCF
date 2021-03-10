@@ -72,6 +72,7 @@ export interface CCF {
   jsonCompatibleToBuf<T extends JsonCompatible<T>>(v: T): ArrayBuffer;
   bufToJsonCompatible<T extends JsonCompatible<T>>(v: ArrayBuffer): T;
   generateAesKey(size: number): ArrayBuffer;
+  generateRsaKey(size: number, exponent?: number): ArrayBuffer;
   wrapKey(
     key: ArrayBuffer,
     wrappingKey: ArrayBuffer,

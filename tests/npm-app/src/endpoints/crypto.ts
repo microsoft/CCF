@@ -25,6 +25,21 @@ export function generateAesKey(
   return { body: ccf.ccf.generateAesKey(request.body.json().size) };
 }
 
+interface GenerateRsaKeyRequest {
+  size: number;
+  exponent?: number;
+}
+
+export function generateRsaKey(
+  request: ccf.Request<GenerateRsaKeyRequest>
+): ccf.Response<ArrayBuffer> {
+  const req = request.body.json();
+  const res = req.exponent
+    ? ccf.ccf.generateRsaKey(req.size, req.exponent)
+    : ccf.ccf.generateRsaKey(req.size);
+  return { body: res };
+}
+
 type Base64 = string;
 
 interface WrapAlgoParams {

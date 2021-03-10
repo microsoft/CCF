@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
+#include "crypto/rsa_key_pair.h"
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
@@ -183,6 +184,51 @@ namespace ccfapp
     std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
 
     return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
+  }
+
+  static JSValue js_generate_rsa_key(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1 && argc != 2)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1 or 2", argc);
+
+    int32_t key_size, key_exponent;
+    if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    if (argc == 2 && JS_ToInt32(ctx, &key_exponent, argv[1]) < 0)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    // Supported key sizes for RSA.
+    if (key_size < 1024 || key_size >= MBEDTLS_MPI_MAX_BITS)
+    {
+      JS_ThrowRangeError(ctx, "invalid key size");
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+    else if (argc == 2 && (key_exponent <= 1 || key_exponent % 2 == 0))
+    {
+      JS_ThrowRangeError(ctx, "invalid key exponent");
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    std::shared_ptr<RSAKeyPair> k;
+    if (argc == 1)
+      k = crypto::make_rsa_key_pair(key_size);
+    else
+      k = crypto::make_rsa_key_pair(key_size, key_exponent);
+
+    Pem p = k->private_key_pem();
+
+    return JS_NewArrayBufferCopy(ctx, p.data(), p.size());
   }
 
   static JSValue js_wrap_key(
@@ -806,6 +852,11 @@ namespace ccfapp
         ccf,
         "generateAesKey",
         JS_NewCFunction(ctx, ccfapp::js_generate_aes_key, "generateAesKey", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "generateRsaKey",
+        JS_NewCFunction(ctx, ccfapp::js_generate_rsa_key, "generateRsaKey", 1));
       JS_SetPropertyStr(
         ctx,
         ccf,

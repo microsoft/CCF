@@ -118,6 +118,45 @@
         }
       }
     },
+    "/generateRsaKey": {
+      "post": {
+        "js_module": "src/endpoints/crypto.js",
+        "js_function": "generateRsaKey",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "readonly": true,
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "size": {
+                      "type": "number"
+                    },
+                    "exponent": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["size"],
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Generated key",
+              "content": {
+                "application/octet-stream": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/wrapKey": {
       "post": {
         "js_module": "src/endpoints/crypto.js",
