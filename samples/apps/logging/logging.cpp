@@ -164,20 +164,34 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: get
-      auto get =
-        [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
-          const auto in = params.get<LoggingGet::In>();
-          auto records_handle = args.tx.ro(records);
-          auto record = records_handle->get(in.id);
+      auto get = [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&&) {
+        // Parse id from query
+        const auto parsed_query =
+          http::parse_query(args.rpc_ctx->get_request_query());
 
-          if (record.has_value())
-            return ccf::make_success(LoggingGet::Out{record.value()});
-
+        std::string error_reason;
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ResourceNotFound,
-            fmt::format("No such record: {}.", in.id));
-        };
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+        }
+
+        auto records_handle = args.tx.ro(records);
+        auto record = records_handle->get(id);
+
+        if (record.has_value())
+        {
+          return ccf::make_success(LoggingGet::Out{record.value()});
+        }
+
+        return ccf::make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::ResourceNotFound,
+          fmt::format("No such record: {}.", id));
+      };
       // SNIPPET_END: get
 
       // SNIPPET_START: install_get
@@ -186,20 +200,33 @@ namespace loggingapp
         HTTP_GET,
         ccf::json_read_only_adapter(get),
         auth_policies)
-        .set_auto_schema<LoggingGet>()
+        .set_auto_schema<void, LoggingGet::Out>()
         .install();
       // SNIPPET_END: install_get
 
-      auto remove = [this](kv::Tx& tx, nlohmann::json&& params) {
-        const auto in = params.get<LoggingRemove::In>();
-        auto records_handle = tx.rw(records);
-        auto removed = records_handle->remove(in.id);
+      auto remove = [this](ccf::EndpointContext& ctx, nlohmann::json&&) {
+        // Parse id from query
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+        }
+
+        auto records_handle = ctx.tx.rw(records);
+        auto removed = records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
       make_endpoint(
         "log/private", HTTP_DELETE, ccf::json_adapter(remove), auth_policies)
-        .set_auto_schema<LoggingRemove>()
+        .set_auto_schema<void, LoggingRemove::Out>()
         .install();
 
       // SNIPPET_START: record_public
@@ -215,7 +242,7 @@ namespace loggingapp
         }
 
         auto records_handle = tx.rw(public_records);
-        records_handle->put(params["id"], in.msg);
+        records_handle->put(in.id, in.msg);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
@@ -229,10 +256,23 @@ namespace loggingapp
 
       // SNIPPET_START: get_public
       auto get_public =
-        [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
-          const auto in = params.get<LoggingGet::In>();
+        [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&&) {
+          // Parse id from query
+          const auto parsed_query =
+            http::parse_query(args.rpc_ctx->get_request_query());
+
+          std::string error_reason;
+          size_t id;
+          if (!http::get_query_value(parsed_query, "id", id, error_reason))
+          {
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+          }
+
           auto public_records_handle = args.tx.ro(public_records);
-          auto record = public_records_handle->get(in.id);
+          auto record = public_records_handle->get(id);
 
           if (record.has_value())
             return ccf::make_success(LoggingGet::Out{record.value()});
@@ -240,7 +280,7 @@ namespace loggingapp
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ResourceNotFound,
-            fmt::format("No such record: {}.", in.id));
+            fmt::format("No such record: {}.", id));
         };
       // SNIPPET_END: get_public
       make_read_only_endpoint(
@@ -248,13 +288,26 @@ namespace loggingapp
         HTTP_GET,
         ccf::json_read_only_adapter(get_public),
         auth_policies)
-        .set_auto_schema<LoggingGet>()
+        .set_auto_schema<void, LoggingGet::Out>()
         .install();
 
-      auto remove_public = [this](kv::Tx& tx, nlohmann::json&& params) {
-        const auto in = params.get<LoggingRemove::In>();
-        auto records_handle = tx.rw(public_records);
-        auto removed = records_handle->remove(in.id);
+      auto remove_public = [this](ccf::EndpointContext& ctx, nlohmann::json&&) {
+        // Parse id from query
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+        }
+
+        auto records_handle = ctx.tx.rw(public_records);
+        auto removed = records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -263,7 +316,7 @@ namespace loggingapp
         HTTP_DELETE,
         ccf::json_adapter(remove_public),
         auth_policies)
-        .set_auto_schema<LoggingRemove>()
+        .set_auto_schema<void, LoggingRemove::Out>()
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
@@ -520,14 +573,26 @@ namespace loggingapp
       auto get_historical = [this](
                               ccf::EndpointContext& args,
                               ccf::historical::StatePtr historical_state) {
-        const auto [pack, params] =
-          ccf::jsonhandler::get_json_params(args.rpc_ctx);
+        const auto pack = ccf::jsonhandler::detect_json_pack(args.rpc_ctx);
 
-        const auto in = params.get<LoggingGetHistorical::In>();
+        // Parse id from query
+        const auto parsed_query =
+          http::parse_query(args.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+          return;
+        }
 
         auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle = historical_tx.ro(records);
-        const auto v = records_handle->get(in.id);
+        const auto v = records_handle->get(id);
 
         if (v.has_value())
         {
@@ -577,7 +642,7 @@ namespace loggingapp
         ccf::historical::adapter(
           get_historical, context.get_historical_state(), is_tx_committed),
         auth_policies)
-        .set_auto_schema<LoggingGetHistorical>()
+        .set_auto_schema<void, LoggingGetHistorical::Out>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
       // SNIPPET_END: get_historical
@@ -587,14 +652,26 @@ namespace loggingapp
         [this](
           ccf::EndpointContext& args,
           ccf::historical::StatePtr historical_state) {
-          const auto [pack, params] =
-            ccf::jsonhandler::get_json_params(args.rpc_ctx);
+          const auto pack = ccf::jsonhandler::detect_json_pack(args.rpc_ctx);
 
-          const auto in = params.get<LoggingGetReceipt::In>();
+          // Parse id from query
+          const auto parsed_query =
+            http::parse_query(args.rpc_ctx->get_request_query());
+
+          std::string error_reason;
+          size_t id;
+          if (!http::get_query_value(parsed_query, "id", id, error_reason))
+          {
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+            return;
+          }
 
           auto historical_tx = historical_state->store->create_read_only_tx();
           auto records_handle = historical_tx.ro(records);
-          const auto v = records_handle->get(in.id);
+          const auto v = records_handle->get(id);
 
           if (v.has_value())
           {
@@ -616,7 +693,7 @@ namespace loggingapp
           context.get_historical_state(),
           is_tx_committed),
         auth_policies)
-        .set_auto_schema<LoggingGetReceipt>()
+        .set_auto_schema<void, LoggingGetReceipt::Out>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
       // SNIPPET_END: get_historical_with_receipt

@@ -19,11 +19,6 @@ namespace loggingapp
 
   struct LoggingGet
   {
-    struct In
-    {
-      size_t id;
-    };
-
     struct Out
     {
       std::string msg;
@@ -32,8 +27,6 @@ namespace loggingapp
 
   struct LoggingRemove
   {
-    using In = LoggingGet::In;
-
     using Out = bool;
   };
 
@@ -54,8 +47,6 @@ namespace loggingapp
   DECLARE_JSON_TYPE(LoggingRecord::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
 
-  DECLARE_JSON_TYPE(LoggingGet::In);
-  DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::In, id);
   DECLARE_JSON_TYPE(LoggingGet::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::Out, msg);
 
