@@ -108,7 +108,7 @@ namespace nonstd
     const std::string_view& s, const std::string_view& separator)
   {
     const auto v = split(s, separator, 1);
-    if (v.size() > 1)
+    if (v.size() == 1)
     {
       // If separator is not present, return {s, ""};
       return std::make_tuple(v[0], "");
