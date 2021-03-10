@@ -147,14 +147,15 @@ def test_member_data(network, args):
 
 @reqs.description("Check caller_id")
 def test_caller_id(network, args):
-    primary, _ = network.find_nodes()
-    with primary.client("user0") as uc:
-        with open(network.consortium.user_cert_path(1), "r") as ucert:
-            pem = ucert.read()
-        json_pem = json.dumps(pem)
-        r = uc.get(f"/app/caller_id?cert={urllib.parse.quote_plus(json_pem)}")
-        assert r.status_code == http.HTTPStatus.OK.value
-        assert r.body.json()["caller_id"] == 1
+# TODO: This is removed!
+#     primary, _ = network.find_nodes()
+#     with primary.client("user0") as uc:
+#         with open(network.consortium.user_cert_path(1), "r") as ucert:
+#             pem = ucert.read()
+#         json_pem = json.dumps(pem)
+#         r = uc.get(f"/app/caller_id?cert={urllib.parse.quote_plus(json_pem)}")
+#         assert r.status_code == http.HTTPStatus.OK.value
+#         assert r.body.json()["caller_id"] == 1
     return network
 
 
@@ -163,9 +164,7 @@ def test_node_ids(network, args):
     nodes = network.find_nodes()
     for node in nodes:
         with node.client() as c:
-            r = c.get(
-                f'/node/network/nodes?host="{node.pubhost}"&port="{node.pubport}"'
-            )
+            r = c.get(f"/node/network/nodes?host={node.pubhost}&port={node.pubport}")
             assert r.status_code == http.HTTPStatus.OK.value
             info = r.body.json()["nodes"]
             assert len(info) == 1

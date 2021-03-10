@@ -7,6 +7,7 @@
 #include <charconv>
 #include <map>
 #include <string_view>
+#include <optional>
 
 namespace http
 {
@@ -69,6 +70,20 @@ namespace http
         nonstd::dependent_false<T>::value,
         "Unsupported type");
       return false;
+    }
+  }
+
+  template <typename T>
+  static std::optional<T> get_query_value_opt(const ParsedQuery& pq, const std::string_view& param_key, std::string& error_reason)
+  {
+    T val;
+    if (get_query_value(pq, param_key, val, error_reason))
+    {
+      return val;
+    }
+    else
+    {
+      return std::nullopt;
     }
   }
 }

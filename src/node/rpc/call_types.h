@@ -78,13 +78,6 @@ namespace ccf
 
   struct GetNodes
   {
-    struct In
-    {
-      std::optional<std::string> host;
-      std::optional<std::string> port;
-      std::optional<NodeStatus> status;
-    };
-
     struct Out
     {
       std::vector<GetNode::NodeInfo> nodes = {};
