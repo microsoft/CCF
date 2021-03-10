@@ -12,8 +12,8 @@ pr:
       - main
   paths:
     include:
-      - .azure-pipelines-templates/*
       - .daily_canary
+      - .cg.yml
 
 schedules:
   - cron: "0 3 * * Mon-Fri"
@@ -26,8 +26,6 @@ schedules:
 jobs:
   - job: ComponentGovernance
     displayName: "Component Governance"
-
-    ${{ insert }}: ${{ parameters.env }}
 
     steps:
       - checkout: self
