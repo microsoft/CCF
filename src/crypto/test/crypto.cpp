@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "crypto/entropy.h"
 #include "crypto/key_pair.h"
 #include "crypto/key_wrap.h"
 #include "crypto/mbedtls/entropy.h"
@@ -525,4 +526,13 @@ TEST_CASE("CKM_RSA_AES_KEY_WRAP")
 
   REQUIRE(wrapped != unwrapped);
   REQUIRE(unwrapped == key_to_wrap);
+}
+
+TEST_CASE("AES-GCM convenience functions")
+{
+  EntropyPtr entropy = create_entropy();
+  std::vector<uint8_t> key = entropy->random(GCM_SIZE_KEY);
+  auto encrypted = aes_gcm_encrypt(key, contents);
+  auto decrypted = aes_gcm_decrypt(key, encrypted);
+  REQUIRE(decrypted == contents);
 }
