@@ -10,6 +10,9 @@ pr:
   branches:
     include:
       - main
+  paths:
+    include:
+      - "*"
 
 schedules:
   - cron: "0 3 * * Mon-Fri"
