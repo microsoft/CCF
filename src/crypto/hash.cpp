@@ -21,4 +21,14 @@ namespace crypto
     openssl_sha256(data, r.data());
     return r;
   }
+
+  std::shared_ptr<HashProvider> make_hash_provider()
+  {
+    return std::make_shared<OpenSSLHashProvider>();
+  }
+
+  std::shared_ptr<ISha256Hash> make_incremental_sha256()
+  {
+    return std::make_shared<ISha256OpenSSL>();
+  }
 }

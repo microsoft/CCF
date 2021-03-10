@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash_base.h"
+#include "crypto/hash_provider.h"
 #include "ds/buffer.h"
 
 #include <mbedtls/md.h>
@@ -37,7 +37,7 @@ namespace crypto
     }
   }
 
-  class MBedHashProvider : public HashProviderBase
+  class MBedHashProvider : public HashProvider
   {
   public:
     virtual HashBytes Hash(const uint8_t* data, size_t size, MDType type) const
@@ -56,7 +56,7 @@ namespace crypto
     }
   };
 
-  class ISha256MbedTLS : public ISha256HashBase
+  class ISha256MbedTLS : public ISha256Hash
   {
   public:
     ISha256MbedTLS();

@@ -22,6 +22,14 @@ namespace crypto
     virtual std::vector<uint8_t> cert_der() = 0;
     virtual Pem cert_pem() = 0;
 
+    /** Verify a signature
+     * @param contents Contents over which the signature was generated
+     * @param contents_size Size of @p contents
+     * @param sig Signature
+     * @param sig_size Size of @p sig
+     * @param md_type Hash algorithm
+     * @return Boolean indicating success
+     */
     virtual bool verify(
       const uint8_t* contents,
       size_t contents_size,
@@ -36,6 +44,15 @@ namespace crypto
         contents, contents_size, sig, sig_size, md_type);
     }
 
+    /** Verify a signature
+     * @param contents Contents over which the signature was generated
+     * @param contents_size Size of @p contents
+     * @param sig Signature
+     * @param sig_size Size of @p sig
+     * @param md_type Hash algorithm
+     * @param hash_bytes Output buffer for the hash
+     * @return Boolean indicating success
+     */
     virtual bool verify(
       const uint8_t* contents,
       size_t contents_size,
@@ -51,6 +68,12 @@ namespace crypto
         contents, contents_size, sig, sig_size, md_type, hash_bytes);
     }
 
+    /** Verify a signature
+     * @param contents Contents over which the signature was generated
+     * @param signature Signature
+     * @param md_type Hash algorithm
+     * @return Boolean indicating success
+     */
     virtual bool verify(
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature,
@@ -64,6 +87,13 @@ namespace crypto
         md_type);
     }
 
+    /** Verify a signature
+     * @param contents Contents over which the signature was generated
+     * @param signature Signature
+     * @param md_type Hash algorithm
+     * @param hash_bytes Output buffer for the hash
+     * @return Boolean indicating success
+     */
     virtual bool verify(
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature,
@@ -79,6 +109,14 @@ namespace crypto
         hash_bytes);
     }
 
+    /** Verify a signature over a hash
+     * @param hash Hash over which the signature was generated
+     * @param hash_size Size of @p hash
+     * @param sig Signature
+     * @param sig_size Size of @p sig
+     * @param md_type Hash algorithm
+     * @return Boolean indicating success
+     */
     virtual bool verify_hash(
       const uint8_t* hash,
       size_t hash_size,
@@ -92,6 +130,12 @@ namespace crypto
       return public_key->verify_hash(hash, hash_size, sig, sig_size, md_type);
     }
 
+    /** Verify a signature over a hash
+     * @param hash Hash over which the signature was generated
+     * @param signature Signature
+     * @param md_type Hash algorithm
+     * @return Boolean indicating success
+     */
     virtual bool verify_hash(
       const std::vector<uint8_t>& hash,
       const std::vector<uint8_t>& signature,
@@ -101,6 +145,12 @@ namespace crypto
         hash.data(), hash.size(), signature.data(), signature.size(), md_type);
     }
 
+    /** Verify a signature over a hash
+     * @param hash Hash over which the signature was generated
+     * @param signature Signature
+     * @param md_type Hash algorithm
+     * @return Boolean indicating success
+     */
     template <size_t SIZE>
     bool verify_hash(
       const std::array<uint8_t, SIZE>& hash,
@@ -111,11 +161,17 @@ namespace crypto
         hash.data(), hash.size(), signature.data(), signature.size(), md_type);
     }
 
+    /** Extract the public key of the certificate in PEM format
+     * @return PEM encoded public key
+     */
     virtual Pem public_key_pem() const
     {
       return public_key->public_key_pem();
     }
 
+    /** Extract the public key of the certificate in DER format
+     * @return DER encoded public key
+     */
     virtual std::vector<uint8_t> public_key_der() const
     {
       return public_key->public_key_der();
@@ -127,15 +183,26 @@ namespace crypto
 
   /**
    * Construct Verifier from a certificate in DER or PEM format
-   *
-   * @param cert Sequence of bytes containing the certificate
+   * @param cert The certificate containing a public key
    */
   VerifierUniquePtr make_unique_verifier(const std::vector<uint8_t>& cert);
 
+  /** Construct a certificate verifier
+   * @param cert The certificate containing a public key
+   * @return A verifier
+   */
   VerifierPtr make_verifier(const std::vector<uint8_t>& cert);
 
+  /**
+   * Construct Verifier from a certificate in PEM format
+   * @param pem The certificate containing a public key
+   */
   VerifierUniquePtr make_unique_verifier(const Pem& pem);
 
+  /**
+   * Construct Verifier from a certificate in PEM format
+   * @param pem The certificate containing a public key
+   */
   VerifierPtr make_verifier(const Pem& pem);
 
   crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der);

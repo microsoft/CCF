@@ -38,21 +38,18 @@ namespace crypto
     virtual void* get_data() = 0;
     virtual rng_func_t get_rng() = 0;
 
-    /** Generate @p len random bytes
-     * @param len Number of random bytes to generate
-     * @return vector random bytes
-     */
+    /// Generate @p len random bytes
+    /// @param len Number of random bytes to generate
+    /// @return vector random bytes
     virtual std::vector<uint8_t> random(size_t len) = 0;
 
-    /** Generate @p len random bytes into @p data
-     * @param len Number of random bytes to generate
-     * @param data Buffer to fill
-     */
+    /// Generate @p len random bytes into @p data
+    /// @param len Number of random bytes to generate
+    /// @param data Buffer to fill
     virtual void random(unsigned char* data, size_t len) = 0;
 
-    /** Generate a random uint64_t
-     * @return a random uint64_t
-     */
+    /// Generate a random uint64_t
+    /// @return a random uint64_t
     virtual uint64_t random64() = 0;
   };
 
@@ -351,7 +348,7 @@ namespace crypto
   static bool use_drng = IntelDRNG::is_drng_supported();
   using EntropyPtr = std::shared_ptr<Entropy>;
   static EntropyPtr intel_drng_ptr;
-  EntropyPtr create_entropy();
 
+  /** Create a default Entropy object */
   EntropyPtr create_entropy();
 }

@@ -25,15 +25,18 @@ namespace crypto
 
   using HashBytes = std::vector<uint8_t>;
 
-  class HashProviderBase
+  class HashProvider
   {
   public:
-    // @brief Generic Hash function
-    // @param data The data to hash
-    // @param size The size of @p data
-    // @param type The type of hash to compute
+    /** Generic Hash function
+     * @param data The data to hash
+     * @param size The size of @p data
+     * @param type The type of hash to compute
+     */
     virtual HashBytes Hash(
       const uint8_t* data, size_t size, MDType type) const = 0;
+
+    virtual ~HashProvider() = default;
   };
 
   class Sha256Hash
@@ -88,11 +91,11 @@ namespace crypto
   }
 
   // Incremental Hash Objects
-  class ISha256HashBase
+  class ISha256Hash
   {
   public:
-    ISha256HashBase() {}
-    virtual ~ISha256HashBase() {}
+    ISha256Hash() {}
+    virtual ~ISha256Hash() {}
 
     virtual void update_hash(CBuffer data) = 0;
     virtual Sha256Hash finalise() = 0;

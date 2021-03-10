@@ -172,26 +172,24 @@ namespace crypto
   /** Default initialization vector for AES-GCM (12 zeroes) */
   static std::vector<uint8_t> default_iv(12, 0);
 
-  /** AES-GCM Encryption with @p key of @p data
-   * @param key The key
-   * @param data The data
-   * @param iv Intialization vector
-   * @param aad Additional authenticated data
-   * @return ciphertext
-   */
+  /// AES-GCM Encryption with @p key of @p data
+  /// @param key The key
+  /// @param plaintext The data
+  /// @param iv Intialization vector
+  /// @param aad Additional authenticated data
+  /// @return ciphertext
   std::vector<uint8_t> aes_gcm_encrypt(
     const std::vector<uint8_t>& key,
     std::vector<uint8_t>& plaintext,
     const std::vector<uint8_t>& iv = default_iv,
     const std::vector<uint8_t>& aad = {});
 
-  /** AES-GCM Decryption with @p key of @p data
-   * @param key The key
-   * @param data The (encrypted) data
-   * @param iv Intialization vector
-   * @param aad Additional authenticated data
-   * @return plaintext
-   */
+  /// AES-GCM Decryption with @p key of @p data
+  /// @param key The key
+  /// @param ciphertext The (encrypted) data
+  /// @param iv Initialization vector
+  /// @param aad Additional authenticated data
+  /// @return plaintext
   std::vector<uint8_t> aes_gcm_decrypt(
     const std::vector<uint8_t>& key,
     std::vector<uint8_t>& ciphertext,
