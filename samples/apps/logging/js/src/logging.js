@@ -30,13 +30,13 @@ export function get_private(request) {
 }
 
 export function get_historical(request) {
-   return get_private(request);
+  return get_private(request);
 }
 
 export function get_historical_with_receipt(request) {
-   const result = get_private(request);
-   result.body.receipt = ccf.state.receipt;
-   return result;
+  const result = get_private(request);
+  result.body.receipt = ccf.state.receipt;
+  return result;
 }
 
 export function get_public(request) {
