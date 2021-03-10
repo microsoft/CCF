@@ -42,6 +42,9 @@ keys when constructed via :cpp:func:`KeyPairPtr crypto::make_key_pair(CurveID)` 
   :project: CCF
   :members:
 
+.. doxygenenum:: crypto::CurveID
+  :project: CCF
+
 .. doxygenfunction:: crypto::make_key_pair(CurveID)
   :project: CCF
 
