@@ -29,8 +29,6 @@ jobs:
   - job: "Make"
     displayName: "Make generator"
     ${{ insert }}: "${{ parameters.env.NoSGX }}"
-    variables:
-      skipComponentGovernanceDetection: true
     steps:
       - checkout: self
         clean: true

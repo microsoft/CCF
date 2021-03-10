@@ -684,7 +684,6 @@ class Network:
         """
         primary_id = None
         view = None
-        view_change_in_progress = False
 
         logs = []
 
@@ -699,10 +698,6 @@ class Network:
 
                         body = res.body.json()
                         view = body["current_view"]
-                        if "primary_id" not in body:
-                            continue
-
-                        view_change_in_progress = body["view_change_in_progress"]
                         primary_id = body["primary_id"]
                         if primary_id is not None:
                             break
@@ -716,7 +711,7 @@ class Network:
                 break
             time.sleep(0.1)
 
-        if primary_id is None or view_change_in_progress:
+        if primary_id is None:
             flush_info(logs, log_capture, 0)
             raise PrimaryNotFound
 

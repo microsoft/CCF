@@ -23,7 +23,7 @@
 #define HAVE_MBEDTLS
 // merklecpp traces are off by default, even when CCF tracing is enabled
 // #include "merklecpp_trace.h"
-#include <merklecpp.h>
+#include <merklecpp/merklecpp.h>
 
 namespace fmt
 {
@@ -224,7 +224,7 @@ namespace ccf
     Receipt(const std::vector<uint8_t>& v)
     {
       size_t position = 0;
-      root.apply(v, position);
+      root.deserialise(v, position);
       path = std::make_shared<HistoryTree::Path>(v, position);
     }
 
@@ -380,7 +380,7 @@ namespace ccf
       tree = nullptr;
     }
 
-    void apply(const std::vector<uint8_t>& serialised)
+    void deserialise(const std::vector<uint8_t>& serialised)
     {
       delete (tree);
       tree = new HistoryTree(serialised);
@@ -618,7 +618,7 @@ namespace ccf
         !replicated_state_tree.in_range(1),
         "Tree is not empty before initialising from snapshot");
 
-      replicated_state_tree.apply(sig->tree);
+      replicated_state_tree.deserialise(sig->tree);
 
       crypto::Sha256Hash hash;
       std::copy_n(
