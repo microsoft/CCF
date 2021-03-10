@@ -147,7 +147,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "$ref": "#/components/schemas/EntityId"
           },
           "proof": {
             "$ref": "#/components/schemas/GetReceipt__Element_array"
@@ -212,10 +212,6 @@
           "key"
         ],
         "type": "object"
-      },
-      "NodeId": {
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
       },
       "Proposal": {
         "properties": {

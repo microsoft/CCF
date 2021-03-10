@@ -55,6 +55,10 @@
         ],
         "type": "object"
       },
+      "EntityId": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
       "GetCode__Out": {
         "properties": {
           "versions": {
@@ -125,7 +129,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "$ref": "#/components/schemas/EntityId"
           },
           "proof": {
             "$ref": "#/components/schemas/GetReceipt__Element_array"
@@ -271,10 +275,6 @@
           "msg"
         ],
         "type": "object"
-      },
-      "NodeId": {
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
       },
       "Report": {
         "properties": {

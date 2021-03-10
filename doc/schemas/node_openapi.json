@@ -214,7 +214,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "$ref": "#/components/schemas/EntityId"
           },
           "proof": {
             "$ref": "#/components/schemas/GetReceipt__Element_array"
