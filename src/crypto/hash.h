@@ -11,14 +11,15 @@
 
 namespace crypto
 {
-  // Compute the SHA256 hash of @p data
-  // @param data The data to compute the hash of
+  /** Compute the SHA256 hash of @p data
+   * @param data The data to compute the hash of
+   */
   std::vector<uint8_t> SHA256(const std::vector<uint8_t>& data);
 
-  // Create a default hash provider
+  /** Create a default hash provider */
   std::shared_ptr<HashProvider> make_hash_provider();
 
-  // Create a default incremental SHA256 hash provider
+  /** Create a default incremental SHA256 hash provider */
   std::shared_ptr<ISha256Hash> make_incremental_sha256();
 }
 

@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/rsa_public_key.h"
-
 #include "mbedtls_wrappers.h"
 #include "public_key.h"
 
@@ -24,7 +23,7 @@ namespace crypto
     RSAPublicKey_mbedTLS() = default;
     virtual ~RSAPublicKey_mbedTLS() = default;
 
-    RSAPublicKey_mbedTLS(crypto::mbedtls::PKContext&& c);
+    RSAPublicKey_mbedTLS(mbedtls::PKContext&& c);
     RSAPublicKey_mbedTLS(const Pem& pem);
     RSAPublicKey_mbedTLS(const std::vector<uint8_t>& der);
 

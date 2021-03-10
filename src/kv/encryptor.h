@@ -47,7 +47,6 @@ namespace kv
      * @param[in]   additional_data   Additional data to tag
      * @param[out]  serialised_header Serialised header (iv + tag)
      * @param[out]  cipher            Encrypted ciphertext
-     * @param[in]   version           Version used to retrieve the corresponding
      * encryption key
      * @param[in]   tx_id             Transaction ID (version + term)
      * corresponding with the plaintext

@@ -235,7 +235,7 @@ namespace kv
      * in future transactions.
      *
      * @param v Version at which map is being committed/created
-     * @param map Map to add
+     * @param map_ Map to add
      */
     void add_dynamic_map(
       kv::Version v, const std::shared_ptr<AbstractMap>& map_) override
