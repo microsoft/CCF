@@ -65,7 +65,7 @@ export interface Receipt {
 
 export interface State {
   transactionId: string;
-  receipt?: Receipt;
+  receipt: Receipt;
 }
 
 interface WrapAlgoParams {
@@ -99,7 +99,7 @@ export interface CCF {
   ): ArrayBuffer;
 
   kv: KVMaps;
-  state: State;
+  state?: State;
 }
 
 export const ccf = globalThis.ccf as CCF;
