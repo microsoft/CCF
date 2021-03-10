@@ -3,6 +3,10 @@
 #pragma once
 
 #include <cassert>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -28,12 +32,28 @@ namespace crypto
   class Entropy
   {
   public:
+    Entropy() = default;
+    virtual ~Entropy() = default;
+
     virtual void* get_data() = 0;
     virtual rng_func_t get_rng() = 0;
+
+    /** Generate @p len random bytes
+     * @param len Number of random bytes to generate
+     * @return vector random bytes
+     */
     virtual std::vector<uint8_t> random(size_t len) = 0;
+
+    /** Generate @p len random bytes into @p data
+     * @param len Number of random bytes to generate
+     * @param data Buffer to fill
+     */
     virtual void random(unsigned char* data, size_t len) = 0;
+
+    /** Generate a random uint64_t
+     * @return a random uint64_t
+     */
     virtual uint64_t random64() = 0;
-    virtual ~Entropy() {}
   };
 
   class IntelDRNG : public Entropy
@@ -264,6 +284,10 @@ namespace crypto
         throw std::logic_error("No support for RDRAND / RDSEED on this CPU.");
     }
 
+    /** Generate @p len random bytes
+     * @param len Number of random bytes to generate
+     * @return vector random bytes
+     */
     std::vector<uint8_t> random(size_t len) override
     {
       std::vector<uint8_t> buf(len);
@@ -274,6 +298,9 @@ namespace crypto
       return buf;
     }
 
+    /** Generate a random uint64_t
+     * @return a random uint64_t
+     */
     uint64_t random64() override
     {
       uint64_t rnd;
@@ -287,6 +314,10 @@ namespace crypto
       return rnd;
     }
 
+    /** Generate @p len random bytes into @p data
+     * @param len Number of random bytes to generate
+     * @param data Buffer to fill
+     */
     void random(unsigned char* data, size_t len) override
     {
       if (rdrand_get_bytes(len, data) < len)

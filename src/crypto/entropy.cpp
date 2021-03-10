@@ -16,6 +16,6 @@ namespace crypto
       return intel_drng_ptr;
     }
 
-    return std::make_shared<MbedtlsEntropy>();
+    return std::make_shared<Entropy_mbedTLS>();
   }
 }

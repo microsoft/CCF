@@ -1453,13 +1453,6 @@ namespace ccfapp
       JS_NewClassID(&body_class_id);
       body_class_def.class_name = "Body";
 
-      auto default_handler = [this](EndpointContext& args) {
-        execute_request(
-          args.rpc_ctx->get_method(), args.rpc_ctx->get_request_verb(), args);
-      };
-
-      set_default(default_handler, no_auth_required);
-
       metrics_tracker.install_endpoint(*this);
     }
 

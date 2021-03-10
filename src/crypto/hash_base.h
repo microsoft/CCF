@@ -28,7 +28,12 @@ namespace crypto
   class HashProviderBase
   {
   public:
-    virtual HashBytes Hash(const uint8_t*, size_t, MDType) const = 0;
+    // @brief Generic Hash function
+    // @param data The data to hash
+    // @param size The size of @p data
+    // @param type The type of hash to compute
+    virtual HashBytes Hash(
+      const uint8_t* data, size_t size, MDType type) const = 0;
   };
 
   class Sha256Hash
