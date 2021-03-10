@@ -10,10 +10,6 @@ pr:
   branches:
     include:
       - main
-  paths:
-    include:
-      - .daily_canary
-      - .cg.yml
 
 schedules:
   - cron: "0 3 * * Mon-Fri"
