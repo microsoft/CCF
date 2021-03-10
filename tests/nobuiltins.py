@@ -28,7 +28,7 @@ def test_nobuiltins_endpoints(network, args):
         r = c.get("/app/api")
         assert r.status_code == HTTPStatus.OK
         openapi_spec_validator.validate_spec(r.body.json())
-        
+
         r = c.get(f"/app/tx_id?seqno={seqno}")
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
