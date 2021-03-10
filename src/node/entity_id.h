@@ -3,6 +3,8 @@
 #pragma once
 
 #include "ds/json.h"
+#include "ds/serialized.h"
+#include "kv/serialise_entry_blit.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -130,6 +132,31 @@ namespace ccf
   using MemberId = EntityId;
   using UserId = EntityId;
   using NodeId = EntityId;
+}
+
+namespace kv::serialisers
+{
+  template <>
+  struct BlitSerialiser<ccf::EntityId>
+  {
+    static SerialisedEntry to_serialised(const ccf::EntityId& entity_id)
+    {
+      // TODO: Should we serialise the string directly (i.e. without prefix) so
+      // that it is easier to read, at the cost of future flexibility?
+      auto total_size = sizeof(size_t) + entity_id.size(); // Size-prefixed
+      SerialisedEntry data(total_size);
+      auto data_ = data.data();
+      serialized::write(data_, total_size, entity_id.value());
+      return data;
+    }
+
+    static ccf::EntityId from_serialised(const SerialisedEntry& data)
+    {
+      auto data_ = data.data();
+      auto size = data.size();
+      return serialized::read<ccf::EntityId::Value>(data_, size);
+    }
+  };
 }
 
 namespace std

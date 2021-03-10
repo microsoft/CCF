@@ -6,10 +6,11 @@ import struct
 import os
 
 from typing import BinaryIO, NamedTuple, Optional, Set
-from enum import IntEnum
+from enum import Enum
 
 # Default implementation has buggy interaction between read_bytes and tell, so use fallback
 import msgpack.fallback as msgpack  # type: ignore
+import json
 
 from loguru import logger as LOG  # type: ignore
 from cryptography.x509 import load_pem_x509_certificate
@@ -44,6 +45,11 @@ def to_uint_64(buffer):
 
 def is_ledger_chunk_committed(file_name):
     return file_name.endswith(".committed")
+
+
+def read_blit_string_key(buffer):
+    size = to_uint_64(buffer[:8])
+    return (buffer[8 : 8 + size]).decode()
 
 
 class GcmHeader:
@@ -87,7 +93,6 @@ class PublicDomain:
         # Store most as raw bytes, only decode a few which we know are msgpack and are required for ledger verification.
         self._msgpacked_tables = {
             SIGNATURE_TX_TABLE_NAME,
-            NODES_TABLE_NAME,
         }
         self._read()
 
@@ -108,7 +113,7 @@ class PublicDomain:
             # map_start_indicator
             self._read_next()
             map_name = self._read_next_string()
-            LOG.trace(f"Reading map {map_name}")
+            LOG.info(f"Reading map {map_name}")
             records = {}
             self._tables[map_name] = records
 
@@ -128,7 +133,8 @@ class PublicDomain:
                         k = msgpack.unpackb(k, **UNPACK_ARGS)
                         val = msgpack.unpackb(val, **UNPACK_ARGS)
                     if map_name == NODES_TABLE_NAME:
-                        k = str(k)
+                        k = read_blit_string_key(k)
+                        val = json.loads(val)
                     records[k] = val
 
             remove_count = self._read_next()
@@ -162,7 +168,7 @@ def _byte_read_safe(file, num_of_bytes):
     return ret
 
 
-class NodeStatus(IntEnum):
+class NodeStatus(Enum):
     """These are the corresponding status meanings from the ccf.nodes table"""
 
     PENDING = 0
@@ -177,7 +183,7 @@ class TxBundleInfo(NamedTuple):
     existing_root: bytes
     node_cert: bytes
     signature: bytes
-    node_activity: dict
+    node_activity: NodeStatus
     signing_node: bytes
 
 
@@ -191,13 +197,6 @@ class LedgerValidator:
         2) The merkle root and signature are verified with the node cert
         3) The merkle proof is correct for each set of transactions
     """
-
-    # The node that is expected to sign the signature transaction
-    # The certificate used to sign the signature transaction
-    # https://github.com/microsoft/CCF/blob/main/src/node/nodes.h
-    EXPECTED_NODE_CERT_INDEX = 1
-    # The current network trust status of the Node at the time of the current transaction
-    EXPECTED_NODE_STATUS_INDEX = 4
 
     # Signature table contains PrimarySignature which extends NodeSignature. NodeId should be at index 1 in the serialized Node
     # https://github.com/microsoft/CCF/blob/main/src/node/signatures.h
@@ -242,11 +241,9 @@ class LedgerValidator:
             node_table = tables[NODES_TABLE_NAME]
             for nodeid, values in node_table.items():
                 # Add the nodes certificate
-                self.node_certificates[nodeid] = values[self.EXPECTED_NODE_CERT_INDEX]
+                self.node_certificates[nodeid] = values["cert"]
                 # Update node trust status
-                self.node_activity_status[nodeid] = NodeStatus(
-                    values[self.EXPECTED_NODE_STATUS_INDEX]
-                )
+                self.node_activity_status[nodeid] = NodeStatus[values["status"]]
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
@@ -256,11 +253,10 @@ class LedgerValidator:
             for nodeid, values in signature_table.items():
                 current_seqno = values[self.EXPECTED_NODE_SEQNO_INDEX]
                 current_view = values[self.EXPECTED_NODE_VIEW_INDEX]
-                signing_node = str(
-                    values[self.EXPECTED_NODE_SIGNATURE_INDEX][
-                        self.EXPECTED_SIGNING_NODE_ID_INDEX
-                    ]
-                )
+                signing_node = values[self.EXPECTED_NODE_SIGNATURE_INDEX][
+                    self.EXPECTED_SIGNING_NODE_ID_INDEX
+                ]
+                LOG.error(signing_node)
 
                 # Get binary representations for the cert, existing root, and signature
                 cert = b"".join(self.node_certificates[signing_node])
