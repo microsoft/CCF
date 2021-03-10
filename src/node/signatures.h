@@ -15,8 +15,8 @@ namespace ccf
   {
     kv::Consensus::SeqNo seqno = 0;
     kv::Consensus::View view = 0;
-    ObjectId commit_seqno = 0;
-    ObjectId commit_view = 0;
+    kv::Consensus::SeqNo commit_seqno = 0;
+    kv::Consensus::View commit_view = 0;
     crypto::Sha256Hash root;
     std::vector<uint8_t> tree = {0};
 
@@ -60,5 +60,7 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_BASE(PrimarySignature, NodeSignature)
   DECLARE_JSON_REQUIRED_FIELDS(
     PrimarySignature, seqno, view, commit_seqno, commit_view, root, tree)
-  using Signatures = kv::Map<ObjectId, PrimarySignature>;
+
+  // Signatures are always stored at key `0`
+  using Signatures = kv::Map<size_t, PrimarySignature>;
 }

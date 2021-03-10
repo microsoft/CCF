@@ -7,7 +7,7 @@
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "entities.h"
-#include "node/node_id.h"
+#include "node/entity_id.h"
 #include "node_types.h"
 #include "tls/key_exchange.h"
 

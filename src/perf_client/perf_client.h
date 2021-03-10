@@ -7,6 +7,7 @@
 
 // CCF
 #include "clients/rpc_tls_client.h"
+#include "crypto/verifier.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -304,8 +305,8 @@ namespace client
 
         key = crypto::Pem(raw_key);
 
-        crypto::Sha256Hash hash({raw_cert.data(), raw_cert.size()});
-        key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
+        auto cert_der = crypto::cert_pem_to_der(raw_cert);
+        key_id = crypto::Sha256Hash(cert_der).hex_str();
 
         tls_cert = std::make_shared<tls::Cert>(
           std::make_shared<tls::CA>(ca), raw_cert, key);

@@ -1042,7 +1042,7 @@ namespace ccf
         }
 
         // does the voter agree?
-        votes[std::to_string(vote.first)] = tsr.run<bool>(
+        votes[vote.first.value()] = tsr.run<bool>(
           tx,
           {vote.second,
            {}, // can't write
@@ -1129,12 +1129,12 @@ namespace ccf
       return get_proposal_info(proposal_id, proposal);
     }
 
-    bool check_member_active(kv::ReadOnlyTx& tx, MemberId id)
+    bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
     {
       return check_member_status(tx, id, {MemberStatus::ACTIVE});
     }
 
-    bool check_member_accepted(kv::ReadOnlyTx& tx, MemberId id)
+    bool check_member_accepted(kv::ReadOnlyTx& tx, const MemberId& id)
     {
       return check_member_status(
         tx, id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED});
@@ -1142,7 +1142,7 @@ namespace ccf
 
     bool check_member_status(
       kv::ReadOnlyTx& tx,
-      MemberId id,
+      const MemberId& id,
       std::initializer_list<MemberStatus> allowed)
     {
       auto member = tx.ro(this->network.members)->get(id);
@@ -1161,7 +1161,7 @@ namespace ccf
     }
 
     void record_voting_history(
-      kv::Tx& tx, MemberId caller_id, const SignedReq& signed_request)
+      kv::Tx& tx, const MemberId& caller_id, const SignedReq& signed_request)
     {
       auto governance_history = tx.rw(network.governance_history);
       governance_history->put(caller_id, {signed_request});
@@ -1186,7 +1186,7 @@ namespace ccf
       MemberId& member_id,
       std::string& error)
     {
-      return get_path_param(params, "member_id", member_id, error);
+      return get_path_param(params, "member_id", member_id.value(), error);
     }
 
     NetworkState& network;
@@ -1198,10 +1198,7 @@ namespace ccf
       NetworkState& network,
       ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
-      CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::members),
-        context,
-        Tables::MEMBER_CERT_DERS),
+      CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context),
       network(network),
       share_manager(share_manager),
       tsr(network)
@@ -1212,7 +1209,8 @@ namespace ccf
         "public governance tables.";
     }
 
-    static MemberId get_caller_member_id(CommandEndpointContext& ctx)
+    static std::optional<MemberId> get_caller_member_id(
+      CommandEndpointContext& ctx)
     {
       if (
         const auto* sig_ident =
@@ -1228,7 +1226,7 @@ namespace ccf
       }
 
       LOG_FATAL_FMT("Request was not authenticated with a member auth policy");
-      return INVALID_ID;
+      return std::nullopt;
     }
 
     void init_handlers() override
@@ -1242,9 +1240,17 @@ namespace ccf
 
       auto read = [this](EndpointContext& ctx, nlohmann::json&& params) {
         const auto member_id = get_caller_member_id(ctx);
+        if (!member_id.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is unknown.");
+        }
+
         if (!check_member_status(
               ctx.tx,
-              member_id,
+              member_id.value(),
               {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
         {
           return make_error(
@@ -1285,7 +1291,14 @@ namespace ccf
 
       auto query = [this](EndpointContext& ctx, nlohmann::json&& params) {
         const auto member_id = get_caller_member_id(ctx);
-        if (!check_member_accepted(ctx.tx, member_id))
+        if (!member_id.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is unknown.");
+        }
+        if (!check_member_accepted(ctx.tx, member_id.value()))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1386,7 +1399,15 @@ namespace ccf
       auto get_proposal =
         [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
           const auto member_id = get_caller_member_id(ctx);
-          if (!check_member_active(ctx.tx, member_id))
+          if (!member_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is unknown.");
+          }
+
+          if (!check_member_active(ctx.tx, member_id.value()))
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,
@@ -1568,8 +1589,16 @@ namespace ccf
         .install();
 
       auto get_vote = [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-        const auto caller_member_id = get_caller_member_id(ctx);
-        if (!check_member_active(ctx.tx, caller_member_id))
+        const auto member_id = get_caller_member_id(ctx);
+        if (!member_id.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is unknown.");
+        }
+
+        if (!check_member_active(ctx.tx, member_id.value()))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1719,22 +1748,31 @@ namespace ccf
       auto update_state_digest =
         [this](EndpointContext& ctx, nlohmann::json&&) {
           const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Caller is a not a valid member id");
+          }
+
           auto mas = ctx.tx.rw(this->network.member_acks);
           auto sig = ctx.tx.rw(this->network.signatures);
-          auto ma = mas->get(member_id);
+          auto ma = mas->get(member_id.value());
           if (!ma)
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
-              fmt::format("No ACK record exists for caller {}.", member_id));
+              fmt::format(
+                "No ACK record exists for caller {}.", member_id.value()));
           }
 
           auto s = sig->get(0);
           if (s)
           {
             ma->state_digest = s->root.hex_str();
-            mas->put(member_id, ma.value());
+            mas->put(member_id.value(), ma.value());
           }
           nlohmann::json j;
           j["state_digest"] = ma->state_digest;
@@ -1749,32 +1787,39 @@ namespace ccf
         .set_auto_schema<void, StateDigest>()
         .install();
 
-      auto get_encrypted_recovery_share = [this](
-                                            EndpointContext& ctx,
-                                            nlohmann::json&&) {
-        const auto member_id = get_caller_member_id(ctx);
-        if (!check_member_active(ctx.tx, member_id))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Only active members are given recovery shares.");
-        }
+      auto get_encrypted_recovery_share =
+        [this](EndpointContext& ctx, nlohmann::json&&) {
+          const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is unknown.");
+          }
+          if (!check_member_active(ctx.tx, member_id.value()))
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Only active members are given recovery shares.");
+          }
 
-        auto encrypted_share =
-          share_manager.get_encrypted_share(ctx.tx, member_id);
+          auto encrypted_share =
+            share_manager.get_encrypted_share(ctx.tx, member_id.value());
 
-        if (!encrypted_share.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            fmt::format("Recovery share not found for member {}.", member_id));
-        }
+          if (!encrypted_share.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              fmt::format(
+                "Recovery share not found for member {}.", member_id->value()));
+          }
 
-        return make_success(
-          GetRecoveryShare::Out{tls::b64_from_raw(encrypted_share.value())});
-      };
+          return make_success(
+            GetRecoveryShare::Out{tls::b64_from_raw(encrypted_share.value())});
+        };
       make_endpoint(
         "recovery_share",
         HTTP_GET,
@@ -1788,7 +1833,14 @@ namespace ccf
                                      nlohmann::json&& params) {
         // Only active members can submit their shares for recovery
         const auto member_id = get_caller_member_id(ctx);
-        if (!check_member_active(ctx.tx, member_id))
+        if (!member_id.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is unknown.");
+        }
+        if (!check_member_active(ctx.tx, member_id.value()))
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -1821,7 +1873,7 @@ namespace ccf
         try
         {
           submitted_shares_count = share_manager.submit_recovery_share(
-            ctx.tx, member_id, raw_recovery_share);
+            ctx.tx, member_id.value(), raw_recovery_share);
         }
         catch (const std::exception& e)
         {

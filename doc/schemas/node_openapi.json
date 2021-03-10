@@ -1,17 +1,6 @@
 {
   "components": {
     "schemas": {
-      "CallerInfo": {
-        "properties": {
-          "caller_id": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "caller_id"
-        ],
-        "type": "object"
-      },
       "CodeStatus": {
         "enum": [
           "ALLOWED_TO_JOIN"
@@ -66,6 +55,10 @@
         ],
         "type": "object"
       },
+      "EntityId": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
       "GetCode__Out": {
         "properties": {
           "versions": {
@@ -119,7 +112,7 @@
             "$ref": "#/components/schemas/int64"
           },
           "primary_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "$ref": "#/components/schemas/EntityId"
           },
           "service_status": {
             "$ref": "#/components/schemas/ServiceStatus"
@@ -144,7 +137,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "$ref": "#/components/schemas/EntityId"
           },
           "port": {
             "$ref": "#/components/schemas/string"
@@ -218,7 +211,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "$ref": "#/components/schemas/EntityId"
           },
           "proof": {
             "$ref": "#/components/schemas/GetReceipt__Element_array"
@@ -248,7 +241,7 @@
             "$ref": "#/components/schemas/int64"
           },
           "node_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "$ref": "#/components/schemas/EntityId"
           },
           "recovery_target_seqno": {
             "$ref": "#/components/schemas/int64"
@@ -302,10 +295,6 @@
         ],
         "type": "object"
       },
-      "NodeId": {
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
       "NodeStatus": {
         "enum": [
           "PENDING",
@@ -326,7 +315,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "$ref": "#/components/schemas/EntityId"
           },
           "raw": {
             "$ref": "#/components/schemas/string"
@@ -400,18 +389,6 @@
         "minimum": 0,
         "type": "integer"
       }
-    },
-    "securitySchemes": {
-      "member_signature": {
-        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
-        "scheme": "signature",
-        "type": "http"
-      },
-      "user_signature": {
-        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
-        "scheme": "signature",
-        "type": "http"
-      }
     }
   },
   "info": {
@@ -451,40 +428,6 @@
             "description": "Default response description"
           }
         }
-      }
-    },
-    "/caller_id": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "cert",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallerInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "user_signature": []
-          },
-          {
-            "member_signature": []
-          }
-        ]
       }
     },
     "/code": {

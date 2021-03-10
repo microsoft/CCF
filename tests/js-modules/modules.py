@@ -60,9 +60,7 @@ def test_module_set_and_remove(network, args):
     make_module_set_proposal(module_path, module_file_path, network)
     module_content = open(module_file_path, "r").read()
 
-    with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
-    ) as c:
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
         r = c.post("/gov/read", {"table": "public:gov.modules", "key": module_path})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["js"] == module_content, r.body
@@ -74,9 +72,7 @@ def test_module_set_and_remove(network, args):
     )
     network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
-    with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
-    ) as c:
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
         r = c.post("/gov/read", {"table": "public:gov.modules", "key": module_path})
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
     return network
@@ -113,9 +109,7 @@ def test_app_bundle(network, args):
         network.consortium.deploy_js_app(primary, bundle_path)
 
     LOG.info("Verifying that modules and endpoints were added")
-    with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
-    ) as c:
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
         r = c.post("/gov/read", {"table": "public:gov.modules", "key": "/math.js"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
@@ -146,9 +140,7 @@ def test_app_bundle(network, args):
         r = c.post("/app/compute", valid_body)
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
-    with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
-    ) as c:
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
         r = c.post("/gov/read", {"table": "public:gov.modules", "key": "/math.js"})
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 

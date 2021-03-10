@@ -28,8 +28,7 @@ namespace ccf
   {
   public:
     UserEndpointRegistry(ccfapp::AbstractNodeContext& context) :
-      CommonEndpointRegistry(
-        get_actor_prefix(ActorsType::users), context, Tables::USER_CERT_DERS)
+      CommonEndpointRegistry(get_actor_prefix(ActorsType::users), context)
     {}
   };
 
