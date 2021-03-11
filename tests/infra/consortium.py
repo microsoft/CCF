@@ -6,6 +6,7 @@ import time
 import http
 import json
 import random
+import re
 import infra.network
 import infra.proc
 import infra.checker
@@ -37,7 +38,8 @@ class Consortium:
         self.recovery_threshold = None
         self.authenticate_session = authenticate_session
         # If a list of member IDs is passed in, generate fresh member identities.
-        # Otherwise, recover the state of the consortium from the state of CCF.
+        # Otherwise, recover the state of the consortium from the common directory
+        # and the state of the service
         if members_info is not None:
             self.recovery_threshold = 0
             for m_local_id, has_share, m_data in members_info:
@@ -55,9 +57,32 @@ class Consortium:
                     self.recovery_threshold += 1
                 self.members.append(new_member)
         else:
-            # TODO: Why do we still need this?
-            with remote_node.client("member0") as mc:
-                r = mc.post(
+            for f in os.listdir(self.common_dir):
+                result = re.search("member(.*)_cert.pem", f)
+                if result is not None:
+                    local_id = f.split("_")[0]
+                    new_member = infra.member.Member(
+                        local_id,
+                        curve,
+                        self.common_dir,
+                        share_script,
+                        is_recovery_member=os.path.isfile(
+                            os.path.join(self.common_dir, f"{local_id}_enc_privk.pem")
+                        ),
+                        authenticate_session=authenticate_session,
+                    )
+
+                    self.members.append(new_member)
+                    LOG.info(
+                        f"Successfully recovered member {local_id}: {new_member.service_id}"
+                    )
+
+            if not self.members:
+                LOG.warning("No consortium member to recover")
+                return
+
+            with remote_node.client(self.members[0].local_id) as c:
+                r = c.post(
                     "/gov/query",
                     {
                         "text": """tables = ...
@@ -71,27 +96,21 @@ class Consortium:
                         """
                     },
                 )
-                for m_id, info in r.body.json():
-                    new_member = infra.member.Member(
-                        f"member{m_id}",
-                        curve,
-                        self.common_dir,
-                        share_script,
-                        is_recovery_member="encryption_pub_key" in info,
-                        authenticate_session=authenticate_session,
-                    )
+                for member_service_id, info in r.body.json():
                     status = info["status"]
-                    if (
-                        infra.member.MemberStatus[status]
-                        == infra.member.MemberStatus.ACTIVE
-                    ):
-                        new_member.set_active()
-                    self.members.append(new_member)
-                    LOG.info(
-                        f"Successfully recovered member {m_id} with status {status}"
-                    )
+                    member = self.get_member_by_service_id(member_service_id)
+                    if member:
+                        if (
+                            infra.member.MemberStatus[status]
+                            == infra.member.MemberStatus.ACTIVE
+                        ):
+                            member.set_active()
+                    else:
+                        LOG.warning(
+                            f"Keys and certificates for consortium member {member_service_id} do not exist locally"
+                        )
 
-                r = mc.post(
+                r = c.post(
                     "/gov/query",
                     {
                         "text": """tables = ...
