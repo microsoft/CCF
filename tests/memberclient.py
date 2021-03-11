@@ -18,7 +18,7 @@ from loguru import logger as LOG
 def test_missing_signature_header(network, args):
     node = network.find_node_by_role()
     member = network.consortium.get_any_active_member()
-    with node.client(f"member{member.member_id}") as mc:
+    with node.client(member.local_id) as mc:
         r = mc.post("/gov/proposals")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         www_auth = "www-authenticate"
@@ -155,20 +155,20 @@ def test_governance(network, args):
     LOG.debug("Further vote requests fail as the proposal has already been accepted")
     params_error = http.HTTPStatus.BAD_REQUEST.value
     assert (
-        network.consortium.get_member_by_id(0)
+        network.consortium.get_member_by_local_id("member0")
         .vote(node, new_member_proposal, careful_vote)
         .status_code
         == params_error
     )
     assert (
-        network.consortium.get_member_by_id(1)
+        network.consortium.get_member_by_local_id("member1")
         .vote(node, new_member_proposal, careful_vote)
         .status_code
         == params_error
     )
 
     LOG.debug("Accepted proposal cannot be withdrawn")
-    response = network.consortium.get_member_by_id(
+    response = network.consortium.get_member_by_local_id(
         new_member_proposal.proposer_id
     ).withdraw(node, new_member_proposal)
     assert response.status_code == params_error
@@ -204,7 +204,9 @@ def test_governance(network, args):
     proposal = new_member.propose(node, proposal_recovery_threshold)
 
     LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
-    response = network.consortium.get_member_by_id(1).withdraw(node, proposal)
+    response = network.consortium.get_member_by_local_id("member1").withdraw(
+        node, proposal
+    )
     assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
     LOG.debug("Proposer withdraws their proposal")

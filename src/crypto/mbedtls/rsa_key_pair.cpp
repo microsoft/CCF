@@ -99,6 +99,20 @@ namespace crypto
     return output_buf;
   }
 
+  Pem RSAKeyPair_mbedTLS::private_key_pem() const
+  {
+    unsigned char data[max_pem_key_size];
+
+    int rc = mbedtls_pk_write_key_pem(ctx.get(), data, sizeof(data));
+    if (rc != 0)
+    {
+      throw std::logic_error("mbedtls_pk_write_key_pem: " + error_string(rc));
+    }
+
+    const size_t len = strlen((char const*)data);
+    return Pem(data, len);
+  }
+
   Pem RSAKeyPair_mbedTLS::public_key_pem() const
   {
     return PublicKey_mbedTLS::public_key_pem();

@@ -39,6 +39,11 @@ namespace crypto
       std::optional<std::vector<std::uint8_t>> label = std::nullopt) = 0;
 
     /**
+     * Get the private key in PEM format
+     */
+    virtual Pem private_key_pem() const = 0;
+
+    /**
      * Get the public key in PEM format
      */
     virtual Pem public_key_pem() const = 0;

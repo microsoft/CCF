@@ -80,9 +80,6 @@ all_tests_suite = [
     # memberclient:
     memberclient.test_missing_signature_header,
     memberclient.test_corrupted_signature,
-    # receipts:
-    e2e_logging.test_receipts,
-    e2e_logging.test_historical_receipts,
     # reconfiguration:
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_from_backup,

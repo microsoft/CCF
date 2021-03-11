@@ -31,23 +31,15 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      const auto caller_cert = ctx->session->caller_cert;
+      const auto& caller_cert = ctx->session->caller_cert;
+      auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
-      auto users_by_cert = tx.ro<CertDERs>(Tables::USER_CERT_DERS);
-      const auto user_id = users_by_cert->get(caller_cert);
-
-      if (user_id.has_value())
+      auto users = tx.ro<Users>(Tables::USERS);
+      const auto user = users->get(caller_id);
+      if (user.has_value())
       {
-        Users users_table(Tables::USERS);
-        auto users = tx.ro(users_table);
-        const auto user = users->get(user_id.value());
-        if (!user.has_value())
-        {
-          throw std::logic_error("Users and user certs tables do not match");
-        }
-
         auto identity = std::make_unique<UserCertAuthnIdentity>();
-        identity->user_id = user_id.value();
+        identity->user_id = caller_id;
         identity->user_cert = user->cert;
         identity->user_data = user->user_data;
         return identity;
@@ -87,24 +79,15 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      const auto caller_cert = ctx->session->caller_cert;
+      const auto& caller_cert = ctx->session->caller_cert;
+      auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
-      auto members_by_cert = tx.ro<CertDERs>(Tables::MEMBER_CERT_DERS);
-      const auto member_id = members_by_cert->get(caller_cert);
-
-      if (member_id.has_value())
+      auto members = tx.ro<Members>(Tables::MEMBERS);
+      const auto member = members->get(caller_id);
+      if (member.has_value())
       {
-        Members members_table(Tables::MEMBERS);
-        auto members = tx.ro(members_table);
-        const auto member = members->get(member_id.value());
-        if (!member.has_value())
-        {
-          throw std::logic_error(
-            "Members and member certs tables do not match");
-        }
-
         auto identity = std::make_unique<MemberCertAuthnIdentity>();
-        identity->member_id = member_id.value();
+        identity->member_id = caller_id;
         identity->member_cert = member->cert;
         identity->member_data = member->member_data;
         return identity;

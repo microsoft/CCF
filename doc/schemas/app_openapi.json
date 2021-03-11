@@ -1,17 +1,6 @@
 {
   "components": {
     "schemas": {
-      "CallerInfo": {
-        "properties": {
-          "caller_id": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "caller_id"
-        ],
-        "type": "object"
-      },
       "CodeStatus": {
         "enum": [
           "ALLOWED_TO_JOIN"
@@ -65,6 +54,10 @@
           "metrics"
         ],
         "type": "object"
+      },
+      "EntityId": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
       },
       "GetCode__Out": {
         "properties": {
@@ -136,7 +129,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "$ref": "#/components/schemas/EntityId"
           },
           "proof": {
             "$ref": "#/components/schemas/GetReceipt__Element_array"
@@ -283,10 +276,6 @@
         ],
         "type": "object"
       },
-      "NodeId": {
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
       "Report": {
         "properties": {
           "histogram": {
@@ -393,40 +382,6 @@
             "description": "Default response description"
           }
         }
-      }
-    },
-    "/caller_id": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "cert",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallerInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "user_signature": []
-          },
-          {
-            "member_signature": []
-          }
-        ]
       }
     },
     "/code": {

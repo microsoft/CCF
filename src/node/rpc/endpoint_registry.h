@@ -718,6 +718,7 @@ namespace ccf
      * EndpointFunction was found.
      *
      * @param f Method implementation
+     * @param ap Authentication policy
      */
     void set_default(EndpointFunction f, const AuthnPolicies& ap)
     {

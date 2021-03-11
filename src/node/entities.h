@@ -2,23 +2,19 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "entity_id.h"
+
 #include <limits>
 #include <map>
 #include <stdint.h>
+#include <string>
 #include <vector>
 
 namespace ccf
 {
-  using ObjectId = uint64_t;
-
-  constexpr ObjectId INVALID_ID = (std::numeric_limits<ObjectId>::max)();
-
   using Index = int64_t;
   using Node2NodeMsg = uint64_t;
 
-  using MemberId = ObjectId;
-  using UserId = ObjectId;
-  using CallerId = ObjectId;
   using Cert = std::vector<uint8_t>;
 
   // SGX MRENCLAVE is SHA256 digest
@@ -64,16 +60,9 @@ namespace ccf
     // Member identities
     static constexpr auto MEMBERS = "public:ccf.gov.members.info";
     static constexpr auto MEMBER_ACKS = "public:ccf.gov.members.acks";
-    static constexpr auto MEMBER_CERT_DERS =
-      "public:ccf.internal.members.certs_der";
-    static constexpr auto MEMBER_DIGESTS =
-      "public:ccf.internal.members.digests";
 
     // User identities
     static constexpr auto USERS = "public:ccf.gov.users.info";
-    static constexpr auto USER_CERT_DERS =
-      "public:ccf.internal.users.certs_der";
-    static constexpr auto USER_DIGESTS = "public:ccf.internal.users.digests";
 
     // Nodes identities and allowed code ids
     static constexpr auto NODES = "public:ccf.gov.nodes.info";

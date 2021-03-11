@@ -600,6 +600,9 @@ namespace ccf
     /** Process a serialised command with the associated RPC context via BFT
      *
      * @param ctx Context for this RPC
+     * @param tx Transaction
+     * @param prescribed_commit_version Prescribed commit version
+     * @param max_conflict_version Maximum conflict version
      */
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,

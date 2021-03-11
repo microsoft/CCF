@@ -288,7 +288,8 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
 
 struct NewMember
 {
-  MemberId id;
+  size_t local_id;
+  MemberId service_id;
   crypto::KeyPairPtr kp = crypto::make_key_pair();
   crypto::Pem cert;
 };
@@ -336,17 +337,19 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   auto i = 0ul;
   for (auto& new_member : new_members)
   {
-    new_member.id = initial_members + i++;
+    new_member.local_id = initial_members + i++;
 
     // new member certificate
-    auto cert_pem =
-      new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id));
+    auto cert_pem = new_member.kp->self_sign(
+      fmt::format("CN=new member{}", new_member.local_id));
     auto encryption_pub_key = dummy_enc_pubk;
+    auto cert_der = crypto::make_verifier(cert_pem)->cert_der();
+    new_member.service_id = crypto::Sha256Hash(cert_der).hex_str();
     new_member.cert = cert_pem;
 
     // check new_member id does not work before member is added
     const auto read_next_req = create_request(
-      read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read");
+      read_params(new_member.service_id, Tables::MEMBER_ACKS), "read");
     const auto r = frontend_process(frontend, read_next_req, new_member.cert);
     check_error(r, HTTP_STATUS_UNAUTHORIZED);
 
@@ -416,14 +419,13 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       const auto r = frontend_process(frontend, vote, voter_a_cert);
       const auto result = parse_response_body<ProposalInfo>(r);
 
-      if (new_member.id < max_members)
+      if (new_member.local_id < max_members)
       {
         // vote should succeed
         DOCTEST_CHECK(result.state == ProposalState::ACCEPTED);
         // check that member with the new new_member cert can make RPCs now
-        DOCTEST_CHECK(
-          parse_response_body<int>(frontend_process(
-            frontend, read_next_req, new_member.cert)) == new_member.id + 1);
+        auto r = frontend_process(frontend, read_next_req, new_member.cert);
+        DOCTEST_CHECK(r.status == HTTP_STATUS_OK);
 
         // successful proposals are removed from the kv, so we can't confirm
         // their final state
@@ -460,7 +462,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     {
       // (1) read ack entry
       const auto read_state_digest_req = create_request(
-        read_params(new_member->id, Tables::MEMBER_ACKS), "read");
+        read_params(new_member->service_id, Tables::MEMBER_ACKS), "read");
       const auto ack0 = parse_response_body<StateDigest>(
         frontend_process(frontend, read_state_digest_req, new_member->cert));
       DOCTEST_REQUIRE(std::all_of(
@@ -509,8 +511,8 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       DOCTEST_CHECK(good_response.status == HTTP_STATUS_NO_CONTENT);
 
       // (6) read own member status
-      const auto read_status_req =
-        create_request(read_params(new_member->id, Tables::MEMBERS), "read");
+      const auto read_status_req = create_request(
+        read_params(new_member->service_id, Tables::MEMBERS), "read");
       const auto mi = parse_response_body<MemberInfo>(
         frontend_process(frontend, read_status_req, new_member->cert));
       DOCTEST_CHECK(mi.status == MemberStatus::ACTIVE);
@@ -740,15 +742,6 @@ ProposalInfo test_raw_writes(
     network, gen, context, share_manager, n_members, member_certs);
   frontend.open();
 
-  // check values before
-  {
-    auto tx = network.tables->create_tx();
-    auto next_member_id_r =
-      tx.rw(network.values)->get(ValueIds::NEXT_MEMBER_ID);
-    DOCTEST_CHECK(next_member_id_r);
-    DOCTEST_CHECK(*next_member_id_r == n_members);
-  }
-
   // propose
   ProposalId proposal_id;
   {
@@ -840,9 +833,8 @@ DOCTEST_TEST_CASE("Propose raw writes")
         {R"xxx(
         local tables, recovery_threshold = ...
         local p = Puts:new()
-        p:put("public:ccf.gov.service.config", 0, {recovery_threshold = recovery_threshold, consensus = "CFT"})
-        return Calls:call("raw_puts", p)
-      )xxx"s,
+        p:put("public:ccf.gov.service.config", 0, {recovery_threshold =
+recovery_threshold, consensus = "CFT"}) return Calls:call("raw_puts", p) )xxx"s,
          4},
         n_members,
         pro_votes,
@@ -1083,6 +1075,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
   frontend.open();
 
   ccf::Cert user_der;
+  ccf::UserId user_id;
 
   {
     DOCTEST_INFO("Add user");
@@ -1113,13 +1106,9 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
 
     auto tx1 = network.tables->create_tx();
-    const auto uid = tx1.rw(network.values)->get(ValueIds::NEXT_USER_ID);
-    DOCTEST_CHECK(uid);
-    DOCTEST_CHECK(*uid == 1);
     user_der = crypto::make_verifier(user_cert)->cert_der();
-    const auto uid1 = tx1.rw(network.user_certs)->get(user_der);
-    DOCTEST_CHECK(uid1);
-    DOCTEST_CHECK(*uid1 == 0);
+    user_id = crypto::Sha256Hash(user_der).hex_str();
+    DOCTEST_REQUIRE(tx1.rw(network.users)->get(user_id).has_value());
   }
 
   {
@@ -1131,7 +1120,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
       )xxx");
 
     const auto propose = create_signed_request(
-      Propose::In{proposal, 0}, "proposals", kp, member_cert);
+      Propose::In{proposal, user_id}, "proposals", kp, member_cert);
 
     auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_cert));
@@ -1150,10 +1139,8 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
 
     auto tx1 = network.tables->create_tx();
-    auto user = tx1.rw(network.users)->get(0);
+    auto user = tx1.rw(network.users)->get(user_id);
     DOCTEST_CHECK(!user.has_value());
-    auto user_cert = tx1.rw(network.user_certs)->get(user_der);
-    DOCTEST_CHECK(!user_cert.has_value());
   }
 }
 
@@ -1183,7 +1170,7 @@ DOCTEST_TEST_CASE(
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, crypto::Pem> members;
+  std::map<MemberId, crypto::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert(i, kp);
@@ -1203,8 +1190,8 @@ DOCTEST_TEST_CASE(
   frontend.open();
 
   ProposalId proposal_id;
-  size_t proposer_id = 1;
-  size_t voter_id = 2;
+  auto proposer_id = members.begin()->first;
+  auto voter_id = std::next(members.begin())->first;
 
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
@@ -1322,7 +1309,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, crypto::Pem> members;
+  std::map<MemberId, crypto::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert(i, kp);
@@ -1424,7 +1411,10 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     DOCTEST_INFO("New operator retires original operator");
     Propose::In proposal;
     proposal.script = fmt::format(
-      R"xxx(return Calls:call("retire_member", {}))xxx", operator_id);
+      R"xxx(
+        local tables, member_id = ...
+        return Calls:call("retire_member", member_id))xxx");
+    proposal.parameter = operator_id;
 
     const auto propose = create_signed_request(
       proposal, "proposals", new_operator_kp, new_operator_cert);
@@ -1466,7 +1456,10 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
 
     Propose::In proposal;
     proposal.script = fmt::format(
-      R"xxx(return Calls:call("retire_member", {}))xxx", normal_member_id);
+      R"xxx(
+        local tables, member_id = ...
+        return Calls:call("retire_member", member_id))xxx");
+    proposal.parameter = normal_member_id;
 
     const auto propose = create_signed_request(
       proposal, "proposals", new_operator_kp, new_operator_cert);
@@ -1504,7 +1497,7 @@ DOCTEST_TEST_CASE(
   gen.activate_member(proposer_id);
 
   // Non-operating members
-  std::map<size_t, crypto::Pem> members;
+  std::map<MemberId, crypto::Pem> members;
   for (size_t i = 1; i < 3; i++)
   {
     auto cert = get_cert(i, kp);
@@ -1566,8 +1559,8 @@ DOCTEST_TEST_CASE(
     check_result_state(r, ProposalState::OPEN);
   }
 
-  size_t first_voter_id = 1;
-  size_t second_voter_id = 2;
+  MemberId first_voter_id = members.begin()->first;
+  MemberId second_voter_id = std::next(members.begin())->first;
 
   {
     DOCTEST_INFO("First member votes for proposal");
@@ -1678,16 +1671,13 @@ DOCTEST_TEST_CASE("User data")
 
     DOCTEST_INFO("user data can be set to an object");
     Propose::In proposal;
-    proposal.script = fmt::format(
+    proposal.script = std::string(
       R"xxx(
-        proposed_user_data = {{
-          name = "bob",
-          permissions = {{"read", "delete"}}
-        }}
-        return Calls:call("set_user_data", {{user_id = {}, user_data =
-        proposed_user_data}})
-      )xxx",
-      user_id);
+        local tables, user_data = ...
+        return Calls:call("set_user_data", user_data)
+      )xxx");
+    proposal.parameter["user_id"] = user_id;
+    proposal.parameter["user_data"] = user_data_object;
     const auto proposal_serialized =
       create_signed_request(proposal, "proposals", kp, member_cert);
     const auto propose_response = parse_response_body<Propose::Out>(
@@ -1720,12 +1710,11 @@ DOCTEST_TEST_CASE("User data")
     DOCTEST_INFO("user data can be overwritten");
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
-      local tables, param = ...
-      return Calls:call("set_user_data", {user_id = param.id, user_data =
-      param.data})
+      local tables, user_data = ...
+      return Calls:call("set_user_data", user_data)
     )xxx");
-    proposal.parameter["id"] = user_id;
-    proposal.parameter["data"] = user_data_string;
+    proposal.parameter["user_id"] = user_id;
+    proposal.parameter["user_data"] = user_data_string;
     const auto proposal_serialized =
       create_signed_request(proposal, "proposals", kp, member_cert);
     const auto propose_response = parse_response_body<Propose::Out>(
@@ -1762,12 +1751,12 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   ShareManager share_manager(network);
   StubRecoverableNodeContext context(share_manager);
   MemberRpcFrontend frontend(network, context, share_manager);
-  std::map<size_t, std::pair<crypto::Pem, crypto::RSAKeyPairPtr>> members;
+  std::map<MemberId, std::pair<crypto::Pem, crypto::RSAKeyPairPtr>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 2;
   DOCTEST_REQUIRE(recovery_threshold <= members_count);
-  std::map<size_t, std::vector<uint8_t>> retrieved_shares;
+  std::map<MemberId, std::vector<uint8_t>> retrieved_shares;
 
   DOCTEST_INFO("Setup state");
   {
@@ -1809,7 +1798,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
   DOCTEST_INFO("Submit share before the service is in correct state");
   {
-    MemberId member_id = 0;
+    MemberId member_id = members.begin()->first;
     const auto submit_recovery_share = create_request(
       SubmitRecoveryShare::In{tls::b64_from_raw(retrieved_shares[member_id])},
       "recovery_share");
@@ -1921,7 +1910,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
   MemberRpcFrontend frontend(network, context, share_manager);
   frontend.open();
 
-  std::map<size_t, crypto::Pem> members;
+  std::map<MemberId, crypto::Pem> members;
 
   auto gen_tx = network.tables->create_tx();
   GenesisGenerator gen(network, gen_tx);
@@ -1944,11 +1933,12 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
 
   DOCTEST_INFO("Activate members until reaching limit");
   {
+    size_t member_count = 0;
     for (auto const& m : members)
     {
       auto resp = activate(frontend, kp, m.second);
 
-      if (m.first >= max_active_recovery_members)
+      if (member_count >= max_active_recovery_members)
       {
         DOCTEST_CHECK(resp.status == HTTP_STATUS_FORBIDDEN);
       }
@@ -1956,6 +1946,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
       {
         DOCTEST_CHECK(resp.status == HTTP_STATUS_NO_CONTENT);
       }
+      member_count++;
     }
   }
 
@@ -1985,7 +1976,7 @@ DOCTEST_TEST_CASE("Open network sequence")
   ShareManager share_manager(network);
   StubNodeContext context;
   MemberRpcFrontend frontend(network, context, share_manager);
-  std::map<size_t, std::pair<crypto::Pem, std::vector<uint8_t>>> members;
+  std::map<MemberId, std::pair<crypto::Pem, std::vector<uint8_t>>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 100;

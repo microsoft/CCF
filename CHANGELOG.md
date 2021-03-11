@@ -5,19 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+
+## [0.19.1]
+
+### Changed
+
+- Schema documentation for query parameters should now be added with `add_query_parameter`, rather than `set_auto_schema`. The `In` type of `set_auto_schema` should only be used to describe the request body.
+
+### Removed
+
+- `json_adapter` will no longer try to convert query parameters to a JSON object. The JSON passed as an argument to these handlers will now be populated only by the request body. The query string should be parsed separately, and `http::parse_query(s)` is added as a starting point. This means strings in query parameters no longer need to be quoted.
+
 ## [0.19.0]
 
 ### Changed
 
 - `x-ccf-tx-view` and `x-ccf-tx-seqno` response headers have been removed, and replaced with `x-ms-ccf-transaction-id`. This includes both original fields, separated by a single `.`. Historical queries using `ccf::historical::adapter` should also pass a single combined `x-ms-ccf-transaction-id` header (#2257).
-- Node unique identifier is the hex-encoded string of the SHA-256 digest of the node's identity public key, which is also used as the node's quote report data (#2241).
+- Node unique identifier is now the hex-encoded string of the SHA-256 digest of the node's DER-encoded identity public key, which is also used as the node's quote report data. The `sandbox.sh` script still uses incrementing IDs to keep track of nodes and for their respective directories (#2241).
+- Members and users unique identifier is now the hex-encoded string of the SHA-256 digest of their DER-encoded identity certificate (i.e. fingerprint), which has to be specified as the `keyId` field for signed HTTP requests (#2279).
 - The receipt interface has changed, `/app/receipt?commit=23` is replaced by `/app/receipt?transaction_id=2.23`. Receipt fetching is now implemented as a historical query, which means that the first reponse(s) may be 202 with a Retry-After header. Receipts are now structured JSON, as opposed to a flat byte sequence, and `/app/receipt/verify` has been removed in favour of an [offline verification sample](https://microsoft.github.io/CCF/ccf-0.19.0/use_apps/verify_tx.html#transaction-receipts).
 - `ccfapp::get_rpc_handler()` now takes a reference to a `ccf::AbstractNodeContext` rather than `ccf::AbstractNodeState`. The node state can be obtained from the context via `get_node_state()`.
 
 ### Removed
 
 - `get_receipt_for_seqno_v1` has been removed. Handlers wanting to return receipts must now use the historical API, and can obtain a receipt via `ccf::historical::StatePtr`. See the [historical query with receipt sample](https://microsoft.github.io/CCF/ccf-0.19.0/build_apps/logging_cpp.html#receipts) for reference.
-- `json_adapter` will no longer try to convert query parameters to a JSON object. The JSON passed as an argument to these handlers will now be populated only by the request body. The query string should be parsed separately, and `http::parse_query(s)` is added as a starting point. This means strings in query parameters no longer need to be quoted.
+- `caller_id` endpoint has been removed. Members and users can now compute their unique identifier without interacting with CCF (#2279).
+- `public:ccf.internal.members.certs_der`, `public:ccf.internal.users.certs_der`, `public:ccf.internal.members.digests` and `public:ccf.internal.users.digests` KV tables have been removed (#2279).
+- `view_change_in_progress` field in `network/status` response has been removed (#2288).
 
 ## [0.18.5]
 
@@ -725,6 +739,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.19.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.1
 [0.19.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.0
 [0.18.5]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.5
 [0.18.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.4
