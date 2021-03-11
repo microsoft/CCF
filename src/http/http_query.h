@@ -6,8 +6,8 @@
 
 #include <charconv>
 #include <map>
-#include <string_view>
 #include <optional>
+#include <string_view>
 
 namespace http
 {
@@ -17,12 +17,14 @@ namespace http
   // query string.
   using ParsedQuery = std::multimap<std::string_view, std::string_view>;
 
-  static inline ParsedQuery parse_query(const std::string_view& query) {
+  static inline ParsedQuery parse_query(const std::string_view& query)
+  {
     ParsedQuery parsed;
     const auto params = nonstd::split(query, "&");
-    for (const auto& param: params)
+    for (const auto& param : params)
     {
-      // NB: This means both `foo=` and `foo` will be accepted and result in a `{"foo": ""}` in the map
+      // NB: This means both `foo=` and `foo` will be accepted and result in a
+      // `{"foo": ""}` in the map
       const auto& [key, value] = nonstd::split_1(param, "=");
       parsed.emplace(key, value);
     }
@@ -31,7 +33,11 @@ namespace http
   }
 
   template <typename T>
-  static bool get_query_value(const ParsedQuery& pq, const std::string_view& param_key, T& val, std::string& error_reason)
+  static bool get_query_value(
+    const ParsedQuery& pq,
+    const std::string_view& param_key,
+    T& val,
+    std::string& error_reason)
   {
     const auto it = pq.find(param_key);
 
@@ -54,11 +60,8 @@ namespace http
         std::from_chars(param_val.begin(), param_val.end(), val);
       if (ec != std::errc() || p != param_val.end())
       {
-        error_reason = 
-          fmt::format(
-            "Unable to parse value '{}' in parameter '{}'",
-            param_val,
-            param_key);
+        error_reason = fmt::format(
+          "Unable to parse value '{}' in parameter '{}'", param_val, param_key);
         return false;
       }
 
@@ -66,15 +69,16 @@ namespace http
     }
     else
     {
-      static_assert(
-        nonstd::dependent_false<T>::value,
-        "Unsupported type");
+      static_assert(nonstd::dependent_false<T>::value, "Unsupported type");
       return false;
     }
   }
 
   template <typename T>
-  static std::optional<T> get_query_value_opt(const ParsedQuery& pq, const std::string_view& param_key, std::string& error_reason)
+  static std::optional<T> get_query_value_opt(
+    const ParsedQuery& pq,
+    const std::string_view& param_key,
+    std::string& error_reason)
   {
     T val;
     if (get_query_value(pq, param_key, val, error_reason))

@@ -201,6 +201,7 @@ namespace loggingapp
         ccf::json_read_only_adapter(get),
         auth_policies)
         .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
         .install();
       // SNIPPET_END: install_get
 
@@ -227,6 +228,7 @@ namespace loggingapp
       make_endpoint(
         "log/private", HTTP_DELETE, ccf::json_adapter(remove), auth_policies)
         .set_auto_schema<void, LoggingRemove::Out>()
+        .add_query_parameter<size_t>("id")
         .install();
 
       // SNIPPET_START: record_public
@@ -289,6 +291,7 @@ namespace loggingapp
         ccf::json_read_only_adapter(get_public),
         auth_policies)
         .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
         .install();
 
       auto remove_public = [this](ccf::EndpointContext& ctx, nlohmann::json&&) {
@@ -317,6 +320,7 @@ namespace loggingapp
         ccf::json_adapter(remove_public),
         auth_policies)
         .set_auto_schema<void, LoggingRemove::Out>()
+        .add_query_parameter<size_t>("id")
         .install();
 
       // SNIPPET_START: log_record_prefix_cert

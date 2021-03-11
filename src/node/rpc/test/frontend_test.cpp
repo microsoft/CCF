@@ -105,10 +105,13 @@ public:
     make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
 
     auto echo_query_function = [this](EndpointContext& ctx, nlohmann::json&&) {
-      const auto parsed_query = http::parse_query(ctx.rpc_ctx->get_request_query());
+      const auto parsed_query =
+        http::parse_query(ctx.rpc_ctx->get_request_query());
       return make_success(std::move(parsed_query));
     };
-    make_endpoint("echo_parsed_query", HTTP_POST, json_adapter(echo_query_function)).install();
+    make_endpoint(
+      "echo_parsed_query", HTTP_POST, json_adapter(echo_query_function))
+      .install();
 
     auto get_caller_function = [this](EndpointContext& ctx, nlohmann::json&&) {
       const auto& ident = ctx.get_caller<UserCertAuthnIdentity>();
@@ -423,18 +426,13 @@ http::Request create_signed_request(
   return s;
 }
 
-http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v, bool verbose=false)
+http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
 {
   http::SimpleResponseProcessor processor;
   http::ResponseParser parser(processor);
 
   parser.execute(v.data(), v.size());
   REQUIRE(processor.received.size() == 1);
-
-  if (verbose)
-  {
-    std::cout << std::string(v.begin(), v.end()) << std::endl;
-  }
 
   return processor.received.front();
 }
@@ -817,11 +815,12 @@ TEST_CASE("MinimalEndpointFunction")
     {
       INFO("Calling echo_query, with params in query");
       auto echo_call = create_simple_request("echo_parsed_query", pack_type);
-      const std::map<std::string, std::string> query_params = {{"foo", "helloworld"},
-                                       {"bar", "1"},
-                                       {"fooz", "\"2\""},
-                                       {"baz", "\"awkward\"\"escapes"}};
-      for (const auto& [k, v]: query_params)
+      const std::map<std::string, std::string> query_params = {
+        {"foo", "helloworld"},
+        {"bar", "1"},
+        {"fooz", "\"2\""},
+        {"baz", "\"awkward\"\"escapes"}};
+      for (const auto& [k, v] : query_params)
       {
         echo_call.set_query_param(k, v);
       }
@@ -829,7 +828,7 @@ TEST_CASE("MinimalEndpointFunction")
       const auto serialized_call = echo_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-      auto response = parse_response(frontend.process(rpc_ctx).value(), true);
+      auto response = parse_response(frontend.process(rpc_ctx).value());
       CHECK(response.status == HTTP_STATUS_OK);
 
       const auto response_body = parse_response_body(response.body, pack_type);

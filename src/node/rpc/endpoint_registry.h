@@ -285,8 +285,7 @@ namespace ccf
       {
         if constexpr (!std::is_same_v<In, void>)
         {
-          params_schema =
-            ds::json::build_schema<In>(dispatch.uri_path + "/params");
+          params_schema = ds::json::build_schema<In>();
 
           schema_builders.push_back(
             [](nlohmann::json& document, const EndpointPtr& endpoint) {
@@ -326,8 +325,7 @@ namespace ccf
         {
           success_status = status.value_or(HTTP_STATUS_OK);
 
-          result_schema =
-            ds::json::build_schema<Out>(dispatch.uri_path + "/result");
+          result_schema = ds::json::build_schema<Out>();
 
           schema_builders.push_back(
             [](nlohmann::json& document, const EndpointPtr& endpoint) {
@@ -373,6 +371,42 @@ namespace ccf
         std::optional<http_status> status = std::nullopt)
       {
         return set_auto_schema<typename T::In, typename T::Out>(status);
+      }
+
+      template <typename T>
+      Endpoint& add_query_parameter(
+        const std::string& param_name, bool required = true)
+      {
+        const auto query_schema = ds::json::build_schema<T>();
+        if (query_schema["type"] != "object")
+        {
+          throw std::logic_error(fmt::format(
+            "Unexpected query schema type: {}", query_schema.dump()));
+        }
+
+        schema_builders.push_back(
+          [param_name, required, query_schema](
+            nlohmann::json& document, const EndpointPtr& endpoint) {
+            const auto http_verb = endpoint->dispatch.verb.get_http_method();
+            if (!http_verb.has_value())
+            {
+              // Non-HTTP (ie WebSockets) endpoints are not documented
+              return;
+            }
+
+            auto parameter = nlohmann::json::object();
+            parameter["name"] = param_name;
+            parameter["in"] = "query";
+            parameter["required"] = required;
+            parameter["schema"] = query_schema;
+            ds::openapi::add_request_parameter_schema(
+              document,
+              endpoint->dispatch.uri_path,
+              http_verb.value(),
+              parameter);
+          });
+
+        return *this;
       }
 
       /** Overrides whether a Endpoint is always forwarded, or whether it is

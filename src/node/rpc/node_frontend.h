@@ -482,7 +482,7 @@ namespace ccf
           {
             status = NodeStatus::PENDING;
           }
-          else if(s == "TRUSTED")
+          else if (s == "TRUSTED")
           {
             status = NodeStatus::TRUSTED;
           }
@@ -495,7 +495,8 @@ namespace ccf
             return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidQueryParameterValue,
-              fmt::format("Query parameter '{}' is not a valid node status", s));
+              fmt::format(
+                "Query parameter '{}' is not a valid node status", s));
           }
         }
 
