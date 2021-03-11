@@ -609,13 +609,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME governance_js_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-  )
-
-  add_e2e_test(
     NAME governance_no_session_auth_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
