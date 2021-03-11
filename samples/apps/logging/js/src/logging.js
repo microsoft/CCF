@@ -35,7 +35,7 @@ export function get_historical(request) {
 
 export function get_historical_with_receipt(request) {
   const result = get_private(request);
-  result.body.receipt = ccf.state.receipt;
+  result.body.receipt = ccf.historicalState.receipt;
   return result;
 }
 

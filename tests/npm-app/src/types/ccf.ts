@@ -63,7 +63,7 @@ export interface Receipt {
   nodeId: string;
 }
 
-export interface State {
+export interface HistoricalState {
   transactionId: string;
   receipt: Receipt;
 }
@@ -99,7 +99,7 @@ export interface CCF {
   ): ArrayBuffer;
 
   kv: KVMaps;
-  state?: State;
+  historicalState?: HistoricalState;
 }
 
 export const ccf = globalThis.ccf as CCF;
