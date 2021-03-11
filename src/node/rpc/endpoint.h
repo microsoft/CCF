@@ -4,7 +4,7 @@
 
 #include "ds/json.h"
 #include "http/authentication/authentication_types.h"
-#include "kv/map.h"
+#include "node/service_map.h"
 
 #include <string>
 #include <utility>

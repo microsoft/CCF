@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "crypto/hash.h"
-#include "kv/map.h"
 #include "node_signature.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>

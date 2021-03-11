@@ -6,6 +6,5 @@
 
 namespace ccf
 {
-  using CertDERs = kv::Map<Cert, CallerId>;
   using CACertBundlePEMs = kv::Map<std::string, std::string>;
 }

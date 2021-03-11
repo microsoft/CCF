@@ -90,6 +90,8 @@ class PublicDomain:
         self._integrity_tables = {
             NODES_TABLE_NAME,
             SIGNATURE_TX_TABLE_NAME,
+            "public:ccf.gov.members.info",  # TODO: Remove: all tables should be JSON-deserialisable?
+            "public:ccf.gov.history",
         }
         self._read()
 
@@ -127,16 +129,12 @@ class PublicDomain:
                     k = self._read_next_entry()
                     val = self._read_next_entry()
                     if map_name in self._integrity_tables:
-                        # k = msgpack.unpackb(k, **UNPACK_ARGS)
-                        # val = msgpack.unpackb(val, **UNPACK_ARGS)
-                        # k = k.decode()
                         if map_name == NODES_TABLE_NAME:
                             k = k.decode()
 
                         val = json.loads(val)
-                        if map_name == SIGNATURE_TX_TABLE_NAME:
-                            LOG.error(val)
 
+                    LOG.error(val)
                     records[k] = val
 
             remove_count = self._read_next()
@@ -529,10 +527,6 @@ class Ledger:
 
     def __iter__(self):
         return self
-
-
-def extract_msgpacked_data(data: bytes):
-    return msgpack.unpackb(data, **UNPACK_ARGS)
 
 
 class InvalidRootException(Exception):

@@ -5,7 +5,6 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
-#include "kv/map.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
@@ -19,6 +18,7 @@
 #include "node/rpc/user_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
+#include "service_map.h"
 
 #include <doctest/doctest.h>
 #include <iostream>

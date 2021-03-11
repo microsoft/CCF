@@ -5,7 +5,7 @@
 #include "ds/hash.h"
 #include "ds/json.h"
 #include "entities.h"
-#include "kv/map.h"
+#include "service_map.h"
 
 #include <mbedtls/md.h>
 #include <msgpack/msgpack.hpp>

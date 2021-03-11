@@ -4,7 +4,7 @@
 
 #include "ds/json.h"
 #include "entities.h"
-#include "kv/map.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 

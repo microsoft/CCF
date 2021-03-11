@@ -42,9 +42,5 @@ for chunk in ledger:
             # Ledger verification is happening implicitly in ccf.ledger.Ledger()
             for key, value in public_tables[target_table].items():
                 target_table_changes += 1  # A key was changed
-                # Log the key and value for the transaction on the target table
-                # The target_table: 'public:ccf.gov.nodes.info' has already been decoded in ledger.py
-                # For other tables knowledge of serialization scheme used is important.
-                # If the table was using msgpack, use ccf.ledger.extract_msgpacked_data(data)
                 LOG.info(f"{key} : {value}")
 # SNIPPET_END: iterate_over_ledger

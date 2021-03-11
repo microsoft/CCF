@@ -3,7 +3,7 @@
 #pragma once
 
 #include "entities.h"
-#include "kv/map.h"
+#include "service_map.h"
 
 #include <map>
 #include <msgpack/msgpack.hpp>
@@ -124,10 +124,11 @@ namespace ccf
   // The key for this table is always 0. It is updated every time the member
   // recovery shares are updated, e.g. when the recovery threshold is modified
   // and when the ledger secret is updated
-  using RecoveryShares = kv::Map<size_t, RecoverySharesInfo>;
+  using RecoveryShares = ServiceMap<size_t, RecoverySharesInfo>;
 
   // The key for this table is always 0. It is updated every time the ledger
   // secret is updated, e.g. at startup or on ledger rekey. It is not updated on
   // a pure re-share.
-  using EncryptedLedgerSecretsInfo = kv::Map<size_t, EncryptedLedgerSecretInfo>;
+  using EncryptedLedgerSecretsInfo =
+    ServiceMap<size_t, EncryptedLedgerSecretInfo>;
 }
