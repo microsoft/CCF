@@ -70,10 +70,9 @@ namespace ccf
   DECLARE_JSON_TYPE(GetTxStatus::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, view, seqno, status)
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetNetworkInfo::Out)
+  DECLARE_JSON_TYPE(GetNetworkInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetNetworkInfo::Out, service_status, current_view, view_change_in_progress)
-  DECLARE_JSON_OPTIONAL_FIELDS(GetNetworkInfo::Out, primary_id)
+    GetNetworkInfo::Out, service_status, current_view, primary_id)
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(

@@ -86,5 +86,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     ViewChangeConfirmation, view, seqno, signature, view_change_messages);
 
-  using NewViewsMap = kv::Map<ObjectId, ViewChangeConfirmation>;
+  // Always recorded at key 0
+  using NewViewsMap = kv::Map<size_t, ViewChangeConfirmation>;
 }

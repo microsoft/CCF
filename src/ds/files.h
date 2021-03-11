@@ -17,7 +17,7 @@ namespace files
   /**
    * @brief Checks if a path exists
    *
-   * @param path path to check
+   * @param file file to check
    * @return true if the file exists.
    */
   bool exists(const std::string& file)

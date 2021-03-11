@@ -432,17 +432,10 @@ namespace ccf
           if (consensus != nullptr)
           {
             out.current_view = consensus->get_view();
-            out.view_change_in_progress = consensus->view_change_in_progress();
-
             auto primary_id = consensus->primary();
-            if (primary_id.has_value())
+            if (primary_id.has_value() && !consensus->view_change_in_progress())
             {
-              auto nodes = args.tx.ro(this->network.nodes);
-              auto info = nodes->get(primary_id.value());
-              if (info)
-              {
-                out.primary_id = primary_id.value();
-              }
+              out.primary_id = primary_id.value();
             }
           }
           return make_success(out);
