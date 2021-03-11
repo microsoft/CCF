@@ -47,11 +47,6 @@ def is_ledger_chunk_committed(file_name):
     return file_name.endswith(".committed")
 
 
-def read_blit_string_key(buffer):
-    size = to_uint_64(buffer[:8])
-    return (buffer[8 : 8 + size]).decode()
-
-
 class GcmHeader:
     _gcm_tag = ["\0"] * GCM_SIZE_TAG
     _gcm_iv = ["\0"] * GCM_SIZE_IV
@@ -133,7 +128,7 @@ class PublicDomain:
                         k = msgpack.unpackb(k, **UNPACK_ARGS)
                         val = msgpack.unpackb(val, **UNPACK_ARGS)
                     if map_name == NODES_TABLE_NAME:
-                        k = read_blit_string_key(k)
+                        # k = k.decode()
                         val = json.loads(val)
                     records[k] = val
 
@@ -240,6 +235,7 @@ class LedgerValidator:
         if NODES_TABLE_NAME in tables:
             node_table = tables[NODES_TABLE_NAME]
             for nodeid, values in node_table.items():
+                LOG.error(nodeid)
                 # Add the nodes certificate
                 self.node_certificates[nodeid] = values["cert"]
                 # Update node trust status

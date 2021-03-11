@@ -25,6 +25,7 @@ namespace ccf
   public:
     EntityId() = default;
     EntityId(const Value& id_) : id(id_) {}
+    EntityId(Value&& id_) : id(std::move(id_)) {}
 
     void operator=(const EntityId& other)
     {
@@ -141,20 +142,13 @@ namespace kv::serialisers
   {
     static SerialisedEntry to_serialised(const ccf::EntityId& entity_id)
     {
-      // TODO: Should we serialise the string directly (i.e. without prefix) so
-      // that it is easier to read, at the cost of future flexibility?
-      auto total_size = sizeof(size_t) + entity_id.size(); // Size-prefixed
-      SerialisedEntry data(total_size);
-      auto data_ = data.data();
-      serialized::write(data_, total_size, entity_id.value());
-      return data;
+      const auto& data = entity_id.value();
+      return SerialisedEntry(data.begin(), data.end());
     }
 
     static ccf::EntityId from_serialised(const SerialisedEntry& data)
     {
-      auto data_ = data.data();
-      auto size = data.size();
-      return serialized::read<ccf::EntityId::Value>(data_, size);
+      return ccf::EntityId(std::string(data.begin(), data.end()));
     }
   };
 }
