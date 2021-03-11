@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the Apache 2.0 License.
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
 
 #pragma once
 
@@ -15,22 +15,6 @@
 #include <sstream>
 #include <stack>
 #include <vector>
-
-#ifdef WIN32
-#  include <stdlib.h>
-#  if BYTE_ORDER == LITTLE_ENDIAN
-#    define htobe32(X) _byteswap_ulong(X)
-#    define be32toh(X) _byteswap_ulong(X)
-#    define htobe64(X) _byteswap_uint64(X)
-#    define be64toh(X) _byteswap_uint64(X)
-#  else
-#    define htobe32(X) (X)
-#    define be32toh(X) (X)
-#    define htobe64(X) (X)
-#    define be64toh(X) (X)
-#  endif
-#  undef max
-#endif
 
 #ifdef HAVE_OPENSSL
 #  include <openssl/sha.h>
@@ -57,41 +41,74 @@
 #  define MERKLECPP_TRACE(X)
 #endif
 
+#define MERKLECPP_VERSION_MAJOR 1
+#define MERKLECPP_VERSION_MINOR 0
+#define MERKLECPP_VERSION_PATCH 0
+
 namespace merkle
 {
-  static inline void serialise_size_t(size_t size, std::vector<uint8_t>& bytes)
+  static inline uint32_t convert_endianness(uint32_t n)
   {
-    size_t size_be = htobe64(size);
-    uint8_t* size_bytes = (uint8_t*)&size_be;
-    for (size_t i = 0; i < sizeof(size_t); i++)
-      bytes.push_back(size_bytes[i]);
+    const uint32_t sz = sizeof(uint32_t);
+#if defined(htobe32)
+    // If htobe32 happens to be a macro, use it.
+    return htobe32(n);
+#elif defined(__LITTLE_ENDIAN__) || defined(__LITTLE_ENDIAN)
+    // Just as fast.
+    uint32_t r = 0;
+    for (size_t i = 0; i < sz; i++)
+      r |= ((n >> (8 * ((sz - 1) - i))) & 0xFF) << (8 * i);
+    return *reinterpret_cast<uint32_t*>(&r);
+#else
+    // A little slower, but works for both endiannesses.
+    uint8_t r[8];
+    for (size_t i = 0; i < sz; i++)
+      r[i] = (n >> (8 * ((sz - 1) - i))) & 0xFF;
+    return *reinterpret_cast<uint32_t*>(&r);
+#endif
   }
 
-  static inline size_t deserialise_size_t(
+  static inline void serialise_uint64_t(uint64_t n, std::vector<uint8_t>& bytes)
+  {
+    size_t sz = sizeof(uint64_t);
+    bytes.reserve(bytes.size() + sz);
+    for (uint64_t i = 0; i < sz; i++)
+      bytes.push_back((n >> (8 * (sz - i - 1))) & 0xFF);
+  }
+
+  static inline uint64_t deserialise_uint64_t(
     const std::vector<uint8_t>& bytes, size_t& index)
   {
-    size_t result = 0;
-    uint8_t* result_bytes = (uint8_t*)&result;
-    for (size_t i = 0; i < sizeof(size_t); i++)
-      result_bytes[i] = bytes[index++];
-    return be64toh(result);
+    uint64_t r = 0;
+    uint64_t sz = sizeof(uint64_t);
+    for (uint64_t i = 0; i < sz; i++)
+      r |= static_cast<uint64_t>(bytes[index++]) << (8 * (sz - i - 1));
+    return r;
   }
 
+  /// @brief Template for fixed-size hashes
+  /// @tparam SIZE Size of the hash in number of bytes
   template <size_t SIZE>
   struct HashT
   {
+    /// Holds the hash bytes
     uint8_t bytes[SIZE];
 
+    /// @brief Constructs a Hash with all bytes set to zero
     HashT<SIZE>()
     {
       std::fill(bytes, bytes + SIZE, 0);
     }
 
+    /// @brief Constructs a Hash from a byte buffer
+    /// @param bytes Buffer with hash value
     HashT<SIZE>(const uint8_t* bytes)
     {
       std::copy(bytes, bytes + SIZE, this->bytes);
     }
 
+    /// @brief Constructs a Hash from a string
+    /// @param s String to read the hash value from
     HashT<SIZE>(const std::string& s)
     {
       if (s.length() != 2 * SIZE)
@@ -104,60 +121,81 @@ namespace merkle
       }
     }
 
+    /// @brief Deserialises a Hash from a vector of bytes
+    /// @param bytes Vector to read the hash value from
     HashT<SIZE>(const std::vector<uint8_t>& bytes)
     {
       if (bytes.size() < SIZE)
         throw std::runtime_error("not enough bytes");
-      apply(bytes);
+      deserialise(bytes);
     }
 
+    /// @brief Deserialises a Hash from a vector of bytes
+    /// @param bytes Vector to read the hash value from
+    /// @param position Position of the first byte in @p bytes
     HashT<SIZE>(const std::vector<uint8_t>& bytes, size_t& position)
     {
       if (bytes.size() - position < SIZE)
         throw std::runtime_error("not enough bytes");
-      apply(bytes, position);
+      deserialise(bytes, position);
     }
 
+    /// @brief Deserialises a Hash from an array of bytes
+    /// @param bytes Array to read the hash value from
     HashT<SIZE>(const std::array<uint8_t, SIZE>& bytes)
     {
       std::copy(bytes.data(), bytes.data() + SIZE, this->bytes);
     }
 
+    /// @brief The size of the hash (in number of bytes)
     size_t size() const
     {
       return SIZE;
     }
 
+    /// @brief The size of the serialisation of the hash (in number of bytes)
     size_t serialised_size() const
     {
       return SIZE;
     }
 
-    std::string to_string(size_t num_bytes = SIZE) const
+    /// @brief Convert a hash to a hex-encoded string
+    /// @param num_bytes The maximum number of bytes to convert
+    /// @param lower_case Enables lower-case hex characters
+    std::string to_string(size_t num_bytes = SIZE, bool lower_case = true) const
     {
       size_t num_chars = 2 * num_bytes;
       std::string r(num_chars, '_');
       for (size_t i = 0; i < num_bytes; i++)
-        snprintf(r.data() + 2 * i, num_chars + 1 - 2 * i, "%02x", bytes[i]);
+        snprintf(
+          const_cast<char*>(r.data() + 2 * i),
+          num_chars + 1 - 2 * i,
+          lower_case ? "%02x" : "%02X",
+          bytes[i]);
       return r;
     }
 
+    /// @brief Hash assignment operator
     HashT<SIZE> operator=(const HashT<SIZE>& other)
     {
       std::copy(other.bytes, other.bytes + SIZE, bytes);
       return *this;
     }
 
+    /// @brief Hash equality operator
     bool operator==(const HashT<SIZE>& other) const
     {
       return memcmp(bytes, other.bytes, SIZE) == 0;
     }
 
+    /// @brief Hash inequality operator
     bool operator!=(const HashT<SIZE>& other) const
     {
       return memcmp(bytes, other.bytes, SIZE) != 0;
     }
 
+    /// @brief Serialises a hash
+    /// @param buffer Buffer to serialise to
     void serialise(std::vector<uint8_t>& buffer) const
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> HashT::serialise " << std::endl);
@@ -165,7 +203,10 @@ namespace merkle
         buffer.push_back(b);
     }
 
-    void apply(const std::vector<uint8_t>& buffer, size_t& position)
+    /// @brief Deserialises a hash
+    /// @param buffer Buffer to read the hash from
+    /// @param position Position of the first byte in @p bytes
+    void deserialise(const std::vector<uint8_t>& buffer, size_t& position)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> HashT::deserialise " << std::endl);
       if (buffer.size() - position < SIZE)
@@ -174,12 +215,15 @@ namespace merkle
         bytes[i] = buffer[position++];
     }
 
-    void apply(const std::vector<uint8_t>& buffer)
+    /// @brief Deserialises a hash
+    /// @param buffer Buffer to read the hash from
+    void deserialise(const std::vector<uint8_t>& buffer)
     {
       size_t position = 0;
-      apply(buffer, position);
+      deserialise(buffer, position);
     }
 
+    /// @brief Conversion operator to vector of bytes
     operator std::vector<uint8_t>() const
     {
       std::vector<uint8_t> bytes;
@@ -188,27 +232,42 @@ namespace merkle
     }
   };
 
+  /// @brief Template for Merkle paths
+  /// @tparam HASH_SIZE Size of each hash in number of bytes
+  /// @tparam HASH_FUNCTION The hash function
   template <
     size_t HASH_SIZE,
-    void (*HASH_FUNCTION)(
+    void HASH_FUNCTION(
       const HashT<HASH_SIZE>& l,
       const HashT<HASH_SIZE>& r,
       HashT<HASH_SIZE>& out)>
   class PathT
   {
   public:
+    /// @brief Path direction
     typedef enum
     {
       PATH_LEFT,
       PATH_RIGHT
     } Direction;
 
+    /// @brief Path element
     typedef struct
     {
-      HashT<HASH_SIZE> hash; // This is a copy; do we want a shared_ptr<HashT>?
+      /// @brief The hash of the path element
+      HashT<HASH_SIZE> hash;
+
+      /// @brief The direction at which @p hash joins at this path element
+      /// @note If @p direction == PATH_LEFT, @p hash joins at the left, i.e.
+      /// if t is the current hash, e.g. a leaf, then t' = Hash( @p hash, t );
       Direction direction;
     } Element;
 
+    /// @brief Path constructor
+    /// @param leaf
+    /// @param leaf_index
+    /// @param elements
+    /// @param max_index
     PathT(
       const HashT<HASH_SIZE>& leaf,
       size_t leaf_index,
@@ -220,28 +279,40 @@ namespace merkle
       elements(elements)
     {}
 
+    /// @brief Path copy constructor
+    /// @param other Path to copy
     PathT(const PathT& other)
     {
       _leaf = other._leaf;
       elements = other.elements;
     }
 
+    /// @brief Path move constructor
+    /// @param other Path to move
     PathT(PathT&& other)
     {
       _leaf = std::move(other._leaf);
       elements = std::move(other.elements);
     }
 
+    /// @brief Deserialises a path
+    /// @param bytes Vector to deserialise from
     PathT(const std::vector<uint8_t>& bytes)
     {
-      apply(bytes);
+      deserialise(bytes);
     }
 
+    /// @brief Deserialises a path
+    /// @param bytes Vector to deserialise from
+    /// @param position Position of the first byte in @p bytes
     PathT(const std::vector<uint8_t>& bytes, size_t& position)
     {
-      apply(bytes, position);
+      deserialise(bytes, position);
     }
 
+    /// @brief Computes the root at the end of the path
+    /// @note This (re-)computes the root by hashing the path elements, it does
+    /// not return a previously saved root hash.
     std::shared_ptr<HashT<HASH_SIZE>> root() const
     {
       std::shared_ptr<HashT<HASH_SIZE>> result =
@@ -274,18 +345,23 @@ namespace merkle
       return result;
     }
 
+    /// @brief Verifies that the root at the end of the path is expected
+    /// @param expected_root The root hash that the elements on the path are
+    /// expected to hash to.
     bool verify(const HashT<HASH_SIZE>& expected_root) const
     {
       return *root() == expected_root;
     }
 
+    /// @brief Serialises a path
+    /// @param bytes Vector of bytes to serialise to
     void serialise(std::vector<uint8_t>& bytes) const
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> PathT::serialise " << std::endl);
       _leaf.serialise(bytes);
-      serialise_size_t(_leaf_index, bytes);
-      serialise_size_t(_max_index, bytes);
-      serialise_size_t(elements.size(), bytes);
+      serialise_uint64_t(_leaf_index, bytes);
+      serialise_uint64_t(_max_index, bytes);
+      serialise_uint64_t(elements.size(), bytes);
       for (auto& e : elements)
       {
         e.hash.serialise(bytes);
@@ -293,14 +369,17 @@ namespace merkle
       }
     }
 
-    void apply(const std::vector<uint8_t>& bytes, size_t& position)
+    /// @brief Deserialises a path
+    /// @param bytes Vector of bytes to serialise from
+    /// @param position Position of the first byte in @p bytes
+    void deserialise(const std::vector<uint8_t>& bytes, size_t& position)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> PathT::deserialise " << std::endl);
       elements.clear();
-      _leaf.apply(bytes, position);
-      _leaf_index = deserialise_size_t(bytes, position);
-      _max_index = deserialise_size_t(bytes, position);
-      size_t num_elements = deserialise_size_t(bytes, position);
+      _leaf.deserialise(bytes, position);
+      _leaf_index = deserialise_uint64_t(bytes, position);
+      _max_index = deserialise_uint64_t(bytes, position);
+      size_t num_elements = deserialise_uint64_t(bytes, position);
       for (size_t i = 0; i < num_elements; i++)
       {
         HashT<HASH_SIZE> hash(bytes, position);
@@ -313,12 +392,15 @@ namespace merkle
       }
     }
 
-    void apply(const std::vector<uint8_t>& bytes)
+    /// @brief Deserialises a path
+    /// @param bytes Vector of bytes to serialise from
+    void deserialise(const std::vector<uint8_t>& bytes)
     {
       size_t position = 0;
-      apply(bytes, position);
+      deserialise(bytes, position);
     }
 
+    /// @brief Conversion operator to vector of bytes
     operator std::vector<uint8_t>() const
     {
       std::vector<uint8_t> bytes;
@@ -326,58 +408,73 @@ namespace merkle
       return bytes;
     }
 
+    /// @brief The number of elements on the path
     size_t size() const
     {
       return elements.size();
     }
 
+    /// @brief The size of the serialised path in number of bytes
     size_t serialised_size() const
     {
       return sizeof(_leaf) + elements.size() * sizeof(Element);
     }
 
+    /// @brief Index of the leaf of the path
     size_t leaf_index() const
     {
       return _leaf_index;
     }
 
+    /// @brief Maximum index of the tree at the time the path was extracted
     size_t max_index() const
     {
       return _max_index;
     }
 
+    /// @brief Operator to extract the hash of a given path element
+    /// @param i Index of the path element
     const HashT<HASH_SIZE>& operator[](size_t i) const
     {
       return std::next(begin(), i)->hash;
     }
 
+    /// @brief Iterator for path elements
     typedef typename std::list<Element>::const_iterator const_iterator;
 
+    /// @brief Start iterator for path elements
     const_iterator begin() const
     {
       return elements.begin();
     }
 
+    /// @brief End iterator for path elements
     const_iterator end() const
     {
       return elements.end();
     }
 
-    std::string to_string(size_t num_bytes = HASH_SIZE) const
+    /// @brief Convert a path to a string
+    /// @param num_bytes The maximum number of bytes to convert
+    /// @param lower_case Enables lower-case hex characters
+    std::string to_string(
+      size_t num_bytes = HASH_SIZE, bool lower_case = true) const
     {
       std::stringstream stream;
       stream << _leaf.to_string(num_bytes);
       for (auto& e : elements)
-        stream << " " << e.hash.to_string(num_bytes)
+        stream << " " << e.hash.to_string(num_bytes, lower_case)
                << (e.direction == PATH_LEFT ? "(L)" : "(R)");
       return stream.str();
     }
 
+    /// @brief The leaf hash of the path
     const HashT<HASH_SIZE>& leaf() const
     {
       return _leaf;
     }
 
+    /// @brief Equality operator for paths
     bool operator==(const PathT<HASH_SIZE, HASH_FUNCTION>& other) const
     {
       if (_leaf != other._leaf || elements.size() != other.elements.size())
@@ -394,28 +491,43 @@ namespace merkle
       return true;
     }
 
+    /// @brief Inequality operator for paths
     bool operator!=(const PathT<HASH_SIZE, HASH_FUNCTION>& other)
     {
       return !this->operator==(other);
     }
 
   protected:
+    /// @brief The leaf hash
     HashT<HASH_SIZE> _leaf;
-    size_t _leaf_index, _max_index;
+
+    /// @brief The index of the leaf
+    size_t _leaf_index;
+
+    /// @brief The maximum leaf index of the tree at the time of path extraction
+    size_t _max_index;
+
+    /// @brief The elements of the path
     std::list<Element> elements;
   };
 
+  /// @brief Template for Merkle trees
+  /// @tparam HASH_SIZE Size of each hash in number of bytes
+  /// @tparam HASH_FUNCTION The hash function
   template <
     size_t HASH_SIZE,
-    void (*HASH_FUNCTION)(
+    void HASH_FUNCTION(
       const HashT<HASH_SIZE>& l,
       const HashT<HASH_SIZE>& r,
       HashT<HASH_SIZE>& out)>
   class TreeT
   {
   protected:
+    /// @brief The structure of tree nodes
     struct Node
     {
+      /// @brief Constructs a new tree node
+      /// @param hash The hash of the node
       static Node* make(const HashT<HASH_SIZE>& hash)
       {
         auto r = new Node();
@@ -427,6 +539,9 @@ namespace merkle
         return r;
       }
 
+      /// @brief Constructs a new tree node
+      /// @param left The left child of the new node
+      /// @param right The right child of the new node
       static Node* make(Node* left, Node* right)
       {
         assert(left && right);
@@ -439,6 +554,13 @@ namespace merkle
         return r;
       }
 
+      /// @brief Copies a tree node
+      /// @param from Node to copy
+      /// @param leaf_nodes Current leaf nodes of the tree
+      /// @param num_flushed Number of flushed nodes of the tree
+      /// @param min_index Minimum leaf index of the tree
+      /// @param max_index Maximum leaf index of the tree
+      /// @param indent Indentation of trace output
       static Node* copy_node(
         const Node* from,
         std::vector<Node*>* leaf_nodes = nullptr,
@@ -478,6 +600,9 @@ namespace merkle
         return r;
       }
 
+      /// @brief Checks invariant of a tree node
+      /// @note This indicates whether some basic properties of the tree
+      /// construction are violated.
       bool invariant()
       {
         bool c1 = (left && right) || (!left && !right);
@@ -498,6 +623,9 @@ namespace merkle
         delete (right);
       }
 
+      /// @brief Indicates whether a subtree is full
+      /// @note A subtree is full if the number of nodes under a tree is
+      /// 2**height-1.
       bool is_full() const
       {
         size_t max_size = (1 << height) - 1;
@@ -505,6 +633,7 @@ namespace merkle
         return size == max_size;
       }
 
+      /// @brief Updates the tree size and height of the subtree under a node
       void update_sizes()
       {
         if (left && right)
@@ -516,23 +645,48 @@ namespace merkle
           size = height = 1;
       }
 
+      /// @brief The Hash of the node
       HashT<HASH_SIZE> hash;
-      Node *left, *right;
+
+      /// @brief The left child of the node
+      Node* left;
+
+      /// @brief The right child of the node
+      Node* right;
+
+      /// @brief The size of the subtree
       size_t size;
+
+      /// @brief The height of the subtree
       uint8_t height;
+
+      /// @brief Dirty flag for the hash
+      /// @note The @p hash is only correct if this flag is false, otherwise
+      /// it needs to be computed by calling hash() on the node.
       bool dirty;
     };
 
   public:
+    /// @brief The type of hashes in the tree
     typedef HashT<HASH_SIZE> Hash;
+
+    /// @brief The type of paths in the tree
     typedef PathT<HASH_SIZE, HASH_FUNCTION> Path;
+
+    /// @brief The type of the tree
     typedef TreeT<HASH_SIZE, HASH_FUNCTION> Tree;
 
+    /// @brief Constructs an empty tree
     TreeT() {}
+
+    /// @brief Copies a tree
     TreeT(const TreeT& other)
     {
       *this = other;
     }
+
+    /// @brief Moves a tree
+    /// @param other Tree to move
     TreeT(TreeT&& other) :
       leaf_nodes(std::move(other.leaf_nodes)),
       uninserted_leaf_nodes(std::move(other.uninserted_leaf_nodes)),
@@ -542,18 +696,30 @@ namespace merkle
       hashing_stack(std::move(other.hashing_stack)),
       walk_stack(std::move(other.walk_stack))
     {}
+
+    /// @brief Deserialises a tree
+    /// @param bytes Byte buffer containing a serialised tree
     TreeT(const std::vector<uint8_t>& bytes)
     {
-      apply(bytes);
+      deserialise(bytes);
     }
+
+    /// @brief Deserialises a tree
+    /// @param bytes Byte buffer containing a serialised tree
+    /// @param position Position of the first byte within @p bytes
     TreeT(const std::vector<uint8_t>& bytes, size_t& position)
     {
-      apply(bytes, position);
+      deserialise(bytes, position);
     }
+
+    /// @brief Constructs a tree containing one root hash
+    /// @param root Root hash of the tree
     TreeT(const Hash& root)
     {
       insert(root);
     }
+
+    /// @brief Deconstructor
     ~TreeT()
     {
       delete (_root);
@@ -561,16 +727,21 @@ namespace merkle
         delete (n);
     }
 
+    /// @brief Invariant of the tree
     bool invariant()
     {
       return _root ? _root->invariant() : true;
     }
 
+    /// @brief Inserts a hash into the tree
+    /// @param hash Hash to insert
     void insert(const uint8_t* hash)
     {
       insert(Hash(hash));
     }
 
+    /// @brief Inserts a hash into the tree
+    /// @param hash Hash to insert
     void insert(const Hash& hash)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> insert "
@@ -580,18 +751,26 @@ namespace merkle
       statistics.num_insert++;
     }
 
+    /// @brief Inserts multiple hashes into the tree
+    /// @param hashes Vector of hashes to insert
     void insert(const std::vector<Hash>& hashes)
     {
       for (auto hash : hashes)
         insert(hash);
     }
 
+    /// @brief Inserts multiple hashes into the tree
+    /// @param hashes List of hashes to insert
     void insert(const std::list<Hash>& hashes)
     {
       for (auto hash : hashes)
         insert(hash);
     }
 
+    /// @brief Flush the tree to some leaf
+    /// @param index Leaf index to flush the tree to
+    /// @note This invalidates all indicies smaller than @p index and
+    /// no paths from them to the root can be extracted anymore.
     void flush_to(size_t index)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> flush_to " << index << std::endl;);
@@ -623,6 +802,10 @@ namespace merkle
       num_flushed += num_newly_flushed;
     }
 
+    /// @brief Retracts a tree up to some leaf index
+    /// @param index Leaf index to retract the tree to
+    /// @note This invalidates all indicies greater than @p index and
+    /// no paths from them to the root can be extracted anymore.
     void retract_to(size_t index)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> retract_to " << index << std::endl;);
@@ -702,6 +885,9 @@ namespace merkle
       assert(num_leaves() == index + 1);
     }
 
+    /// @brief Assigns a tree
+    /// @param other The tree to assign
+    /// @return The tree
     Tree& operator=(const Tree& other)
     {
       leaf_nodes.clear();
@@ -727,6 +913,8 @@ namespace merkle
       return *this;
     }
 
+    /// @brief Extracts the root hash of the tree
+    /// @return The root hash
     const Hash& root()
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> root" << std::endl;);
@@ -739,6 +927,13 @@ namespace merkle
       return _root->hash;
     }
 
+    /// @brief Extracts a past root hash
+    /// @param index The last leaf index to consider
+    /// @return The root hash
+    /// @note This extracts the root hash of the tree at a past state, when
+    /// @p index was the last, right-most leaf index in the tree. It is
+    /// equivalent to retracting the tree to @p index and then extracting the
+    /// root.
     std::shared_ptr<Hash> past_root(size_t index)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> past_root " << index << std::endl;);
@@ -759,8 +954,15 @@ namespace merkle
       return result;
     }
 
-    Node* walk_to(
-      size_t index, bool update, std::function<bool(Node*&, bool)> f)
+    /// @brief Walks along the path from the root of a tree to a leaf
+    /// @param index The leaf index to walk to
+    /// @param update Flag to enable re-computation of node fields (like
+    /// subtree size) while walking
+    /// @param f Function to call for each node on the path; the Boolean
+    /// indicates whether the current step is a right or left turn.
+    /// @return The final leaf node in the walk
+    inline Node* walk_to(
+      size_t index, bool update, const std::function<bool(Node*&, bool)>&& f)
     {
       if (index < min_index() || max_index() < index)
         throw std::runtime_error("invalid leaf index");
@@ -807,6 +1009,9 @@ namespace merkle
       return cur;
     }
 
+    /// @brief Extracts the path from a leaf index to the root of the tree
+    /// @param index The leaf index of the path to extract
+    /// @return The path
     std::shared_ptr<Path> path(size_t index)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> path from " << index << std::endl;);
@@ -825,6 +1030,13 @@ namespace merkle
         leaf_node(index)->hash, index, std::move(elements), max_index());
     }
 
+    /// @brief Extracts a past path from a leaf index to the root of the tree
+    /// @param index The leaf index of the path to extract
+    /// @param as_of The maximum leaf index to consider
+    /// @return The past path
+    /// @note This extracts a path at a past state, when @p as_of was the last,
+    /// right-most leaf index in the tree. It is equivalent to retracting the
+    /// tree to @p as_of and then extracting the path of @p index.
     std::shared_ptr<Path> past_path(size_t index, size_t as_of)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> past_path from " << index
@@ -989,12 +1201,15 @@ namespace merkle
         leaf_node(index)->hash, index, std::move(path), as_of);
     }
 
+    /// @brief Serialises the tree
+    /// @param bytes The vector of bytes to serialise to
     void serialise(std::vector<uint8_t>& bytes)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> serialise " << std::endl;);
 
-      serialise_size_t(leaf_nodes.size() + uninserted_leaf_nodes.size(), bytes);
-      serialise_size_t(num_flushed, bytes);
+      serialise_uint64_t(
+        leaf_nodes.size() + uninserted_leaf_nodes.size(), bytes);
+      serialise_uint64_t(num_flushed, bytes);
       for (auto& n : leaf_nodes)
         n->hash.serialise(bytes);
       for (auto& n : uninserted_leaf_nodes)
@@ -1021,6 +1236,10 @@ namespace merkle
       }
     }
 
+    /// @brief Serialises a segment of the tree
+    /// @param from Smalles leaf index to include
+    /// @param to Greatest leaf index to include
+    /// @param bytes The vector of bytes to serialise to
     void serialise(size_t from, size_t to, std::vector<uint8_t>& bytes)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> serialise from " << from << " to "
@@ -1031,8 +1250,8 @@ namespace merkle
         (to < min_index() || max_index() < to) || from > to)
         throw std::runtime_error("invalid leaf indices");
 
-      serialise_size_t(to - from + 1, bytes);
-      serialise_size_t(from, bytes);
+      serialise_uint64_t(to - from + 1, bytes);
+      serialise_uint64_t(from, bytes);
       for (size_t i = from; i <= to; i++)
         leaf(i).serialise(bytes);
 
@@ -1057,13 +1276,18 @@ namespace merkle
       }
     }
 
-    void apply(const std::vector<uint8_t>& bytes)
+    /// @brief Deserialises a tree
+    /// @param bytes The vector of bytes to deserialise from
+    void deserialise(const std::vector<uint8_t>& bytes)
     {
       size_t position = 0;
-      apply(bytes, position);
+      deserialise(bytes, position);
     }
 
-    void apply(const std::vector<uint8_t>& bytes, size_t& position)
+    /// @brief Deserialises a tree
+    /// @param bytes The vector of bytes to deserialise from
+    /// @param position Position of the first byte in @p bytes
+    void deserialise(const std::vector<uint8_t>& bytes, size_t& position)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> deserialise " << std::endl;);
 
@@ -1077,8 +1301,8 @@ namespace merkle
       walk_stack.clear();
       _root = nullptr;
 
-      size_t num_leaf_nodes = deserialise_size_t(bytes, position);
-      num_flushed = deserialise_size_t(bytes, position);
+      size_t num_leaf_nodes = deserialise_uint64_t(bytes, position);
+      num_flushed = deserialise_uint64_t(bytes, position);
 
       leaf_nodes.reserve(num_leaf_nodes);
       for (size_t i = 0; i < num_leaf_nodes; i++)
@@ -1135,6 +1359,7 @@ namespace merkle
       }
     }
 
+    /// @brief Operator to serialise the tree
     operator std::vector<uint8_t>() const
     {
       std::vector<uint8_t> bytes;
@@ -1142,11 +1367,17 @@ namespace merkle
       return bytes;
     }
 
+    /// @brief Operator to extract a leaf hash from the tree
+    /// @param index Leaf index of the leaf to extract
+    /// @return The leaf hash
     const Hash& operator[](size_t index) const
     {
       return leaf(index);
     }
 
+    /// @brief Extract a leaf hash from the tree
+    /// @param index Leaf index of the leaf to extract
+    /// @return The leaf hash
     const Hash& leaf(size_t index) const
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> leaf " << index << std::endl;);
@@ -1159,27 +1390,45 @@ namespace merkle
         return leaf_nodes[index - num_flushed]->hash;
     }
 
+    /// @brief Number of leaves in the tree
+    /// @note This is the abstract number of leaves in the tree (including
+    /// flushed leaves), not the number of nodes in memory.
+    /// @return The number of leaves in the tree
     size_t num_leaves() const
     {
       return num_flushed + leaf_nodes.size() + uninserted_leaf_nodes.size();
     }
 
+    /// @brief Minimum leaf index
+    /// @note The smallest leaf index for which it is safe to extract roots and
+    /// paths.
+    /// @return The minumum leaf index
     size_t min_index() const
     {
       return num_flushed;
     }
 
+    /// @brief Maximum leaf index
+    /// @note The greatest leaf index for which it is safe to extract roots and
+    /// paths.
+    /// @return The maximum leaf index
     size_t max_index() const
     {
       auto n = num_leaves();
       return n == 0 ? 0 : n - 1;
     }
 
+    /// @brief Indicates whether the tree is empty
+    /// @return Boolean that indicates whether the tree is empty
     bool empty() const
     {
       return num_leaves() == 0;
     }
 
+    /// @brief Computes the size of the tree
+    /// @note This is the number of nodes in the tree, including leaves and
+    /// internal nodes.
+    /// @return The size of the tree
     size_t size()
     {
       if (!uninserted_leaf_nodes.empty())
@@ -1187,6 +1436,9 @@ namespace merkle
       return _root ? _root->size : 0;
     }
 
+    /// @brief Computes the minumal number of bytes required to serialise the
+    /// tree
+    /// @return The number of bytes required to serialise the tree
     size_t serialised_size()
     {
       size_t num_extras = 0;
@@ -1204,6 +1456,10 @@ namespace merkle
         leaf_nodes.size() * sizeof(Hash) + num_extras * sizeof(Hash);
     }
 
+    /// @brief The number of bytes required to serialise a segment of the tree
+    /// @param from The smallest leaf index to include
+    /// @param to The greatest leaf index to include
+    /// @return The number of bytes required to serialise the tree segment
     size_t serialised_size(size_t from, size_t to)
     {
       size_t num_extras = 0;
@@ -1217,26 +1473,51 @@ namespace merkle
         (to - from + 1) * sizeof(Hash) + num_extras * sizeof(Hash);
     }
 
+    /// @brief Structure to hold statistical information
     mutable struct Statistics
     {
-      size_t num_insert = 0, num_hash = 0;
-      size_t num_root = 0, num_past_root = 0;
-      size_t num_flush = 0, num_retract = 0;
-      size_t num_split = 0, num_paths = 0;
+      /// @brief The number of hashes taken by the tree via hash()
+      size_t num_hash = 0;
+
+      /// @brief The number of insert() opertations performed on the tree
+      size_t num_insert = 0;
+
+      /// @brief The number of root() opertations performed on the tree
+      size_t num_root = 0;
+
+      /// @brief The number of past_root() opertations performed on the tree
+      size_t num_past_root = 0;
+
+      /// @brief The number of flush_to() opertations performed on the tree
+      size_t num_flush = 0;
+
+      /// @brief The number of retract_to() opertations performed on the tree
+      size_t num_retract = 0;
+
+      /// @brief The number of paths extracted from the tree via path()
+      size_t num_paths = 0;
+
+      /// @brief The number of past paths extracted from the tree via
+      /// past_path()
       size_t num_past_paths = 0;
 
+      /// @brief String representation of the statistics
       std::string to_string() const
       {
         std::stringstream stream;
         stream << "num_insert=" << num_insert << " num_hash=" << num_hash
                << " num_root=" << num_root << " num_retract=" << num_retract
-               << " num_flush=" << num_flush << " num_split=" << num_split
-               << " num_paths=" << num_paths
+               << " num_flush=" << num_flush << " num_paths=" << num_paths
                << " num_past_paths=" << num_past_paths;
         return stream.str();
       }
-    } statistics;
+    }
+    /// @brief Statistics
+    statistics;
 
+    /// @brief Prints an ASCII representation of the tree to a stream
+    /// @param num_bytes The number of bytes of each node hash to print
+    /// @return A string representing the tree
     std::string to_string(size_t num_bytes = HASH_SIZE) const
     {
       static const std::string dirty_hash(2 * num_bytes, '?');
@@ -1286,20 +1567,49 @@ namespace merkle
     }
 
   protected:
+    /// @brief Vector of leaf nodes current in the tree
     std::vector<Node*> leaf_nodes;
+
+    /// @brief Vector of leaf nodes to be inserted in the tree
+    /// @note These nodes are conceptually inserted, but no Node objects have
+    /// been inserted for them yet.
     std::vector<Node*> uninserted_leaf_nodes;
+
+    /// @brief Number of flushed nodes
     size_t num_flushed = 0;
+
+    /// @brief Current root node of the tree
     Node* _root = nullptr;
 
+  private:
+    /// @brief The structure of elements on the insertion stack
     typedef struct
     {
+      /// @brief The tree node to insert
       Node* n;
+      /// @brief Flag to indicate whether @p n should be inserted into the
+      ///  left or the right subtree of the current position in the tree.
       bool left;
     } InsertionStackElement;
+
+    /// @brief The insertion stack
+    /// @note To avoid actual recursion, this holds the stack/continuation for
+    /// tree node insertion.
     mutable std::vector<InsertionStackElement> insertion_stack;
+
+    /// @brief The hashing stack
+    /// @note To avoid actual recursion, this holds the stack/continuation for
+    /// hashing (parts of the) nodes of a tree.
     mutable std::vector<Node*> hashing_stack;
+
+    /// @brief The walk stack
+    /// @note To avoid actual recursion, this holds the stack/continuation for
+    /// walking down the tree from the root to a leaf.
     mutable std::vector<Node*> walk_stack;
 
+  protected:
+    /// @brief Finds the leaf node corresponding to @p index
+    /// @param index The leaf node index
     const Node* leaf_node(size_t index) const
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << "> leaf_node " << index << std::endl;);
@@ -1311,6 +1621,11 @@ namespace merkle
         return leaf_nodes[index - num_flushed];
     }
 
+    /// @brief Computes the hash of a tree node
+    /// @param n The tree node
+    /// @param indent Indentation of trace output
+    /// @note This recurses down the child nodes to compute intermediate
+    /// hashes, if required.
     void hash(Node* n, size_t indent = 2) const
     {
 #ifndef MERKLECPP_WITH_TRACE
@@ -1348,6 +1663,7 @@ namespace merkle
       }
     }
 
+    /// @brief Computes the root hash of the tree
     void compute_root()
     {
       insert_leaves(true);
@@ -1362,30 +1678,11 @@ namespace merkle
       }
     }
 
-    void insert_leaf_recursive(Node*& n, Node* new_leaf)
-    {
-      if (!n)
-        n = new_leaf;
-      else
-      {
-        if (n->is_full())
-          n = Node::make(n, new_leaf);
-        else
-        {
-          MERKLECPP_TRACE(MERKLECPP_TOUT << " @ "
-                                         << n->hash.to_string(TRACE_HASH_SIZE)
-                                         << std::endl;);
-          assert(n->left && n->right);
-          if (!n->left->is_full())
-            insert_leaf_recursive(n->left, new_leaf);
-          else
-            insert_leaf_recursive(n->right, new_leaf);
-          n->dirty = true;
-          n->update_sizes();
-        }
-      }
-    }
-
+    /// @brief Inserts one new leaf into the insertion stack
+    /// @param n Current root node
+    /// @param new_leaf New leaf node to insert
+    /// @note This adds one new Node to the insertion stack/continuation for
+    /// efficient processing by process_insertion_stack() later.
     void continue_insertion_stack(Node* n, Node* new_leaf)
     {
       while (true)
@@ -1423,6 +1720,9 @@ namespace merkle
       }
     }
 
+    /// @brief Processes the insertion stack/continuation
+    /// @param complete Indicates whether one element or the entire stack
+    /// should be processed
     Node* process_insertion_stack(bool complete = true)
     {
       MERKLECPP_TRACE({
@@ -1470,6 +1770,9 @@ namespace merkle
       return result;
     }
 
+    /// @brief Inserts a new leaf into the tree
+    /// @param root Current root node
+    /// @param n New leaf node to insert
     void insert_leaf(Node*& root, Node* n)
     {
       MERKLECPP_TRACE(MERKLECPP_TOUT << " - insert_leaf "
@@ -1485,6 +1788,9 @@ namespace merkle
       }
     }
 
+    /// @brief Inserts multiple new leaves into the tree
+    /// @param complete Indicates whether the insertion stack should be
+    /// processed to completion after insertion
     void insert_leaves(bool complete = false)
     {
       if (!uninserted_leaf_nodes.empty())
@@ -1504,7 +1810,14 @@ namespace merkle
   };
 
   // clang-format off
-  void static sha256_compress(const HashT<32> &l, const HashT<32> &r, HashT<32> &out) {
+  /// @brief SHA256 compression function for tree node hashes
+  /// @param l Left node hash
+  /// @param r Right node hash
+  /// @param out Output node hash
+  /// @details This function is the compression function of SHA256, which, for
+  /// the special case of hashing two hashes, is more efficient than a full
+  /// SHA256 while providing similar guarantees.
+  static inline void sha256_compress(const HashT<32> &l, const HashT<32> &r, HashT<32> &out) {
     static const uint32_t constants[] = {
       0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
       0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -1526,7 +1839,7 @@ namespace merkle
     uint32_t cws[64] = {0};
 
     for (int i=0; i < 16; i++)
-      cws[i] = be32toh(((int32_t *)block)[i]);
+      cws[i] = convert_endianness(((int32_t *)block)[i]);
 
     for (int i = 16; i < 64; i++) {
       uint32_t t16 = cws[i - 16];
@@ -1558,12 +1871,16 @@ namespace merkle
     }
 
     for (int i=0; i < 8; i++)
-      ((uint32_t*)out.bytes)[i] = htobe32(s[i] + h[i]);
+      ((uint32_t*)out.bytes)[i] = convert_endianness(s[i] + h[i]);
   }
   // clang-format on
 
 #ifdef HAVE_OPENSSL
-  // Note: Some versions of OpenSSL don't provide SHA256_Transform.
+  /// @brief OpenSSL's SHA256 compression function
+  /// @param l Left node hash
+  /// @param r Right node hash
+  /// @param out Output node hash
+  /// @note Some versions of OpenSSL may not provide SHA256_Transform.
   static inline void sha256_compress_openssl(
     const HashT<32>& l, const HashT<32>& r, HashT<32>& out)
   {
@@ -1577,9 +1894,14 @@ namespace merkle
     SHA256_Transform(&ctx, &block[0]);
 
     for (int i = 0; i < 8; i++)
-      ((uint32_t*)out.bytes)[i] = htobe32(((uint32_t*)ctx.h)[i]);
+      ((uint32_t*)out.bytes)[i] = convert_endianness(((uint32_t*)ctx.h)[i]);
   }
 
+  /// @brief OpenSSL SHA256
+  /// @param l Left node hash
+  /// @param r Right node hash
+  /// @param out Output node hash
+  /// @note Some versions of OpenSSL may not provide SHA256_Transform.
   static inline void sha256_openssl(
     const merkle::HashT<32>& l,
     const merkle::HashT<32>& r,
@@ -1593,8 +1915,12 @@ namespace merkle
 #endif
 
 #ifdef HAVE_MBEDTLS
-  // Note: Technically, mbedtls_internal_sha256_process is for internal use
-  // only.
+  /// @brief mbedTLS SHA256 compression function
+  /// @param l Left node hash
+  /// @param r Right node hash
+  /// @param out Output node hash
+  /// @note Technically, mbedtls_internal_sha256_process is marked for internal
+  /// use only.
   static inline void sha256_compress_mbedtls(
     const HashT<32>& l, const HashT<32>& r, HashT<32>& out)
   {
@@ -1611,6 +1937,10 @@ namespace merkle
       ((uint32_t*)out.bytes)[i] = htobe32(ctx.state[i]);
   }
 
+  /// @brief mbedTLS SHA256
+  /// @param l Left node hash
+  /// @param r Right node hash
+  /// @param out Output node hash
   static inline void sha256_mbedtls(
     const merkle::HashT<32>& l,
     const merkle::HashT<32>& r,
@@ -1623,8 +1953,12 @@ namespace merkle
   }
 #endif
 
-  // Default tree with default hash function
+  /// @brief Type of hashes in the default tree type
   typedef HashT<32> Hash;
+
+  /// @brief Type of paths in the default tree type
   typedef PathT<32, sha256_compress> Path;
+
+  /// @brief Default tree with default hash size and function
   typedef TreeT<32, sha256_compress> Tree;
 };

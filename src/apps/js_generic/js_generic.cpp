@@ -889,7 +889,7 @@ namespace ccfapp
       }
 
       char const* policy_name = nullptr;
-      size_t id = ccf::INVALID_ID;
+      CallerId id;
       nlohmann::json data;
       std::string cert_s;
 
@@ -936,7 +936,8 @@ namespace ccfapp
       }
 
       JS_SetPropertyStr(ctx, caller, "policy", JS_NewString(ctx, policy_name));
-      JS_SetPropertyStr(ctx, caller, "id", JS_NewUint32(ctx, id));
+      JS_SetPropertyStr(
+        ctx, caller, "id", JS_NewStringLen(ctx, id.data(), id.size()));
       JS_SetPropertyStr(ctx, caller, "data", create_json_obj(data, ctx));
       JS_SetPropertyStr(
         ctx,
@@ -1319,13 +1320,6 @@ namespace ccfapp
 
       JS_NewClassID(&body_class_id);
       body_class_def.class_name = "Body";
-
-      auto default_handler = [this](EndpointContext& args) {
-        execute_request(
-          args.rpc_ctx->get_method(), args.rpc_ctx->get_request_verb(), args);
-      };
-
-      set_default(default_handler, no_auth_required);
 
       metrics_tracker.install_endpoint(*this);
     }

@@ -34,7 +34,7 @@ namespace ccf
       const std::shared_ptr<enclave::RPCSessions>& rpcsessions,
       const std::shared_ptr<enclave::RPCMap>& rpc_map,
       const crypto::KeyPairPtr& node_sign_kp,
-      crypto::Pem node_cert) :
+      const crypto::Pem& node_cert) :
       refresh_interval_s(refresh_interval_s),
       network(network),
       consensus(consensus),
@@ -115,10 +115,8 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       request.set_body(&body);
 
-      const auto contents = node_cert.contents();
-      crypto::Sha256Hash hash({contents.data(), contents.size()});
-      const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
-
+      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
+      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
       http::sign_request(request, node_sign_kp, key_id);
       auto packed = request.build_request();
 

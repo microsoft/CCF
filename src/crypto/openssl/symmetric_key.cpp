@@ -57,7 +57,7 @@ namespace crypto
     std::vector<uint8_t> cb(plain.n + GCM_SIZE_TAG);
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
-    CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, NULL, key.data(), iv.p));
+    CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, NULL, key.data(), NULL));
     CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.n, NULL));
     CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), iv.p));
     if (aad.n > 0)

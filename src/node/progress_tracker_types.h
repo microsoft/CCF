@@ -266,16 +266,17 @@ namespace ccf
 
     crypto::Sha256Hash hash_new_view(ViewChangeConfirmation& new_view)
     {
-      crypto::ISha256Hash ch;
-      ch.update(new_view.view);
-      ch.update(new_view.seqno);
+      auto ch = crypto::make_incremental_sha256();
+
+      ch->update(new_view.view);
+      ch->update(new_view.seqno);
 
       for (auto it : new_view.view_change_messages)
       {
-        ch.update(it.second.signature);
+        ch->update(it.second.signature);
       }
 
-      return ch.finalise();
+      return ch->finalise();
     }
 
   private:
@@ -291,17 +292,17 @@ namespace ccf
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno) const
     {
-      crypto::ISha256Hash ch;
+      auto ch = crypto::make_incremental_sha256();
 
-      ch.update(view);
-      ch.update(seqno);
+      ch->update(view);
+      ch->update(seqno);
 
       for (auto& s : v.signatures)
       {
-        ch.update(s.sig);
+        ch->update(s.sig);
       }
 
-      return ch.finalise();
+      return ch->finalise();
     }
   };
 

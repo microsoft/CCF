@@ -1,7 +1,5 @@
 jobs:
   - job: GitHubRelease
-    variables:
-      skipComponentGovernanceDetection: true
     displayName: "GitHub Release"
     dependsOn: ${{ parameters.depends_on }}
 

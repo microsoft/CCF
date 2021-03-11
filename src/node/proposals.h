@@ -27,7 +27,7 @@ namespace ccf
    * to the helper class Calls. If a script returns an empty list, the vote is
    * aborted and it may run again at a later point. The available function calls
    * are defined in
-   * ::MemberRpcFrontend and gov.lua. The following script proposes calling
+   * ccf::MemberRpcFrontend and gov.lua. The following script proposes calling
    * "raw_puts" (defined in gov.lua) to make raw writes to the KV. It uses the
    * helper class Puts. (The environment for proposal scripts is defined
    * ./src/runtime_config/gov.lua.)

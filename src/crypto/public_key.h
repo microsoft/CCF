@@ -85,6 +85,7 @@ namespace crypto
      *
      * @param hash Hash of some content
      * @param signature Signature as a sequence of bytes
+     * @param md_type Type of hash
      *
      * @return Whether the signature matches the hash and the key
      */

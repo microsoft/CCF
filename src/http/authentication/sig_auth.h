@@ -78,25 +78,17 @@ namespace ccf
       const auto signed_request = parse_signed_request(ctx);
       if (signed_request.has_value())
       {
-        auto digests = tx.ro<CertDigests>(Tables::USER_DIGESTS);
-        auto user_id = digests->get(signed_request->key_id);
-
-        if (user_id.has_value())
+        Users users_table(Tables::USERS);
+        auto users = tx.ro(users_table);
+        auto user = users->get(signed_request->key_id);
+        if (user.has_value())
         {
-          Users users_table(Tables::USERS);
-          auto users = tx.ro(users_table);
-          const auto user = users->get(user_id.value());
-          if (!user.has_value())
-          {
-            throw std::logic_error("Users and user certs tables do not match");
-          }
-
           auto verifier = verifiers.get_verifier(user->cert);
           if (verifier->verify(
                 signed_request->req, signed_request->sig, signed_request->md))
           {
             auto identity = std::make_unique<UserSignatureAuthnIdentity>();
-            identity->user_id = user_id.value();
+            identity->user_id = signed_request->key_id;
             identity->user_cert = user->cert;
             identity->user_data = user->user_data;
             identity->signed_request = signed_request.value();
@@ -179,20 +171,11 @@ namespace ccf
       const auto signed_request = parse_signed_request(ctx);
       if (signed_request.has_value())
       {
-        auto digests = tx.ro<CertDigests>(Tables::MEMBER_DIGESTS);
-        auto member_id = digests->get(signed_request->key_id);
-
-        if (member_id.has_value())
+        Members members_table(Tables::MEMBERS);
+        auto members = tx.ro(members_table);
+        auto member = members->get(signed_request->key_id);
+        if (member.has_value())
         {
-          Members members_table(Tables::MEMBERS);
-          auto members = tx.ro(members_table);
-          const auto member = members->get(member_id.value());
-          if (!member.has_value())
-          {
-            throw std::logic_error(
-              "Members and member certs tables do not match");
-          }
-
           std::vector<uint8_t> digest;
           auto verifier = verifiers.get_verifier(member->cert);
           if (verifier->verify(
@@ -202,7 +185,7 @@ namespace ccf
                 digest))
           {
             auto identity = std::make_unique<MemberSignatureAuthnIdentity>();
-            identity->member_id = member_id.value();
+            identity->member_id = signed_request->key_id;
             identity->member_cert = member->cert;
             identity->member_data = member->member_data;
             identity->signed_request = signed_request.value();

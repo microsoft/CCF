@@ -9,7 +9,7 @@
 #include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
 #include "mbedtls/ecdsa.h"
-#include "node/node_id.h"
+#include "node/entity_id.h"
 #include "node/progress_tracker.h"
 
 #include <array>

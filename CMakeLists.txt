@@ -91,7 +91,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            aft.enclave
            sss.enclave
-           $<BUILD_INTERFACE:merklecpp>
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -142,7 +141,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            sss.host
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
-           $<BUILD_INTERFACE:merklecpp>
   )
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -223,12 +221,7 @@ sign_app_library(
 )
 
 # Add NoBuiltins app
-add_ccf_app(nobuiltins SRCS samples/apps/nobuiltins/nobuiltins.cpp)
-sign_app_library(
-  nobuiltins.enclave
-  ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/nobuiltins/oe_sign.conf
-  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
-)
+add_subdirectory(${CCF_DIR}/samples/apps/nobuiltins)
 
 if(BUILD_TESTS)
   enable_testing()
@@ -390,6 +383,12 @@ if(BUILD_TESTS)
                                  http_parser.host sss.host
     )
 
+    set_tests_properties(
+      member_voting_test
+      PROPERTIES ENVIRONMENT
+                 RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
+    )
+
     add_unit_test(
       proposal_id_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
@@ -408,14 +407,6 @@ if(BUILD_TESTS)
                                  http_parser.host sss.host
     )
 
-    if(NOT ENV{RUNTIME_CONFIG_DIR})
-      set_tests_properties(
-        member_voting_test
-        PROPERTIES ENVIRONMENT
-                   RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
-      )
-    endif()
-
     add_unit_test(
       lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
@@ -429,14 +420,7 @@ if(BUILD_TESTS)
 
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
-    target_link_libraries(
-      merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} $<BUILD_INTERFACE:merklecpp>
-                         crypto
-    )
-
-    # merklecpp tests
-    set(MERKLECPP_TEST_PREFIX "merklecpp-")
-    add_subdirectory(src/libmerklecpp/test)
+    target_link_libraries(merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} crypto)
 
     # Raft driver and scenario test
     add_executable(
@@ -637,6 +621,14 @@ if(BUILD_TESTS)
     NAME jwt_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
     CONSENSUS cft
+  )
+
+  add_e2e_test(
+    NAME nobuiltins_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nobuiltins.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS -p
+                    ${CMAKE_BINARY_DIR}/samples/apps/nobuiltins/libnobuiltins
   )
 
   if(QUOTES_ENABLED)

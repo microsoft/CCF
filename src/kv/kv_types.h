@@ -6,7 +6,7 @@
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
-#include "node/node_id.h"
+#include "node/entity_id.h"
 #include "serialiser_declare.h"
 
 #include <array>
