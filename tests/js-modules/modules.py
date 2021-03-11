@@ -256,7 +256,9 @@ def test_npm_app(network, args):
 
         r = c.post("/app/generateRsaKeyPair", {"size": 2048})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert infra.crypto.check_key_pair_pem(r.body.json()["privateKey"], r.body.json()["publicKey"])
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
 
         aes_key_to_wrap = infra.crypto.generate_aes_key(256)
         wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(

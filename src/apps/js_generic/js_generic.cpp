@@ -214,7 +214,7 @@ namespace ccfapp
     else
     {
       k = crypto::make_rsa_key_pair(key_size, key_exponent);
-     }
+    }
 
     Pem prv = k->private_key_pem();
     Pem pub = k->public_key_pem();
