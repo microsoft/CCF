@@ -18,21 +18,25 @@ namespace js
 
   extern void js_dump_error(JSContext* ctx);
 
-  class JSAutoFreeRuntime
+  class Runtime
   {
     JSRuntime* rt;
 
   public:
-    inline JSAutoFreeRuntime()
+    inline Runtime(
+      size_t max_stack_size = 1024 * 1024,
+      size_t max_heap_size = 100 * 1024 * 1024)
     {
       rt = JS_NewRuntime();
       if (rt == nullptr)
       {
         throw std::runtime_error("Failed to initialise QuickJS runtime");
       }
+      JS_SetMaxStackSize(rt, max_stack_size);
+      JS_SetMemoryLimit(rt, max_heap_size);
     }
 
-    inline ~JSAutoFreeRuntime()
+    inline ~Runtime()
     {
       JS_FreeRuntime(rt);
     }
@@ -43,12 +47,12 @@ namespace js
     }
   };
 
-  class JSAutoFreeCtx
+  class Context
   {
     JSContext* ctx;
 
   public:
-    inline JSAutoFreeCtx(JSRuntime* rt)
+    inline Context(JSRuntime* rt)
     {
       ctx = JS_NewContext(rt);
       if (ctx == nullptr)
@@ -58,7 +62,7 @@ namespace js
       JS_SetContextOpaque(ctx, this);
     }
 
-    inline ~JSAutoFreeCtx()
+    inline ~Context()
     {
       JS_FreeContext(ctx);
     }

@@ -368,8 +368,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                            http_parser.host sss.host quickjs.host
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host
+                            sss.host quickjs.host
     )
 
     add_unit_test(
@@ -382,9 +382,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
     )
     target_link_libraries(
-      member_voting_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-              http_parser.host sss.host quickjs.host
+      member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                                 http_parser.host sss.host quickjs.host
     )
 
     set_tests_properties(
@@ -398,9 +397,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
     )
     target_link_libraries(
-      proposal_id_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-              http_parser.host sss.host quickjs.host
+      proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                               http_parser.host sss.host quickjs.host
     )
 
     add_unit_test(

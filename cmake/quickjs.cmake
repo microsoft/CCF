@@ -38,7 +38,11 @@ if("sgx" IN_LIST COMPILE_TARGETS)
                            $<INSTALL_INTERFACE:include/3rdparty/quickjs>
   )
 
-  install(TARGETS quickjs.enclave EXPORT ccf DESTINATION lib)
+  install(
+    TARGETS quickjs.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 add_library(quickjs.host STATIC ${QUICKJS_SRC})

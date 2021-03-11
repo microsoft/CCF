@@ -83,7 +83,7 @@ namespace ccfapp
     }
 
     void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::JSAutoFreeCtx& auto_free = *(js::JSAutoFreeCtx*)auto_free_ptr;
+    js::Context& auto_free = *(js::Context*)auto_free_ptr;
 
     auto parameters = argv[2];
     JSValue wrap_algo_name_val =
@@ -903,9 +903,7 @@ namespace ccfapp
         }
       }
 
-      js::JSAutoFreeRuntime rt;
-      JS_SetMaxStackSize(rt, 1024 * 1024);
-      JS_SetMemoryLimit(rt, 100 * 1024 * 1024);
+      js::Runtime rt;
 
       JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
       JS_SetModuleLoaderFunc(
@@ -942,7 +940,7 @@ namespace ccfapp
         }
       }
 
-      js::JSAutoFreeCtx ctx(rt);
+      js::Context ctx(rt);
 
       // Set prototype for request body class
       JSValue body_proto = JS_NewObject(ctx);
