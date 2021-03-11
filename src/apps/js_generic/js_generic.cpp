@@ -222,9 +222,13 @@ namespace ccfapp
 
     std::shared_ptr<RSAKeyPair> k;
     if (argc == 1)
+    {
       k = crypto::make_rsa_key_pair(key_size);
+    }
     else
+    {
       k = crypto::make_rsa_key_pair(key_size, key_exponent);
+     }
 
     Pem p = k->private_key_pem();
 
