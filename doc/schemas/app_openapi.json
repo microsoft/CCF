@@ -475,28 +475,6 @@
     },
     "/local_tx": {
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "seqno",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "view",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -513,18 +491,6 @@
     },
     "/log/private": {
       "delete": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "id",
-            "required": false,
-            "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -544,18 +510,6 @@
         ]
       },
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "id",
-            "required": false,
-            "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -663,18 +617,6 @@
     },
     "/log/private/historical": {
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "id",
-            "required": false,
-            "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -696,38 +638,6 @@
     },
     "/log/private/historical/range": {
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "from_seqno",
-            "required": false,
-            "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "id",
-            "required": false,
-            "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "to_seqno",
-            "required": false,
-            "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -749,18 +659,6 @@
     },
     "/log/private/historical_receipt": {
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "id",
-            "required": false,
-            "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -837,18 +735,6 @@
     },
     "/log/public": {
       "delete": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "id",
-            "required": false,
-            "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -868,18 +754,6 @@
         ]
       },
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "id",
-            "required": false,
-            "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -1000,28 +874,6 @@
     },
     "/tx": {
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "seqno",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "view",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
