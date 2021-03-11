@@ -82,7 +82,6 @@ class Network:
         "memory_reserve_startup",
         "log_format_json",
         "gov_script",
-        "constitution",
         "join_timer",
         "worker_threads",
         "ledger_chunk_bytes",
@@ -321,7 +320,7 @@ class Network:
         )
         return primary
 
-    def _setup_common_folder(self, gov_script, constitution):
+    def _setup_common_folder(self, gov_script):
         LOG.info(f"Creating common folder: {self.common_dir}")
         cmd = ["rm", "-rf", self.common_dir]
         assert (
@@ -335,10 +334,6 @@ class Network:
         assert (
             infra.proc.ccall(*cmd).returncode == 0
         ), f"Could not copy governance {gov_script} to {self.common_dir}"
-        cmd = ["cp", constitution, self.common_dir]
-        assert (
-            infra.proc.ccall(*cmd).returncode == 0
-        ), f"Could not copy governance {constitution} to {self.common_dir}"
         # It is more convenient to create a symlink in the common directory than generate
         # certs and keys in the top directory and move them across
         cmd = ["ln", "-s", os.path.join(os.getcwd(), self.KEY_GEN), self.common_dir]
@@ -357,11 +352,7 @@ class Network:
             args.gov_script is not None
         ), "--gov-script argument must be provided to start a network"
 
-        assert (
-            args.constitution is not None
-        ), "--constitution argument must be provided to start a network"
-
-        self._setup_common_folder(args.gov_script, args.constitution)
+        self._setup_common_folder(args.gov_script)
 
         mc = max(1, args.initial_member_count)
         initial_members_info = []
