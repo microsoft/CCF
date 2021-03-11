@@ -153,12 +153,12 @@
                 "application/json": {
                   "schema": {
                     "properties": {
-                       "privateKey": {
-                         "type": "string"
-                       },
-                       "publicKey": {
-                         "type": "string"
-                       }
+                      "privateKey": {
+                        "type": "string"
+                      },
+                      "publicKey": {
+                        "type": "string"
+                      }
                     },
                     "required": ["privateKey", "publicKey"],
                     "type": "object"
