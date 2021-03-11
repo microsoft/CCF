@@ -45,7 +45,7 @@ namespace aft
       const kv::TxHistory::RequestCallbackArgs& args,
       kv::Consensus::SeqNo committed_seqno) = 0;
 
-    virtual kv::Version commit_replayed_request(
+    virtual kv::Version execute_request(
       aft::Request& request,
       std::shared_ptr<aft::RequestTracker> request_tracker,
       kv::Consensus::SeqNo prescribed_commit_version,
@@ -80,7 +80,7 @@ namespace aft
       const kv::TxHistory::RequestCallbackArgs& args,
       kv::Consensus::SeqNo committed_seqno) override;
 
-    kv::Version commit_replayed_request(
+    kv::Version execute_request(
       aft::Request& request,
       std::shared_ptr<aft::RequestTracker> request_tracker,
       kv::Consensus::SeqNo prescribed_commit_version,
