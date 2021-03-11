@@ -77,9 +77,13 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_include_directories(
     ccf.enclave SYSTEM
-    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-           $<INSTALL_INTERFACE:include/ccf/>
-           $<INSTALL_INTERFACE:include/3rdparty/>
+    PUBLIC
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+                                        #< which are currently under src, and
+                                        #< should be removed or renamed
+      $<INSTALL_INTERFACE:include/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -125,9 +129,13 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   target_include_directories(
     ccf.virtual SYSTEM
-    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-           $<INSTALL_INTERFACE:include/ccf/>
-           $<INSTALL_INTERFACE:include/3rdparty/>
+    PUBLIC
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+                                        #< which are currently under src, and
+                                        #< should be removed or renamed
+      $<INSTALL_INTERFACE:include/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
