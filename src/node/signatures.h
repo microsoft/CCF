@@ -17,7 +17,7 @@ namespace ccf
     kv::Consensus::View view = 0;
     kv::Consensus::SeqNo commit_seqno = 0;
     kv::Consensus::View commit_view = 0;
-    crypto::Sha256Hash root; // TODO: Serialise this in hex directly!
+    crypto::Sha256Hash root;
 
     MSGPACK_DEFINE(
       MSGPACK_BASE(NodeSignature),

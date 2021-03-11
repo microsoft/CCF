@@ -11,6 +11,7 @@ from enum import Enum
 # Default implementation has buggy interaction between read_bytes and tell, so use fallback
 import msgpack.fallback as msgpack  # type: ignore
 import json
+import base64
 
 from loguru import logger as LOG  # type: ignore
 from cryptography.x509 import load_pem_x509_certificate
@@ -262,7 +263,7 @@ class LedgerValidator:
                 cert = self.node_certificates[signing_node]
                 LOG.error(cert)
                 existing_root = bytes.fromhex(values["root"])
-                signature = values["sig"]
+                signature = base64.b64decode(values["sig"])
 
                 tx_info = TxBundleInfo(
                     self.merkle,

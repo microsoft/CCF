@@ -32,13 +32,8 @@ namespace ds
     return fmt::format("{:02x}", fmt::join(begin, end, ""));
   }
 
-  inline static std::string to_hex(const std::vector<uint8_t>& data)
-  {
-    return to_hex(data.begin(), data.end());
-  }
-
-  template <size_t T>
-  inline static std::string to_hex(const std::array<uint8_t, T>& data)
+  template <typename T>
+  inline static std::string to_hex(const T& data)
   {
     return to_hex(data.begin(), data.end());
   }
@@ -61,7 +56,7 @@ namespace ds
     }
 
     auto it = begin;
-    for (size_t i = 0; i < str.size(); i += 2)
+    for (size_t i = 0; i < str.size(); i += 2, ++it)
     {
       *it = 16 * hex_char_to_int(str[i]) + hex_char_to_int(str[i + 1]);
     }

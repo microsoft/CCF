@@ -79,14 +79,6 @@ namespace crypto
   inline void from_json(const nlohmann::json& j, Sha256Hash& hash)
   {
     auto value = j.get<std::string>();
-    if (value.size() != Sha256Hash::SIZE * 2)
-    {
-      throw JsonParseError(fmt::format(
-        "Input string '{}' is not of valid SHA-256 length {}",
-        value,
-        Sha256Hash::SIZE * 2));
-    }
-
     try
     {
       ds::from_hex(value, hash.h.begin(), hash.h.end());

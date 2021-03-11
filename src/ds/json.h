@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "json_schema.h"
+#include "tls/base64.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -61,19 +62,38 @@ namespace std
   template <typename T>
   inline void to_json(nlohmann::json& j, const std::vector<T>& t)
   {
-    j = nlohmann::json::array();
-    for (const auto& e : t)
+    if constexpr (std::is_same_v<T, uint8_t>)
     {
-      j.push_back(e);
+      j = tls::b64_from_raw(t);
+    }
+    else
+    {
+      j = nlohmann::json::array();
+      for (const auto& e : t)
+      {
+        j.push_back(e);
+      }
     }
   }
 
   template <typename T>
   inline void from_json(const nlohmann::json& j, std::vector<T>& t)
   {
+    if constexpr (std::is_same_v<T, uint8_t>)
+    {
+      if (j.is_string())
+      {
+        t = tls::raw_from_b64(j.get<std::string>());
+        return;
+      }
+
+      // TODO: Throw?!
+    }
+
     if (!j.is_array())
     {
-      throw JsonParseError("Expected array, found: " + j.dump());
+      throw JsonParseError(
+        fmt::format("Vector object \"{}\" is not an array", j.dump()));
     }
 
     for (auto i = 0u; i < j.size(); ++i)
