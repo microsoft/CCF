@@ -115,6 +115,10 @@ TEST_CASE("schema generation")
 {
   const auto schema = ds::json::build_schema<Foo>("Foo");
 
+  const auto title_it = schema.find("title");
+  REQUIRE(title_it != schema.end());
+  REQUIRE(title_it.value() == "Foo");
+
   const auto properties_it = schema.find("properties");
   REQUIRE(properties_it != schema.end());
 
