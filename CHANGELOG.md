@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `get_receipt_for_seqno_v1` has been removed. Handlers wanting to return receipts must now use the historical API, and can obtain a receipt via `ccf::historical::StatePtr`. See the [historical query with receipt sample](https://microsoft.github.io/CCF/ccf-0.19.0/build_apps/logging_cpp.html#receipts) for reference.
 - `caller_id` endpoint. Members and users can now compute their unique identifier without interacting with CCF (#2279).
 - `public:ccf.internal.members.certs_der`, `public:ccf.internal.users.certs_der`, `public:ccf.internal.members.digests` and `public:ccf.internal.users.digests` KV tables (#2279).
-- `view_change_in_progress` field in `network/status` response (#2288). 
+- `view_change_in_progress` field in `network/status` response (#2288).
 
 ## [0.18.5]
 
