@@ -4,7 +4,6 @@ trigger:
     include:
       - main
       - "refs/tags/ccf-*"
-      - cwinter_com_gov
 
 pr:
   autoCancel: true
