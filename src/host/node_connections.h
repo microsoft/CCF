@@ -12,7 +12,7 @@
 
 namespace asynchost
 {
-  static const ccf::NodeId UnassociatedNode = std::string("Unknown");
+  static const auto UnassociatedNode = ccf::NodeId("Unknown");
 
   class NodeConnections
   {
@@ -37,7 +37,7 @@ namespace asynchost
       {
         LOG_DEBUG_FMT(
           "from node {} received {} bytes",
-          node.value_or(UnassociatedNode),
+          node.value_or(UnassociatedNode).trim(),
           len);
 
         pending.insert(pending.end(), incoming, incoming + len);
@@ -63,7 +63,7 @@ namespace asynchost
           {
             LOG_DEBUG_FMT(
               "from node {} have {}/{} bytes",
-              node.value_or(UnassociatedNode),
+              node.value_or(UnassociatedNode).trim(),
               size,
               msg_size);
             break;
@@ -81,7 +81,7 @@ namespace asynchost
 
           LOG_DEBUG_FMT(
             "node in: from node {}, size {}, type {}",
-            node.value(),
+            node->trim(),
             msg_size,
             msg_type);
 
@@ -286,7 +286,7 @@ namespace asynchost
 
             LOG_DEBUG_FMT(
               "send AE to node {} [{}]: {}, {}",
-              to,
+              to.trim(),
               frame,
               ae.idx,
               ae.prev_idx);
@@ -296,7 +296,7 @@ namespace asynchost
             // Write as framed data to the recipient.
             uint32_t frame = (uint32_t)size_to_send;
 
-            LOG_DEBUG_FMT("node send to {} [{}]", to, frame);
+            LOG_DEBUG_FMT("node send to {} [{}]", to.trim(), frame);
 
             node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);
             node.value()->write(size_to_send, data_to_send);

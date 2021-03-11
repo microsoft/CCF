@@ -100,8 +100,11 @@ namespace ccf
     Service service;
     Values values;
     Secrets secrets;
-    Signatures signatures;
     SnapshotEvidence snapshot_evidence;
+
+    // The signatures and serialised_tree tables should always be in sync
+    Signatures signatures;
+    SerialisedMerkleTree serialise_tree;
 
     //
     // bft related tables
@@ -137,6 +140,7 @@ namespace ccf
       values(Tables::VALUES),
       secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
       signatures(Tables::SIGNATURES),
+      serialise_tree(Tables::SERIALISED_MERKLE_TREE),
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
       bft_requests_map(Tables::AFT_REQUESTS),
       backup_signatures_map(Tables::BACKUP_SIGNATURES),
