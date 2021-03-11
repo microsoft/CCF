@@ -256,19 +256,12 @@ class LedgerValidator:
                 current_seqno = values["seqno"]
                 current_view = values["view"]
                 signing_node = values["node"]
-                # current_seqno = values[self.EXPECTED_NODE_SEQNO_INDEX]
-                # current_view = values[self.EXPECTED_NODE_VIEW_INDEX]
-                # signing_node = values[self.EXPECTED_NODE_SIGNATURE_INDEX][
-                #     self.EXPECTED_SIGNING_NODE_ID_INDEX
-                # ]
-                LOG.error(signing_node)
 
                 # Get binary representations for the cert, existing root, and signature
                 # cert = b"".join(self.node_certificates[signing_node])
                 cert = self.node_certificates[signing_node]
                 LOG.error(cert)
-                LOG.warning(values["root"]["h"])
-                existing_root = bytes(values["root"]["h"])
+                existing_root = bytes.fromhex(values["root"])
                 signature = values["sig"]
 
                 tx_info = TxBundleInfo(
