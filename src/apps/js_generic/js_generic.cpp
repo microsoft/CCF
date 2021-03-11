@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
+#include "crypto/rsa_key_pair.h"
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
@@ -183,6 +184,47 @@ namespace ccfapp
     std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
 
     return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
+  }
+
+  static JSValue js_generate_rsa_key_pair(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1 && argc != 2)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1 or 2", argc);
+
+    uint32_t key_size, key_exponent;
+    if (JS_ToUint32(ctx, &key_size, argv[0]) < 0)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    if (argc == 2 && JS_ToUint32(ctx, &key_exponent, argv[1]) < 0)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    std::shared_ptr<RSAKeyPair> k;
+    if (argc == 1)
+    {
+      k = crypto::make_rsa_key_pair(key_size);
+    }
+    else
+    {
+      k = crypto::make_rsa_key_pair(key_size, key_exponent);
+    }
+
+    Pem prv = k->private_key_pem();
+    Pem pub = k->public_key_pem();
+
+    auto r = JS_NewObject(ctx);
+    JS_SetPropertyStr(
+      ctx, r, "privateKey", JS_NewString(ctx, (char*)prv.data()));
+    JS_SetPropertyStr(
+      ctx, r, "publicKey", JS_NewString(ctx, (char*)pub.data()));
+    return r;
   }
 
   static JSValue js_wrap_key(
@@ -806,6 +848,12 @@ namespace ccfapp
         ccf,
         "generateAesKey",
         JS_NewCFunction(ctx, ccfapp::js_generate_aes_key, "generateAesKey", 1));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "generateRsaKeyPair",
+        JS_NewCFunction(
+          ctx, ccfapp::js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
       JS_SetPropertyStr(
         ctx,
         ccf,
