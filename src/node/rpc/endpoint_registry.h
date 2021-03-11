@@ -200,34 +200,22 @@ namespace ccf
       {
         params_schema = j;
 
-        schema_builders.push_back([](
-                                    nlohmann::json& document,
-                                    const EndpointPtr& endpoint) {
-          const auto http_verb = endpoint->dispatch.verb.get_http_method();
-          if (!http_verb.has_value())
-          {
-            return;
-          }
+        schema_builders.push_back(
+          [](nlohmann::json& document, const EndpointPtr& endpoint) {
+            const auto http_verb = endpoint->dispatch.verb.get_http_method();
+            if (!http_verb.has_value())
+            {
+              return;
+            }
 
-          using namespace ds::openapi;
+            using namespace ds::openapi;
 
-          if (http_verb.value() == HTTP_GET || http_verb.value() == HTTP_DELETE)
-          {
-            add_query_parameters(
-              document,
-              endpoint->dispatch.uri_path,
-              endpoint->params_schema,
-              http_verb.value());
-          }
-          else
-          {
             auto& rb = request_body(path_operation(
               ds::openapi::path(document, endpoint->dispatch.uri_path),
               http_verb.value()));
             schema(media_type(rb, http::headervalues::contenttype::JSON)) =
               endpoint->params_schema;
-          }
-        });
+          });
 
         return *this;
       }
@@ -302,24 +290,11 @@ namespace ccf
                 return;
               }
 
-              if (
-                http_verb.value() == HTTP_GET ||
-                http_verb.value() == HTTP_DELETE)
-              {
-                add_query_parameters(
-                  document,
-                  endpoint->dispatch.uri_path,
-                  endpoint->params_schema,
-                  http_verb.value());
-              }
-              else
-              {
-                ds::openapi::add_request_body_schema<In>(
-                  document,
-                  endpoint->dispatch.uri_path,
-                  http_verb.value(),
-                  http::headervalues::contenttype::JSON);
-              }
+              ds::openapi::add_request_body_schema<In>(
+                document,
+                endpoint->dispatch.uri_path,
+                http_verb.value(),
+                http::headervalues::contenttype::JSON);
             });
         }
         else
@@ -576,33 +551,6 @@ namespace ccf
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
-
-    static void add_query_parameters(
-      nlohmann::json& document,
-      const std::string& uri,
-      const nlohmann::json& schema,
-      llhttp_method verb)
-    {
-      if (schema["type"] != "object")
-      {
-        throw std::logic_error(
-          fmt::format("Unexpected params schema type: {}", schema.dump()));
-      }
-
-      const auto& required_parameters =
-        schema.value("required", nlohmann::json::array());
-      for (const auto& [name, schema] : schema["properties"].items())
-      {
-        auto parameter = nlohmann::json::object();
-        parameter["name"] = name;
-        parameter["in"] = "query";
-        parameter["required"] =
-          required_parameters.find(name) != required_parameters.end();
-        parameter["schema"] = schema;
-        ds::openapi::add_request_parameter_schema(
-          document, uri, verb, parameter);
-      }
-    }
 
   public:
     EndpointRegistry(const std::string& method_prefix_) :
