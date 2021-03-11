@@ -232,6 +232,10 @@ namespace aft
 
     class ExecutionWrapper : public kv::AbstractExecutionWrapper
     {
+    private:
+      const std::vector<uint8_t>& data;
+      kv::ConsensusHookPtrs hooks;
+
     public:
       ExecutionWrapper(const std::vector<uint8_t>& data_) : data(data_) {}
 
@@ -275,9 +279,10 @@ namespace aft
         throw std::logic_error("get_request not implemented");
       }
 
-    private:
-      const std::vector<uint8_t>& data;
-      kv::ConsensusHookPtrs hooks;
+      bool support_async_execution() override
+      {
+        return false;
+      }
     };
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
