@@ -74,7 +74,7 @@ class PublicDomain:
     _version: int
     _max_conflict_version: int
     _tables: dict
-    _msgpacked_tables: Set[str]
+    _integrity_tables: Set[str]
 
     def __init__(self, buffer: io.BytesIO):
         self._buffer = buffer
@@ -86,7 +86,8 @@ class PublicDomain:
         self._tables = {}
         # Keys and Values may have custom serialisers.
         # Store most as raw bytes, only decode a few which we know are msgpack and are required for ledger verification.
-        self._msgpacked_tables = {
+        self._integrity_tables = {
+            NODES_TABLE_NAME,
             SIGNATURE_TX_TABLE_NAME,
         }
         self._read()
@@ -124,19 +125,24 @@ class PublicDomain:
                 for _ in range(write_count):
                     k = self._read_next_entry()
                     val = self._read_next_entry()
-                    if map_name in self._msgpacked_tables:
-                        k = msgpack.unpackb(k, **UNPACK_ARGS)
-                        val = msgpack.unpackb(val, **UNPACK_ARGS)
-                    if map_name == NODES_TABLE_NAME:
+                    if map_name in self._integrity_tables:
+                        # k = msgpack.unpackb(k, **UNPACK_ARGS)
+                        # val = msgpack.unpackb(val, **UNPACK_ARGS)
                         # k = k.decode()
+                        if map_name == NODES_TABLE_NAME:
+                            k = k.decode()
+
                         val = json.loads(val)
+                        if map_name == SIGNATURE_TX_TABLE_NAME:
+                            LOG.error(val)
+
                     records[k] = val
 
             remove_count = self._read_next()
             if remove_count:
                 for _ in range(remove_count):
                     k = self._read_next_entry()
-                    if map_name in self._msgpacked_tables:
+                    if map_name in self._integrity_tables:
                         k = msgpack.unpackb(k, **UNPACK_ARGS)
                     records[k] = None
 
@@ -237,7 +243,7 @@ class LedgerValidator:
             for nodeid, values in node_table.items():
                 LOG.error(nodeid)
                 # Add the nodes certificate
-                self.node_certificates[nodeid] = values["cert"]
+                self.node_certificates[nodeid] = values["cert"].encode()
                 # Update node trust status
                 self.node_activity_status[nodeid] = NodeStatus[values["status"]]
 
@@ -247,19 +253,23 @@ class LedgerValidator:
             signature_table = tables[SIGNATURE_TX_TABLE_NAME]
 
             for nodeid, values in signature_table.items():
-                current_seqno = values[self.EXPECTED_NODE_SEQNO_INDEX]
-                current_view = values[self.EXPECTED_NODE_VIEW_INDEX]
-                signing_node = values[self.EXPECTED_NODE_SIGNATURE_INDEX][
-                    self.EXPECTED_SIGNING_NODE_ID_INDEX
-                ]
+                current_seqno = values["seqno"]
+                current_view = values["view"]
+                signing_node = values["node"]
+                # current_seqno = values[self.EXPECTED_NODE_SEQNO_INDEX]
+                # current_view = values[self.EXPECTED_NODE_VIEW_INDEX]
+                # signing_node = values[self.EXPECTED_NODE_SIGNATURE_INDEX][
+                #     self.EXPECTED_SIGNING_NODE_ID_INDEX
+                # ]
                 LOG.error(signing_node)
 
                 # Get binary representations for the cert, existing root, and signature
-                cert = b"".join(self.node_certificates[signing_node])
-                existing_root = b"".join(values[self.EXPECTED_ROOT_INDEX])
-                signature = values[self.EXPECTED_NODE_SIGNATURE_INDEX][
-                    self.EXPECTED_SIGNATURE_INDEX
-                ]
+                # cert = b"".join(self.node_certificates[signing_node])
+                cert = self.node_certificates[signing_node]
+                LOG.error(cert)
+                LOG.warning(values["root"]["h"])
+                existing_root = bytes(values["root"]["h"])
+                signature = values["sig"]
 
                 tx_info = TxBundleInfo(
                     self.merkle,

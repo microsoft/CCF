@@ -17,7 +17,7 @@ namespace ccf
     kv::Consensus::View view = 0;
     kv::Consensus::SeqNo commit_seqno = 0;
     kv::Consensus::View commit_view = 0;
-    crypto::Sha256Hash root;
+    crypto::Sha256Hash root; // TODO: Serialise this in hex directly!
     std::vector<uint8_t> tree = {0};
 
     MSGPACK_DEFINE(
@@ -59,7 +59,12 @@ namespace ccf
   };
   DECLARE_JSON_TYPE_WITH_BASE(PrimarySignature, NodeSignature)
   DECLARE_JSON_REQUIRED_FIELDS(
-    PrimarySignature, seqno, view, commit_seqno, commit_view, root, tree)
+    PrimarySignature,
+    seqno,
+    view,
+    commit_seqno,
+    commit_view,
+    root) // TODO: Re-add tree
 
   // Signatures are always stored at key `0`
   using Signatures = ServiceMap<size_t, PrimarySignature>;
