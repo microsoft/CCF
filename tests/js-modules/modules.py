@@ -147,6 +147,33 @@ def test_app_bundle(network, args):
     return network
 
 
+@reqs.description("Test large js app bundle")
+def test_app_bundle_large(network, args):
+    primary, backups = network.find_nodes()
+    nodes = [primary, *backups]
+
+    for i in [1, 2, 3, 5]:
+        LOG.info(f"Deploying js app bundle: ~{i} MiB")
+        bundle_dir = os.path.join(PARENT_DIR, "js-app-bundle")
+        with tempfile.TemporaryDirectory(prefix="ccf") as tmp_dir:
+            shutil.copytree(bundle_dir, tmp_dir, dirs_exist_ok=True)
+            with open(os.path.join(tmp_dir, "src", "large.js"), "w") as f:
+                f.write("/*")
+                f.write("a" * i * 1024 * 1024)
+                f.write("*/")
+            network.consortium.deploy_js_app(primary, tmp_dir)
+
+        body = {"op": "sub", "left": 82, "right": 40}
+        expected_response = {"result": 42}
+
+        LOG.info(f"Calling app on all nodes (js bundle: ~{i} MiB)")
+        for node in nodes:
+            with node.client("user0") as c:
+                r = c.post("/app/compute", body)
+                j = r.body.json()
+                assert j == expected_response, j
+
+
 @reqs.description("Test dynamically installed endpoint properties")
 def test_dynamic_endpoints(network, args):
     primary, _ = network.find_nodes()
@@ -404,6 +431,7 @@ def run(args):
         network = test_module_set_and_remove(network, args)
         network = test_module_import(network, args)
         network = test_app_bundle(network, args)
+        network = test_app_bundle_large(network, args)
         network = test_dynamic_endpoints(network, args)
         network = test_npm_app(network, args)
 
