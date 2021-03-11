@@ -533,6 +533,24 @@
     },
     "/local_tx": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "view",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/int64"
+            }
+          },
+          {
+            "in": "query",
+            "name": "seqno",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -581,6 +599,32 @@
     },
     "/network/nodes": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "host",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "port",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -690,6 +734,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/string"
+            }
           }
         ],
         "responses": {
@@ -724,6 +776,24 @@
     },
     "/tx": {
       "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "view",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/int64"
+            }
+          },
+          {
+            "in": "query",
+            "name": "seqno",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

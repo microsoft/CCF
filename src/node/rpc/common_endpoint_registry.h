@@ -135,6 +135,8 @@ namespace ccf
       make_command_endpoint(
         "tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
         .set_auto_schema<void, GetTxStatus::Out>()
+        .add_query_parameter<kv::Consensus::View>("view")
+        .add_query_parameter<kv::Consensus::SeqNo>("seqno")
         .install();
 
       make_command_endpoint(
@@ -142,8 +144,9 @@ namespace ccf
         HTTP_GET,
         json_command_adapter(get_tx_status),
         no_auth_required)
-        // TODO: Add a way to document query params
         .set_auto_schema<void, GetTxStatus::Out>()
+        .add_query_parameter<kv::Consensus::View>("view")
+        .add_query_parameter<kv::Consensus::SeqNo>("seqno")
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
@@ -319,6 +322,7 @@ namespace ccf
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<GetReceipt>()
+        .add_query_parameter<std::string>("transaction_id")
         .install();
     }
   };

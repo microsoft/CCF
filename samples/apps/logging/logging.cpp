@@ -647,6 +647,7 @@ namespace loggingapp
           get_historical, context.get_historical_state(), is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
+        .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
       // SNIPPET_END: get_historical
@@ -698,6 +699,7 @@ namespace loggingapp
           is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
+        .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
       // SNIPPET_END: get_historical_with_receipt
@@ -884,6 +886,9 @@ namespace loggingapp
         get_historical_range,
         auth_policies)
         .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
+        .add_query_parameter<size_t>("from_seqno")
+        .add_query_parameter<size_t>("to_seqno")
+        .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 

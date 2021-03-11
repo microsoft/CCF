@@ -537,6 +537,9 @@ namespace ccf
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Primary)
         .set_auto_schema<void, GetNodes::Out>()
+        .add_query_parameter<std::string>("host", OptionalParameter)
+        .add_query_parameter<std::string>("port", OptionalParameter)
+        .add_query_parameter<std::string>("status", OptionalParameter)
         .install();
 
       auto get_node_info = [this](auto& args, nlohmann::json&&) {

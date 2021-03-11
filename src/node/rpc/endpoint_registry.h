@@ -131,6 +131,12 @@ namespace ccf
       Write
     };
 
+    enum QueryParamPresence
+    {
+      RequiredParameter,
+      OptionalParameter,
+    };
+
     const std::string method_prefix;
 
     struct OpenApiInfo
@@ -375,17 +381,10 @@ namespace ccf
 
       template <typename T>
       Endpoint& add_query_parameter(
-        const std::string& param_name, bool required = true)
+        const std::string& param_name, QueryParamPresence presence = RequiredParameter)
       {
-        const auto query_schema = ds::json::build_schema<T>();
-        if (query_schema["type"] != "object")
-        {
-          throw std::logic_error(fmt::format(
-            "Unexpected query schema type: {}", query_schema.dump()));
-        }
-
         schema_builders.push_back(
-          [param_name, required, query_schema](
+          [param_name, presence](
             nlohmann::json& document, const EndpointPtr& endpoint) {
             const auto http_verb = endpoint->dispatch.verb.get_http_method();
             if (!http_verb.has_value())
@@ -394,11 +393,14 @@ namespace ccf
               return;
             }
 
+            const auto schema_name = ds::json::schema_name<T>();
+            const auto query_schema = ds::json::build_schema<T>();
+
             auto parameter = nlohmann::json::object();
             parameter["name"] = param_name;
             parameter["in"] = "query";
-            parameter["required"] = required;
-            parameter["schema"] = query_schema;
+            parameter["required"] = presence == RequiredParameter;
+            parameter["schema"] = ds::openapi::add_schema_to_components(document, schema_name, query_schema);
             ds::openapi::add_request_parameter_schema(
               document,
               endpoint->dispatch.uri_path,
