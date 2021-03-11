@@ -120,8 +120,8 @@ std::vector<uint8_t> create_signed_request(
   r.set_body(&body);
 
   const auto contents = caller.contents();
-  crypto::Sha256Hash hash({contents.data(), contents.size()});
-  const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
+  auto caller_der = crypto::cert_pem_to_der(caller);
+  const auto key_id = crypto::Sha256Hash(caller_der).hex_str();
 
   http::sign_request(r, kp_, key_id);
 
@@ -185,7 +185,7 @@ auto get_proposal(
 auto get_vote(
   MemberRpcFrontend& frontend,
   ProposalId proposal_id,
-  MemberId voter,
+  const MemberId& voter,
   const crypto::Pem& caller)
 {
   const auto getter = create_request(
@@ -221,7 +221,7 @@ auto get_cert(uint64_t member_id, crypto::KeyPairPtr& kp_mem)
 auto init_frontend(
   NetworkState& network,
   GenesisGenerator& gen,
-  StubNodeState& node,
+  StubNodeContext& context,
   ShareManager& share_manager,
   const int n_members,
   std::vector<crypto::Pem>& member_certs)
@@ -237,7 +237,7 @@ auto init_frontend(
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
 
-  return MemberRpcFrontend(network, node, share_manager);
+  return MemberRpcFrontend(network, context, share_manager);
 }
 
 void init_network(NetworkState& network)

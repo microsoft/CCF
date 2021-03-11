@@ -130,9 +130,10 @@ namespace kv
      * visibility described above only applies to the keys and values passed to
      * this functor.
      *
-     * @param F functor, taking (const K& k, const V& v) and returning a bool.
-     * Return value determines whether the iteration should continue (true) or
-     * stop (false).
+     * @tparam F Functor class, taking (const K& k, const V& v) and returning a
+     * bool. Return value determines whether the iteration should continue
+     * (true) or stop (false).
+     * @param f Functor instance
      */
     template <class F>
     void foreach(F&& f)

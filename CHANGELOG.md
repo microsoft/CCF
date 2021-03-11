@@ -5,12 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.19.0]
 
 ### Changed
 
 - `x-ccf-tx-view` and `x-ccf-tx-seqno` response headers have been removed, and replaced with `x-ms-ccf-transaction-id`. This includes both original fields, separated by a single `.`. Historical queries using `ccf::historical::adapter` should also pass a single combined `x-ms-ccf-transaction-id` header (#2257).
-- Node unique identifier is the hex-encoded string of the SHA-256 digest of the node's identity public key, which is also used as the node's quote report data (#2241).
+- Node unique identifier is now the hex-encoded string of the SHA-256 digest of the node's DER-encoded identity public key, which is also used as the node's quote report data. The `sandbox.sh` script still uses incrementing IDs to keep track of nodes and for their respective directories (#2241).
+- Members and users unique identifier is now the hex-encoded string of the SHA-256 digest of their DER-encoded identity certificate (i.e. fingerprint), which has to be specified as the `keyId` field for signed HTTP requests (#2279).
+- The receipt interface has changed, `/app/receipt?commit=23` is replaced by `/app/receipt?transaction_id=2.23`. Receipt fetching is now implemented as a historical query, which means that the first reponse(s) may be 202 with a Retry-After header. Receipts are now structured JSON, as opposed to a flat byte sequence, and `/app/receipt/verify` has been removed in favour of an [offline verification sample](https://microsoft.github.io/CCF/ccf-0.19.0/use_apps/verify_tx.html#transaction-receipts).
+- `ccfapp::get_rpc_handler()` now takes a reference to a `ccf::AbstractNodeContext` rather than `ccf::AbstractNodeState`. The node state can be obtained from the context via `get_node_state()`.
+
+### Removed
+
+- `get_receipt_for_seqno_v1` has been removed. Handlers wanting to return receipts must now use the historical API, and can obtain a receipt via `ccf::historical::StatePtr`. See the [historical query with receipt sample](https://microsoft.github.io/CCF/ccf-0.19.0/build_apps/logging_cpp.html#receipts) for reference.
+- `caller_id` endpoint has been removed. Members and users can now compute their unique identifier without interacting with CCF (#2279).
+- `public:ccf.internal.members.certs_der`, `public:ccf.internal.users.certs_der`, `public:ccf.internal.members.digests` and `public:ccf.internal.users.digests` KV tables have been removed (#2279).
+- `view_change_in_progress` field in `network/status` response has been removed (#2288).
 
 ## [0.18.5]
 
@@ -23,7 +33,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Governance proposals can be submitted successfully against secondaries (#2247)
-- `set_ca_cert`/`remove_ca_cert` proposals have been renamed `set_ca_cert_bundle`/`remove_ca_cert_bundle` and now also accept a bundle of certificates encoded as concatenated PEM string (#2221).
+- `set_ca_cert`/`remove_ca_cert` proposals have been renamed `set_ca_cert_bundle`/`remove_ca_cert_bundle` and now also accept a bundle of certificates encoded as concatenated PEM string (#2221). The `ca_cert_name` parameter to the `set_jwt_issuer` proposal has been renamed to `ca_cert_bundle_name`.
 
 ### Added
 
@@ -718,6 +728,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.19.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.0
 [0.18.5]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.5
 [0.18.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.4
 [0.18.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.3

@@ -364,7 +364,11 @@ namespace ccf
             // BFT consensus requires a stable order of node IDs so that the
             // primary node in a given view can be computed deterministically by
             // all nodes in the network
-            self = "0";
+            // See https://github.com/microsoft/CCF/issues/1852
+
+            // Pad node id string to avoid memory alignment issues on
+            // node-to-node messages
+            self = NodeId(fmt::format("{:#08}", 0));
           }
 
           setup_snapshotter();
@@ -393,7 +397,7 @@ namespace ccf
           reset_data(quote_info.endorsements);
           sm.advance(State::partOfNetwork);
 
-          LOG_INFO_FMT("Created new node {}", self.value());
+          LOG_INFO_FMT("Created new node {}", self);
           return {node_cert, network.identity->cert};
         }
         case StartType::Join:
@@ -412,7 +416,7 @@ namespace ccf
             sm.advance(State::pending);
           }
 
-          LOG_INFO_FMT("Created join node {}", self.value());
+          LOG_INFO_FMT("Created join node {}", self);
           return {node_cert, {}};
         }
         case StartType::Recover:
@@ -445,7 +449,7 @@ namespace ccf
 
           sm.advance(State::readingPublicLedger);
 
-          LOG_INFO_FMT("Created recovery node {}", self.value());
+          LOG_INFO_FMT("Created recovery node {}", self);
           return {node_cert, network.identity->cert};
         }
         default:
@@ -827,7 +831,8 @@ namespace ccf
 
         if (
           startup_snapshot_info && startup_snapshot_info->has_evidence &&
-          last_sig->commit_seqno >= startup_snapshot_info->evidence_seqno)
+          static_cast<consensus::Index>(last_sig->commit_seqno) >=
+            startup_snapshot_info->evidence_seqno)
         {
           startup_snapshot_info->is_evidence_committed = true;
         }
@@ -1493,9 +1498,8 @@ namespace ccf
 
       request.set_body(&body);
 
-      const auto contents = node_cert.contents();
-      crypto::Sha256Hash hash({contents.data(), contents.size()});
-      const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
+      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
+      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
 
       http::sign_request(request, node_sign_kp, key_id);
 

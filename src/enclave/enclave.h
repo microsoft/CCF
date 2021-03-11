@@ -117,13 +117,13 @@ namespace enclave
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(
-          network, *node, share_manager));
+          network, *context, share_manager));
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
         ccfapp::get_rpc_handler(network, *context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
-        std::make_unique<ccf::NodeRpcFrontend>(network, *node));
+        std::make_unique<ccf::NodeRpcFrontend>(network, *context));
 
       for (auto& [actor, fe] : rpc_map->frontends())
       {

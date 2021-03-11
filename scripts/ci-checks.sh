@@ -12,6 +12,9 @@ fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+ROOT_DIR=$( dirname "$SCRIPT_DIR" )
+pushd "$ROOT_DIR"
+
 echo "Shell scripts"
 git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091,SC2181
 

@@ -135,6 +135,15 @@
           "commitHash": "005a3da976877a27457178a6bc1e10d65dd06324"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/microsoft/merklecpp",
+          "commitHash": "5b2be3862f29f13412bffa5f210658adbf0456e2"
+        }
+      }
     }
   ],
   "Version": 1

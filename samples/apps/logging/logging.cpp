@@ -116,7 +116,7 @@ namespace loggingapp
   public:
     // SNIPPET_START: constructor
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
-      ccf::UserEndpointRegistry(context.get_node_state()),
+      ccf::UserEndpointRegistry(context),
       records("records"),
       public_records("public:records"),
       // SNIPPET_END: constructor
@@ -516,17 +516,16 @@ namespace loggingapp
         .install();
       // SNIPPET_END: log_record_text
 
+      // SNIPPET_START: get_historical
       auto get_historical = [this](
                               ccf::EndpointContext& args,
-                              ccf::historical::StorePtr historical_store,
-                              kv::Consensus::View,
-                              kv::Consensus::SeqNo) {
+                              ccf::historical::StatePtr historical_state) {
         const auto [pack, params] =
           ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
         const auto in = params.get<LoggingGetHistorical::In>();
 
-        auto historical_tx = historical_store->create_read_only_tx();
+        auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle = historical_tx.ro(records);
         const auto v = records_handle->get(in.id);
 
@@ -581,6 +580,46 @@ namespace loggingapp
         .set_auto_schema<LoggingGetHistorical>()
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
+      // SNIPPET_END: get_historical
+
+      // SNIPPET_START: get_historical_with_receipt
+      auto get_historical_with_receipt =
+        [this](
+          ccf::EndpointContext& args,
+          ccf::historical::StatePtr historical_state) {
+          const auto [pack, params] =
+            ccf::jsonhandler::get_json_params(args.rpc_ctx);
+
+          const auto in = params.get<LoggingGetReceipt::In>();
+
+          auto historical_tx = historical_state->store->create_read_only_tx();
+          auto records_handle = historical_tx.ro(records);
+          const auto v = records_handle->get(in.id);
+
+          if (v.has_value())
+          {
+            LoggingGetReceipt::Out out;
+            out.msg = v.value();
+            out.receipt.from_receipt(historical_state->receipt);
+            ccf::jsonhandler::set_response(std::move(out), args.rpc_ctx, pack);
+          }
+          else
+          {
+            args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+        };
+      make_endpoint(
+        "log/private/historical_receipt",
+        HTTP_GET,
+        ccf::historical::adapter(
+          get_historical_with_receipt,
+          context.get_historical_state(),
+          is_tx_committed),
+        auth_policies)
+        .set_auto_schema<LoggingGetReceipt>()
+        .set_forwarding_required(ccf::ForwardingRequired::Never)
+        .install();
+      // SNIPPET_END: get_historical_with_receipt
 
       static constexpr auto get_historical_range_path =
         "log/private/historical/range";

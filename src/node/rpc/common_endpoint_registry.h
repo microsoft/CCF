@@ -3,13 +3,52 @@
 #pragma once
 
 #include "base_endpoint_registry.h"
+#include "ds/nonstd.h"
+#include "enclave/node_context.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
 #include "json_handler.h"
 #include "node/code_id.h"
+#include "node/historical_queries_adapter.h"
 
 namespace ccf
 {
+  static inline std::optional<ccf::TxID> txid_from_query_string(
+    EndpointContext& args)
+  {
+    const std::string prefix("transaction_id=");
+    const auto& path_params = args.rpc_ctx->get_request_query();
+
+    if (!nonstd::starts_with(path_params, prefix))
+    {
+      args.rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidInput,
+        "Query string must contain a single 'transaction_id' parameter");
+      return std::nullopt;
+    }
+
+    const auto& txid_str =
+      path_params.substr(prefix.size(), path_params.size() - prefix.size());
+
+    const auto tx_id_opt = ccf::TxID::from_str(txid_str);
+    if (!tx_id_opt.has_value())
+    {
+      args.rpc_ctx->set_error(
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidHeaderValue,
+        fmt::format(
+          "The value '{}' passed as 'transaction_id' '{}' could not be "
+          "converted to a valid "
+          "Tx ID.",
+          txid_str,
+          http::headers::CCF_TX_ID));
+      return std::nullopt;
+    }
+
+    return tx_id_opt;
+  }
+
   /*
    * Extends the BaseEndpointRegistry by installing common endpoints we expect
    * to be available on most services. Override init_handlers or inherit from
@@ -18,16 +57,11 @@ namespace ccf
    */
   class CommonEndpointRegistry : public BaseEndpointRegistry
   {
-  protected:
-    std::string certs_table_name;
-
   public:
     CommonEndpointRegistry(
       const std::string& method_prefix_,
-      AbstractNodeState& node_state,
-      const std::string& certs_table_name_ = "") :
-      BaseEndpointRegistry(method_prefix_, node_state),
-      certs_table_name(certs_table_name_)
+      ccfapp::AbstractNodeContext& context_) :
+      BaseEndpointRegistry(method_prefix_, context_)
     {}
 
     void init_handlers() override
@@ -92,65 +126,6 @@ namespace ccf
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto get_caller_id = [this](auto& args, nlohmann::json&& params) {
-        GetCallerId::Out out;
-
-        if (!params.is_null())
-        {
-          const GetCallerId::In in = params;
-          auto certs = args.tx.template ro<CertDERs>(certs_table_name);
-          std::vector<uint8_t> pem(in.cert.begin(), in.cert.end());
-          std::vector<uint8_t> der = crypto::make_verifier(pem)->cert_der();
-          auto caller_id_opt = certs->get(der);
-
-          if (!caller_id_opt.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::UnknownCertificate,
-              "Certificate not recognised.");
-          }
-
-          out.caller_id = caller_id_opt.value();
-        }
-        else if (
-          auto user_cert_ident =
-            args.template try_get_caller<ccf::UserCertAuthnIdentity>())
-        {
-          out.caller_id = user_cert_ident->user_id;
-        }
-        else if (
-          auto member_cert_ident =
-            args.template try_get_caller<ccf::MemberCertAuthnIdentity>())
-        {
-          out.caller_id = member_cert_ident->member_id;
-        }
-        else if (
-          auto user_sig_ident =
-            args.template try_get_caller<ccf::UserSignatureAuthnIdentity>())
-        {
-          out.caller_id = user_cert_ident->user_id;
-        }
-        else if (
-          auto member_sig_ident =
-            args.template try_get_caller<ccf::MemberSignatureAuthnIdentity>())
-        {
-          out.caller_id = member_cert_ident->member_id;
-        }
-
-        return make_success(out);
-      };
-      make_read_only_endpoint(
-        "caller_id",
-        HTTP_GET,
-        json_read_only_adapter(get_caller_id),
-        {user_cert_auth_policy,
-         user_signature_auth_policy,
-         member_cert_auth_policy,
-         member_signature_auth_policy})
-        .set_auto_schema<GetCallerId::In, GetCallerId::Out>()
-        .install();
-
       auto get_code = [](auto& args, nlohmann::json&&) {
         GetCode::Out out;
 
@@ -209,63 +184,60 @@ namespace ccf
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto get_receipt = [this](auto&, nlohmann::json&& params) {
-        const auto in = params.get<GetReceipt::In>();
+      auto is_tx_committed = [this](
+                               kv::Consensus::View view,
+                               kv::Consensus::SeqNo seqno,
+                               std::string& error_reason) {
+        if (consensus == nullptr)
+        {
+          error_reason = "Node is not fully configured";
+          return false;
+        }
+
+        const auto tx_view = consensus->get_view(seqno);
+        const auto committed_seqno = consensus->get_committed_seqno();
+        const auto committed_view = consensus->get_view(committed_seqno);
+
+        const auto tx_status = ccf::evaluate_tx_status(
+          view, seqno, tx_view, committed_view, committed_seqno);
+        if (tx_status != ccf::TxStatus::Committed)
+        {
+          error_reason = fmt::format(
+            "Only committed transactions can be queried. Transaction {}.{} is "
+            "{}",
+            view,
+            seqno,
+            ccf::tx_status_to_str(tx_status));
+          return false;
+        }
+
+        return true;
+      };
+
+      auto get_receipt = [](
+                           ccf::EndpointContext& args,
+                           ccf::historical::StatePtr historical_state) {
+        const auto [pack, params] =
+          ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
         GetReceipt::Out out;
-        const auto result = get_receipt_for_seqno_v1(in.commit, out.receipt);
-        if (result == ccf::ApiResult::OK)
-        {
-          return make_success(out);
-        }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format("Error code: {}", ccf::api_result_to_str(result)));
-        }
+        out.from_receipt(historical_state->receipt);
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ccf::jsonhandler::set_response(out, args.rpc_ctx, pack);
       };
-      make_command_endpoint(
+
+      make_endpoint(
         "receipt",
         HTTP_GET,
-        json_command_adapter(get_receipt),
+        ccf::historical::adapter(
+          get_receipt,
+          context.get_historical_state(),
+          is_tx_committed,
+          txid_from_query_string),
         no_auth_required)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<GetReceipt>()
-        .install();
-
-      auto verify_receipt = [this](auto&, nlohmann::json&& params) {
-        const auto in = params.get<VerifyReceipt::In>();
-
-        if (history != nullptr)
-        {
-          try
-          {
-            bool v = history->verify_receipt(in.receipt);
-            const VerifyReceipt::Out out{v};
-
-            return make_success(out);
-          }
-          catch (const std::exception& e)
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              fmt::format("Unable to verify receipt: {}", e.what()));
-          }
-        }
-
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Unable to verify receipt.");
-      };
-      make_command_endpoint(
-        "receipt/verify",
-        HTTP_POST,
-        json_command_adapter(verify_receipt),
-        no_auth_required)
-        .set_auto_schema<VerifyReceipt>()
         .install();
     }
   };

@@ -13,7 +13,13 @@
 
 extern "C"
 {
-#include "crypto/random_bytes.h"
+  /// SSS assumes that there is a function of this prototype
+  int randombytes(void* buf, size_t n)
+  {
+    crypto::EntropyPtr entropy = crypto::create_entropy();
+    entropy->random((unsigned char*)buf, n);
+    return 0;
+  }
 
 #include <sss/sss.h>
 }

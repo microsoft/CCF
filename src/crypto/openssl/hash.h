@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash_base.h"
+#include "crypto/hash_provider.h"
 
 #include <openssl/evp.h>
 #include <openssl/sha.h>
@@ -36,9 +36,15 @@ namespace crypto
     }
   }
 
-  class OpenSSLHashProvider : public HashProviderBase
+  // Hash Provider (OpenSSL)
+  class OpenSSLHashProvider : public HashProvider
   {
   public:
+    /** Generic Hash function
+     * @param data The data to hash
+     * @param size The size of @p data
+     * @param type The type of hash to compute
+     */
     virtual HashBytes Hash(const uint8_t* data, size_t size, MDType type) const
     {
       auto o_md_type = OpenSSL::get_md_type(type);
@@ -52,7 +58,7 @@ namespace crypto
     }
   };
 
-  class ISha256OpenSSL : public ISha256HashBase
+  class ISha256OpenSSL : public ISha256Hash
   {
   public:
     ISha256OpenSSL();

@@ -11,11 +11,6 @@ namespace crypto
   using VerifierPtr = std::shared_ptr<Verifier>;
   using VerifierUniquePtr = std::unique_ptr<Verifier>;
 
-  /**
-   * Construct Verifier from a certificate in DER or PEM format
-   *
-   * @param cert Sequence of bytes containing the certificate
-   */
   VerifierUniquePtr make_unique_verifier(const std::vector<uint8_t>& cert)
   {
 #ifdef CRYPTO_PROVIDER_IS_MBEDTLS
@@ -47,6 +42,11 @@ namespace crypto
   crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der)
   {
     return make_verifier(der)->cert_pem();
+  }
+
+  std::vector<uint8_t> cert_pem_to_der(const crypto::Pem& pem)
+  {
+    return make_verifier(pem)->cert_der();
   }
 
   std::vector<uint8_t> public_key_der_from_cert(const std::vector<uint8_t>& der)

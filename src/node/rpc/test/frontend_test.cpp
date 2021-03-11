@@ -36,9 +36,9 @@ static constexpr auto default_pack = serdes::Pack::MsgPack;
 class BaseTestFrontend : public SimpleUserRpcFrontend
 {
 public:
-  ccf::StubNodeState stub_node;
+  ccf::StubNodeContext context;
 
-  BaseTestFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables, stub_node)
+  BaseTestFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables, context)
   {}
 
   // For testing only, we don't need to specify auth policies everywhere and
@@ -234,9 +234,9 @@ class TestMemberFrontend : public MemberRpcFrontend
 public:
   TestMemberFrontend(
     ccf::NetworkState& network,
-    ccf::StubNodeState& node,
+    ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, node, share_manager)
+    MemberRpcFrontend(network, context, share_manager)
   {
     open();
 
@@ -282,7 +282,7 @@ class RpcContextRecorder
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
   crypto::Pem last_caller_cert;
-  CallerId last_caller_id = INVALID_ID;
+  std::optional<CallerId> last_caller_id = std::nullopt;
 
   void record_ctx(EndpointContext& ctx)
   {
@@ -298,7 +298,7 @@ public:
     }
     else
     {
-      last_caller_id = INVALID_ID;
+      last_caller_id.reset();
     }
   }
 };
@@ -335,8 +335,8 @@ class TestForwardingNodeFrontEnd : public NodeRpcFrontend,
 {
 public:
   TestForwardingNodeFrontEnd(
-    ccf::NetworkState& network, ccf::StubNodeState& node) :
-    NodeRpcFrontend(network, node)
+    ccf::NetworkState& network, ccf::StubNodeContext& context) :
+    NodeRpcFrontend(network, context)
   {
     open();
 
@@ -360,9 +360,9 @@ public:
   TestForwardingMemberFrontEnd(
     kv::Store& tables,
     ccf::NetworkState& network,
-    ccf::StubNodeState& node,
+    ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, node, share_manager)
+    MemberRpcFrontend(network, context, share_manager)
   {
     open();
 
@@ -408,9 +408,8 @@ http::Request create_signed_request(
 
   s.set_body(body);
 
-  const auto contents = caller_cert.contents();
-  crypto::Sha256Hash hash({contents.data(), contents.size()});
-  const std::string key_id = fmt::format("{:02x}", fmt::join(hash.h, ""));
+  auto caller_cert_der = crypto::cert_pem_to_der(caller_cert);
+  const auto key_id = crypto::Sha256Hash(caller_cert_der).hex_str();
 
   http::sign_request(s, kp, key_id);
 
@@ -461,11 +460,10 @@ auto member_session = make_shared<enclave::SessionContext>(
 auto anonymous_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, anonymous_caller_der);
 
-UserId user_id = INVALID_ID;
-UserId invalid_user_id = INVALID_ID;
+UserId user_id;
 
-MemberId member_id = INVALID_ID;
-MemberId invalid_member_id = INVALID_ID;
+MemberId member_id;
+MemberId invalid_member_id;
 
 void prepare_callers(NetworkState& network)
 {
@@ -753,11 +751,11 @@ TEST_CASE("Member caller")
   prepare_callers(network);
 
   ShareManager share_manager(network);
-  StubNodeState stub_node;
+  StubNodeContext context;
 
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestMemberFrontend frontend(network, stub_node, share_manager);
+  TestMemberFrontend frontend(network, context, share_manager);
 
   SUBCASE("valid caller")
   {
@@ -1303,10 +1301,10 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   prepare_callers(network_backup);
 
   ShareManager share_manager(network_primary);
-  StubNodeState stub_node;
+  StubNodeContext context;
 
-  TestForwardingNodeFrontEnd node_frontend_primary(network_primary, stub_node);
-  TestForwardingNodeFrontEnd node_frontend_backup(network_backup, stub_node);
+  TestForwardingNodeFrontEnd node_frontend_primary(network_primary, context);
+  TestForwardingNodeFrontEnd node_frontend_backup(network_backup, context);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
@@ -1338,7 +1336,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(node_frontend_primary.last_caller_cert == node_caller);
-  CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
+  CHECK(!node_frontend_primary.last_caller_id.has_value());
 }
 
 TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
@@ -1380,7 +1378,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(user_frontend_primary.last_caller_cert == user_caller);
-  CHECK(user_frontend_primary.last_caller_id == 0);
+  CHECK(user_frontend_primary.last_caller_id.value() == user_id);
 }
 
 TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
@@ -1392,12 +1390,12 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   prepare_callers(network_backup);
 
   ShareManager share_manager(network_primary);
-  StubNodeState stub_node;
+  StubNodeContext context;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network_primary.tables, network_primary, stub_node, share_manager);
+    *network_primary.tables, network_primary, context, share_manager);
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network_backup.tables, network_backup, stub_node, share_manager);
+    *network_backup.tables, network_backup, context, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
@@ -1426,7 +1424,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(member_frontend_primary.last_caller_cert == member_caller);
-  CHECK(member_frontend_primary.last_caller_id == 0);
+  CHECK(member_frontend_primary.last_caller_id.value() == member_id);
 }
 
 class TestConflictFrontend : public BaseTestFrontend

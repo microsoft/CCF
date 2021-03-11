@@ -889,7 +889,7 @@ namespace ccfapp
       }
 
       char const* policy_name = nullptr;
-      size_t id = ccf::INVALID_ID;
+      CallerId id;
       nlohmann::json data;
       std::string cert_s;
 
@@ -936,7 +936,8 @@ namespace ccfapp
       }
 
       JS_SetPropertyStr(ctx, caller, "policy", JS_NewString(ctx, policy_name));
-      JS_SetPropertyStr(ctx, caller, "id", JS_NewUint32(ctx, id));
+      JS_SetPropertyStr(
+        ctx, caller, "id", JS_NewStringLen(ctx, id.data(), id.size()));
       JS_SetPropertyStr(ctx, caller, "data", create_json_obj(data, ctx));
       JS_SetPropertyStr(
         ctx,
@@ -1305,8 +1306,8 @@ namespace ccfapp
     {};
 
   public:
-    JSHandlers(NetworkTables& network, ccf::AbstractNodeState& node_state) :
-      UserEndpointRegistry(node_state),
+    JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
+      UserEndpointRegistry(context),
       network(network)
     {
       JS_NewClassID(&kv_class_id);
@@ -1319,13 +1320,6 @@ namespace ccfapp
 
       JS_NewClassID(&body_class_id);
       body_class_def.class_name = "Body";
-
-      auto default_handler = [this](EndpointContext& args) {
-        execute_request(
-          args.rpc_ctx->get_method(), args.rpc_ctx->get_request_verb(), args);
-      };
-
-      set_default(default_handler, no_auth_required);
 
       metrics_tracker.install_endpoint(*this);
     }
@@ -1502,15 +1496,15 @@ namespace ccfapp
     JSHandlers js_handlers;
 
   public:
-    JS(NetworkTables& network, ccfapp::AbstractNodeContext& node_context) :
+    JS(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
       ccf::UserRpcFrontend(*network.tables, js_handlers),
-      js_handlers(network, node_context.get_node_state())
+      js_handlers(network, context)
     {}
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, ccfapp::AbstractNodeContext& node_context)
+    NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<JS>(network, node_context);
+    return make_shared<JS>(network, context);
   }
 } // namespace ccfapp

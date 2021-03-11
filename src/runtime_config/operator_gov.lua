@@ -70,7 +70,7 @@ return {
 
   for member, vote in pairs(votes) do
     if vote then
-      if not is_operator(tonumber(member)) then
+      if not is_operator(member) then
         member_votes = member_votes + 1
       end
     end
@@ -117,7 +117,7 @@ return {
   end
 
   -- operators proposing operator changes can pass them without a vote
-  if operator_change and is_operator(tonumber(proposer_id)) then
+  if operator_change and is_operator(proposer_id) then
     return PASSED
   end
 

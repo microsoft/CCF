@@ -124,8 +124,12 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto members = tx.rw<ccf::Members>(ccf::Tables::MEMBERS);
     ccf::MemberInfo mi;
     mi.status = ccf::MemberStatus::ACTIVE;
+
+    auto kp = crypto::make_key_pair();
+    mi.cert = kp->self_sign("CN=member");
     mi.encryption_pub_key = crypto::make_rsa_key_pair()->public_key_pem();
-    members->put(0, mi);
+    members->put(
+      crypto::Sha256Hash(crypto::cert_pem_to_der(mi.cert)).hex_str(), mi);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 

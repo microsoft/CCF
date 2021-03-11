@@ -15,8 +15,11 @@ namespace crypto
   // SNIPPET_START: supported_curves
   enum class CurveID
   {
+    /// No curve
     NONE = 0,
+    /// The SECP384R1 curve
     SECP384R1,
+    /// The SECP256R1 curve
     SECP256R1
   };
 

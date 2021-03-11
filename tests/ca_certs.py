@@ -57,9 +57,7 @@ def test_cert_store(network, args):
         cert_pem_fp.flush()
         network.consortium.set_ca_cert_bundle(primary, cert_name, cert_pem_fp.name)
 
-    with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
-    ) as c:
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
         r = c.post(
             "/gov/read",
             {"table": "public:ccf.gov.tls.ca_cert_bundles", "key": cert_name},
@@ -74,9 +72,7 @@ def test_cert_store(network, args):
     LOG.info("Member removes a ca cert")
     network.consortium.remove_ca_cert_bundle(primary, cert_name)
 
-    with primary.client(
-        f"member{network.consortium.get_any_active_member().member_id}"
-    ) as c:
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
         r = c.post(
             "/gov/read",
             {"table": "public:ccf.gov.tls.ca_cert_bundles", "key": cert_name},
