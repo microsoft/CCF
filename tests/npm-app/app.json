@@ -118,10 +118,10 @@
         }
       }
     },
-    "/generateRsaKey": {
+    "/generateRsaKeyPair": {
       "post": {
         "js_module": "src/endpoints/crypto.js",
-        "js_function": "generateRsaKey",
+        "js_function": "generateRsaKeyPair",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
@@ -148,7 +148,7 @@
           },
           "responses": {
             "200": {
-              "description": "Generated key",
+              "description": "Generated key pair",
               "content": {
                 "application/octet-stream": {}
               }

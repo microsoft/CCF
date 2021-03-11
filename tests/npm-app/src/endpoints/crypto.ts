@@ -25,18 +25,23 @@ export function generateAesKey(
   return { body: ccf.ccf.generateAesKey(request.body.json().size) };
 }
 
-interface GenerateRsaKeyRequest {
+interface GenerateRsaKeyPairRequest {
   size: number;
   exponent?: number;
 }
 
-export function generateRsaKey(
-  request: ccf.Request<GenerateRsaKeyRequest>
-): ccf.Response<ArrayBuffer> {
+export interface CryptoKeyPair {
+  privateKey: string;
+  publicKey: string;
+}
+
+export function generateRsaKeyPair(
+  request: ccf.Request<GenerateRsaKeyPairRequest>
+): ccf.Response<CryptoKeyPair> {
   const req = request.body.json();
   const res = req.exponent
-    ? ccf.ccf.generateRsaKey(req.size, req.exponent)
-    : ccf.ccf.generateRsaKey(req.size);
+    ? ccf.ccf.generateRsaKeyPair(req.size, req.exponent)
+    : ccf.ccf.generateRsaKeyPair(req.size);
   return { body: res };
 }
 

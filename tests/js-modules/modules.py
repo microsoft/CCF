@@ -254,9 +254,9 @@ def test_npm_app(network, args):
         assert len(r.body.data()) == key_size // 8
         assert r.body.data() != b"\x00" * (key_size // 8)
 
-        r = c.post("/app/generateRsaKey", {"size": 2048})
+        r = c.post("/app/generateRsaKeyPair", {"size": 2048})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert not all(v == b"\x00" for v in r.body.data())
+        assert infra.crypto.check_key_pair_pem(r.body.json()["privateKey"], r.body.json()["publicKey"])
 
         aes_key_to_wrap = infra.crypto.generate_aes_key(256)
         wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
