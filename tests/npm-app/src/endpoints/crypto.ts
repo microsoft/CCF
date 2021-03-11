@@ -25,6 +25,26 @@ export function generateAesKey(
   return { body: ccf.ccf.generateAesKey(request.body.json().size) };
 }
 
+interface GenerateRsaKeyPairRequest {
+  size: number;
+  exponent?: number;
+}
+
+export interface CryptoKeyPair {
+  privateKey: string;
+  publicKey: string;
+}
+
+export function generateRsaKeyPair(
+  request: ccf.Request<GenerateRsaKeyPairRequest>
+): ccf.Response<CryptoKeyPair> {
+  const req = request.body.json();
+  const res = req.exponent
+    ? ccf.ccf.generateRsaKeyPair(req.size, req.exponent)
+    : ccf.ccf.generateRsaKeyPair(req.size);
+  return { body: res };
+}
+
 type Base64 = string;
 
 interface WrapAlgoParams {

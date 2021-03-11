@@ -26,8 +26,6 @@ namespace crypto
 {
   using namespace mbedtls;
 
-  static constexpr size_t max_pem_key_size = 2048;
-
   static mbedtls_ecp_group_id get_mbedtls_group_id(CurveID gid)
   {
     switch (gid)
