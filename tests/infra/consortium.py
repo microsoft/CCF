@@ -58,8 +58,7 @@ class Consortium:
                 self.members.append(new_member)
         else:
             for f in os.listdir(self.common_dir):
-                result = re.search("member(.*)_cert.pem", f)
-                if result is not None:
+                if re.search("member(.*)_cert.pem", f) is not None:
                     local_id = f.split("_")[0]
                     new_member = infra.member.Member(
                         local_id,
@@ -71,7 +70,6 @@ class Consortium:
                         ),
                         authenticate_session=authenticate_session,
                     )
-
                     self.members.append(new_member)
                     LOG.info(
                         f"Successfully recovered member {local_id}: {new_member.service_id}"
