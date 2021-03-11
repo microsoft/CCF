@@ -4,156 +4,100 @@
 
 #include "ds/serialized.h"
 
-namespace smallbank
+namespace tpcc
 {
-  struct Transaction
+  struct TpccDbCreation
   {
-    std::string name;
-    int64_t value;
+    uint32_t num_wh;
+    uint32_t num_items;
+    int32_t customers_per_district;
+    int32_t districts_per_warehouse;
+    int32_t new_orders_per_district;
 
     std::vector<uint8_t> serialize() const
     {
-      auto size = sizeof(name.size()) + name.size() + sizeof(value);
+      auto size = sizeof(num_wh) + sizeof(num_items) +
+        sizeof(customers_per_district) + sizeof(districts_per_warehouse) +
+        sizeof(new_orders_per_district);
       std::vector<uint8_t> v(size);
       auto data = v.data();
-      serialized::write(data, size, name);
-      serialized::write(data, size, value);
+      serialized::write(data, size, num_wh);
+      serialized::write(data, size, num_items);
+      serialized::write(data, size, customers_per_district);
+      serialized::write(data, size, districts_per_warehouse);
+      serialized::write(data, size, new_orders_per_district);
       return v;
     }
 
-    static Transaction deserialize(const uint8_t* data, size_t size)
+    static TpccDbCreation deserialize(const uint8_t* data, size_t size)
     {
-      Transaction t;
-      t.name = serialized::read<decltype(name)>(data, size);
-      t.value = serialized::read<decltype(value)>(data, size);
-      return t;
-    }
-  };
-
-  struct Amalgamate
-  {
-    std::string src;
-    std::string dst;
-
-    std::vector<uint8_t> serialize() const
-    {
-      auto size =
-        sizeof(src.size()) + src.size() + sizeof(dst.size()) + dst.size();
-      std::vector<uint8_t> v(size);
-      auto data = v.data();
-      serialized::write(data, size, src);
-      serialized::write(data, size, dst);
-      return v;
-    }
-
-    static Amalgamate deserialize(const uint8_t* data, size_t size)
-    {
-      Amalgamate a;
-      a.src = serialized::read<decltype(src)>(data, size);
-      a.dst = serialized::read<decltype(dst)>(data, size);
+      TpccDbCreation a;
+      a.num_wh = serialized::read<decltype(num_wh)>(data, size);
+      a.num_items = serialized::read<decltype(num_items)>(data, size);
+      a.customers_per_district =
+        serialized::read<decltype(customers_per_district)>(data, size);
+      a.districts_per_warehouse =
+        serialized::read<decltype(districts_per_warehouse)>(data, size);
+      a.new_orders_per_district =
+        serialized::read<decltype(new_orders_per_district)>(data, size);
       return a;
     }
   };
 
-  struct Balance
+  struct TpccStockLevel
   {
-    int64_t value;
+    int32_t warehouse_id;
+    int32_t district_id;
+    int32_t threshold;
 
     std::vector<uint8_t> serialize() const
     {
-      auto size = sizeof(value);
+      auto size = sizeof(warehouse_id) + sizeof(district_id) +
+        sizeof(threshold);
       std::vector<uint8_t> v(size);
       auto data = v.data();
-      serialized::write(data, size, value);
+      serialized::write(data, size, warehouse_id);
+      serialized::write(data, size, district_id);
+      serialized::write(data, size, threshold);
       return v;
     }
 
-    static Balance deserialize(const uint8_t* data, size_t size)
+    static TpccStockLevel deserialize(const uint8_t* data, size_t size)
     {
-      Balance b;
-      b.value = serialized::read<decltype(value)>(data, size);
-      return b;
-    }
-  };
-
-  struct AccountName
-  {
-    std::string name;
-
-    std::vector<uint8_t> serialize() const
-    {
-      auto size = sizeof(name.size()) + name.size();
-      std::vector<uint8_t> v(size);
-      auto data = v.data();
-      serialized::write(data, size, name);
-      return v;
-    }
-
-    static AccountName deserialize(const uint8_t* data, size_t size)
-    {
-      AccountName a;
-      a.name = serialized::read<decltype(name)>(data, size);
+      TpccStockLevel a;
+      a.warehouse_id = serialized::read<decltype(warehouse_id)>(data, size);
+      a.district_id = serialized::read<decltype(district_id)>(data, size);
+      a.threshold =
+        serialized::read<decltype(threshold)>(data, size);
       return a;
     }
   };
 
-  struct AccountInfo
+  struct TpccOrderStatus
   {
-    std::string name;
-    int64_t checking_amt;
-    int64_t savings_amt;
+    int32_t warehouse_id;
+    int32_t district_id;
+    int32_t threshold;
 
     std::vector<uint8_t> serialize() const
     {
-      auto size = sizeof(name.size()) + name.size() + sizeof(checking_amt) +
-        sizeof(savings_amt);
+      auto size = sizeof(warehouse_id) + sizeof(district_id) +
+        sizeof(threshold);
       std::vector<uint8_t> v(size);
       auto data = v.data();
-      serialized::write(data, size, name);
-      serialized::write(data, size, checking_amt);
-      serialized::write(data, size, savings_amt);
+      serialized::write(data, size, warehouse_id);
+      serialized::write(data, size, district_id);
+      serialized::write(data, size, threshold);
       return v;
     }
 
-    static AccountInfo deserialize(const uint8_t* data, size_t size)
+    static TpccOrderStatus deserialize(const uint8_t* data, size_t size)
     {
-      AccountInfo a;
-      a.name = serialized::read<decltype(name)>(data, size);
-      a.checking_amt = serialized::read<decltype(checking_amt)>(data, size);
-      a.savings_amt = serialized::read<decltype(savings_amt)>(data, size);
-      return a;
-    }
-  };
-
-  struct AccountCreation
-  {
-    uint64_t new_id_from;
-    uint64_t new_id_to;
-    int64_t initial_checking_amt;
-    int64_t initial_savings_amt;
-
-    std::vector<uint8_t> serialize() const
-    {
-      auto size = sizeof(new_id_from) + sizeof(new_id_to) +
-        sizeof(initial_checking_amt) + sizeof(initial_savings_amt);
-      std::vector<uint8_t> v(size);
-      auto data = v.data();
-      serialized::write(data, size, new_id_from);
-      serialized::write(data, size, new_id_to);
-      serialized::write(data, size, initial_checking_amt);
-      serialized::write(data, size, initial_savings_amt);
-      return v;
-    }
-
-    static AccountCreation deserialize(const uint8_t* data, size_t size)
-    {
-      AccountCreation a;
-      a.new_id_from = serialized::read<decltype(new_id_from)>(data, size);
-      a.new_id_to = serialized::read<decltype(new_id_to)>(data, size);
-      a.initial_checking_amt =
-        serialized::read<decltype(initial_checking_amt)>(data, size);
-      a.initial_savings_amt =
-        serialized::read<decltype(initial_savings_amt)>(data, size);
+      TpccOrderStatus a;
+      a.warehouse_id = serialized::read<decltype(warehouse_id)>(data, size);
+      a.district_id = serialized::read<decltype(district_id)>(data, size);
+      a.threshold =
+        serialized::read<decltype(threshold)>(data, size);
       return a;
     }
   };

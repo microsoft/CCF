@@ -6,6 +6,7 @@
 #include "node/rpc/user_frontend.h"
 #include "tpcc_tables.h"
 #include "setup_tpcc.h"
+#include "tpcc_transactions.h"
 
 #include <charconv>
 
@@ -15,19 +16,9 @@ using namespace ccf;
 
 namespace ccfapp
 {
-  struct TpccTables
-  {
-    kv::Map<std::string, uint64_t> accounts;
-    kv::Map<uint64_t, int64_t> savings;
-    kv::Map<uint64_t, int64_t> checkings;
-
-    TpccTables() : accounts("a"), savings("b"), checkings("c") {}
-  };
-
   class TpccHandlers : public UserEndpointRegistry
   {
   private:
-    TpccTables tables;
     metrics::Tracker metrics_tracker;
 
     void set_error_status(
@@ -54,8 +45,7 @@ namespace ccfapp
 
   public:
     TpccHandlers(ccf::AbstractNodeState& node_state) :
-      UserEndpointRegistry(node_state),
-      tables()
+      UserEndpointRegistry(node_state)
     {}
 
     void init_handlers() override
@@ -63,9 +53,27 @@ namespace ccfapp
       UserEndpointRegistry::init_handlers();
 
       auto create = [this](auto& args) {
-        tpcc::SetupDb setup_db(args, 10, 1000);
+        LOG_INFO_FMT("Creating tpcc database");
+        std::array<char, tpcc::DATETIME_SIZE + 1> now = {"12345 time"};
+        tpcc::SetupDb setup_db(args, 10, 1000, 10, 10, 10, now);
         setup_db.run();
 
+        set_no_content_status(args);
+      };
+
+      auto do_stock_level = [this](auto& args) {
+        LOG_INFO_FMT("stock level");
+        tpcc::TpccTransactions tx(args, 10, 10, 10);
+        tx.stock_level(1,1,100);
+        
+        set_no_content_status(args);
+      };
+
+      auto do_order_status = [this](auto& args) {
+        LOG_INFO_FMT("order status");
+        tpcc::TpccTransactions tx(args, 10, 10, 10);
+        tx.order_status();
+        
         set_no_content_status(args);
       };
 
@@ -76,6 +84,10 @@ namespace ccfapp
       for (auto verb : verbs)
       {
         make_endpoint("tpcc_create", verb, create, user_sig_or_cert)
+          .install();
+        make_endpoint("stock_level", verb, do_stock_level, user_sig_or_cert)
+          .install();
+        make_endpoint("order_status", verb, do_order_status, user_sig_or_cert)
           .install();
       }
 
@@ -111,4 +123,11 @@ namespace ccfapp
   }
 }
 
-kv::Map<int32_t, tpcc::Stock> tpcc::TpccTables::stocks("stocks");
+kv::Map<tpcc::Stock::Key, tpcc::Stock> tpcc::TpccTables::stocks("stocks");
+kv::Map<tpcc::Warehouse::Key, tpcc::Warehouse> tpcc::TpccTables::warehouses("warehouses");
+kv::Map<tpcc::District::Key, tpcc::District> tpcc::TpccTables::districts("districts");
+kv::Map<tpcc::History::Key, tpcc::History> tpcc::TpccTables::histories("histories");
+kv::Map<tpcc::Customer::Key, tpcc::Customer> tpcc::TpccTables::customers("customers");
+kv::Map<tpcc::Order::Key, tpcc::Order> tpcc::TpccTables::orders("orders");
+kv::Map<tpcc::OrderLine::Key, tpcc::OrderLine> tpcc::TpccTables::order_lines("order_lines");
+kv::Map<tpcc::NewOrder::Key, tpcc::NewOrder> tpcc::TpccTables::new_orders("new_orders");

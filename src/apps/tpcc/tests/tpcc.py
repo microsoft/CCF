@@ -16,7 +16,7 @@ if __name__ == "__main__":
     unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
 
     def get_command(*common_args):
-        return [*common_args, "--warehouses", str(args.accounts)] + unknown_args
+        return [*common_args, "--warehouses", str(args.warehouses)] + unknown_args
 
     args.package = "libtpcc"
     infra.perfclient.run(get_command, args)
