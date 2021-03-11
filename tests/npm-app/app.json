@@ -150,7 +150,20 @@
             "200": {
               "description": "Generated key pair",
               "content": {
-                "application/octet-stream": {}
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                       "privateKey": {
+                         "type": "string"
+                       },
+                       "publicKey": {
+                         "type": "string"
+                       }
+                    },
+                    "required": ["privateKey", "publicKey"],
+                    "type": "object"
+                  }
+                }
               }
             }
           }
