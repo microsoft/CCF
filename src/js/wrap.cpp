@@ -69,6 +69,50 @@ namespace js
     JS_FreeValue(ctx, exception_val);
   }
 
+  JSValue Context::function(const std::string& code, const std::string& path)
+  {
+    JSValue module = JS_Eval(
+      ctx,
+      code.c_str(),
+      code.size(),
+      path.c_str(),
+      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+
+    if (JS_IsException(module))
+    {
+      js::js_dump_error(ctx);
+      throw std::runtime_error(fmt::format("Failed to compile {}", path));
+    }
+
+    auto eval_val = JS_EvalFunction(ctx, module);
+    if (JS_IsException(eval_val))
+    {
+      js::js_dump_error(ctx);
+      JS_FreeValue(ctx, eval_val);
+      throw std::runtime_error(fmt::format("Failed to execute {}", path));
+    }
+    JS_FreeValue(ctx, eval_val);
+
+    // Get exported function from module
+    assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
+    auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
+    if (JS_GetModuleExportEntriesCount(module_def) != 1)
+    {
+      throw std::runtime_error(
+        "Endpoint module exports more than one function");
+    }
+
+    auto export_func = JS_GetModuleExportEntry(ctx, module_def, 0);
+    if (!JS_IsFunction(ctx, export_func))
+    {
+      JS_FreeValue(ctx, export_func);
+      throw std::runtime_error(
+        "Endpoint module exports something that is not a function");
+    }
+
+    return export_func;
+  }
+
 #pragma clang diagnostic pop
 
 }

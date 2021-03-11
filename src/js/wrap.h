@@ -125,6 +125,8 @@ namespace js
     {
       return JSWrappedCString(ctx, cstr);
     };
+
+    JSValue function(const std::string& code, const std::string& path);
   };
 
 #pragma clang diagnostic pop
