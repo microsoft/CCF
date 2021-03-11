@@ -569,7 +569,7 @@ namespace ccfapp
     JSAtom property)
   {
     const auto property_name_c = JS_AtomToCString(ctx, property);
-    const auto property_name = std::string(property_name_c);
+    const std::string property_name(property_name_c);
     JS_FreeCString(ctx, property_name_c);
     LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
 
