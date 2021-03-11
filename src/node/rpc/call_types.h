@@ -124,11 +124,6 @@ namespace ccf
 
   struct GetReceipt
   {
-    struct In
-    {
-      std::string transaction_id;
-    };
-
     struct Element
     {
       std::optional<std::string> left = std::nullopt;

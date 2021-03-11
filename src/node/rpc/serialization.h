@@ -98,8 +98,6 @@ namespace ccf
   DECLARE_JSON_TYPE(EndpointMetrics::Out)
   DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Out, metrics)
 
-  DECLARE_JSON_TYPE(GetReceipt::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::In, transaction_id)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetReceipt::Element)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-parameter"

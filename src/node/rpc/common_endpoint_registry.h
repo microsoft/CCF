@@ -321,8 +321,8 @@ namespace ccf
         no_auth_required)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
-        .set_auto_schema<GetReceipt>()
-        .add_query_parameter<std::string>("transaction_id")
+        .set_auto_schema<void, GetReceipt::Out>()
+        .add_query_parameter<ccf::TxID>("transaction_id")
         .install();
     }
   };

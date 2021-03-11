@@ -56,4 +56,16 @@ namespace ccf
       return tx_id;
     }
   };
+
+  // ADL-found functions used during OpenAPI/JSON schema generation
+  inline std::string schema_name(const TxID&)
+  {
+    return "TransactionId";
+  }
+
+  inline void fill_json_schema(nlohmann::json& schema, const TxID&)
+  {
+    schema["type"] = "string";
+    schema["pattern"] = "^[0-9]+\\.[0-9]+$";
+  }
 }
