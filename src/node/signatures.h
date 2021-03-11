@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "crypto/hash.h"
-#include "kv/map.h"
 #include "node_signature.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -62,5 +62,5 @@ namespace ccf
     PrimarySignature, seqno, view, commit_seqno, commit_view, root, tree)
 
   // Signatures are always stored at key `0`
-  using Signatures = kv::Map<size_t, PrimarySignature>;
+  using Signatures = ServiceMap<size_t, PrimarySignature>;
 }
