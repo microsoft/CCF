@@ -739,7 +739,7 @@ namespace ccfapp
       JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
       return nullptr;
     }
-    std::string js = module->js;
+    auto& js = module.value();
 
     const char* buf = js.c_str();
     size_t buf_len = js.size();

@@ -435,8 +435,7 @@ namespace ccf
               return false;
             }
             auto& actual_claim_val = claims[claim_name];
-            auto actual_claim_val_hex =
-              fmt::format("{:02x}", fmt::join(actual_claim_val, ""));
+            auto actual_claim_val_hex = ds::to_hex(actual_claim_val);
             if (expected_claim_val_hex != actual_claim_val_hex)
             {
               LOG_FAIL_FMT(

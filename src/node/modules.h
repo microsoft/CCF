@@ -12,18 +12,20 @@
 
 namespace ccf
 {
-  struct Module
-  {
-    std::string js;
+  // struct Module
+  // {
+  //   std::string js;
 
-    Module() = default;
+  //   Module() = default;
 
-    Module(const std::string& js_) : js(js_) {}
+  //   Module(const std::string& js_) : js(js_) {}
 
-    MSGPACK_DEFINE(js);
-  };
-  DECLARE_JSON_TYPE(Module)
-  DECLARE_JSON_REQUIRED_FIELDS(Module, js)
+  //   MSGPACK_DEFINE(js);
+  // };
+  // DECLARE_JSON_TYPE(Module)
+  // DECLARE_JSON_REQUIRED_FIELDS(Module, js)
 
-  using Modules = ServiceMap<std::string, Module>;
+  using Module = std::string;
+
+  using Modules = kv::RawCopySerialisedMap<std::string, Module>;
 }

@@ -56,10 +56,8 @@ namespace nobuiltins
           }
 
           summary.quote_format = quote_info.format;
-          summary.quote =
-            fmt::format("{:02x}", fmt::join(quote_info.quote, ""));
-          summary.endorsements =
-            fmt::format("{:02x}", fmt::join(quote_info.endorsements, ""));
+          summary.quote = ds::to_hex(quote_info.quote);
+          summary.endorsements = ds::to_hex(node_info.quote);
           // SNIPPET_END: get_quote_api_v1
         }
 
