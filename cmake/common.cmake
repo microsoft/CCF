@@ -179,6 +179,11 @@ set(HTTP_PARSER_SOURCES
     ${CCF_DIR}/3rdparty/llhttp/llhttp.c
 )
 
+set(CCF_ENDPOINTS_SOURCES
+    ${CCF_DIR}/src/endpoints/endpoint.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+)
+
 find_library(CRYPTO_LIBRARY crypto)
 
 list(APPEND COMPILE_LIBCXX -stdlib=libc++)
@@ -327,6 +332,23 @@ add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
   TARGETS http_parser.host
+  EXPORT ccf
+  DESTINATION lib
+)
+
+# CCF endpoints libs
+add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
+set_property(TARGET ccf_endpoints.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
+use_oe_mbedtls(ccf_endpoints.enclave)
+install(
+  TARGETS ccf_endpoints.enclave
+  EXPORT ccf
+  DESTINATION lib
+)
+add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
+use_client_mbedtls(ccf_endpoints.host)
+install(
+  TARGETS ccf_endpoints.host
   EXPORT ccf
   DESTINATION lib
 )

@@ -60,7 +60,7 @@ option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
 
-set(CCF_IMPL_SOURCE ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/endpoints/endpoint.cpp ${CCF_DIR}/src/endpoints/endpoint_registry.cpp ${CCF_DIR}/src/enclave/thread_local.cpp)
+set(CCF_IMPL_SOURCE ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp)
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   # enclave version
@@ -97,6 +97,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            aft.enclave
            sss.enclave
+           ccf_endpoints.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -148,6 +149,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            aft.virtual
            sss.host
+           ccf_endpoints.host
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -372,12 +374,10 @@ if(BUILD_TESTS)
     add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/endpoint.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/endpoint_registry.cpp
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host
-                            sss.host
+                            sss.host ccf_endpoints.host
     )
 
     add_unit_test(
@@ -388,12 +388,10 @@ if(BUILD_TESTS)
     add_unit_test(
       member_voting_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/endpoint.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/endpoint_registry.cpp
     )
     target_link_libraries(
       member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                                 http_parser.host sss.host
+                                 http_parser.host sss.host ccf_endpoints.host
     )
 
     set_tests_properties(
@@ -405,23 +403,19 @@ if(BUILD_TESTS)
     add_unit_test(
       proposal_id_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/endpoint.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/endpoint_registry.cpp
     )
     target_link_libraries(
       proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                               http_parser.host sss.host
+                               http_parser.host sss.host ccf_endpoints.host
     )
 
     add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/endpoint.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/endpoint_registry.cpp
     )
     target_link_libraries(
       node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                                 http_parser.host sss.host
+                                 http_parser.host sss.host ccf_endpoints.host
     )
 
     add_unit_test(

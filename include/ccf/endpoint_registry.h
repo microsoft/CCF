@@ -23,6 +23,50 @@
 
 namespace ccf::endpoints
 {
+  struct PathTemplateSpec
+  {
+    std::regex template_regex;
+    std::vector<std::string> template_component_names;
+  };
+
+  inline std::optional<PathTemplateSpec> parse_path_template(
+    const std::string& uri)
+  {
+    auto template_start = uri.find_first_of('{');
+    if (template_start == std::string::npos)
+    {
+      return std::nullopt;
+    }
+
+    PathTemplateSpec spec;
+
+    std::string regex_s = uri;
+    template_start = regex_s.find_first_of('{');
+    while (template_start != std::string::npos)
+    {
+      const auto template_end = regex_s.find_first_of('}', template_start);
+      if (template_end == std::string::npos)
+      {
+        throw std::logic_error(
+          fmt::format("Invalid templated path - missing closing '}': {}", uri));
+      }
+
+      spec.template_component_names.push_back(
+        regex_s.substr(template_start + 1, template_end - template_start - 1));
+      regex_s.replace(
+        template_start, template_end - template_start + 1, "([^/]+)");
+      template_start = regex_s.find_first_of('{', template_start + 1);
+    }
+
+    LOG_TRACE_FMT("Parsed a templated endpoint: {} became {}", uri, regex_s);
+    LOG_TRACE_FMT(
+      "Component names are: {}",
+      fmt::join(spec.template_component_names, ", "));
+    spec.template_regex = std::regex(regex_s);
+
+    return spec;
+  }
+
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
    */
@@ -52,56 +96,12 @@ namespace ccf::endpoints
       size_t retries = 0;
     };
 
-    struct PathTemplateSpec
-    {
-      std::regex template_regex;
-      std::vector<std::string> template_component_names;
-    };
-
     struct PathTemplatedEndpoint : public Endpoint
     {
       PathTemplatedEndpoint(const Endpoint& e) : Endpoint(e) {}
 
       PathTemplateSpec spec;
     };
-
-    static std::optional<PathTemplateSpec> parse_path_template(
-      const std::string& uri)
-    {
-      auto template_start = uri.find_first_of('{');
-      if (template_start == std::string::npos)
-      {
-        return std::nullopt;
-      }
-
-      PathTemplateSpec spec;
-
-      std::string regex_s = uri;
-      template_start = regex_s.find_first_of('{');
-      while (template_start != std::string::npos)
-      {
-        const auto template_end = regex_s.find_first_of('}', template_start);
-        if (template_end == std::string::npos)
-        {
-          throw std::logic_error(fmt::format(
-            "Invalid templated path - missing closing '}': {}", uri));
-        }
-
-        spec.template_component_names.push_back(regex_s.substr(
-          template_start + 1, template_end - template_start - 1));
-        regex_s.replace(
-          template_start, template_end - template_start + 1, "([^/]+)");
-        template_start = regex_s.find_first_of('{', template_start + 1);
-      }
-
-      LOG_TRACE_FMT("Parsed a templated endpoint: {} became {}", uri, regex_s);
-      LOG_TRACE_FMT(
-        "Component names are: {}",
-        fmt::join(spec.template_component_names, ", "));
-      spec.template_regex = std::regex(regex_s);
-
-      return spec;
-    }
 
     template <typename T>
     bool get_path_param(
@@ -149,7 +149,6 @@ namespace ccf::endpoints
     }
 
   protected:
-    using EndpointPtr = std::shared_ptr<const Endpoint>;
     EndpointPtr default_endpoint;
     std::map<std::string, std::map<RESTVerb, EndpointPtr>>
       fully_qualified_endpoints;
@@ -226,10 +225,6 @@ namespace ccf::endpoints
      * @param ap Authentication policy
      */
     void set_default(EndpointFunction f, const AuthnPolicies& ap);
-
-    // TODO: Document, protect?
-    static void add_endpoint_to_api_document(
-      nlohmann::json& document, const EndpointPtr& endpoint);
 
     /** Populate document with all supported methods
      *
