@@ -96,7 +96,7 @@ class PublicDomain:
             NODES_TABLE_NAME,
             SIGNATURE_TX_TABLE_NAME,
             "public:ccf.gov.members.info",  # TODO: Remove: all tables should be JSON-deserialisable?
-            # "public:ccf.gov.history",
+            "public:ccf.gov.history",
         }
         self._read()
 
@@ -134,8 +134,11 @@ class PublicDomain:
                     k = self._read_next_entry()
                     val = self._read_next_entry()
                     if map_name in self._integrity_tables:
-                        if map_name == NODES_TABLE_NAME:
-                            k = k.decode()
+                        # if (
+                        #     map_name == NODES_TABLE_NAME
+                        #     or map_name == "public:ccf.gov.history"
+                        # ):
+                        k = k.decode()
                         val = json.loads(val)
 
                     # if map_name == "public:ccf.gov.history":

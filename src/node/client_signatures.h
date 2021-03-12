@@ -11,21 +11,6 @@
 #include <msgpack/msgpack.hpp>
 #include <vector>
 
-using namespace crypto;
-
-MSGPACK_ADD_ENUM(MDType);
-
-namespace crypto
-{
-  DECLARE_JSON_ENUM(
-    MDType,
-    {{MDType::NONE, "NONE"},
-     {MDType::SHA1, "SHA1"},
-     {MDType::SHA256, "SHA256"},
-     {MDType::SHA384, "SHA384"},
-     {MDType::SHA512, "SHA512"}});
-}
-
 namespace ccf
 {
   struct SignedReq
@@ -39,7 +24,7 @@ namespace ccf
     std::vector<uint8_t> request_body = {};
 
     // signature hashing algorithm used
-    MDType md = MDType::NONE;
+    crypto::MDType md = crypto::MDType::NONE;
 
     // The key id, if declared in the request
     std::string key_id = {};

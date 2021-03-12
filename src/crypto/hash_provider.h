@@ -13,8 +13,6 @@
 
 namespace crypto
 {
-  extern void default_sha256(const CBuffer& data, uint8_t* h);
-
   enum class MDType
   {
     NONE = 0,
@@ -23,6 +21,21 @@ namespace crypto
     SHA384,
     SHA512
   };
+
+  DECLARE_JSON_ENUM(
+    MDType,
+    {{MDType::NONE, "NONE"},
+     {MDType::SHA1, "SHA1"},
+     {MDType::SHA256, "SHA256"},
+     {MDType::SHA384, "SHA384"},
+     {MDType::SHA512, "SHA512"}});
+}
+
+MSGPACK_ADD_ENUM(crypto::MDType);
+
+namespace crypto
+{
+  extern void default_sha256(const CBuffer& data, uint8_t* h);
 
   using HashBytes = std::vector<uint8_t>;
 
