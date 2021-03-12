@@ -1,12 +1,12 @@
 breathe
-sphinx==3.5.1 # Temporary workaround for duplicate definition error
+sphinx
 sphinx_rtd_theme
 pygments-style-solarized
 bottle
 sphinx-autobuild
 sphinxcontrib-mermaid
 sphinx-multiversion
-pydata-sphinx-theme
+pydata-sphinx-theme==0.4.3
 sphinx-copybutton
 sphinxcontrib.openapi
 sphinx-panels
