@@ -26,5 +26,5 @@ MSGPACK_ADD_ENUM(ccf::CodeStatus);
 
 namespace ccf
 {
-  using CodeIDs = kv::Map<CodeDigest, CodeStatus>;
+  using CodeIDs = ServiceMap<CodeDigest, CodeStatus>;
 }

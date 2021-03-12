@@ -45,13 +45,25 @@ namespace kv::serialisers
       }
       else if constexpr (nonstd::is_std_array<T>::value)
       {
-        return T(rep.begin(), rep.end());
+        T t;
+        if (rep.size() != t.size())
+        {
+          throw std::logic_error(fmt::format(
+            "Wrong size {} for deserialisation of array of size {}",
+            rep.size(),
+            t.size()));
+        }
+        std::copy_n(rep.begin(), t.size(), t.begin());
+        return t;
       }
       else if constexpr (std::is_integral_v<T>)
       {
         if (rep.size() != sizeof(T))
         {
-          throw std::logic_error("Wrong size for deserialising");
+          throw std::logic_error(fmt::format(
+            "Wrong size {} for deserialisation of integral of size {}",
+            rep.size(),
+            sizeof(T)));
         }
         return *(T*)rep.data();
       }

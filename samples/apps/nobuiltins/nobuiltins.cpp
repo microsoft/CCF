@@ -57,7 +57,7 @@ namespace nobuiltins
 
           summary.quote_format = quote_info.format;
           summary.quote = ds::to_hex(quote_info.quote);
-          summary.endorsements = ds::to_hex(node_info.quote);
+          summary.endorsements = ds::to_hex(quote_info.endorsements);
           // SNIPPET_END: get_quote_api_v1
         }
 

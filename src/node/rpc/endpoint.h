@@ -119,6 +119,8 @@ namespace ccf
 
     using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
 
-    using EndpointsMap = kv::Map<EndpointKey, EndpointProperties>;
+    // TODO: JSON to JSON for now, as key is of complex type
+    // No impact on performance for ls_js_sgx_cft
+    using EndpointsMap = kv::JsonSerialisedMap<EndpointKey, EndpointProperties>;
   }
 }
