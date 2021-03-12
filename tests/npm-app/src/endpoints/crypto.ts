@@ -1,7 +1,7 @@
 import * as rs from "jsrsasign";
 import { Base64 } from "js-base64";
 
-import { ccf, CCF } from '../ccf/builtin'
+import { ccf, CCF } from "../ccf/builtin";
 
 interface CryptoResponse {
   available: boolean;

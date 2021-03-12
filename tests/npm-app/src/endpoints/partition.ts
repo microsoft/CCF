@@ -1,6 +1,6 @@
 import * as _ from "lodash-es";
 
-import { CCF } from '../ccf/builtin'
+import { CCF } from "../ccf/builtin";
 
 type PartitionRequest = any[];
 type PartitionResponse = [any[], any[]];

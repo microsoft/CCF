@@ -1,4 +1,4 @@
-import { ccf, CCF } from '../ccf/builtin'
+import { ccf, CCF } from "../ccf/builtin";
 import * as ccfUtil from "../ccf/util";
 
 interface LogItem {
@@ -9,7 +9,11 @@ interface LogEntry extends LogItem {
   id: number;
 }
 
-const logMap = new ccfUtil.TypedKVMap(ccf.kv.log, ccfUtil.uint32, ccfUtil.json<LogItem>());
+const logMap = new ccfUtil.TypedKVMap(
+  ccf.kv.log,
+  ccfUtil.uint32,
+  ccfUtil.json<LogItem>()
+);
 
 export function getLogItem(request: CCF.Request): CCF.Response<LogItem> {
   const id = parseInt(request.query.split("=")[1]);

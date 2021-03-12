@@ -31,7 +31,7 @@ export namespace CCF {
      * An object mapping URL path parameter names to their values.
      */
     params: { [key: string]: string };
-    
+
     /**
      * The query string of the requested URL.
      */
@@ -42,11 +42,11 @@ export namespace CCF {
      * to access the request body in various ways.
      */
     body: Body<T>;
-    
+
     /**
      * An object describing the authenticated identity retrieved
      * by this endpoint's authentication policies.
-     * 
+     *
      * ``caller.policy`` is a string indicating which policy accepted this request,
      * for use when multiple policies are listed.
      * The other fields depend on which policy accepted;
@@ -78,7 +78,7 @@ export namespace CCF {
      * an `ArrayBuffer <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer>`_ (``application/octet-stream``),
      * a `TypedArray <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray>`_ (``application/octet-stream``),
      * or as fall-back any `JSON-serializable <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify>`_ value (``application/json``).
-     * 
+     *
      * The content type in parentheses is the default and can be overridden in ``headers``.
      */
     body?: T;
@@ -91,7 +91,7 @@ export namespace CCF {
 
   /**
    * A map in the Key Value Store.
-   * 
+   *
    * ``KVMap`` is modelled after JavaScript's ``Map`` object,
    * except that keys and values must be of type ``ArrayBuffer``
    * and no guarantees on iteration order are provided.
@@ -164,28 +164,28 @@ export namespace CCF {
 
     /**
      * Serialize a value to JSON and convert it to an ArrayBuffer.
-     * 
+     *
      * Equivalent to ``ccf.strToBuf(JSON.stringify(v))``.
      */
     jsonCompatibleToBuf<T extends JsonCompatible<T>>(v: T): ArrayBuffer;
 
     /**
      * Parse JSON from an ArrayBuffer.
-     * 
+     *
      * Equivalent to ``JSON.parse(ccf.bufToStr(v))``.
      */
     bufToJsonCompatible<T extends JsonCompatible<T>>(v: ArrayBuffer): T;
 
     /**
      * Generate an AES key.
-     * 
+     *
      * @param size The length in bits of the key to generate. 128, 192, or 256.
      */
     generateAesKey(size: number): ArrayBuffer;
 
     /**
      * Generate an RSA key pair.
-     * 
+     *
      * @param size The length in bits of the RSA modulus. Minimum: 2048.
      * @param exponent (optional) The public exponent. Default: 65537.
      */
@@ -193,7 +193,7 @@ export namespace CCF {
 
     /**
      * Wraps a key using a wrapping key.
-     * 
+     *
      * Constraints on the ``key`` and ``wrappingKey`` parameters depend
      * on the wrapping algorithm that is used (``wrapAlgo``).
      */

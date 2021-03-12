@@ -23,6 +23,10 @@ export namespace kv {
   export type PollMap = ccfUtil.TypedKVMap<string, Poll>;
 
   export function getPollMap(): PollMap {
-    return new ccfUtil.TypedKVMap(ccf.kv.polls, ccfUtil.string, ccfUtil.json<kv.Poll>());
+    return new ccfUtil.TypedKVMap(
+      ccf.kv.polls,
+      ccfUtil.string,
+      ccfUtil.json<kv.Poll>()
+    );
   }
 }

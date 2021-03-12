@@ -2,7 +2,7 @@ import { KJUR, KEYUTIL, ArrayBuffertohex } from "jsrsasign";
 import jwt_decode from "jwt-decode";
 import { Base64 } from "js-base64";
 
-import { ccf, CCF } from '../ccf/builtin'
+import { ccf, CCF } from "../ccf/builtin";
 import * as ccfUtil from "../ccf/util";
 
 interface JwtResponse {
