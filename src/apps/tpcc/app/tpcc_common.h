@@ -44,4 +44,27 @@ namespace tpcc
     name[offset] = '\0';
   }
 
+  static float random_float(float max, float min)
+  {
+    return min +
+      static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (max - min)));
+  }
+
+  static uint32_t random_int(uint32_t min, uint32_t max)
+  {
+    return (rand() % (max - min)) + min;
+  }
+
+  static int32_t random_int_excluding(int lower, int upper, int excluding)
+  {
+    // Generate 1 less number than the range
+    int num = random_int(lower, upper - 1);
+
+    // Adjust the numbers to remove excluding
+    if (num >= excluding)
+    {
+      num += 1;
+    }
+    return num;
+  }
 }

@@ -16,7 +16,9 @@ namespace tpcc
     int32_t num_warehouses;
     int32_t districts_per_warehouse;
     int32_t customers_per_district;
-    static const int STOCK_LEVEL_ORDERS = 20;
+    static constexpr int STOCK_LEVEL_ORDERS = 20;
+    static constexpr float MIN_PAYMENT_AMOUNT = 1.00;
+    static constexpr float MAX_PAYMENT_AMOUNT = 5000.00;
 
     District find_district(int32_t w_id, int32_t d_id)
     {
@@ -61,6 +63,18 @@ namespace tpcc
         throw std::logic_error("customers does not exist");
       }
       return customers.value();
+    }
+
+    Warehouse find_warehouse(int32_t w_id)
+    {
+      Warehouse::Key key = {w_id};
+      auto warehouses_table = args.tx.ro(tpcc::TpccTables::warehouses);
+      auto warehouse = warehouses_table->get(key);
+      if (!warehouse.has_value())
+      {
+        throw std::logic_error("warehouse does not exist");
+      }
+      return warehouse.value();
     }
 
     void order_status(
@@ -166,6 +180,214 @@ namespace tpcc
     {
       // TODO: fix this
       return 1;
+    }
+
+    Order find_order(int32_t w_id, int32_t d_id, int32_t o_id)
+    {
+      Order::Key key = {o_id, d_id, w_id};
+      auto orders_table = args.tx.ro(tpcc::TpccTables::orders);
+      auto order = orders_table->get(key);
+      return order.value();
+    }
+
+    void delivery(
+      int32_t warehouse_id,
+      int32_t carrier_id,
+      std::array<char, DATETIME_SIZE + 1>& now,
+      std::vector<DeliveryOrderInfo>* orders)
+    {
+      //~ printf("delivery %d %d %s\n", warehouse_id, carrier_id, now);
+      for (int32_t d_id = 1; d_id <= District::NUM_PER_WAREHOUSE; ++d_id)
+      {
+        // Find and remove the lowest numbered order for the district
+        // TODO: this should be a lower bound rather than an exact match
+        NewOrder::Key new_order_key = {warehouse_id, d_id, 1};
+        auto new_orders_table = args.tx.ro(tpcc::TpccTables::new_orders);
+        auto new_order = new_orders_table->get(new_order_key);
+        if (
+          !new_order.has_value() || new_order->no_d_id != d_id ||
+          new_order->no_w_id != warehouse_id)
+        {
+          // No orders for this district
+          // 2.7.4.2: If this occurs in max(1%, 1) of transactions, report it
+          // (???)
+          continue;
+        }
+        int32_t o_id = new_order->no_o_id;
+
+        DeliveryOrderInfo order;
+        order.d_id = d_id;
+        order.o_id = o_id;
+        orders->push_back(order);
+
+        Order o = find_order(warehouse_id, d_id, o_id);
+        o.o_carrier_id = carrier_id;
+
+        float total = 0;
+        // TODO: Select based on (w_id, d_id, o_id) rather than using ol_number?
+        for (int32_t i = 1; i <= o.o_ol_cnt; ++i)
+        {
+          std::optional<OrderLine> line = find_order_line(warehouse_id, d_id, o_id, i);
+          line->ol_delivery_d = now;
+          total += line->ol_amount;
+        }
+
+        Customer c = find_customer(warehouse_id, d_id, o.o_c_id);
+        c.c_balance += total;
+        c.c_delivery_cnt += 1;
+      }
+    }
+
+    void payment_home(
+      int32_t warehouse_id,
+      int32_t district_id,
+      int32_t c_warehouse_id,
+      int32_t c_district_id,
+      int32_t customer_id,
+      float h_amount,
+      std::array<char, DATETIME_SIZE + 1> now,
+      PaymentOutput* output)
+    {
+      Warehouse w = find_warehouse(warehouse_id);
+      w.w_ytd += h_amount;
+      output->w_street_1 = w.w_street_1;
+      output->w_street_2 = w.w_street_2;
+      output->w_city = w.w_city;
+      output->w_state = w.w_state;
+      output->w_zip = w.w_zip;
+
+      District d = find_district(warehouse_id, district_id);
+      d.d_ytd += h_amount;
+
+      output->d_street_1 = d.d_street_1;
+      output->d_street_2 = d.d_street_2;
+      output->d_city = d.d_city;
+      output->d_state = d.d_state;
+      output->d_zip = d.d_zip;
+
+      // Insert the line into the history table
+      History h;
+      h.h_w_id = warehouse_id;
+      h.h_d_id = district_id;
+      h.h_c_w_id = c_warehouse_id;
+      h.h_c_d_id = c_district_id;
+      h.h_c_id = customer_id;
+      h.h_amount = h_amount;
+      h.h_date = now;
+      std::copy_n(h.h_data.data(), w.w_name.size(), w.w_name.data());
+      strcat(h.h_data.data(), "    ");
+
+      History::Key history_key = {h.h_c_id, h.h_c_d_id, h.h_c_w_id, h.h_d_id, h.h_w_id};
+      auto history_table = args.tx.rw(tpcc::TpccTables::histories);
+      history_table->put(history_key, h);
+    }
+
+    void internal_payment_remote(
+      int32_t warehouse_id,
+      int32_t district_id,
+      Customer& c,
+      float h_amount,
+      PaymentOutput* output)
+    {
+      c.c_balance -= h_amount;
+      c.c_ytd_payment += h_amount;
+      c.c_payment_cnt += 1;
+      if (strcmp(c.c_credit.data(), Customer::BAD_CREDIT) == 0)
+      {
+        // Bad credit: insert history into c_data
+        static const int HISTORY_SIZE = Customer::MAX_DATA + 1;
+        std::array<char, HISTORY_SIZE> history;
+        int characters = snprintf(
+          history.data(),
+          HISTORY_SIZE,
+          "(%d, %d, %d, %d, %d, %.2f)\n",
+          c.c_id,
+          c.c_d_id,
+          c.c_w_id,
+          district_id,
+          warehouse_id,
+          h_amount);
+
+        // Perform the insert with a move and copy
+        int current_keep = static_cast<int>(strlen(c.c_data.data()));
+        if (current_keep + characters > Customer::MAX_DATA)
+        {
+          current_keep = Customer::MAX_DATA - characters;
+        }
+        memmove(c.c_data.data() + characters, c.c_data.data(), current_keep);
+        memcpy(c.c_data.data(), history.data(), characters);
+        c.c_data[characters + current_keep] = '\0';
+      }
+
+      output->c_credit_lim = c.c_credit_lim;
+      output->c_discount = c.c_discount;
+      output->c_balance = c.c_balance;
+      output->c_first = c.c_first;
+      output->c_middle = c.c_middle;
+      output->c_last = c.c_last;
+      output->c_street_1 = c.c_street_1;
+      output->c_street_2 = c.c_street_2;
+      output->c_city = c.c_city;
+      output->c_state = c.c_state;
+      output->c_zip = c.c_zip;
+      output->c_phone = c.c_phone;
+      output->c_since = c.c_since;
+      output->c_credit = c.c_credit;
+      output->c_data = c.c_data;
+    }
+
+    void payment(
+      int32_t warehouse_id,
+      int32_t district_id,
+      int32_t c_warehouse_id,
+      int32_t c_district_id,
+      int32_t customer_id,
+      float h_amount,
+      std::array<char, DATETIME_SIZE + 1> now,
+      PaymentOutput* output)
+    {
+      //~ printf("payment %d %d %d %d %d %f %s\n", warehouse_id, district_id,
+      //c_warehouse_id, c_district_id, customer_id, h_amount, now);
+      Customer customer =
+        find_customer(c_warehouse_id, c_district_id, customer_id);
+      payment_home(
+        warehouse_id,
+        district_id,
+        c_warehouse_id,
+        c_district_id,
+        customer_id,
+        h_amount,
+        now,
+        output);
+      internal_payment_remote(
+        warehouse_id, district_id, customer, h_amount, output);
+    }
+
+    void payment(
+      int32_t warehouse_id,
+      int32_t district_id,
+      int32_t c_warehouse_id,
+      int32_t c_district_id,
+      std::array<char, Customer::MAX_LAST + 1> c_last,
+      float h_amount,
+      std::array<char, DATETIME_SIZE + 1> now,
+      PaymentOutput* output)
+    {
+      //~ printf("payment %d %d %d %d %s %f %s\n", warehouse_id, district_id,
+      //c_warehouse_id, c_district_id, c_last, h_amount, now);
+      Customer customer =
+        find_customer_by_name(c_warehouse_id, c_district_id, c_last.data());
+      payment_home(
+        warehouse_id,
+        district_id,
+        c_warehouse_id,
+        c_district_id,
+        customer.c_id,
+        h_amount,
+        now,
+        output);
+      internal_payment_remote(
+        warehouse_id, district_id, customer, h_amount, output);
     }
 
   public:
@@ -274,5 +496,51 @@ namespace tpcc
           generate_warehouse(), generate_district(), generate_cid(), &output);
       }
     }
+
+    void delivery()
+    {
+      int carrier = random_int(Order::MIN_CARRIER_ID, Order::MAX_CARRIER_ID);
+      // TODO: set time
+      std::array<char, DATETIME_SIZE + 1> now;
+
+      std::vector<DeliveryOrderInfo> orders;
+      delivery(generate_warehouse(), carrier, now, &orders);
+    }
+
+
+    void payment() {
+    PaymentOutput output;
+    int x = random_int(1, 100);
+    int y = random_int(1, 100);
+    
+    int32_t w_id = generate_warehouse();
+    int32_t d_id = generate_district();
+
+    int32_t c_w_id;
+    int32_t c_d_id;
+    if (num_warehouses == 1 || x <= 85) {
+        // 85%: paying through own warehouse (or there is only 1 warehouse)
+        c_w_id = w_id;
+        c_d_id = d_id;
+    } else {
+        // 15%: paying through another warehouse:
+        // select in range [1, num_warehouses] excluding w_id
+        c_w_id = random_int_excluding(1, num_warehouses, w_id);
+        c_d_id = generate_district();
+    }
+    float h_amount = random_float(MIN_PAYMENT_AMOUNT, MAX_PAYMENT_AMOUNT);
+
+    // TODO: set time
+    std::array<char, DATETIME_SIZE + 1> now;
+    if (y <= 60) {
+        // 60%: payment by last name
+        std::array<char, Customer::MAX_LAST + 1> c_last;
+        make_last_name(customers_per_district, c_last.data());
+        payment(w_id, d_id, c_w_id, c_d_id, c_last, h_amount, now, &output);
+    } else {
+        // 40%: payment by id
+        payment(w_id, d_id, c_w_id, c_d_id, generate_cid(), h_amount, now, &output);
+    }
+}
   };
 }

@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../smallbank_serializer.h"
+#include "../tpcc_serializer.h"
 #include "perf_client.h"
 
 using namespace std;
@@ -27,11 +27,13 @@ private:
     create = 0,
     stock_level,
     order_status,
+    delivery,
+    payment,
 
     NumberTransactions
   };
 
-  const char* OPERATION_C_STR[5]{"tpcc_create", "stock_level", "order_status"};
+  const char* OPERATION_C_STR[5]{"tpcc_create", "stock_level", "order_status", "delivery", "payment"};
 
   std::optional<RpcTlsClient::Response> send_creation_transactions() override
   {
@@ -95,6 +97,26 @@ private:
           os.district_id = 1;
           os.threshold = 1000;
           serialized_body = os.serialize();
+        }
+        break;
+
+        case TransactionTypes::delivery:
+        {
+          tpcc::TpccDelivery d;
+          d.warehouse_id = 1;
+          d.district_id = 1;
+          d.threshold = 1000;
+          serialized_body = d.serialize();
+        }
+        break;
+
+        case TransactionTypes::payment:
+        {
+          tpcc::TpccPayment p;
+          p.warehouse_id = 1;
+          p.district_id = 1;
+          p.threshold = 1000;
+          serialized_body = p.serialize();
         }
         break;
 

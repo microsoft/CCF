@@ -59,11 +59,6 @@ namespace tpcc
       str[length - 1] = '\0';
     }
 
-    uint32_t random_int(uint32_t min, uint32_t max)
-    {
-      return (rand() % (max - min)) + min;
-    }
-
     template <size_t T>
     void create_random_int(std::array<char, T>& str, uint32_t length)
     {
@@ -72,13 +67,6 @@ namespace tpcc
         str[i] = 48 + rand() % 10; // lower case letters
       }
       str[length - 1] = '\0';
-    }
-
-    float random_float(float max, float min)
-    {
-      return min +
-        static_cast<float>(rand()) /
-        (static_cast<float>(RAND_MAX / (max - min)));
     }
 
     std::unordered_set<uint32_t> select_unique_ids(

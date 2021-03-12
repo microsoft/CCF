@@ -373,16 +373,14 @@ namespace tpcc
     struct Key
     {
       int32_t o_id;
-      int32_t o_c_id;
       int32_t o_d_id;
       int32_t o_w_id;
-      int32_t o_carrier_id;
-      MSGPACK_DEFINE(o_id, o_c_id, o_d_id, o_w_id, o_carrier_id);
+      MSGPACK_DEFINE(o_id, o_d_id, o_w_id);
     };
 
     Key get_key()
     {
-      return {o_id, o_c_id, o_d_id, o_w_id, o_carrier_id};
+      return {o_id, o_d_id, o_w_id};
     }
 
     int32_t o_id;
@@ -406,7 +404,7 @@ namespace tpcc
   };
   DECLARE_JSON_TYPE(Order::Key);
   DECLARE_JSON_REQUIRED_FIELDS(
-    Order::Key, o_id, o_c_id, o_d_id, o_w_id, o_carrier_id);
+    Order::Key, o_id, o_d_id, o_w_id);
   DECLARE_JSON_TYPE(Order);
   DECLARE_JSON_REQUIRED_FIELDS(
     Order,

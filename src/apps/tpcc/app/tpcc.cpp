@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../smallbank_serializer.h"
+#include "../tpcc_serializer.h"
 #include "enclave/app_interface.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
@@ -77,6 +77,22 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
+      auto do_delivery = [this](auto& args) {
+        LOG_INFO_FMT("delivery");
+        tpcc::TpccTransactions tx(args, 10, 10, 10);
+        tx.delivery();
+        
+        set_no_content_status(args);
+      };
+
+      auto do_payment = [this](auto& args) {
+        LOG_INFO_FMT("payment");
+        tpcc::TpccTransactions tx(args, 10, 10, 10);
+        tx.payment();
+        
+        set_no_content_status(args);
+      };
+
       const ccf::endpoints::AuthnPolicies user_sig_or_cert = {
         user_signature_auth_policy, user_cert_auth_policy};
 
@@ -88,6 +104,10 @@ namespace ccfapp
         make_endpoint("stock_level", verb, do_stock_level, user_sig_or_cert)
           .install();
         make_endpoint("order_status", verb, do_order_status, user_sig_or_cert)
+          .install();
+        make_endpoint("delivery", verb, do_delivery, user_sig_or_cert)
+          .install();
+        make_endpoint("payment", verb, do_payment, user_sig_or_cert)
           .install();
       }
 
