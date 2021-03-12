@@ -112,48 +112,43 @@ Globals
 JavaScript provides a set of built-in
 `global functions, objects, and values <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects>`_.
 
-CCF provides the following additional globals:
-
-- ``tables``:
-  Provides access to the Key-Value Store of the network.
-  ``tables`` is an object that maps table names to ``Table`` objects.
-  A ``Table`` object has ``get(k)``/``put(k,v)``/``remove(k)`` functions.
-  Keys and values currently have to be strings, although this will change in the near future.
-
-  Example: ``tables['msg'].put('123', 'Hello world!')``
+CCF provides the additional global variable ``ccf`` to access native CCF functionality.
+It is an object implementing the :js:class:`CCF.Global <CCF.Global>` interface documented below.
 
 .. note::
   `Web APIs <https://developer.mozilla.org/en-US/docs/Web/API>`_ are not available.
 
+.. js:autoclass:: CCF.Global
+   :members:
+
+.. js:autoclass:: CCF.KVMap
+   :members:
+
+.. js:autoclass:: CCF.WrapAlgoParams
+   :members:
+
+.. js:autoclass:: CCF.RsaOaepParams
+   :members:
+
+.. js:autoclass:: CCF.AESKWPParams
+   :members:
+
+.. js:autoclass:: CCF.RsaOaepAESKWPParams
+   :members:
+
+.. js:autoclass:: CCF.CryptoKeyPair
+   :members:
+
 Endpoint handlers
 ~~~~~~~~~~~~~~~~~
 
-An endpoint handler is an exported function that receives a ``Request`` object, returns a ``Response`` object,
-and is referenced in the ``app.json`` file of the app bundle (see above).
+An endpoint handler is an exported function that receives a :js:class:`CCF.Request <CCF.Request>` object, returns a :js:class:`CCF.Response <CCF.Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
 
-A ``Request`` object has the following fields:
+.. js:autoclass:: CCF.Request
+   :members:
 
-- ``headers``: An object mapping lower-case HTTP header names to their values.
-- ``params``: An object mapping URL path parameter names to their values.
-- ``query``: The query string of the requested URL.
-- ``body``: An object with ``text()``/``json()``/``arrayBuffer()`` functions to access the
-  request body in various ways.
-- ``caller``: An object describing the authenticated identity retrieved by this endpoint's authentication policies.
-  ``caller.policy`` is a string indicating which policy accepted this request, for use when multiple policies are
-  listed. The other fields depend on which policy accepted; most set ``caller.id``, ``caller.data``, and ``caller.cert``,
-  while the ``"jwt"`` policy sets ``caller.jwt``.
-
-A ``Response`` object can contain the following fields (all optional):
-
-- ``statusCode``: The HTTP status code to return (default ``200``, or ``500`` if an exception is raised).
-- ``headers``: An object mapping lower-case HTTP header names to their values.
-  The type of ``body`` determines the default value of the ``content-type`` header, see below.
-- ``body``: Either
-  a `string <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String>`_ (``text/plain``),
-  an `ArrayBuffer <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer>`_ (``application/octet-stream``),
-  a `TypedArray <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray>`_ (``application/octet-stream``),
-  or as fall-back any `JSON-serializable <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify>`_ value (``application/json``).
-  The content type in parentheses is the default and can be overridden in ``headers``.
+.. js:autoclass:: CCF.Response
+   :members:
 
 See the following handler from the example app bundle in the
 `tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_

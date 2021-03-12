@@ -1,4 +1,5 @@
-import * as ccf from "../types/ccf";
+import { ccf, CCF } from '../ccf/builtin'
+import * as ccfUtil from "../ccf/util";
 
 interface LogItem {
   msg: string;
@@ -8,9 +9,9 @@ interface LogEntry extends LogItem {
   id: number;
 }
 
-const logMap = new ccf.TypedKVMap(ccf.kv.log, ccf.uint32, ccf.json<LogItem>());
+const logMap = new ccfUtil.TypedKVMap(ccf.kv.log, ccfUtil.uint32, ccfUtil.json<LogItem>());
 
-export function getLogItem(request: ccf.Request): ccf.Response<LogItem> {
+export function getLogItem(request: CCF.Request): CCF.Response<LogItem> {
   const id = parseInt(request.query.split("=")[1]);
   if (!logMap.has(id)) {
     return {
@@ -22,15 +23,15 @@ export function getLogItem(request: ccf.Request): ccf.Response<LogItem> {
   };
 }
 
-export function setLogItem(request: ccf.Request<LogItem>): ccf.Response {
+export function setLogItem(request: CCF.Request<LogItem>): CCF.Response {
   const id = parseInt(request.query.split("=")[1]);
   logMap.set(id, request.body.json());
   return {};
 }
 
 export function getAllLogItems(
-  request: ccf.Request
-): ccf.Response<Array<LogEntry>> {
+  request: CCF.Request
+): CCF.Response<Array<LogEntry>> {
   let items: Array<LogEntry> = [];
   logMap.forEach(function (item, id, table) {
     items.push({ id: id, msg: item.msg });

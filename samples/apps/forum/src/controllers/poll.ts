@@ -28,7 +28,7 @@ import {
   UnauthorizedError,
 } from "../error_handler";
 import { User } from "../authentication";
-import * as ccf from "../types/ccf";
+import { CCF } from "../ccf/builtin";
 import { kv } from "../models/poll";
 
 export const MINIMUM_OPINION_THRESHOLD = 10;
@@ -116,9 +116,9 @@ export class PollController extends Controller {
   public createPoll(
     @Path() topic: string,
     @Body() body: CreatePollRequest,
-    @Request() request: ccf.Request
+    @Request() request: CCF.Request
   ): void {
-    const user: User = request.user;
+    const user: User = request.caller;
 
     if (this.kvPolls.has(topic)) {
       throw new ForbiddenError("Poll with given topic exists already");
@@ -139,9 +139,9 @@ export class PollController extends Controller {
   @Post()
   public createPolls(
     @Body() body: CreatePollsRequest,
-    @Request() request: ccf.Request
+    @Request() request: CCF.Request
   ): void {
-    const user: User = request.user;
+    const user: User = request.caller;
 
     for (let [topic, poll] of Object.entries(body.polls)) {
       if (this.kvPolls.has(topic)) {
@@ -169,9 +169,9 @@ export class PollController extends Controller {
   public submitOpinion(
     @Path() topic: string,
     @Body() body: SubmitOpinionRequest,
-    @Request() request: ccf.Request
+    @Request() request: CCF.Request
   ): void {
-    const user: User = request.user;
+    const user: User = request.caller;
 
     const poll = this.kvPolls.get(topic);
     if (poll === undefined) {
@@ -193,9 +193,9 @@ export class PollController extends Controller {
   @Put()
   public submitOpinions(
     @Body() body: SubmitOpinionsRequest,
-    @Request() request: ccf.Request
+    @Request() request: CCF.Request
   ): void {
-    const user: User = request.user;
+    const user: User = request.caller;
 
     for (const [topic, opinion] of Object.entries(body.opinions)) {
       const poll = this.kvPolls.get(topic);
@@ -222,9 +222,9 @@ export class PollController extends Controller {
   @Get("{topic}")
   public getPoll(
     @Path() topic: string,
-    @Request() request: ccf.Request
+    @Request() request: CCF.Request
   ): GetPollResponse {
-    const user: User = request.user;
+    const user: User = request.caller;
 
     if (!this.kvPolls.has(topic)) {
       throw new NotFoundError("Poll does not exist");
@@ -236,8 +236,8 @@ export class PollController extends Controller {
 
   @SuccessResponse(200, "Poll data")
   @Get()
-  public getPolls(@Request() request: ccf.Request): GetPollsResponse {
-    const user: User = request.user;
+  public getPolls(@Request() request: CCF.Request): GetPollsResponse {
+    const user: User = request.caller;
 
     let response: GetPollsResponse = { polls: {} };
 

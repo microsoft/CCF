@@ -1,98 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-// Types/objects exposed from C++:
+import { ccf, CCF } from './builtin'
 
 // This should eventually cover all JSON-compatible values.
 // There are attempts at https://github.com/microsoft/TypeScript/issues/1897
 // to create such a type but it needs further refinement.
 type JsonCompatible<T> = any;
-
-export interface Body<T extends JsonCompatible<T>> {
-  text: () => string;
-  json: () => T;
-  arrayBuffer: () => ArrayBuffer;
-}
-
-export interface Request<T extends JsonCompatible<T> = any> {
-  headers: { [key: string]: string };
-  params: { [key: string]: string };
-  query: string;
-  body: Body<T>;
-  caller: any;
-  user?: any;
-}
-
-type ResponseBodyType<T> = string | ArrayBuffer | JsonCompatible<T>;
-
-export interface Response<T extends ResponseBodyType<T> = any> {
-  statusCode?: number;
-  headers?: { [key: string]: string };
-  body?: T;
-}
-
-export type EndpointFn<
-  A extends JsonCompatible<A> = any,
-  B extends ResponseBodyType<B> = any
-> = (request: Request<A>) => Response<B>;
-
-export interface KVMap {
-  has: (key: ArrayBuffer) => boolean;
-  get: (key: ArrayBuffer) => ArrayBuffer | undefined;
-  set: (key: ArrayBuffer, value: ArrayBuffer) => KVMap;
-  delete: (key: ArrayBuffer) => boolean;
-  forEach: (
-    callback: (value: ArrayBuffer, key: ArrayBuffer, table: KVMap) => void
-  ) => void;
-}
-
-export type KVMaps = { [key: string]: KVMap };
-
-interface WrapAlgoParams {
-  name: string;
-}
-
-export interface RsaOaepParams extends WrapAlgoParams {
-  name: "RSA-OAEP";
-  label?: ArrayBuffer;
-}
-
-export interface AESKWPParams extends WrapAlgoParams {
-  name: "AES-KWP";
-}
-
-export interface RsaOaepAESKWPParams extends WrapAlgoParams {
-  name: "RSA-OAEP-AES-KWP";
-  label?: ArrayBuffer;
-}
-
-export interface CryptoKeyPair {
-  privateKey: string;
-  publicKey: string;
-}
-
-export interface CCF {
-  strToBuf(v: string): ArrayBuffer;
-  bufToStr(v: ArrayBuffer): string;
-  jsonCompatibleToBuf<T extends JsonCompatible<T>>(v: T): ArrayBuffer;
-  bufToJsonCompatible<T extends JsonCompatible<T>>(v: ArrayBuffer): T;
-  generateAesKey(size: number): ArrayBuffer;
-  generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair;
-  wrapKey(
-    key: ArrayBuffer,
-    wrappingKey: ArrayBuffer,
-    wrapAlgo: WrapAlgoParams
-  ): ArrayBuffer;
-
-  kv: KVMaps;
-}
-
-export const ccf = globalThis.ccf as CCF;
-
-// Additional functionality on top of C++:
-
-// Optional, so that this module can be (indirectly) imported outside CCF.
-export const kv = ccf ? ccf.kv : undefined;
 
 export interface DataConverter<T> {
   encode(val: T): ArrayBuffer;
@@ -272,7 +186,7 @@ export const arrayBuffer = new IdentityConverter();
 
 export class TypedKVMap<K, V> {
   constructor(
-    private kv: KVMap,
+    private kv: CCF.KVMap,
     private kt: DataConverter<K>,
     private vt: DataConverter<V>
   ) {}
@@ -297,7 +211,7 @@ export class TypedKVMap<K, V> {
     this.kv.forEach(function (
       raw_v: ArrayBuffer,
       raw_k: ArrayBuffer,
-      table: KVMap
+      table: CCF.KVMap
     ) {
       callback(vt.decode(raw_v), kt.decode(raw_k), typedMap);
     });
