@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "entities.h"
+#include "service_map.h"
 
 namespace ccf
 {
-  using CACertBundlePEMs = kv::Map<std::string, std::string>;
+  using CACertBundlePEMs = ServiceMap<std::string, std::string>;
 }

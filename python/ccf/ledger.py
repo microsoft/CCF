@@ -48,11 +48,6 @@ def is_ledger_chunk_committed(file_name):
     return file_name.endswith(".committed")
 
 
-# TODO: Delete
-def extract_msgpacked_data(data: bytes):
-    return msgpack.unpackb(data, **UNPACK_ARGS)
-
-
 class GcmHeader:
     _gcm_tag = ["\0"] * GCM_SIZE_TAG
     _gcm_iv = ["\0"] * GCM_SIZE_IV

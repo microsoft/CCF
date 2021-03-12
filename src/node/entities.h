@@ -17,10 +17,6 @@ namespace ccf
 
   using Cert = std::vector<uint8_t>;
 
-  // SGX MRENCLAVE is SHA256 digest
-  static constexpr size_t CODE_DIGEST_BYTES = 256 / 8;
-  using CodeDigest = std::array<uint8_t, CODE_DIGEST_BYTES>;
-
   enum class ActorsType : uint64_t
   {
     members = 0,

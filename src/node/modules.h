@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "service_map.h"
+
 #include <msgpack/msgpack.hpp>
 #include <optional>
 #include <stdint.h>
@@ -23,5 +25,5 @@ namespace ccf
   DECLARE_JSON_TYPE(Module)
   DECLARE_JSON_REQUIRED_FIELDS(Module, js)
 
-  using Modules = kv::Map<std::string, Module>;
+  using Modules = ServiceMap<std::string, Module>;
 }
