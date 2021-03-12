@@ -48,6 +48,11 @@ def is_ledger_chunk_committed(file_name):
     return file_name.endswith(".committed")
 
 
+# TODO: Delete
+def extract_msgpacked_data(data: bytes):
+    return msgpack.unpackb(data, **UNPACK_ARGS)
+
+
 class GcmHeader:
     _gcm_tag = ["\0"] * GCM_SIZE_TAG
     _gcm_iv = ["\0"] * GCM_SIZE_IV
@@ -91,7 +96,7 @@ class PublicDomain:
             NODES_TABLE_NAME,
             SIGNATURE_TX_TABLE_NAME,
             "public:ccf.gov.members.info",  # TODO: Remove: all tables should be JSON-deserialisable?
-            "public:ccf.gov.history",
+            # "public:ccf.gov.history",
         }
         self._read()
 
@@ -131,8 +136,13 @@ class PublicDomain:
                     if map_name in self._integrity_tables:
                         if map_name == NODES_TABLE_NAME:
                             k = k.decode()
-
                         val = json.loads(val)
+
+                    # if map_name == "public:ccf.gov.history":
+                    #     LOG.warning("msgpack")
+                    #     k = msgpack.unpackb(k, **UNPACK_ARGS)[0]
+                    #     LOG.success(type(k))
+                    #     val = msgpack.unpackb(val, **UNPACK_ARGS)
 
                     LOG.error(val)
                     records[k] = val

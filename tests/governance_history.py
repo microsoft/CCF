@@ -26,19 +26,39 @@ def count_governance_operations(ledger):
             if "public:ccf.gov.members.info" in tables:
                 members_table = tables["public:ccf.gov.members.info"]
                 for member_id, member_info in members_table.items():
+                    LOG.success(f"Adding member {member_id}")
                     members[member_id] = member_info["cert"]
 
             if "public:ccf.gov.history" in tables:
                 governance_history_table = tables["public:ccf.gov.history"]
                 for member_id, signed_request in governance_history_table.items():
-                    assert member_id in members
+                    member_id_unpacked = ccf.ledger.extract_msgpacked_data(member_id)[0]
+                    LOG.error(member_id_unpacked)
 
-                    cert = members[member_id].encode()
-                    sig = base64.b64decode(signed_request["sig"])
-                    req = base64.b64decode(signed_request["req"])
-                    request_body = base64.b64decode(signed_request["request_body"])
-                    digest = signed_request["md"]
+                    signed_request_unpacked = ccf.ledger.extract_msgpacked_data(
+                        signed_request
+                    )
+                    assert member_id_unpacked in members
+                    cert = members[member_id_unpacked].encode()
+                    sig = signed_request_unpacked[0][0]
+                    req = signed_request_unpacked[0][1]
+                    request_body = signed_request_unpacked[0][2]
+                    digest = signed_request_unpacked[0][3]
 
+                    # cert = members[member_id].encode()
+                    # sig = base64.b64decode(signed_request["sig"])
+                    # req = base64.b64decode(signed_request["req"])
+                    # request_body = base64.b64decode(signed_request["request_body"])
+                    # digest = signed_request["md"]
+                    LOG.success(f"member: {member_id}")
+                    LOG.success(cert)
+                    LOG.success(sig)
+                    LOG.success(req)
+                    LOG.success(request_body)
+                    LOG.success(digest)
+                    input("")
+
+                    # TODO: This still fails!
                     infra.crypto.verify_request_sig(
                         cert, sig, req, request_body, digest
                     )
