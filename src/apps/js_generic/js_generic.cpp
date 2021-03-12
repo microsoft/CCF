@@ -67,13 +67,13 @@ namespace ccfapp
     uint32_t key_size = 0, key_exponent = 0;
     if (JS_ToUint32(ctx, &key_size, argv[0]) < 0)
     {
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
     if (argc == 2 && JS_ToUint32(ctx, &key_exponent, argv[1]) < 0)
     {
-      js_dump_error(ctx);
+      js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
 
