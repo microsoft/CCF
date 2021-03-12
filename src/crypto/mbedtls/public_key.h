@@ -17,6 +17,9 @@ namespace crypto
     CurveID get_curve_id() const;
 
   public:
+    static constexpr size_t max_pem_key_size = 2048;
+    static constexpr size_t max_der_key_size = 2048;
+
     PublicKey_mbedTLS(PublicKey_mbedTLS&& pk) = default;
     PublicKey_mbedTLS(mbedtls::PKContext&& c);
     PublicKey_mbedTLS(const Pem& pem);

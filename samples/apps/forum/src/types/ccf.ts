@@ -61,12 +61,18 @@ export interface AESKWPParams extends WrapAlgoParams {
   name: "AES-KWP";
 }
 
+export interface CryptoKeyPair {
+  privateKey: string;
+  publicKey: string;
+}
+
 export interface CCF {
   strToBuf(v: string): ArrayBuffer;
   bufToStr(v: ArrayBuffer): string;
   jsonCompatibleToBuf<T extends JsonCompatible<T>>(v: T): ArrayBuffer;
   bufToJsonCompatible<T extends JsonCompatible<T>>(v: ArrayBuffer): T;
   generateAesKey(size: number): ArrayBuffer;
+  generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair;
   wrapKey(
     key: ArrayBuffer,
     wrappingKey: ArrayBuffer,
