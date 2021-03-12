@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/entropy.h"
+#include "crypto/key_pair.h"
 #include "crypto/mbedtls/key_pair.h"
 #include "ds/logger.h"
 #include "tls/error_string.h"
@@ -10,6 +11,8 @@
 #include <iostream>
 #include <map>
 #include <mbedtls/ecdh.h>
+#include <mbedtls/ecp.h>
+#include <mbedtls/pk.h>
 
 namespace tls
 {
@@ -17,7 +20,7 @@ namespace tls
   {
   private:
     crypto::mbedtls::ECDHContext ctx = nullptr;
-    std::vector<uint8_t> own_public;
+    std::vector<uint8_t> key_share;
     crypto::EntropyPtr entropy;
 
   public:
@@ -28,7 +31,7 @@ namespace tls
     static constexpr size_t len_shared_secret = 1024;
 
     KeyExchangeContext() :
-      own_public(len_public),
+      key_share(len_public),
       entropy(crypto::create_entropy())
     {
       auto tmp_ctx =
@@ -45,8 +48,8 @@ namespace tls
       rc = mbedtls_ecdh_make_public(
         tmp_ctx.get(),
         &len,
-        own_public.data(),
-        own_public.size(),
+        key_share.data(),
+        key_share.size(),
         entropy->get_rng(),
         entropy->get_data());
 
@@ -55,7 +58,7 @@ namespace tls
         throw std::logic_error(error_string(rc));
       }
 
-      own_public.resize(len);
+      key_share.resize(len);
 
       ctx = std::move(tmp_ctx);
     }
@@ -85,7 +88,6 @@ namespace tls
       {
         throw std::logic_error(error_string(rc));
       }
-
       ctx = std::move(tmp_ctx);
     }
 
@@ -100,17 +102,26 @@ namespace tls
       free_ctx();
     }
 
-    std::vector<uint8_t> get_own_public()
+    std::vector<uint8_t> get_own_key_share()
     {
       // Note that this function returns a vector of bytes
       // where the first byte represents the
       // size of the public key
-      return own_public;
+      return key_share;
     }
 
-    void load_peer_public(const uint8_t* bytes, size_t size)
+    void load_peer_key_share(const std::vector<uint8_t>& ks)
     {
-      int rc = mbedtls_ecdh_read_public(ctx.get(), bytes, size);
+      int rc = mbedtls_ecdh_read_public(ctx.get(), ks.data(), ks.size());
+      if (rc != 0)
+      {
+        throw std::logic_error(error_string(rc));
+      }
+    }
+
+    void load_peer_key_share(CBuffer ks)
+    {
+      int rc = mbedtls_ecdh_read_public(ctx.get(), ks.p, ks.n);
       if (rc != 0)
       {
         throw std::logic_error(error_string(rc));

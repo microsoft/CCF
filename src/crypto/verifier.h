@@ -35,13 +35,25 @@ namespace crypto
       size_t contents_size,
       const uint8_t* sig,
       size_t sig_size,
-      MDType md_type) const
+      MDType md_type = MDType::NONE) const
     {
       if (md_type == MDType::NONE)
         md_type = this->md_type;
 
       return public_key->verify(
         contents, contents_size, sig, sig_size, md_type);
+    }
+
+    /** Verify a signature
+     * @param contents Contents over which the signature was generated
+     * @param sig Signature
+     * @param md_type Hash algorithm
+     * @return Boolean indicating success
+     */
+    virtual bool verify(
+      CBuffer contents, CBuffer sig, MDType md_type = MDType::NONE) const
+    {
+      return verify(contents.p, contents.n, sig.p, sig.n, md_type);
     }
 
     /** Verify a signature

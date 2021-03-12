@@ -118,6 +118,16 @@ namespace crypto
     return PublicKey_mbedTLS::verify(contents, signature);
   }
 
+  bool KeyPair_mbedTLS::verify(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size)
+  {
+    return PublicKey_mbedTLS::verify(
+      contents, contents_size, signature, signature_size);
+  }
+
   std::vector<uint8_t> KeyPair_mbedTLS::sign(CBuffer d, MDType md_type) const
   {
     if (md_type == MDType::NONE)

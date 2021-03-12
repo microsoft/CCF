@@ -4,6 +4,7 @@
 #include "key_pair.h"
 
 #include "crypto/curve.h"
+#include "crypto/openssl/public_key.h"
 #include "hash.h"
 #include "openssl_wrappers.h"
 
@@ -44,10 +45,17 @@ namespace crypto
     std::vector<std::pair<std::string, std::string>> r;
 
     char* name_cpy = strdup(name.c_str());
+    if (!name_cpy)
+      throw std::runtime_error("out of memory");
     char* p = std::strtok(name_cpy, ",");
     while (p)
     {
       char* eq = strchr(p, '=');
+      if (!eq)
+      {
+        free(name_cpy);
+        throw std::runtime_error("illegal name");
+      }
       *eq = '\0';
       r.push_back(std::make_pair(p, eq + 1));
       p = std::strtok(NULL, ",");
@@ -105,6 +113,16 @@ namespace crypto
     const std::vector<uint8_t>& contents, const std::vector<uint8_t>& signature)
   {
     return PublicKey_OpenSSL::verify(contents, signature);
+  }
+
+  bool KeyPair_OpenSSL::verify(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size)
+  {
+    return PublicKey_OpenSSL::verify(
+      contents, contents_size, signature, signature_size);
   }
 
   std::vector<uint8_t> KeyPair_OpenSSL::sign(CBuffer d, MDType md_type) const

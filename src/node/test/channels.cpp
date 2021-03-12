@@ -1,9 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include <cstring>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "../channels.h"
 
+#include <algorithm>
+#include <cstring>
 #include <doctest/doctest.h>
 #include <queue>
 
@@ -40,6 +43,21 @@ struct NodeOutboundMsg
   NodeMsgType type;
   T authenticated_hdr;
   std::vector<uint8_t> payload;
+
+  std::vector<uint8_t> data() const
+  {
+    std::vector<uint8_t> r;
+    r.insert(r.end(), authenticated_hdr.begin(), authenticated_hdr.end());
+    r.insert(r.end(), payload.begin(), payload.end());
+    return r;
+  }
+
+  std::vector<uint8_t> unauthenticated_data() const
+  {
+    std::vector<uint8_t> r = data();
+    r.erase(r.begin(), r.begin() + 8); // Not sure what those 8 bytes mean
+    return r;
+  }
 };
 
 template <typename T>
@@ -112,49 +130,115 @@ auto read_node_msgs(ringbuffer::Circuit& circuit)
   return std::make_pair(add_node_msgs, remove_node_msgs);
 }
 
+void hexdump(const char* hdr, const std::vector<uint8_t>& data)
+{
+  printf("%s: ", hdr);
+  for (auto b : data)
+    printf("%02x", b);
+  printf("\n");
+}
+
+template <size_t S>
+void hexdump(const char* hdr, const std::array<uint8_t, S>& data)
+{
+  printf("%s: ", hdr);
+  for (auto b : data)
+    printf("%02x", b);
+  printf("\n");
+}
+
+void hexdump(const char* hdr, const NodeOutboundMsg<MsgType>& msg)
+{
+  hexdump(hdr, msg.unauthenticated_data());
+}
+
 TEST_CASE("Client/Server key exchange")
 {
   auto network_kp = crypto::make_key_pair();
-  auto channel1 = Channel(wf1, network_kp, self, peer);
-  auto channel2 = Channel(wf2, network_kp, peer, self);
+  auto network_cert = network_kp->self_sign("CN=Network");
+  auto channel1_kp = crypto::make_key_pair();
+  auto channel1_cert = channel1_kp->self_sign("CN=Node1");
+  auto channel2_kp = crypto::make_key_pair();
+  auto channel2_cert = channel2_kp->self_sign("CN=Node2");
+
+  auto channel1 = Channel(wf1, channel1_kp, channel1_cert, self, peer);
+  auto channel2 = Channel(wf2, channel2_kp, channel2_cert, peer, self);
 
   MsgType msg;
   msg.fill(0x42);
 
   INFO("Trying to tag/verify before channel establishment");
   {
+    // Try sending on channel1 twice
     REQUIRE_FALSE(
       channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
     REQUIRE_FALSE(
       channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
-
-    // Every send is replaced with a new channel establishment message
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(outbound_msgs.size() == 2);
-    REQUIRE(outbound_msgs[0].type == channel_msg);
-    REQUIRE(outbound_msgs[1].type == channel_msg);
   }
 
-  INFO("Establish channels");
+  std::vector<uint8_t> channel1_signed_key_share;
+
+  INFO("Extract key share, signature, certificate from messages");
   {
-    auto channel1_signed_public = channel1.get_signed_public();
-    auto channel2_signed_public = channel2.get_signed_public();
+    // Every send has been replaced with a new channel establishment message
+    auto omsgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(omsgs.size() == 2);
+    REQUIRE(omsgs[0].type == channel_msg);
+    REQUIRE(omsgs[1].type == channel_msg);
+    REQUIRE(read_outbound_msgs<MsgType>(eio2).size() == 0);
 
-    REQUIRE(channel1.load_peer_signed_public(
-      true, channel2_signed_public.data(), channel2_signed_public.size()));
+    // Signing twice should have produced different signatures
+    REQUIRE(omsgs[0].unauthenticated_data() != omsgs[1].unauthenticated_data());
 
-    // Messages sent before channel was established are flushed
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(outbound_msgs.size() == 1);
-    REQUIRE(outbound_msgs[0].type == NodeMsgType::consensus_msg);
-    REQUIRE(outbound_msgs[0].authenticated_hdr == msg);
+    channel1_signed_key_share = omsgs[0].unauthenticated_data();
+  }
 
-    REQUIRE(channel2.load_peer_signed_public(
-      true, channel1_signed_public.data(), channel1_signed_public.size()));
+  INFO("Load peer key shares and check signatures");
+  {
+    auto channel2_signed_key_share = channel2.get_signed_key_share();
 
-    // Second channel had no pending messages
-    outbound_msgs = read_outbound_msgs<MsgType>(eio2);
-    REQUIRE(outbound_msgs.size() == 0);
+    REQUIRE(channel1.load_peer_signed_key_share(channel2_signed_key_share));
+    REQUIRE(channel2.load_peer_signed_key_share(channel1_signed_key_share));
+
+    REQUIRE(channel1.get_status() != ESTABLISHED);
+    REQUIRE(channel2.get_status() != ESTABLISHED);
+  }
+
+  std::vector<uint8_t> peer_public_sig1, peer_public_sig2;
+
+  INFO("Extract peer signatures over own key shares from messages");
+  {
+    // Messages sent before channel was established are flushed, so only 1 each.
+    auto omsgs1 = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(omsgs1.size() == 1);
+    REQUIRE(omsgs1[0].type == channel_msg);
+    peer_public_sig1 = omsgs1[0].unauthenticated_data();
+
+    auto omsgs2 = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(omsgs2.size() == 1);
+    REQUIRE(omsgs2[0].type == channel_msg);
+    peer_public_sig2 = omsgs2[0].unauthenticated_data();
+  }
+
+  INFO("Cross-check peer signatures and establish channels");
+  {
+    REQUIRE(channel1.check_peer_key_share_signature(
+      true, peer_public_sig2.data(), peer_public_sig2.size()));
+    REQUIRE(channel1.get_status() == ESTABLISHED);
+
+    REQUIRE(channel2.check_peer_key_share_signature(
+      true, peer_public_sig1.data(), peer_public_sig1.size()));
+    REQUIRE(channel2.get_status() == ESTABLISHED);
+  }
+
+  INFO("Consume and check initial consensus message");
+  {
+    auto omsgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(omsgs.size() == 1);
+    REQUIRE(omsgs[0].type == consensus_msg);
+    auto md = omsgs[0].data();
+    REQUIRE(md.size() == msg.size() + sizeof(GcmHdr));
+    REQUIRE(memcmp(md.data(), msg.data(), msg.size()) == 0);
   }
 
   INFO("Protect integrity of message (peer1 -> peer2)");
@@ -257,21 +341,48 @@ TEST_CASE("Client/Server key exchange")
 TEST_CASE("Replay and out-of-order")
 {
   auto network_kp = crypto::make_key_pair();
-  auto channel1 = Channel(wf1, network_kp, self, peer);
-  auto channel2 = Channel(wf2, network_kp, peer, self);
+  auto network_cert = network_kp->self_sign("CN=Network");
+  auto channel1_kp = crypto::make_key_pair();
+  auto channel1_cert = channel1_kp->self_sign("CN=Node1");
+  auto channel2_kp = crypto::make_key_pair();
+  auto channel2_cert = channel2_kp->self_sign("CN=Node2");
+  auto channel1 = Channel(wf1, channel1_kp, channel1_cert, self, peer);
+  auto channel2 = Channel(wf2, channel2_kp, channel2_cert, peer, self);
 
   MsgType msg;
   msg.fill(0x42);
 
   INFO("Establish channels");
   {
-    auto channel1_signed_public = channel1.get_signed_public();
-    auto channel2_signed_public = channel2.get_signed_public();
+    auto channel1_signed_key_share = channel1.get_signed_key_share();
+    auto channel2_signed_key_share = channel2.get_signed_key_share();
 
-    REQUIRE(channel1.load_peer_signed_public(
-      true, channel2_signed_public.data(), channel2_signed_public.size()));
-    REQUIRE(channel2.load_peer_signed_public(
-      true, channel1_signed_public.data(), channel1_signed_public.size()));
+    REQUIRE(channel1.load_peer_signed_key_share(channel2_signed_key_share));
+    REQUIRE(channel2.load_peer_signed_key_share(channel1_signed_key_share));
+  }
+
+  std::vector<uint8_t> peer_public_sig1, peer_public_sig2;
+
+  INFO("Extract peer signatures over own key shares from messages");
+  {
+    // Messages sent before channel was established are flushed, so only 1 each.
+    auto omsgs1 = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(omsgs1.size() == 1);
+    REQUIRE(omsgs1[0].type == channel_msg);
+    peer_public_sig1 = omsgs1[0].unauthenticated_data();
+
+    auto omsgs2 = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(omsgs2.size() == 1);
+    REQUIRE(omsgs2[0].type == channel_msg);
+    peer_public_sig2 = omsgs2[0].unauthenticated_data();
+  }
+
+  {
+    channel1.check_peer_key_share_signature(true, peer_public_sig2);
+    channel2.check_peer_key_share_signature(true, peer_public_sig1);
+
+    REQUIRE(channel1.get_status() == ESTABLISHED);
+    REQUIRE(channel2.get_status() == ESTABLISHED);
   }
 
   NodeOutboundMsg<MsgType> first_msg, first_msg_copy;

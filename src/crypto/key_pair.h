@@ -28,6 +28,12 @@ namespace crypto
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature) = 0;
 
+    virtual bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* signature,
+      size_t signature_size) = 0;
+
     virtual std::vector<uint8_t> sign_hash(
       const uint8_t* hash, size_t hash_size) const = 0;
 

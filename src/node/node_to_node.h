@@ -90,7 +90,7 @@ namespace ccf
     virtual void recv_message(const NodeId& from, OArray&& oa) = 0;
 
     virtual void initialize(
-      const NodeId& self_id, const crypto::Pem& network_pkey) = 0;
+      const NodeId& self_id, const crypto::Pem& node_cert) = 0;
 
     virtual bool send_encrypted(
       const NodeId& to,
@@ -135,7 +135,7 @@ namespace ccf
     {}
 
     void initialize(
-      const NodeId& self_id, const crypto::Pem& network_pkey) override
+      const NodeId& self_id, const crypto::Pem& node_cert) override
     {
       CCF_ASSERT_FMT(
         !self.has_value(),
@@ -145,7 +145,7 @@ namespace ccf
 
       self = self_id;
       channels = std::make_unique<ChannelManager>(
-        writer_factory, network_pkey, self.value());
+        writer_factory, node_cert, self.value());
     }
 
     void create_channel(
@@ -239,7 +239,14 @@ namespace ccf
       // Called on channel target when a key exchange message is received from
       // the initiator
       auto n2n_channel = channels->get(from);
-      n2n_channel->load_peer_signed_public(false, data, size);
+      n2n_channel->load_peer_signed_key_share(data, size);
+    }
+
+    void check_key_exchange(
+      const NodeId& from, const uint8_t* data, size_t size)
+    {
+      auto n2n_channel = channels->get(from);
+      n2n_channel->check_peer_key_share_signature(true, data, size);
     }
 
     void complete_key_exchange(
@@ -248,7 +255,7 @@ namespace ccf
       // Called on channel initiator when a key exchange response message is
       // received from the target
       auto n2n_channel = channels->get(from);
-      n2n_channel->load_peer_signed_public(true, data, size);
+      n2n_channel->load_peer_signed_key_share(data, size);
     }
 
     void recv_message(const NodeId& from, OArray&& oa) override
@@ -266,6 +273,12 @@ namespace ccf
           }
 
           case key_exchange_response:
+          {
+            check_key_exchange(from, data, size);
+            break;
+          }
+
+          case key_exchange_final:
           {
             complete_key_exchange(from, data, size);
             break;

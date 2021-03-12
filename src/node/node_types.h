@@ -26,6 +26,7 @@ namespace ccf
   {
     key_exchange = 0,
     key_exchange_response,
+    key_exchange_final,
     encrypted_msg
   };
 
