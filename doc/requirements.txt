@@ -6,7 +6,7 @@ bottle
 sphinx-autobuild
 sphinxcontrib-mermaid
 sphinx-multiversion
-pydata-sphinx-theme==0.4.3
+pydata-sphinx-theme
 sphinx-copybutton
 sphinxcontrib.openapi
 sphinx-panels
