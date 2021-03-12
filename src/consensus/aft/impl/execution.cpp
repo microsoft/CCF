@@ -116,7 +116,7 @@ namespace aft
       std::move(serialized_req), args.rid, std::move(ctx), rep_cb);
   }
 
-  kv::Version ExecutorImpl::commit_replayed_request(
+  kv::Version ExecutorImpl::execute_request(
     aft::Request& request,
     std::shared_ptr<aft::RequestTracker> request_tracker,
     kv::Consensus::SeqNo prescribed_commit_version,
