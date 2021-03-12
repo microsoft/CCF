@@ -137,8 +137,10 @@ export function authentication(
       throw new Error(`BUG: unknown key issuer: ${keyIssuer}`);
     }
 
-    request.caller.claims = claims;
-    request.caller.userId = claims.sub;
+    request.caller = {
+      claims: claims,
+      userId: claims.sub,
+    } as User;
   } else {
     throw new Error(`BUG: unknown securityName: ${securityName}`);
   }
