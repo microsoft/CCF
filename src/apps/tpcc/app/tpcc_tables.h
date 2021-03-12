@@ -52,6 +52,17 @@ namespace tpcc
     static const int MAX_DATA = 50;
     static const int NUM_ITEMS = 100000;
 
+    struct Key
+    {
+      int32_t i_id;
+      MSGPACK_DEFINE(i_id);
+    };
+
+    Key get_key()
+    {
+      return {i_id};
+    }
+
     int32_t i_id;
     int32_t i_im_id;
     float i_price;
@@ -60,6 +71,8 @@ namespace tpcc
 
     MSGPACK_DEFINE(i_id, i_im_id, i_price, i_name, i_data);
   };
+  DECLARE_JSON_TYPE(Item::Key);
+  DECLARE_JSON_REQUIRED_FIELDS(Item::Key, i_id);
   DECLARE_JSON_TYPE(Item);
   DECLARE_JSON_REQUIRED_FIELDS(Item, i_id, i_im_id, i_price, i_name, i_data);
 
@@ -820,5 +833,6 @@ namespace tpcc
     static kv::Map<Order::Key, Order> orders;
     static kv::Map<OrderLine::Key, OrderLine> order_lines;
     static kv::Map<NewOrder::Key, NewOrder> new_orders;
+    static kv::Map<Item::Key, Item> items;
   };
 }

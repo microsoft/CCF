@@ -29,11 +29,18 @@ private:
     order_status,
     delivery,
     payment,
+    new_order,
 
     NumberTransactions
   };
 
-  const char* OPERATION_C_STR[5]{"tpcc_create", "stock_level", "order_status", "delivery", "payment"};
+  const char* OPERATION_C_STR[6]{
+    "tpcc_create",
+    "stock_level",
+    "order_status",
+    "delivery",
+    "payment",
+    "new_order"};
 
   std::optional<RpcTlsClient::Response> send_creation_transactions() override
   {
@@ -113,6 +120,16 @@ private:
         case TransactionTypes::payment:
         {
           tpcc::TpccPayment p;
+          p.warehouse_id = 1;
+          p.district_id = 1;
+          p.threshold = 1000;
+          serialized_body = p.serialize();
+        }
+        break;
+
+        case TransactionTypes::new_order:
+        {
+          tpcc::TpccNewOrder p;
           p.warehouse_id = 1;
           p.district_id = 1;
           p.threshold = 1000;

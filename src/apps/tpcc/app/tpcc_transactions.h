@@ -1,11 +1,11 @@
 #pragma once
 
-#include "tpcc_tables.h"
 #include "tpcc_common.h"
+#include "tpcc_tables.h"
 
 #include <cinttypes>
-#include <vector>
 #include <string.h>
+#include <vector>
 
 namespace tpcc
 {
@@ -16,9 +16,13 @@ namespace tpcc
     int32_t num_warehouses;
     int32_t districts_per_warehouse;
     int32_t customers_per_district;
+    int32_t num_items;
     static constexpr int STOCK_LEVEL_ORDERS = 20;
     static constexpr float MIN_PAYMENT_AMOUNT = 1.00;
     static constexpr float MAX_PAYMENT_AMOUNT = 5000.00;
+    static constexpr int32_t MAX_OL_QUANTITY = 10;
+    static constexpr int32_t INVALID_QUANTITY = -1;
+    static constexpr char INVALID_ITEM_STATUS[] = "Item number is not valid";
 
     District find_district(int32_t w_id, int32_t d_id)
     {
@@ -34,11 +38,19 @@ namespace tpcc
       return districts.value();
     }
 
-    std::optional<OrderLine> find_order_line(int32_t w_id, int32_t d_id, int32_t o_id, int32_t number)
+    std::optional<OrderLine> find_order_line(
+      int32_t w_id, int32_t d_id, int32_t o_id, int32_t number)
     {
       OrderLine::Key key = {o_id, d_id, w_id, number};
       auto order_lines_table = args.tx.ro(tpcc::TpccTables::order_lines);
       return order_lines_table->get(key);
+    }
+
+    std::optional<Item> find_item(int32_t id)
+    {
+      Item::Key key = {id};
+      auto items_table = args.tx.ro(tpcc::TpccTables::items);
+      return items_table->get(key);
     }
 
     Stock find_stock(int32_t w_id, int32_t s_id)
@@ -77,6 +89,29 @@ namespace tpcc
       return warehouse.value();
     }
 
+    void insert_order(Order& o)
+    {
+      auto orders_table = args.tx.rw(tpcc::TpccTables::orders);
+      orders_table->put(o.get_key(), o);
+    }
+
+    void insert_new_order(int32_t w_id, int32_t d_id, int32_t o_id)
+    {
+      NewOrder no;
+      no.no_w_id = w_id;
+      no.no_d_id = d_id;
+      no.no_o_id = o_id;
+
+      auto new_orders_table = args.tx.rw(tpcc::TpccTables::new_orders);
+      new_orders_table->put(no.get_key(), no);
+    }
+
+    void insert_order_line(OrderLine& line)
+    {
+      auto order_lines = args.tx.rw(tpcc::TpccTables::order_lines);
+      order_lines->put(line.get_key(), line);
+    }
+
     void order_status(
       int32_t warehouse_id,
       int32_t district_id,
@@ -84,19 +119,21 @@ namespace tpcc
       OrderStatusOutput* output)
     {
       //~ printf("order status %d %d %d\n", warehouse_id, district_id,
-      //customer_id);
+      // customer_id);
       auto customer = find_customer(warehouse_id, district_id, customer_id);
-      internal_order_status(
-        customer, output);
+      internal_order_status(customer, output);
     }
 
-    Customer find_customer_by_name(int32_t w_id, int32_t d_id, const char* c_last)
+    Customer find_customer_by_name(
+      int32_t w_id, int32_t d_id, const char* c_last)
     {
       // select (w_id, d_id, *, c_last) order by c_first
       Customer customer_ret;
       auto customers_table = args.tx.ro(tpcc::TpccTables::customers);
       customers_table->foreach([&](const Customer::Key&, const Customer& c) {
-        if (c.c_w_id == w_id && c.c_d_id == d_id && strcmp(c.c_last.data(), c_last) == 0)
+        if (
+          c.c_w_id == w_id && c.c_d_id == d_id &&
+          strcmp(c.c_last.data(), c_last) == 0)
         {
           customer_ret = c;
           return false;
@@ -156,14 +193,21 @@ namespace tpcc
       for (int32_t line_number = 1; line_number <= order.o_ol_cnt;
            ++line_number)
       {
-        OrderLine line = find_order_line(
-          customer.c_w_id, customer.c_d_id, order.o_id, line_number).value();
+        OrderLine line =
+          find_order_line(
+            customer.c_w_id, customer.c_d_id, order.o_id, line_number)
+            .value();
         output->lines[line_number - 1].ol_i_id = line.ol_i_id;
         output->lines[line_number - 1].ol_supply_w_id = line.ol_supply_w_id;
         output->lines[line_number - 1].ol_quantity = line.ol_quantity;
         output->lines[line_number - 1].ol_amount = line.ol_amount;
         output->lines[line_number - 1].ol_delivery_d = line.ol_delivery_d;
       }
+    }
+
+    int32_t generate_item_id()
+    {
+      return random_int(1, num_items);
     }
 
     int32_t generate_warehouse()
@@ -227,7 +271,8 @@ namespace tpcc
         // TODO: Select based on (w_id, d_id, o_id) rather than using ol_number?
         for (int32_t i = 1; i <= o.o_ol_cnt; ++i)
         {
-          std::optional<OrderLine> line = find_order_line(warehouse_id, d_id, o_id, i);
+          std::optional<OrderLine> line =
+            find_order_line(warehouse_id, d_id, o_id, i);
           line->ol_delivery_d = now;
           total += line->ol_amount;
         }
@@ -277,7 +322,8 @@ namespace tpcc
       std::copy_n(h.h_data.data(), w.w_name.size(), w.w_name.data());
       strcat(h.h_data.data(), "    ");
 
-      History::Key history_key = {h.h_c_id, h.h_c_d_id, h.h_c_w_id, h.h_d_id, h.h_w_id};
+      History::Key history_key = {
+        h.h_c_id, h.h_c_d_id, h.h_c_w_id, h.h_d_id, h.h_w_id};
       auto history_table = args.tx.rw(tpcc::TpccTables::histories);
       history_table->put(history_key, h);
     }
@@ -347,7 +393,7 @@ namespace tpcc
       PaymentOutput* output)
     {
       //~ printf("payment %d %d %d %d %d %f %s\n", warehouse_id, district_id,
-      //c_warehouse_id, c_district_id, customer_id, h_amount, now);
+      // c_warehouse_id, c_district_id, customer_id, h_amount, now);
       Customer customer =
         find_customer(c_warehouse_id, c_district_id, customer_id);
       payment_home(
@@ -374,7 +420,7 @@ namespace tpcc
       PaymentOutput* output)
     {
       //~ printf("payment %d %d %d %d %s %f %s\n", warehouse_id, district_id,
-      //c_warehouse_id, c_district_id, c_last, h_amount, now);
+      // c_warehouse_id, c_district_id, c_last, h_amount, now);
       Customer customer =
         find_customer_by_name(c_warehouse_id, c_district_id, c_last.data());
       payment_home(
@@ -390,16 +436,270 @@ namespace tpcc
         warehouse_id, district_id, customer, h_amount, output);
     }
 
+    void new_order_combine(
+      const std::vector<int32_t>& remote_quantities, NewOrderOutput* output)
+    {
+      for (size_t i = 0; i < remote_quantities.size(); ++i)
+      {
+        if (remote_quantities[i] != INVALID_QUANTITY)
+        {
+          output->items[i].s_quantity = remote_quantities[i];
+        }
+      }
+    }
+
+    void new_order_combine(
+      const std::vector<int32_t>& remote_quantities,
+      std::vector<int32_t>* output)
+    {
+      for (size_t i = 0; i < remote_quantities.size(); ++i)
+      {
+        if (remote_quantities[i] != INVALID_QUANTITY)
+        {
+          (*output)[i] = remote_quantities[i];
+        }
+      }
+    }
+
+    bool new_order_remote(
+      int32_t home_warehouse,
+      int32_t remote_warehouse,
+      const std::vector<NewOrderItem>& items,
+      std::vector<int32_t>* out_quantities)
+    {
+      // Validate all the items: needed so that we don't need to undo in order
+      // to execute this
+      // TODO: item_tuples is unused. Remove?
+      std::vector<std::optional<Item>> item_tuples;
+      if (!find_and_validate_items(items, &item_tuples))
+      {
+        return false;
+      }
+
+      out_quantities->resize(items.size());
+      for (uint32_t i = 0; i < items.size(); ++i)
+      {
+        // Skip items that don't belong to remote warehouse
+        if (items[i].ol_supply_w_id != remote_warehouse)
+        {
+          (*out_quantities)[i] = INVALID_QUANTITY;
+          continue;
+        }
+
+        // update stock
+        Stock stock = find_stock(items[i].ol_supply_w_id, items[i].i_id);
+        if (stock.s_quantity >= items[i].ol_quantity + 10)
+        {
+          stock.s_quantity -= items[i].ol_quantity;
+        }
+        else
+        {
+          stock.s_quantity = stock.s_quantity - items[i].ol_quantity + 91;
+        }
+        (*out_quantities)[i] = stock.s_quantity;
+        stock.s_ytd += items[i].ol_quantity;
+        stock.s_order_cnt += 1;
+        // newOrderHome calls newOrderRemote, so this is needed
+        if (items[i].ol_supply_w_id != home_warehouse)
+        {
+          // remote order
+          stock.s_remote_cnt += 1;
+        }
+      }
+
+      return true;
+    }
+
+    std::set<int32_t> new_order_remote_warehouses(
+      int32_t home_warehouse, const std::vector<NewOrderItem>& items)
+    {
+      std::set<int32_t> out;
+      for (size_t i = 0; i < items.size(); ++i)
+      {
+        if (items[i].ol_supply_w_id != home_warehouse)
+        {
+          out.insert(items[i].ol_supply_w_id);
+        }
+      }
+      return out;
+    }
+
+    bool new_order(
+      int32_t warehouse_id,
+      int32_t district_id,
+      int32_t customer_id,
+      const std::vector<NewOrderItem>& items,
+      std::array<char, DATETIME_SIZE + 1> now,
+      NewOrderOutput* output)
+    {
+      // perform the home part
+      bool result = new_order_home(
+        warehouse_id, district_id, customer_id, items, now, output);
+      if (!result)
+      {
+        return false;
+      }
+
+      // Process all remote warehouses
+      std::set<int32_t> warehouses = new_order_remote_warehouses(warehouse_id, items);
+      for (auto i = warehouses.begin(); i != warehouses.end(); ++i)
+      {
+        std::vector<int32_t> quantities;
+        result = new_order_remote(warehouse_id, *i, items, &quantities);
+        assert(result);
+        new_order_combine(quantities, output);
+      }
+
+      return true;
+    }
+
+    bool find_and_validate_items(
+      const std::vector<NewOrderItem>& items, std::vector<std::optional<Item>>* item_tuples)
+    {
+      // CHEAT: Validate all items to see if we will need to abort
+      item_tuples->resize(items.size());
+      for (uint32_t i = 0; i < items.size(); ++i)
+      {
+        (*item_tuples)[i] = find_item(items[i].i_id);
+        if (!(*item_tuples)[i].has_value())
+        {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    bool new_order_home(
+      int32_t warehouse_id,
+      int32_t district_id,
+      int32_t customer_id,
+      const std::vector<NewOrderItem>& items,
+      std::array<char, DATETIME_SIZE + 1> now,
+      NewOrderOutput* output)
+    {
+      //~ printf("new order %d %d %d %d %s\n", warehouse_id, district_id,
+      // customer_id, items.size(), now);
+      // 2.4.3.4. requires that we display c_last, c_credit, and o_id for rolled
+      // back transactions: read those values first
+      District d = find_district(warehouse_id, district_id);
+      output->d_tax = d.d_tax;
+      output->o_id = d.d_next_o_id;
+
+      Customer c = find_customer(warehouse_id, district_id, customer_id);
+      output->c_last = c.c_last;
+      output->c_credit = c.c_credit;
+      output->c_discount = c.c_discount;
+
+      // CHEAT: Validate all items to see if we will need to abort
+      std::vector<std::optional<Item>> item_tuples(items.size());
+      if (!find_and_validate_items(items, &item_tuples))
+      {
+        strcpy(output->status.data(), INVALID_ITEM_STATUS);
+        return false;
+      }
+
+      // Check if this is an all local transaction
+      // TODO: This loops through items *again* which is slightly inefficient
+      bool all_local = true;
+      for (size_t i = 0; i < items.size(); ++i)
+      {
+        if (items[i].ol_supply_w_id != warehouse_id)
+        {
+          all_local = false;
+          break;
+        }
+      }
+
+      // We will not abort: update the status and the database state, allocate
+      // an undo buffer
+      output->status[0] = '\0';
+      d.d_next_o_id += 1;
+
+      Warehouse w = find_warehouse(warehouse_id);
+      output->w_tax = w.w_tax;
+
+      Order order;
+      order.o_w_id = warehouse_id;
+      order.o_d_id = district_id;
+      order.o_id = output->o_id;
+      order.o_c_id = customer_id;
+      order.o_carrier_id = Order::NULL_CARRIER_ID;
+      order.o_ol_cnt = static_cast<int32_t>(items.size());
+      order.o_all_local = all_local ? 1 : 0;
+      order.o_entry_d =  now;
+      insert_order(order);
+      insert_new_order(warehouse_id, district_id, output->o_id);
+
+      OrderLine line;
+      line.ol_o_id = output->o_id;
+      line.ol_d_id = district_id;
+      line.ol_w_id = warehouse_id;
+      memset(line.ol_delivery_d.data(), 0, DATETIME_SIZE + 1);
+
+      output->items.resize(items.size());
+      output->total = 0;
+      for (uint32_t i = 0; i < items.size(); ++i)
+      {
+        line.ol_number = i + 1;
+        line.ol_i_id = items[i].i_id;
+        line.ol_supply_w_id = items[i].ol_supply_w_id;
+        line.ol_quantity = items[i].ol_quantity;
+
+        // Vertical Partitioning HACK: We read s_dist_xx from our local replica,
+        // assuming that these columns are replicated everywhere.
+        // TODO: I think this is unrealistic, since it will occupy ~23 MB per
+        // warehouse on all replicas. Try the "two round" version in the future.
+        Stock stock = find_stock(items[i].ol_supply_w_id, items[i].i_id);
+        memcpy(
+          line.ol_dist_info.data(),
+          stock.s_dist[district_id].data(),
+          sizeof(line.ol_dist_info));
+        // Since we *need* to replicate s_dist_xx columns, might as well
+        // replicate s_data Makes it 290 bytes per tuple, or ~28 MB per
+        // warehouse.
+        bool stock_is_original = (strstr(stock.s_data.data(), "ORIGINAL") != NULL);
+        if (
+          stock_is_original &&
+          strstr(item_tuples[i]->i_data.data(), "ORIGINAL") != NULL)
+        {
+          output->items[i].brand_generic = NewOrderOutput::ItemInfo::BRAND;
+        }
+        else
+        {
+          output->items[i].brand_generic = NewOrderOutput::ItemInfo::GENERIC;
+        }
+
+        output->items[i].i_name = item_tuples[i]->i_name;
+        output->items[i].i_price = item_tuples[i]->i_price;
+        output->items[i].ol_amount =
+          static_cast<float>(items[i].ol_quantity) * item_tuples[i]->i_price;
+        line.ol_amount = output->items[i].ol_amount;
+        output->total += output->items[i].ol_amount;
+        insert_order_line(line);
+      }
+
+      // Perform the "remote" part for this warehouse
+      // TODO: It might be more efficient to merge this into the loop above, but
+      // this is simpler.
+      std::vector<int32_t> quantities;
+        new_order_remote(warehouse_id, warehouse_id, items, &quantities);
+      new_order_combine(quantities, output);
+
+      return true;
+    }
+
   public:
     TpccTransactions(
       ccf::EndpointContext& args_,
       int32_t num_warehouses_,
       int32_t districts_per_warehouse_,
-      int32_t customers_per_district_) :
+      int32_t customers_per_district_,
+      int32_t num_items_) :
       args(args_),
       num_warehouses(num_warehouses_),
       districts_per_warehouse(districts_per_warehouse_),
-      customers_per_district(customers_per_district_)
+      customers_per_district(customers_per_district_),
+      num_items(num_items_)
     {}
 
     int32_t stock_level(
@@ -507,40 +807,90 @@ namespace tpcc
       delivery(generate_warehouse(), carrier, now, &orders);
     }
 
+    void payment()
+    {
+      PaymentOutput output;
+      int x = random_int(1, 100);
+      int y = random_int(1, 100);
 
-    void payment() {
-    PaymentOutput output;
-    int x = random_int(1, 100);
-    int y = random_int(1, 100);
-    
-    int32_t w_id = generate_warehouse();
-    int32_t d_id = generate_district();
+      int32_t w_id = generate_warehouse();
+      int32_t d_id = generate_district();
 
-    int32_t c_w_id;
-    int32_t c_d_id;
-    if (num_warehouses == 1 || x <= 85) {
+      int32_t c_w_id;
+      int32_t c_d_id;
+      if (num_warehouses == 1 || x <= 85)
+      {
         // 85%: paying through own warehouse (or there is only 1 warehouse)
         c_w_id = w_id;
         c_d_id = d_id;
-    } else {
+      }
+      else
+      {
         // 15%: paying through another warehouse:
         // select in range [1, num_warehouses] excluding w_id
         c_w_id = random_int_excluding(1, num_warehouses, w_id);
         c_d_id = generate_district();
-    }
-    float h_amount = random_float(MIN_PAYMENT_AMOUNT, MAX_PAYMENT_AMOUNT);
+      }
+      float h_amount = random_float(MIN_PAYMENT_AMOUNT, MAX_PAYMENT_AMOUNT);
 
-    // TODO: set time
-    std::array<char, DATETIME_SIZE + 1> now;
-    if (y <= 60) {
+      // TODO: set time
+      std::array<char, DATETIME_SIZE + 1> now;
+      if (y <= 60)
+      {
         // 60%: payment by last name
         std::array<char, Customer::MAX_LAST + 1> c_last;
         make_last_name(customers_per_district, c_last.data());
         payment(w_id, d_id, c_w_id, c_d_id, c_last, h_amount, now, &output);
-    } else {
+      }
+      else
+      {
         // 40%: payment by id
-        payment(w_id, d_id, c_w_id, c_d_id, generate_cid(), h_amount, now, &output);
+        payment(
+          w_id, d_id, c_w_id, c_d_id, generate_cid(), h_amount, now, &output);
+      }
     }
-}
+
+    bool new_order()
+    {
+      int32_t w_id = generate_warehouse();
+      int ol_cnt = random_int(Order::MIN_OL_CNT, Order::MAX_OL_CNT);
+
+      // 1% of transactions roll back
+      bool rollback = random_int(1, 100) == 1;
+
+      std::vector<NewOrderItem> items(ol_cnt);
+      for (int i = 0; i < ol_cnt; ++i)
+      {
+        if (rollback && i + 1 == ol_cnt)
+        {
+          items[i].i_id = Item::NUM_ITEMS + 1;
+        }
+        else
+        {
+          items[i].i_id = generate_item_id();
+        }
+
+        // TPC-C suggests generating a number in range (1, 100) and selecting
+        // remote on 1
+        bool remote = (random_int(1, 100) == 1);
+        if (num_warehouses > 1 && remote)
+        {
+          items[i].ol_supply_w_id =
+            random_int_excluding(1, num_warehouses, w_id);
+        }
+        else
+        {
+          items[i].ol_supply_w_id = w_id;
+        }
+        items[i].ol_quantity = random_int(1, MAX_OL_QUANTITY);
+      }
+
+      // TODO: Set time
+      std::array<char, DATETIME_SIZE + 1> now;
+      NewOrderOutput output;
+      bool result = new_order(
+        w_id, generate_district(), generate_cid(), items, now, &output);
+      return result;
+    }
   };
 }

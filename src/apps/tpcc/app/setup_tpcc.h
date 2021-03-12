@@ -399,6 +399,37 @@ namespace tpcc
       }
     }
 
+    void generate_item(int32_t id, bool original)
+    {
+      Item item;
+      item.i_id = id;
+      item.i_im_id = random_int(Item::MAX_IM, Item::MIN_IM);
+      item.i_price = random_float(Item::MAX_PRICE, Item::MIN_PRICE);
+      create_random_string(item.i_name, Item::MIN_NAME, Item::MAX_NAME);
+      create_random_string(item.i_data, Item::MIN_DATA, Item::MAX_DATA);
+
+      if (original)
+      {
+        set_original(item.i_data);
+      }
+      auto items_table = args.tx.rw(tpcc::TpccTables::items);
+      items_table->put(item.get_key(), item);
+    }
+
+    // Generates num_items items and inserts them into tables.
+    void make_items()
+    {
+      // Select 10% of the rows to be marked "original"
+      auto original_rows =
+        select_unique_ids(num_items, num_items / 10);
+
+      for (uint32_t i = 1; i <= num_items; ++i)
+      {
+        bool is_original = original_rows.find(i) != original_rows.end();
+        generate_item(i, is_original);
+      }
+    }
+
     void run()
     {
       if (already_run)
@@ -407,6 +438,7 @@ namespace tpcc
       }
       already_run = true;
 
+      make_items();
       for (uint32_t i = 0; i < num_wh; ++i)
       {
         make_stock(i);

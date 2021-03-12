@@ -159,4 +159,33 @@ namespace tpcc
       return a;
     }
   };
+
+  struct TpccNewOrder
+  {
+    int32_t warehouse_id;
+    int32_t district_id;
+    int32_t threshold;
+
+    std::vector<uint8_t> serialize() const
+    {
+      auto size = sizeof(warehouse_id) + sizeof(district_id) +
+        sizeof(threshold);
+      std::vector<uint8_t> v(size);
+      auto data = v.data();
+      serialized::write(data, size, warehouse_id);
+      serialized::write(data, size, district_id);
+      serialized::write(data, size, threshold);
+      return v;
+    }
+
+    static TpccNewOrder deserialize(const uint8_t* data, size_t size)
+    {
+      TpccNewOrder a;
+      a.warehouse_id = serialized::read<decltype(warehouse_id)>(data, size);
+      a.district_id = serialized::read<decltype(district_id)>(data, size);
+      a.threshold =
+        serialized::read<decltype(threshold)>(data, size);
+      return a;
+    }
+  };
 }

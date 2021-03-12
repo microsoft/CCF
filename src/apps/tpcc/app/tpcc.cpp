@@ -63,7 +63,7 @@ namespace ccfapp
 
       auto do_stock_level = [this](auto& args) {
         LOG_INFO_FMT("stock level");
-        tpcc::TpccTransactions tx(args, 10, 10, 10);
+        tpcc::TpccTransactions tx(args, 10, 10, 10, 1000);
         tx.stock_level(1,1,100);
         
         set_no_content_status(args);
@@ -71,7 +71,7 @@ namespace ccfapp
 
       auto do_order_status = [this](auto& args) {
         LOG_INFO_FMT("order status");
-        tpcc::TpccTransactions tx(args, 10, 10, 10);
+        tpcc::TpccTransactions tx(args, 10, 10, 10, 1000);
         tx.order_status();
         
         set_no_content_status(args);
@@ -79,7 +79,7 @@ namespace ccfapp
 
       auto do_delivery = [this](auto& args) {
         LOG_INFO_FMT("delivery");
-        tpcc::TpccTransactions tx(args, 10, 10, 10);
+        tpcc::TpccTransactions tx(args, 10, 10, 10, 1000);
         tx.delivery();
         
         set_no_content_status(args);
@@ -87,8 +87,16 @@ namespace ccfapp
 
       auto do_payment = [this](auto& args) {
         LOG_INFO_FMT("payment");
-        tpcc::TpccTransactions tx(args, 10, 10, 10);
+        tpcc::TpccTransactions tx(args, 10, 10, 10, 1000);
         tx.payment();
+        
+        set_no_content_status(args);
+      };
+
+      auto do_new_order = [this](auto& args) {
+        LOG_INFO_FMT("new order");
+        tpcc::TpccTransactions tx(args, 10, 10, 10, 1000);
+        tx.new_order();
         
         set_no_content_status(args);
       };
@@ -108,6 +116,8 @@ namespace ccfapp
         make_endpoint("delivery", verb, do_delivery, user_sig_or_cert)
           .install();
         make_endpoint("payment", verb, do_payment, user_sig_or_cert)
+          .install();
+        make_endpoint("new_order", verb, do_new_order, user_sig_or_cert)
           .install();
       }
 
@@ -151,3 +161,4 @@ kv::Map<tpcc::Customer::Key, tpcc::Customer> tpcc::TpccTables::customers("custom
 kv::Map<tpcc::Order::Key, tpcc::Order> tpcc::TpccTables::orders("orders");
 kv::Map<tpcc::OrderLine::Key, tpcc::OrderLine> tpcc::TpccTables::order_lines("order_lines");
 kv::Map<tpcc::NewOrder::Key, tpcc::NewOrder> tpcc::TpccTables::new_orders("new_orders");
+kv::Map<tpcc::Item::Key, tpcc::Item> tpcc::TpccTables::items("items");
