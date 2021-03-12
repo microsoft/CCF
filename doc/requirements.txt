@@ -1,5 +1,5 @@
 breathe
-sphinx
+sphinx==3.5.1 # Temporary workaround for duplicate definition error
 sphinx_rtd_theme
 pygments-style-solarized
 bottle
