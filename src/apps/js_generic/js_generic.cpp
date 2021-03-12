@@ -889,7 +889,7 @@ namespace ccfapp
       }
 
       char const* policy_name = nullptr;
-      CallerId id;
+      EntityId id;
       nlohmann::json data;
       std::string cert_s;
 

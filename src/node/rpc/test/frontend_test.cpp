@@ -281,7 +281,7 @@ class RpcContextRecorder
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
   crypto::Pem last_caller_cert;
-  std::optional<CallerId> last_caller_id = std::nullopt;
+  std::optional<EntityId> last_caller_id = std::nullopt;
 
   void record_ctx(EndpointContext& ctx)
   {

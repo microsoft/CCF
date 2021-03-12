@@ -26,5 +26,6 @@ namespace ccf
   // Options:
   // 1. Use raw serialiaser for this (not great for audit, awkward to serialise)
   // 2. Split table, and use raw for cert
-  using Users = kv::Map<UserId, UserInfo>;
+  // using Users = kv::Map<UserId, UserInfo>;
+  using Users = ServiceMap<UserId, UserInfo>;
 }

@@ -129,7 +129,6 @@ namespace ccf
     j["pattern"] = fmt::format("^[a-f0-9]{{{}}}$", EntityId::LENGTH);
   }
 
-  using CallerId = EntityId;
   using MemberId = EntityId;
   using UserId = EntityId;
   using NodeId = EntityId;
