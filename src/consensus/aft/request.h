@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ds/json.h"
-#include "kv/map.h"
 #include "node/entities.h"
+#include "node/service_map.h"
 
 #include <msgpack/msgpack.hpp>
 #include <vector>
@@ -70,5 +70,5 @@ namespace aft
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the requests in the kv over time, we just want to get
   // them into the ledger
-  using RequestsMap = kv::Map<size_t, Request>;
+  using RequestsMap = ccf::ServiceMap<size_t, Request>;
 }

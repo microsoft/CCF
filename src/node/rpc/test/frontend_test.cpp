@@ -18,7 +18,6 @@
 #include "node/rpc/user_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
-#include "service_map.h"
 
 #include <doctest/doctest.h>
 #include <iostream>

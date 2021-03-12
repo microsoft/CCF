@@ -87,5 +87,5 @@ namespace ccf
     ViewChangeConfirmation, view, seqno, signature, view_change_messages);
 
   // Always recorded at key 0
-  using NewViewsMap = kv::Map<size_t, ViewChangeConfirmation>;
+  using NewViewsMap = ServiceMap<size_t, ViewChangeConfirmation>;
 }
