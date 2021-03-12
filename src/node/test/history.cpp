@@ -157,8 +157,7 @@ TEST_CASE("Check signing works across rollback")
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
-  auto v1_proof =
-    primary_history->get_proof(primary_store.current_version());
+  auto v1_proof = primary_history->get_proof(primary_store.current_version());
 
   INFO("Transaction that we will roll back");
   {
@@ -188,8 +187,7 @@ TEST_CASE("Check signing works across rollback")
     }
   }
 
-  auto v2_proof =
-    primary_history->get_proof(primary_store.current_version());
+  auto v2_proof = primary_history->get_proof(primary_store.current_version());
 
   INFO("Check that past & current proofs are ok");
   {

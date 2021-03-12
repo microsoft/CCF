@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/tx_id.h"
 #include "enclave/tls_endpoint.h"
 #include "http_proc.h"
-#include "ccf/tx_id.h"
 #include "ws_consts.h"
 
 #include <algorithm>

@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/entity_id.h"
 #include "crypto/key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "entities.h"
-#include "node/entity_id.h"
 #include "node_types.h"
 #include "tls/key_exchange.h"
 

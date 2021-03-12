@@ -687,7 +687,8 @@ namespace ccf
     {
       update_consensus();
 
-      // reset tx_count_since_tick for next tick interval, but pass current value for stats
+      // reset tx_count_since_tick for next tick interval, but pass current
+      // value for stats
       size_t tx_count = tx_count_since_tick.exchange(0u);
 
       endpoints.tick(elapsed, tx_count);

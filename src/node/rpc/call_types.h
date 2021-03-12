@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "ds/json_schema.h"
 #include "ccf/receipt.h"
+#include "ds/json_schema.h"
 #include "kv/kv_types.h"
 #include "metrics.h"
 #include "node/code_id.h"

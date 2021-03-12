@@ -3,8 +3,8 @@
 #pragma once
 
 // CCF
-#include "clients/rpc_tls_client.h"
 #include "ccf/tx_id.h"
+#include "clients/rpc_tls_client.h"
 
 // STL/3rdparty
 #include <chrono>

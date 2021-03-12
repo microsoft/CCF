@@ -3,8 +3,8 @@
 
 #pragma once
 
+#include "ccf/entity_id.h"
 #include "ds/json.h"
-#include "kv/kv_types.h" // TODO: ccf::NodeID
 
 namespace ccf
 {

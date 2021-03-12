@@ -35,8 +35,7 @@ namespace metrics
         .install();
     }
 
-    void tick(
-      std::chrono::milliseconds elapsed, size_t tx_count)
+    void tick(std::chrono::milliseconds elapsed, size_t tx_count)
     {
       metrics.track_tx_rates(elapsed, tx_count);
     }

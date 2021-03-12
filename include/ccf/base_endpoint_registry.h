@@ -4,8 +4,8 @@
 
 #include "ds/json.h"
 #include "enclave/node_context.h"
-#include "node/rpc/endpoint_registry.h"
 #include "node/quote.h"
+#include "node/rpc/endpoint_registry.h"
 #include "node/rpc/node_interface.h"
 
 namespace ccf

@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/entity_id.h"
 #include "crypto/hash.h"
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
-#include "node/entity_id.h"
 #include "serialiser_declare.h"
 
 #include <array>

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
-#include "node/rpc/endpoint_registry.h"
 #include "ccf/tx_id.h"
+#include "node/rpc/endpoint_registry.h"
 
 namespace ccf::historical
 {

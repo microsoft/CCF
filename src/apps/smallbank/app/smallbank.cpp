@@ -452,9 +452,7 @@ namespace ccfapp
       metrics_tracker.install_endpoint(*this);
     }
 
-    void tick(
-      std::chrono::milliseconds elapsed,
-      size_t tx_count) override
+    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
     {
       metrics_tracker.tick(elapsed, tx_count);
 
