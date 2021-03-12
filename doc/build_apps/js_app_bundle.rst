@@ -12,7 +12,7 @@ This page documents the components of a bundle and the JavaScript API available 
     `npm <https://www.npmjs.com/>`_, and
     `TypeScript <https://www.typescriptlang.org/>`_.
     CCF provides multiple example apps built with these tools.
-    They involve a `build` step that generates an app bundle suitable for CCF.
+    They involve a `build` step that generates an app bundle suitable for 
     See the following pages for more details:
 
     .. toctree::
@@ -113,41 +113,41 @@ JavaScript provides a set of built-in
 `global functions, objects, and values <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects>`_.
 
 CCF provides the additional global variable ``ccf`` to access native CCF functionality.
-It is an object implementing the :js:class:`CCF.Global <CCF.Global>` interface documented below.
+It is an object implementing the :js:class:`CCF <CCF>` interface documented below.
 
 .. note::
   `Web APIs <https://developer.mozilla.org/en-US/docs/Web/API>`_ are not available.
 
-.. js:autoclass:: CCF.Global
+.. js:autoclass:: CCF
    :members:
 
-.. js:autoclass:: CCF.KVMap
+.. js:autoclass:: KVMap
    :members:
 
-.. js:autoclass:: CCF.WrapAlgoParams
+.. js:autoclass:: WrapAlgoParams
    :members:
 
-.. js:autoclass:: CCF.RsaOaepParams
+.. js:autoclass:: RsaOaepParams
    :members:
 
-.. js:autoclass:: CCF.AESKWPParams
+.. js:autoclass:: AESKWPParams
    :members:
 
-.. js:autoclass:: CCF.RsaOaepAESKWPParams
+.. js:autoclass:: RsaOaepAESKWPParams
    :members:
 
-.. js:autoclass:: CCF.CryptoKeyPair
+.. js:autoclass:: CryptoKeyPair
    :members:
 
 Endpoint handlers
 ~~~~~~~~~~~~~~~~~
 
-An endpoint handler is an exported function that receives a :js:class:`CCF.Request <CCF.Request>` object, returns a :js:class:`CCF.Response <CCF.Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
+An endpoint handler is an exported function that receives a :js:class:`Request <Request>` object, returns a :js:class:`Response <Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
 
-.. js:autoclass:: CCF.Request
+.. js:autoclass:: Request
    :members:
 
-.. js:autoclass:: CCF.Response
+.. js:autoclass:: Response
    :members:
 
 See the following handler from the example app bundle in the

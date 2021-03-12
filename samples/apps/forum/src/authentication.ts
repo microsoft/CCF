@@ -4,7 +4,7 @@
 import { KJUR, KEYUTIL } from "jsrsasign";
 import jwt_decode from "jwt-decode";
 import { Base64 } from "js-base64";
-import { CCF, ccf } from "./ccf/builtin";
+import { ccf, Request } from "./ccf/builtin";
 import * as ccfUtil from "./ccf/util";
 import { UnauthorizedError } from "./error_handler";
 
@@ -34,7 +34,7 @@ export const MS_APP_ID = "1773214f-72b8-48f9-ae18-81e30fab04db";
 export const MS_APP_ID_URI = "api://1773214f-72b8-48f9-ae18-81e30fab04db";
 
 export function authentication(
-  request: CCF.Request,
+  request: Request,
   securityName: string,
   scopes?: string[]
 ): void {

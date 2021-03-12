@@ -72,7 +72,7 @@ An endpoint handler, here named ``abc``, has the following structure:
         ...
     }
 
-    export function abc(request: CCF.Request<AbcRequest>): CCF.Response<AbcResponse> {
+    export function abc(request: Request<AbcRequest>): Response<AbcResponse> {
         // access request details
         const data = request.body.json();
         
@@ -88,7 +88,7 @@ An endpoint handler, here named ``abc``, has the following structure:
     }
 
 ``AbcRequest`` and ``AbcResponse`` define the JSON schema of the request and response body, respectively.
-If an endpoint has no request or response body, the type parameters of :js:class:`CCF.Request`/:js:class:`CCF.Response` can be omitted.
+If an endpoint has no request or response body, the type parameters of :js:class:`Request`/:js:class:`Response` can be omitted.
 
 As an example, the ``/partition`` endpoint of the sample app is implemented as:
 

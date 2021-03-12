@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-import { ccf, CCF } from "./builtin";
+import { ccf, KVMap } from "./builtin";
 
 // This should eventually cover all JSON-compatible values.
 // There are attempts at https://github.com/microsoft/TypeScript/issues/1897
@@ -186,7 +186,7 @@ export const arrayBuffer = new IdentityConverter();
 
 export class TypedKVMap<K, V> {
   constructor(
-    private kv: CCF.KVMap,
+    private kv: KVMap,
     private kt: DataConverter<K>,
     private vt: DataConverter<V>
   ) {}
@@ -211,7 +211,7 @@ export class TypedKVMap<K, V> {
     this.kv.forEach(function (
       raw_v: ArrayBuffer,
       raw_k: ArrayBuffer,
-      table: CCF.KVMap
+      table: KVMap
     ) {
       callback(vt.decode(raw_v), kt.decode(raw_k), typedMap);
     });

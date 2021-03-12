@@ -28,7 +28,7 @@ import {
   UnauthorizedError,
 } from "../error_handler";
 import { User } from "../authentication";
-import { CCF } from "../ccf/builtin";
+import * as CCF from "../ccf/builtin";
 import { kv } from "../models/poll";
 
 export const MINIMUM_OPINION_THRESHOLD = 10;

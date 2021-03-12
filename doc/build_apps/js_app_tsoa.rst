@@ -114,16 +114,16 @@ for :ref:`CCF's JavaScript API <build_apps/js_app_bundle:JavaScript API>`.
 Instead, the definitions are part of the sample app in
 `src/ccf/builtin.ts <https://github.com/microsoft/CCF/tree/samples/apps/forum/src/ccf/builtin.ts>`_.
 
-Using CCF's :js:class:`CCF.Response` object is not needed when using tsoa because the return value always has to be the body itself.
+Using CCF's :js:class:`Response` object is not needed when using tsoa because the return value always has to be the body itself.
 Headers and the status code can be set using `Controller methods <https://tsoa-community.github.io/reference/classes/_tsoa_runtime.controller-1.html>`_.
 
-Sometimes though it is necessary to access CCF's :js:class:`CCF.Request` object, for example when the request body is not JSON.
+Sometimes though it is necessary to access CCF's :js:class:`Request` object, for example when the request body is not JSON.
 In this case, instead of using ``@Body() body: MyType`` as function argument, ``@Request() request: CCF.Request`` can be used.
 See `src/controllers/csv.ts <https://github.com/microsoft/CCF/tree/main/samples/apps/forum/src/controllers/csv.ts>`_
 for a concrete example.
 
 .. warning::
-    Requesting CCF's :js:class:`CCF.Request` object via ``@Request()`` instead of using ``@Body()`` disables automatic schema validation.
+    Requesting CCF's :js:class:`Request` object via ``@Request()`` instead of using ``@Body()`` disables automatic schema validation.
 
 Metadata
 --------

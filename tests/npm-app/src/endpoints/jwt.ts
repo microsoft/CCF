@@ -1,8 +1,8 @@
-import { KJUR, KEYUTIL, ArrayBuffertohex } from "jsrsasign";
+import { KJUR, KEYUTIL } from "jsrsasign";
 import jwt_decode from "jwt-decode";
 import { Base64 } from "js-base64";
 
-import { ccf, CCF } from "../ccf/builtin";
+import { ccf, Request, Response } from "../ccf/builtin";
 import * as ccfUtil from "../ccf/util";
 
 interface JwtResponse {
@@ -25,8 +25,8 @@ interface BodyClaims {
 // this is an unauthenticated endpoint which extracts, parses, and validates
 // the JWT itself directly in TS.
 export function jwt(
-  request: CCF.Request
-): CCF.Response<JwtResponse | ErrorResponse> {
+  request: Request
+): Response<JwtResponse | ErrorResponse> {
   const authHeader = request.headers["authorization"];
   if (!authHeader) {
     return unauthorized("authorization header missing");
@@ -95,7 +95,7 @@ export function jwt(
   };
 }
 
-function unauthorized(msg: string): CCF.Response<ErrorResponse> {
+function unauthorized(msg: string): Response<ErrorResponse> {
   return {
     statusCode: 401,
     body: {

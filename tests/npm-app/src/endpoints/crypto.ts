@@ -1,13 +1,13 @@
 import * as rs from "jsrsasign";
 import { Base64 } from "js-base64";
 
-import { ccf, CCF } from "../ccf/builtin";
+import { ccf, Request, Response } from "../ccf/builtin";
 
 interface CryptoResponse {
   available: boolean;
 }
 
-export function crypto(request: CCF.Request): CCF.Response<CryptoResponse> {
+export function crypto(request: Request): Response<CryptoResponse> {
   // Most functionality of jsrsasign requires keys.
   // Generating a key here is too slow, so we'll just check if the
   // JS API got exported correctly.
@@ -20,8 +20,8 @@ interface GenerateAesKeyRequest {
 }
 
 export function generateAesKey(
-  request: CCF.Request<GenerateAesKeyRequest>
-): CCF.Response<ArrayBuffer> {
+  request: Request<GenerateAesKeyRequest>
+): Response<ArrayBuffer> {
   return { body: ccf.generateAesKey(request.body.json().size) };
 }
 
@@ -36,8 +36,8 @@ export interface CryptoKeyPair {
 }
 
 export function generateRsaKeyPair(
-  request: CCF.Request<GenerateRsaKeyPairRequest>
-): CCF.Response<CryptoKeyPair> {
+  request: Request<GenerateRsaKeyPairRequest>
+): Response<CryptoKeyPair> {
   const req = request.body.json();
   const res = req.exponent
     ? ccf.generateRsaKeyPair(req.size, req.exponent)
@@ -67,8 +67,8 @@ interface WrapKeyRequest {
 }
 
 export function wrapKey(
-  request: CCF.Request<WrapKeyRequest>
-): CCF.Response<ArrayBuffer> {
+  request: Request<WrapKeyRequest>
+): Response<ArrayBuffer> {
   const r = request.body.json();
   const key = b64ToBuf(r.key);
   const wrappingKey = b64ToBuf(r.wrappingKey);

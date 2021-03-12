@@ -23,7 +23,7 @@ import {
   UnauthorizedError,
 } from "../error_handler";
 import { User } from "../authentication";
-import { CCF } from "../ccf/builtin";
+import * as CCF from "../ccf/builtin";
 import { kv } from "../models/poll";
 
 // GET  /csv return all opinions of authenticated user as CSV

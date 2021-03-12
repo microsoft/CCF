@@ -1,4 +1,4 @@
-import { ccf, CCF } from "../ccf/builtin";
+import { ccf, Request, Response } from "../ccf/builtin";
 import * as ccfUtil from "../ccf/util";
 
 interface LogItem {
@@ -15,7 +15,7 @@ const logMap = new ccfUtil.TypedKVMap(
   ccfUtil.json<LogItem>()
 );
 
-export function getLogItem(request: CCF.Request): CCF.Response<LogItem> {
+export function getLogItem(request: Request): Response<LogItem> {
   const id = parseInt(request.query.split("=")[1]);
   if (!logMap.has(id)) {
     return {
@@ -27,15 +27,15 @@ export function getLogItem(request: CCF.Request): CCF.Response<LogItem> {
   };
 }
 
-export function setLogItem(request: CCF.Request<LogItem>): CCF.Response {
+export function setLogItem(request: Request<LogItem>): Response {
   const id = parseInt(request.query.split("=")[1]);
   logMap.set(id, request.body.json());
   return {};
 }
 
 export function getAllLogItems(
-  request: CCF.Request
-): CCF.Response<Array<LogEntry>> {
+  request: Request
+): Response<Array<LogEntry>> {
   let items: Array<LogEntry> = [];
   logMap.forEach(function (item, id, table) {
     items.push({ id: id, msg: item.msg });
