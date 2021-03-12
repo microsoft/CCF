@@ -34,7 +34,7 @@ jobs:
           pip install wheel
           pip install -U -r doc/requirements.txt
           pip install -U -e ./python
-          npm install typescript typedoc@0.19.2
+          npm install -g typescript typedoc@0.19.2
           sphinx-multiversion doc build/html
         displayName: Sphinx
 
