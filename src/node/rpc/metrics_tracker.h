@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "endpoint_registry.h"
+#include "ccf/endpoint_registry.h"
 #include "json_handler.h"
 #include "metrics.h"
 

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "node/rpc/endpoint_registry.h"
+#include "ccf/endpoint_registry.h"
 
 namespace ccfapp
 {

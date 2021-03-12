@@ -6,7 +6,7 @@
 #include "ds/json_schema.h"
 #include "ds/openapi.h"
 #include "enclave/rpc_context.h"
-#include "endpoint.h"
+#include "node/rpc/endpoint.h"
 #include "http/authentication/cert_auth.h"
 #include "http/authentication/jwt_auth.h"
 #include "http/authentication/sig_auth.h"
@@ -14,7 +14,7 @@
 #include "http/ws_consts.h"
 #include "kv/tx.h"
 #include "node/certs.h"
-#include "serialization.h"
+#include "node/rpc/serialization.h"
 
 #include <charconv>
 #include <functional>
