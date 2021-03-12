@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/endpoint_registry.h"
 #include "ds/json.h"
 #include "enclave/node_context.h"
 #include "node/quote.h"
-#include "ccf/endpoint_registry.h"
 #include "node/rpc/node_interface.h"
 
 namespace ccf
@@ -75,7 +75,7 @@ namespace ccf
    * and setting results to the later out-parameters, passed by reference. All
    * return an @ref ApiResult, with value OK if the call succeeded.
    */
-  class BaseEndpointRegistry : public EndpointRegistry
+  class BaseEndpointRegistry : public ccf::endpoints::EndpointRegistry
   {
   protected:
     ccfapp::AbstractNodeContext& context;
@@ -84,7 +84,7 @@ namespace ccf
     BaseEndpointRegistry(
       const std::string& method_prefix_,
       ccfapp::AbstractNodeContext& context_) :
-      EndpointRegistry(method_prefix_),
+      ccf::endpoints::EndpointRegistry(method_prefix_),
       context(context_)
     {}
 

@@ -817,7 +817,7 @@ namespace ccfapp
 
     metrics::Tracker metrics_tracker;
 
-    static JSValue create_ccf_obj(EndpointContext& args, JSContext* ctx)
+    static JSValue create_ccf_obj(ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       auto ccf = JS_NewObject(ctx);
 
@@ -877,7 +877,7 @@ namespace ccfapp
       return console;
     }
 
-    static void populate_global_obj(EndpointContext& args, JSContext* ctx)
+    static void populate_global_obj(ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       auto global_obj = JS_GetGlobalObject(ctx);
 
@@ -893,7 +893,7 @@ namespace ccfapp
       return JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>");
     }
 
-    static JSValue create_caller_obj(EndpointContext& args, JSContext* ctx)
+    static JSValue create_caller_obj(ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       if (args.caller == nullptr)
       {
@@ -996,7 +996,7 @@ namespace ccfapp
       return caller;
     }
 
-    static JSValue create_request_obj(EndpointContext& args, JSContext* ctx)
+    static JSValue create_request_obj(ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       auto request = JS_NewObject(ctx);
 
@@ -1042,7 +1042,7 @@ namespace ccfapp
     void execute_request(
       const std::string& method,
       const ccf::RESTVerb& verb,
-      EndpointContext& args)
+      ccf::endpoints::EndpointContext& args)
     {
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
@@ -1350,7 +1350,7 @@ namespace ccfapp
       return;
     }
 
-    struct JSDynamicEndpoint : public EndpointDefinition
+    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
     {};
 
   public:
@@ -1386,7 +1386,7 @@ namespace ccfapp
       }
     }
 
-    EndpointDefinitionPtr find_endpoint(
+    ccf::endpoints::EndpointDefinitionPtr find_endpoint(
       kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
     {
       const auto method = fmt::format("/{}", rpc_ctx.get_method());
@@ -1412,7 +1412,7 @@ namespace ccfapp
       // templated matches. If there is one, that's a match. More is an error,
       // none means delegate to the base class.
       {
-        std::vector<EndpointDefinitionPtr> matches;
+        std::vector<ccf::endpoints::EndpointDefinitionPtr> matches;
 
         endpoints->foreach([this, &matches, &key, &rpc_ctx](
                              const auto& other_key, const auto& properties) {
@@ -1467,11 +1467,11 @@ namespace ccfapp
         }
       }
 
-      return EndpointRegistry::find_endpoint(tx, rpc_ctx);
+      return ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
     }
 
     void execute_endpoint(
-      EndpointDefinitionPtr e, EndpointContext& args) override
+      ccf::endpoints::EndpointDefinitionPtr e, ccf::endpoints::EndpointContext& args) override
     {
       auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
@@ -1481,7 +1481,7 @@ namespace ccfapp
         return;
       }
 
-      EndpointRegistry::execute_endpoint(e, args);
+      ccf::endpoints::EndpointRegistry::execute_endpoint(e, args);
     }
 
     // Since we do our own dispatch within the default handler, report the

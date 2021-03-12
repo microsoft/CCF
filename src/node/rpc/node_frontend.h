@@ -191,125 +191,124 @@ namespace ccf
     {
       CommonEndpointRegistry::init_handlers();
 
-      auto accept =
-        [this](EndpointContext& args, const nlohmann::json& params) {
-          const auto in = params.get<JoinNetworkNodeToNode::In>();
+      auto accept = [this](auto& args, const nlohmann::json& params) {
+        const auto in = params.get<JoinNetworkNodeToNode::In>();
 
-          if (
-            !this->context.get_node_state().is_part_of_network() &&
-            !this->context.get_node_state().is_part_of_public_network() &&
-            !this->context.get_node_state().is_reading_private_ledger())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Target node should be part of network to accept new nodes.");
-          }
+        if (
+          !this->context.get_node_state().is_part_of_network() &&
+          !this->context.get_node_state().is_part_of_public_network() &&
+          !this->context.get_node_state().is_reading_private_ledger())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Target node should be part of network to accept new nodes.");
+        }
 
-          if (this->network.consensus_type != in.consensus_type)
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::ConsensusTypeMismatch,
-              fmt::format(
-                "Node requested to join with consensus type {} but "
-                "current consensus type is {}.",
-                in.consensus_type,
-                this->network.consensus_type));
-          }
+        if (this->network.consensus_type != in.consensus_type)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ConsensusTypeMismatch,
+            fmt::format(
+              "Node requested to join with consensus type {} but "
+              "current consensus type is {}.",
+              in.consensus_type,
+              this->network.consensus_type));
+        }
 
-          auto nodes = args.tx.rw(this->network.nodes);
-          auto service = args.tx.rw(this->network.service);
+        auto nodes = args.tx.rw(this->network.nodes);
+        auto service = args.tx.rw(this->network.service);
 
-          auto active_service = service->get(0);
-          if (!active_service.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "No service is available to accept new node.");
-          }
+        auto active_service = service->get(0);
+        if (!active_service.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No service is available to accept new node.");
+        }
 
-          if (active_service->status == ServiceStatus::OPENING)
-          {
-            // If the service is opening, new nodes are trusted straight away
-            NodeStatus joining_node_status = NodeStatus::TRUSTED;
+        if (active_service->status == ServiceStatus::OPENING)
+        {
+          // If the service is opening, new nodes are trusted straight away
+          NodeStatus joining_node_status = NodeStatus::TRUSTED;
 
-            // If the node is already trusted, return network secrets
-            auto existing_node_info = check_node_exists(
-              args.tx, args.rpc_ctx->session->caller_cert, joining_node_status);
-            if (existing_node_info.has_value())
-            {
-              JoinNetworkNodeToNode::Out rep;
-              rep.node_status = joining_node_status;
-              rep.node_id = existing_node_info->first;
-              rep.network_info = {
-                context.get_node_state().is_part_of_public_network(),
-                context.get_node_state().get_last_recovered_signed_idx(),
-                this->network.consensus_type,
-                this->network.ledger_secrets->get(
-                  args.tx, existing_node_info->second),
-                *this->network.identity.get()};
-              return make_success(rep);
-            }
-
-            return add_node(
-              args.tx,
-              args.rpc_ctx->session->caller_cert,
-              in,
-              joining_node_status);
-          }
-
-          // If the service is open, new nodes are first added as pending and
-          // then only trusted via member governance. It is expected that a new
-          // node polls the network to retrieve the network secrets until it is
-          // trusted
-
-          auto existing_node_info =
-            check_node_exists(args.tx, args.rpc_ctx->session->caller_cert);
+          // If the node is already trusted, return network secrets
+          auto existing_node_info = check_node_exists(
+            args.tx, args.rpc_ctx->session->caller_cert, joining_node_status);
           if (existing_node_info.has_value())
           {
             JoinNetworkNodeToNode::Out rep;
+            rep.node_status = joining_node_status;
             rep.node_id = existing_node_info->first;
+            rep.network_info = {
+              context.get_node_state().is_part_of_public_network(),
+              context.get_node_state().get_last_recovered_signed_idx(),
+              this->network.consensus_type,
+              this->network.ledger_secrets->get(
+                args.tx, existing_node_info->second),
+              *this->network.identity.get()};
+            return make_success(rep);
+          }
 
-            // If the node already exists, return network secrets if is already
-            // trusted. Otherwise, only return its status
-            auto node_status = nodes->get(existing_node_info->first)->status;
-            rep.node_status = node_status;
-            if (node_status == NodeStatus::TRUSTED)
-            {
-              rep.network_info = {
-                context.get_node_state().is_part_of_public_network(),
-                context.get_node_state().get_last_recovered_signed_idx(),
-                this->network.consensus_type,
-                this->network.ledger_secrets->get(
-                  args.tx, existing_node_info->second),
-                *this->network.identity.get()};
-              return make_success(rep);
-            }
-            else if (node_status == NodeStatus::PENDING)
-            {
-              // Only return node status and ID
-              return make_success(rep);
-            }
-            else
-            {
-              return make_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidNodeState,
-                "Joining node is not in expected state.");
-            }
+          return add_node(
+            args.tx,
+            args.rpc_ctx->session->caller_cert,
+            in,
+            joining_node_status);
+        }
+
+        // If the service is open, new nodes are first added as pending and
+        // then only trusted via member governance. It is expected that a new
+        // node polls the network to retrieve the network secrets until it is
+        // trusted
+
+        auto existing_node_info =
+          check_node_exists(args.tx, args.rpc_ctx->session->caller_cert);
+        if (existing_node_info.has_value())
+        {
+          JoinNetworkNodeToNode::Out rep;
+          rep.node_id = existing_node_info->first;
+
+          // If the node already exists, return network secrets if is already
+          // trusted. Otherwise, only return its status
+          auto node_status = nodes->get(existing_node_info->first)->status;
+          rep.node_status = node_status;
+          if (node_status == NodeStatus::TRUSTED)
+          {
+            rep.network_info = {
+              context.get_node_state().is_part_of_public_network(),
+              context.get_node_state().get_last_recovered_signed_idx(),
+              this->network.consensus_type,
+              this->network.ledger_secrets->get(
+                args.tx, existing_node_info->second),
+              *this->network.identity.get()};
+            return make_success(rep);
+          }
+          else if (node_status == NodeStatus::PENDING)
+          {
+            // Only return node status and ID
+            return make_success(rep);
           }
           else
           {
-            // If the node does not exist, add it to the KV in state pending
-            return add_node(
-              args.tx,
-              args.rpc_ctx->session->caller_cert,
-              in,
-              NodeStatus::PENDING);
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidNodeState,
+              "Joining node is not in expected state.");
           }
-        };
+        }
+        else
+        {
+          // If the node does not exist, add it to the KV in state pending
+          return add_node(
+            args.tx,
+            args.rpc_ctx->session->caller_cert,
+            in,
+            NodeStatus::PENDING);
+        }
+      };
       make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)
         .set_openapi_hidden(true)
         .install();
@@ -338,7 +337,7 @@ namespace ccf
       make_read_only_endpoint(
         "state", HTTP_GET, json_read_only_adapter(get_state), no_auth_required)
         .set_auto_schema<GetState>()
-        .set_forwarding_required(ForwardingRequired::Never)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {
@@ -383,7 +382,7 @@ namespace ccf
         json_read_only_adapter(get_quote),
         no_auth_required)
         .set_auto_schema<void, Quote>()
-        .set_forwarding_required(ForwardingRequired::Never)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
       auto get_quotes = [this](auto& args, nlohmann::json&&) {
@@ -547,7 +546,7 @@ namespace ccf
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto get_self_node = [this](ReadOnlyEndpointContext& args) {
+      auto get_self_node = [this](auto& args) {
         auto node_id = this->context.get_node_state().get_node_id();
         auto nodes = args.tx.ro(this->network.nodes);
         auto info = nodes->get(node_id);
@@ -571,12 +570,12 @@ namespace ccf
       };
       make_read_only_endpoint(
         "network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
-        .set_forwarding_required(ForwardingRequired::Never)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto get_primary_node = [this](ReadOnlyEndpointContext& args) {
+      auto get_primary_node = [this](auto& args) {
         if (consensus != nullptr)
         {
           auto node_id = this->context.get_node_state().get_node_id();
@@ -613,12 +612,12 @@ namespace ccf
       };
       make_read_only_endpoint(
         "network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
-        .set_forwarding_required(ForwardingRequired::Never)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto is_primary = [this](ReadOnlyEndpointContext& args) {
+      auto is_primary = [this](auto& args) {
         if (this->context.get_node_state().is_primary())
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
@@ -651,12 +650,12 @@ namespace ccf
       };
       make_read_only_endpoint(
         "primary", HTTP_HEAD, is_primary, no_auth_required)
-        .set_forwarding_required(ForwardingRequired::Never)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto consensus_config = [this](CommandEndpointContext& args) {
+      auto consensus_config = [this](auto& args) {
         // Query node for configurations, separate current from pending
         if (consensus != nullptr)
         {
@@ -679,12 +678,12 @@ namespace ccf
 
       make_command_endpoint(
         "config", HTTP_GET, consensus_config, no_auth_required)
-        .set_forwarding_required(ForwardingRequired::Never)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto memory_usage = [](CommandEndpointContext& args) {
+      auto memory_usage = [](auto& args) {
 
 // Do not attempt to call oe_allocator_mallinfo when used from
 // unit tests such as the frontend_test
@@ -707,7 +706,7 @@ namespace ccf
       };
 
       make_command_endpoint("memory", HTTP_GET, memory_usage, no_auth_required)
-        .set_forwarding_required(ForwardingRequired::Never)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<MemoryUsage>()

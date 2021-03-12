@@ -29,7 +29,7 @@ namespace ccfapp
     metrics::Tracker metrics_tracker;
 
     void set_error_status(
-      EndpointContext& args, int status, std::string&& message)
+      ccf::endpoints::EndpointContext& args, int status, std::string&& message)
     {
       args.rpc_ctx->set_response_status(status);
       args.rpc_ctx->set_response_header(
@@ -37,7 +37,7 @@ namespace ccfapp
       args.rpc_ctx->set_response_body(std::move(message));
     }
 
-    void set_ok_status(EndpointContext& args)
+    void set_ok_status(ccf::endpoints::EndpointContext& args)
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       args.rpc_ctx->set_response_header(
@@ -45,7 +45,7 @@ namespace ccfapp
         http::headervalues::contenttype::OCTET_STREAM);
     }
 
-    void set_no_content_status(EndpointContext& args)
+    void set_no_content_status(ccf::endpoints::EndpointContext& args)
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
     }
@@ -416,7 +416,7 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
-      const ccf::endpoints::AuthnPolicies user_sig_or_cert = {
+      const ccf::AuthnPolicies user_sig_or_cert = {
         user_signature_auth_policy, user_cert_auth_policy};
 
       std::vector<ccf::RESTVerb> verbs = {HTTP_POST, ws::Verb::WEBSOCKET};

@@ -4,6 +4,7 @@
 
 #include "authentication_types.h"
 #include "crypto/pem.h"
+#include "crypto/verifier.h"
 #include "node/certs.h"
 #include "node/members.h"
 #include "node/nodes.h"
@@ -35,13 +36,12 @@ namespace ccf
       auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
       auto users = tx.ro<Users>(Tables::USERS);
-      const auto user = users->get(caller_id);
-      if (user.has_value())
+      if (users->has(caller_id))
       {
         auto identity = std::make_unique<UserCertAuthnIdentity>();
         identity->user_id = caller_id;
-        identity->user_cert = user->cert;
-        identity->user_data = user->user_data;
+        // identity->user_cert = user->cert;
+        // identity->user_data = user->user_data;
         return identity;
       }
       else

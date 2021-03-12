@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/rpc_context.h"
 #include "ccf/endpoint_registry.h"
+#include "enclave/rpc_context.h"
 #include "http/http_consts.h"
 #include "node/rpc/error.h"
 #include "node/rpc/rpc_exception.h"
@@ -50,7 +50,7 @@ namespace ccf
    * };
    *
    * it is possible to write the shorter, clearer, return-based lambda:
-   * auto foo = json_adapter([](kv::Tx& tx, nlohmann::json&& params)
+   * auto foo = json_adapter([](auto& ctx, nlohmann::json&& params)
    * {
    *    auto result = fn(params);
    *    if (is_error(result))
@@ -318,35 +318,14 @@ namespace ccf
     return ErrorDetails{status, code, msg};
   }
 
-  using HandlerTxOnly =
-    std::function<jsonhandler::JsonAdapterResponse(kv::Tx& tx)>;
-
-  static EndpointFunction json_adapter(const HandlerTxOnly& f)
-  {
-    return [f](EndpointContext& args) {
-      const auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
-      jsonhandler::set_response(f(args.tx), args.rpc_ctx, packing);
-    };
-  }
-
-  using HandlerJsonParamsOnly = std::function<jsonhandler::JsonAdapterResponse(
-    kv::Tx& tx, nlohmann::json&& params)>;
-  static EndpointFunction json_adapter(const HandlerJsonParamsOnly& f)
-  {
-    return [f](EndpointContext& args) {
-      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
-      jsonhandler::set_response(
-        f(args.tx, std::move(params)), args.rpc_ctx, packing);
-    };
-  }
-
   using HandlerJsonParamsAndForward =
     std::function<jsonhandler::JsonAdapterResponse(
-      EndpointContext& args, nlohmann::json&& params)>;
+      endpoints::EndpointContext& args, nlohmann::json&& params)>;
 
-  static EndpointFunction json_adapter(const HandlerJsonParamsAndForward& f)
+  static endpoints::EndpointFunction json_adapter(
+    const HandlerJsonParamsAndForward& f)
   {
-    return [f](EndpointContext& args) {
+    return [f](endpoints::EndpointContext& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args, std::move(params)), args.rpc_ctx, packing);
@@ -355,12 +334,12 @@ namespace ccf
 
   using ReadOnlyHandlerWithJson =
     std::function<jsonhandler::JsonAdapterResponse(
-      ReadOnlyEndpointContext& args, nlohmann::json&& params)>;
+      endpoints::ReadOnlyEndpointContext& args, nlohmann::json&& params)>;
 
-  static ReadOnlyEndpointFunction json_read_only_adapter(
+  static endpoints::ReadOnlyEndpointFunction json_read_only_adapter(
     const ReadOnlyHandlerWithJson& f)
   {
-    return [f](ReadOnlyEndpointContext& args) {
+    return [f](endpoints::ReadOnlyEndpointContext& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args, std::move(params)), args.rpc_ctx, packing);
@@ -369,12 +348,12 @@ namespace ccf
 #pragma clang diagnostic pop
 
   using CommandHandlerWithJson = std::function<jsonhandler::JsonAdapterResponse(
-    CommandEndpointContext& args, nlohmann::json&& params)>;
+    endpoints::CommandEndpointContext& args, nlohmann::json&& params)>;
 
-  static CommandEndpointFunction json_command_adapter(
+  static endpoints::CommandEndpointFunction json_command_adapter(
     const CommandHandlerWithJson& f)
   {
-    return [f](CommandEndpointContext& args) {
+    return [f](endpoints::CommandEndpointContext& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args, std::move(params)), args.rpc_ctx, packing);

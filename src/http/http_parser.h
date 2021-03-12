@@ -64,7 +64,7 @@ namespace http
     return s;
   }
 
-  static bool status_success(http_status status)
+  inline bool status_success(http_status status)
   {
     return status >= 200 && status < 300;
   }

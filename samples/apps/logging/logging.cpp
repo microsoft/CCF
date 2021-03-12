@@ -128,11 +128,11 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
-      const ccf::endpoints::AuthnPolicies auth_policies = {
+      const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
 
       // SNIPPET_START: record
-      auto record = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto record = [this](auto& ctx, nlohmann::json&& params) {
         // SNIPPET_START: macro_validation_record
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
@@ -145,7 +145,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto records_handle = tx.rw(records);
+        auto records_handle = ctx.tx.rw(records);
         records_handle->put(in.id, in.msg);
         return ccf::make_success(true);
       };
@@ -167,20 +167,19 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: get
-      auto get =
-        [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
-          const auto in = params.get<LoggingGet::In>();
-          auto records_handle = args.tx.ro(records);
-          auto record = records_handle->get(in.id);
+      auto get = [this](auto& args, nlohmann::json&& params) {
+        const auto in = params.get<LoggingGet::In>();
+        auto records_handle = args.tx.ro(records);
+        auto record = records_handle->get(in.id);
 
-          if (record.has_value())
-            return ccf::make_success(LoggingGet::Out{record.value()});
+        if (record.has_value())
+          return ccf::make_success(LoggingGet::Out{record.value()});
 
-          return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ResourceNotFound,
-            fmt::format("No such record: {}.", in.id));
-        };
+        return ccf::make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::ResourceNotFound,
+          fmt::format("No such record: {}.", in.id));
+      };
       // SNIPPET_END: get
 
       // SNIPPET_START: install_get
@@ -193,9 +192,9 @@ namespace loggingapp
         .install();
       // SNIPPET_END: install_get
 
-      auto remove = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto remove = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRemove::In>();
-        auto records_handle = tx.rw(records);
+        auto records_handle = ctx.tx.rw(records);
         auto removed = records_handle->remove(in.id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
@@ -206,7 +205,7 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: record_public
-      auto record_public = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto record_public = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
 
         if (in.msg.empty())
@@ -217,7 +216,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto records_handle = tx.rw(public_records);
+        auto records_handle = ctx.tx.rw(public_records);
         records_handle->put(params["id"], in.msg);
         return ccf::make_success(true);
       };
@@ -231,20 +230,19 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: get_public
-      auto get_public =
-        [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
-          const auto in = params.get<LoggingGet::In>();
-          auto public_records_handle = args.tx.ro(public_records);
-          auto record = public_records_handle->get(in.id);
+      auto get_public = [this](auto& args, nlohmann::json&& params) {
+        const auto in = params.get<LoggingGet::In>();
+        auto public_records_handle = args.tx.ro(public_records);
+        auto record = public_records_handle->get(in.id);
 
-          if (record.has_value())
-            return ccf::make_success(LoggingGet::Out{record.value()});
+        if (record.has_value())
+          return ccf::make_success(LoggingGet::Out{record.value()});
 
-          return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ResourceNotFound,
-            fmt::format("No such record: {}.", in.id));
-        };
+        return ccf::make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::ResourceNotFound,
+          fmt::format("No such record: {}.", in.id));
+      };
       // SNIPPET_END: get_public
       make_read_only_endpoint(
         "log/public",
@@ -254,9 +252,9 @@ namespace loggingapp
         .set_auto_schema<LoggingGet>()
         .install();
 
-      auto remove_public = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto remove_public = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRemove::In>();
-        auto records_handle = tx.rw(public_records);
+        auto records_handle = ctx.tx.rw(public_records);
         auto removed = records_handle->remove(in.id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
@@ -270,8 +268,8 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
-      auto log_record_prefix_cert = [this](ccf::EndpointContext& args) {
-        const auto body_j =
+      auto log_record_prefix_cert = [this](auto& args) {
+        const nlohmann::json body_j =
           nlohmann::json::parse(args.rpc_ctx->get_request_body());
 
         const auto in = body_j.get<LoggingRecord::In>();
@@ -316,22 +314,21 @@ namespace loggingapp
         .install();
       // SNIPPET_END: log_record_prefix_cert
 
-      auto log_record_anonymous =
-        [this](ccf::EndpointContext& args, nlohmann::json&& params) {
-          const auto in = params.get<LoggingRecord::In>();
-          if (in.msg.empty())
-          {
-            return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              "Cannot record an empty log message.");
-          }
+      auto log_record_anonymous = [this](auto& args, nlohmann::json&& params) {
+        const auto in = params.get<LoggingRecord::In>();
+        if (in.msg.empty())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            "Cannot record an empty log message.");
+        }
 
-          const auto log_line = fmt::format("Anonymous: {}", in.msg);
-          auto records_handle = args.tx.rw(records);
-          records_handle->put(in.id, log_line);
-          return ccf::make_success(true);
-        };
+        const auto log_line = fmt::format("Anonymous: {}", in.msg);
+        auto records_handle = args.tx.rw(records);
+        records_handle->put(in.id, log_line);
+        return ccf::make_success(true);
+      };
       make_endpoint(
         "log/private/anonymous",
         HTTP_POST,
@@ -520,30 +517,29 @@ namespace loggingapp
       // SNIPPET_END: log_record_text
 
       // SNIPPET_START: get_historical
-      auto get_historical = [this](
-                              ccf::EndpointContext& args,
-                              ccf::historical::StatePtr historical_state) {
-        const auto [pack, params] =
-          ccf::jsonhandler::get_json_params(args.rpc_ctx);
+      auto get_historical =
+        [this](ccf::endpoints::EndpointContext& args, ccf::historical::StatePtr historical_state) {
+          const auto [pack, params] =
+            ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
-        const auto in = params.get<LoggingGetHistorical::In>();
+          const auto in = params.get<LoggingGetHistorical::In>();
 
-        auto historical_tx = historical_state->store->create_read_only_tx();
-        auto records_handle = historical_tx.ro(records);
-        const auto v = records_handle->get(in.id);
+          auto historical_tx = historical_state->store->create_read_only_tx();
+          auto records_handle = historical_tx.ro(records);
+          const auto v = records_handle->get(in.id);
 
-        if (v.has_value())
-        {
-          LoggingGetHistorical::Out out;
-          out.msg = v.value();
-          nlohmann::json j = out;
-          ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
-        }
-        else
-        {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
-        }
-      };
+          if (v.has_value())
+          {
+            LoggingGetHistorical::Out out;
+            out.msg = v.value();
+            nlohmann::json j = out;
+            ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
+          }
+          else
+          {
+            args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          }
+        };
 
       auto is_tx_committed = [this](
                                kv::Consensus::View view,
@@ -581,15 +577,13 @@ namespace loggingapp
           get_historical, context.get_historical_state(), is_tx_committed),
         auth_policies)
         .set_auto_schema<LoggingGetHistorical>()
-        .set_forwarding_required(ccf::ForwardingRequired::Never)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
       // SNIPPET_END: get_historical
 
       // SNIPPET_START: get_historical_with_receipt
       auto get_historical_with_receipt =
-        [this](
-          ccf::EndpointContext& args,
-          ccf::historical::StatePtr historical_state) {
+        [this](ccf::endpoints::EndpointContext& args, ccf::historical::StatePtr historical_state) {
           const auto [pack, params] =
             ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
@@ -620,13 +614,13 @@ namespace loggingapp
           is_tx_committed),
         auth_policies)
         .set_auto_schema<LoggingGetReceipt>()
-        .set_forwarding_required(ccf::ForwardingRequired::Never)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
       // SNIPPET_END: get_historical_with_receipt
 
       static constexpr auto get_historical_range_path =
         "log/private/historical/range";
-      auto get_historical_range = [&, this](ccf::EndpointContext& args) {
+      auto get_historical_range = [&, this](ccf::endpoints::EndpointContext& args) {
         // Parse request body
         const auto query_j =
           ccf::jsonhandler::get_params_from_query(args.rpc_ctx);
@@ -788,48 +782,47 @@ namespace loggingapp
         get_historical_range,
         auth_policies)
         .set_auto_schema<LoggingGetHistoricalRange>()
-        .set_forwarding_required(ccf::ForwardingRequired::Never)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto record_admin_only =
-        [this](ccf::EndpointContext& ctx, nlohmann::json&& params) {
-          {
-            const auto& caller_ident =
-              ctx.get_caller<ccf::UserCertAuthnIdentity>();
+      auto record_admin_only = [this](ccf::endpoints::EndpointContext& ctx, nlohmann::json&& params) {
+        {
+          const auto& caller_ident =
+            ctx.get_caller<ccf::UserCertAuthnIdentity>();
 
-            // SNIPPET_START: user_data_check
-            // Check caller's user-data for required permissions
-            const nlohmann::json user_data = caller_ident.user_data;
-            const auto is_admin_it = user_data.find("isAdmin");
+          // SNIPPET_START: user_data_check
+          // Check caller's user-data for required permissions
+          const nlohmann::json user_data = caller_ident.user_data;
+          const auto is_admin_it = user_data.find("isAdmin");
 
-            // Exit if this user has no user data, or the user data is not an
-            // object with isAdmin field, or the value of this field is not true
-            if (
-              !user_data.is_object() || is_admin_it == user_data.end() ||
-              !is_admin_it.value().get<bool>())
-            {
-              return ccf::make_error(
-                HTTP_STATUS_FORBIDDEN,
-                ccf::errors::AuthorizationFailed,
-                "Only admins may access this endpoint.");
-            }
-            // SNIPPET_END: user_data_check
-          }
-
-          const auto in = params.get<LoggingRecord::In>();
-
-          if (in.msg.empty())
+          // Exit if this user has no user data, or the user data is not an
+          // object with isAdmin field, or the value of this field is not true
+          if (
+            !user_data.is_object() || is_admin_it == user_data.end() ||
+            !is_admin_it.value().get<bool>())
           {
             return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              "Cannot record an empty log message.");
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Only admins may access this endpoint.");
           }
+          // SNIPPET_END: user_data_check
+        }
 
-          auto view = ctx.tx.rw(records);
-          view->put(in.id, in.msg);
-          return ccf::make_success(true);
-        };
+        const auto in = params.get<LoggingRecord::In>();
+
+        if (in.msg.empty())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            "Cannot record an empty log message.");
+        }
+
+        auto view = ctx.tx.rw(records);
+        view->put(in.id, in.msg);
+        return ccf::make_success(true);
+      };
       make_endpoint(
         "log/private/admin_only",
         HTTP_POST,

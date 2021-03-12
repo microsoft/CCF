@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/endpoint_context.h"
 #include "ccf/historical_queries_interface.h"
 #include "ccf/tx_id.h"
-#include "ccf/endpoint_registry.h"
 
 namespace ccf::historical
 {
@@ -12,12 +12,13 @@ namespace ccf::historical
     kv::Consensus::View view, kv::SeqNo seqno, std::string& error_reason)>;
 
   using HandleHistoricalQuery =
-    std::function<void(ccf::EndpointContext& args, StatePtr state)>;
+    std::function<void(ccf::endpoints::EndpointContext& args, StatePtr state)>;
 
   using TxIDExtractor =
-    std::function<std::optional<ccf::TxID>(EndpointContext& args)>;
+    std::function<std::optional<ccf::TxID>(endpoints::EndpointContext& args)>;
 
-  static inline std::optional<ccf::TxID> txid_from_header(EndpointContext& args)
+  static inline std::optional<ccf::TxID> txid_from_header(
+    endpoints::EndpointContext& args)
   {
     const auto tx_id_header =
       args.rpc_ctx->get_request_header(http::headers::CCF_TX_ID);
@@ -52,13 +53,14 @@ namespace ccf::historical
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 
-  static ccf::EndpointFunction adapter(
+  static ccf::endpoints::EndpointFunction adapter(
     const HandleHistoricalQuery& f,
     AbstractStateCache& state_cache,
     const CheckAvailability& available,
     const TxIDExtractor& extractor = txid_from_header)
   {
-    return [f, &state_cache, available, extractor](EndpointContext& args) {
+    return [f, &state_cache, available, extractor](
+             endpoints::EndpointContext& args) {
       // Extract the requested transaction ID
       ccf::TxID target_tx_id;
       {

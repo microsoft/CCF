@@ -27,7 +27,7 @@ namespace ccf
   {
   protected:
     kv::Store& tables;
-    EndpointRegistry& endpoints;
+    endpoints::EndpointRegistry& endpoints;
 
   private:
     SpinLock open_lock;
@@ -64,7 +64,7 @@ namespace ccf
 
     void update_metrics(
       const std::shared_ptr<enclave::RpcContext> ctx,
-      EndpointRegistry::Metrics& m)
+      endpoints::EndpointRegistry::Metrics& m)
     {
       int cat = ctx->get_response_status() / 100;
       switch (cat)
@@ -80,7 +80,7 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> forward_or_redirect_json(
       std::shared_ptr<enclave::RpcContext> ctx,
-      const EndpointDefinitionPtr& endpoint)
+      const endpoints::EndpointDefinitionPtr& endpoint)
     {
       auto& metrics = endpoints.get_metrics(endpoint);
 
@@ -96,7 +96,7 @@ namespace ccf
               ctx,
               primary_id.value(),
               endpoint->properties.execute_outside_consensus ==
-                  ExecuteOutsideConsensus::Never ?
+                  endpoints::ExecuteOutsideConsensus::Never ?
                 consensus->active_nodes() :
                 std::set<NodeId>(),
               ctx->session->caller_cert))
@@ -231,12 +231,12 @@ namespace ccf
       {
         switch (endpoint->properties.forwarding_required)
         {
-          case ForwardingRequired::Never:
+          case endpoints::ForwardingRequired::Never:
           {
             break;
           }
 
-          case ForwardingRequired::Sometimes:
+          case endpoints::ForwardingRequired::Sometimes:
           {
             if (
               (ctx->session->is_forwarding &&
@@ -246,7 +246,7 @@ namespace ccf
                (endpoint == nullptr ||
                 (endpoint != nullptr &&
                  endpoint->properties.execute_outside_consensus !=
-                   ExecuteOutsideConsensus::Locally))))
+                   endpoints::ExecuteOutsideConsensus::Locally))))
             {
               ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx, endpoint);
@@ -254,7 +254,7 @@ namespace ccf
             break;
           }
 
-          case ForwardingRequired::Always:
+          case endpoints::ForwardingRequired::Always:
           {
             ctx->session->is_forwarding = true;
             return forward_or_redirect_json(ctx, endpoint);
@@ -262,7 +262,7 @@ namespace ccf
         }
       }
 
-      auto args = EndpointContext(ctx, std::move(identity), tx);
+      auto args = endpoints::EndpointContext(ctx, std::move(identity), tx);
 
       tx_count_since_tick++;
 
@@ -428,7 +428,7 @@ namespace ccf
     }
 
   public:
-    RpcFrontend(kv::Store& tables_, EndpointRegistry& handlers_) :
+    RpcFrontend(kv::Store& tables_, endpoints::EndpointRegistry& handlers_) :
       tables(tables_),
       endpoints(handlers_),
       consensus(nullptr),
@@ -663,7 +663,7 @@ namespace ccf
         consensus->type() == ConsensusType::CFT ||
         (endpoint != nullptr &&
          endpoint->properties.execute_outside_consensus ==
-           ExecuteOutsideConsensus::Primary &&
+           endpoints::ExecuteOutsideConsensus::Primary &&
          (consensus != nullptr && consensus->is_primary())))
       {
         auto rep = process_command(ctx, tx);

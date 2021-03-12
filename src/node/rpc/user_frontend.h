@@ -27,25 +27,5 @@ namespace ccf
       RpcFrontend(tables, common_handlers),
       common_handlers(context)
     {}
-
-    // Forward these methods so that apps can write foo(...); rather than
-    // endpoints.foo(...);
-    template <typename... Ts>
-    ccf::EndpointRegistry::Endpoint make_endpoint(Ts&&... ts)
-    {
-      return endpoints.make_endpoint(std::forward<Ts>(ts)...);
-    }
-
-    template <typename... Ts>
-    ccf::EndpointRegistry::Endpoint make_read_only_endpoint(Ts&&... ts)
-    {
-      return endpoints.make_read_only_endpoint(std::forward<Ts>(ts)...);
-    }
-
-    template <typename... Ts>
-    ccf::EndpointRegistry::Endpoint make_command_endpoint(Ts&&... ts)
-    {
-      return endpoints.make_command_endpoint(std::forward<Ts>(ts)...);
-    }
   };
 }

@@ -36,7 +36,7 @@ namespace nobuiltins
     NoBuiltinsRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::BaseEndpointRegistry("app", context)
     {
-      auto node_summary = [this](ccf::EndpointContext& ctx) {
+      auto node_summary = [this](auto& ctx) {
         ccf::ApiResult result;
 
         NodeSummary summary;
@@ -86,10 +86,10 @@ namespace nobuiltins
         .set_auto_schema<void, NodeSummary>()
         .install();
 
-      auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
+      auto openapi = [this](auto& ctx, nlohmann::json&&) {
         nlohmann::json document;
         const auto result = generate_openapi_document_v1(
-          tx,
+          ctx.tx,
           openapi_info.title,
           "A CCF sample demonstrating a minimal app, with no default endpoints",
           "0.0.1",

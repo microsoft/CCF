@@ -41,7 +41,7 @@ namespace ccf
       const = 0;
   };
 
-  // To make authentication _optional_, we list no-auth as one of several
+  // To make authentication _optional_, no-auth can be listed as one of several
   // specified policies
   struct EmptyAuthnIdentity : public AuthnIdentity
   {};
@@ -71,4 +71,6 @@ namespace ccf
       return unauthenticated_schema;
     }
   };
+
+  using AuthnPolicies = std::vector<std::shared_ptr<AuthnPolicy>>;
 }

@@ -14,7 +14,7 @@ namespace metrics
     metrics::Metrics metrics;
 
   public:
-    ccf::CommandEndpointFunction get_endpoint_handler()
+    ccf::endpoints::CommandEndpointFunction get_endpoint_handler()
     {
       auto get_metrics = [this](auto&, nlohmann::json&&) {
         auto result = metrics.get_metrics_report();
@@ -24,7 +24,7 @@ namespace metrics
       return ccf::json_command_adapter(get_metrics);
     }
 
-    void install_endpoint(ccf::EndpointRegistry& reg)
+    void install_endpoint(ccf::endpoints::EndpointRegistry& reg)
     {
       reg
         .make_command_endpoint(

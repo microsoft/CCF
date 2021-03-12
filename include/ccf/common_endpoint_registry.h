@@ -14,7 +14,7 @@
 namespace ccf
 {
   static inline std::optional<ccf::TxID> txid_from_query_string(
-    EndpointContext& args)
+    endpoints::EndpointContext& args)
   {
     const std::string prefix("transaction_id=");
     const auto& path_params = args.rpc_ctx->get_request_query();
@@ -144,10 +144,10 @@ namespace ccf
         .set_auto_schema<void, GetCode::Out>()
         .install();
 
-      auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
+      auto openapi = [this](auto& ctx, nlohmann::json&&) {
         nlohmann::json document;
         const auto result = generate_openapi_document_v1(
-          tx,
+          ctx.tx,
           openapi_info.title,
           openapi_info.description,
           openapi_info.document_version,
@@ -170,8 +170,20 @@ namespace ccf
         .install();
 
       auto endpoint_metrics_fn = [this](auto&, nlohmann::json&&) {
+        std::lock_guard<SpinLock> guard(metrics_lock);
         EndpointMetrics::Out out;
-        endpoint_metrics(out);
+        for (const auto& [path, verb_metrics] : metrics)
+        {
+          for (const auto& [verb, metric] : verb_metrics)
+          {
+            out.metrics.push_back({path,
+                                   verb,
+                                   metric.calls,
+                                   metric.errors,
+                                   metric.failures,
+                                   metric.retries});
+          }
+        }
         return make_success(out);
       };
       make_command_endpoint(
@@ -214,17 +226,16 @@ namespace ccf
         return true;
       };
 
-      auto get_receipt = [](
-                           ccf::EndpointContext& args,
-                           ccf::historical::StatePtr historical_state) {
-        const auto [pack, params] =
-          ccf::jsonhandler::get_json_params(args.rpc_ctx);
+      auto get_receipt =
+        [](auto& args, ccf::historical::StatePtr historical_state) {
+          const auto [pack, params] =
+            ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
-        GetReceipt::Out out;
-        historical_state->receipt->describe_receipt(out);
-        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ccf::jsonhandler::set_response(out, args.rpc_ctx, pack);
-      };
+          GetReceipt::Out out;
+          historical_state->receipt->describe_receipt(out);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ccf::jsonhandler::set_response(out, args.rpc_ctx, pack);
+        };
 
       make_endpoint(
         "receipt",
