@@ -193,7 +193,7 @@ namespace ccfapp
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1 or 2", argc);
 
-    uint32_t key_size, key_exponent;
+    uint32_t key_size = 0, key_exponent = 0;
     if (JS_ToUint32(ctx, &key_size, argv[0]) < 0)
     {
       js_dump_error(ctx);
