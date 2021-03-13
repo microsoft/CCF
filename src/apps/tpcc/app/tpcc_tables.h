@@ -226,7 +226,7 @@ namespace tpcc
 
     Key get_key()
     {
-      return {s_w_id, s_i_id};
+      return {s_i_id, s_w_id};
     }
 
     MSGPACK_DEFINE(
@@ -282,14 +282,16 @@ namespace tpcc
     struct Key
     {
       int32_t c_id;
-      int32_t c_d_id;
-      int32_t c_w_id;
-      MSGPACK_DEFINE(c_id, c_d_id, c_w_id);
+      //int32_t c_d_id;
+      //int32_t c_w_id;
+      //MSGPACK_DEFINE(c_id, c_d_id, c_w_id);
+      MSGPACK_DEFINE(c_id);
     };
 
     Key get_key()
     {
-      return {c_id, c_d_id, c_w_id};
+      //return {c_id, c_d_id, c_w_id};
+      return {c_id};
     }
 
     int32_t c_id;
@@ -338,11 +340,7 @@ namespace tpcc
       c_data);
   };
   DECLARE_JSON_TYPE(Customer::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    Customer::Key,
-    c_id,
-    c_d_id,
-    c_w_id);
+  DECLARE_JSON_REQUIRED_FIELDS(Customer::Key, c_id);
   DECLARE_JSON_TYPE(Customer);
   DECLARE_JSON_REQUIRED_FIELDS(
     Customer,
@@ -433,7 +431,7 @@ namespace tpcc
   struct OrderLine
   {
     static const int MIN_I_ID = 1;
-    static const int MAX_I_ID = 100000; // Item::NUM_ITEMS
+    static const int MAX_I_ID = 100; // Item::NUM_ITEMS
     static const int INITIAL_QUANTITY = 5;
     static constexpr float MIN_AMOUNT = 0.01f;
     static constexpr float MAX_AMOUNT = 9999.99f;
@@ -825,11 +823,24 @@ namespace tpcc
 
   struct TpccTables
   {
+    union DistributeKey
+    {
+      struct
+      {
+        int32_t w_id;
+        int32_t d_id;
+      } v;
+      uint64_t k;
+    };
+    static_assert(
+      sizeof(DistributeKey) == sizeof(uint64_t),
+      "Distribute key is the wrong size");
+
     static kv::Map<Stock::Key, Stock> stocks;
     static kv::Map<Warehouse::Key, Warehouse> warehouses;
     static kv::Map<District::Key, District> districts;
     static kv::Map<History::Key, History> histories;
-    static kv::Map<Customer::Key, Customer> customers;
+    static std::unordered_map<uint64_t, kv::Map<Customer::Key, Customer>> customers;
     static kv::Map<Order::Key, Order> orders;
     static kv::Map<OrderLine::Key, OrderLine> order_lines;
     static kv::Map<NewOrder::Key, NewOrder> new_orders;

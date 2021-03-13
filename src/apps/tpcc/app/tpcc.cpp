@@ -55,48 +55,54 @@ namespace ccfapp
       auto create = [this](auto& args) {
         LOG_INFO_FMT("Creating tpcc database");
         std::array<char, tpcc::DATETIME_SIZE + 1> now = {"12345 time"};
-        tpcc::SetupDb setup_db(args, 10, 1000, 10, 10, 10, now);
+        tpcc::SetupDb setup_db(args, 10, 100, 10, 10, 10, now);
         setup_db.run();
+        LOG_INFO_FMT("Creating tpcc database - end");
 
         set_no_content_status(args);
       };
 
       auto do_stock_level = [this](auto& args) {
         LOG_INFO_FMT("stock level");
-        tpcc::TpccTransactions tx(args, 10, 10, 10, 1000);
+        tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
         tx.stock_level(1,1,100);
+        LOG_INFO_FMT("stock level - end");
         
         set_no_content_status(args);
       };
 
       auto do_order_status = [this](auto& args) {
         LOG_INFO_FMT("order status");
-        tpcc::TpccTransactions tx(args, 10, 10, 10, 1000);
+        tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
         tx.order_status();
+        LOG_INFO_FMT("order status - end");
         
         set_no_content_status(args);
       };
 
       auto do_delivery = [this](auto& args) {
         LOG_INFO_FMT("delivery");
-        tpcc::TpccTransactions tx(args, 10, 10, 10, 1000);
+        tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
         tx.delivery();
+        LOG_INFO_FMT("delivery - end");
         
         set_no_content_status(args);
       };
 
       auto do_payment = [this](auto& args) {
         LOG_INFO_FMT("payment");
-        tpcc::TpccTransactions tx(args, 10, 10, 10, 1000);
+        tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
         tx.payment();
+        LOG_INFO_FMT("payment - end");
         
         set_no_content_status(args);
       };
 
       auto do_new_order = [this](auto& args) {
         LOG_INFO_FMT("new order");
-        tpcc::TpccTransactions tx(args, 10, 10, 10, 1000);
+        tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
         tx.new_order();
+        LOG_INFO_FMT("new order - end");
         
         set_no_content_status(args);
       };
@@ -157,7 +163,7 @@ kv::Map<tpcc::Stock::Key, tpcc::Stock> tpcc::TpccTables::stocks("stocks");
 kv::Map<tpcc::Warehouse::Key, tpcc::Warehouse> tpcc::TpccTables::warehouses("warehouses");
 kv::Map<tpcc::District::Key, tpcc::District> tpcc::TpccTables::districts("districts");
 kv::Map<tpcc::History::Key, tpcc::History> tpcc::TpccTables::histories("histories");
-kv::Map<tpcc::Customer::Key, tpcc::Customer> tpcc::TpccTables::customers("customers");
+std::unordered_map<uint64_t, kv::Map<tpcc::Customer::Key, tpcc::Customer>> tpcc::TpccTables::customers;
 kv::Map<tpcc::Order::Key, tpcc::Order> tpcc::TpccTables::orders("orders");
 kv::Map<tpcc::OrderLine::Key, tpcc::OrderLine> tpcc::TpccTables::order_lines("order_lines");
 kv::Map<tpcc::NewOrder::Key, tpcc::NewOrder> tpcc::TpccTables::new_orders("new_orders");

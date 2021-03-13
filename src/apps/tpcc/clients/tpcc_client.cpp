@@ -24,8 +24,8 @@ class SmallBankClient : public Base
 private:
   enum class TransactionTypes : uint8_t
   {
-    create = 0,
-    stock_level,
+    //create = 0,
+    stock_level = 0,
     order_status,
     delivery,
     payment,
@@ -34,8 +34,8 @@ private:
     NumberTransactions
   };
 
-  const char* OPERATION_C_STR[6]{
-    "tpcc_create",
+  const char* OPERATION_C_STR[5]{
+    //"tpcc_create",
     "stock_level",
     "order_status",
     "delivery",
@@ -71,10 +71,12 @@ private:
       uint8_t operation =
         rand_range((uint8_t)TransactionTypes::NumberTransactions);
 
+      //operation = 2;
       std::vector<uint8_t> serialized_body;
 
       switch ((TransactionTypes)operation)
       {
+        /*
         case TransactionTypes::create:
         {
           tpcc::TpccDbCreation db;
@@ -86,6 +88,7 @@ private:
           serialized_body = db.serialize();
         }
         break;
+        */
 
         case TransactionTypes::stock_level:
         {

@@ -67,8 +67,12 @@ namespace tpcc
 
     Customer find_customer(int32_t w_id, int32_t d_id, int32_t c_id)
     {
-      Customer::Key key = {c_id, d_id, w_id};
-      auto customers_table = args.tx.ro(tpcc::TpccTables::customers);
+      TpccTables::DistributeKey table_key;
+      table_key.v.w_id = w_id;
+      table_key.v.d_id = d_id;
+      auto it = tpcc::TpccTables::customers.find(table_key.k);
+      Customer::Key key = {c_id};
+      auto customers_table = args.tx.ro(it->second);
       auto customers = customers_table->get(key);
       if (!customers.has_value())
       {
@@ -129,11 +133,13 @@ namespace tpcc
     {
       // select (w_id, d_id, *, c_last) order by c_first
       Customer customer_ret;
-      auto customers_table = args.tx.ro(tpcc::TpccTables::customers);
+      TpccTables::DistributeKey table_key;
+      table_key.v.w_id = w_id;
+      table_key.v.d_id = d_id;
+      auto it = tpcc::TpccTables::customers.find(table_key.k);
+      auto customers_table = args.tx.ro(it->second);
       customers_table->foreach([&](const Customer::Key&, const Customer& c) {
-        if (
-          c.c_w_id == w_id && c.c_d_id == d_id &&
-          strcmp(c.c_last.data(), c_last) == 0)
+        if (strcmp(c.c_last.data(), c_last) == 0)
         {
           customer_ret = c;
           return false;
@@ -212,12 +218,12 @@ namespace tpcc
 
     int32_t generate_warehouse()
     {
-      return rand() % num_warehouses;
+      return random_int(1, num_warehouses);
     }
 
     int32_t generate_district()
     {
-      return rand() % districts_per_warehouse;
+      return random_int(1, districts_per_warehouse);
     }
 
     int32_t generate_cid()
@@ -781,13 +787,17 @@ namespace tpcc
     {
       OrderStatusOutput output;
       int y = rand() % 100;
+      // TODO: remove this
       if (y <= 60)
       {
         // 60%: order status by last name
         char c_last[Customer::MAX_LAST + 1];
-        tpcc::make_last_name(customers_per_district, c_last);
+        //tpcc::make_last_name(customers_per_district, c_last);
+        tpcc::make_last_name(2, c_last); // TODO: we should not pass 2 here
+        uint32_t w_id = generate_warehouse();
+        uint32_t d_id = generate_district();
         order_status(
-          generate_warehouse(), generate_district(), c_last, &output);
+          w_id, d_id, c_last, &output);
       }
       else
       {

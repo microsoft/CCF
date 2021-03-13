@@ -353,7 +353,20 @@ namespace tpcc
           Customer c;
           bool bad_credit = selected_rows.find(c_id) != selected_rows.end();
           generate_customer(c_id, d_id, w_id, bad_credit, &c);
-          auto customers = args.tx.rw(tpcc::TpccTables::customers);
+
+          TpccTables::DistributeKey table_key;
+          table_key.v.w_id = w_id;
+          table_key.v.d_id = d_id;
+          auto it = tpcc::TpccTables::customers.find(table_key.k);
+          if (it == tpcc::TpccTables::customers.end())
+          {
+            std::string tbl_name = fmt::format("customer_{}_{}", w_id, d_id);
+            auto r = tpcc::TpccTables::customers.insert(
+              {table_key.k, kv::Map<Customer::Key, Customer>(tbl_name.c_str())});
+            it = r.first;
+          }
+
+          auto customers = args.tx.rw(it->second);
           customers->put(c.get_key(), c);
 
           History h;
@@ -432,6 +445,7 @@ namespace tpcc
 
     void run()
     {
+      LOG_INFO_FMT("Start create");
       if (already_run)
       {
         throw std::logic_error("Can only create the database 1 time");
@@ -444,6 +458,7 @@ namespace tpcc
         make_stock(i);
         make_warehouse_without_stock(i);
       }
+      LOG_INFO_FMT("end create");
     }
   };
 }
