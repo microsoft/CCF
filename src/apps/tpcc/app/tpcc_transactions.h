@@ -13,16 +13,17 @@ namespace tpcc
   {
   private:
     ccf::EndpointContext& args;
-    int32_t num_warehouses;
-    int32_t districts_per_warehouse;
-    int32_t customers_per_district;
-    int32_t num_items;
+    static constexpr int32_t num_warehouses = 10;
+    static constexpr int32_t districts_per_warehouse = 10;
+    static constexpr int32_t customers_per_district = 10;
+    static constexpr int32_t num_items = 10;
     static constexpr int STOCK_LEVEL_ORDERS = 20;
     static constexpr float MIN_PAYMENT_AMOUNT = 1.00;
     static constexpr float MAX_PAYMENT_AMOUNT = 5000.00;
     static constexpr int32_t MAX_OL_QUANTITY = 10;
     static constexpr int32_t INVALID_QUANTITY = -1;
     static constexpr char INVALID_ITEM_STATUS[] = "Item number is not valid";
+    static constexpr std::array<char, tpcc::DATETIME_SIZE + 1> tx_time = {"12345 time"};
 
     District find_district(int32_t w_id, int32_t d_id)
     {
@@ -117,7 +118,6 @@ namespace tpcc
 
       auto new_orders_table = args.tx.rw(it->second);
       new_orders_table->put(no.get_key(), no);
-      LOG_INFO_FMT("inserting new order w_id:{}, d_id:{}, o_id:{}", w_id, d_id, o_id);
     }
 
     void insert_order_line(OrderLine& line)
@@ -132,8 +132,6 @@ namespace tpcc
       int32_t customer_id,
       OrderStatusOutput* output)
     {
-      //~ printf("order status %d %d %d\n", warehouse_id, district_id,
-      // customer_id);
       auto customer = find_customer(warehouse_id, district_id, customer_id);
       internal_order_status(customer, output);
     }
@@ -165,7 +163,6 @@ namespace tpcc
       const char* c_last,
       OrderStatusOutput* output)
     {
-      //~ printf("order status %d %d %s\n", warehouse_id, district_id, c_last);
       Customer customer =
         find_customer_by_name(warehouse_id, district_id, c_last);
       internal_order_status(customer, output);
@@ -183,7 +180,6 @@ namespace tpcc
 
       auto orders_table = args.tx.ro(it->second);
       orders_table->foreach([&](const Order::Key&, const Order& o) {
-        // TODO: need to get the min here
         if (o.o_c_id == c_id)
         {
           order = o;
@@ -266,25 +262,27 @@ namespace tpcc
       std::array<char, DATETIME_SIZE + 1>& now,
       std::vector<DeliveryOrderInfo>* orders)
     {
-      //~ printf("delivery %d %d %s\n", warehouse_id, carrier_id, now);
       for (int32_t d_id = 1; d_id <= District::NUM_PER_WAREHOUSE; ++d_id)
       {
-        // Find and remove the lowest numbered order for the district
-        // TODO: this should be a lower bound rather than the first match
-
         TpccTables::DistributeKey table_key;
         table_key.v.w_id = warehouse_id;
         table_key.v.d_id = d_id;
         auto it = tpcc::TpccTables::new_orders.find(table_key.k);
 
         auto new_orders_table = args.tx.rw(it->second);
+        bool new_order_exists = false;
         NewOrder::Key new_order_key = {warehouse_id, d_id, 1};
         int32_t o_id;
         new_orders_table->foreach([&](const NewOrder::Key& k, const NewOrder& no) {
           new_order_key = k;
           o_id = no.no_o_id;
+          new_order_exists = true;
           return false;
         });
+        if (!new_order_exists)
+        {
+          continue;
+        }
         new_orders_table->remove(new_order_key);
 
         DeliveryOrderInfo order;
@@ -296,7 +294,6 @@ namespace tpcc
         o.o_carrier_id = carrier_id;
 
         float total = 0;
-        // TODO: Select based on (w_id, d_id, o_id) rather than using ol_number?
         for (int32_t i = 1; i <= o.o_ol_cnt; ++i)
         {
           std::optional<OrderLine> line =
@@ -420,7 +417,6 @@ namespace tpcc
       std::array<char, DATETIME_SIZE + 1> now,
       PaymentOutput* output)
     {
-      //~ printf("payment %d %d %d %d %d %f %s\n", warehouse_id, district_id,
       // c_warehouse_id, c_district_id, customer_id, h_amount, now);
       Customer customer =
         find_customer(c_warehouse_id, c_district_id, customer_id);
@@ -447,8 +443,6 @@ namespace tpcc
       std::array<char, DATETIME_SIZE + 1> now,
       PaymentOutput* output)
     {
-      //~ printf("payment %d %d %d %d %s %f %s\n", warehouse_id, district_id,
-      // c_warehouse_id, c_district_id, c_last, h_amount, now);
       Customer customer =
         find_customer_by_name(c_warehouse_id, c_district_id, c_last.data());
       payment_home(
@@ -495,15 +489,6 @@ namespace tpcc
       const std::vector<NewOrderItem>& items,
       std::vector<int32_t>* out_quantities)
     {
-      // Validate all the items: needed so that we don't need to undo in order
-      // to execute this
-      // TODO: item_tuples is unused. Remove?
-      std::vector<std::optional<Item>> item_tuples;
-      if (!find_and_validate_items(items, &item_tuples))
-      {
-        return false;
-      }
-
       out_quantities->resize(items.size());
       for (uint32_t i = 0; i < items.size(); ++i)
       {
@@ -527,10 +512,9 @@ namespace tpcc
         (*out_quantities)[i] = stock.s_quantity;
         stock.s_ytd += items[i].ol_quantity;
         stock.s_order_cnt += 1;
-        // newOrderHome calls newOrderRemote, so this is needed
+
         if (items[i].ol_supply_w_id != home_warehouse)
         {
-          // remote order
           stock.s_remote_cnt += 1;
         }
       }
@@ -605,8 +589,6 @@ namespace tpcc
       std::array<char, DATETIME_SIZE + 1> now,
       NewOrderOutput* output)
     {
-      //~ printf("new order %d %d %d %d %s\n", warehouse_id, district_id,
-      // customer_id, items.size(), now);
       // 2.4.3.4. requires that we display c_last, c_credit, and o_id for rolled
       // back transactions: read those values first
       District d = find_district(warehouse_id, district_id);
@@ -627,7 +609,6 @@ namespace tpcc
       }
 
       // Check if this is an all local transaction
-      // TODO: This loops through items *again* which is slightly inefficient
       bool all_local = true;
       for (size_t i = 0; i < items.size(); ++i)
       {
@@ -638,8 +619,6 @@ namespace tpcc
         }
       }
 
-      // We will not abort: update the status and the database state, allocate
-      // an undo buffer
       output->status[0] = '\0';
       d.d_next_o_id += 1;
 
@@ -673,18 +652,12 @@ namespace tpcc
         line.ol_supply_w_id = items[i].ol_supply_w_id;
         line.ol_quantity = items[i].ol_quantity;
 
-        // Vertical Partitioning HACK: We read s_dist_xx from our local replica,
-        // assuming that these columns are replicated everywhere.
-        // TODO: I think this is unrealistic, since it will occupy ~23 MB per
-        // warehouse on all replicas. Try the "two round" version in the future.
         Stock stock = find_stock(items[i].ol_supply_w_id, items[i].i_id);
         memcpy(
           line.ol_dist_info.data(),
           stock.s_dist[district_id].data(),
           sizeof(line.ol_dist_info));
-        // Since we *need* to replicate s_dist_xx columns, might as well
-        // replicate s_data Makes it 290 bytes per tuple, or ~28 MB per
-        // warehouse.
+
         bool stock_is_original = (strstr(stock.s_data.data(), "ORIGINAL") != NULL);
         if (
           stock_is_original &&
@@ -706,9 +679,6 @@ namespace tpcc
         insert_order_line(line);
       }
 
-      // Perform the "remote" part for this warehouse
-      // TODO: It might be more efficient to merge this into the loop above, but
-      // this is simpler.
       std::vector<int32_t> quantities;
         new_order_remote(warehouse_id, warehouse_id, items, &quantities);
       new_order_combine(quantities, output);
@@ -717,26 +687,13 @@ namespace tpcc
     }
 
   public:
-    TpccTransactions(
-      ccf::EndpointContext& args_,
-      int32_t num_warehouses_,
-      int32_t districts_per_warehouse_,
-      int32_t customers_per_district_,
-      int32_t num_items_) :
-      args(args_),
-      num_warehouses(num_warehouses_),
-      districts_per_warehouse(districts_per_warehouse_),
-      customers_per_district(customers_per_district_),
-      num_items(num_items_)
-    {}
+    TpccTransactions(ccf::EndpointContext& args_) : args(args_) {}
 
     int32_t stock_level(
       int32_t warehouse_id, int32_t district_id, int32_t threshold)
     {
       /* EXEC SQL SELECT d_next_o_id INTO :o_id FROM district
           WHERE d_w_id=:w_id AND d_id=:d_id; */
-      //~ printf("stock level %d %d %d\n", warehouse_id, district_id,
-      // threshold);
       District d = find_district(warehouse_id, district_id);
       int32_t o_id = d.d_next_o_id;
 
@@ -756,19 +713,12 @@ namespace tpcc
       // less work (wasted finds). Since this is only 4%, it probably doesn't
       // matter much
 
-      // TODO: Test the performance more carefully. I tried: std::set,
-      // std::hash_set, std::vector with linear search, and std::vector with
-      // binary search using std::lower_bound. The best seemed to be to simply
-      // save all the s_i_ids, then sort and eliminate duplicates at the end.
       std::vector<int32_t> s_i_ids;
-      // Average size is more like ~30.
       s_i_ids.reserve(300);
 
-      // Iterate over [o_id-20, o_id)
       for (int order_id = o_id - STOCK_LEVEL_ORDERS; order_id < o_id;
            ++order_id)
       {
-        // HACK: We shouldn't rely on MAX_OL_CNT. See comment above.
         for (int line_number = 1; line_number <= Order::MAX_OL_CNT;
              ++line_number)
         {
@@ -789,11 +739,9 @@ namespace tpcc
         }
       }
 
-      // Filter out duplicate s_i_id: multiple order lines can have the same
-      // item
       std::sort(s_i_ids.begin(), s_i_ids.end());
       int num_distinct = 0;
-      int32_t last = -1; // NOTE: This relies on -1 being an invalid s_i_id
+      int32_t last = -1;
       for (size_t i = 0; i < s_i_ids.size(); ++i)
       {
         if (s_i_ids[i] != last)
@@ -809,13 +757,13 @@ namespace tpcc
     {
       OrderStatusOutput output;
       int y = rand() % 100;
-      // TODO: remove this
       if (y <= 60)
       {
         // 60%: order status by last name
         char c_last[Customer::MAX_LAST + 1];
-        //tpcc::make_last_name(customers_per_district, c_last);
-        tpcc::make_last_name(2, c_last); // TODO: we should not pass 2 here
+        tpcc::make_last_name(
+          random_int(1, customers_per_district),
+          c_last);
         uint32_t w_id = generate_warehouse();
         uint32_t d_id = generate_district();
         order_status(
@@ -832,8 +780,7 @@ namespace tpcc
     void delivery()
     {
       int carrier = random_int(Order::MIN_CARRIER_ID, Order::MAX_CARRIER_ID);
-      // TODO: set time
-      std::array<char, DATETIME_SIZE + 1> now;
+      std::array<char, DATETIME_SIZE + 1> now = tx_time;
 
       std::vector<DeliveryOrderInfo> orders;
       delivery(generate_warehouse(), carrier, now, &orders);
@@ -865,13 +812,12 @@ namespace tpcc
       }
       float h_amount = random_float(MIN_PAYMENT_AMOUNT, MAX_PAYMENT_AMOUNT);
 
-      // TODO: set time
-      std::array<char, DATETIME_SIZE + 1> now;
+      std::array<char, DATETIME_SIZE + 1> now = tx_time;
       if (y <= 60)
       {
         // 60%: payment by last name
         std::array<char, Customer::MAX_LAST + 1> c_last;
-        make_last_name(customers_per_district, c_last.data());
+        make_last_name(random_int(1, customers_per_district), c_last.data());
         payment(w_id, d_id, c_w_id, c_d_id, c_last, h_amount, now, &output);
       }
       else
@@ -917,15 +863,10 @@ namespace tpcc
         items[i].ol_quantity = random_int(1, MAX_OL_QUANTITY);
       }
 
-      // TODO: Set time
-      std::array<char, DATETIME_SIZE + 1> now;
+      std::array<char, DATETIME_SIZE + 1> now = tx_time;
       NewOrderOutput output;
       bool result = new_order(
         w_id, generate_district(), generate_cid(), items, now, &output);
-      if (!result)
-      {
-        LOG_INFO_FMT("Failed to insert new_order");
-      }
       return result;
     }
   };

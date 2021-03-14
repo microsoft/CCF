@@ -64,7 +64,7 @@ namespace ccfapp
 
       auto do_stock_level = [this](auto& args) {
         LOG_INFO_FMT("stock level");
-        tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
+        tpcc::TpccTransactions tx(args);
         tx.stock_level(1,1,100);
         LOG_INFO_FMT("stock level - end");
         
@@ -73,7 +73,7 @@ namespace ccfapp
 
       auto do_order_status = [this](auto& args) {
         LOG_INFO_FMT("order status");
-        tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
+        tpcc::TpccTransactions tx(args);
         tx.order_status();
         LOG_INFO_FMT("order status - end");
         
@@ -82,7 +82,7 @@ namespace ccfapp
 
       auto do_delivery = [this](auto& args) {
         LOG_INFO_FMT("delivery");
-        tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
+        tpcc::TpccTransactions tx(args);
         tx.delivery();
         LOG_INFO_FMT("delivery - end");
         
@@ -91,7 +91,7 @@ namespace ccfapp
 
       auto do_payment = [this](auto& args) {
         LOG_INFO_FMT("payment");
-        tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
+        tpcc::TpccTransactions tx(args);
         tx.payment();
         LOG_INFO_FMT("payment - end");
         
@@ -100,7 +100,7 @@ namespace ccfapp
 
       auto do_new_order = [this](auto& args) {
         LOG_INFO_FMT("new order");
-        tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
+        tpcc::TpccTransactions tx(args);
         tx.new_order();
         LOG_INFO_FMT("new order - end");
         
