@@ -68,82 +68,57 @@ private:
     for (decltype(options.num_transactions) i = 0; i < options.num_transactions;
          i++)
     {
-      uint8_t operation =
-        rand_range((uint8_t)TransactionTypes::NumberTransactions);
+      uint8_t operation;
+      uint8_t x = rand_range(100);
 
-      //operation = 2;
+      // operation = 2;
       std::vector<uint8_t> serialized_body;
 
-      switch ((TransactionTypes)operation)
+      if (x < 4)
       {
-        /*
-        case TransactionTypes::create:
-        {
-          tpcc::TpccDbCreation db;
-          db.num_wh = 10;
-          db.num_items = 1000;
-          db.customers_per_district = 1000;
-          db.districts_per_warehouse = 10;
-          db.new_orders_per_district = 1000;
-          serialized_body = db.serialize();
-        }
-        break;
-        */
-
-        case TransactionTypes::stock_level:
-        {
-          tpcc::TpccStockLevel sl;
-          sl.warehouse_id = 1;
-          sl.district_id = 1;
-          sl.threshold = 1000;
-          serialized_body = sl.serialize();
-        }
-        break;
-
-        case TransactionTypes::order_status:
-        {
-          tpcc::TpccOrderStatus os;
-          os.warehouse_id = 1;
-          os.district_id = 1;
-          os.threshold = 1000;
-          serialized_body = os.serialize();
-        }
-        break;
-
-        case TransactionTypes::delivery:
-        {
-          tpcc::TpccDelivery d;
-          d.warehouse_id = 1;
-          d.district_id = 1;
-          d.threshold = 1000;
-          serialized_body = d.serialize();
-        }
-        break;
-
-        case TransactionTypes::payment:
-        {
-          tpcc::TpccPayment p;
-          p.warehouse_id = 1;
-          p.district_id = 1;
-          p.threshold = 1000;
-          serialized_body = p.serialize();
-        }
-        break;
-
-        case TransactionTypes::new_order:
-        {
-          tpcc::TpccNewOrder p;
-          p.warehouse_id = 1;
-          p.district_id = 1;
-          p.threshold = 1000;
-          serialized_body = p.serialize();
-        }
-        break;
-
-        default:
-          throw logic_error("Unknown operation");
+        tpcc::TpccStockLevel sl;
+        sl.warehouse_id = 1;
+        sl.district_id = 1;
+        sl.threshold = 1000;
+        serialized_body = sl.serialize();
+        operation = (uint8_t)TransactionTypes::stock_level;
       }
-
+      else if (x < 8)
+      {
+        tpcc::TpccDelivery d;
+        d.warehouse_id = 1;
+        d.district_id = 1;
+        d.threshold = 1000;
+        serialized_body = d.serialize();
+        operation = (uint8_t)TransactionTypes::delivery;
+      }
+      else if (x < 12)
+      {
+        tpcc::TpccOrderStatus os;
+        os.warehouse_id = 1;
+        os.district_id = 1;
+        os.threshold = 1000;
+        serialized_body = os.serialize();
+        operation = (uint8_t)TransactionTypes::order_status;
+      }
+      else if (x < (12 + 43))
+      {
+        tpcc::TpccPayment p;
+        p.warehouse_id = 1;
+        p.district_id = 1;
+        p.threshold = 1000;
+        serialized_body = p.serialize();
+        operation = (uint8_t)TransactionTypes::payment;
+      }
+      else
+      {
+        tpcc::TpccNewOrder p;
+        p.warehouse_id = 1;
+        p.district_id = 1;
+        p.threshold = 1000;
+        serialized_body = p.serialize();
+        operation = (uint8_t)TransactionTypes::new_order;
+      }
       add_prepared_tx(
         OPERATION_C_STR[operation],
         CBuffer{serialized_body.data(), serialized_body.size()},
@@ -153,22 +128,22 @@ private:
   }
 
   bool check_response(const RpcTlsClient::Response& r) override
+{
+  if (!http::status_success(r.status))
   {
-    if (!http::status_success(r.status))
+    const std::string error_msg(r.body.begin(), r.body.end());
+    if (
+      error_msg.find("Not enough money in savings account") == string::npos &&
+      error_msg.find("Account already exists in accounts table") ==
+        string::npos)
     {
-      const std::string error_msg(r.body.begin(), r.body.end());
-      if (
-        error_msg.find("Not enough money in savings account") == string::npos &&
-        error_msg.find("Account already exists in accounts table") ==
-          string::npos)
-      {
-        throw logic_error(error_msg);
-        return false;
-      }
+      throw logic_error(error_msg);
+      return false;
     }
-
-    return true;
   }
+
+  return true;
+}
 
   void pre_creation_hook() override
   {

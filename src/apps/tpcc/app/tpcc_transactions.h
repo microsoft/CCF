@@ -110,8 +110,14 @@ namespace tpcc
       no.no_d_id = d_id;
       no.no_o_id = o_id;
 
-      auto new_orders_table = args.tx.rw(tpcc::TpccTables::new_orders);
+      TpccTables::DistributeKey table_key;
+      table_key.v.w_id = w_id;
+      table_key.v.d_id = d_id;
+      auto it = tpcc::TpccTables::new_orders.find(table_key.k);
+
+      auto new_orders_table = args.tx.rw(it->second);
       new_orders_table->put(no.get_key(), no);
+      LOG_INFO_FMT("inserting new order w_id:{}, d_id:{}, o_id:{}", w_id, d_id, o_id);
     }
 
     void insert_order_line(OrderLine& line)
@@ -264,20 +270,21 @@ namespace tpcc
       for (int32_t d_id = 1; d_id <= District::NUM_PER_WAREHOUSE; ++d_id)
       {
         // Find and remove the lowest numbered order for the district
-        // TODO: this should be a lower bound rather than an exact match
+        // TODO: this should be a lower bound rather than the first match
+
+        TpccTables::DistributeKey table_key;
+        table_key.v.w_id = warehouse_id;
+        table_key.v.d_id = d_id;
+        auto it = tpcc::TpccTables::new_orders.find(table_key.k);
+
+        auto new_orders_table = args.tx.rw(it->second);
         NewOrder::Key new_order_key = {warehouse_id, d_id, 1};
-        auto new_orders_table = args.tx.rw(tpcc::TpccTables::new_orders);
-        auto new_order = new_orders_table->get(new_order_key);
-        if (
-          !new_order.has_value() || new_order->no_d_id != d_id ||
-          new_order->no_w_id != warehouse_id)
-        {
-          // No orders for this district
-          // 2.7.4.2: If this occurs in max(1%, 1) of transactions, report it
-          // (???)
-          continue;
-        }
-        int32_t o_id = new_order->no_o_id;
+        int32_t o_id;
+        new_orders_table->foreach([&](const NewOrder::Key& k, const NewOrder& no) {
+          new_order_key = k;
+          o_id = no.no_o_id;
+          return false;
+        });
         new_orders_table->remove(new_order_key);
 
         DeliveryOrderInfo order;
@@ -915,6 +922,10 @@ namespace tpcc
       NewOrderOutput output;
       bool result = new_order(
         w_id, generate_district(), generate_cid(), items, now, &output);
+      if (!result)
+      {
+        LOG_INFO_FMT("Failed to insert new_order");
+      }
       return result;
     }
   };

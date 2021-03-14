@@ -415,8 +415,27 @@ namespace tpcc
             if (new_order)
             {
               // This is a new order: make one for it
-              NewOrder no = {w_id, d_id, o_id};
-              auto new_orders = args.tx.rw(tpcc::TpccTables::new_orders);
+
+              TpccTables::DistributeKey table_key;
+              table_key.v.w_id = w_id;
+              table_key.v.d_id = d_id;
+              auto it = tpcc::TpccTables::new_orders.find(table_key.k);
+              if (it == tpcc::TpccTables::new_orders.end())
+              {
+                std::string tbl_name =
+                  fmt::format("new_orders_{}_{}", w_id, d_id);
+                auto r = tpcc::TpccTables::new_orders.insert(
+                  {table_key.k,
+                   kv::Map<NewOrder::Key, NewOrder>(tbl_name.c_str())});
+                it = r.first;
+              }
+
+              NewOrder no;
+              no.no_w_id = w_id;
+              no.no_d_id = d_id;
+              no.no_o_id = o_id;
+
+              auto new_orders = args.tx.rw(it->second);
               new_orders->put(no.get_key(), no);
             }
           }

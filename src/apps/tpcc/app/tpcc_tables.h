@@ -835,7 +835,7 @@ namespace tpcc
     static std::unordered_map<uint64_t, kv::Map<Customer::Key, Customer>> customers;
     static std::unordered_map<uint64_t, kv::Map<Order::Key, Order>> orders;
     static kv::Map<OrderLine::Key, OrderLine> order_lines;
-    static kv::Map<NewOrder::Key, NewOrder> new_orders;
+    static std::unordered_map<uint64_t, kv::Map<NewOrder::Key, NewOrder>> new_orders;
     static kv::Map<Item::Key, Item> items;
   };
 }
