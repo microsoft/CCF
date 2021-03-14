@@ -322,7 +322,6 @@ namespace tpcc
       {
         orderline->ol_amount =
           random_float( OrderLine::MAX_AMOUNT, OrderLine::MIN_AMOUNT);
-        // HACK: Empty delivery date == null
         orderline->ol_delivery_d[0] = '\0';
       }
       create_random_string(
@@ -375,7 +374,7 @@ namespace tpcc
           history->put(h.get_key(), h);
         }
 
-        // TODO: TPC-C 4.3.3.1. says that this should be a permutation of [1,
+        // TPC-C 4.3.3.1. says that this should be a permutation of [1,
         // 3000]. But since it is for a c_id field, it seems to make sense to
         // have it be a permutation of the customers. For the "real" thing this
         // will be equivalent
@@ -389,7 +388,20 @@ namespace tpcc
           Order o;
           generate_order(
             o_id, permutation[o_id - 1], d_id, w_id, new_order, &o);
-          auto order = args.tx.rw(tpcc::TpccTables::orders);
+
+          TpccTables::DistributeKey table_key;
+          table_key.v.w_id = w_id;
+          table_key.v.d_id = d_id;
+          auto it = tpcc::TpccTables::orders.find(table_key.k);
+          if (it == tpcc::TpccTables::orders.end())
+          {
+            std::string tbl_name = fmt::format("orders_{}_{}", w_id, d_id);
+            auto r = tpcc::TpccTables::orders.insert(
+              {table_key.k, kv::Map<Order::Key, Order>(tbl_name.c_str())});
+            it = r.first;
+          }
+
+          auto order = args.tx.rw(it->second);
           order->put(o.get_key(), o);
 
           // Generate each OrderLine for the order

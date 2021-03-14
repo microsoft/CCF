@@ -53,56 +53,56 @@ namespace ccfapp
       UserEndpointRegistry::init_handlers();
 
       auto create = [this](auto& args) {
-        LOG_INFO_FMT("Creating tpcc database");
+        //LOG_INFO_FMT("Creating tpcc database");
         std::array<char, tpcc::DATETIME_SIZE + 1> now = {"12345 time"};
         tpcc::SetupDb setup_db(args, 10, 100, 10, 10, 10, now);
         setup_db.run();
-        LOG_INFO_FMT("Creating tpcc database - end");
+        //LOG_INFO_FMT("Creating tpcc database - end");
 
         set_no_content_status(args);
       };
 
       auto do_stock_level = [this](auto& args) {
-        LOG_INFO_FMT("stock level");
+        //LOG_INFO_FMT("stock level");
         tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
         tx.stock_level(1,1,100);
-        LOG_INFO_FMT("stock level - end");
+        //LOG_INFO_FMT("stock level - end");
         
         set_no_content_status(args);
       };
 
       auto do_order_status = [this](auto& args) {
-        LOG_INFO_FMT("order status");
+        //LOG_INFO_FMT("order status");
         tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
         tx.order_status();
-        LOG_INFO_FMT("order status - end");
+        //LOG_INFO_FMT("order status - end");
         
         set_no_content_status(args);
       };
 
       auto do_delivery = [this](auto& args) {
-        LOG_INFO_FMT("delivery");
+        //LOG_INFO_FMT("delivery");
         tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
         tx.delivery();
-        LOG_INFO_FMT("delivery - end");
+        //LOG_INFO_FMT("delivery - end");
         
         set_no_content_status(args);
       };
 
       auto do_payment = [this](auto& args) {
-        LOG_INFO_FMT("payment");
+        //LOG_INFO_FMT("payment");
         tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
         tx.payment();
-        LOG_INFO_FMT("payment - end");
+        //LOG_INFO_FMT("payment - end");
         
         set_no_content_status(args);
       };
 
       auto do_new_order = [this](auto& args) {
-        LOG_INFO_FMT("new order");
+        //LOG_INFO_FMT("new order");
         tpcc::TpccTransactions tx(args, 10, 10, 10, 10);
         tx.new_order();
-        LOG_INFO_FMT("new order - end");
+        //LOG_INFO_FMT("new order - end");
         
         set_no_content_status(args);
       };
@@ -164,7 +164,7 @@ kv::Map<tpcc::Warehouse::Key, tpcc::Warehouse> tpcc::TpccTables::warehouses("war
 kv::Map<tpcc::District::Key, tpcc::District> tpcc::TpccTables::districts("districts");
 kv::Map<tpcc::History::Key, tpcc::History> tpcc::TpccTables::histories("histories");
 std::unordered_map<uint64_t, kv::Map<tpcc::Customer::Key, tpcc::Customer>> tpcc::TpccTables::customers;
-kv::Map<tpcc::Order::Key, tpcc::Order> tpcc::TpccTables::orders("orders");
+std::unordered_map<uint64_t, kv::Map<tpcc::Order::Key, tpcc::Order>> tpcc::TpccTables::orders;
 kv::Map<tpcc::OrderLine::Key, tpcc::OrderLine> tpcc::TpccTables::order_lines("order_lines");
 kv::Map<tpcc::NewOrder::Key, tpcc::NewOrder> tpcc::TpccTables::new_orders("new_orders");
 kv::Map<tpcc::Item::Key, tpcc::Item> tpcc::TpccTables::items("items");

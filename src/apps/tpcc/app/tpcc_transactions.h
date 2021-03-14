@@ -95,7 +95,11 @@ namespace tpcc
 
     void insert_order(Order& o)
     {
-      auto orders_table = args.tx.rw(tpcc::TpccTables::orders);
+      TpccTables::DistributeKey table_key;
+      table_key.v.w_id = o.o_w_id;
+      table_key.v.d_id = o.o_d_id;
+      auto it = tpcc::TpccTables::orders.find(table_key.k);
+      auto orders_table = args.tx.rw(it->second);
       orders_table->put(o.get_key(), o);
     }
 
@@ -166,9 +170,15 @@ namespace tpcc
     {
       Order order;
 
-      auto orders_table = args.tx.ro(tpcc::TpccTables::orders);
+      TpccTables::DistributeKey table_key;
+      table_key.v.w_id = w_id;
+      table_key.v.d_id = d_id;
+      auto it = tpcc::TpccTables::orders.find(table_key.k);
+
+      auto orders_table = args.tx.ro(it->second);
       orders_table->foreach([&](const Order::Key&, const Order& o) {
-        if (o.o_c_id == c_id && o.o_d_id == d_id && o.o_w_id == w_id)
+        // TODO: need to get the min here
+        if (o.o_c_id == c_id)
         {
           order = o;
           return false;
@@ -228,14 +238,18 @@ namespace tpcc
 
     int32_t generate_cid()
     {
-      // TODO: fix this
-      return 1;
+      return random_int(1, customers_per_district);
     }
 
     Order find_order(int32_t w_id, int32_t d_id, int32_t o_id)
     {
-      Order::Key key = {o_id, d_id, w_id};
-      auto orders_table = args.tx.ro(tpcc::TpccTables::orders);
+      TpccTables::DistributeKey table_key;
+      table_key.v.w_id = w_id;
+      table_key.v.d_id = d_id;
+
+      auto it = tpcc::TpccTables::orders.find(table_key.k);
+      auto orders_table = args.tx.ro(it->second);
+      Order::Key key = {o_id};
       auto order = orders_table->get(key);
       return order.value();
     }
@@ -252,7 +266,7 @@ namespace tpcc
         // Find and remove the lowest numbered order for the district
         // TODO: this should be a lower bound rather than an exact match
         NewOrder::Key new_order_key = {warehouse_id, d_id, 1};
-        auto new_orders_table = args.tx.ro(tpcc::TpccTables::new_orders);
+        auto new_orders_table = args.tx.rw(tpcc::TpccTables::new_orders);
         auto new_order = new_orders_table->get(new_order_key);
         if (
           !new_order.has_value() || new_order->no_d_id != d_id ||
@@ -264,6 +278,7 @@ namespace tpcc
           continue;
         }
         int32_t o_id = new_order->no_o_id;
+        new_orders_table->remove(new_order_key);
 
         DeliveryOrderInfo order;
         order.d_id = d_id;

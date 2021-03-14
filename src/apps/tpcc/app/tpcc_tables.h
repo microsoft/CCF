@@ -15,8 +15,6 @@ namespace tpcc
   // Just a container for constants
   struct Address
   {
-    // TODO: Embed this structure in warehouse, district, customer? This would
-    // reduce some duplication, but would also change the field names
     static const int MIN_STREET = 10;
     static const int MAX_STREET = 20;
     static const int MIN_CITY = 10;
@@ -370,9 +368,7 @@ namespace tpcc
   {
     static const int MIN_CARRIER_ID = 1;
     static const int MAX_CARRIER_ID = 10;
-    // HACK: This is not strictly correct, but it works
     static const int NULL_CARRIER_ID = 0;
-    // Less than this value, carrier != null, >= -> carrier == null
     static const int NULL_CARRIER_LOWER_BOUND = 2101;
     static const int MIN_OL_CNT = 5;
     static const int MAX_OL_CNT = 15;
@@ -384,14 +380,12 @@ namespace tpcc
     struct Key
     {
       int32_t o_id;
-      int32_t o_d_id;
-      int32_t o_w_id;
-      MSGPACK_DEFINE(o_id, o_d_id, o_w_id);
+      MSGPACK_DEFINE(o_id);
     };
 
     Key get_key()
     {
-      return {o_id, o_d_id, o_w_id};
+      return {o_id};
     }
 
     int32_t o_id;
@@ -415,7 +409,7 @@ namespace tpcc
   };
   DECLARE_JSON_TYPE(Order::Key);
   DECLARE_JSON_REQUIRED_FIELDS(
-    Order::Key, o_id, o_d_id, o_w_id);
+    Order::Key, o_id);
   DECLARE_JSON_TYPE(Order);
   DECLARE_JSON_REQUIRED_FIELDS(
     Order,
@@ -674,7 +668,6 @@ namespace tpcc
 
     float c_discount;
 
-    // TODO: Client can compute this from other values.
     float total;
 
     struct ItemInfo
@@ -684,7 +677,6 @@ namespace tpcc
 
       int32_t s_quantity;
       float i_price;
-      // TODO: Client can compute this from other values.
       float ol_amount;
       char brand_generic;
       std::array<char,Item::MAX_NAME + 1> i_name;
@@ -841,7 +833,7 @@ namespace tpcc
     static kv::Map<District::Key, District> districts;
     static kv::Map<History::Key, History> histories;
     static std::unordered_map<uint64_t, kv::Map<Customer::Key, Customer>> customers;
-    static kv::Map<Order::Key, Order> orders;
+    static std::unordered_map<uint64_t, kv::Map<Order::Key, Order>> orders;
     static kv::Map<OrderLine::Key, OrderLine> order_lines;
     static kv::Map<NewOrder::Key, NewOrder> new_orders;
     static kv::Map<Item::Key, Item> items;
