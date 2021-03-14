@@ -2,6 +2,11 @@
 
 namespace tpcc
 {
+  static constexpr int32_t num_warehouses = 10;
+  static constexpr int32_t districts_per_warehouse = 10;
+  static constexpr int32_t customers_per_district = 10;
+  static constexpr int32_t num_items = 10;
+
   // Defined by TPC-C 4.3.2.3.
   static void make_last_name(int num, char* name)
   {

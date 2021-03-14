@@ -13,10 +13,6 @@ namespace tpcc
   {
   private:
     ccf::EndpointContext& args;
-    static constexpr int32_t num_warehouses = 10;
-    static constexpr int32_t districts_per_warehouse = 10;
-    static constexpr int32_t customers_per_district = 10;
-    static constexpr int32_t num_items = 10;
     static constexpr int STOCK_LEVEL_ORDERS = 20;
     static constexpr float MIN_PAYMENT_AMOUNT = 1.00;
     static constexpr float MAX_PAYMENT_AMOUNT = 5000.00;
@@ -702,16 +698,6 @@ namespace tpcc
          ol_o_id<:o_id AND ol_o_id>=:o_id-20
               AND s_w_id=:w_id AND s_i_id=ol_i_id AND s_quantity <
          :threshold;*/
-
-      // retrieve up to 300 tuples from order line, using ( [o_id-20, o_id),
-      // d_id, w_id, [1, 15])
-      //   and for each retrieved tuple, read the corresponding stock tuple
-      //   using (ol_i_id, w_id)
-      // NOTE: This is a cheat because it hard codes the maximum number of
-      // orders. We really should use the ordered b-tree index to find (0,
-      // o_id-20, d_id, w_id) then iterate until the end. This will also do
-      // less work (wasted finds). Since this is only 4%, it probably doesn't
-      // matter much
 
       std::vector<int32_t> s_i_ids;
       s_i_ids.reserve(300);

@@ -15,7 +15,6 @@ namespace tpcc
   {
   private:
     ccf::EndpointContext& args;
-    uint32_t num_wh;
     uint32_t num_items;
     bool already_run;
     int32_t customers_per_district;
@@ -26,14 +25,12 @@ namespace tpcc
   public:
     SetupDb(
       ccf::EndpointContext& args_,
-      uint32_t num_wh_,
       uint32_t num_items_,
       int32_t customers_per_district_,
       int32_t districts_per_warehouse_,
       int32_t new_orders_per_district_,
       std::array<char, DATETIME_SIZE+1>& now_) :
       args(args_),
-      num_wh(num_wh_),
       num_items(num_items_),
       already_run(false),
       customers_per_district(customers_per_district_),
@@ -484,7 +481,7 @@ namespace tpcc
       already_run = true;
 
       make_items();
-      for (uint32_t i = 0; i < num_wh; ++i)
+      for (uint32_t i = 0; i < num_warehouses; ++i)
       {
         make_stock(i);
         make_warehouse_without_stock(i);

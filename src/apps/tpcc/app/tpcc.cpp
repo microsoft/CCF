@@ -55,7 +55,7 @@ namespace ccfapp
       auto create = [this](auto& args) {
         LOG_INFO_FMT("Creating tpcc database");
         std::array<char, tpcc::DATETIME_SIZE + 1> now = {"12345 time"};
-        tpcc::SetupDb setup_db(args, 10, 100, 10, 10, 10, now);
+        tpcc::SetupDb setup_db(args, 100, 10, 10, 10, now);
         setup_db.run();
         LOG_INFO_FMT("Creating tpcc database - end");
 
