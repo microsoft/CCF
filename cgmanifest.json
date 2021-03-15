@@ -74,11 +74,10 @@
     },
     {
       "Component": {
-        "Type": "other",
-        "Other": {
-          "Name": "QuickJS",
-          "Version": "2020-11-08",
-          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-11-08.tar.xz"
+        "Type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/bellard/quickjs",
+          "commitHash": "204682fb87ab9312f0cf81f959ecd181180457bc"
         }
       }
     },
