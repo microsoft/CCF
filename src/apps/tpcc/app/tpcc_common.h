@@ -60,6 +60,10 @@ namespace tpcc
 
   static float random_float(float min, float max, std::mt19937& rand_generator)
   {
+    if (min == max)
+    {
+      return min;
+    }
     std::uniform_real_distribution<float> dist(min, max);
     return dist(rand_generator);
   }
@@ -67,6 +71,10 @@ namespace tpcc
   static uint32_t random_int(
     uint32_t min, uint32_t max, std::mt19937& rand_generator)
   {
+    if (min == max)
+    {
+      return min;
+    }
     std::uniform_int_distribution<uint32_t> dist(min, max - 1);
     return dist(rand_generator);
   }

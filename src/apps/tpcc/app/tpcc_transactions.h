@@ -343,7 +343,7 @@ namespace tpcc
       h.amount = h_amount;
       h.date = now;
       std::copy_n(h.data.data(), w.name.size(), w.name.data());
-      strcat(h.data.data(), "    ");
+      // strcat(h.data.data(), "    ");
 
       auto history_table = args.tx.rw(tpcc::TpccTables::histories);
       history_table->put(h.get_key(), h);
@@ -710,16 +710,8 @@ namespace tpcc
     int32_t stock_level(
       int32_t warehouse_id, int32_t district_id, int32_t threshold)
     {
-      /* EXEC SQL SELECT d_next_o_id INTO :o_id FROM district
-          WHERE d_w_id=:w_id AND d_id=:d_id; */
       District d = find_district(warehouse_id, district_id);
       int32_t o_id = d.next_o_id;
-
-      /* EXEC SQL SELECT COUNT(DISTINCT (s_i_id)) INTO :stock_count FROM
-         order_line, stock WHERE ol_w_id=:w_id AND ol_d_id=:d_id AND
-         ol_o_id<:o_id AND ol_o_id>=:o_id-20
-              AND s_w_id=:w_id AND s_i_id=ol_i_id AND s_quantity <
-         :threshold;*/
 
       std::vector<int32_t> s_i_ids;
       s_i_ids.reserve(300);
@@ -811,7 +803,6 @@ namespace tpcc
       else
       {
         // 15%: paying through another warehouse:
-        // select in range [1, num_warehouses] excluding w_id
         c_w_id = random_int_excluding(1, num_warehouses, w_id);
         c_d_id = generate_district();
       }

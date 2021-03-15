@@ -35,23 +35,10 @@ namespace tpcc
         lower, upper, excluding, rand_generator);
     }
 
-  public:
-    SetupDb(
-      ccf::EndpointContext& args_,
-      int32_t new_orders_per_district_,
-      uint32_t seed) :
-      args(args_),
-      already_run(false),
-      new_orders_per_district(new_orders_per_district_)
-    {
-      rand_generator.seed(seed);
-    }
-
     template <size_t T>
     void create_random_string(
       std::array<char, T>& str, uint32_t min, uint32_t max)
     {
-      assert(max >= min);
       uint32_t rand;
       if (min == max)
       {
@@ -164,8 +151,7 @@ namespace tpcc
         random_int(Address::MIN_STREET, Address::MAX_STREET));
       create_random_string(
         warehouse->city, random_int(Address::MIN_CITY, Address::MAX_CITY));
-      create_random_string(
-        warehouse->state, random_int(Address::MIN_CITY, Address::MAX_CITY));
+      create_random_string(warehouse->state, Address::STATE, Address::STATE);
       create_random_string(warehouse->zip, Address::ZIP);
     }
 
@@ -207,7 +193,7 @@ namespace tpcc
       customer->delivery_cnt = Customer::INITIAL_DELIVERY_CNT;
       create_random_string(
         customer->first, Customer::MIN_FIRST, Customer::MAX_FIRST);
-      std::copy_n("OE", 3, customer->middle.begin());
+      std::copy_n("OE", 2, customer->middle.begin());
 
       if (id <= 1000)
       {
@@ -233,14 +219,14 @@ namespace tpcc
         std::copy_n(
           Customer::BAD_CREDIT,
           sizeof(Customer::BAD_CREDIT),
-          customer->credit.begin());
+          customer->credit.data());
       }
       else
       {
         std::copy_n(
           Customer::GOOD_CREDIT,
           sizeof(Customer::GOOD_CREDIT),
-          customer->credit.begin());
+          customer->credit.data());
       }
       create_random_string(
         customer->data, Customer::MIN_DATA, Customer::MAX_DATA);
@@ -477,6 +463,18 @@ namespace tpcc
         bool is_original = original_rows.find(i) != original_rows.end();
         generate_item(i, is_original);
       }
+    }
+
+  public:
+    SetupDb(
+      ccf::EndpointContext& args_,
+      int32_t new_orders_per_district_,
+      uint32_t seed) :
+      args(args_),
+      already_run(false),
+      new_orders_per_district(new_orders_per_district_)
+    {
+      rand_generator.seed(seed);
     }
 
     void run()
