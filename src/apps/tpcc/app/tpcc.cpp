@@ -44,8 +44,7 @@ namespace ccfapp
     }
 
   public:
-    TpccHandlers(AbstractNodeContext& context) :
-      UserEndpointRegistry(context)
+    TpccHandlers(AbstractNodeContext& context) : UserEndpointRegistry(context)
     {}
 
     void init_handlers() override
