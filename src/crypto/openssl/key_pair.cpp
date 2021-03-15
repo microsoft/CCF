@@ -234,8 +234,8 @@ namespace crypto
     ASN1_TIME *before = NULL, *after = NULL;
     OpenSSL::CHECKNULL(before = ASN1_TIME_new());
     OpenSSL::CHECKNULL(after = ASN1_TIME_new());
-    OpenSSL::CHECK1(ASN1_TIME_set_string(before, "20191101000000Z"));
-    OpenSSL::CHECK1(ASN1_TIME_set_string(after, "20211231235959Z"));
+    OpenSSL::CHECK1(ASN1_TIME_set_string(before, "20210311000000Z"));
+    OpenSSL::CHECK1(ASN1_TIME_set_string(after, "20230611235959Z"));
     OpenSSL::CHECK1(ASN1_TIME_normalize(before));
     OpenSSL::CHECK1(ASN1_TIME_normalize(after));
     OpenSSL::CHECK1(X509_set1_notBefore(crt, before));

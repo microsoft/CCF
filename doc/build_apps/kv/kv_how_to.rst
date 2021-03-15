@@ -183,7 +183,7 @@ CCF offers a member function :cpp:func:`kv::MapHandle::foreach` to iterate over 
     // Outputs:
     //  key: key1 - value: value1
     //  key: key2 - value: value2
-    handle->foreach([](string& key, string& value) {
+    handle->foreach([](const string& key, const string& value) {
         cout << " key: " << key << " - value: " << value << endl;
         return true;
         if (/* condition*/)
