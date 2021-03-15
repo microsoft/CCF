@@ -200,10 +200,6 @@ namespace tpcc
   DECLARE_JSON_REQUIRED_FIELDS(
     Stock, i_id, w_id, quantity, ytd, order_cnt, remote_cnt, dist, data);
 
-  // YYYY-MM-DD HH:MM:SS This is supposed to be a date/time field from Jan 1st
-  // 1900 - Dec 31st 2100 with a resolution of 1 second. See TPC-C 1.3.1.
-  static const int DATETIME_SIZE = 14;
-
   struct Customer
   {
     static constexpr float INITIAL_CREDIT_LIM = 50000.00;

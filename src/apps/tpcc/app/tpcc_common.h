@@ -10,6 +10,9 @@ namespace tpcc
   static constexpr int32_t districts_per_warehouse = 10;
   static constexpr int32_t customers_per_district = 10;
   static constexpr int32_t num_items = 100;
+  // YYYY-MM-DD HH:MM:SS This is supposed to be a date/time field from Jan 1st
+  // 1900 - Dec 31st 2100 with a resolution of 1 second. See TPC-C 1.3.1.
+  static constexpr int DATETIME_SIZE = 14;
   static constexpr std::array<char, tpcc::DATETIME_SIZE + 1> tx_time = {
     "12345 time"};
 

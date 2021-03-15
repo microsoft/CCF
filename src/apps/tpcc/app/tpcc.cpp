@@ -4,7 +4,7 @@
 #include "enclave/app_interface.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
-#include "setup_tpcc.h"
+#include "tpcc_setup.h"
 #include "tpcc_tables.h"
 #include "tpcc_transactions.h"
 
@@ -54,7 +54,9 @@ namespace ccfapp
 
       auto create = [this](auto& args) {
         LOG_INFO_FMT("Creating tpcc database");
-        tpcc::SetupDb setup_db(args, 10, 42);
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto db = tpcc::DbCreation::deserialize(body.data(), body.size());
+        tpcc::SetupDb setup_db(args, db.new_orders_per_district, db.seed);
         setup_db.run();
         LOG_INFO_FMT("Creating tpcc database - end");
 
@@ -63,8 +65,10 @@ namespace ccfapp
 
       auto do_stock_level = [this](auto& args) {
         LOG_INFO_FMT("stock level");
-        tpcc::TpccTransactions tx(args, 42);
-        tx.stock_level(1, 1, 100);
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto info = tpcc::StockLevel::deserialize(body.data(), body.size());
+        tpcc::TpccTransactions tx(args, info.seed);
+        tx.stock_level(info.warehouse_id, info.district_id, info.threshold);
         LOG_INFO_FMT("stock level - end");
 
         set_no_content_status(args);
@@ -72,7 +76,9 @@ namespace ccfapp
 
       auto do_order_status = [this](auto& args) {
         LOG_INFO_FMT("order status");
-        tpcc::TpccTransactions tx(args, 42);
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
+        tpcc::TpccTransactions tx(args, info.seed);
         tx.order_status();
         LOG_INFO_FMT("order status - end");
 
@@ -81,7 +87,9 @@ namespace ccfapp
 
       auto do_delivery = [this](auto& args) {
         LOG_INFO_FMT("delivery");
-        tpcc::TpccTransactions tx(args, 42);
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
+        tpcc::TpccTransactions tx(args, info.seed);
         tx.delivery();
         LOG_INFO_FMT("delivery - end");
 
@@ -90,7 +98,9 @@ namespace ccfapp
 
       auto do_payment = [this](auto& args) {
         LOG_INFO_FMT("payment");
-        tpcc::TpccTransactions tx(args, 42);
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
+        tpcc::TpccTransactions tx(args, info.seed);
         tx.payment();
         LOG_INFO_FMT("payment - end");
 
@@ -99,7 +109,9 @@ namespace ccfapp
 
       auto do_new_order = [this](auto& args) {
         LOG_INFO_FMT("new order");
-        tpcc::TpccTransactions tx(args, 43);
+        const auto& body = args.rpc_ctx->get_request_body();
+        auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
+        tpcc::TpccTransactions tx(args, info.seed);
         tx.new_order();
         LOG_INFO_FMT("new order - end");
 

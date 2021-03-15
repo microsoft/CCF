@@ -40,12 +40,9 @@ private:
   {
     auto connection = get_connection();
     LOG_INFO_FMT("calling tpcc db");
-    tpcc::TpccDbCreation db;
-    db.num_wh = 10;
-    db.num_items = 1000;
-    db.customers_per_district = 1000;
-    db.districts_per_warehouse = 10;
+    tpcc::DbCreation db;
     db.new_orders_per_district = 1000;
+    db.seed = 42;
     const auto body = db.serialize();
     const auto response =
       connection->call("tpcc_create", CBuffer{body.data(), body.size()});
@@ -65,52 +62,44 @@ private:
       uint8_t operation;
       uint8_t x = rand_range(100);
 
-      // operation = 2;
       std::vector<uint8_t> serialized_body;
 
       if (x < 4)
       {
-        tpcc::TpccStockLevel sl;
+        tpcc::StockLevel sl;
         sl.warehouse_id = 1;
         sl.district_id = 1;
         sl.threshold = 1000;
+        sl.seed = rand_range<int32_t>();
         serialized_body = sl.serialize();
         operation = (uint8_t)TransactionTypes::stock_level;
       }
       else if (x < 8)
       {
-        tpcc::TpccDelivery d;
-        d.warehouse_id = 1;
-        d.district_id = 1;
-        d.threshold = 1000;
-        serialized_body = d.serialize();
+        tpcc::TxInfo info;
+        info.seed = rand_range<int32_t>();
+        serialized_body = info.serialize();
         operation = (uint8_t)TransactionTypes::delivery;
       }
       else if (x < 12)
       {
-        tpcc::TpccOrderStatus os;
-        os.warehouse_id = 1;
-        os.district_id = 1;
-        os.threshold = 1000;
-        serialized_body = os.serialize();
+        tpcc::TxInfo info;
+        info.seed = rand_range<int32_t>();
+        serialized_body = info.serialize();
         operation = (uint8_t)TransactionTypes::order_status;
       }
       else if (x < (12 + 43))
       {
-        tpcc::TpccPayment p;
-        p.warehouse_id = 1;
-        p.district_id = 1;
-        p.threshold = 1000;
-        serialized_body = p.serialize();
+        tpcc::TxInfo info;
+        info.seed = rand_range<int32_t>();
+        serialized_body = info.serialize();
         operation = (uint8_t)TransactionTypes::payment;
       }
       else
       {
-        tpcc::TpccNewOrder p;
-        p.warehouse_id = 1;
-        p.district_id = 1;
-        p.threshold = 1000;
-        serialized_body = p.serialize();
+        tpcc::TxInfo info;
+        info.seed = rand_range<int32_t>();
+        serialized_body = info.serialize();
         operation = (uint8_t)TransactionTypes::new_order;
       }
       add_prepared_tx(
