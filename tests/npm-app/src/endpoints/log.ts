@@ -33,9 +33,7 @@ export function setLogItem(request: Request<LogItem>): Response {
   return {};
 }
 
-export function getAllLogItems(
-  request: Request
-): Response<Array<LogEntry>> {
+export function getAllLogItems(request: Request): Response<Array<LogEntry>> {
   let items: Array<LogEntry> = [];
   logMap.forEach(function (item, id, table) {
     items.push({ id: id, msg: item.msg });
