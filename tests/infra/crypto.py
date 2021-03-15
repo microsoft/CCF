@@ -41,7 +41,7 @@ class CCFDigestType(IntEnum):
 
 
 def verify_request_sig(raw_cert, sig, req, request_body, md):
-    cert = x509.load_der_x509_certificate(raw_cert, backend=default_backend())
+    cert = x509.load_pem_x509_certificate(raw_cert, backend=default_backend())
 
     # Verify that the request digest matches the hash of the body
     h = hashes.Hash(hashes.SHA256(), backend=default_backend())
@@ -168,3 +168,18 @@ def compute_public_key_der_hash_hex_from_pem(pem: str):
         Encoding.DER, PublicFormat.SubjectPublicKeyInfo
     )
     return hashlib.sha256(pub_key).hexdigest()
+
+
+def compute_cert_der_hash_hex_from_pem(pem: str):
+    cert = load_pem_x509_certificate(pem.encode(), default_backend())
+    return cert.fingerprint(hashes.SHA256()).hex()
+
+
+def check_key_pair_pem(private: str, public: str, password=None) -> bool:
+    prv = load_pem_private_key(private.encode(), password=password)
+    pub = load_pem_public_key(public.encode())
+    prv_pub_der = prv.public_key().public_bytes(
+        Encoding.DER, PublicFormat.SubjectPublicKeyInfo
+    )
+    pub_der = pub.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    return prv_pub_der == pub_der

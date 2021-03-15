@@ -221,12 +221,7 @@ sign_app_library(
 )
 
 # Add NoBuiltins app
-add_ccf_app(nobuiltins SRCS samples/apps/nobuiltins/nobuiltins.cpp)
-sign_app_library(
-  nobuiltins.enclave
-  ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/nobuiltins/oe_sign.conf
-  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
-)
+add_subdirectory(${CCF_DIR}/samples/apps/nobuiltins)
 
 if(BUILD_TESTS)
   enable_testing()
@@ -388,6 +383,12 @@ if(BUILD_TESTS)
                                  http_parser.host sss.host
     )
 
+    set_tests_properties(
+      member_voting_test
+      PROPERTIES ENVIRONMENT
+                 RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
+    )
+
     add_unit_test(
       proposal_id_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
@@ -405,14 +406,6 @@ if(BUILD_TESTS)
       node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
                                  http_parser.host sss.host
     )
-
-    if(NOT ENV{RUNTIME_CONFIG_DIR})
-      set_tests_properties(
-        member_voting_test
-        PROPERTIES ENVIRONMENT
-                   RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
-      )
-    endif()
 
     add_unit_test(
       lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
@@ -628,6 +621,14 @@ if(BUILD_TESTS)
     NAME jwt_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
     CONSENSUS cft
+  )
+
+  add_e2e_test(
+    NAME nobuiltins_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/nobuiltins.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS -p
+                    ${CMAKE_BINARY_DIR}/samples/apps/nobuiltins/libnobuiltins
   )
 
   if(QUOTES_ENABLED)

@@ -1,17 +1,6 @@
 {
   "components": {
     "schemas": {
-      "CallerInfo": {
-        "properties": {
-          "caller_id": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "caller_id"
-        ],
-        "type": "object"
-      },
       "CodeStatus": {
         "enum": [
           "ALLOWED_TO_JOIN"
@@ -65,6 +54,28 @@
           "metrics"
         ],
         "type": "object"
+      },
+      "EntityId": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "EntityId_to_Script": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "$ref": "#/components/schemas/Script"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
       },
       "GetCode__Out": {
         "properties": {
@@ -136,7 +147,7 @@
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
-            "$ref": "#/components/schemas/NodeId"
+            "$ref": "#/components/schemas/EntityId"
           },
           "proof": {
             "$ref": "#/components/schemas/GetReceipt__Element_array"
@@ -202,17 +213,13 @@
         ],
         "type": "object"
       },
-      "NodeId": {
-        "pattern": "^[a-f0-9]{64}$",
-        "type": "string"
-      },
       "Proposal": {
         "properties": {
           "parameter": {
             "$ref": "#/components/schemas/json"
           },
           "proposer": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/EntityId"
           },
           "script": {
             "$ref": "#/components/schemas/Script"
@@ -221,7 +228,7 @@
             "$ref": "#/components/schemas/ProposalState"
           },
           "votes": {
-            "$ref": "#/components/schemas/uint64_to_Script"
+            "$ref": "#/components/schemas/EntityId_to_Script"
           }
         },
         "required": [
@@ -239,7 +246,7 @@
             "$ref": "#/components/schemas/string"
           },
           "proposer_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/EntityId"
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
@@ -354,24 +361,6 @@
         "minimum": 0,
         "type": "integer"
       },
-      "uint64_to_Script": {
-        "items": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/uint64"
-              },
-              {
-                "$ref": "#/components/schemas/Script"
-              }
-            ]
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
-        },
-        "type": "array"
-      },
       "uint8": {
         "maximum": 255,
         "minimum": 0,
@@ -387,11 +376,6 @@
     "securitySchemes": {
       "member_signature": {
         "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
-        "scheme": "signature",
-        "type": "http"
-      },
-      "user_signature": {
-        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
         "scheme": "signature",
         "type": "http"
       }
@@ -479,40 +463,6 @@
             "description": "Default response description"
           }
         }
-      }
-    },
-    "/caller_id": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "cert",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallerInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "user_signature": []
-          },
-          {
-            "member_signature": []
-          }
-        ]
       }
     },
     "/code": {

@@ -38,7 +38,7 @@ namespace crypto
      * @param input Pointer to raw data to wrap
      * @param input_size Size of raw data
      * @param label Optional string used as label during wrapping
-     * @param label Optional string used as label during wrapping
+     * @param label_size Size of @p label
      *
      * @return Wrapped data
      */

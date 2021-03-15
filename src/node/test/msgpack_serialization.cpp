@@ -83,7 +83,7 @@ TEST_CASE("Proposal")
     INFO("Initial proposal");
     Script s("return true");
     nlohmann::json p("hello world");
-    MemberId m(0);
+    auto m = MemberId("member");
     Proposal proposal(s, p, m);
     const auto converted = msgpack_roundtrip(proposal);
     CHECK(proposal == converted);
@@ -93,12 +93,13 @@ TEST_CASE("Proposal")
     INFO("Voted proposal");
     Script s("return true");
     nlohmann::json p("hello world");
-    MemberId m(0);
+    auto m = MemberId("member");
     Proposal proposal(s, p, m);
-    proposal.votes[1] = Script("return true");
-    proposal.votes[2] = Script("return false");
-    proposal.votes[3] = Script("return RoN");
-    proposal.votes[4] = Script("Robert'); DROP TABLE Students;--");
+    proposal.votes[MemberId("member1")] = Script("return true");
+    proposal.votes[MemberId("member2")] = Script("return false");
+    proposal.votes[MemberId("member3")] = Script("return RoN");
+    proposal.votes[MemberId("member4")] =
+      Script("Robert'); DROP TABLE Students;--");
     const auto converted = msgpack_roundtrip(proposal);
     CHECK(proposal == converted);
   }
@@ -186,7 +187,7 @@ TEST_CASE("Signature")
     INFO("Simple sig");
     PrimarySignature sig;
     sig.sig.push_back(0);
-    sig.node = "node";
+    sig.node = NodeId("node");
     sig.seqno = 1;
     sig.view = 2;
     sig.commit_seqno = 3;
@@ -198,7 +199,7 @@ TEST_CASE("Signature")
     INFO("Rand sig");
     PrimarySignature sig;
     fill_rand(sig.sig, 256);
-    sig.node = "node";
+    sig.node = NodeId("node");
     sig.seqno = rand();
     sig.view = rand();
     sig.commit_seqno = rand();
