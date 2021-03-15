@@ -105,25 +105,25 @@ class Network:
         txs=None,
         library_dir=".",
     ):
-        self.existing_network = existing_network
-        if self.existing_network is None:
+        if existing_network is None:
             self.consortium = None
+            self.users = []
             self.node_offset = 0
             self.txs = txs
         else:
-            self.consortium = self.existing_network.consortium
+            self.consortium = existing_network.consortium
+            self.users = existing_network.users
             # When creating a new network from an existing one (e.g. for recovery),
             # the node id of the nodes of the new network should start from the node
             # id of the existing network, so that new nodes id match the ones in the
             # nodes KV table
             self.node_offset = (
-                len(self.existing_network.nodes) + self.existing_network.node_offset
+                len(existing_network.nodes) + existing_network.node_offset
             )
-            self.txs = self.existing_network.txs
+            self.txs = existing_network.txs
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
-        self.users = []
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir

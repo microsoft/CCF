@@ -33,6 +33,11 @@ namespace threading
       data(std::forward<Args>(args)...)
     {}
 
+    void reset_cb(void (*_cb)(std::unique_ptr<Tmsg<Payload>>))
+    {
+      cb = reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(_cb);
+    }
+
     virtual ~Tmsg() = default;
   };
 

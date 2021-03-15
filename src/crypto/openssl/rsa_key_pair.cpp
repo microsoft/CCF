@@ -84,6 +84,18 @@ namespace crypto
     return output;
   }
 
+  Pem RSAKeyPair_OpenSSL::private_key_pem() const
+  {
+    Unique_BIO buf;
+
+    OpenSSL::CHECK1(
+      PEM_write_bio_PrivateKey(buf, key, NULL, NULL, 0, NULL, NULL));
+
+    BUF_MEM* bptr;
+    BIO_get_mem_ptr(buf, &bptr);
+    return Pem((uint8_t*)bptr->data, bptr->length);
+  }
+
   Pem RSAKeyPair_OpenSSL::public_key_pem() const
   {
     return PublicKey_OpenSSL::public_key_pem();
