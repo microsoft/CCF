@@ -22,9 +22,9 @@ class NodeNetworkState(Enum):
 
 
 class NodeStatus(Enum):
-    PENDING = 0
-    TRUSTED = 1
-    RETIRED = 2
+    PENDING = "Pending"
+    TRUSTED = "Trusted"
+    RETIRED = "Retired"
 
 
 def is_addr_local(host, port):

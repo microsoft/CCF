@@ -447,7 +447,7 @@ class Network:
 
         for node in self.get_joined_nodes():
             self.wait_for_state(
-                node, "partOfPublicNetwork", timeout=args.ledger_recovery_timeout
+                node, "PartOfPublicNetwork", timeout=args.ledger_recovery_timeout
             )
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined public network")
@@ -465,7 +465,7 @@ class Network:
 
         for node in self.get_joined_nodes():
             self.wait_for_state(
-                node, "partOfNetwork", timeout=args.ledger_recovery_timeout
+                node, "PartOfNetwork", timeout=args.ledger_recovery_timeout
             )
             self._wait_for_app_open(node)
 
@@ -677,7 +677,7 @@ class Network:
             raise TimeoutError(
                 f"Timed out waiting for state {state} on node {node.node_id}"
             )
-        if state == "partOfNetwork":
+        if state == "PartOfNetwork":
             self.status = ServiceStatus.OPEN
 
     def _wait_for_app_open(self, node, timeout=3):

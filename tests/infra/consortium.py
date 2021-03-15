@@ -242,7 +242,7 @@ class Consortium:
     ):
         response = None
 
-        if proposal.state != ProposalState.Accepted:
+        if proposal.state != ProposalState.ACCEPTED:
             active_members = self.get_active_members()
             majority_count = int(len(self.get_active_members()) / 2 + 1)
 
@@ -272,7 +272,7 @@ class Consortium:
                     view = response.view
                 ccf.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
-        if proposal.state != ProposalState.Accepted:
+        if proposal.state != ProposalState.ACCEPTED:
             raise infra.proposal.ProposalNotAccepted(proposal)
         return proposal
 
@@ -314,7 +314,7 @@ class Consortium:
                 "/gov/read",
                 {"table": "public:ccf.gov.nodes.info", "key": node_to_retire.node_id},
             )
-            assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.name
+            assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.value
 
     def trust_node(self, remote_node, node_id, timeout=3):
         if not self._check_node_exists(
@@ -486,7 +486,7 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote
         r = self.vote_using_majority(remote_node, proposal, careful_vote)
-        if proposal.state == infra.proposal.ProposalState.Accepted:
+        if proposal.state == infra.proposal.ProposalState.ACCEPTED:
             self.recovery_threshold = recovery_threshold
         return r
 
@@ -544,8 +544,8 @@ class Consortium:
                 current_cert == expected_cert[:-1].decode()
             ), "Current service certificate did not match with networkcert.pem"
             assert (
-                current_status == status.name
-            ), f"Service status {current_status} (expected {status.name})"
+                current_status == status.value
+            ), f"Service status {current_status} (expected {status.value})"
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         member = self.get_any_active_member()
@@ -555,7 +555,7 @@ class Consortium:
             )
 
             if r.status_code != http.HTTPStatus.OK.value or (
-                node_status and r.body.json()["status"] != node_status.name
+                node_status and r.body.json()["status"] != node_status.value
             ):
                 return False
 
@@ -581,7 +581,7 @@ class Consortium:
         if not exists:
             raise TimeoutError(
                 f"Node {node_id} has not yet been recorded in the store"
-                + getattr(node_status, f" with status {node_status.name}", "")
+                + getattr(node_status, f" with status {node_status.value}", "")
             )
 
     def wait_for_all_nodes_to_be_trusted(self, remote_node, nodes, timeout=3):

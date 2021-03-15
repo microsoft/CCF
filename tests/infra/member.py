@@ -141,7 +141,7 @@ class Member:
         with remote_node.client(*self.auth(write=True)) as c:
             r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
             if r.status_code == http.HTTPStatus.OK.value:
-                proposal.state = infra.proposal.ProposalState.Withdrawn
+                proposal.state = infra.proposal.ProposalState.WITHDRAWN
             return r
 
     def update_ack_state_digest(self, remote_node):
