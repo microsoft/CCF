@@ -921,7 +921,7 @@ namespace ccfapp
 
         JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
 
-        JS_SetPropertyStr(ctx, ccf, "state", state);
+        JS_SetPropertyStr(ctx, ccf, "historicalState", state);
       }
 
       return ccf;
