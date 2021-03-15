@@ -28,8 +28,10 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     quickjs.enclave STATIC ${QUICKJS_SRC} ${CCF_DIR}/3rdparty/stub/time.c
   )
   target_compile_options(
-    quickjs.enclave PUBLIC -nostdinc -DCONFIG_VERSION="${QUICKJS_VERSION}"
-                           -DEMSCRIPTEN -DCONFIG_STACK_CHECK
+    quickjs.enclave
+    PUBLIC -nostdinc -DCONFIG_VERSION="${QUICKJS_VERSION}" -DEMSCRIPTEN
+           -DCONFIG_STACK_CHECK
+    PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
   )
   target_link_libraries(quickjs.enclave PUBLIC ${OE_TARGET_LIBC})
   set_property(TARGET quickjs.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -40,7 +42,9 @@ endif()
 
 add_library(quickjs.host STATIC ${QUICKJS_SRC})
 target_compile_options(
-  quickjs.host PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}"
+  quickjs.host
+  PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}"
+  PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
 )
 add_san(quickjs.host)
 set_property(TARGET quickjs.host PROPERTY POSITION_INDEPENDENT_CODE ON)

@@ -546,30 +546,8 @@ namespace loggingapp
                                kv::Consensus::View view,
                                kv::Consensus::SeqNo seqno,
                                std::string& error_reason) {
-        if (consensus == nullptr)
-        {
-          error_reason = "Node is not fully configured";
-          return false;
-        }
-
-        const auto tx_view = consensus->get_view(seqno);
-        const auto committed_seqno = consensus->get_committed_seqno();
-        const auto committed_view = consensus->get_view(committed_seqno);
-
-        const auto tx_status = ccf::evaluate_tx_status(
-          view, seqno, tx_view, committed_view, committed_seqno);
-        if (tx_status != ccf::TxStatus::Committed)
-        {
-          error_reason = fmt::format(
-            "Only committed transactions can be queried. Transaction {}.{} is "
-            "{}",
-            view,
-            seqno,
-            ccf::tx_status_to_str(tx_status));
-          return false;
-        }
-
-        return true;
+        return ccf::historical::is_tx_committed(
+          consensus, view, seqno, error_reason);
       };
       make_endpoint(
         "log/private/historical",

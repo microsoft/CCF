@@ -48,6 +48,26 @@ export interface KVMap {
 
 export type KVMaps = { [key: string]: KVMap };
 
+export interface ProofElement {
+  left?: string;
+  right?: string;
+}
+
+export type Proof = ProofElement[];
+
+export interface Receipt {
+  signature: string;
+  root: string;
+  proof: Proof;
+  leaf: string;
+  nodeId: string;
+}
+
+export interface HistoricalState {
+  transactionId: string;
+  receipt: Receipt;
+}
+
 interface WrapAlgoParams {
   name: string;
 }
@@ -85,6 +105,7 @@ export interface CCF {
   ): ArrayBuffer;
 
   kv: KVMaps;
+  historicalState?: HistoricalState;
 }
 
 export const ccf = globalThis.ccf as CCF;
