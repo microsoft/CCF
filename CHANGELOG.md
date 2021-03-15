@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Single-transaction historical query support has been added to JavaScript endpoints (#2285).
+- Historical point query support has been added to JavaScript endpoints (#2285).
 
 ## [0.19.0]
 
