@@ -12,7 +12,7 @@ This page documents the components of a bundle and the JavaScript API available 
     `npm <https://www.npmjs.com/>`_, and
     `TypeScript <https://www.typescriptlang.org/>`_.
     CCF provides multiple example apps built with these tools.
-    They involve a `build` step that generates an app bundle suitable for 
+    They involve a `build` step that generates an app bundle suitable for CCF.
     See the following pages for more details:
 
     .. toctree::
