@@ -52,8 +52,8 @@ namespace tpcc
 
     std::vector<uint8_t> serialize() const
     {
-      auto size = sizeof(warehouse_id) + sizeof(district_id) +
-        sizeof(threshold);
+      auto size =
+        sizeof(warehouse_id) + sizeof(district_id) + sizeof(threshold);
       std::vector<uint8_t> v(size);
       auto data = v.data();
       serialized::write(data, size, warehouse_id);
@@ -67,8 +67,7 @@ namespace tpcc
       TpccStockLevel a;
       a.warehouse_id = serialized::read<decltype(warehouse_id)>(data, size);
       a.district_id = serialized::read<decltype(district_id)>(data, size);
-      a.threshold =
-        serialized::read<decltype(threshold)>(data, size);
+      a.threshold = serialized::read<decltype(threshold)>(data, size);
       return a;
     }
   };
@@ -81,8 +80,8 @@ namespace tpcc
 
     std::vector<uint8_t> serialize() const
     {
-      auto size = sizeof(warehouse_id) + sizeof(district_id) +
-        sizeof(threshold);
+      auto size =
+        sizeof(warehouse_id) + sizeof(district_id) + sizeof(threshold);
       std::vector<uint8_t> v(size);
       auto data = v.data();
       serialized::write(data, size, warehouse_id);
@@ -96,8 +95,7 @@ namespace tpcc
       TpccOrderStatus a;
       a.warehouse_id = serialized::read<decltype(warehouse_id)>(data, size);
       a.district_id = serialized::read<decltype(district_id)>(data, size);
-      a.threshold =
-        serialized::read<decltype(threshold)>(data, size);
+      a.threshold = serialized::read<decltype(threshold)>(data, size);
       return a;
     }
   };
@@ -110,8 +108,8 @@ namespace tpcc
 
     std::vector<uint8_t> serialize() const
     {
-      auto size = sizeof(warehouse_id) + sizeof(district_id) +
-        sizeof(threshold);
+      auto size =
+        sizeof(warehouse_id) + sizeof(district_id) + sizeof(threshold);
       std::vector<uint8_t> v(size);
       auto data = v.data();
       serialized::write(data, size, warehouse_id);
@@ -125,8 +123,7 @@ namespace tpcc
       TpccDelivery a;
       a.warehouse_id = serialized::read<decltype(warehouse_id)>(data, size);
       a.district_id = serialized::read<decltype(district_id)>(data, size);
-      a.threshold =
-        serialized::read<decltype(threshold)>(data, size);
+      a.threshold = serialized::read<decltype(threshold)>(data, size);
       return a;
     }
   };
@@ -139,8 +136,8 @@ namespace tpcc
 
     std::vector<uint8_t> serialize() const
     {
-      auto size = sizeof(warehouse_id) + sizeof(district_id) +
-        sizeof(threshold);
+      auto size =
+        sizeof(warehouse_id) + sizeof(district_id) + sizeof(threshold);
       std::vector<uint8_t> v(size);
       auto data = v.data();
       serialized::write(data, size, warehouse_id);
@@ -154,8 +151,7 @@ namespace tpcc
       TpccPayment a;
       a.warehouse_id = serialized::read<decltype(warehouse_id)>(data, size);
       a.district_id = serialized::read<decltype(district_id)>(data, size);
-      a.threshold =
-        serialized::read<decltype(threshold)>(data, size);
+      a.threshold = serialized::read<decltype(threshold)>(data, size);
       return a;
     }
   };
@@ -168,8 +164,8 @@ namespace tpcc
 
     std::vector<uint8_t> serialize() const
     {
-      auto size = sizeof(warehouse_id) + sizeof(district_id) +
-        sizeof(threshold);
+      auto size =
+        sizeof(warehouse_id) + sizeof(district_id) + sizeof(threshold);
       std::vector<uint8_t> v(size);
       auto data = v.data();
       serialized::write(data, size, warehouse_id);
@@ -183,8 +179,7 @@ namespace tpcc
       TpccNewOrder a;
       a.warehouse_id = serialized::read<decltype(warehouse_id)>(data, size);
       a.district_id = serialized::read<decltype(district_id)>(data, size);
-      a.threshold =
-        serialized::read<decltype(threshold)>(data, size);
+      a.threshold = serialized::read<decltype(threshold)>(data, size);
       return a;
     }
   };

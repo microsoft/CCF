@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tpcc_tables.h"
 #include "tpcc_common.h"
+#include "tpcc_tables.h"
 
 #include <exception>
 #include <set>
@@ -31,7 +31,8 @@ namespace tpcc
 
     int32_t random_int_excluding(int lower, int upper, int excluding)
     {
-      return tpcc::random_int_excluding(lower, upper, excluding, rand_generator);
+      return tpcc::random_int_excluding(
+        lower, upper, excluding, rand_generator);
     }
 
   public:
@@ -69,7 +70,7 @@ namespace tpcc
     {
       for (uint32_t i = 0; i < length - 1; ++i)
       {
-        str[i] = 97 + random_int(0,26); // lower case letters
+        str[i] = 97 + random_int(0, 26); // lower case letters
       }
       str[length - 1] = '\0';
     }
@@ -79,7 +80,7 @@ namespace tpcc
     {
       for (uint32_t i = 0; i < length - 1; ++i)
       {
-        str[i] = 48 + random_int(0,10); // lower case letters
+        str[i] = 48 + random_int(0, 10); // lower case letters
       }
       str[length - 1] = '\0';
     }
@@ -128,8 +129,7 @@ namespace tpcc
       else
       {
         create_random_string(
-          s.data,
-          random_int(Stock::MIN_DATA, Stock::MAX_DATA));
+          s.data, random_int(Stock::MIN_DATA, Stock::MAX_DATA));
       }
       return s;
     }
@@ -155,8 +155,7 @@ namespace tpcc
       warehouse->tax = random_float(Warehouse::MIN_TAX, Warehouse::MAX_TAX);
       warehouse->ytd = Warehouse::INITIAL_YTD;
       create_random_string(
-        warehouse->name,
-        random_int(Warehouse::MIN_NAME, Warehouse::MAX_NAME));
+        warehouse->name, random_int(Warehouse::MIN_NAME, Warehouse::MAX_NAME));
       create_random_string(
         warehouse->street_1,
         random_int(Address::MIN_STREET, Address::MAX_STREET));
@@ -164,11 +163,9 @@ namespace tpcc
         warehouse->street_2,
         random_int(Address::MIN_STREET, Address::MAX_STREET));
       create_random_string(
-        warehouse->city,
-        random_int(Address::MIN_CITY, Address::MAX_CITY));
+        warehouse->city, random_int(Address::MIN_CITY, Address::MAX_CITY));
       create_random_string(
-        warehouse->state,
-        random_int(Address::MIN_CITY, Address::MAX_CITY));
+        warehouse->state, random_int(Address::MIN_CITY, Address::MAX_CITY));
       create_random_string(warehouse->zip, Address::ZIP);
     }
 
@@ -202,7 +199,8 @@ namespace tpcc
       customer->d_id = d_id;
       customer->w_id = w_id;
       customer->credit_lim = Customer::INITIAL_CREDIT_LIM;
-      customer->discount = random_float(Customer::MIN_DISCOUNT, Customer::MAX_DISCOUNT);
+      customer->discount =
+        random_float(Customer::MIN_DISCOUNT, Customer::MAX_DISCOUNT);
       customer->balance = Customer::INITIAL_BALANCE;
       customer->ytd_payment = Customer::INITIAL_YTD_PAYMENT;
       customer->payment_cnt = Customer::INITIAL_PAYMENT_CNT;
@@ -224,7 +222,8 @@ namespace tpcc
         customer->street_1, Address::MIN_STREET, Address::MAX_STREET);
       create_random_string(
         customer->street_2, Address::MIN_STREET, Address::MAX_STREET);
-      create_random_string(customer->city, Address::MIN_CITY, Address::MAX_CITY);
+      create_random_string(
+        customer->city, Address::MIN_CITY, Address::MAX_CITY);
       create_random_string(customer->state, Address::STATE, Address::STATE);
       create_random_string(customer->zip, Address::ZIP);
       create_random_int(customer->phone, Customer::PHONE);
@@ -320,8 +319,7 @@ namespace tpcc
       orderline->d_id = d_id;
       orderline->w_id = w_id;
       orderline->number = number;
-      orderline->i_id =
-        random_int(OrderLine::MIN_I_ID, OrderLine::MAX_I_ID);
+      orderline->i_id = random_int(OrderLine::MIN_I_ID, OrderLine::MAX_I_ID);
       orderline->supply_w_id = w_id;
       orderline->quantity = OrderLine::INITIAL_QUANTITY;
       if (!new_order)
@@ -332,7 +330,7 @@ namespace tpcc
       else
       {
         orderline->amount =
-          random_float( OrderLine::MIN_AMOUNT, OrderLine::MAX_AMOUNT);
+          random_float(OrderLine::MIN_AMOUNT, OrderLine::MAX_AMOUNT);
         orderline->delivery_d[0] = '\0';
       }
       create_random_string(
@@ -372,7 +370,8 @@ namespace tpcc
           {
             std::string tbl_name = fmt::format("customer_{}_{}", w_id, d_id);
             auto r = tpcc::TpccTables::customers.insert(
-              {table_key.k, kv::Map<Customer::Key, Customer>(tbl_name.c_str())});
+              {table_key.k,
+               kv::Map<Customer::Key, Customer>(tbl_name.c_str())});
             it = r.first;
           }
 
@@ -475,8 +474,7 @@ namespace tpcc
     void make_items()
     {
       // Select 10% of the rows to be marked "original"
-      auto original_rows =
-        select_unique_ids(num_items, num_items / 10);
+      auto original_rows = select_unique_ids(num_items, num_items / 10);
 
       for (uint32_t i = 1; i <= num_items; ++i)
       {

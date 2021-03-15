@@ -2,13 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <stdint.h>
 #include <cstring>
+#include <nlohmann/json.hpp>
+#include <stdint.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 namespace tpcc
 {
   namespace Address
@@ -81,38 +80,20 @@ namespace tpcc
     int32_t id;
     float tax;
     float ytd;
-    std::array<char,MAX_NAME + 1> name;
-    std::array<char,Address::MAX_STREET + 1> street_1;
-    std::array<char,Address::MAX_STREET + 1> street_2;
-    std::array<char,Address::MAX_STREET + 1> city;
-    std::array<char,Address::STATE + 1> state;
-    std::array<char,Address::ZIP + 1> zip;
+    std::array<char, MAX_NAME + 1> name;
+    std::array<char, Address::MAX_STREET + 1> street_1;
+    std::array<char, Address::MAX_STREET + 1> street_2;
+    std::array<char, Address::MAX_STREET + 1> city;
+    std::array<char, Address::STATE + 1> state;
+    std::array<char, Address::ZIP + 1> zip;
 
-    MSGPACK_DEFINE(
-      id,
-      tax,
-      ytd,
-      name,
-      street_1,
-      street_2,
-      city,
-      state,
-      zip);
+    MSGPACK_DEFINE(id, tax, ytd, name, street_1, street_2, city, state, zip);
   };
   DECLARE_JSON_TYPE(Warehouse::Key);
   DECLARE_JSON_REQUIRED_FIELDS(Warehouse::Key, id);
   DECLARE_JSON_TYPE(Warehouse);
   DECLARE_JSON_REQUIRED_FIELDS(
-    Warehouse,
-    id,
-    tax,
-    ytd,
-    name,
-    street_1,
-    street_2,
-    city,
-    state,
-    zip);
+    Warehouse, id, tax, ytd, name, street_1, street_2, city, state, zip);
 
   struct District
   {
@@ -211,29 +192,13 @@ namespace tpcc
     }
 
     MSGPACK_DEFINE(
-      i_id,
-      w_id,
-      quantity,
-      ytd,
-      order_cnt,
-      remote_cnt,
-      dist,
-      data);
+      i_id, w_id, quantity, ytd, order_cnt, remote_cnt, dist, data);
   };
   DECLARE_JSON_TYPE(Stock::Key);
   DECLARE_JSON_REQUIRED_FIELDS(Stock::Key, i_id, w_id);
   DECLARE_JSON_TYPE(Stock);
   DECLARE_JSON_REQUIRED_FIELDS(
-    Stock,
-    i_id,
-    w_id,
-    quantity,
-    ytd,
-    order_cnt,
-    remote_cnt,
-    dist,
-    data
-  );
+    Stock, i_id, w_id, quantity, ytd, order_cnt, remote_cnt, dist, data);
 
   // YYYY-MM-DD HH:MM:SS This is supposed to be a date/time field from Jan 1st
   // 1900 - Dec 31st 2100 with a resolution of 1 second. See TPC-C 1.3.1.
@@ -280,9 +245,9 @@ namespace tpcc
     float ytd_payment;
     int32_t payment_cnt;
     int32_t delivery_cnt;
-    std::array<char,MAX_FIRST + 1> first;
-    std::array<char,MIDDLE + 1> middle;
-    std::array<char,MAX_LAST + 1> last;
+    std::array<char, MAX_FIRST + 1> first;
+    std::array<char, MIDDLE + 1> middle;
+    std::array<char, MAX_LAST + 1> last;
     std::array<char, Address::MAX_STREET + 1> street_1;
     std::array<char, Address::MAX_STREET + 1> street_2;
     std::array<char, Address::MAX_CITY + 1> city;
@@ -377,29 +342,13 @@ namespace tpcc
     std::array<char, DATETIME_SIZE + 1> entry_d;
 
     MSGPACK_DEFINE(
-      id,
-      c_id,
-      d_id,
-      w_id,
-      carrier_id,
-      ol_cnt,
-      all_local,
-      entry_d);
+      id, c_id, d_id, w_id, carrier_id, ol_cnt, all_local, entry_d);
   };
   DECLARE_JSON_TYPE(Order::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    Order::Key, id);
+  DECLARE_JSON_REQUIRED_FIELDS(Order::Key, id);
   DECLARE_JSON_TYPE(Order);
   DECLARE_JSON_REQUIRED_FIELDS(
-    Order,
-    id,
-    c_id,
-    d_id,
-    w_id,
-    carrier_id,
-    ol_cnt,
-    all_local,
-    entry_d);
+    Order, id, c_id, d_id, w_id, carrier_id, ol_cnt, all_local, entry_d);
 
   struct OrderLine
   {
@@ -416,8 +365,7 @@ namespace tpcc
       int32_t d_id;
       int32_t w_id;
       int32_t number;
-      MSGPACK_DEFINE(
-        o_id, d_id, w_id, number);
+      MSGPACK_DEFINE(o_id, d_id, w_id, number);
     };
 
     Key get_key()
@@ -449,12 +397,7 @@ namespace tpcc
       dist_info);
   };
   DECLARE_JSON_TYPE(OrderLine::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    OrderLine::Key,
-    o_id,
-    d_id,
-    w_id,
-    number);
+  DECLARE_JSON_REQUIRED_FIELDS(OrderLine::Key, o_id, d_id, w_id, number);
   DECLARE_JSON_TYPE(OrderLine);
   DECLARE_JSON_REQUIRED_FIELDS(
     OrderLine,
@@ -527,28 +470,13 @@ namespace tpcc
     std::array<char, DATETIME_SIZE + 1> date;
     std::array<char, MAX_DATA + 1> data;
 
-    MSGPACK_DEFINE(
-      c_id, c_d_id, c_w_id, d_id, w_id, amount, date, data);
+    MSGPACK_DEFINE(c_id, c_d_id, c_w_id, d_id, w_id, amount, date, data);
   };
   DECLARE_JSON_TYPE(History::Key);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    History::Key,
-    c_id,
-    c_d_id,
-    c_w_id,
-    d_id,
-    w_id);
+  DECLARE_JSON_REQUIRED_FIELDS(History::Key, c_id, c_d_id, c_w_id, d_id, w_id);
   DECLARE_JSON_TYPE(History);
   DECLARE_JSON_REQUIRED_FIELDS(
-    History,
-    c_id,
-    c_d_id,
-    c_w_id,
-    d_id,
-    w_id,
-    amount,
-    date,
-    data);
+    History, c_id, c_d_id, c_w_id, d_id, w_id, amount, date, data);
 
   struct TpccTables
   {
@@ -569,10 +497,12 @@ namespace tpcc
     static kv::Map<Warehouse::Key, Warehouse> warehouses;
     static kv::Map<District::Key, District> districts;
     static kv::Map<History::Key, History> histories;
-    static std::unordered_map<uint64_t, kv::Map<Customer::Key, Customer>> customers;
+    static std::unordered_map<uint64_t, kv::Map<Customer::Key, Customer>>
+      customers;
     static std::unordered_map<uint64_t, kv::Map<Order::Key, Order>> orders;
     static kv::Map<OrderLine::Key, OrderLine> order_lines;
-    static std::unordered_map<uint64_t, kv::Map<NewOrder::Key, NewOrder>> new_orders;
+    static std::unordered_map<uint64_t, kv::Map<NewOrder::Key, NewOrder>>
+      new_orders;
     static kv::Map<Item::Key, Item> items;
   };
 }

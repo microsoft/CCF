@@ -4,8 +4,8 @@
 #include "enclave/app_interface.h"
 #include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
-#include "tpcc_tables.h"
 #include "setup_tpcc.h"
+#include "tpcc_tables.h"
 #include "tpcc_transactions.h"
 
 #include <charconv>
@@ -64,9 +64,9 @@ namespace ccfapp
       auto do_stock_level = [this](auto& args) {
         LOG_INFO_FMT("stock level");
         tpcc::TpccTransactions tx(args, 42);
-        tx.stock_level(1,1,100);
+        tx.stock_level(1, 1, 100);
         LOG_INFO_FMT("stock level - end");
-        
+
         set_no_content_status(args);
       };
 
@@ -75,7 +75,7 @@ namespace ccfapp
         tpcc::TpccTransactions tx(args, 42);
         tx.order_status();
         LOG_INFO_FMT("order status - end");
-        
+
         set_no_content_status(args);
       };
 
@@ -84,7 +84,7 @@ namespace ccfapp
         tpcc::TpccTransactions tx(args, 42);
         tx.delivery();
         LOG_INFO_FMT("delivery - end");
-        
+
         set_no_content_status(args);
       };
 
@@ -93,7 +93,7 @@ namespace ccfapp
         tpcc::TpccTransactions tx(args, 42);
         tx.payment();
         LOG_INFO_FMT("payment - end");
-        
+
         set_no_content_status(args);
       };
 
@@ -102,7 +102,7 @@ namespace ccfapp
         tpcc::TpccTransactions tx(args, 43);
         tx.new_order();
         LOG_INFO_FMT("new order - end");
-        
+
         set_no_content_status(args);
       };
 
@@ -112,16 +112,14 @@ namespace ccfapp
       std::vector<ccf::RESTVerb> verbs = {HTTP_POST, ws::Verb::WEBSOCKET};
       for (auto verb : verbs)
       {
-        make_endpoint("tpcc_create", verb, create, user_sig_or_cert)
-          .install();
+        make_endpoint("tpcc_create", verb, create, user_sig_or_cert).install();
         make_endpoint("stock_level", verb, do_stock_level, user_sig_or_cert)
           .install();
         make_endpoint("order_status", verb, do_order_status, user_sig_or_cert)
           .install();
         make_endpoint("delivery", verb, do_delivery, user_sig_or_cert)
           .install();
-        make_endpoint("payment", verb, do_payment, user_sig_or_cert)
-          .install();
+        make_endpoint("payment", verb, do_payment, user_sig_or_cert).install();
         make_endpoint("new_order", verb, do_new_order, user_sig_or_cert)
           .install();
       }
@@ -159,11 +157,18 @@ namespace ccfapp
 }
 
 kv::Map<tpcc::Stock::Key, tpcc::Stock> tpcc::TpccTables::stocks("stocks");
-kv::Map<tpcc::Warehouse::Key, tpcc::Warehouse> tpcc::TpccTables::warehouses("warehouses");
-kv::Map<tpcc::District::Key, tpcc::District> tpcc::TpccTables::districts("districts");
-kv::Map<tpcc::History::Key, tpcc::History> tpcc::TpccTables::histories("histories");
-std::unordered_map<uint64_t, kv::Map<tpcc::Customer::Key, tpcc::Customer>> tpcc::TpccTables::customers;
-std::unordered_map<uint64_t, kv::Map<tpcc::Order::Key, tpcc::Order>> tpcc::TpccTables::orders;
-kv::Map<tpcc::OrderLine::Key, tpcc::OrderLine> tpcc::TpccTables::order_lines("order_lines");
-std::unordered_map<uint64_t, kv::Map<tpcc::NewOrder::Key, tpcc::NewOrder>> tpcc::TpccTables::new_orders;
+kv::Map<tpcc::Warehouse::Key, tpcc::Warehouse> tpcc::TpccTables::warehouses(
+  "warehouses");
+kv::Map<tpcc::District::Key, tpcc::District> tpcc::TpccTables::districts(
+  "districts");
+kv::Map<tpcc::History::Key, tpcc::History> tpcc::TpccTables::histories(
+  "histories");
+std::unordered_map<uint64_t, kv::Map<tpcc::Customer::Key, tpcc::Customer>>
+  tpcc::TpccTables::customers;
+std::unordered_map<uint64_t, kv::Map<tpcc::Order::Key, tpcc::Order>>
+  tpcc::TpccTables::orders;
+kv::Map<tpcc::OrderLine::Key, tpcc::OrderLine> tpcc::TpccTables::order_lines(
+  "order_lines");
+std::unordered_map<uint64_t, kv::Map<tpcc::NewOrder::Key, tpcc::NewOrder>>
+  tpcc::TpccTables::new_orders;
 kv::Map<tpcc::Item::Key, tpcc::Item> tpcc::TpccTables::items("items");

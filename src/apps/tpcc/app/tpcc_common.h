@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 #pragma once
 
 #include <random>
@@ -59,13 +61,15 @@ namespace tpcc
     return dist(rand_generator);
   }
 
-  static uint32_t random_int(uint32_t min, uint32_t max, std::mt19937& rand_generator)
+  static uint32_t random_int(
+    uint32_t min, uint32_t max, std::mt19937& rand_generator)
   {
     std::uniform_int_distribution<uint32_t> dist(min, max - 1);
     return dist(rand_generator);
   }
 
-  static int32_t random_int_excluding(int lower, int upper, int excluding, std::mt19937& rand_generator)
+  static int32_t random_int_excluding(
+    int lower, int upper, int excluding, std::mt19937& rand_generator)
   {
     // Generate 1 less number than the range
     int num = random_int(lower, upper - 1, rand_generator);

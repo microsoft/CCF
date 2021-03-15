@@ -34,11 +34,7 @@ private:
   };
 
   const char* OPERATION_C_STR[5]{
-    "stock_level",
-    "order_status",
-    "delivery",
-    "payment",
-    "new_order"};
+    "stock_level", "order_status", "delivery", "payment", "new_order"};
 
   std::optional<RpcTlsClient::Response> send_creation_transactions() override
   {
@@ -51,8 +47,8 @@ private:
     db.districts_per_warehouse = 10;
     db.new_orders_per_district = 1000;
     const auto body = db.serialize();
-    const auto response = connection->call(
-      "tpcc_create", CBuffer{body.data(), body.size()});
+    const auto response =
+      connection->call("tpcc_create", CBuffer{body.data(), body.size()});
     check_response(response);
 
     return response;
@@ -126,22 +122,22 @@ private:
   }
 
   bool check_response(const RpcTlsClient::Response& r) override
-{
-  if (!http::status_success(r.status))
   {
-    const std::string error_msg(r.body.begin(), r.body.end());
-    if (
-      error_msg.find("Not enough money in savings account") == string::npos &&
-      error_msg.find("Account already exists in accounts table") ==
-        string::npos)
+    if (!http::status_success(r.status))
     {
-      throw logic_error(error_msg);
-      return false;
+      const std::string error_msg(r.body.begin(), r.body.end());
+      if (
+        error_msg.find("Not enough money in savings account") == string::npos &&
+        error_msg.find("Account already exists in accounts table") ==
+          string::npos)
+      {
+        throw logic_error(error_msg);
+        return false;
+      }
     }
-  }
 
-  return true;
-}
+    return true;
+  }
 
   void pre_creation_hook() override
   {

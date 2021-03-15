@@ -3,12 +3,9 @@
 # Small Bank Client executable
 
 add_client_exe(
-  tpcc_client
-  SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/tpcc_client.cpp
+  tpcc_client SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/tpcc_client.cpp
 )
-target_link_libraries(
-  tpcc_client PRIVATE http_parser.host ccfcrypto.host c++fs
-)
+target_link_libraries(tpcc_client PRIVATE http_parser.host ccfcrypto.host c++fs)
 
 # tpcc application
 add_ccf_app(tpcc SRCS ${CMAKE_CURRENT_LIST_DIR}/app/tpcc.cpp)
@@ -19,7 +16,7 @@ sign_app_library(
 
 if(BUILD_TESTS)
 
-  set(SMALL_BANK_ITERATIONS 200000)
+  set(TPCC_ITERATIONS 20000)
 
   foreach(CONSENSUS ${CONSENSUSES})
     add_perf_test(
@@ -27,8 +24,8 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/tpcc_client.py
       CLIENT_BIN ./tpcc_client
       CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS
-        --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 250
+      ADDITIONAL_ARGS --transactions ${TPCC_ITERATIONS}
+                      --max-writes-ahead 250
     )
   endforeach()
 endif()

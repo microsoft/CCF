@@ -1,8 +1,10 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 #pragma once
 
 #include "tpcc_common.h"
-#include "tpcc_tables.h"
 #include "tpcc_output.h"
+#include "tpcc_tables.h"
 
 #include <cinttypes>
 #include <string.h>
@@ -199,19 +201,17 @@ namespace tpcc
       output->c_last = customer.last;
 
       // Find the row in the order table with largest o_id
-      Order order = find_last_order_by_customer(
-        customer.w_id, customer.d_id, customer.id);
+      Order order =
+        find_last_order_by_customer(customer.w_id, customer.d_id, customer.id);
       output->o_id = order.id;
       output->o_carrier_id = order.carrier_id;
       output->o_entry_d = order.entry_d;
 
       output->lines.resize(order.ol_cnt);
-      for (int32_t line_number = 1; line_number <= order.ol_cnt;
-           ++line_number)
+      for (int32_t line_number = 1; line_number <= order.ol_cnt; ++line_number)
       {
         OrderLine line =
-          find_order_line(
-            customer.w_id, customer.d_id, order.id, line_number)
+          find_order_line(customer.w_id, customer.d_id, order.id, line_number)
             .value();
         output->lines[line_number - 1].i_id = line.i_id;
         output->lines[line_number - 1].supply_w_id = line.supply_w_id;
@@ -271,12 +271,13 @@ namespace tpcc
         bool new_order_exists = false;
         NewOrder::Key new_order_key = {warehouse_id, d_id, 1};
         int32_t o_id;
-        new_orders_table->foreach([&](const NewOrder::Key& k, const NewOrder& no) {
-          new_order_key = k;
-          o_id = no.o_id;
-          new_order_exists = true;
-          return false;
-        });
+        new_orders_table->foreach(
+          [&](const NewOrder::Key& k, const NewOrder& no) {
+            new_order_key = k;
+            o_id = no.o_id;
+            new_order_exists = true;
+            return false;
+          });
         if (!new_order_exists)
         {
           continue;
@@ -345,10 +346,8 @@ namespace tpcc
       std::copy_n(h.data.data(), w.name.size(), w.name.data());
       strcat(h.data.data(), "    ");
 
-      History::Key history_key = {
-        h.c_id, h.c_d_id, h.c_w_id, h.d_id, h.w_id};
       auto history_table = args.tx.rw(tpcc::TpccTables::histories);
-      history_table->put(history_key, h);
+      history_table->put(h.get_key(), h);
     }
 
     void internal_payment_remote(
@@ -551,7 +550,8 @@ namespace tpcc
       }
 
       // Process all remote warehouses
-      std::set<int32_t> warehouses = new_order_remote_warehouses(warehouse_id, items);
+      std::set<int32_t> warehouses =
+        new_order_remote_warehouses(warehouse_id, items);
       for (auto i = warehouses.begin(); i != warehouses.end(); ++i)
       {
         std::vector<int32_t> quantities;
@@ -564,7 +564,8 @@ namespace tpcc
     }
 
     bool find_and_validate_items(
-      const std::vector<NewOrderItem>& items, std::vector<std::optional<Item>>* item_tuples)
+      const std::vector<NewOrderItem>& items,
+      std::vector<std::optional<Item>>* item_tuples)
     {
       // CHEAT: Validate all items to see if we will need to abort
       item_tuples->resize(items.size());
@@ -631,7 +632,7 @@ namespace tpcc
       order.carrier_id = Order::NULL_CARRIER_ID;
       order.ol_cnt = static_cast<int32_t>(items.size());
       order.all_local = all_local ? 1 : 0;
-      order.entry_d =  now;
+      order.entry_d = now;
       insert_order(order);
       insert_new_order(warehouse_id, district_id, output->o_id);
 
@@ -656,7 +657,8 @@ namespace tpcc
           stock.dist[district_id].data(),
           sizeof(line.dist_info));
 
-        bool stock_is_original = (strstr(stock.data.data(), "ORIGINAL") != NULL);
+        bool stock_is_original =
+          (strstr(stock.data.data(), "ORIGINAL") != NULL);
         if (
           stock_is_original &&
           strstr(item_tuples[i]->data.data(), "ORIGINAL") != NULL)
@@ -678,7 +680,7 @@ namespace tpcc
       }
 
       std::vector<int32_t> quantities;
-        new_order_remote(warehouse_id, warehouse_id, items, &quantities);
+      new_order_remote(warehouse_id, warehouse_id, items, &quantities);
       new_order_combine(quantities, output);
 
       return true;
@@ -696,7 +698,8 @@ namespace tpcc
 
     int32_t random_int_excluding(int lower, int upper, int excluding)
     {
-      return tpcc::random_int_excluding(lower, upper, excluding, rand_generator);
+      return tpcc::random_int_excluding(
+        lower, upper, excluding, rand_generator);
     }
 
   public:
@@ -762,18 +765,15 @@ namespace tpcc
     void order_status()
     {
       OrderStatusOutput output;
-      int y = random_int(0,100);
+      int y = random_int(0, 100);
       if (y <= 60)
       {
         // 60%: order status by last name
         char c_last[Customer::MAX_LAST + 1];
-        tpcc::make_last_name(
-          random_int(1, customers_per_district),
-          c_last);
+        tpcc::make_last_name(random_int(1, customers_per_district), c_last);
         uint32_t w_id = generate_warehouse();
         uint32_t d_id = generate_district();
-        order_status(
-          w_id, d_id, c_last, &output);
+        order_status(w_id, d_id, c_last, &output);
       }
       else
       {
