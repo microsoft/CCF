@@ -16,7 +16,7 @@ sign_app_library(
 
 if(BUILD_TESTS)
 
-  set(TPCC_ITERATIONS 20000)
+  set(TPCC_ITERATIONS 200000)
 
   foreach(CONSENSUS ${CONSENSUSES})
     add_perf_test(
