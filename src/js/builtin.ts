@@ -116,7 +116,7 @@ export interface WrapAlgoParams {
 }
 
 /**
- * TODO
+ * 
  */
 export interface RsaOaepParams extends WrapAlgoParams {
   name: "RSA-OAEP";
@@ -124,14 +124,14 @@ export interface RsaOaepParams extends WrapAlgoParams {
 }
 
 /**
- * TODO
+ * 
  */
 export interface AESKWPParams extends WrapAlgoParams {
   name: "AES-KWP";
 }
 
 /**
- * TODO
+ * 
  */
 export interface RsaOaepAESKWPParams extends WrapAlgoParams {
   name: "RSA-OAEP-AES-KWP";
