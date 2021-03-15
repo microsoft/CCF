@@ -230,7 +230,8 @@ export interface CCF {
   kv: KVMaps;
 
   /**
-   * 
+   * State associated with a specific historic transaction.
+   * Only defined for endpoints with "mode" set to "historical".
    */
   historicalState?: HistoricalState;
 }
