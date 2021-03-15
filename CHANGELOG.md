@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Historical point query support has been added to JavaScript endpoints (#2285).
+- RSA key generation JavaScript endpoint (#2293).
 
 ### Changed
 
