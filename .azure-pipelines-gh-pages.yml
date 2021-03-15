@@ -34,7 +34,9 @@ jobs:
           pip install wheel
           pip install -U -r doc/requirements.txt
           pip install -U -e ./python
-          npm install -g typescript typedoc@0.19.2
+          npm install typescript typedoc@0.19.2
+          NPM_BIN=$(pwd)/node_modules/.bin
+          export PATH="$NPM_BIN:$PATH"
           sphinx-multiversion doc build/html
         displayName: Sphinx
 
