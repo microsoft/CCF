@@ -39,7 +39,6 @@ private:
   std::optional<RpcTlsClient::Response> send_creation_transactions() override
   {
     auto connection = get_connection();
-    LOG_INFO_FMT("calling tpcc db");
     tpcc::DbCreation db;
     db.new_orders_per_district = 1000;
     db.seed = 42;
@@ -115,14 +114,8 @@ private:
     if (!http::status_success(r.status))
     {
       const std::string error_msg(r.body.begin(), r.body.end());
-      if (
-        error_msg.find("Not enough money in savings account") == string::npos &&
-        error_msg.find("Account already exists in accounts table") ==
-          string::npos)
-      {
-        throw logic_error(error_msg);
-        return false;
-      }
+      throw logic_error(error_msg);
+      return false;
     }
 
     return true;

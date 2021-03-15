@@ -261,7 +261,6 @@ namespace tpcc
 
     std::vector<int> make_permutation(int lower, int upper)
     {
-      // initialize with consecutive values
       std::vector<int> array;
       array.resize(upper);
       for (int i = 0; i <= upper - lower; ++i)
@@ -271,7 +270,6 @@ namespace tpcc
 
       for (int i = 0; i < upper - lower; ++i)
       {
-        // choose a value to go into this position, including this position
         int index = random_int(i, upper - lower);
         int temp = array[i];
         array[i] = array[index];
@@ -424,8 +422,6 @@ namespace tpcc
 
             if (new_order)
             {
-              // This is a new order: make one for it
-
               TpccTables::DistributeKey table_key;
               table_key.v.w_id = w_id;
               table_key.v.d_id = d_id;

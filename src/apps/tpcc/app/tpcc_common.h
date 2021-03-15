@@ -74,10 +74,7 @@ namespace tpcc
   static int32_t random_int_excluding(
     int lower, int upper, int excluding, std::mt19937& rand_generator)
   {
-    // Generate 1 less number than the range
     int num = random_int(lower, upper - 1, rand_generator);
-
-    // Adjust the numbers to remove excluding
     if (num >= excluding)
     {
       num += 1;
