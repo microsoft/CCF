@@ -230,7 +230,7 @@ spelling_word_list_filename = ["spelling_wordlist.txt"]
 
 # sphinx_js options
 js_language = 'typescript'
-js_source_path = '../tests/npm-app/src/ccf'
+js_source_path = '../src/js'
 jsdoc_config_path = '../tests/npm-app/tsconfig.json'
 
 def setup(self):
