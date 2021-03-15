@@ -110,25 +110,25 @@ namespace tpcc
     Stock generate_stock(uint32_t item_id, uint32_t wh_id, bool is_original)
     {
       Stock s;
-      s.s_i_id = item_id;
-      s.s_w_id = wh_id;
-      s.s_quantity = random_int(Stock::MIN_QUANTITY, Stock::MAX_QUANTITY);
-      s.s_ytd = 0;
-      s.s_order_cnt = 0;
-      s.s_remote_cnt = 0;
+      s.i_id = item_id;
+      s.w_id = wh_id;
+      s.quantity = random_int(Stock::MIN_QUANTITY, Stock::MAX_QUANTITY);
+      s.ytd = 0;
+      s.order_cnt = 0;
+      s.remote_cnt = 0;
       for (int i = 0; i < District::NUM_PER_WAREHOUSE; ++i)
       {
-        create_random_string(s.s_dist[i], sizeof(s.s_dist[i]));
+        create_random_string(s.dist[i], sizeof(s.dist[i]));
       }
 
       if (is_original)
       {
-        set_original(s.s_data);
+        set_original(s.data);
       }
       else
       {
         create_random_string(
-          s.s_data,
+          s.data,
           random_int(Stock::MIN_DATA, Stock::MAX_DATA));
       }
       return s;
@@ -151,44 +151,44 @@ namespace tpcc
 
     void generate_warehouse(int32_t id, Warehouse* warehouse)
     {
-      warehouse->w_id = id;
-      warehouse->w_tax = random_float(Warehouse::MIN_TAX, Warehouse::MAX_TAX);
-      warehouse->w_ytd = Warehouse::INITIAL_YTD;
+      warehouse->id = id;
+      warehouse->tax = random_float(Warehouse::MIN_TAX, Warehouse::MAX_TAX);
+      warehouse->ytd = Warehouse::INITIAL_YTD;
       create_random_string(
-        warehouse->w_name,
+        warehouse->name,
         random_int(Warehouse::MIN_NAME, Warehouse::MAX_NAME));
       create_random_string(
-        warehouse->w_street_1,
+        warehouse->street_1,
         random_int(Address::MIN_STREET, Address::MAX_STREET));
       create_random_string(
-        warehouse->w_street_2,
+        warehouse->street_2,
         random_int(Address::MIN_STREET, Address::MAX_STREET));
       create_random_string(
-        warehouse->w_city,
+        warehouse->city,
         random_int(Address::MIN_CITY, Address::MAX_CITY));
       create_random_string(
-        warehouse->w_state,
+        warehouse->state,
         random_int(Address::MIN_CITY, Address::MAX_CITY));
-      create_random_string(warehouse->w_zip, Address::ZIP);
+      create_random_string(warehouse->zip, Address::ZIP);
     }
 
     void generate_district(int32_t id, int32_t w_id, District* district)
     {
-      district->d_id = id;
-      district->d_w_id = w_id;
-      district->d_tax = random_float(District::MIN_TAX, District::MAX_TAX);
-      district->d_ytd = District::INITIAL_YTD;
-      district->d_next_o_id = customers_per_district + 1;
+      district->id = id;
+      district->w_id = w_id;
+      district->tax = random_float(District::MIN_TAX, District::MAX_TAX);
+      district->ytd = District::INITIAL_YTD;
+      district->next_o_id = customers_per_district + 1;
       create_random_string(
-        district->d_name, District::MIN_NAME, District::MAX_NAME);
+        district->name, District::MIN_NAME, District::MAX_NAME);
       create_random_string(
-        district->d_street_1, Address::MIN_STREET, Address::MAX_STREET);
+        district->street_1, Address::MIN_STREET, Address::MAX_STREET);
       create_random_string(
-        district->d_street_2, Address::MIN_STREET, Address::MAX_STREET);
+        district->street_2, Address::MIN_STREET, Address::MAX_STREET);
       create_random_string(
-        district->d_city, Address::MIN_CITY, Address::MAX_CITY);
-      create_random_string(district->d_state, Address::STATE, Address::STATE);
-      create_random_string(district->d_zip, Address::ZIP);
+        district->city, Address::MIN_CITY, Address::MAX_CITY);
+      create_random_string(district->state, Address::STATE, Address::STATE);
+      create_random_string(district->zip, Address::ZIP);
     }
 
     void generate_customer(
@@ -198,66 +198,66 @@ namespace tpcc
       bool bad_credit,
       Customer* customer)
     {
-      customer->c_id = id;
-      customer->c_d_id = d_id;
-      customer->c_w_id = w_id;
-      customer->c_credit_lim = Customer::INITIAL_CREDIT_LIM;
-      customer->c_discount = random_float(Customer::MIN_DISCOUNT, Customer::MAX_DISCOUNT);
-      customer->c_balance = Customer::INITIAL_BALANCE;
-      customer->c_ytd_payment = Customer::INITIAL_YTD_PAYMENT;
-      customer->c_payment_cnt = Customer::INITIAL_PAYMENT_CNT;
-      customer->c_delivery_cnt = Customer::INITIAL_DELIVERY_CNT;
+      customer->id = id;
+      customer->d_id = d_id;
+      customer->w_id = w_id;
+      customer->credit_lim = Customer::INITIAL_CREDIT_LIM;
+      customer->discount = random_float(Customer::MIN_DISCOUNT, Customer::MAX_DISCOUNT);
+      customer->balance = Customer::INITIAL_BALANCE;
+      customer->ytd_payment = Customer::INITIAL_YTD_PAYMENT;
+      customer->payment_cnt = Customer::INITIAL_PAYMENT_CNT;
+      customer->delivery_cnt = Customer::INITIAL_DELIVERY_CNT;
       create_random_string(
-        customer->c_first, Customer::MIN_FIRST, Customer::MAX_FIRST);
-      std::copy_n("OE", 3, customer->c_middle.begin());
+        customer->first, Customer::MIN_FIRST, Customer::MAX_FIRST);
+      std::copy_n("OE", 3, customer->middle.begin());
 
       if (id <= 1000)
       {
-        make_last_name(id - 1, customer->c_last.data());
+        make_last_name(id - 1, customer->last.data());
       }
       else
       {
-        make_last_name(random_int(0, 1000), customer->c_last.data());
+        make_last_name(random_int(0, 1000), customer->last.data());
       }
 
       create_random_string(
-        customer->c_street_1, Address::MIN_STREET, Address::MAX_STREET);
+        customer->street_1, Address::MIN_STREET, Address::MAX_STREET);
       create_random_string(
-        customer->c_street_2, Address::MIN_STREET, Address::MAX_STREET);
-      create_random_string(customer->c_city, Address::MIN_CITY, Address::MAX_CITY);
-      create_random_string(customer->c_state, Address::STATE, Address::STATE);
-      create_random_string(customer->c_zip, Address::ZIP);
-      create_random_int(customer->c_phone, Customer::PHONE);
-      customer->c_since = tx_time;
+        customer->street_2, Address::MIN_STREET, Address::MAX_STREET);
+      create_random_string(customer->city, Address::MIN_CITY, Address::MAX_CITY);
+      create_random_string(customer->state, Address::STATE, Address::STATE);
+      create_random_string(customer->zip, Address::ZIP);
+      create_random_int(customer->phone, Customer::PHONE);
+      customer->since = tx_time;
       if (bad_credit)
       {
         std::copy_n(
           Customer::BAD_CREDIT,
           sizeof(Customer::BAD_CREDIT),
-          customer->c_credit.begin());
+          customer->credit.begin());
       }
       else
       {
         std::copy_n(
           Customer::GOOD_CREDIT,
           sizeof(Customer::GOOD_CREDIT),
-          customer->c_credit.begin());
+          customer->credit.begin());
       }
       create_random_string(
-        customer->c_data, Customer::MIN_DATA, Customer::MAX_DATA);
+        customer->data, Customer::MIN_DATA, Customer::MAX_DATA);
     }
 
     void generate_history(
       int32_t c_id, int32_t d_id, int32_t w_id, History* history)
     {
-      history->h_c_id = c_id;
-      history->h_c_d_id = d_id;
-      history->h_d_id = d_id;
-      history->h_c_w_id = w_id;
-      history->h_w_id = w_id;
-      history->h_amount = History::INITIAL_AMOUNT;
-      history->h_date = tx_time;
-      create_random_string(history->h_data, History::MIN_DATA, History::MAX_DATA);
+      history->c_id = c_id;
+      history->c_d_id = d_id;
+      history->d_id = d_id;
+      history->c_w_id = w_id;
+      history->w_id = w_id;
+      history->amount = History::INITIAL_AMOUNT;
+      history->date = tx_time;
+      create_random_string(history->data, History::MIN_DATA, History::MAX_DATA);
     }
 
     std::vector<int> make_permutation(int lower, int upper)
@@ -290,22 +290,22 @@ namespace tpcc
       bool new_order,
       Order* order)
     {
-      order->o_id = id;
-      order->o_c_id = c_id;
-      order->o_d_id = d_id;
-      order->o_w_id = w_id;
+      order->id = id;
+      order->c_id = c_id;
+      order->d_id = d_id;
+      order->w_id = w_id;
       if (!new_order)
       {
-        order->o_carrier_id =
+        order->carrier_id =
           random_int(Order::MIN_CARRIER_ID, Order::MAX_CARRIER_ID);
       }
       else
       {
-        order->o_carrier_id = Order::NULL_CARRIER_ID;
+        order->carrier_id = Order::NULL_CARRIER_ID;
       }
-      order->o_ol_cnt = random_int(Order::MIN_OL_CNT, Order::MAX_OL_CNT);
-      order->o_all_local = Order::INITIAL_ALL_LOCAL;
-      order->o_entry_d = tx_time;
+      order->ol_cnt = random_int(Order::MIN_OL_CNT, Order::MAX_OL_CNT);
+      order->all_local = Order::INITIAL_ALL_LOCAL;
+      order->entry_d = tx_time;
     }
 
     void generate_order_line(
@@ -316,29 +316,29 @@ namespace tpcc
       bool new_order,
       OrderLine* orderline)
     {
-      orderline->ol_o_id = o_id;
-      orderline->ol_d_id = d_id;
-      orderline->ol_w_id = w_id;
-      orderline->ol_number = number;
-      orderline->ol_i_id =
+      orderline->o_id = o_id;
+      orderline->d_id = d_id;
+      orderline->w_id = w_id;
+      orderline->number = number;
+      orderline->i_id =
         random_int(OrderLine::MIN_I_ID, OrderLine::MAX_I_ID);
-      orderline->ol_supply_w_id = w_id;
-      orderline->ol_quantity = OrderLine::INITIAL_QUANTITY;
+      orderline->supply_w_id = w_id;
+      orderline->quantity = OrderLine::INITIAL_QUANTITY;
       if (!new_order)
       {
-        orderline->ol_amount = 0.00;
-        orderline->ol_delivery_d = tx_time;
+        orderline->amount = 0.00;
+        orderline->delivery_d = tx_time;
       }
       else
       {
-        orderline->ol_amount =
+        orderline->amount =
           random_float( OrderLine::MIN_AMOUNT, OrderLine::MAX_AMOUNT);
-        orderline->ol_delivery_d[0] = '\0';
+        orderline->delivery_d[0] = '\0';
       }
       create_random_string(
-        orderline->ol_dist_info,
-        sizeof(orderline->ol_dist_info) - 1,
-        sizeof(orderline->ol_dist_info) - 1);
+        orderline->dist_info,
+        sizeof(orderline->dist_info) - 1,
+        sizeof(orderline->dist_info) - 1);
     }
 
     void make_warehouse_without_stock(int32_t w_id)
@@ -416,7 +416,7 @@ namespace tpcc
           order->put(o.get_key(), o);
 
           // Generate each OrderLine for the order
-          for (int32_t ol_number = 1; ol_number <= o.o_ol_cnt; ++ol_number)
+          for (int32_t ol_number = 1; ol_number <= o.ol_cnt; ++ol_number)
           {
             OrderLine line;
             generate_order_line(ol_number, o_id, d_id, w_id, new_order, &line);
@@ -442,9 +442,9 @@ namespace tpcc
               }
 
               NewOrder no;
-              no.no_w_id = w_id;
-              no.no_d_id = d_id;
-              no.no_o_id = o_id;
+              no.w_id = w_id;
+              no.d_id = d_id;
+              no.o_id = o_id;
 
               auto new_orders = args.tx.rw(it->second);
               new_orders->put(no.get_key(), no);
@@ -457,15 +457,15 @@ namespace tpcc
     void generate_item(int32_t id, bool original)
     {
       Item item;
-      item.i_id = id;
-      item.i_im_id = random_int(Item::MIN_IM, Item::MAX_IM);
-      item.i_price = random_float(Item::MIN_PRICE, Item::MAX_PRICE);
-      create_random_string(item.i_name, Item::MIN_NAME, Item::MAX_NAME);
-      create_random_string(item.i_data, Item::MIN_DATA, Item::MAX_DATA);
+      item.id = id;
+      item.im_id = random_int(Item::MIN_IM, Item::MAX_IM);
+      item.price = random_float(Item::MIN_PRICE, Item::MAX_PRICE);
+      create_random_string(item.name, Item::MIN_NAME, Item::MAX_NAME);
+      create_random_string(item.data, Item::MIN_DATA, Item::MAX_DATA);
 
       if (original)
       {
-        set_original(item.i_data);
+        set_original(item.data);
       }
       auto items_table = args.tx.rw(tpcc::TpccTables::items);
       items_table->put(item.get_key(), item);

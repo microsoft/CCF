@@ -2,6 +2,7 @@
 
 #include "tpcc_common.h"
 #include "tpcc_tables.h"
+#include "tpcc_output.h"
 
 #include <cinttypes>
 #include <string.h>
@@ -94,8 +95,8 @@ namespace tpcc
     void insert_order(Order& o)
     {
       TpccTables::DistributeKey table_key;
-      table_key.v.w_id = o.o_w_id;
-      table_key.v.d_id = o.o_d_id;
+      table_key.v.w_id = o.w_id;
+      table_key.v.d_id = o.d_id;
       auto it = tpcc::TpccTables::orders.find(table_key.k);
       auto orders_table = args.tx.rw(it->second);
       orders_table->put(o.get_key(), o);
@@ -104,9 +105,9 @@ namespace tpcc
     void insert_new_order(int32_t w_id, int32_t d_id, int32_t o_id)
     {
       NewOrder no;
-      no.no_w_id = w_id;
-      no.no_d_id = d_id;
-      no.no_o_id = o_id;
+      no.w_id = w_id;
+      no.d_id = d_id;
+      no.o_id = o_id;
 
       TpccTables::DistributeKey table_key;
       table_key.v.w_id = w_id;
@@ -144,7 +145,7 @@ namespace tpcc
       auto it = tpcc::TpccTables::customers.find(table_key.k);
       auto customers_table = args.tx.ro(it->second);
       customers_table->foreach([&](const Customer::Key&, const Customer& c) {
-        if (strcmp(c.c_last.data(), c_last) == 0)
+        if (strcmp(c.last.data(), c_last) == 0)
         {
           customer_ret = c;
           return false;
@@ -177,7 +178,7 @@ namespace tpcc
 
       auto orders_table = args.tx.ro(it->second);
       orders_table->foreach([&](const Order::Key&, const Order& o) {
-        if (o.o_c_id == c_id)
+        if (o.c_id == c_id)
         {
           order = o;
           return false;
@@ -190,33 +191,33 @@ namespace tpcc
 
     void internal_order_status(Customer& customer, OrderStatusOutput* output)
     {
-      output->c_id = customer.c_id;
+      output->c_id = customer.id;
       // retrieve from customer: balance, first, middle, last
-      output->c_balance = customer.c_balance;
-      output->c_first = customer.c_first;
-      output->c_middle = customer.c_middle;
-      output->c_last = customer.c_last;
+      output->c_balance = customer.balance;
+      output->c_first = customer.first;
+      output->c_middle = customer.middle;
+      output->c_last = customer.last;
 
       // Find the row in the order table with largest o_id
       Order order = find_last_order_by_customer(
-        customer.c_w_id, customer.c_d_id, customer.c_id);
-      output->o_id = order.o_id;
-      output->o_carrier_id = order.o_carrier_id;
-      output->o_entry_d = order.o_entry_d;
+        customer.w_id, customer.d_id, customer.id);
+      output->o_id = order.id;
+      output->o_carrier_id = order.carrier_id;
+      output->o_entry_d = order.entry_d;
 
-      output->lines.resize(order.o_ol_cnt);
-      for (int32_t line_number = 1; line_number <= order.o_ol_cnt;
+      output->lines.resize(order.ol_cnt);
+      for (int32_t line_number = 1; line_number <= order.ol_cnt;
            ++line_number)
       {
         OrderLine line =
           find_order_line(
-            customer.c_w_id, customer.c_d_id, order.o_id, line_number)
+            customer.w_id, customer.d_id, order.id, line_number)
             .value();
-        output->lines[line_number - 1].ol_i_id = line.ol_i_id;
-        output->lines[line_number - 1].ol_supply_w_id = line.ol_supply_w_id;
-        output->lines[line_number - 1].ol_quantity = line.ol_quantity;
-        output->lines[line_number - 1].ol_amount = line.ol_amount;
-        output->lines[line_number - 1].ol_delivery_d = line.ol_delivery_d;
+        output->lines[line_number - 1].i_id = line.i_id;
+        output->lines[line_number - 1].supply_w_id = line.supply_w_id;
+        output->lines[line_number - 1].quantity = line.quantity;
+        output->lines[line_number - 1].amount = line.amount;
+        output->lines[line_number - 1].delivery_d = line.delivery_d;
       }
     }
 
@@ -272,7 +273,7 @@ namespace tpcc
         int32_t o_id;
         new_orders_table->foreach([&](const NewOrder::Key& k, const NewOrder& no) {
           new_order_key = k;
-          o_id = no.no_o_id;
+          o_id = no.o_id;
           new_order_exists = true;
           return false;
         });
@@ -288,20 +289,20 @@ namespace tpcc
         orders->push_back(order);
 
         Order o = find_order(warehouse_id, d_id, o_id);
-        o.o_carrier_id = carrier_id;
+        o.carrier_id = carrier_id;
 
         float total = 0;
-        for (int32_t i = 1; i <= o.o_ol_cnt; ++i)
+        for (int32_t i = 1; i <= o.ol_cnt; ++i)
         {
           std::optional<OrderLine> line =
             find_order_line(warehouse_id, d_id, o_id, i);
-          line->ol_delivery_d = now;
-          total += line->ol_amount;
+          line->delivery_d = now;
+          total += line->amount;
         }
 
-        Customer c = find_customer(warehouse_id, d_id, o.o_c_id);
-        c.c_balance += total;
-        c.c_delivery_cnt += 1;
+        Customer c = find_customer(warehouse_id, d_id, o.c_id);
+        c.balance += total;
+        c.delivery_cnt += 1;
       }
     }
 
@@ -316,36 +317,36 @@ namespace tpcc
       PaymentOutput* output)
     {
       Warehouse w = find_warehouse(warehouse_id);
-      w.w_ytd += h_amount;
-      output->w_street_1 = w.w_street_1;
-      output->w_street_2 = w.w_street_2;
-      output->w_city = w.w_city;
-      output->w_state = w.w_state;
-      output->w_zip = w.w_zip;
+      w.ytd += h_amount;
+      output->w_street_1 = w.street_1;
+      output->w_street_2 = w.street_2;
+      output->w_city = w.city;
+      output->w_state = w.state;
+      output->w_zip = w.zip;
 
       District d = find_district(warehouse_id, district_id);
-      d.d_ytd += h_amount;
+      d.ytd += h_amount;
 
-      output->d_street_1 = d.d_street_1;
-      output->d_street_2 = d.d_street_2;
-      output->d_city = d.d_city;
-      output->d_state = d.d_state;
-      output->d_zip = d.d_zip;
+      output->d_street_1 = d.street_1;
+      output->d_street_2 = d.street_2;
+      output->d_city = d.city;
+      output->d_state = d.state;
+      output->d_zip = d.zip;
 
       // Insert the line into the history table
       History h;
-      h.h_w_id = warehouse_id;
-      h.h_d_id = district_id;
-      h.h_c_w_id = c_warehouse_id;
-      h.h_c_d_id = c_district_id;
-      h.h_c_id = customer_id;
-      h.h_amount = h_amount;
-      h.h_date = now;
-      std::copy_n(h.h_data.data(), w.w_name.size(), w.w_name.data());
-      strcat(h.h_data.data(), "    ");
+      h.w_id = warehouse_id;
+      h.d_id = district_id;
+      h.c_w_id = c_warehouse_id;
+      h.c_d_id = c_district_id;
+      h.c_id = customer_id;
+      h.amount = h_amount;
+      h.date = now;
+      std::copy_n(h.data.data(), w.name.size(), w.name.data());
+      strcat(h.data.data(), "    ");
 
       History::Key history_key = {
-        h.h_c_id, h.h_c_d_id, h.h_c_w_id, h.h_d_id, h.h_w_id};
+        h.c_id, h.c_d_id, h.c_w_id, h.d_id, h.w_id};
       auto history_table = args.tx.rw(tpcc::TpccTables::histories);
       history_table->put(history_key, h);
     }
@@ -357,10 +358,10 @@ namespace tpcc
       float h_amount,
       PaymentOutput* output)
     {
-      c.c_balance -= h_amount;
-      c.c_ytd_payment += h_amount;
-      c.c_payment_cnt += 1;
-      if (strcmp(c.c_credit.data(), Customer::BAD_CREDIT) == 0)
+      c.balance -= h_amount;
+      c.ytd_payment += h_amount;
+      c.payment_cnt += 1;
+      if (strcmp(c.credit.data(), Customer::BAD_CREDIT) == 0)
       {
         // Bad credit: insert history into c_data
         static const int HISTORY_SIZE = Customer::MAX_DATA + 1;
@@ -369,39 +370,39 @@ namespace tpcc
           history.data(),
           HISTORY_SIZE,
           "(%d, %d, %d, %d, %d, %.2f)\n",
-          c.c_id,
-          c.c_d_id,
-          c.c_w_id,
+          c.id,
+          c.d_id,
+          c.w_id,
           district_id,
           warehouse_id,
           h_amount);
 
         // Perform the insert with a move and copy
-        int current_keep = static_cast<int>(strlen(c.c_data.data()));
+        int current_keep = static_cast<int>(strlen(c.data.data()));
         if (current_keep + characters > Customer::MAX_DATA)
         {
           current_keep = Customer::MAX_DATA - characters;
         }
-        memmove(c.c_data.data() + characters, c.c_data.data(), current_keep);
-        memcpy(c.c_data.data(), history.data(), characters);
-        c.c_data[characters + current_keep] = '\0';
+        memmove(c.data.data() + characters, c.data.data(), current_keep);
+        memcpy(c.data.data(), history.data(), characters);
+        c.data[characters + current_keep] = '\0';
       }
 
-      output->c_credit_lim = c.c_credit_lim;
-      output->c_discount = c.c_discount;
-      output->c_balance = c.c_balance;
-      output->c_first = c.c_first;
-      output->c_middle = c.c_middle;
-      output->c_last = c.c_last;
-      output->c_street_1 = c.c_street_1;
-      output->c_street_2 = c.c_street_2;
-      output->c_city = c.c_city;
-      output->c_state = c.c_state;
-      output->c_zip = c.c_zip;
-      output->c_phone = c.c_phone;
-      output->c_since = c.c_since;
-      output->c_credit = c.c_credit;
-      output->c_data = c.c_data;
+      output->c_credit_lim = c.credit_lim;
+      output->c_discount = c.discount;
+      output->c_balance = c.balance;
+      output->c_first = c.first;
+      output->c_middle = c.middle;
+      output->c_last = c.last;
+      output->c_street_1 = c.street_1;
+      output->c_street_2 = c.street_2;
+      output->c_city = c.city;
+      output->c_state = c.state;
+      output->c_zip = c.zip;
+      output->c_phone = c.phone;
+      output->c_since = c.since;
+      output->c_credit = c.credit;
+      output->c_data = c.data;
     }
 
     void payment(
@@ -447,7 +448,7 @@ namespace tpcc
         district_id,
         c_warehouse_id,
         c_district_id,
-        customer.c_id,
+        customer.id,
         h_amount,
         now,
         output);
@@ -498,21 +499,21 @@ namespace tpcc
 
         // update stock
         Stock stock = find_stock(items[i].ol_supply_w_id, items[i].i_id);
-        if (stock.s_quantity >= items[i].ol_quantity + 10)
+        if (stock.quantity >= items[i].ol_quantity + 10)
         {
-          stock.s_quantity -= items[i].ol_quantity;
+          stock.quantity -= items[i].ol_quantity;
         }
         else
         {
-          stock.s_quantity = stock.s_quantity - items[i].ol_quantity + 91;
+          stock.quantity = stock.quantity - items[i].ol_quantity + 91;
         }
-        (*out_quantities)[i] = stock.s_quantity;
-        stock.s_ytd += items[i].ol_quantity;
-        stock.s_order_cnt += 1;
+        (*out_quantities)[i] = stock.quantity;
+        stock.ytd += items[i].ol_quantity;
+        stock.order_cnt += 1;
 
         if (items[i].ol_supply_w_id != home_warehouse)
         {
-          stock.s_remote_cnt += 1;
+          stock.remote_cnt += 1;
         }
       }
 
@@ -589,13 +590,13 @@ namespace tpcc
       // 2.4.3.4. requires that we display c_last, c_credit, and o_id for rolled
       // back transactions: read those values first
       District d = find_district(warehouse_id, district_id);
-      output->d_tax = d.d_tax;
-      output->o_id = d.d_next_o_id;
+      output->d_tax = d.tax;
+      output->o_id = d.next_o_id;
 
       Customer c = find_customer(warehouse_id, district_id, customer_id);
-      output->c_last = c.c_last;
-      output->c_credit = c.c_credit;
-      output->c_discount = c.c_discount;
+      output->c_last = c.last;
+      output->c_credit = c.credit;
+      output->c_discount = c.discount;
 
       // CHEAT: Validate all items to see if we will need to abort
       std::vector<std::optional<Item>> item_tuples(items.size());
@@ -617,48 +618,48 @@ namespace tpcc
       }
 
       output->status[0] = '\0';
-      d.d_next_o_id += 1;
+      d.next_o_id += 1;
 
       Warehouse w = find_warehouse(warehouse_id);
-      output->w_tax = w.w_tax;
+      output->w_tax = w.tax;
 
       Order order;
-      order.o_w_id = warehouse_id;
-      order.o_d_id = district_id;
-      order.o_id = output->o_id;
-      order.o_c_id = customer_id;
-      order.o_carrier_id = Order::NULL_CARRIER_ID;
-      order.o_ol_cnt = static_cast<int32_t>(items.size());
-      order.o_all_local = all_local ? 1 : 0;
-      order.o_entry_d =  now;
+      order.w_id = warehouse_id;
+      order.d_id = district_id;
+      order.id = output->o_id;
+      order.c_id = customer_id;
+      order.carrier_id = Order::NULL_CARRIER_ID;
+      order.ol_cnt = static_cast<int32_t>(items.size());
+      order.all_local = all_local ? 1 : 0;
+      order.entry_d =  now;
       insert_order(order);
       insert_new_order(warehouse_id, district_id, output->o_id);
 
       OrderLine line;
-      line.ol_o_id = output->o_id;
-      line.ol_d_id = district_id;
-      line.ol_w_id = warehouse_id;
-      memset(line.ol_delivery_d.data(), 0, DATETIME_SIZE + 1);
+      line.o_id = output->o_id;
+      line.d_id = district_id;
+      line.w_id = warehouse_id;
+      memset(line.delivery_d.data(), 0, DATETIME_SIZE + 1);
 
       output->items.resize(items.size());
       output->total = 0;
       for (uint32_t i = 0; i < items.size(); ++i)
       {
-        line.ol_number = i + 1;
-        line.ol_i_id = items[i].i_id;
-        line.ol_supply_w_id = items[i].ol_supply_w_id;
-        line.ol_quantity = items[i].ol_quantity;
+        line.number = i + 1;
+        line.i_id = items[i].i_id;
+        line.supply_w_id = items[i].ol_supply_w_id;
+        line.quantity = items[i].ol_quantity;
 
         Stock stock = find_stock(items[i].ol_supply_w_id, items[i].i_id);
         memcpy(
-          line.ol_dist_info.data(),
-          stock.s_dist[district_id].data(),
-          sizeof(line.ol_dist_info));
+          line.dist_info.data(),
+          stock.dist[district_id].data(),
+          sizeof(line.dist_info));
 
-        bool stock_is_original = (strstr(stock.s_data.data(), "ORIGINAL") != NULL);
+        bool stock_is_original = (strstr(stock.data.data(), "ORIGINAL") != NULL);
         if (
           stock_is_original &&
-          strstr(item_tuples[i]->i_data.data(), "ORIGINAL") != NULL)
+          strstr(item_tuples[i]->data.data(), "ORIGINAL") != NULL)
         {
           output->items[i].brand_generic = NewOrderOutput::ItemInfo::BRAND;
         }
@@ -667,11 +668,11 @@ namespace tpcc
           output->items[i].brand_generic = NewOrderOutput::ItemInfo::GENERIC;
         }
 
-        output->items[i].i_name = item_tuples[i]->i_name;
-        output->items[i].i_price = item_tuples[i]->i_price;
+        output->items[i].i_name = item_tuples[i]->name;
+        output->items[i].i_price = item_tuples[i]->price;
         output->items[i].ol_amount =
-          static_cast<float>(items[i].ol_quantity) * item_tuples[i]->i_price;
-        line.ol_amount = output->items[i].ol_amount;
+          static_cast<float>(items[i].ol_quantity) * item_tuples[i]->price;
+        line.amount = output->items[i].ol_amount;
         output->total += output->items[i].ol_amount;
         insert_order_line(line);
       }
@@ -710,7 +711,7 @@ namespace tpcc
       /* EXEC SQL SELECT d_next_o_id INTO :o_id FROM district
           WHERE d_w_id=:w_id AND d_id=:d_id; */
       District d = find_district(warehouse_id, district_id);
-      int32_t o_id = d.d_next_o_id;
+      int32_t o_id = d.next_o_id;
 
       /* EXEC SQL SELECT COUNT(DISTINCT (s_i_id)) INTO :stock_count FROM
          order_line, stock WHERE ol_w_id=:w_id AND ol_d_id=:d_id AND
@@ -736,10 +737,10 @@ namespace tpcc
           auto& line = line_ret.value();
 
           // Check if s_quantity < threshold
-          Stock stock = find_stock(warehouse_id, line.ol_i_id);
-          if (stock.s_quantity < threshold)
+          Stock stock = find_stock(warehouse_id, line.i_id);
+          if (stock.quantity < threshold)
           {
-            s_i_ids.push_back(line.ol_i_id);
+            s_i_ids.push_back(line.i_id);
           }
         }
       }
