@@ -26,8 +26,7 @@ namespace tpcc
       DbCreation db;
       db.new_orders_per_district =
         serialized::read<decltype(new_orders_per_district)>(data, size);
-      db.seed =
-        serialized::read<decltype(seed)>(data, size);
+      db.seed = serialized::read<decltype(seed)>(data, size);
       return db;
     }
   };
@@ -41,7 +40,8 @@ namespace tpcc
 
     std::vector<uint8_t> serialize() const
     {
-      auto size = sizeof(seed) + sizeof(warehouse_id) + sizeof(district_id) + sizeof(threshold);
+      auto size = sizeof(seed) + sizeof(warehouse_id) + sizeof(district_id) +
+        sizeof(threshold);
       std::vector<uint8_t> v(size);
       auto data = v.data();
       serialized::write(data, size, seed);

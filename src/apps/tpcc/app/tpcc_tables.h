@@ -99,7 +99,7 @@ namespace tpcc
   {
     static constexpr float MIN_TAX = 0;
     static constexpr float MAX_TAX = 0.2000f;
-    static constexpr float INITIAL_YTD = 30000.00; // different from Warehouse
+    static constexpr float INITIAL_YTD = 30000.00;
     static const int INITIAL_NEXT_O_ID = 3001;
     static const int MIN_NAME = 6;
     static const int MAX_NAME = 10;

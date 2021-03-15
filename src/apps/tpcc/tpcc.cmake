@@ -24,8 +24,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/tpcc_client.py
       CLIENT_BIN ./tpcc_client
       CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --transactions ${TPCC_ITERATIONS}
-                      --max-writes-ahead 250
+      ADDITIONAL_ARGS --transactions ${TPCC_ITERATIONS} --max-writes-ahead 250
     )
   endforeach()
 endif()

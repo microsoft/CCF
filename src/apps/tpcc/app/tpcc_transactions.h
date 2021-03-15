@@ -139,7 +139,6 @@ namespace tpcc
     Customer find_customer_by_name(
       int32_t w_id, int32_t d_id, const char* c_last)
     {
-      // select (w_id, d_id, *, c_last) order by c_first
       Customer customer_ret;
       TpccTables::DistributeKey table_key;
       table_key.v.w_id = w_id;

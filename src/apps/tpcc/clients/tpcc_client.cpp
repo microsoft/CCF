@@ -6,20 +6,16 @@
 using namespace std;
 using namespace nlohmann;
 
-struct SmallBankClientOptions : public client::PerfOptions
+struct TpccClientOptions : public client::PerfOptions
 {
-  size_t warehouses = 10;
-
-  SmallBankClientOptions(CLI::App& app, const std::string& default_pid_file) :
+  TpccClientOptions(CLI::App& app, const std::string& default_pid_file) :
     client::PerfOptions("Tpcc_ClientCpp", default_pid_file, app)
-  {
-    app.add_option("--warehouses", warehouses)->capture_default_str();
-  }
+  {}
 };
 
-using Base = client::PerfBase<SmallBankClientOptions>;
+using Base = client::PerfBase<TpccClientOptions>;
 
-class SmallBankClient : public Base
+class TpccClient : public Base
 {
 private:
   enum class TransactionTypes : uint8_t
@@ -123,17 +119,17 @@ private:
 
   void pre_creation_hook() override
   {
-    LOG_DEBUG_FMT("Creating {} warehouses", options.warehouses);
+    // empty
   }
 
   void post_creation_hook() override
   {
-    LOG_TRACE_FMT("Initial accounts:");
+    // empty
   }
 
   void post_timing_body_hook() override
   {
-    LOG_TRACE_FMT("Final accounts:");
+    // empty
   }
 
   void verify_params(const nlohmann::json& expected) override
@@ -152,16 +148,16 @@ private:
   }
 
 public:
-  SmallBankClient(const SmallBankClientOptions& o) : Base(o) {}
+  TpccClient(const TpccClientOptions& o) : Base(o) {}
 };
 
 int main(int argc, char** argv)
 {
-  CLI::App cli_app{"Small Bank Client"};
-  SmallBankClientOptions options(cli_app, argv[0]);
+  CLI::App cli_app{"Tpcc Client"};
+  TpccClientOptions options(cli_app, argv[0]);
   CLI11_PARSE(cli_app, argc, argv);
 
-  SmallBankClient client(options);
+  TpccClient client(options);
   client.run();
 
   return 0;

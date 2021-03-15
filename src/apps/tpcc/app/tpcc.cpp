@@ -53,67 +53,67 @@ namespace ccfapp
       UserEndpointRegistry::init_handlers();
 
       auto create = [this](auto& args) {
-        LOG_INFO_FMT("Creating tpcc database");
+        LOG_DEBUG_FMT("Creating tpcc database");
         const auto& body = args.rpc_ctx->get_request_body();
         auto db = tpcc::DbCreation::deserialize(body.data(), body.size());
         tpcc::SetupDb setup_db(args, db.new_orders_per_district, db.seed);
         setup_db.run();
-        LOG_INFO_FMT("Creating tpcc database - end");
+        LOG_DEBUG_FMT("Creating tpcc database - end");
 
         set_no_content_status(args);
       };
 
       auto do_stock_level = [this](auto& args) {
-        LOG_INFO_FMT("stock level");
+        LOG_DEBUG_FMT("stock level");
         const auto& body = args.rpc_ctx->get_request_body();
         auto info = tpcc::StockLevel::deserialize(body.data(), body.size());
         tpcc::TpccTransactions tx(args, info.seed);
         tx.stock_level(info.warehouse_id, info.district_id, info.threshold);
-        LOG_INFO_FMT("stock level - end");
+        LOG_DEBUG_FMT("stock level - end");
 
         set_no_content_status(args);
       };
 
       auto do_order_status = [this](auto& args) {
-        LOG_INFO_FMT("order status");
+        LOG_DEBUG_FMT("order status");
         const auto& body = args.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
         tpcc::TpccTransactions tx(args, info.seed);
         tx.order_status();
-        LOG_INFO_FMT("order status - end");
+        LOG_DEBUG_FMT("order status - end");
 
         set_no_content_status(args);
       };
 
       auto do_delivery = [this](auto& args) {
-        LOG_INFO_FMT("delivery");
+        LOG_DEBUG_FMT("delivery");
         const auto& body = args.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
         tpcc::TpccTransactions tx(args, info.seed);
         tx.delivery();
-        LOG_INFO_FMT("delivery - end");
+        LOG_DEBUG_FMT("delivery - end");
 
         set_no_content_status(args);
       };
 
       auto do_payment = [this](auto& args) {
-        LOG_INFO_FMT("payment");
+        LOG_DEBUG_FMT("payment");
         const auto& body = args.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
         tpcc::TpccTransactions tx(args, info.seed);
         tx.payment();
-        LOG_INFO_FMT("payment - end");
+        LOG_DEBUG_FMT("payment - end");
 
         set_no_content_status(args);
       };
 
       auto do_new_order = [this](auto& args) {
-        LOG_INFO_FMT("new order");
+        LOG_DEBUG_FMT("new order");
         const auto& body = args.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
         tpcc::TpccTransactions tx(args, info.seed);
         tx.new_order();
-        LOG_INFO_FMT("new order - end");
+        LOG_DEBUG_FMT("new order - end");
 
         set_no_content_status(args);
       };

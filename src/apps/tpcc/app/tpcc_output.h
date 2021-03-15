@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <stdint.h>
+#include "tpcc_tables.h"
+
 #include <cstring>
+#include <stdint.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include "tpcc_tables.h"
 
 namespace tpcc
 {
@@ -105,8 +105,7 @@ namespace tpcc
       float i_price;
       float ol_amount;
       char brand_generic;
-      std::array<char,Item::MAX_NAME + 1> i_name;
-
+      std::array<char, Item::MAX_NAME + 1> i_name;
     };
 
     std::vector<ItemInfo> items;
@@ -115,6 +114,6 @@ namespace tpcc
 
     static const int MAX_STATUS = 25;
     static const char INVALID_ITEM_STATUS[];
-    std::array<char,MAX_STATUS + 1> status;
+    std::array<char, MAX_STATUS + 1> status;
   };
 }
