@@ -29,6 +29,16 @@ export function get_private(request) {
   return get_record(ccf.kv["records"], id);
 }
 
+export function get_historical(request) {
+  return get_private(request);
+}
+
+export function get_historical_with_receipt(request) {
+  const result = get_private(request);
+  result.body.receipt = ccf.historicalState.receipt;
+  return result;
+}
+
 export function get_public(request) {
   const id = get_id_from_request_query(request);
   return get_record(ccf.kv["public:records"], id);

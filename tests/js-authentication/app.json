@@ -7,7 +7,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {}
       }
     },
@@ -25,7 +25,7 @@
           "jwt",
           "no_auth"
         ],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {}
       }
     }
