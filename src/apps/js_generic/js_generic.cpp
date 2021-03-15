@@ -22,12 +22,6 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using KVMap = kv::untyped::Map;
-
-  JSClassID kv_class_id;
-  JSClassID kv_map_handle_class_id;
-  JSClassID body_class_id;
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
@@ -316,323 +310,6 @@ namespace ccfapp
     return obj;
   }
 
-  // KV
-
-  static JSValue js_kv_map_has(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    size_t key_size;
-    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-
-    if (!key)
-      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
-
-    auto has = handle->has({key, key + key_size});
-
-    return JS_NewBool(ctx, has);
-  }
-
-  static JSValue js_kv_map_get(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    size_t key_size;
-    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-
-    if (!key)
-      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
-
-    auto val = handle->get({key, key + key_size});
-
-    if (!val.has_value())
-      return JS_UNDEFINED;
-
-    JSValue buf =
-      JS_NewArrayBufferCopy(ctx, val.value().data(), val.value().size());
-
-    if (JS_IsException(buf))
-      js::js_dump_error(ctx);
-
-    return buf;
-  }
-
-  static JSValue js_kv_map_delete(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    size_t key_size;
-    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-
-    if (!key)
-      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
-
-    auto val = handle->remove({key, key + key_size});
-
-    return JS_NewBool(ctx, val);
-  }
-
-  static JSValue js_kv_map_delete_read_only(
-    JSContext* ctx, JSValueConst, int, JSValueConst*)
-  {
-    return JS_ThrowTypeError(ctx, "Cannot call delete on read-only map");
-  }
-
-  static JSValue js_kv_map_set(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-
-    if (argc != 2)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 2", argc);
-
-    size_t key_size;
-    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-
-    size_t val_size;
-    uint8_t* val = JS_GetArrayBuffer(ctx, &val_size, argv[1]);
-
-    if (!key || !val)
-      return JS_ThrowTypeError(ctx, "Arguments must be ArrayBuffers");
-
-    handle->put({key, key + key_size}, {val, val + val_size});
-
-    return JS_DupValue(ctx, this_val);
-  }
-
-  static JSValue js_kv_map_set_read_only(
-    JSContext* ctx, JSValueConst, int, JSValueConst*)
-  {
-    return JS_ThrowTypeError(ctx, "Cannot call set on read-only map");
-  }
-
-  static JSValue js_kv_map_foreach(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    JSValue func = argv[0];
-
-    if (!JS_IsFunction(ctx, func))
-      return JS_ThrowTypeError(ctx, "Argument must be a function");
-
-    bool failed = false;
-    handle->foreach(
-      [ctx, this_val, func, &failed](const auto& k, const auto& v) {
-        JSValue args[3];
-
-        // JS forEach expects (v, k, map) rather than (k, v)
-        args[0] = JS_NewArrayBufferCopy(ctx, v.data(), v.size());
-        args[1] = JS_NewArrayBufferCopy(ctx, k.data(), k.size());
-        args[2] = JS_DupValue(ctx, this_val);
-
-        auto val = JS_Call(ctx, func, JS_UNDEFINED, 3, args);
-
-        JS_FreeValue(ctx, args[0]);
-        JS_FreeValue(ctx, args[1]);
-        JS_FreeValue(ctx, args[2]);
-
-        if (JS_IsException(val))
-        {
-          js::js_dump_error(ctx);
-          failed = true;
-          return false;
-        }
-
-        JS_FreeValue(ctx, val);
-
-        return true;
-      });
-
-    if (failed)
-    {
-      return JS_EXCEPTION;
-    }
-
-    return JS_UNDEFINED;
-  }
-
-  static int js_kv_lookup(
-    JSContext* ctx,
-    JSPropertyDescriptor* desc,
-    JSValueConst this_val,
-    JSAtom property)
-  {
-    const auto property_name = JS_AtomToCString(ctx, property);
-    LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
-
-    const auto [security_domain, access_category] =
-      kv::parse_map_name(property_name);
-
-    auto read_only = false;
-    switch (access_category)
-    {
-      case kv::AccessCategory::INTERNAL:
-      {
-        if (security_domain == kv::SecurityDomain::PUBLIC)
-        {
-          read_only = true;
-        }
-        else
-        {
-          throw std::runtime_error(fmt::format(
-            "JS application cannot access private internal CCF table '{}'",
-            property_name));
-        }
-        break;
-      }
-      case kv::AccessCategory::GOVERNANCE:
-      {
-        read_only = true;
-        break;
-      }
-      case kv::AccessCategory::APPLICATION:
-      {
-        break;
-      }
-      default:
-      {
-        throw std::logic_error(fmt::format(
-          "Unhandled AccessCategory for table '{}'", property_name));
-      }
-    }
-
-    auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, kv_class_id));
-    auto handle = tx_ptr->rw<KVMap>(property_name);
-
-    // This follows the interface of Map:
-    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
-    // Keys and values are ArrayBuffers. Keys are matched based on their
-    // contents.
-    auto view_val = JS_NewObjectClass(ctx, kv_map_handle_class_id);
-    JS_SetOpaque(view_val, handle);
-
-    JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "has",
-      JS_NewCFunction(ctx, ccfapp::js_kv_map_has, "has", 1));
-
-    JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "get",
-      JS_NewCFunction(ctx, ccfapp::js_kv_map_get, "get", 1));
-
-    auto setter = ccfapp::js_kv_map_set;
-    auto deleter = ccfapp::js_kv_map_delete;
-
-    if (read_only)
-    {
-      setter = ccfapp::js_kv_map_set_read_only;
-      deleter = ccfapp::js_kv_map_delete_read_only;
-    }
-
-    JS_SetPropertyStr(
-      ctx, view_val, "set", JS_NewCFunction(ctx, setter, "set", 2));
-    JS_SetPropertyStr(
-      ctx, view_val, "delete", JS_NewCFunction(ctx, deleter, "delete", 1));
-
-    JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "forEach",
-      JS_NewCFunction(ctx, ccfapp::js_kv_map_foreach, "forEach", 1));
-
-    desc->flags = 0;
-    desc->value = view_val;
-
-    return true;
-  }
-
-  // END KV
-
-  // Request
-
-  static JSValue js_body_text(
-    JSContext* ctx,
-    JSValueConst this_val,
-    int argc,
-    [[maybe_unused]] JSValueConst* argv)
-  {
-    if (argc != 0)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected none", argc);
-
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
-    auto body_ = JS_NewStringLen(ctx, (const char*)body->data(), body->size());
-    return body_;
-  }
-
-  static JSValue js_body_json(
-    JSContext* ctx,
-    JSValueConst this_val,
-    int argc,
-    [[maybe_unused]] JSValueConst* argv)
-  {
-    if (argc != 0)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected none", argc);
-
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
-    std::string body_str(body->begin(), body->end());
-    auto body_ = JS_ParseJSON(ctx, body_str.c_str(), body->size(), "<body>");
-    return body_;
-  }
-
-  static JSValue js_body_array_buffer(
-    JSContext* ctx,
-    JSValueConst this_val,
-    int argc,
-    [[maybe_unused]] JSValueConst* argv)
-  {
-    if (argc != 0)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected none", argc);
-
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
-    auto body_ = JS_NewArrayBufferCopy(ctx, body->data(), body->size());
-    return body_;
-  }
-
-  // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
-  // with a synchronous interface.
-  static const JSCFunctionListEntry js_body_proto_funcs[] = {
-    JS_CFUNC_DEF("text", 0, js_body_text),
-    JS_CFUNC_DEF("json", 0, js_body_json),
-    JS_CFUNC_DEF("arrayBuffer", 0, js_body_array_buffer),
-  };
-
-  // END request
-
   // Modules
 
   struct JSModuleLoaderArg
@@ -690,14 +367,6 @@ namespace ccfapp
   {
   private:
     NetworkTables& network;
-
-    JSClassDef kv_class_def = {};
-    JSClassExoticMethods kv_exotic_methods = {};
-
-    JSClassDef kv_map_handle_class_def = {};
-
-    JSClassDef body_class_def = {};
-
     metrics::Tracker metrics_tracker;
 
     static JSValue create_ccf_obj(EndpointContext& args, JSContext* ctx)
@@ -743,7 +412,7 @@ namespace ccfapp
         "wrapKey",
         JS_NewCFunction(ctx, ccfapp::js_wrap_key, "wrapKey", 3));
 
-      auto kv = JS_NewObjectClass(ctx, kv_class_id);
+      auto kv = JS_NewObjectClass(ctx, js::kv_class_id);
       JS_SetOpaque(kv, &args.tx);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
 
@@ -913,7 +582,7 @@ namespace ccfapp
       JS_SetPropertyStr(ctx, request, "params", params);
 
       const auto& request_body = args.rpc_ctx->get_request_body();
-      auto body_ = JS_NewObjectClass(ctx, body_class_id);
+      auto body_ = JS_NewObjectClass(ctx, js::body_class_id);
       JS_SetOpaque(body_, (void*)&request_body);
       JS_SetPropertyStr(ctx, request, "body", body_);
 
@@ -959,7 +628,7 @@ namespace ccfapp
 
       // Register class for KV
       {
-        auto ret = JS_NewClass(rt, kv_class_id, &kv_class_def);
+        auto ret = JS_NewClass(rt, js::kv_class_id, &js::kv_class_def);
         if (ret != 0)
         {
           throw std::logic_error(
@@ -969,8 +638,8 @@ namespace ccfapp
 
       // Register class for KV map views
       {
-        auto ret =
-          JS_NewClass(rt, kv_map_handle_class_id, &kv_map_handle_class_def);
+        auto ret = JS_NewClass(
+          rt, js::kv_map_handle_class_id, &js::kv_map_handle_class_def);
         if (ret != 0)
         {
           throw std::logic_error(
@@ -980,7 +649,7 @@ namespace ccfapp
 
       // Register class for request body
       {
-        auto ret = JS_NewClass(rt, body_class_id, &body_class_def);
+        auto ret = JS_NewClass(rt, js::body_class_id, &js::body_class_def);
         if (ret != 0)
         {
           throw std::logic_error(
@@ -990,13 +659,7 @@ namespace ccfapp
 
       js::Context ctx(rt);
 
-      // Set prototype for request body class
-      JSValue body_proto = JS_NewObject(ctx);
-      size_t func_count =
-        sizeof(js_body_proto_funcs) / sizeof(js_body_proto_funcs[0]);
-      JS_SetPropertyFunctionList(
-        ctx, body_proto, js_body_proto_funcs, func_count);
-      JS_SetClassProto(ctx, body_class_id, body_proto);
+      js::register_request_body_class(ctx);
 
       // Populate globalThis with console and ccf globals
       populate_global_obj(args, ctx);
@@ -1181,17 +844,7 @@ namespace ccfapp
       UserEndpointRegistry(context),
       network(network)
     {
-      JS_NewClassID(&kv_class_id);
-      kv_exotic_methods.get_own_property = js_kv_lookup;
-      kv_class_def.class_name = "KV Tables";
-      kv_class_def.exotic = &kv_exotic_methods;
-
-      JS_NewClassID(&kv_map_handle_class_id);
-      kv_map_handle_class_def.class_name = "KV Map Handle";
-
-      JS_NewClassID(&body_class_id);
-      body_class_def.class_name = "Body";
-
+      js::register_class_ids();
       metrics_tracker.install_endpoint(*this);
     }
 
