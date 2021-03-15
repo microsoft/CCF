@@ -279,7 +279,7 @@ namespace ccf
 
         ++attempts;
 
-        // try
+        try
         {
           if (pre_exec)
           {
@@ -356,7 +356,6 @@ namespace ccf
             }
           }
         }
-        /*
         catch (const kv::CompactedVersionConflict& e)
         {
           // The executing transaction failed because of a conflicting
@@ -415,7 +414,6 @@ namespace ccf
           update_metrics(ctx, metrics);
           return ctx->serialise_response();
         }
-        */
       }
 
       ctx->set_error(
