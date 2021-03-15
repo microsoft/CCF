@@ -111,7 +111,6 @@ export interface KVMap {
 
 export type KVMaps = { [key: string]: KVMap };
 
-
 export interface ProofElement {
   left?: string;
   right?: string;
