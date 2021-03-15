@@ -7,7 +7,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {}
       },
       "post": {
@@ -16,7 +16,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": false,
+        "mode": "readwrite",
         "openapi": {}
       },
       "delete": {
@@ -25,7 +25,29 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": false,
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
+    "/log/private/historical": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "get_historical",
+        "forwarding_required": "never",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "historical",
+        "openapi": {}
+      }
+    },
+    "/log/private/historical_receipt": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "get_historical_with_receipt",
+        "forwarding_required": "never",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "historical",
         "openapi": {}
       }
     },
@@ -36,7 +58,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {}
       },
       "post": {
@@ -45,7 +67,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": false,
+        "mode": "readwrite",
         "openapi": {}
       },
       "delete": {
@@ -54,7 +76,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": false,
+        "mode": "readwrite",
         "openapi": {}
       }
     }
