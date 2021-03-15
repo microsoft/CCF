@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Historical point query support has been added to JavaScript endpoints (#2285).
 
+### Changed
+
+- `"readonly"` has been replaced by `"mode"` in `app.json` in JavaScript apps (#2285).
+
 ## [0.19.0]
 
 ### Changed
