@@ -24,7 +24,6 @@ class SmallBankClient : public Base
 private:
   enum class TransactionTypes : uint8_t
   {
-    //create = 0,
     stock_level = 0,
     order_status,
     delivery,
@@ -35,7 +34,6 @@ private:
   };
 
   const char* OPERATION_C_STR[5]{
-    //"tpcc_create",
     "stock_level",
     "order_status",
     "delivery",

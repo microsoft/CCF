@@ -54,8 +54,7 @@ namespace ccfapp
 
       auto create = [this](auto& args) {
         LOG_INFO_FMT("Creating tpcc database");
-        std::array<char, tpcc::DATETIME_SIZE + 1> now = {"12345 time"};
-        tpcc::SetupDb setup_db(args, 100, 10, 10, 10, now);
+        tpcc::SetupDb setup_db(args, 10, 42);
         setup_db.run();
         LOG_INFO_FMT("Creating tpcc database - end");
 
@@ -64,7 +63,7 @@ namespace ccfapp
 
       auto do_stock_level = [this](auto& args) {
         LOG_INFO_FMT("stock level");
-        tpcc::TpccTransactions tx(args);
+        tpcc::TpccTransactions tx(args, 42);
         tx.stock_level(1,1,100);
         LOG_INFO_FMT("stock level - end");
         
@@ -73,7 +72,7 @@ namespace ccfapp
 
       auto do_order_status = [this](auto& args) {
         LOG_INFO_FMT("order status");
-        tpcc::TpccTransactions tx(args);
+        tpcc::TpccTransactions tx(args, 42);
         tx.order_status();
         LOG_INFO_FMT("order status - end");
         
@@ -82,7 +81,7 @@ namespace ccfapp
 
       auto do_delivery = [this](auto& args) {
         LOG_INFO_FMT("delivery");
-        tpcc::TpccTransactions tx(args);
+        tpcc::TpccTransactions tx(args, 42);
         tx.delivery();
         LOG_INFO_FMT("delivery - end");
         
@@ -91,7 +90,7 @@ namespace ccfapp
 
       auto do_payment = [this](auto& args) {
         LOG_INFO_FMT("payment");
-        tpcc::TpccTransactions tx(args);
+        tpcc::TpccTransactions tx(args, 42);
         tx.payment();
         LOG_INFO_FMT("payment - end");
         
@@ -100,7 +99,7 @@ namespace ccfapp
 
       auto do_new_order = [this](auto& args) {
         LOG_INFO_FMT("new order");
-        tpcc::TpccTransactions tx(args);
+        tpcc::TpccTransactions tx(args, 43);
         tx.new_order();
         LOG_INFO_FMT("new order - end");
         

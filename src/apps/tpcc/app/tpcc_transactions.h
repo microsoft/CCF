@@ -13,13 +13,14 @@ namespace tpcc
   {
   private:
     ccf::EndpointContext& args;
+    std::mt19937 rand_generator;
+
     static constexpr int STOCK_LEVEL_ORDERS = 20;
     static constexpr float MIN_PAYMENT_AMOUNT = 1.00;
     static constexpr float MAX_PAYMENT_AMOUNT = 5000.00;
     static constexpr int32_t MAX_OL_QUANTITY = 10;
     static constexpr int32_t INVALID_QUANTITY = -1;
     static constexpr char INVALID_ITEM_STATUS[] = "Item number is not valid";
-    static constexpr std::array<char, tpcc::DATETIME_SIZE + 1> tx_time = {"12345 time"};
 
     District find_district(int32_t w_id, int32_t d_id)
     {
@@ -682,8 +683,26 @@ namespace tpcc
       return true;
     }
 
+    float random_float(float min, float max)
+    {
+      return tpcc::random_float(min, max, rand_generator);
+    }
+
+    uint32_t random_int(uint32_t min, uint32_t max)
+    {
+      return tpcc::random_int(min, max, rand_generator);
+    }
+
+    int32_t random_int_excluding(int lower, int upper, int excluding)
+    {
+      return tpcc::random_int_excluding(lower, upper, excluding, rand_generator);
+    }
+
   public:
-    TpccTransactions(ccf::EndpointContext& args_) : args(args_) {}
+    TpccTransactions(ccf::EndpointContext& args_, uint32_t seed) : args(args_)
+    {
+      rand_generator.seed(seed);
+    }
 
     int32_t stock_level(
       int32_t warehouse_id, int32_t district_id, int32_t threshold)
@@ -742,7 +761,7 @@ namespace tpcc
     void order_status()
     {
       OrderStatusOutput output;
-      int y = rand() % 100;
+      int y = random_int(0,100);
       if (y <= 60)
       {
         // 60%: order status by last name
