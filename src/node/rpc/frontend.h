@@ -62,18 +62,17 @@ namespace ccf
       endpoints.set_history(history);
     }
 
-    void update_metrics(
-      const std::shared_ptr<enclave::RpcContext> ctx,
-      endpoints::EndpointRegistry::Metrics& m)
+    void update_metrics(const std::shared_ptr<enclave::RpcContext>& ctx,
+      const endpoints::EndpointDefinitionPtr& endpoint)
     {
       int cat = ctx->get_response_status() / 100;
       switch (cat)
       {
         case 4:
-          m.errors++;
+          endpoints.increment_metrics_errors(endpoint);
           return;
         case 5:
-          m.failures++;
+          endpoints.increment_metrics_failures(endpoint);
           return;
       }
     }
@@ -82,8 +81,6 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
-      auto& metrics = endpoints.get_metrics(endpoint);
-
       if (cmd_forwarder && !ctx->session->is_forwarded)
       {
         if (consensus != nullptr)
@@ -110,7 +107,7 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           "RPC could not be forwarded to unknown primary.");
-        update_metrics(ctx, metrics);
+        update_metrics(ctx, endpoint);
         return ctx->serialise_response();
       }
       else
@@ -141,7 +138,7 @@ namespace ccf
           }
         }
 
-        update_metrics(ctx, metrics);
+        update_metrics(ctx, endpoint);
         return ctx->serialise_response();
       }
     }
@@ -191,8 +188,7 @@ namespace ccf
 
       // Note: calls that could not be dispatched (cases handled above)
       // are not counted against any particular endpoint.
-      auto& metrics = endpoints.get_metrics(endpoint);
-      metrics.calls++;
+      endpoints.increment_metrics_calls(endpoint);
 
       std::unique_ptr<AuthnIdentity> identity = nullptr;
 
@@ -214,7 +210,7 @@ namespace ccf
           // If none were accepted, let the last set an error
           endpoint->authn_policies.back()->set_unauthenticated_error(
             ctx, std::move(auth_error_reason));
-          update_metrics(ctx, metrics);
+          update_metrics(ctx, endpoint);
           return ctx->serialise_response();
         }
       }
@@ -274,7 +270,7 @@ namespace ccf
         if (attempts > 0)
         {
           set_root_on_proposals(*ctx, tx);
-          metrics.retries++;
+          endpoints.increment_metrics_retries(endpoint);
         }
 
         ++attempts;
@@ -290,7 +286,7 @@ namespace ccf
 
           if (!ctx->should_apply_writes())
           {
-            update_metrics(ctx, metrics);
+            update_metrics(ctx, endpoint);
             return ctx->serialise_response();
           }
 
@@ -336,7 +332,7 @@ namespace ccf
                 }
               }
 
-              update_metrics(ctx, metrics);
+              update_metrics(ctx, endpoint);
               return ctx->serialise_response();
             }
 
@@ -351,7 +347,7 @@ namespace ccf
                 HTTP_STATUS_SERVICE_UNAVAILABLE,
                 ccf::errors::TransactionReplicationFailed,
                 "Transaction failed to replicate.");
-              update_metrics(ctx, metrics);
+              update_metrics(ctx, endpoint);
               return ctx->serialise_response();
             }
           }
@@ -368,7 +364,7 @@ namespace ccf
         catch (RpcException& e)
         {
           ctx->set_error(std::move(e.error));
-          update_metrics(ctx, metrics);
+          update_metrics(ctx, endpoint);
           return ctx->serialise_response();
         }
         catch (JsonParseError& e)
@@ -377,14 +373,14 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format("At {}: {}", e.pointer(), e.what()));
-          update_metrics(ctx, metrics);
+          update_metrics(ctx, endpoint);
           return ctx->serialise_response();
         }
         catch (const nlohmann::json::exception& e)
         {
           ctx->set_error(
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidInput, e.what());
-          update_metrics(ctx, metrics);
+          update_metrics(ctx, endpoint);
           return ctx->serialise_response();
         }
         catch (const UrlQueryParseError& e)
@@ -393,7 +389,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
             e.what());
-          update_metrics(ctx, metrics);
+          update_metrics(ctx, endpoint);
           return ctx->serialise_response();
         }
         catch (const kv::KvSerialiserException& e)
@@ -411,7 +407,7 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             e.what());
-          update_metrics(ctx, metrics);
+          update_metrics(ctx, endpoint);
           return ctx->serialise_response();
         }
       }

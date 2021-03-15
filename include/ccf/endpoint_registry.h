@@ -29,6 +29,13 @@ namespace ccf::endpoints
     std::vector<std::string> template_component_names;
   };
 
+  struct PathTemplatedEndpoint : public Endpoint
+  {
+    PathTemplatedEndpoint(const Endpoint& e) : Endpoint(e) {}
+
+    PathTemplateSpec spec;
+  };
+
   inline std::optional<PathTemplateSpec> parse_path_template(
     const std::string& uri)
   {
@@ -96,13 +103,6 @@ namespace ccf::endpoints
       size_t retries = 0;
     };
 
-    struct PathTemplatedEndpoint : public Endpoint
-    {
-      PathTemplatedEndpoint(const Endpoint& e) : Endpoint(e) {}
-
-      PathTemplateSpec spec;
-    };
-
     template <typename T>
     bool get_path_param(
       const enclave::PathParams& params,
@@ -159,6 +159,9 @@ namespace ccf::endpoints
 
     SpinLock metrics_lock;
     std::map<std::string, std::map<std::string, Metrics>> metrics;
+
+    EndpointRegistry::Metrics& get_metrics_for_endpoint(
+      const EndpointDefinitionPtr& e);
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
@@ -234,11 +237,6 @@ namespace ccf::endpoints
      */
     virtual void build_api(nlohmann::json& document, kv::ReadOnlyTx&);
 
-    // TODO: Remove this, thread unsafe
-    Metrics& get_metrics(const EndpointDefinitionPtr& e);
-
-    // TODO: Document when this should be used. Standardise, and use it for
-    // every endpoint installation? Enforce this? What benefits?
     virtual void init_handlers();
 
     virtual EndpointDefinitionPtr find_endpoint(
@@ -259,5 +257,10 @@ namespace ccf::endpoints
     void set_consensus(kv::Consensus* c);
 
     void set_history(kv::TxHistory* h);
+
+    void increment_metrics_calls(const EndpointDefinitionPtr& e);
+    void increment_metrics_errors(const EndpointDefinitionPtr& e);
+    void increment_metrics_failures(const EndpointDefinitionPtr& e);
+    void increment_metrics_retries(const EndpointDefinitionPtr& e);
   };
 }

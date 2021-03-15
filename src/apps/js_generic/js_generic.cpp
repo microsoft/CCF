@@ -817,7 +817,8 @@ namespace ccfapp
 
     metrics::Tracker metrics_tracker;
 
-    static JSValue create_ccf_obj(ccf::endpoints::EndpointContext& args, JSContext* ctx)
+    static JSValue create_ccf_obj(
+      ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       auto ccf = JS_NewObject(ctx);
 
@@ -877,7 +878,8 @@ namespace ccfapp
       return console;
     }
 
-    static void populate_global_obj(ccf::endpoints::EndpointContext& args, JSContext* ctx)
+    static void populate_global_obj(
+      ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       auto global_obj = JS_GetGlobalObject(ctx);
 
@@ -893,7 +895,8 @@ namespace ccfapp
       return JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>");
     }
 
-    static JSValue create_caller_obj(ccf::endpoints::EndpointContext& args, JSContext* ctx)
+    static JSValue create_caller_obj(
+      ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       if (args.caller == nullptr)
       {
@@ -996,7 +999,8 @@ namespace ccfapp
       return caller;
     }
 
-    static JSValue create_request_obj(ccf::endpoints::EndpointContext& args, JSContext* ctx)
+    static JSValue create_request_obj(
+      ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       auto request = JS_NewObject(ctx);
 
@@ -1471,7 +1475,8 @@ namespace ccfapp
     }
 
     void execute_endpoint(
-      ccf::endpoints::EndpointDefinitionPtr e, ccf::endpoints::EndpointContext& args) override
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::EndpointContext& args) override
     {
       auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)

@@ -67,6 +67,12 @@ namespace ccf::endpoints
     }
   }
 
+  EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_endpoint(
+    const EndpointDefinitionPtr& e)
+  {
+    return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
+  }
+
   Endpoint EndpointRegistry::make_endpoint(
     const std::string& method,
     RESTVerb verb,
@@ -187,13 +193,6 @@ namespace ccf::endpoints
         }
       }
     }
-  }
-
-  EndpointRegistry::Metrics& EndpointRegistry::get_metrics(
-    const EndpointDefinitionPtr& e)
-  {
-    std::lock_guard<SpinLock> guard(metrics_lock);
-    return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
   }
 
   void EndpointRegistry::init_handlers() {}
@@ -348,5 +347,32 @@ namespace ccf::endpoints
   void EndpointRegistry::set_history(kv::TxHistory* h)
   {
     history = h;
+  }
+
+  void EndpointRegistry::increment_metrics_calls(const EndpointDefinitionPtr& e)
+  {
+    std::lock_guard<SpinLock> guard(metrics_lock);
+    get_metrics_for_endpoint(e).calls++;
+  }
+
+  void EndpointRegistry::increment_metrics_errors(
+    const EndpointDefinitionPtr& e)
+  {
+    std::lock_guard<SpinLock> guard(metrics_lock);
+    get_metrics_for_endpoint(e).errors++;
+  }
+
+  void EndpointRegistry::increment_metrics_failures(
+    const EndpointDefinitionPtr& e)
+  {
+    std::lock_guard<SpinLock> guard(metrics_lock);
+    get_metrics_for_endpoint(e).failures++;
+  }
+
+  void EndpointRegistry::increment_metrics_retries(
+    const EndpointDefinitionPtr& e)
+  {
+    std::lock_guard<SpinLock> guard(metrics_lock);
+    get_metrics_for_endpoint(e).retries++;
   }
 }
