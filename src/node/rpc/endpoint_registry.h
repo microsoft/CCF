@@ -259,8 +259,10 @@ namespace ccf
         return *this;
       }
 
-      /** Sets the schema that the request parameters and response must comply
-       * with based on JSON-serialisable data structures.
+      /** Sets the schema that the request and response bodies should comply
+       * with. These are used to populate the generated OpenAPI document, but do
+       * not introduce any constraints on the actual types that are parsed or
+       * produced by the handling functor.
        *
        * \verbatim embed:rst:leading-asterisk
        * .. note::
@@ -268,9 +270,9 @@ namespace ccf
        *  user-defined data structures.
        * \endverbatim
        *
-       * @tparam In Request parameters JSON-serialisable data structure
-       * @tparam Out Request response JSON-serialisable data structure
-       * @param status Request response status code
+       * @tparam In Request body JSON-serialisable data structure
+       * @tparam Out Response body JSON-serialisable data structure
+       * @param status Response status code
        * @return This Endpoint for further modification
        */
       template <typename In, typename Out>
@@ -333,8 +335,8 @@ namespace ccf
         return *this;
       }
 
-      /** Sets the schema that the request parameters and response must comply
-       * with, based on a single JSON-serialisable data structure.
+      /** Sets schemas for request and response bodies using typedefs within T.
+       * @see set_auto_schema
        *
        * \verbatim embed:rst:leading-asterisk
        * .. note::
@@ -342,8 +344,8 @@ namespace ccf
        *   structures for request parameters and response format, respectively.
        * \endverbatim
        *
-       * @tparam T Request parameters and response JSON-serialisable data
-       * structure
+       * @tparam T Type containing ``In`` and ``Out`` typedefs with JSON-schema
+       * description specialisations
        * @param status Request response status code
        * @return This Endpoint for further modification
        */
@@ -354,6 +356,17 @@ namespace ccf
         return set_auto_schema<typename T::In, typename T::Out>(status);
       }
 
+      /** Add OpenAPI documentation for a query parameter which can be passed to
+       * this endpoint.
+       *
+       * @tparam T Type with appropriate ``ds::json`` specialisations to
+       * generate a JSON schema description
+       * @param param_name Name to be used for the query parameter to this
+       * Endpoint
+       * @param presence Enum value indicating whether this parameter is
+       * required or optional
+       * @return This Endpoint for further modification
+       */
       template <typename T>
       Endpoint& add_query_parameter(
         const std::string& param_name,
