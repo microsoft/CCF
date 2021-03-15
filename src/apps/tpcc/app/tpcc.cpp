@@ -44,8 +44,8 @@ namespace ccfapp
     }
 
   public:
-    TpccHandlers(ccf::AbstractNodeState& node_state) :
-      UserEndpointRegistry(node_state)
+    TpccHandlers(AbstractNodeContext& context) :
+      UserEndpointRegistry(context)
     {}
 
     void init_handlers() override
@@ -155,16 +155,16 @@ namespace ccfapp
     TpccHandlers tpcc_handlers;
 
   public:
-    Tpcc(kv::Store& store, ccfapp::AbstractNodeContext& node_context) :
+    Tpcc(kv::Store& store, AbstractNodeContext& context) :
       UserRpcFrontend(store, tpcc_handlers),
-      tpcc_handlers(node_context.get_node_state())
+      tpcc_handlers(context)
     {}
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& nwt, ccfapp::AbstractNodeContext& node_context)
+    NetworkTables& nwt, AbstractNodeContext& context)
   {
-    return make_shared<Tpcc>(*nwt.tables, node_context);
+    return make_shared<Tpcc>(*nwt.tables, context);
   }
 }
 
