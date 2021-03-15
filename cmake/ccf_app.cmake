@@ -254,7 +254,8 @@ function(add_enclave_library_c name files)
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()
 
-# TODO: Document these
+# Convenience wrapper to build C++-libraries that can be linked in enclave, ie. in
+# a CCF application.
 function(add_enclave_library name files)
   add_library(${name} ${files})
   target_compile_options(${name} PUBLIC -nostdinc -nostdinc++)
