@@ -7,7 +7,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {}
       },
       "post": {
@@ -16,7 +16,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": false,
+        "mode": "readwrite",
         "openapi": {}
       },
       "delete": {
@@ -25,7 +25,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": false,
+        "mode": "readwrite",
         "openapi": {}
       }
     },
@@ -36,8 +36,7 @@
         "forwarding_required": "never",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "historical": true,
-        "readonly": true,
+        "mode": "historical",
         "openapi": {}
       }
     },
@@ -48,8 +47,7 @@
         "forwarding_required": "never",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "historical": true,
-        "readonly": true,
+        "mode": "historical",
         "openapi": {}
       }
     },
@@ -60,7 +58,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {}
       },
       "post": {
@@ -69,7 +67,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": false,
+        "mode": "readwrite",
         "openapi": {}
       },
       "delete": {
@@ -78,7 +76,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
-        "readonly": false,
+        "mode": "readwrite",
         "openapi": {}
       }
     }

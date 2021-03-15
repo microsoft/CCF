@@ -1117,7 +1117,9 @@ namespace ccfapp
         args.tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
       auto info = endpoints->get(ccf::endpoints::EndpointKey{method, verb});
 
-      if (info.has_value() && info.value().historical)
+      if (
+        info.has_value() &&
+        info.value().mode == ccf::endpoints::Mode::Historical)
       {
         auto is_tx_committed = [this](
                                  kv::Consensus::View view,

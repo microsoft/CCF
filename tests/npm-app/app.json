@@ -7,7 +7,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "responses": {
             "200": {
@@ -57,7 +57,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "responses": {
             "200": {
@@ -90,7 +90,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "requestBody": {
             "required": true,
@@ -125,7 +125,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "requestBody": {
             "required": true,
@@ -177,7 +177,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "requestBody": {
             "required": true,
@@ -218,7 +218,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": false,
+        "mode": "readonly",
         "openapi": {
           "responses": {
             "200": {
@@ -257,7 +257,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": false,
+        "mode": "readonly",
         "openapi": {
           "requestBody": {
             "required": true,
@@ -283,7 +283,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": false,
+        "mode": "readonly",
         "openapi": {
           "responses": {
             "200": {
@@ -313,7 +313,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": false,
+        "mode": "readwrite",
         "openapi": {
           "responses": {
             "200": {
@@ -350,7 +350,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": false,
+        "mode": "readonly",
         "openapi": {
           "responses": {
             "200": {
