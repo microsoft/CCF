@@ -46,6 +46,12 @@ namespace ccf::endpoints
     Historical
   };
 
+  enum QueryParamPresence
+  {
+    RequiredParameter,
+    OptionalParameter,
+  };
+
   DECLARE_JSON_ENUM(
     ForwardingRequired,
     {{ForwardingRequired::Sometimes, "sometimes"},
@@ -57,6 +63,12 @@ namespace ccf::endpoints
     {{ExecuteOutsideConsensus::Never, "never"},
      {ExecuteOutsideConsensus::Locally, "locally"},
      {ExecuteOutsideConsensus::Primary, "primary"}});
+
+  DECLARE_JSON_ENUM(
+    Mode,
+    {{Mode::ReadWrite, "readwrite"},
+      {Mode::ReadOnly, "readonly"},
+      {Mode::Historical, "historical"}});
 
   struct EndpointProperties
   {
@@ -81,7 +93,8 @@ namespace ccf::endpoints
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
   DECLARE_JSON_REQUIRED_FIELDS(
     EndpointProperties, forwarding_required, authn_policies);
-  DECLARE_JSON_OPTIONAL_FIELDS(EndpointProperties, openapi, openapi_hidden, mode);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    EndpointProperties, openapi, openapi_hidden, mode);
 
   struct EndpointDefinition
   {
@@ -193,25 +206,23 @@ namespace ccf::endpoints
     {
       if constexpr (!std::is_same_v<In, void>)
       {
-        params_schema =
-          ds::json::build_schema<In>();
+        params_schema = ds::json::build_schema<In>();
 
-        schema_builders.push_back([](
-                                    nlohmann::json& document,
-                                    const Endpoint& endpoint) {
-          const auto http_verb = endpoint.dispatch.verb.get_http_method();
-          if (!http_verb.has_value())
-          {
-            // Non-HTTP (ie WebSockets) endpoints are not documented
-            return;
-          }
+        schema_builders.push_back(
+          [](nlohmann::json& document, const Endpoint& endpoint) {
+            const auto http_verb = endpoint.dispatch.verb.get_http_method();
+            if (!http_verb.has_value())
+            {
+              // Non-HTTP (ie WebSockets) endpoints are not documented
+              return;
+            }
 
-          ds::openapi::add_request_body_schema<In>(
-            document,
-            endpoint->dispatch.uri_path,
-            http_verb.value(),
-            http::headervalues::contenttype::JSON);
-        });
+            ds::openapi::add_request_body_schema<In>(
+              document,
+              endpoint.dispatch.uri_path,
+              http_verb.value(),
+              http::headervalues::contenttype::JSON);
+          });
       }
       else
       {
@@ -222,8 +233,7 @@ namespace ccf::endpoints
       {
         success_status = status.value_or(HTTP_STATUS_OK);
 
-        result_schema =
-          ds::json::build_schema<Out>();
+        result_schema = ds::json::build_schema<Out>();
 
         schema_builders.push_back(
           [](nlohmann::json& document, const Endpoint& endpoint) {
@@ -288,8 +298,8 @@ namespace ccf::endpoints
     {
       schema_builders.push_back(
         [param_name,
-          presence](nlohmann::json& document, const EndpointPtr& endpoint) {
-          const auto http_verb = endpoint->dispatch.verb.get_http_method();
+         presence](nlohmann::json& document, const Endpoint& endpoint) {
+          const auto http_verb = endpoint.dispatch.verb.get_http_method();
           if (!http_verb.has_value())
           {
             // Non-HTTP (ie WebSockets) endpoints are not documented
@@ -306,10 +316,7 @@ namespace ccf::endpoints
           parameter["schema"] = ds::openapi::add_schema_to_components(
             document, schema_name, query_schema);
           ds::openapi::add_request_parameter_schema(
-            document,
-            endpoint->dispatch.uri_path,
-            http_verb.value(),
-            parameter);
+            document, endpoint.dispatch.uri_path, http_verb.value(), parameter);
         });
 
       return *this;

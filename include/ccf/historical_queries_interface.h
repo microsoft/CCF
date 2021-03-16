@@ -31,7 +31,7 @@ namespace ccf::historical
       node_id(n_)
     {}
 
-    void describe_receipt(ccf::Receipt& r)
+    void describe(ccf::Receipt& r)
     {
       r.signature = tls::b64_from_raw(signature);
       r.root = root.to_string();

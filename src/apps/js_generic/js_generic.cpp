@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
+#include "ccf/historical_queries_adapter.h"
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
@@ -885,8 +886,8 @@ namespace ccfapp
           "transactionId",
           JS_NewString(ctx, tx_id.to_str().c_str()));
 
-        ccf::GetReceipt::Out receipt_out;
-        receipt_out.from_receipt(receipt);
+        ccf::Receipt receipt_out;
+        receipt->describe(receipt_out);
         auto js_receipt = JS_NewObject(ctx);
         JS_SetPropertyStr(
           ctx,
@@ -1133,7 +1134,8 @@ namespace ccfapp
 
         ccf::historical::adapter(
           [this, &method, &verb](
-            ccf::EndpointContext& args, ccf::historical::StatePtr state) {
+            ccf::endpoints::EndpointContext& args,
+            ccf::historical::StatePtr state) {
             auto tx = state->store->create_tx();
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
@@ -1151,7 +1153,7 @@ namespace ccfapp
     void do_execute_request(
       const std::string& method,
       const ccf::RESTVerb& verb,
-      EndpointContext& args,
+      ccf::endpoints::EndpointContext& args,
       kv::Tx& target_tx,
       const std::optional<kv::TxID>& transaction_id,
       ccf::historical::TxReceiptPtr receipt)

@@ -9,6 +9,7 @@
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
+#include "http/http_query.h"
 #include "node/rpc/user_frontend.h"
 
 #include <charconv>
@@ -193,7 +194,7 @@ namespace loggingapp
         return ccf::make_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::ResourceNotFound,
-          fmt::format("No such record: {}.", in.id));
+          fmt::format("No such record: {}.", id));
       };
       // SNIPPET_END: get
 
@@ -661,7 +662,7 @@ namespace loggingapp
           {
             LoggingGetReceipt::Out out;
             out.msg = v.value();
-            historical_state->receipt->describe_receipt(out.receipt);
+            historical_state->receipt->describe(out.receipt);
             ccf::jsonhandler::set_response(std::move(out), args.rpc_ctx, pack);
           }
           else

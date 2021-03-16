@@ -91,10 +91,10 @@ public:
   }
 };
 
-class TestMinimalEndpointFunction : public BaseTestFrontend
+class TestJsonWrappedEndpointFunction : public BaseTestFrontend
 {
 public:
-  TestMinimalEndpointFunction(kv::Store& tables) : BaseTestFrontend(tables)
+  TestJsonWrappedEndpointFunction(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -113,7 +113,7 @@ public:
       .install();
 
     auto get_caller_function = [this](auto& ctx, nlohmann::json&&) {
-      const auto& ident = ctx.get_caller<UserCertAuthnIdentity>();
+      const auto& ident = ctx.template get_caller<UserCertAuthnIdentity>();
       return make_success(ident.user_id);
     };
     make_endpoint(
@@ -790,11 +790,11 @@ TEST_CASE("Member caller")
   }
 }
 
-TEST_CASE("MinimalEndpointFunction")
+TEST_CASE("JsonWrappedEndpointFunction")
 {
   NetworkState network;
   prepare_callers(network);
-  TestMinimalEndpointFunction frontend(*network.tables);
+  TestJsonWrappedEndpointFunction frontend(*network.tables);
   for (const auto pack_type : {serdes::Pack::Text, serdes::Pack::MsgPack})
   {
     {

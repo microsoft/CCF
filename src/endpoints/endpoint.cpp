@@ -13,8 +13,8 @@ namespace ccf::endpoints
     params_schema = j;
 
     schema_builders.push_back(
-      [](nlohmann::json& document, const EndpointPtr& endpoint) {
-        const auto http_verb = endpoint->dispatch.verb.get_http_method();
+      [](nlohmann::json& document, const Endpoint& endpoint) {
+        const auto http_verb = endpoint.dispatch.verb.get_http_method();
         if (!http_verb.has_value())
         {
           return;
@@ -23,10 +23,10 @@ namespace ccf::endpoints
         using namespace ds::openapi;
 
         auto& rb = request_body(path_operation(
-          ds::openapi::path(document, endpoint->dispatch.uri_path),
+          ds::openapi::path(document, endpoint.dispatch.uri_path),
           http_verb.value()));
         schema(media_type(rb, http::headervalues::contenttype::JSON)) =
-          endpoint->params_schema;
+          endpoint.params_schema;
       });
 
     return *this;

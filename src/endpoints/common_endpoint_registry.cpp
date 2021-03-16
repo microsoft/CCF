@@ -14,7 +14,8 @@
 
 namespace ccf
 {
-  inline std::optional<ccf::TxID> txid_from_query_string(EndpointContext& args)
+  inline std::optional<ccf::TxID> txid_from_query_string(
+    ccf::endpoints::EndpointContext& args)
   {
     const auto parsed_query =
       http::parse_query(args.rpc_ctx->get_request_query());
@@ -235,8 +236,8 @@ namespace ccf
         const auto [pack, params] =
           ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
-        GetReceipt::Out out;
-        historical_state->receipt->describe_receipt(out);
+        ccf::Receipt out;
+        historical_state->receipt->describe(out);
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ccf::jsonhandler::set_response(out, args.rpc_ctx, pack);
       };
@@ -252,7 +253,7 @@ namespace ccf
       no_auth_required)
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
-      .set_auto_schema<void, GetReceipt::Out>()
+      .set_auto_schema<void, ccf::Receipt>()
       .add_query_parameter<ccf::TxID>("transaction_id")
       .install();
   }
