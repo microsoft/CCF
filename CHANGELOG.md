@@ -7,11 +7,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.19.2]
 
+### Added
+
+- New `get_user_data_v1` and `get_member_data_v1` C++ API calls have been added to retrieve the data associated with users/members. The user/member data is no longer included in the `AuthnIdentity` caller struct (#2301).
+
 ### Changed
 
-- String values in query parameters no longer need to be quoted. For instance, you should now call `/network/nodes?host=127.0.0.1` rather than `/network/nodes?host="127.0.0.1"`.
-- Schema documentation for query parameters should now be added with `add_query_parameter`, rather than `set_auto_schema`. The `In` type of `set_auto_schema` should only be used to describe the request body.
-- `json_adapter` will no longer try to convert query parameters to a JSON object. The JSON passed as an argument to these handlers will now be populated only by the request body. The query string should be parsed separately, and `http::parse_query(s)` is added as a starting point. This means strings in query parameters no longer need to be quoted.
+- String values in query parameters no longer need to be quoted. For instance, you should now call `/network/nodes?host=127.0.0.1` rather than `/network/nodes?host="127.0.0.1"` (#2309).
+- Schema documentation for query parameters should now be added with `add_query_parameter`, rather than `set_auto_schema`. The `In` type of `set_auto_schema` should only be used to describe the request body (#2309).
+- `json_adapter` will no longer try to convert query parameters to a JSON object. The JSON passed as an argument to these handlers will now be populated only by the request body. The query string should be parsed separately, and `http::parse_query(s)` is added as a starting point. This means strings in query parameters no longer need to be quoted (#2309).
+- Most service tables (e.g. for nodes and signatures) are now serialised as JSON instead of msgpack. Some tables (e.g. user and member certificates) are serialised as raw bytes for performance reasons (#2301).
+- The users and members tables have been split into `public:ccf.gov.users.certs`/`public:ccf.gov.users.info` and `public:ccf.gov.members.certs`/`public:ccf.gov.members.encryption_public_keys`/`public:ccf.gov.members.info` respectively (#2301).
 
 ## [0.19.1]
 
