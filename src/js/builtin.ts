@@ -131,7 +131,7 @@ export interface Receipt {
    */
   signature: string;
 
-  /** 
+  /**
    * Hex-encoded Merkle tree root hash.
    */
   root: string;
