@@ -443,7 +443,7 @@ namespace aft
       create_and_remove_node_state();
     }
 
-    Configuration::Nodes get_latest_configuration() const
+    Configuration::Nodes get_latest_configuration_unsafe() const
     {
       if (configurations.empty())
       {
@@ -453,9 +453,15 @@ namespace aft
       return configurations.back().nodes;
     }
 
+    Configuration::Nodes get_latest_configuration()
+    {
+      std::lock_guard<SpinLock> guard(state->lock);
+      return get_latest_configuration_unsafe();
+    }
+
     uint32_t node_count() const
     {
-      return get_latest_configuration().size();
+      return get_latest_configuration_unsafe().size();
     }
 
     template <typename T>
@@ -2217,6 +2223,8 @@ namespace aft
     void recv_request_vote_response(
       const ccf::NodeId& from, RequestVoteResponse r)
     {
+      std::lock_guard<SpinLock> guard(state->lock);
+
       if (replica_state != Candidate)
       {
         LOG_INFO_FMT(

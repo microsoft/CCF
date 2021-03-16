@@ -127,9 +127,14 @@ namespace aft
       aft->add_configuration(seqno, conf);
     }
 
-    Configuration::Nodes get_latest_configuration() const override
+    Configuration::Nodes get_latest_configuration() override
     {
       return aft->get_latest_configuration();
+    }
+
+    Configuration::Nodes get_latest_configuration_unsafe() const override
+    {
+      return aft->get_latest_configuration_unsafe();
     }
 
     void periodic(std::chrono::milliseconds elapsed) override
