@@ -7,6 +7,7 @@
 #include "node/ledger_secrets.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
+#include "tls/base64.h"
 
 #include <nlohmann/json.hpp>
 #include <openenclave/advanced/mallinfo.h>
