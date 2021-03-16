@@ -447,7 +447,9 @@ class Network:
 
         for node in self.get_joined_nodes():
             self.wait_for_state(
-                node, infra.node.State.PART_OF_PUBLIC_NETWORK.value, timeout=args.ledger_recovery_timeout
+                node,
+                infra.node.State.PART_OF_PUBLIC_NETWORK.value,
+                timeout=args.ledger_recovery_timeout,
             )
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined public network")
@@ -465,7 +467,9 @@ class Network:
 
         for node in self.get_joined_nodes():
             self.wait_for_state(
-                node, infra.node.State.PART_OF_NETWORK.value, timeout=args.ledger_recovery_timeout
+                node,
+                infra.node.State.PART_OF_NETWORK.value,
+                timeout=args.ledger_recovery_timeout,
             )
             self._wait_for_app_open(node)
 
