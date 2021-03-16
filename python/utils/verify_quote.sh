@@ -49,7 +49,7 @@ done
 if [ ${#trusted_mrenclaves[@]} -eq 0 ]; then
     for code_id in $(curl -sS --fail -X GET "${node_address}"/node/code "${@}" | jq .versions | jq -c ".[]"); do
         code_status=$(echo "${code_id}" | jq -r .status)
-        if [ "${code_status}" = "ALLOWED_TO_JOIN" ]; then
+        if [ "${code_status}" = "AllowedToJoin" ]; then
             trusted_mrenclaves+=($(echo "${code_id}" | jq -r .digest))
         fi
     done

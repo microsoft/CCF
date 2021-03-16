@@ -10,7 +10,7 @@ return {
   PASSED = 1
   PENDING = 0
   REJECTED = -1
-  STATE_ACTIVE = "ACTIVE"
+  STATE_ACTIVE = "Active"
 
   -- count member votes
   member_votes = 0

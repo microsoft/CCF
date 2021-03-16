@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 from contextlib import contextmanager, closing
-from enum import Enum
+from enum import Enum, auto
 import infra.crypto
 import infra.remote
 import infra.net
@@ -16,15 +16,26 @@ from loguru import logger as LOG
 
 
 class NodeNetworkState(Enum):
-    stopped = 0
-    started = 1
-    joined = 2
+    stopped = auto()
+    started = auto()
+    joined = auto()
 
 
 class NodeStatus(Enum):
-    PENDING = 0
-    TRUSTED = 1
-    RETIRED = 2
+    PENDING = "Pending"
+    TRUSTED = "Trusted"
+    RETIRED = "Retired"
+
+
+class State(Enum):
+    UNINITIALIZED = "Uninitialized"
+    INITIALIZED = "Initialized"
+    PENDING = "Pending"
+    PART_OF_PUBLIC_NETWORK = "PartOfPublicNetwork"
+    PART_OF_NETWORK = "PartOfNetwork"
+    READING_PUBLIC_LEDGER = "ReadingPublicLedger"
+    READING_PRIVATE_LEDGER = "ReadingPrivateLedger"
+    VERIFYING_SNAPSHOT = "VerifyingSnapshot"
 
 
 def is_addr_local(host, port):
