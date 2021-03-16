@@ -430,8 +430,21 @@ DOCTEST_TEST_CASE("URL parser")
 DOCTEST_TEST_CASE("Query parser")
 {
   constexpr auto query =
-    "foo=bar&baz=123&awkward=!?:.-\"===&awkward!key?\"=fine&empty&also_empty=&"
-    "multi=maintains-order!&multi=twice&multi=2&multi=three&multi=1&multi="
+    // Handles simple query params
+    "foo=bar&baz=123"
+
+    // Handles query params with awkward characters - everything but & and = are
+    // ignored
+    "&awkward=!?:.-\"===&awkward!key?\"=fine"
+
+    // Parses certain things as empty-string values
+    "&empty&also_empty="
+
+    // Will even produce empty-string keys, since it splits at every ampersand
+    "&"
+
+    // Maintains every instance of a key, in the order theyre presented
+    "&multi=maintains-order!&multi=twice&multi=2&multi=three&multi=1&multi="
     "twice";
 
   const auto parsed = http::parse_query(query);
@@ -464,6 +477,7 @@ DOCTEST_TEST_CASE("Query parser")
   REQUIRE_PARSED_SINGLE_QUERY_PARAM("awkward!key?\"", "fine");
   REQUIRE_PARSED_EMPTY_QUERY_PARAM("empty");
   REQUIRE_PARSED_EMPTY_QUERY_PARAM("also_empty");
+  REQUIRE_PARSED_EMPTY_QUERY_PARAM("");
 
 #undef REQUIRE_PARSED_SINGLE_QUERY_PARAM
 #undef REQUIRE_PARSED_EMPTY_QUERY_PARAM
