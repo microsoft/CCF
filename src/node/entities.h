@@ -54,7 +54,10 @@ namespace ccf
     // Service tables
 
     // Members
-    static constexpr auto MEMBERS = "public:ccf.gov.members.info";
+    static constexpr auto MEMBER_CERTS = "public:ccf.gov.members.certs";
+    static constexpr auto MEMBER_ENCRYPTION_PUBLIC_KEYS =
+      "public:ccf.gov.members.encryption_public_keys";
+    static constexpr auto MEMBER_INFO = "public:ccf.gov.members.info";
     static constexpr auto MEMBER_ACKS = "public:ccf.gov.members.acks";
 
     // Users

@@ -938,7 +938,6 @@ namespace ccfapp
 
       char const* policy_name = nullptr;
       EntityId id;
-      nlohmann::json data;
       std::string cert_s;
 
       if (
@@ -947,7 +946,7 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(user_cert_ident);
         id = user_cert_ident->user_id;
-        data = user_cert_ident->user_data;
+        // data = user_cert_ident->user_data;
         cert_s = user_cert_ident->user_cert.str();
       }
       else if (
@@ -956,7 +955,7 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(member_cert_ident);
         id = member_cert_ident->member_id;
-        data = member_cert_ident->member_data;
+        // data = member_cert_ident->member_data;
         cert_s = member_cert_ident->member_cert.str();
       }
       else if (
@@ -965,7 +964,7 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(user_sig_ident);
         id = user_sig_ident->user_id;
-        data = user_sig_ident->user_data;
+        // data = user_sig_ident->user_data;
         cert_s = user_sig_ident->user_cert.str();
       }
       else if (
@@ -974,8 +973,15 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(member_sig_ident);
         id = member_sig_ident->member_id;
-        data = member_sig_ident->member_data;
+        // data = member_sig_ident->member_data;
         cert_s = member_sig_ident->member_cert.str();
+      }
+
+      nlohmann::json data = nullptr;
+      if (get_user_data_v1(args.tx, id, data) == ccf::ApiResult::InternalError)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to get user data for {}", id));
       }
 
       if (policy_name == nullptr)

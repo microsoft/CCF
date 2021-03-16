@@ -423,7 +423,7 @@ namespace ccf
           "node channel with {} cannot receive authenticated with payload "
           "message: not yet established",
           peer_id);
-        return std::nullopt;
+        return false;
       }
 
       const uint8_t* data_ = data;

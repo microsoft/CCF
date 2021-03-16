@@ -248,11 +248,10 @@ def test_multi_auth(network, args):
                 r = c.get("/app/multi_auth")
                 require_new_response(r)
 
-            # TODO: Split members table too!
-            # LOG.info("Authenticate as a member, via TLS cert")
-            # with primary.client(member.local_id) as c:
-            #     r = c.get("/app/multi_auth")
-            #     require_new_response(r)
+            LOG.info("Authenticate as a member, via TLS cert")
+            with primary.client(member.local_id) as c:
+                r = c.get("/app/multi_auth")
+                require_new_response(r)
 
             LOG.info("Authenticate as same member, now with user data")
             network.consortium.set_member_data(

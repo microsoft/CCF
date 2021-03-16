@@ -83,84 +83,128 @@ namespace ccf
       }
     }
 
-    auto get_active_recovery_members()
+    bool is_recovery_member(const MemberId& member_id)
     {
-      auto members = tx.ro(tables.members);
-      std::map<MemberId, crypto::Pem> active_members_info;
+      auto member_encryption_public_keys =
+        tx.ro(tables.member_encryption_public_keys);
 
-      members->foreach(
-        [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
-          if (mi.status == MemberStatus::ACTIVE && mi.is_recovery())
+      return member_encryption_public_keys->get(member_id).has_value();
+    }
+
+    std::map<MemberId, crypto::Pem> get_active_recovery_members()
+    {
+      auto member_info = tx.ro(tables.member_info);
+      auto member_encryption_public_keys =
+        tx.ro(tables.member_encryption_public_keys);
+
+      std::map<MemberId, crypto::Pem> active_recovery_members;
+
+      member_encryption_public_keys->foreach(
+        [&active_recovery_members,
+         &member_info](const auto& mid, const auto& pem) {
+          auto info = member_info->get(mid);
+          if (!info.has_value())
           {
-            active_members_info[mid] = mi.encryption_pub_key.value();
+            throw std::logic_error(
+              fmt::format("Recovery member {} has no member info", mid));
+          }
+
+          if (info->status == MemberStatus::ACTIVE)
+          {
+            active_recovery_members[mid] = pem;
           }
           return true;
         });
-      return active_members_info;
+      return active_recovery_members;
     }
 
     MemberId add_member(const MemberPubInfo& member_pub_info)
     {
-      auto m = tx.rw(tables.members);
-      auto ma = tx.rw(tables.member_acks);
-      auto sig = tx.ro(tables.signatures);
+      auto member_certs = tx.rw(tables.member_certs);
+      auto member_info = tx.rw(tables.member_info);
+      auto member_acks = tx.rw(tables.member_acks);
+      auto signatures = tx.ro(tables.signatures);
 
       auto member_cert_der =
         crypto::make_verifier(member_pub_info.cert)->cert_der();
       auto id = crypto::Sha256Hash(member_cert_der).hex_str();
 
-      auto member = m->get(id);
+      auto member = member_certs->get(id);
       if (member.has_value())
       {
-        throw std::logic_error(fmt::format("Member already exists: {}", id));
+        // No effect if member already exists
+        return id;
       }
 
-      m->put(id, MemberInfo(member_pub_info, MemberStatus::ACCEPTED));
+      member_certs->put(id, member_pub_info.cert);
+      member_info->put(
+        id, {MemberStatus::ACCEPTED, member_pub_info.member_data});
 
-      auto s = sig->get(0);
+      if (member_pub_info.encryption_pub_key.has_value())
+      {
+        auto member_encryption_public_keys =
+          tx.rw(tables.member_encryption_public_keys);
+        member_encryption_public_keys->put(
+          id, member_pub_info.encryption_pub_key.value());
+      }
+
+      auto s = signatures->get(0);
       if (!s)
       {
-        ma->put(id, MemberAck());
+        member_acks->put(id, MemberAck());
       }
       else
       {
-        ma->put(id, MemberAck(s->root));
+        member_acks->put(id, MemberAck(s->root));
       }
       return id;
     }
 
     void activate_member(const MemberId& member_id)
     {
-      auto members = tx.rw(tables.members);
-      auto member = members->get(member_id);
+      auto member_info = tx.rw(tables.member_info);
+
+      auto member = member_info->get(member_id);
       if (!member.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Member {} cannot be activated as they do not exist", member_id));
+        // No effect if member does not exist
+        LOG_FAIL_FMT(
+          "Member {} cannot be activated as they do not exist", member_id);
+        return;
       }
 
-      // Only accepted members can transition to active state
       if (member->status != MemberStatus::ACCEPTED)
       {
+        // Only accepted members can transition to active state
+        LOG_FAIL_FMT(
+          "Member {} cannot be activated as they are not in state accepted",
+          member_id);
         return;
       }
 
       member->status = MemberStatus::ACTIVE;
       if (
-        member->is_recovery() &&
+        is_recovery_member(member_id) &&
         (get_active_recovery_members().size() >= max_active_recovery_members))
       {
-        throw std::logic_error(fmt::format(
-          "No more than {} active recovery members are allowed",
-          max_active_recovery_members));
+        LOG_FAIL_FMT(
+          "Cannot activate new recovery member {}: no more than {} active "
+          "recovery members are allowed",
+          member_id,
+          max_active_recovery_members);
       }
-      members->put(member_id, member.value());
+      member_info->put(member_id, member.value());
     }
 
-    bool retire_member(MemberId member_id)
+    bool retire_member(const MemberId& member_id)
     {
-      auto m = tx.rw(tables.members);
-      auto member_to_retire = m->get(member_id);
+      auto member_certs = tx.rw(tables.member_certs);
+      auto member_encryption_public_keys =
+        tx.rw(tables.member_encryption_public_keys);
+      auto member_info = tx.rw(tables.member_info);
+      auto member_acks = tx.rw(tables.member_acks);
+
+      auto member_to_retire = member_info->get(member_id);
       if (!member_to_retire.has_value())
       {
         LOG_FAIL_FMT(
@@ -168,17 +212,12 @@ namespace ccf
         return false;
       }
 
-      if (member_to_retire->status != MemberStatus::ACTIVE)
-      {
-        LOG_DEBUG_FMT(
-          "Could not retire member {}: member is not active", member_id);
-        return true;
-      }
-
       // If the member was active and had a recovery share, check that
       // the new number of active members is still sufficient for
       // recovery
-      if (member_to_retire->is_recovery())
+      if (
+        member_to_retire->status == MemberStatus::ACTIVE &&
+        is_recovery_member(member_id))
       {
         // Because the member to retire is active, there is at least one active
         // member (i.e. get_active_recovery_members_count_after >= 0)
@@ -188,8 +227,8 @@ namespace ccf
         if (get_active_recovery_members_count_after < recovery_threshold)
         {
           LOG_FAIL_FMT(
-            "Failed to retire member {}: number of active recovery members "
-            "({}) would be less than recovery threshold ({})",
+            "Failed to retire recovery member {}: number of active recovery "
+            "members ({}) would be less than recovery threshold ({})",
             member_id,
             get_active_recovery_members_count_after,
             recovery_threshold);
@@ -197,21 +236,16 @@ namespace ccf
         }
       }
 
+      // For now, only mark the member as retired and delete its entries from
+      // all other members tables
       member_to_retire->status = MemberStatus::RETIRED;
-      m->put(member_id, member_to_retire.value());
+      member_info->put(member_id, member_to_retire.value());
+
+      member_encryption_public_keys->remove(member_id);
+      member_certs->remove(member_id);
+      member_acks->remove(member_id);
+
       return true;
-    }
-
-    std::optional<MemberInfo> get_member_info(MemberId member_id)
-    {
-      auto m = tx.ro(tables.members);
-      auto member = m->get(member_id);
-      if (!member.has_value())
-      {
-        return {};
-      }
-
-      return member.value();
     }
 
     UserId add_user(const NewUser& user_info)
@@ -398,8 +432,8 @@ namespace ccf
 
     auto get_last_signature()
     {
-      auto sig = tx.ro(tables.signatures);
-      return sig->get(0);
+      auto signatures = tx.ro(tables.signatures);
+      return signatures->get(0);
     }
 
     void set_whitelist(WlIds id, Whitelist wl)

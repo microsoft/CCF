@@ -13,12 +13,10 @@ namespace ccf
 {
   struct UserCertAuthnIdentity : public AuthnIdentity
   {
-    /** CCF user ID, as defined in @c public:ccf.gov.users.info table */
+    /** CCF user ID */
     UserId user_id;
     /** User certificate, as established by TLS */
     crypto::Pem user_cert;
-    /** Additional user data, as defined in @c public:ccf.gov.users.info */
-    // nlohmann::json user_data;
   };
 
   class UserCertAuthnPolicy : public AuthnPolicy
@@ -35,13 +33,12 @@ namespace ccf
       auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
       auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
-      const auto user = user_certs->get(caller_id);
-      if (user.has_value())
+      const auto user_cert = user_certs->get(caller_id);
+      if (user_cert.has_value())
       {
         auto identity = std::make_unique<UserCertAuthnIdentity>();
         identity->user_id = caller_id;
-        identity->user_cert = user.value();
-        // identity->user_data = user->user_data;
+        identity->user_cert = user_cert.value();
         return identity;
       }
       else
@@ -66,7 +63,7 @@ namespace ccf
   {
     MemberId member_id;
     crypto::Pem member_cert;
-    // nlohmann::json member_data;
+    // nlohmann::json member_data; // TODO: Delete
   };
 
   class MemberCertAuthnPolicy : public AuthnPolicy
@@ -82,14 +79,13 @@ namespace ccf
       const auto& caller_cert = ctx->session->caller_cert;
       auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
-      auto members = tx.ro<Members>(Tables::MEMBERS);
-      const auto member = members->get(caller_id);
-      if (member.has_value())
+      auto member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
+      const auto member_cert = member_certs->get(caller_id);
+      if (member_cert.has_value())
       {
         auto identity = std::make_unique<MemberCertAuthnIdentity>();
         identity->member_id = caller_id;
-        // identity->member_cert = member->cert;
-        // identity->member_data = member->member_data;
+        identity->member_cert = member_cert.value();
         return identity;
       }
       else

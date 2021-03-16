@@ -583,25 +583,20 @@ namespace ccf
            const auto member_id = args.get<MemberId>();
 
            GenesisGenerator g(this->network, tx);
-
-           auto member_info = g.get_member_info(member_id);
-           if (!member_info.has_value())
-           {
-             return false;
-           }
-
            if (!g.retire_member(member_id))
            {
              return false;
            }
 
+           auto members = tx.rw(this->network.member_info);
+           auto member_info = members->get(member_id);
            if (
              member_info->status == MemberStatus::ACTIVE &&
-             member_info->is_recovery())
+             g.is_recovery_member(member_id))
            {
-             // A retired member with recovery share should not have access to
-             // the private ledger going forward so rekey ledger, issuing new
-             // share to remaining active members
+             // A retired recovery member should not have access to the private
+             // ledger going forward so rekey ledger, issuing new share to
+             // remaining active members
              if (!context.get_node_state().rekey_ledger(tx))
              {
                return false;
@@ -616,7 +611,7 @@ namespace ccf
            kv::Tx& tx,
            const nlohmann::json& args) {
            const auto parsed = args.get<SetMemberData>();
-           auto members = tx.rw(this->network.members);
+           auto members = tx.rw(this->network.member_info);
            auto member_info = members->get(parsed.member_id);
            if (!member_info.has_value())
            {
@@ -1136,8 +1131,8 @@ namespace ccf
       const MemberId& id,
       std::initializer_list<MemberStatus> allowed)
     {
-      auto member = tx.ro(this->network.members)->get(id);
-      if (!member)
+      auto member = tx.ro(this->network.member_info)->get(id);
+      if (!member.has_value())
       {
         return false;
       }
@@ -1653,9 +1648,6 @@ namespace ccf
         const auto& signed_request = caller_identity.signed_request;
 
         auto mas = ctx.tx.rw(this->network.member_acks);
-        auto sig = ctx.tx.rw(this->network.signatures);
-        auto members = ctx.tx.rw(this->network.members);
-
         const auto ma = mas->get(caller_identity.member_id);
         if (!ma)
         {
@@ -1676,6 +1668,7 @@ namespace ccf
             "Submitted state digest is not valid.");
         }
 
+        auto sig = ctx.tx.rw(this->network.signatures);
         const auto s = sig->get(0);
         if (!s)
         {
@@ -1710,10 +1703,11 @@ namespace ccf
             "No service currently available.");
         }
 
+        auto members = ctx.tx.rw(this->network.member_info);
         auto member_info = members->get(caller_identity.member_id);
         if (
           service_status.value() == ServiceStatus::OPEN &&
-          member_info->is_recovery())
+          g.is_recovery_member(caller_identity.member_id))
         {
           // When the service is OPEN and the new active member is a recovery
           // member, all recovery members are allocated new recovery shares
@@ -2108,7 +2102,6 @@ namespace ccf
   {
   protected:
     MemberEndpoints member_endpoints;
-    Members* members;
 
   public:
     MemberRpcFrontend(
@@ -2116,8 +2109,7 @@ namespace ccf
       ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
       RpcFrontend(*network.tables, member_endpoints),
-      member_endpoints(network, context, share_manager),
-      members(&network.members)
+      member_endpoints(network, context, share_manager)
     {}
   };
 } // namespace ccf

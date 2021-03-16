@@ -372,9 +372,16 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller's cert is:\n{}",
             member_cert_ident->member_cert.str());
-          // response += fmt::format(
-          //   "\nThe caller's member data is: {}",
-          //   member_cert_ident->member_data.dump());
+
+          nlohmann::json member_data = nullptr;
+          if (
+            get_member_data_v1(
+              ctx.tx, member_cert_ident->member_id, member_data) ==
+            ccf::ApiResult::OK)
+          {
+            response += fmt::format(
+              "\nThe caller's member data is: {}", member_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -388,10 +395,16 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller is a user with ID: {}", user_sig_ident->user_id);
           response += fmt::format(
-            "\nThe caller's user data is: {}",
-            user_sig_ident->user_data.dump());
-          response += fmt::format(
             "\nThe caller's cert is:\n{}", user_sig_ident->user_cert.str());
+
+          nlohmann::json user_data = nullptr;
+          if (
+            get_user_data_v1(ctx.tx, user_sig_ident->user_id, user_data) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's user data is: {}", user_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -406,10 +419,17 @@ namespace loggingapp
             "\nThe caller is a member with ID: {}",
             member_sig_ident->member_id);
           response += fmt::format(
-            "\nThe caller's member data is: {}",
-            member_sig_ident->member_data.dump());
-          response += fmt::format(
             "\nThe caller's cert is:\n{}", member_sig_ident->member_cert.str());
+
+          nlohmann::json member_data = nullptr;
+          if (
+            get_member_data_v1(
+              ctx.tx, member_sig_ident->member_id, member_data) ==
+            ccf::ApiResult::OK)
+          {
+            response += fmt::format(
+              "\nThe caller's member data is: {}", member_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));

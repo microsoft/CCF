@@ -21,6 +21,11 @@ namespace ccf
 
   using UserCerts = kv::RawCopySerialisedMap<UserId, crypto::Pem>;
 
-  using UserData = ServiceMap<UserId, nlohmann::json>; // TODO: JSON, what does
-                                                       // it look like?
+  // TODO: Use this type in UserInfo table!
+  // struct UserInfo
+  // {
+  //   nlohmann::json user_data = nullptr;
+  // };
+
+  using UserData = ServiceMap<UserId, nlohmann::json>;
 }

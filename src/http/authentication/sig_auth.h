@@ -24,12 +24,10 @@ namespace ccf
 
   struct UserSignatureAuthnIdentity : public AuthnIdentity
   {
-    /** CCF user ID, as defined in @c public:ccf.gov.users.info table */
+    /** CCF user ID */
     UserId user_id;
     /** User certificate, used to sign this request, described by keyId */
     crypto::Pem user_cert;
-    /** Additional user data, as defined in @c public:ccf.gov.users.info */
-    nlohmann::json user_data;
     /** Canonicalised request and associated signature */
     SignedReq signed_request;
   };
@@ -90,7 +88,6 @@ namespace ccf
             auto identity = std::make_unique<UserSignatureAuthnIdentity>();
             identity->user_id = signed_request->key_id;
             identity->user_cert = user_cert.value();
-            // identity->user_data = user->user_data;
             identity->signed_request = signed_request.value();
             return identity;
           }
@@ -149,7 +146,7 @@ namespace ccf
   {
     MemberId member_id;
     crypto::Pem member_cert;
-    nlohmann::json member_data;
+    nlohmann::json member_data; // TODO: Delete
     SignedReq signed_request;
     std::vector<uint8_t> request_digest;
   };
@@ -171,13 +168,13 @@ namespace ccf
       const auto signed_request = parse_signed_request(ctx);
       if (signed_request.has_value())
       {
-        Members members_table(Tables::MEMBERS);
-        auto members = tx.ro(members_table);
-        auto member = members->get(signed_request->key_id);
-        if (member.has_value())
+        MemberCerts members_certs_table(Tables::MEMBER_CERTS);
+        auto member_certs = tx.ro(members_certs_table);
+        auto member_cert = member_certs->get(signed_request->key_id);
+        if (member_cert.has_value())
         {
           std::vector<uint8_t> digest;
-          auto verifier = verifiers.get_verifier(member->cert);
+          auto verifier = verifiers.get_verifier(member_cert.value());
           if (verifier->verify(
                 signed_request->req,
                 signed_request->sig,
@@ -186,8 +183,7 @@ namespace ccf
           {
             auto identity = std::make_unique<MemberSignatureAuthnIdentity>();
             identity->member_id = signed_request->key_id;
-            identity->member_cert = member->cert;
-            identity->member_data = member->member_data;
+            identity->member_cert = member_cert.value();
             identity->signed_request = signed_request.value();
             identity->request_digest = std::move(digest);
             return identity;

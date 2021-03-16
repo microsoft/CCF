@@ -32,6 +32,7 @@ namespace ccf
   // Current limitations of secret sharing library (sss).
   static constexpr size_t max_active_recovery_members = 255;
 
+  // TODO: Move elsewhere! This should just be on the way in!
   struct MemberPubInfo
   {
     crypto::Pem cert;
@@ -57,41 +58,39 @@ namespace ccf
         member_data == rhs.member_data;
     }
 
-    bool is_recovery() const
-    {
-      return encryption_pub_key.has_value();
-    }
-
     MSGPACK_DEFINE(cert, encryption_pub_key, member_data);
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberPubInfo)
   DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert)
   DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, encryption_pub_key, member_data)
 
-  struct MemberInfo : public MemberPubInfo
+  struct MemberDetails
   {
     MemberStatus status = MemberStatus::ACCEPTED;
+    nlohmann::json member_data = nullptr;
 
-    MemberInfo() {}
+    // MemberInfo() {}
 
-    MemberInfo(const MemberPubInfo& member_pub_info, MemberStatus status_) :
-      MemberPubInfo(member_pub_info),
-      status(status_)
-    {}
+    // MemberInfo(const MemberPubInfo& member_pub_info, MemberStatus status_) :
+    //   MemberPubInfo(member_pub_info),
+    //   status(status_)
+    // {}
 
-    bool operator==(const MemberInfo& rhs) const
+    bool operator==(const MemberDetails& rhs) const
     {
-      return MemberPubInfo::operator==(rhs) && status == rhs.status;
+      return status == rhs.status && member_data == rhs.member_data;
     }
-
-    MSGPACK_DEFINE(MSGPACK_BASE(MemberPubInfo), status);
   };
-  DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, MemberPubInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, status)
-  using Members = ServiceMap<MemberId, MemberInfo>;
+  DECLARE_JSON_TYPE(MemberDetails)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberDetails, status, member_data)
 
-  /** Records a signed signature containing the last state digest and the next
-   * state digest to sign
+  using MemberInfo = ServiceMap<MemberId, MemberDetails>;
+
+  using MemberCerts = kv::RawCopySerialisedMap<MemberId, crypto::Pem>;
+  using MemberEncryptionKeys = kv::RawCopySerialisedMap<MemberId, crypto::Pem>;
+
+  /** Records a signed signature containing the last state digest and the
+   * next state digest to sign
    */
   struct StateDigest
   {

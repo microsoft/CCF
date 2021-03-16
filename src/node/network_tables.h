@@ -57,7 +57,9 @@ namespace ccf
     //
     // Governance tables
     //
-    Members members;
+    MemberCerts member_certs;
+    MemberEncryptionKeys member_encryption_public_keys;
+    MemberInfo member_info;
 
     Scripts gov_scripts;
     Modules modules;
@@ -117,7 +119,9 @@ namespace ccf
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(make_store(consensus_type)),
-      members(Tables::MEMBERS),
+      member_certs(Tables::MEMBER_CERTS),
+      member_encryption_public_keys(Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS),
+      member_info(Tables::MEMBER_INFO),
       gov_scripts(Tables::GOV_SCRIPTS),
       modules(Tables::MODULES),
       proposals(Tables::PROPOSALS),
@@ -157,7 +161,9 @@ namespace ccf
     auto get_scriptable_tables() const
     {
       return std::make_tuple(
-        std::ref(members),
+        std::ref(member_certs),
+        std::ref(member_encryption_public_keys),
+        std::ref(member_info),
         std::ref(gov_scripts),
         std::ref(modules),
         std::ref(proposals),

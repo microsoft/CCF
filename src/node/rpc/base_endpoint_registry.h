@@ -238,7 +238,9 @@ namespace ccf
       }
     }
 
-    // TODO: typedef user_data
+    // TODO: typedef user_data?
+    /** Get the user data associated with a given user unique id
+     */
     ApiResult get_user_data_v1(
       kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data)
     {
@@ -252,6 +254,30 @@ namespace ccf
         }
 
         user_data = ud.value();
+        return ApiResult::OK;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_TRACE_FMT("{}", e.what());
+        return ApiResult::InternalError;
+      }
+    }
+
+    /** Get the member data associated with a given member unique id
+     */
+    ApiResult get_member_data_v1(
+      kv::ReadOnlyTx& tx, const UserId& member_id, nlohmann::json& member_data)
+    {
+      try
+      {
+        auto member_info = tx.ro<MemberInfo>(Tables::MEMBER_INFO);
+        auto mi = member_info->get(member_id);
+        if (!mi.has_value())
+        {
+          return ApiResult::NotFound;
+        }
+
+        member_data = mi->member_data;
         return ApiResult::OK;
       }
       catch (const std::exception& e)

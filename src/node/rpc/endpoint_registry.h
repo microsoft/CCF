@@ -94,20 +94,20 @@ namespace ccf
   /** Perform no authentication */
   static std::shared_ptr<EmptyAuthnPolicy> empty_auth_policy =
     std::make_shared<EmptyAuthnPolicy>();
-  /** Authenticate using TLS session identity, and @c public:ccf.gov.users.info
+  /** Authenticate using TLS session identity, and @c public:ccf.gov.users.certs
    * table */
   static std::shared_ptr<UserCertAuthnPolicy> user_cert_auth_policy =
     std::make_shared<UserCertAuthnPolicy>();
   /** Authenticate using HTTP request signature, and
-   * @c public:ccf.gov.users.info table */
+   * @c public:ccf.gov.users.certs table */
   static std::shared_ptr<UserSignatureAuthnPolicy> user_signature_auth_policy =
     std::make_shared<UserSignatureAuthnPolicy>();
   /** Authenticate using TLS session identity, and
-   * @c public:ccf.gov.members.info table */
+   * @c public:ccf.gov.members.certs table */
   static std::shared_ptr<MemberCertAuthnPolicy> member_cert_auth_policy =
     std::make_shared<MemberCertAuthnPolicy>();
   /** Authenticate using HTTP request signature, and
-   * @c public:ccf.gov.members.info table */
+   * @c public:ccf.gov.members.certs table */
   static std::shared_ptr<MemberSignatureAuthnPolicy>
     member_signature_auth_policy =
       std::make_shared<MemberSignatureAuthnPolicy>();
