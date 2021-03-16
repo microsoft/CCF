@@ -233,29 +233,22 @@ namespace ccf
       return plain.value();
     }
 
-    void process_key_exchange(
-      const NodeId& from, const uint8_t* data, size_t size)
-    {
-      // Called on channel target when a key exchange message is received from
-      // the initiator
-      auto n2n_channel = channels->get(from);
-      n2n_channel->load_peer_signed_key_share(data, size);
-    }
-
-    void check_key_exchange(
+    void process_key_exchange_response(
       const NodeId& from, const uint8_t* data, size_t size)
     {
       auto n2n_channel = channels->get(from);
-      n2n_channel->check_peer_key_share_signature(true, data, size);
+      if (!n2n_channel->consume_key_share(data, size))
+        n2n_channel->reset();
     }
 
-    void complete_key_exchange(
+    void process_key_exchange_final(
       const NodeId& from, const uint8_t* data, size_t size)
     {
       // Called on channel initiator when a key exchange response message is
       // received from the target
       auto n2n_channel = channels->get(from);
-      n2n_channel->load_peer_signed_key_share(data, size);
+      if (!n2n_channel->check_peer_key_share_signature(data, size))
+        n2n_channel->reset();
     }
 
     void recv_message(const NodeId& from, OArray&& oa) override
@@ -267,20 +260,14 @@ namespace ccf
         switch (serialized::read<ChannelMsg>(data, size))
         {
           case key_exchange:
-          {
-            process_key_exchange(from, data, size);
-            break;
-          }
-
           case key_exchange_response:
           {
-            check_key_exchange(from, data, size);
+            process_key_exchange_response(from, data, size);
             break;
           }
-
           case key_exchange_final:
           {
-            complete_key_exchange(from, data, size);
+            process_key_exchange_final(from, data, size);
             break;
           }
 

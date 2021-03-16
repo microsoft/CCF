@@ -38,7 +38,7 @@ TEST_CASE("Simple key exchange")
     auto peer1_public_ = peer1_ctx.get_own_key_share();
     auto peer2_public_ = peer2_ctx.get_own_key_share();
 
-    // Calling get_own_public() should always return the same result
+    // Calling get_own_key_share() should always return the same result
     REQUIRE(peer1_public == peer1_public_);
     REQUIRE(peer2_public == peer2_public_);
 

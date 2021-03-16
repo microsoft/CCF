@@ -1,5 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "node/entities.h"
+#include "node/node_types.h"
+
 #include <cstring>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
@@ -55,7 +58,7 @@ struct NodeOutboundMsg
   std::vector<uint8_t> unauthenticated_data() const
   {
     std::vector<uint8_t> r = data();
-    r.erase(r.begin(), r.begin() + 8); // Not sure what those 8 bytes mean
+    r.erase(r.begin(), r.begin() + 8); // Skip 8 bytes of message type
     return r;
   }
 };
@@ -181,64 +184,65 @@ TEST_CASE("Client/Server key exchange")
   INFO("Extract key share, signature, certificate from messages");
   {
     // Every send has been replaced with a new channel establishment message
-    auto omsgs = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(omsgs.size() == 2);
-    REQUIRE(omsgs[0].type == channel_msg);
-    REQUIRE(omsgs[1].type == channel_msg);
+    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 2);
+    REQUIRE(msgs[0].type == channel_msg);
+    REQUIRE(msgs[1].type == channel_msg);
     REQUIRE(read_outbound_msgs<MsgType>(eio2).size() == 0);
 
     // Signing twice should have produced different signatures
-    REQUIRE(omsgs[0].unauthenticated_data() != omsgs[1].unauthenticated_data());
+    REQUIRE(msgs[0].unauthenticated_data() != msgs[1].unauthenticated_data());
 
-    channel1_signed_key_share = omsgs[0].unauthenticated_data();
+    channel1_signed_key_share = msgs[0].unauthenticated_data();
   }
 
-  INFO("Load peer key shares and check signatures");
+  INFO("Load peer key share and check signature");
   {
-    auto channel2_signed_key_share = channel2.get_signed_key_share();
-
-    REQUIRE(channel1.load_peer_signed_key_share(channel2_signed_key_share));
-    REQUIRE(channel2.load_peer_signed_key_share(channel1_signed_key_share));
-
-    REQUIRE(channel1.get_status() != ESTABLISHED);
-    REQUIRE(channel2.get_status() != ESTABLISHED);
+    REQUIRE(channel2.consume_initiator_key_share(channel1_signed_key_share));
+    REQUIRE(channel1.get_status() == INITIATED);
+    REQUIRE(channel2.get_status() == WAITING_FOR_FINAL);
   }
 
-  std::vector<uint8_t> peer_public_sig1, peer_public_sig2;
+  std::vector<uint8_t> channel2_signed_key_share;
 
-  INFO("Extract peer signatures over own key shares from messages");
+  INFO("Extract responder signature over both key shares from messages");
   {
     // Messages sent before channel was established are flushed, so only 1 each.
-    auto omsgs1 = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(omsgs1.size() == 1);
-    REQUIRE(omsgs1[0].type == channel_msg);
-    peer_public_sig1 = omsgs1[0].unauthenticated_data();
-
-    auto omsgs2 = read_outbound_msgs<MsgType>(eio2);
-    REQUIRE(omsgs2.size() == 1);
-    REQUIRE(omsgs2[0].type == channel_msg);
-    peer_public_sig2 = omsgs2[0].unauthenticated_data();
+    auto msgs = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs[0].type == channel_msg);
+    channel2_signed_key_share = msgs[0].unauthenticated_data();
+    REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 0);
   }
 
-  INFO("Cross-check peer signatures and establish channels");
+  INFO("Load responder key share and check signature");
   {
-    REQUIRE(channel1.check_peer_key_share_signature(
-      true, peer_public_sig2.data(), peer_public_sig2.size()));
+    REQUIRE(channel1.consume_responder_key_share(channel2_signed_key_share));
     REQUIRE(channel1.get_status() == ESTABLISHED);
-
-    REQUIRE(channel2.check_peer_key_share_signature(
-      true, peer_public_sig1.data(), peer_public_sig1.size()));
-    REQUIRE(channel2.get_status() == ESTABLISHED);
+    REQUIRE(channel2.get_status() == WAITING_FOR_FINAL);
   }
 
-  INFO("Consume and check initial consensus message");
+  std::vector<uint8_t> initiator_signature;
+
+  INFO("Extract responder signature from message");
   {
-    auto omsgs = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(omsgs.size() == 1);
-    REQUIRE(omsgs[0].type == consensus_msg);
-    auto md = omsgs[0].data();
+    // Messages sent before channel was established are flushed, so only 1 each.
+    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 2);
+    REQUIRE(msgs[0].type == channel_msg);
+    REQUIRE(msgs[1].type == consensus_msg);
+    initiator_signature = msgs[0].unauthenticated_data();
+
+    auto md = msgs[1].data();
     REQUIRE(md.size() == msg.size() + sizeof(GcmHdr));
     REQUIRE(memcmp(md.data(), msg.data(), msg.size()) == 0);
+  }
+
+  INFO("Cross-check responder signature and establish channels");
+  {
+    REQUIRE(channel2.check_peer_key_share_signature(initiator_signature));
+    REQUIRE(channel1.get_status() == ESTABLISHED);
+    REQUIRE(channel2.get_status() == ESTABLISHED);
   }
 
   INFO("Protect integrity of message (peer1 -> peer2)");
@@ -354,33 +358,27 @@ TEST_CASE("Replay and out-of-order")
 
   INFO("Establish channels");
   {
-    auto channel1_signed_key_share = channel1.get_signed_key_share();
-    auto channel2_signed_key_share = channel2.get_signed_key_share();
+    channel1.initiate();
 
-    REQUIRE(channel1.load_peer_signed_key_share(channel2_signed_key_share));
-    REQUIRE(channel2.load_peer_signed_key_share(channel1_signed_key_share));
-  }
+    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs[0].type == channel_msg);
+    auto channel1_signed_key_share = msgs[0].unauthenticated_data();
 
-  std::vector<uint8_t> peer_public_sig1, peer_public_sig2;
+    REQUIRE(channel2.consume_initiator_key_share(channel1_signed_key_share));
 
-  INFO("Extract peer signatures over own key shares from messages");
-  {
-    // Messages sent before channel was established are flushed, so only 1 each.
-    auto omsgs1 = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(omsgs1.size() == 1);
-    REQUIRE(omsgs1[0].type == channel_msg);
-    peer_public_sig1 = omsgs1[0].unauthenticated_data();
+    msgs = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs[0].type == channel_msg);
+    auto channel2_signed_key_share = msgs[0].unauthenticated_data();
+    REQUIRE(channel1.consume_responder_key_share(channel2_signed_key_share));
 
-    auto omsgs2 = read_outbound_msgs<MsgType>(eio2);
-    REQUIRE(omsgs2.size() == 1);
-    REQUIRE(omsgs2[0].type == channel_msg);
-    peer_public_sig2 = omsgs2[0].unauthenticated_data();
-  }
+    msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs[0].type == channel_msg);
+    auto initiator_signature = msgs[0].unauthenticated_data();
 
-  {
-    channel1.check_peer_key_share_signature(true, peer_public_sig2);
-    channel2.check_peer_key_share_signature(true, peer_public_sig1);
-
+    REQUIRE(channel2.check_peer_key_share_signature(initiator_signature));
     REQUIRE(channel1.get_status() == ESTABLISHED);
     REQUIRE(channel2.get_status() == ESTABLISHED);
   }

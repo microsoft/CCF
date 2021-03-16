@@ -20,7 +20,7 @@ namespace tls
   {
   private:
     crypto::mbedtls::ECDHContext ctx = nullptr;
-    std::vector<uint8_t> key_share;
+    std::vector<uint8_t> key_share, peer_key_share;
     crypto::EntropyPtr entropy;
 
   public:
@@ -110,13 +110,20 @@ namespace tls
       return key_share;
     }
 
+    std::vector<uint8_t> get_peer_key_share()
+    {
+      return peer_key_share;
+    }
+
+    void reset()
+    {
+      peer_key_share.clear();
+      entropy.reset();
+    }
+
     void load_peer_key_share(const std::vector<uint8_t>& ks)
     {
-      int rc = mbedtls_ecdh_read_public(ctx.get(), ks.data(), ks.size());
-      if (rc != 0)
-      {
-        throw std::logic_error(error_string(rc));
-      }
+      load_peer_key_share({ks.data(), ks.size()});
     }
 
     void load_peer_key_share(CBuffer ks)
@@ -126,6 +133,8 @@ namespace tls
       {
         throw std::logic_error(error_string(rc));
       }
+
+      peer_key_share = {ks.p, ks.p + ks.n};
     }
 
     std::vector<uint8_t> compute_shared_secret()

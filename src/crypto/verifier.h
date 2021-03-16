@@ -38,7 +38,9 @@ namespace crypto
       MDType md_type = MDType::NONE) const
     {
       if (md_type == MDType::NONE)
+      {
         md_type = this->md_type;
+      }
 
       return public_key->verify(
         contents, contents_size, sig, sig_size, md_type);
