@@ -51,7 +51,7 @@ namespace ccf
 
     void call(kv::ConfigurableConsensus* consensus) override
     {
-      auto configuration = consensus->get_latest_configuration();
+      auto configuration = consensus->get_latest_configuration_unsafe();
       for (const auto& [node_id, opt_ni] : cfg_delta)
       {
         if (opt_ni.has_value())
