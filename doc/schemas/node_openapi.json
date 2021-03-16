@@ -565,12 +565,7 @@
             "name": "status",
             "required": false,
             "schema": {
-              "enum": [
-                "Pending",
-                "Trusted",
-                "Retired"
-              ],
-              "type": "string"
+              "$ref": "#/components/schemas/string"
             }
           }
         ],
