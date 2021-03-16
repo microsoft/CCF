@@ -5,11 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.19.2]
+
+### Changed
+
+- String values in query parameters no longer need to be quoted. For instance, you should now call `/network/nodes?host=127.0.0.1` rather than `/network/nodes?host="127.0.0.1"`.
+- Schema documentation for query parameters should now be added with `add_query_parameter`, rather than `set_auto_schema`. The `In` type of `set_auto_schema` should only be used to describe the request body.
+- `json_adapter` will no longer try to convert query parameters to a JSON object. The JSON passed as an argument to these handlers will now be populated only by the request body. The query string should be parsed separately, and `http::parse_query(s)` is added as a starting point. This means strings in query parameters no longer need to be quoted.
+
+## [0.19.1]
 
 ### Added
 
 - Historical point query support has been added to JavaScript endpoints (#2285).
+- RSA key generation JavaScript endpoint (#2293).
 
 ### Changed
 
@@ -738,6 +747,8 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.19.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.2
+[0.19.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.1
 [0.19.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.0
 [0.18.5]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.5
 [0.18.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.18.4

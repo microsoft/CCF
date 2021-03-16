@@ -134,7 +134,7 @@ namespace ccf
 
     static serdes::Pack get_response_pack(
       const std::shared_ptr<enclave::RpcContext>& ctx,
-      serdes::Pack request_pack)
+      serdes::Pack request_pack = serdes::Pack::Text)
     {
       serdes::Pack packing = request_pack;
 
@@ -177,49 +177,6 @@ namespace ccf
       return serdes::unpack(ctx->get_request_body(), pack);
     }
 
-    static nlohmann::json get_params_from_query(
-      const std::shared_ptr<enclave::RpcContext>& ctx)
-    {
-      std::string_view query = ctx->get_request_query();
-      auto params = nlohmann::json::object();
-
-      while (true)
-      {
-        const auto next_split = query.find('&');
-
-        const std::string_view this_entry = query.substr(0, next_split);
-        const auto field_split = this_entry.find('=');
-        if (field_split == std::string::npos)
-        {
-          throw UrlQueryParseError(
-            fmt::format("No k=v in URL query fragment: {}", query));
-        }
-
-        const std::string_view key = this_entry.substr(0, field_split);
-        const std::string_view value = this_entry.substr(field_split + 1);
-        try
-        {
-          params[std::string(key)] = nlohmann::json::parse(value);
-        }
-        catch (const std::exception& e)
-        {
-          throw UrlQueryParseError(fmt::format(
-            "Unable to parse URL query value: {} ({})", query, e.what()));
-        }
-
-        if (next_split == std::string::npos)
-        {
-          break;
-        }
-        else
-        {
-          query.remove_prefix(next_split + 1);
-        }
-      }
-
-      return params;
-    }
-
     static std::pair<serdes::Pack, nlohmann::json> get_json_params(
       const std::shared_ptr<enclave::RpcContext>& ctx)
     {
@@ -232,10 +189,6 @@ namespace ccf
         && ctx->get_request_verb() != HTTP_GET)
       {
         params = get_params_from_body(ctx, pack);
-      }
-      else if (!ctx->get_request_query().empty())
-      {
-        params = get_params_from_query(ctx);
       }
       else
       {

@@ -68,8 +68,13 @@ jobs:
           GIT_SSH_COMMAND="ssh -i deploy_key" git push -f origin HEAD:gh-pages
         displayName: "Publish GitHub Pages"
         condition: |
-          and(not(eq(variables['Build.Reason'], 'PullRequest')),
-              eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+          and(
+            not(eq(variables['Build.Reason'], 'PullRequest')),
+            or(
+                eq(variables['Build.SourceBranch'], 'refs/heads/main'),
+                startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')
+            )
+          )
         workingDirectory: build/html
 
       - script: rm deploy_key || true
