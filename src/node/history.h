@@ -105,8 +105,11 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
+        ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.version);
       signatures->put(0, sig_value);
+      serialised_tree->put(0, {});
       return sig.commit_reserved();
     }
   };

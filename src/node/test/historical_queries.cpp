@@ -1,12 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/historical_queries.h"
-
 #include "crypto/rsa_key_pair.h"
 #include "ds/messaging.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/historical_queries.h"
 #include "node/history.h"
 #include "node/share_manager.h"
 
@@ -121,15 +120,18 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto config = tx.rw<ccf::Configuration>(ccf::Tables::CONFIGURATION);
     size_t recovery_threshold = 1;
     config->put(0, {recovery_threshold});
-    auto members = tx.rw<ccf::Members>(ccf::Tables::MEMBERS);
-    ccf::MemberInfo mi;
-    mi.status = ccf::MemberStatus::ACTIVE;
+    auto member_info = tx.rw<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
+    auto member_public_encryption_keys = tx.rw<ccf::MmeberPublicEncryptionKeys>(
+      ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
     auto kp = crypto::make_key_pair();
-    mi.cert = kp->self_sign("CN=member");
-    mi.encryption_pub_key = crypto::make_rsa_key_pair()->public_key_pem();
-    members->put(
-      crypto::Sha256Hash(crypto::cert_pem_to_der(mi.cert)).hex_str(), mi);
+    auto cert = kp->self_sign("CN=member");
+    auto member_id =
+      crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+
+    member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
+    member_public_encryption_keys->put(
+      member_id, crypto::make_rsa_key_pair()->public_key_pem());
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 

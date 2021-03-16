@@ -167,19 +167,16 @@ namespace ccf
       auto member = member_info->get(member_id);
       if (!member.has_value())
       {
-        // No effect if member does not exist
-        LOG_FAIL_FMT(
-          "Member {} cannot be activated as they do not exist", member_id);
-        return;
+        throw std::logic_error(fmt::format(
+          "Member {} cannot be activated as they do not exist", member_id));
       }
 
       if (member->status != MemberStatus::ACCEPTED)
       {
         // Only accepted members can transition to active state
-        LOG_FAIL_FMT(
+        throw std::logic_error(fmt::format(
           "Member {} cannot be activated as they are not in state accepted",
-          member_id);
-        return;
+          member_id));
       }
 
       member->status = MemberStatus::ACTIVE;
@@ -187,11 +184,11 @@ namespace ccf
         is_recovery_member(member_id) &&
         (get_active_recovery_members().size() >= max_active_recovery_members))
       {
-        LOG_FAIL_FMT(
+        throw std::logic_error(fmt::format(
           "Cannot activate new recovery member {}: no more than {} active "
           "recovery members are allowed",
           member_id,
-          max_active_recovery_members);
+          max_active_recovery_members));
       }
       member_info->put(member_id, member.value());
     }

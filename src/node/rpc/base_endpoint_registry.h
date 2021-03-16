@@ -238,8 +238,7 @@ namespace ccf
       }
     }
 
-    // TODO: typedef user_data?
-    /** Get the user data associated with a given user unique id
+    /** Get the user data associated with a given user id
      */
     ApiResult get_user_data_v1(
       kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data)
@@ -263,7 +262,7 @@ namespace ccf
       }
     }
 
-    /** Get the member data associated with a given member unique id
+    /** Get the member data associated with a given member id
      */
     ApiResult get_member_data_v1(
       kv::ReadOnlyTx& tx, const UserId& member_id, nlohmann::json& member_data)
