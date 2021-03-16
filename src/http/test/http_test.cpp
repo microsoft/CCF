@@ -1,12 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
+#include "crypto/key_pair.h"
+#include "http/http_builder.h"
+#include "http/http_parser.h"
+#include "http/http_query.h"
+#include "http/http_sig.h"
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
-#include "../http_builder.h"
-#include "../http_parser.h"
-#include "../http_sig.h"
-#include "crypto/key_pair.h"
-
 #include <doctest/doctest.h>
 #include <queue>
 #include <string>
@@ -422,6 +424,87 @@ DOCTEST_TEST_CASE("URL parser")
     DOCTEST_CHECK(url.path == "/");
     DOCTEST_CHECK(url.query.empty());
     DOCTEST_CHECK(url.fragment.empty());
+  }
+}
+
+DOCTEST_TEST_CASE("Query parser")
+{
+  constexpr auto query =
+    "foo=bar&baz=123&awkward=!?:.-\"===&awkward!key?\"=fine&empty&also_empty=&"
+    "multi=maintains-order!&multi=twice&multi=2&multi=three&multi=1&multi="
+    "twice";
+
+  const auto parsed = http::parse_query(query);
+
+  std::vector<std::string> checked_keys;
+
+#define REQUIRE_PARSED_SINGLE_QUERY_PARAM(K, V) \
+  { \
+    const auto it = parsed.find(K); \
+    DOCTEST_REQUIRE(it != parsed.end()); \
+    DOCTEST_REQUIRE(parsed.count(K) == 1); \
+    const auto actual = it->second; \
+    DOCTEST_REQUIRE(V == actual); \
+    checked_keys.push_back(K); \
+  }
+
+#define REQUIRE_PARSED_EMPTY_QUERY_PARAM(K) \
+  { \
+    const auto it = parsed.find(K); \
+    DOCTEST_REQUIRE(it != parsed.end()); \
+    DOCTEST_REQUIRE(parsed.count(K) == 1); \
+    const auto actual = it->second; \
+    DOCTEST_REQUIRE(actual.empty()); \
+    checked_keys.push_back(K); \
+  }
+
+  REQUIRE_PARSED_SINGLE_QUERY_PARAM("foo", "bar");
+  REQUIRE_PARSED_SINGLE_QUERY_PARAM("baz", "123");
+  REQUIRE_PARSED_SINGLE_QUERY_PARAM("awkward", "!?:.-\"===");
+  REQUIRE_PARSED_SINGLE_QUERY_PARAM("awkward!key?\"", "fine");
+  REQUIRE_PARSED_EMPTY_QUERY_PARAM("empty");
+  REQUIRE_PARSED_EMPTY_QUERY_PARAM("also_empty");
+
+#undef REQUIRE_PARSED_SINGLE_QUERY_PARAM
+#undef REQUIRE_PARSED_EMPTY_QUERY_PARAM
+
+  {
+    DOCTEST_INFO(
+      "Query parser keeps every value when a key is passed multiple times, in "
+      "the order they are presented");
+    const auto multi_key = "multi";
+    DOCTEST_REQUIRE(parsed.count(multi_key) == 6);
+    auto range = parsed.equal_range(multi_key);
+
+    auto it = range.first;
+    DOCTEST_REQUIRE(it->second == "maintains-order!");
+
+    std::advance(it, 1);
+    DOCTEST_REQUIRE(it->second == "twice");
+
+    std::advance(it, 1);
+    DOCTEST_REQUIRE(it->second == "2");
+
+    std::advance(it, 1);
+    DOCTEST_REQUIRE(it->second == "three");
+
+    std::advance(it, 1);
+    DOCTEST_REQUIRE(it->second == "1");
+
+    std::advance(it, 1);
+    DOCTEST_REQUIRE(it->second == "twice");
+
+    std::advance(it, 1);
+    DOCTEST_REQUIRE(it == range.second);
+
+    checked_keys.push_back(multi_key);
+  }
+
+  for (auto it = parsed.begin(); it != parsed.end(); ++it)
+  {
+    const auto k = it->first;
+    const auto found = std::find(checked_keys.begin(), checked_keys.end(), k);
+    DOCTEST_REQUIRE(found != checked_keys.end());
   }
 }
 
