@@ -27,6 +27,17 @@ class NodeStatus(Enum):
     RETIRED = "Retired"
 
 
+class State(Enum):
+    UNINITIALIZED = "Uninitialized"
+    INITIALIZED = "Initialized"
+    PENDING = "Pending"
+    PART_OF_PUBLIC_NETWORK = "PartOfPublicNetwork"
+    PART_OF_NETWORK = "PartOfNetwork"
+    READING_PUBLIC_LEDGER = "ReadingPublicLedger"
+    READING_PRIVATE_LEDGER = "ReadingPrivateLedger"
+    VERIFYING_SNAPSHOT = "VerifyingSnapshot"
+
+
 def is_addr_local(host, port):
     with closing(socket.socket()) as s:
         try:

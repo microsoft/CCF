@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.network
+import infra.node
 import infra.logging_app as app
 import infra.checker
 import suite.test_requirements as reqs
@@ -91,7 +92,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
     for node in recovered_network.get_joined_nodes():
         recovered_network.wait_for_state(
-            node, "PartOfNetwork", timeout=args.ledger_recovery_timeout
+            node, infra.node.State.PART_OF_NETWORK.value, timeout=args.ledger_recovery_timeout
         )
 
     recovered_network.consortium.check_for_service(
