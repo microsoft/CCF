@@ -22,9 +22,9 @@ class NoRecoveryShareFound(Exception):
 
 
 class MemberStatus(Enum):
-    ACCEPTED = 0
-    ACTIVE = 1
-    RETIRED = 2
+    ACCEPTED = "Accepted"
+    ACTIVE = "Active"
+    RETIRED = "Retired"
 
 
 class MemberInfo(NamedTuple):
@@ -141,7 +141,7 @@ class Member:
         with remote_node.client(*self.auth(write=True)) as c:
             r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
             if r.status_code == http.HTTPStatus.OK.value:
-                proposal.state = infra.proposal.ProposalState.Withdrawn
+                proposal.state = infra.proposal.ProposalState.WITHDRAWN
             return r
 
     def update_ack_state_digest(self, remote_node):

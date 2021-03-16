@@ -20,11 +20,10 @@ namespace ccf
 
   DECLARE_JSON_ENUM(
     ServiceStatus,
-    {{ServiceStatus::OPENING, "OPENING"},
-     {ServiceStatus::OPEN, "OPEN"},
-     {ServiceStatus::WAITING_FOR_RECOVERY_SHARES,
-      "WAITING_FOR_RECOVERY_SHARES"},
-     {ServiceStatus::CLOSED, "CLOSED"}});
+    {{ServiceStatus::OPENING, "Opening"},
+     {ServiceStatus::OPEN, "Open"},
+     {ServiceStatus::WAITING_FOR_RECOVERY_SHARES, "WaitingForRecoveryShares"},
+     {ServiceStatus::CLOSED, "Closed"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::ServiceStatus);

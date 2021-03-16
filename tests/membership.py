@@ -170,7 +170,7 @@ def recovery_shares_scenario(args):
             test_retire_member(network, args, recovery_member=True)
             assert False, "Retiring a recovery member should not be possible"
         except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.Failed
+            assert e.proposal.state == infra.proposal.ProposalState.FAILED
 
         # However, retiring a non-recovery member is allowed
         LOG.info("Retiring a non-recovery member is still possible")
@@ -216,7 +216,7 @@ def recovery_shares_scenario(args):
             test_set_recovery_threshold(network, args, recovery_threshold=0)
             assert False, "Setting recovery threshold to 0 should not be possible"
         except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.Failed
+            assert e.proposal.state == infra.proposal.ProposalState.FAILED
 
         LOG.info(
             "Set recovery threshold to more that number of active recovery members is impossible"
@@ -232,7 +232,7 @@ def recovery_shares_scenario(args):
                 False
             ), "Setting recovery threshold to more than number of active recovery members should not be possible"
         except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.Failed
+            assert e.proposal.state == infra.proposal.ProposalState.FAILED
 
         LOG.info(
             "Setting recovery threshold to current threshold does not update shares"
