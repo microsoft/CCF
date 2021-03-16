@@ -660,9 +660,7 @@ namespace js
           ctx, proof, i++, js_element, JS_PROP_C_W_E);
       }
       JS_SetPropertyStr(ctx, js_receipt, "proof", proof);
-
       JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
-
       JS_SetPropertyStr(ctx, ccf, "historicalState", state);
     }
 
