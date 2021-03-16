@@ -450,8 +450,10 @@ TEST_CASE("Replay and out-of-order")
 TEST_CASE("Host connections")
 {
   auto network_kp = crypto::make_key_pair();
-  auto channel_manager =
-    ChannelManager(wf1, network_kp->private_key_pem(), self);
+  auto network_cert = network_kp->self_sign("CN=Network");
+  auto channel_kp = crypto::make_key_pair();
+  auto channel_cert = channel_kp->self_sign("CN=Node");
+  auto channel_manager = ChannelManager(wf1, channel_kp, channel_cert, self);
 
   INFO("New channel creates host connection");
   {

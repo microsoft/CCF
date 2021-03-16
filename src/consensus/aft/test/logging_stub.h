@@ -142,7 +142,9 @@ namespace aft
     void recv_message(const ccf::NodeId& from, OArray&& oa) override {}
 
     void initialize(
-      const ccf::NodeId& self_id, const crypto::Pem& network_pkey) override
+      const ccf::NodeId& self_id,
+      crypto::KeyPairPtr node_kp,
+      const crypto::Pem& node_cert) override
     {}
 
     bool send_encrypted(

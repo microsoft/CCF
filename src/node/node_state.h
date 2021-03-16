@@ -1779,7 +1779,7 @@ namespace ccf
 
     void setup_n2n_channels()
     {
-      n2n_channels->initialize(self, node_cert);
+      n2n_channels->initialize(self, node_sign_kp, node_cert);
     }
 
     void setup_cmd_forwarder()

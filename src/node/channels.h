@@ -366,7 +366,7 @@ namespace ccf
 
     bool consume_key_share(const std::vector<uint8_t>& data)
     {
-      return consume_initiator_key_share(data.data(), data.size());
+      return consume_key_share(data.data(), data.size());
     }
 
     bool consume_key_share(const uint8_t* data, size_t size)
@@ -691,10 +691,11 @@ namespace ccf
   public:
     ChannelManager(
       ringbuffer::AbstractWriterFactory& writer_factory_,
+      crypto::KeyPairPtr node_kp_,
       const crypto::Pem& node_cert_,
       const NodeId& self_) :
       writer_factory(writer_factory_),
-      node_kp(crypto::make_key_pair(node_cert_)),
+      node_kp(node_kp_),
       node_cert(node_cert_),
       self(self_)
     {}

@@ -90,7 +90,9 @@ namespace ccf
     virtual void recv_message(const NodeId& from, OArray&& oa) = 0;
 
     virtual void initialize(
-      const NodeId& self_id, const crypto::Pem& node_cert) = 0;
+      const NodeId& self_id,
+      crypto::KeyPairPtr node_kp,
+      const crypto::Pem& node_cert) = 0;
 
     virtual bool send_encrypted(
       const NodeId& to,
@@ -135,7 +137,9 @@ namespace ccf
     {}
 
     void initialize(
-      const NodeId& self_id, const crypto::Pem& node_cert) override
+      const NodeId& self_id,
+      crypto::KeyPairPtr node_kp,
+      const crypto::Pem& node_cert) override
     {
       CCF_ASSERT_FMT(
         !self.has_value(),
@@ -145,7 +149,7 @@ namespace ccf
 
       self = self_id;
       channels = std::make_unique<ChannelManager>(
-        writer_factory, node_cert, self.value());
+        writer_factory, node_kp, node_cert, self.value());
     }
 
     void create_channel(
