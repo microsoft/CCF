@@ -83,7 +83,7 @@ namespace ccf
     // User tables
     //
     UserCerts user_certs;
-    UserData user_data;
+    UserInfo user_info;
 
     ServicePrincipals service_principals;
 
@@ -138,7 +138,7 @@ namespace ccf
       jwt_public_signing_keys(Tables::JWT_PUBLIC_SIGNING_KEYS),
       jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
       user_certs(Tables::USER_CERTS),
-      user_data(Tables::USER_DATA),
+      user_info(Tables::USER_INFO),
       service_principals(Tables::SERVICE_PRINCIPALS),
       nodes(Tables::NODES),
       app_scripts(Tables::APP_SCRIPTS),
@@ -177,7 +177,7 @@ namespace ccf
         std::ref(jwt_public_signing_keys),
         std::ref(jwt_public_signing_key_issuer),
         std::ref(user_certs),
-        std::ref(user_data),
+        std::ref(user_info),
         std::ref(service_principals),
         std::ref(nodes),
         std::ref(service),

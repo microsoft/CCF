@@ -27,5 +27,10 @@ namespace ccf
 
   using Module = std::string;
 
-  using Modules = kv::RawCopySerialisedMap<std::string, Module>;
+  // ls_js_sgx_cft^/client_0: 1653.8537810682178
+  // using Modules = kv::RawCopySerialisedMap<std::string, Module>;
+
+  // TODO: Decide on serialisation format
+  using Modules = ServiceMap<std::string, Module>;
+
 }

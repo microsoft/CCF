@@ -571,7 +571,7 @@ namespace ccf
         // add a new member
         {"new_member",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto parsed = args.get<MemberPubInfo>();
+           const auto parsed = args.get<NewMember>();
            GenesisGenerator g(this->network, tx);
            g.add_member(parsed);
 
@@ -582,14 +582,16 @@ namespace ccf
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
-           GenesisGenerator g(this->network, tx);
-           if (!g.retire_member(member_id))
+           auto members = tx.rw(this->network.member_info);
+           auto member_info = members->get(member_id);
+           if (!member_info.has_value())
            {
+             LOG_FAIL_FMT(
+               "Cannot retire member {} as they do not exist", member_id);
              return false;
            }
 
-           auto members = tx.rw(this->network.member_info);
-           auto member_info = members->get(member_id);
+           GenesisGenerator g(this->network, tx);
            if (
              member_info->status == MemberStatus::ACTIVE &&
              g.is_recovery_member(member_id))
@@ -603,7 +605,7 @@ namespace ccf
              }
            }
 
-           return true;
+           return g.retire_member(member_id);
          }},
         {"set_member_data",
          [this](
@@ -661,8 +663,8 @@ namespace ccf
              return false;
            }
 
-           auto users_data = tx.rw(this->network.user_data);
-           users_data->put(parsed.user_id, parsed.user_data);
+           auto user_info = tx.rw(this->network.user_info);
+           user_info->put(parsed.user_id, {parsed.user_data});
            return true;
          }},
         {"set_ca_cert_bundle",

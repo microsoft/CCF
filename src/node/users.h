@@ -9,7 +9,6 @@
 
 namespace ccf
 {
-  // TODO: Move to other file
   struct NewUser
   {
     crypto::Pem cert;
@@ -21,11 +20,12 @@ namespace ccf
 
   using UserCerts = kv::RawCopySerialisedMap<UserId, crypto::Pem>;
 
-  // TODO: Use this type in UserInfo table!
-  // struct UserInfo
-  // {
-  //   nlohmann::json user_data = nullptr;
-  // };
+  struct UserDetails
+  {
+    nlohmann::json user_data = nullptr;
+  };
+  DECLARE_JSON_TYPE(UserDetails)
+  DECLARE_JSON_REQUIRED_FIELDS(UserDetails, user_data)
 
-  using UserData = ServiceMap<UserId, nlohmann::json>;
+  using UserInfo = ServiceMap<UserId, UserDetails>;
 }

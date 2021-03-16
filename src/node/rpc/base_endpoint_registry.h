@@ -245,14 +245,14 @@ namespace ccf
     {
       try
       {
-        auto users_data = tx.ro<UserData>(Tables::USER_DATA);
-        auto ud = users_data->get(user_id);
-        if (!ud.has_value())
+        auto users_data = tx.ro<UserInfo>(Tables::USER_INFO);
+        auto ui = users_data->get(user_id);
+        if (!ui.has_value())
         {
           return ApiResult::NotFound;
         }
 
-        user_data = ud.value();
+        user_data = ui->user_data;
         return ApiResult::OK;
       }
       catch (const std::exception& e)

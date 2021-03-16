@@ -286,7 +286,7 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
   }
 }
 
-struct NewMember
+struct TestNewMember
 {
   size_t local_id;
   MemberId service_id;
@@ -332,7 +332,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   MemberRpcFrontend frontend(network, context, share_manager);
   frontend.open();
 
-  vector<NewMember> new_members(n_new_members);
+  vector<TestNewMember> new_members(n_new_members);
 
   auto i = 0ul;
   for (auto& new_member : new_members)
@@ -902,7 +902,7 @@ recovery_threshold, consensus = "CFT"}) return Calls:call("raw_puts", p) )xxx"s,
 
 DOCTEST_TEST_CASE("Remove proposal")
 {
-  NewMember caller;
+  TestNewMember caller;
   auto cert = caller.kp->self_sign("CN=new member");
   auto v = crypto::make_verifier(cert);
   caller.cert = v->cert_pem();
@@ -1642,7 +1642,7 @@ DOCTEST_TEST_CASE("User data")
     gen.finalize();
 
     read_user_info =
-      create_request(read_params(user_id, Tables::USER_DATA), "read");
+      create_request(read_params(user_id, Tables::USER_INFO), "read");
 
     {
       // TODO: Fix
@@ -1660,7 +1660,7 @@ DOCTEST_TEST_CASE("User data")
     gen.finalize();
 
     read_user_info =
-      create_request(read_params(user_id, Tables::USER_DATA), "read");
+      create_request(read_params(user_id, Tables::USER_INFO), "read");
 
     {
       // TODO: Fix

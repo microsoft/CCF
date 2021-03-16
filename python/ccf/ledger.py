@@ -75,7 +75,7 @@ class PublicDomain:
     _version: int
     _max_conflict_version: int
     _tables: dict
-    _integrity_tables: Set[str]
+    # _integrity_tables: Set[str]
 
     def __init__(self, buffer: io.BytesIO):
         self._buffer = buffer
@@ -87,12 +87,11 @@ class PublicDomain:
         self._tables = {}
         # Keys and Values may have custom serialisers.
         # Store most as raw bytes, only decode a few which we know are msgpack and are required for ledger verification.
-        self._integrity_tables = {
-            NODES_TABLE_NAME,
-            SIGNATURE_TX_TABLE_NAME,
-            "public:ccf.gov.members.info",  # TODO: Remove: all tables should be JSON-deserialisable?
-            "public:ccf.gov.history",
-        }
+        # self._integrity_tables = {
+        #     NODES_TABLE_NAME,
+        #     SIGNATURE_TX_TABLE_NAME,
+        #     "public:ccf.gov.history",
+        # }
         self._read()
 
     def _read_next(self):
@@ -112,7 +111,7 @@ class PublicDomain:
             # map_start_indicator
             self._read_next()
             map_name = self._read_next_string()
-            LOG.info(f"Reading map {map_name}")
+            LOG.info(f"Reading map {map_name}")  # TODO: Revert to trace
             records = {}
             self._tables[map_name] = records
 
@@ -128,29 +127,13 @@ class PublicDomain:
                 for _ in range(write_count):
                     k = self._read_next_entry()
                     val = self._read_next_entry()
-                    if map_name in self._integrity_tables:
-                        # if (
-                        #     map_name == NODES_TABLE_NAME
-                        #     or map_name == "public:ccf.gov.history"
-                        # ):
-                        k = k.decode()
-                        val = json.loads(val)
-
-                    # if map_name == "public:ccf.gov.history":
-                    #     LOG.warning("msgpack")
-                    #     k = msgpack.unpackb(k, **UNPACK_ARGS)[0]
-                    #     LOG.success(type(k))
-                    #     val = msgpack.unpackb(val, **UNPACK_ARGS)
-
-                    LOG.error(val)
                     records[k] = val
+                    LOG.error(val)  # TODO: Remove
 
             remove_count = self._read_next()
             if remove_count:
                 for _ in range(remove_count):
                     k = self._read_next_entry()
-                    if map_name in self._integrity_tables:
-                        k = msgpack.unpackb(k, **UNPACK_ARGS)
                     records[k] = None
 
             LOG.trace(
@@ -247,29 +230,29 @@ class LedgerValidator:
         # Add contributing nodes certs and update nodes network trust status for verification
         if NODES_TABLE_NAME in tables:
             node_table = tables[NODES_TABLE_NAME]
-            for nodeid, values in node_table.items():
-                LOG.error(nodeid)
+            for node_id, node_info in node_table.items():
+                node_id = node_id.decode()
+                node_info = json.loads(node_info)
                 # Add the nodes certificate
-                self.node_certificates[nodeid] = values["cert"].encode()
+                self.node_certificates[node_id] = node_info["cert"].encode()
                 # Update node trust status
-                self.node_activity_status[nodeid] = NodeStatus[values["status"]]
+                self.node_activity_status[node_id] = NodeStatus[node_info["status"]]
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
             self.signature_count += 1
             signature_table = tables[SIGNATURE_TX_TABLE_NAME]
 
-            for nodeid, values in signature_table.items():
-                current_seqno = values["seqno"]
-                current_view = values["view"]
-                signing_node = values["node"]
+            for _, signature in signature_table.items():
+                signature = json.loads(signature)
+                current_seqno = signature["seqno"]
+                current_view = signature["view"]
+                signing_node = signature["node"]
 
                 # Get binary representations for the cert, existing root, and signature
-                # cert = b"".join(self.node_certificates[signing_node])
                 cert = self.node_certificates[signing_node]
-                LOG.error(cert)
-                existing_root = bytes.fromhex(values["root"])
-                signature = base64.b64decode(values["sig"])
+                existing_root = bytes.fromhex(signature["root"])
+                signature = base64.b64decode(signature["sig"])
 
                 tx_info = TxBundleInfo(
                     self.merkle,

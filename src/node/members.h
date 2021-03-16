@@ -32,7 +32,7 @@ namespace ccf
   // Current limitations of secret sharing library (sss).
   static constexpr size_t max_active_recovery_members = 255;
 
-  struct MemberPubInfo
+  struct NewMember
   {
     crypto::Pem cert;
 
@@ -40,9 +40,9 @@ namespace ccf
     std::optional<crypto::Pem> encryption_pub_key = std::nullopt;
     nlohmann::json member_data = nullptr;
 
-    MemberPubInfo() {}
+    NewMember() {}
 
-    MemberPubInfo(
+    NewMember(
       const crypto::Pem& cert_,
       const std::optional<crypto::Pem>& encryption_pub_key_ = std::nullopt,
       const nlohmann::json& member_data_ = nullptr) :
@@ -51,7 +51,7 @@ namespace ccf
       member_data(member_data_)
     {}
 
-    bool operator==(const MemberPubInfo& rhs) const
+    bool operator==(const NewMember& rhs) const
     {
       return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
         member_data == rhs.member_data;
@@ -59,9 +59,9 @@ namespace ccf
 
     MSGPACK_DEFINE(cert, encryption_pub_key, member_data);
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberPubInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert)
-  DECLARE_JSON_OPTIONAL_FIELDS(MemberPubInfo, encryption_pub_key, member_data)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember)
+  DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert)
+  DECLARE_JSON_OPTIONAL_FIELDS(NewMember, encryption_pub_key, member_data)
 
   struct MemberDetails
   {

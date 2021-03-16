@@ -118,7 +118,7 @@ namespace ccf
       return active_recovery_members;
     }
 
-    MemberId add_member(const MemberPubInfo& member_pub_info)
+    MemberId add_member(const NewMember& member_pub_info)
     {
       auto member_certs = tx.rw(tables.member_certs);
       auto member_info = tx.rw(tables.member_info);
@@ -245,31 +245,31 @@ namespace ccf
 
     UserId add_user(const NewUser& user_info)
     {
-      auto u = tx.rw(tables.user_certs);
+      auto user_certs = tx.rw(tables.user_certs);
 
       auto user_cert_der = crypto::make_verifier(user_info.cert)->cert_der();
       auto id = crypto::Sha256Hash(user_cert_der).hex_str();
 
-      auto user = u->get(id);
-      if (user.has_value())
+      auto user_cert = user_certs->get(id);
+      if (user_cert.has_value())
       {
         throw std::logic_error(
-          fmt::format("User certificate already exists for {}", id));
+          fmt::format("Certificate already exists for user {}", id));
       }
 
-      u->put(id, user_info.cert);
+      user_certs->put(id, user_info.cert);
 
       if (user_info.user_data != nullptr)
       {
-        auto ud = tx.rw(tables.user_data);
-        auto user_data = ud->get(id);
-        if (user_data.has_value())
+        auto user_info = tx.rw(tables.user_info);
+        auto ui = user_info->get(id);
+        if (ui.has_value())
         {
           throw std::logic_error(
             fmt::format("User data already exists for {}", id));
         }
 
-        ud->put(id, user_info.user_data);
+        user_info->put(id, {ui->user_data});
       }
 
       return id;
@@ -278,11 +278,11 @@ namespace ccf
     void remove_user(const UserId& user_id)
     {
       // Has no effect if the user does not exist
-      auto u = tx.rw(tables.user_certs);
-      auto ud = tx.rw(tables.user_data);
+      auto user_certs = tx.rw(tables.user_certs);
+      auto user_info = tx.rw(tables.user_info);
 
-      u->remove(user_id);
-      ud->remove(user_id);
+      user_certs->remove(user_id);
+      user_info->remove(user_id);
     }
 
     void add_node(const NodeId& id, const NodeInfo& node_info)

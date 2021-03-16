@@ -62,7 +62,7 @@ namespace ccf
 
     // Users
     static constexpr auto USER_CERTS = "public:ccf.gov.users.certs";
-    static constexpr auto USER_DATA = "public:ccf.gov.users.data";
+    static constexpr auto USER_INFO = "public:ccf.gov.users.info";
 
     // Nodes identities and allowed code ids
     static constexpr auto NODES = "public:ccf.gov.nodes.info";

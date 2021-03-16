@@ -9,6 +9,7 @@ import ccf.ledger
 from infra.proposal import ProposalState
 import http
 import base64
+import json
 from loguru import logger as LOG
 
 
@@ -23,17 +24,19 @@ def count_governance_operations(ledger):
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
-            if "public:ccf.gov.members.info" in tables:
-                members_table = tables["public:ccf.gov.members.info"]
-                for member_id, member_info in members_table.items():
-                    members[member_id] = member_info["cert"]
+            if "public:ccf.gov.members.certs" in tables:
+                members_table = tables["public:ccf.gov.members.certs"]
+                for member_id, member_cert in members_table.items():
+                    members[member_id] = member_cert
 
             if "public:ccf.gov.history" in tables:
                 governance_history_table = tables["public:ccf.gov.history"]
                 for member_id, signed_request in governance_history_table.items():
                     assert member_id in members
 
-                    cert = members[member_id].encode()
+                    signed_request = json.loads(signed_request)
+
+                    cert = members[member_id]
                     sig = base64.b64decode(signed_request["sig"])
                     req = base64.b64decode(signed_request["req"])
                     request_body = base64.b64decode(signed_request["request_body"])

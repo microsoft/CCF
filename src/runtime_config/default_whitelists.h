@@ -14,7 +14,7 @@ namespace ccf
       Tables::MEMBER_INFO,
       Tables::MEMBER_ACKS,
       Tables::USER_CERTS,
-      Tables::USER_DATA,
+      Tables::USER_INFO,
       Tables::NODES,
       Tables::VALUES,
       Tables::SIGNATURES,
@@ -34,7 +34,7 @@ namespace ccf
 
     {MEMBER_CAN_PROPOSE,
      {Tables::USER_CERTS,
-      Tables::USER_DATA,
+      Tables::USER_INFO,
       Tables::VALUES,
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
