@@ -112,17 +112,43 @@ export interface KvMap {
 export type KvMaps = { [key: string]: KvMap };
 
 export interface ProofElement {
+  /**
+   * Hex-encoded Merkle tree element hash.
+   */
   left?: string;
+
+  /**
+   * Hex-encoded Merkle tree element hash.
+   */
   right?: string;
 }
 
 export type Proof = ProofElement[];
 
 export interface Receipt {
+  /**
+   * Base64-encoded signature of the Merkle tree root hash.
+   */
   signature: string;
+
+  /** 
+   * Hex-encoded Merkle tree root hash.
+   */
   root: string;
+
+  /**
+   * Merkle tree inclusion proof as an array of ``ProofElement`` objects.
+   */
   proof: Proof;
+
+  /**
+   * Hex-encoded Merkle tree leaf hash.
+   */
   leaf: string;
+
+  /**
+   * ID of the node that signed the Merkle tree root hash.
+   */
   nodeId: string;
 }
 
