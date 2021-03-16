@@ -73,7 +73,7 @@
       }
     },
     {
-      "Component": {
+      "component": {
         "Type": "git",
         "git": {
           "repositoryUrl": "https://github.com/bellard/quickjs",
