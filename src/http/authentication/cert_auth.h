@@ -41,11 +41,8 @@ namespace ccf
         identity->user_cert = user_cert.value();
         return identity;
       }
-      else
-      {
-        error_reason = "Could not find matching user certificate";
-      }
 
+      error_reason = "Could not find matching user certificate";
       return nullptr;
     }
 
@@ -61,9 +58,11 @@ namespace ccf
 
   struct MemberCertAuthnIdentity : public AuthnIdentity
   {
+    /** CCF member ID */
     MemberId member_id;
+
+    /** Member certificate, as established by TLS */
     crypto::Pem member_cert;
-    // nlohmann::json member_data; // TODO: Delete
   };
 
   class MemberCertAuthnPolicy : public AuthnPolicy
@@ -88,11 +87,8 @@ namespace ccf
         identity->member_cert = member_cert.value();
         return identity;
       }
-      else
-      {
-        error_reason = "Could not find matching member certificate";
-      }
 
+      error_reason = "Could not find matching member certificate";
       return nullptr;
     }
 
@@ -120,31 +116,23 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      const auto caller_cert_pem =
-        crypto::cert_der_to_pem(ctx->session->caller_cert);
-
-      std::unique_ptr<NodeCertAuthnIdentity> identity = nullptr;
+      auto caller_public_key_der =
+        crypto::make_unique_verifier(ctx->session->caller_cert)
+          ->public_key_der();
+      auto node_caller_id = crypto::Sha256Hash(caller_public_key_der).hex_str();
 
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
-      nodes->foreach(
-        [&caller_cert_pem, &identity](const auto& id, const auto& info) {
-          if (info.cert == caller_cert_pem)
-          {
-            identity = std::make_unique<NodeCertAuthnIdentity>();
-            identity->node_id = id;
-            identity->node_info = info;
-            return false;
-          }
-
-          return true;
-        });
-
-      if (identity == nullptr)
+      auto node = nodes->get(node_caller_id);
+      if (node.has_value())
       {
-        error_reason = "Caller cert does not match any known node cert";
+        auto identity = std::make_unique<NodeCertAuthnIdentity>();
+        identity->node_id = node_caller_id;
+        identity->node_info = node.value();
+        return identity;
       }
 
-      return identity;
+      error_reason = "Could not find matching node certificate";
+      return nullptr;
     }
 
     std::optional<OpenAPISecuritySchema> get_openapi_security_schema()

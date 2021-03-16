@@ -171,12 +171,10 @@ namespace ccf
           "Member {} cannot be activated as they do not exist", member_id));
       }
 
-      if (member->status != MemberStatus::ACCEPTED)
+      if (member->status == MemberStatus::RETIRED)
       {
-        // Only accepted members can transition to active state
         throw std::logic_error(fmt::format(
-          "Member {} cannot be activated as they are not in state accepted",
-          member_id));
+          "Member {} cannot be activated as they are retired: {}", member_id));
       }
 
       member->status = MemberStatus::ACTIVE;
