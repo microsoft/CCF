@@ -34,6 +34,9 @@ jobs:
           pip install wheel
           pip install -U -r doc/requirements.txt
           pip install -U -e ./python
+          npm install typescript typedoc@0.19.2
+          NPM_BIN=$(pwd)/node_modules/.bin
+          export PATH="$NPM_BIN:$PATH"
           sphinx-multiversion doc build/html
         displayName: Sphinx
 
@@ -65,8 +68,13 @@ jobs:
           GIT_SSH_COMMAND="ssh -i deploy_key" git push -f origin HEAD:gh-pages
         displayName: "Publish GitHub Pages"
         condition: |
-          and(not(eq(variables['Build.Reason'], 'PullRequest')),
-              eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+          and(
+            not(eq(variables['Build.Reason'], 'PullRequest')),
+            or(
+                eq(variables['Build.SourceBranch'], 'refs/heads/main'),
+                startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')
+            )
+          )
         workingDirectory: build/html
 
       - script: rm deploy_key || true

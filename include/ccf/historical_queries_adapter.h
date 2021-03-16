@@ -50,6 +50,39 @@ namespace ccf::historical
     return tx_id_opt;
   }
 
+  static inline bool is_tx_committed(
+    kv::Consensus* consensus,
+    kv::Consensus::View view,
+    kv::Consensus::SeqNo seqno,
+    std::string& error_reason)
+  {
+    if (consensus == nullptr)
+    {
+      error_reason = "Node is not fully configured";
+      return false;
+    }
+
+    const auto tx_view = consensus->get_view(seqno);
+    const auto committed_seqno = consensus->get_committed_seqno();
+    const auto committed_view = consensus->get_view(committed_seqno);
+
+    const auto tx_status = ccf::evaluate_tx_status(
+      view, seqno, tx_view, committed_view, committed_seqno);
+    if (tx_status != ccf::TxStatus::Committed)
+    {
+      error_reason = fmt::format(
+        "Only committed transactions can be queried. Transaction {}.{} "
+        "is "
+        "{}",
+        view,
+        seqno,
+        ccf::tx_status_to_str(tx_status));
+      return false;
+    }
+
+    return true;
+  };
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 

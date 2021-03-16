@@ -39,6 +39,13 @@ namespace ccf::endpoints
     Primary
   };
 
+  enum class Mode
+  {
+    ReadWrite,
+    ReadOnly,
+    Historical
+  };
+
   DECLARE_JSON_ENUM(
     ForwardingRequired,
     {{ForwardingRequired::Sometimes, "sometimes"},
@@ -53,6 +60,7 @@ namespace ccf::endpoints
 
   struct EndpointProperties
   {
+    Mode mode = Mode::ReadWrite;
     ForwardingRequired forwarding_required = ForwardingRequired::Always;
     ExecuteOutsideConsensus execute_outside_consensus =
       ExecuteOutsideConsensus::Never;
@@ -66,13 +74,14 @@ namespace ccf::endpoints
       execute_outside_consensus,
       authn_policies,
       openapi,
-      openapi_hidden);
+      openapi_hidden,
+      mode);
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
   DECLARE_JSON_REQUIRED_FIELDS(
     EndpointProperties, forwarding_required, authn_policies);
-  DECLARE_JSON_OPTIONAL_FIELDS(EndpointProperties, openapi, openapi_hidden);
+  DECLARE_JSON_OPTIONAL_FIELDS(EndpointProperties, openapi, openapi_hidden, mode);
 
   struct EndpointDefinition
   {
@@ -163,8 +172,10 @@ namespace ccf::endpoints
       const nlohmann::json& j,
       std::optional<http_status> status = std::nullopt);
 
-    /** Sets the schema that the request parameters and response must comply
-     * with based on JSON-serialisable data structures.
+    /** Sets the schema that the request and response bodies should comply
+     * with. These are used to populate the generated OpenAPI document, but do
+     * not introduce any constraints on the actual types that are parsed or
+     * produced by the handling functor.
      *
      * \verbatim embed:rst:leading-asterisk
      * .. note::
@@ -172,9 +183,9 @@ namespace ccf::endpoints
      *  user-defined data structures.
      * \endverbatim
      *
-     * @tparam In Request parameters JSON-serialisable data structure
-     * @tparam Out Request response JSON-serialisable data structure
-     * @param status Request response status code
+     * @tparam In Request body JSON-serialisable data structure
+     * @tparam Out Response body JSON-serialisable data structure
+     * @param status Response status code
      * @return This Endpoint for further modification
      */
     template <typename In, typename Out>
@@ -183,7 +194,7 @@ namespace ccf::endpoints
       if constexpr (!std::is_same_v<In, void>)
       {
         params_schema =
-          ds::json::build_schema<In>(dispatch.uri_path + "/params");
+          ds::json::build_schema<In>();
 
         schema_builders.push_back([](
                                     nlohmann::json& document,
@@ -195,22 +206,11 @@ namespace ccf::endpoints
             return;
           }
 
-          if (http_verb.value() == HTTP_GET || http_verb.value() == HTTP_DELETE)
-          {
-            add_query_parameters(
-              document,
-              endpoint.dispatch.uri_path,
-              endpoint.params_schema,
-              http_verb.value());
-          }
-          else
-          {
-            ds::openapi::add_request_body_schema<In>(
-              document,
-              endpoint.dispatch.uri_path,
-              http_verb.value(),
-              http::headervalues::contenttype::JSON);
-          }
+          ds::openapi::add_request_body_schema<In>(
+            document,
+            endpoint->dispatch.uri_path,
+            http_verb.value(),
+            http::headervalues::contenttype::JSON);
         });
       }
       else
@@ -223,7 +223,7 @@ namespace ccf::endpoints
         success_status = status.value_or(HTTP_STATUS_OK);
 
         result_schema =
-          ds::json::build_schema<Out>(dispatch.uri_path + "/result");
+          ds::json::build_schema<Out>();
 
         schema_builders.push_back(
           [](nlohmann::json& document, const Endpoint& endpoint) {
@@ -250,8 +250,8 @@ namespace ccf::endpoints
       return *this;
     }
 
-    /** Sets the schema that the request parameters and response must comply
-     * with, based on a single JSON-serialisable data structure.
+    /** Sets schemas for request and response bodies using typedefs within T.
+     * @see set_auto_schema
      *
      * \verbatim embed:rst:leading-asterisk
      * .. note::
@@ -259,8 +259,8 @@ namespace ccf::endpoints
      *   structures for request parameters and response format, respectively.
      * \endverbatim
      *
-     * @tparam T Request parameters and response JSON-serialisable data
-     * structure
+     * @tparam T Type containing ``In`` and ``Out`` typedefs with JSON-schema
+     * description specialisations
      * @param status Request response status code
      * @return This Endpoint for further modification
      */
@@ -268,6 +268,51 @@ namespace ccf::endpoints
     Endpoint& set_auto_schema(std::optional<http_status> status = std::nullopt)
     {
       return set_auto_schema<typename T::In, typename T::Out>(status);
+    }
+
+    /** Add OpenAPI documentation for a query parameter which can be passed to
+     * this endpoint.
+     *
+     * @tparam T Type with appropriate ``ds::json`` specialisations to
+     * generate a JSON schema description
+     * @param param_name Name to be used for the query parameter to this
+     * Endpoint
+     * @param presence Enum value indicating whether this parameter is
+     * required or optional
+     * @return This Endpoint for further modification
+     */
+    template <typename T>
+    Endpoint& add_query_parameter(
+      const std::string& param_name,
+      QueryParamPresence presence = RequiredParameter)
+    {
+      schema_builders.push_back(
+        [param_name,
+          presence](nlohmann::json& document, const EndpointPtr& endpoint) {
+          const auto http_verb = endpoint->dispatch.verb.get_http_method();
+          if (!http_verb.has_value())
+          {
+            // Non-HTTP (ie WebSockets) endpoints are not documented
+            return;
+          }
+
+          const auto schema_name = ds::json::schema_name<T>();
+          const auto query_schema = ds::json::build_schema<T>();
+
+          auto parameter = nlohmann::json::object();
+          parameter["name"] = param_name;
+          parameter["in"] = "query";
+          parameter["required"] = presence == RequiredParameter;
+          parameter["schema"] = ds::openapi::add_schema_to_components(
+            document, schema_name, query_schema);
+          ds::openapi::add_request_parameter_schema(
+            document,
+            endpoint->dispatch.uri_path,
+            http_verb.value(),
+            parameter);
+        });
+
+      return *this;
     }
 
     /** Overrides whether a Endpoint is always forwarded, or whether it is
@@ -310,34 +355,6 @@ namespace ccf::endpoints
         installer->install(*this);
       }
     }
-
-  private:
-    static void add_query_parameters(
-      nlohmann::json& document,
-      const std::string& uri,
-      const nlohmann::json& schema,
-      llhttp_method verb)
-    {
-      if (schema["type"] != "object")
-      {
-        throw std::logic_error(
-          fmt::format("Unexpected params schema type: {}", schema.dump()));
-      }
-
-      const auto& required_parameters =
-        schema.value("required", nlohmann::json::array());
-      for (const auto& [name, schema] : schema["properties"].items())
-      {
-        auto parameter = nlohmann::json::object();
-        parameter["name"] = name;
-        parameter["in"] = "query";
-        parameter["required"] =
-          required_parameters.find(name) != required_parameters.end();
-        parameter["schema"] = schema;
-        ds::openapi::add_request_parameter_schema(
-          document, uri, verb, parameter);
-      }
-    }
   };
 
   using EndpointPtr = std::shared_ptr<const Endpoint>;
@@ -345,3 +362,4 @@ namespace ccf::endpoints
 
 MSGPACK_ADD_ENUM(ccf::endpoints::ForwardingRequired);
 MSGPACK_ADD_ENUM(ccf::endpoints::ExecuteOutsideConsensus);
+MSGPACK_ADD_ENUM(ccf::endpoints::Mode);

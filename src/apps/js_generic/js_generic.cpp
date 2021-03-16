@@ -610,7 +610,9 @@ namespace ccfapp
     JSValueConst this_val,
     JSAtom property)
   {
-    const auto property_name = JS_AtomToCString(ctx, property);
+    const auto property_name_c = JS_AtomToCString(ctx, property);
+    const std::string property_name(property_name_c);
+    JS_FreeCString(ctx, property_name_c);
     LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
 
     const auto [security_domain, access_category] =
@@ -807,6 +809,7 @@ namespace ccfapp
   {
   private:
     NetworkTables& network;
+    ccfapp::AbstractNodeContext& context;
 
     JSClassDef kv_class_def = {};
     JSClassExoticMethods kv_exotic_methods = {};
@@ -818,7 +821,10 @@ namespace ccfapp
     metrics::Tracker metrics_tracker;
 
     static JSValue create_ccf_obj(
-      ccf::endpoints::EndpointContext& args, JSContext* ctx)
+      kv::Tx& tx,
+      const std::optional<kv::TxID>& transaction_id,
+      historical::TxReceiptPtr receipt,
+      JSContext* ctx)
     {
       auto ccf = JS_NewObject(ctx);
 
@@ -862,8 +868,61 @@ namespace ccfapp
         JS_NewCFunction(ctx, ccfapp::js_wrap_key, "wrapKey", 3));
 
       auto kv = JS_NewObjectClass(ctx, kv_class_id);
-      JS_SetOpaque(kv, &args.tx);
+      JS_SetOpaque(kv, &tx);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
+
+      // Historical queries
+      if (receipt)
+      {
+        auto state = JS_NewObject(ctx);
+
+        ccf::TxID tx_id;
+        tx_id.seqno = static_cast<ccf::SeqNo>(transaction_id.value().version);
+        tx_id.view = static_cast<ccf::View>(transaction_id.value().term);
+        JS_SetPropertyStr(
+          ctx,
+          state,
+          "transactionId",
+          JS_NewString(ctx, tx_id.to_str().c_str()));
+
+        ccf::GetReceipt::Out receipt_out;
+        receipt_out.from_receipt(receipt);
+        auto js_receipt = JS_NewObject(ctx);
+        JS_SetPropertyStr(
+          ctx,
+          js_receipt,
+          "signature",
+          JS_NewString(ctx, receipt_out.signature.c_str()));
+        JS_SetPropertyStr(
+          ctx, js_receipt, "root", JS_NewString(ctx, receipt_out.root.c_str()));
+        JS_SetPropertyStr(
+          ctx, js_receipt, "leaf", JS_NewString(ctx, receipt_out.leaf.c_str()));
+        JS_SetPropertyStr(
+          ctx,
+          js_receipt,
+          "nodeId",
+          JS_NewString(ctx, receipt_out.node_id.value().c_str()));
+        auto proof = JS_NewArray(ctx);
+        uint32_t i = 0;
+        for (auto& element : receipt_out.proof)
+        {
+          auto js_element = JS_NewObject(ctx);
+          auto is_left = element.left.has_value();
+          JS_SetPropertyStr(
+            ctx,
+            js_element,
+            is_left ? "left" : "right",
+            JS_NewString(
+              ctx, (is_left ? element.left : element.right).value().c_str()));
+          JS_DefinePropertyValueUint32(
+            ctx, proof, i++, js_element, JS_PROP_C_W_E);
+        }
+        JS_SetPropertyStr(ctx, js_receipt, "proof", proof);
+
+        JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
+
+        JS_SetPropertyStr(ctx, ccf, "historicalState", state);
+      }
 
       return ccf;
     }
@@ -879,12 +938,19 @@ namespace ccfapp
     }
 
     static void populate_global_obj(
-      ccf::endpoints::EndpointContext& args, JSContext* ctx)
+      kv::Tx& tx,
+      const std::optional<kv::TxID>& transaction_id,
+      ccf::historical::TxReceiptPtr receipt,
+      JSContext* ctx)
     {
       auto global_obj = JS_GetGlobalObject(ctx);
 
       JS_SetPropertyStr(ctx, global_obj, "console", create_console_obj(ctx));
-      JS_SetPropertyStr(ctx, global_obj, "ccf", create_ccf_obj(args, ctx));
+      JS_SetPropertyStr(
+        ctx,
+        global_obj,
+        "ccf",
+        create_ccf_obj(tx, transaction_id, receipt, ctx));
 
       JS_FreeValue(ctx, global_obj);
     }
@@ -1048,6 +1114,48 @@ namespace ccfapp
       const ccf::RESTVerb& verb,
       ccf::endpoints::EndpointContext& args)
     {
+      // Is this a historical endpoint?
+      auto endpoints =
+        args.tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto info = endpoints->get(ccf::endpoints::EndpointKey{method, verb});
+
+      if (
+        info.has_value() &&
+        info.value().mode == ccf::endpoints::Mode::Historical)
+      {
+        auto is_tx_committed = [this](
+                                 kv::Consensus::View view,
+                                 kv::Consensus::SeqNo seqno,
+                                 std::string& error_reason) {
+          return ccf::historical::is_tx_committed(
+            consensus, view, seqno, error_reason);
+        };
+
+        ccf::historical::adapter(
+          [this, &method, &verb](
+            ccf::EndpointContext& args, ccf::historical::StatePtr state) {
+            auto tx = state->store->create_tx();
+            auto tx_id = state->transaction_id;
+            auto receipt = state->receipt;
+            do_execute_request(method, verb, args, tx, tx_id, receipt);
+          },
+          context.get_historical_state(),
+          is_tx_committed)(args);
+      }
+      else
+      {
+        do_execute_request(method, verb, args, args.tx, std::nullopt, nullptr);
+      }
+    }
+
+    void do_execute_request(
+      const std::string& method,
+      const ccf::RESTVerb& verb,
+      EndpointContext& args,
+      kv::Tx& target_tx,
+      const std::optional<kv::TxID>& transaction_id,
+      ccf::historical::TxReceiptPtr receipt)
+    {
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
       const auto scripts = args.tx.ro(this->network.app_scripts);
@@ -1134,7 +1242,7 @@ namespace ccfapp
       JS_SetClassProto(ctx, body_class_id, body_proto);
 
       // Populate globalThis with console and ccf globals
-      populate_global_obj(args, ctx);
+      populate_global_obj(target_tx, transaction_id, receipt, ctx);
 
       // Compile module
       if (!handler_script.value().text.has_value())
@@ -1360,7 +1468,8 @@ namespace ccfapp
   public:
     JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network)
+      network(network),
+      context(context)
     {
       JS_NewClassID(&kv_class_id);
       kv_exotic_methods.get_own_property = js_kv_lookup;

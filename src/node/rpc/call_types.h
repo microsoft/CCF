@@ -27,12 +27,6 @@ namespace ccf
 
   struct GetTxStatus
   {
-    struct In
-    {
-      kv::Consensus::View view;
-      kv::Consensus::SeqNo seqno;
-    };
-
     struct Out
     {
       kv::Consensus::View view;
@@ -83,13 +77,6 @@ namespace ccf
 
   struct GetNodes
   {
-    struct In
-    {
-      std::optional<std::string> host;
-      std::optional<std::string> port;
-      std::optional<NodeStatus> status;
-    };
-
     struct Out
     {
       std::vector<GetNode::NodeInfo> nodes = {};
@@ -132,16 +119,6 @@ namespace ccf
     {
       std::vector<Entry> metrics;
     };
-  };
-
-  struct GetReceipt
-  {
-    struct In
-    {
-      std::string transaction_id;
-    };
-
-    using Out = ccf::Receipt;
   };
 
   struct VerifyReceipt

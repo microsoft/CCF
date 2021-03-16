@@ -90,6 +90,12 @@ namespace ccf::endpoints
       Write
     };
 
+    enum QueryParamPresence
+    {
+      RequiredParameter,
+      OptionalParameter,
+    };
+
     const std::string method_prefix;
 
     struct OpenApiInfo

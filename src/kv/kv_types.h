@@ -86,7 +86,8 @@ namespace kv
   public:
     virtual void add_configuration(
       SeqNo seqno, const Configuration::Nodes& conf) = 0;
-    virtual Configuration::Nodes get_latest_configuration() const = 0;
+    virtual Configuration::Nodes get_latest_configuration() = 0;
+    virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
   };
 
   class ConsensusHook
