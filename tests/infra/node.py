@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 from contextlib import contextmanager, closing
-from enum import Enum
+from enum import Enum, auto
 import infra.crypto
 import infra.remote
 import infra.net
@@ -16,9 +16,9 @@ from loguru import logger as LOG
 
 
 class NodeNetworkState(Enum):
-    stopped = 0
-    started = 1
-    joined = 2
+    stopped = auto()
+    started = auto()
+    joined = auto()
 
 
 class NodeStatus(Enum):

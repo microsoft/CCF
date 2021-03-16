@@ -4,7 +4,7 @@ import os
 import time
 import logging
 from contextlib import contextmanager
-from enum import Enum, IntEnum
+from enum import Enum, IntEnum, auto
 from ccf.clients import CCFConnectionException, flush_info
 import infra.path
 import infra.proc
@@ -27,15 +27,15 @@ COMMON_FOLDER = "common"
 
 
 class NodeRole(Enum):
-    ANY = 0
-    PRIMARY = 1
-    BACKUP = 2
+    ANY = auto()
+    PRIMARY = auto()
+    BACKUP = auto()
 
 
 class ServiceStatus(Enum):
-    OPENING = 1
-    OPEN = 2
-    CLOSED = 3
+    OPENING = "Opening"
+    OPEN = "Open"
+    CLOSED = "Closed"
 
 
 class ParticipantsCurve(IntEnum):

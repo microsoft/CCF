@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from enum import Enum
+from enum import Enum, auto
 import infra.proc
 import infra.proposal
 import infra.crypto
@@ -22,9 +22,9 @@ class NoRecoveryShareFound(Exception):
 
 
 class MemberStatus(Enum):
-    ACCEPTED = 0
-    ACTIVE = 1
-    RETIRED = 2
+    ACCEPTED = auto()
+    ACTIVE = auto()
+    RETIRED = auto()
 
 
 class MemberInfo(NamedTuple):

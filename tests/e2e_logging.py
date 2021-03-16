@@ -724,7 +724,7 @@ def test_view_history(network, args):
 
 class SentTxs:
     # view -> seqno -> status
-    txs = defaultdict(lambda: defaultdict(lambda: TxStatus.Unknown))
+    txs = defaultdict(lambda: defaultdict(lambda: TxStatus.UNKNOWN))
 
     @staticmethod
     def update_status(view, seqno, status=None):
