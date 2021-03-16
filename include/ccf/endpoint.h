@@ -67,8 +67,8 @@ namespace ccf::endpoints
   DECLARE_JSON_ENUM(
     Mode,
     {{Mode::ReadWrite, "readwrite"},
-      {Mode::ReadOnly, "readonly"},
-      {Mode::Historical, "historical"}});
+     {Mode::ReadOnly, "readonly"},
+     {Mode::Historical, "historical"}});
 
   struct EndpointProperties
   {

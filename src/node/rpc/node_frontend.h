@@ -5,12 +5,12 @@
 #include "ccf/common_auth_policies.h"
 #include "crypto/hash.h"
 #include "frontend.h"
+#include "http/http_query.h"
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
 #include "node/rpc/json_handler.h"
 #include "node_interface.h"
-#include "http/http_query.h"
 
 namespace ccf
 {
@@ -532,9 +532,12 @@ namespace ccf
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Primary)
         .set_auto_schema<void, GetNodes::Out>()
-        .add_query_parameter<std::string>("host", ccf::endpoints::OptionalParameter)
-        .add_query_parameter<std::string>("port", ccf::endpoints::OptionalParameter)
-        .add_query_parameter<std::string>("status", ccf::endpoints::OptionalParameter)
+        .add_query_parameter<std::string>(
+          "host", ccf::endpoints::OptionalParameter)
+        .add_query_parameter<std::string>(
+          "port", ccf::endpoints::OptionalParameter)
+        .add_query_parameter<std::string>(
+          "status", ccf::endpoints::OptionalParameter)
         .install();
 
       auto get_node_info = [this](auto& args, nlohmann::json&&) {
