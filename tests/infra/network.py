@@ -286,7 +286,7 @@ class Network:
                         )
                         self.wait_for_state(
                             node,
-                            "partOfPublicNetwork",
+                            "PartOfPublicNetwork",
                             timeout=args.ledger_recovery_timeout,
                         )
                 else:
