@@ -1645,11 +1645,10 @@ DOCTEST_TEST_CASE("User data")
       create_request(read_params(user_id, Tables::USER_INFO), "read");
 
     {
-      // TODO: Fix
-      // DOCTEST_INFO("user data is initially empty");
-      // const auto read_response = parse_response_body<nlohmann::json>(
-      //   frontend_process(frontend, read_user_info, member_cert));
-      // DOCTEST_CHECK(read_response.user_data.is_null());
+      DOCTEST_INFO("user data is not initially set");
+      check_error(
+        frontend_process(frontend, read_user_info, member_cert),
+        HTTP_STATUS_NOT_FOUND);
     }
   }
 
@@ -1663,11 +1662,10 @@ DOCTEST_TEST_CASE("User data")
       create_request(read_params(user_id, Tables::USER_INFO), "read");
 
     {
-      // TODO: Fix
-      // DOCTEST_INFO("initial user data object can be read");
-      // const auto read_response = parse_response_body<nlohmann::json>(
-      //   frontend_process(frontend, read_user_info, member_cert));
-      // DOCTEST_CHECK(read_response.user_data == user_data_string);
+      DOCTEST_INFO("initial user data object can be read");
+      const auto read_response = parse_response_body<ccf::UserDetails>(
+        frontend_process(frontend, read_user_info, member_cert));
+      DOCTEST_CHECK(read_response.user_data == user_data_string);
     }
   }
 
@@ -1705,11 +1703,10 @@ DOCTEST_TEST_CASE("User data")
       DOCTEST_CHECK(result.state == ProposalState::ACCEPTED);
     }
 
-    // TODO: Fix
-    // DOCTEST_INFO("user data object can be read");
-    // const auto read_response = parse_response_body<ccf::UserInfo>(
-    //   frontend_process(frontend, read_user_info, member_cert));
-    // DOCTEST_CHECK(read_response.user_data == user_data_object);
+    DOCTEST_INFO("user data object can be read");
+    const auto read_response = parse_response_body<ccf::UserDetails>(
+      frontend_process(frontend, read_user_info, member_cert));
+    DOCTEST_CHECK(read_response.user_data == user_data_object);
   }
 
   {
@@ -1742,11 +1739,10 @@ DOCTEST_TEST_CASE("User data")
       DOCTEST_CHECK(result.state == ProposalState::ACCEPTED);
     }
 
-    // TODO: Fix
-    // DOCTEST_INFO("user data object can be read");
-    // const auto response = parse_response_body<ccf::UserInfo>(
-    //   frontend_process(frontend, read_user_info, member_cert));
-    // DOCTEST_CHECK(response.user_data == user_data_string);
+    DOCTEST_INFO("user data object can be read");
+    const auto response = parse_response_body<ccf::UserDetails>(
+      frontend_process(frontend, read_user_info, member_cert));
+    DOCTEST_CHECK(response.user_data == user_data_string);
   }
 }
 

@@ -243,11 +243,11 @@ namespace ccf
       return true;
     }
 
-    UserId add_user(const NewUser& user_info)
+    UserId add_user(const NewUser& new_user)
     {
       auto user_certs = tx.rw(tables.user_certs);
 
-      auto user_cert_der = crypto::make_verifier(user_info.cert)->cert_der();
+      auto user_cert_der = crypto::make_verifier(new_user.cert)->cert_der();
       auto id = crypto::Sha256Hash(user_cert_der).hex_str();
 
       auto user_cert = user_certs->get(id);
@@ -257,19 +257,19 @@ namespace ccf
           fmt::format("Certificate already exists for user {}", id));
       }
 
-      user_certs->put(id, user_info.cert);
+      user_certs->put(id, new_user.cert);
 
-      if (user_info.user_data != nullptr)
+      if (new_user.user_data != nullptr)
       {
         auto user_info = tx.rw(tables.user_info);
         auto ui = user_info->get(id);
         if (ui.has_value())
         {
           throw std::logic_error(
-            fmt::format("User data already exists for {}", id));
+            fmt::format("User data already exists for user {}", id));
         }
 
-        user_info->put(id, {ui->user_data});
+        user_info->put(id, {new_user.user_data});
       }
 
       return id;
