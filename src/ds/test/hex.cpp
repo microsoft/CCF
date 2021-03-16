@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "../hex.h"
+
 #include "ds/logger.h"
 
 #include <algorithm>

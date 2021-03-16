@@ -5,7 +5,7 @@ import io
 import struct
 import os
 
-from typing import BinaryIO, NamedTuple, Optional, Set
+from typing import BinaryIO, NamedTuple, Optional
 from enum import Enum
 
 # Default implementation has buggy interaction between read_bytes and tell, so use fallback

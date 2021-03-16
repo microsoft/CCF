@@ -37,15 +37,15 @@ parameters:
 
 jobs:
   # Debug
-  # - ${{ each target in parameters.target }}:
-  #     - template: common.yml
-  #       parameters:
-  #         target: ${{ target }}
-  #         env: ${{ parameters.env[target] }}
-  #         cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}"
-  #         suffix: "Debug"
-  #         artifact_name: "${{ target }}_Debug"
-  #         ctest_filter: "${{ parameters.test[target].ctest_args }}"
+  - ${{ each target in parameters.target }}:
+      - template: common.yml
+        parameters:
+          target: ${{ target }}
+          env: ${{ parameters.env[target] }}
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}"
+          suffix: "Debug"
+          artifact_name: "${{ target }}_Debug"
+          ctest_filter: "${{ parameters.test[target].ctest_args }}"
 
   # Performance
   - template: common.yml
