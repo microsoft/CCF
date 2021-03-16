@@ -74,7 +74,7 @@
     },
     {
       "component": {
-        "Type": "git",
+        "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/bellard/quickjs",
           "commitHash": "204682fb87ab9312f0cf81f959ecd181180457bc"
