@@ -54,7 +54,8 @@ extensions = [
     "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
-    "sphinx_panels"
+    "sphinx_panels",
+    "sphinx_js"
 ]
 
 autosectionlabel_prefix_document = True
@@ -227,6 +228,10 @@ spelling_lang = "en_UK"
 tokenizer_lang = "en_UK"
 spelling_word_list_filename = ["spelling_wordlist.txt"]
 
+# sphinx_js options
+js_language = 'typescript'
+js_source_path = '../src/js'
+jsdoc_config_path = '../tests/npm-app/tsconfig.json'
 
 def setup(self):
     import subprocess

@@ -3,6 +3,9 @@
 #pragma once
 
 #include "ds/logger.h"
+#include "historical_queries_interface.h"
+#include "kv/kv_types.h"
+#include "kv/tx.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -24,6 +27,12 @@ namespace js
 
   extern void register_class_ids();
   extern void register_request_body_class(JSContext* ctx);
+  extern void populate_global_console(JSContext* ctx);
+  extern void populate_global_ccf(
+    kv::Tx& tx,
+    const std::optional<kv::TxID>& transaction_id,
+    ccf::historical::TxReceiptPtr receipt,
+    JSContext* ctx);
 
   extern JSValue js_print(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);

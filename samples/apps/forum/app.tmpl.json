@@ -7,7 +7,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": false
+        "mode": "readwrite"
       },
       "put": {
         "js_module": "build/PollControllerProxy.js",
@@ -15,7 +15,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": false
+        "mode": "readwrite"
       },
       "get": {
         "js_module": "build/PollControllerProxy.js",
@@ -23,7 +23,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": true
+        "mode": "readonly"
       }
     },
     "/polls": {
@@ -33,7 +33,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": false
+        "mode": "readwrite"
       },
       "put": {
         "js_module": "build/PollControllerProxy.js",
@@ -41,7 +41,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": false
+        "mode": "readwrite"
       },
       "get": {
         "js_module": "build/PollControllerProxy.js",
@@ -49,7 +49,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": true
+        "mode": "readonly"
       }
     },
     "/site": {
@@ -59,7 +59,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": true
+        "mode": "readonly"
       }
     },
     "/site/polls/create": {
@@ -69,7 +69,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": true
+        "mode": "readonly"
       }
     },
     "/site/opinions/submit": {
@@ -79,7 +79,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": true
+        "mode": "readonly"
       }
     },
     "/site/view": {
@@ -89,7 +89,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": true
+        "mode": "readonly"
       }
     },
     "/csv": {
@@ -99,7 +99,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": true,
+        "mode": "readonly",
         "openapi_merge_patch": {
           "responses": {
             "200": {
@@ -117,7 +117,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": false,
+        "mode": "readwrite",
         "openapi_merge_patch": {
           "requestBody": {
             "content": {

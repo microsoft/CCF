@@ -25,291 +25,6 @@ namespace ccfapp
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
-  static JSValue js_generate_aes_key(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    int32_t key_size;
-    if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-    // Supported key sizes for AES.
-    if (key_size != 128 && key_size != 192 && key_size != 256)
-    {
-      JS_ThrowRangeError(ctx, "invalid key size");
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
-
-    return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
-  }
-
-  static JSValue js_generate_rsa_key_pair(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1 && argc != 2)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1 or 2", argc);
-
-    uint32_t key_size = 0, key_exponent = 0;
-    if (JS_ToUint32(ctx, &key_size, argv[0]) < 0)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    if (argc == 2 && JS_ToUint32(ctx, &key_exponent, argv[1]) < 0)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    std::shared_ptr<RSAKeyPair> k;
-    if (argc == 1)
-    {
-      k = crypto::make_rsa_key_pair(key_size);
-    }
-    else
-    {
-      k = crypto::make_rsa_key_pair(key_size, key_exponent);
-    }
-
-    Pem prv = k->private_key_pem();
-    Pem pub = k->public_key_pem();
-
-    auto r = JS_NewObject(ctx);
-    JS_SetPropertyStr(
-      ctx, r, "privateKey", JS_NewString(ctx, (char*)prv.data()));
-    JS_SetPropertyStr(
-      ctx, r, "publicKey", JS_NewString(ctx, (char*)pub.data()));
-    return r;
-  }
-
-  static JSValue js_wrap_key(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 3)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 3", argc);
-
-    // API loosely modeled after
-    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey.
-
-    size_t key_size;
-    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-    if (!key)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    size_t wrapping_key_size;
-    uint8_t* wrapping_key = JS_GetArrayBuffer(ctx, &wrapping_key_size, argv[1]);
-    if (!wrapping_key)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::Context& auto_free = *(js::Context*)auto_free_ptr;
-
-    auto parameters = argv[2];
-    JSValue wrap_algo_name_val =
-      auto_free(JS_GetPropertyStr(ctx, parameters, "name"));
-
-    auto wrap_algo_name_cstr = auto_free(JS_ToCString(ctx, wrap_algo_name_val));
-
-    if (!wrap_algo_name_cstr)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    try
-    {
-      auto algo_name = std::string(wrap_algo_name_cstr);
-      if (algo_name == "RSA-OAEP")
-      {
-        // key can in principle be arbitrary data (see note on maximum size
-        // in rsa_key_pair.h). wrapping_key is a public RSA key.
-
-        auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
-        size_t label_buf_size = 0;
-        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
-
-        auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
-          Pem(wrapping_key, wrapping_key_size),
-          {key, key + key_size},
-          {label_buf, label_buf + label_buf_size});
-
-        return JS_NewArrayBufferCopy(
-          ctx, wrapped_key.data(), wrapped_key.size());
-      }
-      else if (algo_name == "AES-KWP")
-      {
-        std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
-          {wrapping_key, wrapping_key + wrapping_key_size},
-          {key, key + key_size});
-
-        return JS_NewArrayBufferCopy(
-          ctx, wrapped_key.data(), wrapped_key.size());
-      }
-      else if (algo_name == "RSA-OAEP-AES-KWP")
-      {
-        auto aes_key_size_value =
-          auto_free(JS_GetPropertyStr(ctx, parameters, "aesKeySize"));
-        int32_t aes_key_size = 0;
-        if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value) < 0)
-        {
-          js::js_dump_error(ctx);
-          return JS_EXCEPTION;
-        }
-
-        auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
-        size_t label_buf_size = 0;
-        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
-
-        auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
-          aes_key_size,
-          Pem(wrapping_key, wrapping_key_size),
-          {key, key + key_size},
-          {label_buf, label_buf + label_buf_size});
-
-        return JS_NewArrayBufferCopy(
-          ctx, wrapped_key.data(), wrapped_key.size());
-      }
-      else
-      {
-        JS_ThrowRangeError(
-          ctx,
-          "unsupported key wrapping algorithm, supported: RSA-OAEP, AES-KWP, "
-          "RSA-OAEP-AES-KWP");
-        js::js_dump_error(ctx);
-        return JS_EXCEPTION;
-      }
-    }
-    catch (std::exception& ex)
-    {
-      JS_ThrowRangeError(ctx, "%s", ex.what());
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-    catch (...)
-    {
-      JS_ThrowRangeError(ctx, "caught unknown exception");
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-  }
-
-  static void js_free_arraybuffer_cstring(JSRuntime*, void* opaque, void* ptr)
-  {
-    JS_FreeCString((JSContext*)opaque, (char*)ptr);
-  }
-
-  static JSValue js_str_to_buf(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    if (!JS_IsString(argv[0]))
-      return JS_ThrowTypeError(ctx, "Argument must be a string");
-
-    size_t str_size = 0;
-    const char* str = JS_ToCStringLen(ctx, &str_size, argv[0]);
-
-    if (!str)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    JSValue buf = JS_NewArrayBuffer(
-      ctx, (uint8_t*)str, str_size, js_free_arraybuffer_cstring, ctx, false);
-
-    if (JS_IsException(buf))
-      js::js_dump_error(ctx);
-
-    return buf;
-  }
-
-  static JSValue js_buf_to_str(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    size_t buf_size;
-    uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_size, argv[0]);
-
-    if (!buf)
-      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
-
-    JSValue str = JS_NewStringLen(ctx, (char*)buf, buf_size);
-
-    if (JS_IsException(str))
-      js::js_dump_error(ctx);
-
-    return str;
-  }
-
-  static JSValue js_json_compatible_to_buf(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    JSValue str = JS_JSONStringify(ctx, argv[0], JS_NULL, JS_NULL);
-
-    if (JS_IsException(str))
-    {
-      js::js_dump_error(ctx);
-      return str;
-    }
-
-    JSValue buf = js_str_to_buf(ctx, JS_NULL, 1, &str);
-    JS_FreeValue(ctx, str);
-    return buf;
-  }
-
-  static JSValue js_buf_to_json_compatible(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    size_t buf_size;
-    uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_size, argv[0]);
-
-    if (!buf)
-      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
-
-    std::vector<uint8_t> buf_null_terminated(buf_size + 1);
-    buf_null_terminated[buf_size] = 0;
-    buf_null_terminated.assign(buf, buf + buf_size);
-
-    JSValue obj =
-      JS_ParseJSON(ctx, (char*)buf_null_terminated.data(), buf_size, "<json>");
-
-    if (JS_IsException(obj))
-      js::js_dump_error(ctx);
-
-    return obj;
-  }
-
   // Modules
 
   struct JSModuleLoaderArg
@@ -367,77 +82,8 @@ namespace ccfapp
   {
   private:
     NetworkTables& network;
+    ccfapp::AbstractNodeContext& context;
     metrics::Tracker metrics_tracker;
-
-    static JSValue create_ccf_obj(EndpointContext& args, JSContext* ctx)
-    {
-      auto ccf = JS_NewObject(ctx);
-
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "strToBuf",
-        JS_NewCFunction(ctx, ccfapp::js_str_to_buf, "strToBuf", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "bufToStr",
-        JS_NewCFunction(ctx, ccfapp::js_buf_to_str, "bufToStr", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "jsonCompatibleToBuf",
-        JS_NewCFunction(
-          ctx, ccfapp::js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "bufToJsonCompatible",
-        JS_NewCFunction(
-          ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "generateAesKey",
-        JS_NewCFunction(ctx, ccfapp::js_generate_aes_key, "generateAesKey", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "generateRsaKeyPair",
-        JS_NewCFunction(
-          ctx, ccfapp::js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "wrapKey",
-        JS_NewCFunction(ctx, ccfapp::js_wrap_key, "wrapKey", 3));
-
-      auto kv = JS_NewObjectClass(ctx, js::kv_class_id);
-      JS_SetOpaque(kv, &args.tx);
-      JS_SetPropertyStr(ctx, ccf, "kv", kv);
-
-      return ccf;
-    }
-
-    static JSValue create_console_obj(JSContext* ctx)
-    {
-      auto console = JS_NewObject(ctx);
-
-      JS_SetPropertyStr(
-        ctx, console, "log", JS_NewCFunction(ctx, js::js_print, "log", 1));
-
-      return console;
-    }
-
-    static void populate_global_obj(EndpointContext& args, JSContext* ctx)
-    {
-      auto global_obj = JS_GetGlobalObject(ctx);
-
-      JS_SetPropertyStr(ctx, global_obj, "console", create_console_obj(ctx));
-      JS_SetPropertyStr(ctx, global_obj, "ccf", create_ccf_obj(args, ctx));
-
-      JS_FreeValue(ctx, global_obj);
-    }
 
     static JSValue create_json_obj(const nlohmann::json& j, JSContext* ctx)
     {
@@ -596,6 +242,48 @@ namespace ccfapp
       const ccf::RESTVerb& verb,
       EndpointContext& args)
     {
+      // Is this a historical endpoint?
+      auto endpoints =
+        args.tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto info = endpoints->get(ccf::endpoints::EndpointKey{method, verb});
+
+      if (
+        info.has_value() &&
+        info.value().mode == ccf::endpoints::Mode::Historical)
+      {
+        auto is_tx_committed = [this](
+                                 kv::Consensus::View view,
+                                 kv::Consensus::SeqNo seqno,
+                                 std::string& error_reason) {
+          return ccf::historical::is_tx_committed(
+            consensus, view, seqno, error_reason);
+        };
+
+        ccf::historical::adapter(
+          [this, &method, &verb](
+            ccf::EndpointContext& args, ccf::historical::StatePtr state) {
+            auto tx = state->store->create_tx();
+            auto tx_id = state->transaction_id;
+            auto receipt = state->receipt;
+            do_execute_request(method, verb, args, tx, tx_id, receipt);
+          },
+          context.get_historical_state(),
+          is_tx_committed)(args);
+      }
+      else
+      {
+        do_execute_request(method, verb, args, args.tx, std::nullopt, nullptr);
+      }
+    }
+
+    void do_execute_request(
+      const std::string& method,
+      const ccf::RESTVerb& verb,
+      EndpointContext& args,
+      kv::Tx& target_tx,
+      const std::optional<kv::TxID>& transaction_id,
+      ccf::historical::TxReceiptPtr receipt)
+    {
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
       const auto scripts = args.tx.ro(this->network.app_scripts);
@@ -660,9 +348,8 @@ namespace ccfapp
       js::Context ctx(rt);
 
       js::register_request_body_class(ctx);
-
-      // Populate globalThis with console and ccf globals
-      populate_global_obj(args, ctx);
+      js::populate_global_console(ctx);
+      js::populate_global_ccf(target_tx, transaction_id, receipt, ctx);
 
       // Compile module
       if (!handler_script.value().text.has_value())
@@ -842,7 +529,8 @@ namespace ccfapp
   public:
     JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network)
+      network(network),
+      context(context)
     {
       js::register_class_ids();
       metrics_tracker.install_endpoint(*this);

@@ -4,9 +4,11 @@
 #include "js/wrap.h"
 
 #include "ds/logger.h"
-#include "kv/kv_types.h"
-#include "kv/tx.h"
+#include "js/crypto.cpp"
 #include "kv/untyped_map.h"
+#include "node/rpc/call_types.h"
+#include "tls/base64.h"
+#include "tx_id.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -326,9 +328,9 @@ namespace js
   // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
   // with a synchronous interface.
   static const JSCFunctionListEntry js_body_proto_funcs[] = {
-    JS_CFUNC_DEF("text", 0, js::js_body_text),
-    JS_CFUNC_DEF("json", 0, js::js_body_json),
-    JS_CFUNC_DEF("arrayBuffer", 0, js::js_body_array_buffer),
+    JS_CFUNC_DEF("text", 0, js_body_text),
+    JS_CFUNC_DEF("json", 0, js_body_json),
+    JS_CFUNC_DEF("arrayBuffer", 0, js_body_array_buffer),
   };
 
   // Not thread-safe, must happen exactly once
@@ -454,6 +456,231 @@ namespace js
     JS_SetPropertyFunctionList(
       ctx, body_proto, js_body_proto_funcs, func_count);
     JS_SetClassProto(ctx, body_class_id, body_proto);
+  }
+
+  static JSValue create_console_obj(JSContext* ctx)
+  {
+    auto console = JS_NewObject(ctx);
+
+    JS_SetPropertyStr(
+      ctx, console, "log", JS_NewCFunction(ctx, js_print, "log", 1));
+
+    return console;
+  }
+
+  static void js_free_arraybuffer_cstring(JSRuntime*, void* opaque, void* ptr)
+  {
+    JS_FreeCString((JSContext*)opaque, (char*)ptr);
+  }
+
+  void populate_global_console(JSContext* ctx)
+  {
+    auto global_obj = JS_GetGlobalObject(ctx);
+    JS_SetPropertyStr(ctx, global_obj, "console", create_console_obj(ctx));
+    JS_FreeValue(ctx, global_obj);
+  }
+
+  static JSValue js_str_to_buf(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    if (!JS_IsString(argv[0]))
+      return JS_ThrowTypeError(ctx, "Argument must be a string");
+
+    size_t str_size = 0;
+    const char* str = JS_ToCStringLen(ctx, &str_size, argv[0]);
+
+    if (!str)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    JSValue buf = JS_NewArrayBuffer(
+      ctx, (uint8_t*)str, str_size, js_free_arraybuffer_cstring, ctx, false);
+
+    if (JS_IsException(buf))
+      js_dump_error(ctx);
+
+    return buf;
+  }
+
+  static JSValue js_buf_to_str(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    size_t buf_size;
+    uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_size, argv[0]);
+
+    if (!buf)
+      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+
+    JSValue str = JS_NewStringLen(ctx, (char*)buf, buf_size);
+
+    if (JS_IsException(str))
+      js::js_dump_error(ctx);
+
+    return str;
+  }
+
+  static JSValue js_json_compatible_to_buf(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    JSValue str = JS_JSONStringify(ctx, argv[0], JS_NULL, JS_NULL);
+
+    if (JS_IsException(str))
+    {
+      js::js_dump_error(ctx);
+      return str;
+    }
+
+    JSValue buf = js_str_to_buf(ctx, JS_NULL, 1, &str);
+    JS_FreeValue(ctx, str);
+    return buf;
+  }
+
+  static JSValue js_buf_to_json_compatible(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    size_t buf_size;
+    uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_size, argv[0]);
+
+    if (!buf)
+      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
+
+    std::vector<uint8_t> buf_null_terminated(buf_size + 1);
+    buf_null_terminated[buf_size] = 0;
+    buf_null_terminated.assign(buf, buf + buf_size);
+
+    JSValue obj =
+      JS_ParseJSON(ctx, (char*)buf_null_terminated.data(), buf_size, "<json>");
+
+    if (JS_IsException(obj))
+      js::js_dump_error(ctx);
+
+    return obj;
+  }
+
+  JSValue create_ccf_obj(
+    kv::Tx& tx,
+    const std::optional<kv::TxID>& transaction_id,
+    ccf::historical::TxReceiptPtr receipt,
+    JSContext* ctx)
+  {
+    auto ccf = JS_NewObject(ctx);
+
+    JS_SetPropertyStr(
+      ctx, ccf, "strToBuf", JS_NewCFunction(ctx, js_str_to_buf, "strToBuf", 1));
+    JS_SetPropertyStr(
+      ctx, ccf, "bufToStr", JS_NewCFunction(ctx, js_buf_to_str, "bufToStr", 1));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "jsonCompatibleToBuf",
+      JS_NewCFunction(
+        ctx, js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "bufToJsonCompatible",
+      JS_NewCFunction(
+        ctx, js_buf_to_json_compatible, "bufToJsonCompatible", 1));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "generateAesKey",
+      JS_NewCFunction(ctx, js_generate_aes_key, "generateAesKey", 1));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "generateRsaKeyPair",
+      JS_NewCFunction(ctx, js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
+    JS_SetPropertyStr(
+      ctx, ccf, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
+
+    auto kv = JS_NewObjectClass(ctx, kv_class_id);
+    JS_SetOpaque(kv, &tx);
+    JS_SetPropertyStr(ctx, ccf, "kv", kv);
+
+    // Historical queries
+    if (receipt)
+    {
+      auto state = JS_NewObject(ctx);
+
+      ccf::TxID tx_id;
+      tx_id.seqno = static_cast<ccf::SeqNo>(transaction_id.value().version);
+      tx_id.view = static_cast<ccf::View>(transaction_id.value().term);
+      JS_SetPropertyStr(
+        ctx, state, "transactionId", JS_NewString(ctx, tx_id.to_str().c_str()));
+
+      ccf::GetReceipt::Out receipt_out;
+      receipt_out.from_receipt(receipt);
+      auto js_receipt = JS_NewObject(ctx);
+      JS_SetPropertyStr(
+        ctx,
+        js_receipt,
+        "signature",
+        JS_NewString(ctx, receipt_out.signature.c_str()));
+      JS_SetPropertyStr(
+        ctx, js_receipt, "root", JS_NewString(ctx, receipt_out.root.c_str()));
+      JS_SetPropertyStr(
+        ctx, js_receipt, "leaf", JS_NewString(ctx, receipt_out.leaf.c_str()));
+      JS_SetPropertyStr(
+        ctx,
+        js_receipt,
+        "nodeId",
+        JS_NewString(ctx, receipt_out.node_id.value().c_str()));
+      auto proof = JS_NewArray(ctx);
+      uint32_t i = 0;
+      for (auto& element : receipt_out.proof)
+      {
+        auto js_element = JS_NewObject(ctx);
+        auto is_left = element.left.has_value();
+        JS_SetPropertyStr(
+          ctx,
+          js_element,
+          is_left ? "left" : "right",
+          JS_NewString(
+            ctx, (is_left ? element.left : element.right).value().c_str()));
+        JS_DefinePropertyValueUint32(
+          ctx, proof, i++, js_element, JS_PROP_C_W_E);
+      }
+      JS_SetPropertyStr(ctx, js_receipt, "proof", proof);
+
+      JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
+
+      JS_SetPropertyStr(ctx, ccf, "historicalState", state);
+    }
+
+    return ccf;
+  }
+
+  void populate_global_ccf(
+    kv::Tx& tx,
+    const std::optional<kv::TxID>& transaction_id,
+    ccf::historical::TxReceiptPtr receipt,
+    JSContext* ctx)
+  {
+    auto global_obj = JS_GetGlobalObject(ctx);
+
+    JS_SetPropertyStr(
+      ctx, global_obj, "ccf", create_ccf_obj(tx, transaction_id, receipt, ctx));
+
+    JS_FreeValue(ctx, global_obj);
   }
 
 #pragma clang diagnostic pop

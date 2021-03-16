@@ -30,8 +30,9 @@ The sample app has the following folder layout:
     │   │   ├── crypto.ts
     │   │   ├── partition.ts
     │   │   └── proto.ts
-    │   └── types
-    │       └── ccf.ts
+    │   └── ccf
+    │       ├── builtin.ts
+    │       └── util.ts
     ├── app.json
     ├── package.json
     ├── rollup.config.js
@@ -40,7 +41,8 @@ The sample app has the following folder layout:
 It contains these files:
 
 - ``src/endpoints/*.ts``: :ref:`build_apps/js_app_ts:Endpoint handlers`.
-- ``src/types/ccf.ts``: :ref:`build_apps/js_app_ts:Type definitions` for CCF objects.
+- ``src/ccf/builtin.ts``: :ref:`build_apps/js_app_ts:Type definitions` for CCF objects.
+- ``src/ccf/util.ts``: Utilities for working with CCF's Key Value Store.
 - ``app.json``: :ref:`App metadata <build_apps/js_app_ts:Metadata>`.
 - ``package.json``: Dependencies and build command.
 - ``rollup.config.js``: Rollup configuration, see :ref:`build_apps/js_app_ts:Conversion to an app bundle` for more details.
@@ -70,7 +72,7 @@ An endpoint handler, here named ``abc``, has the following structure:
         ...
     }
 
-    export function abc(request: ccf.Request<AbcRequest>): ccf.Response<AbcResponse> {
+    export function abc(request: Request<AbcRequest>): Response<AbcResponse> {
         // access request details
         const data = request.body.json();
         
@@ -86,7 +88,7 @@ An endpoint handler, here named ``abc``, has the following structure:
     }
 
 ``AbcRequest`` and ``AbcResponse`` define the JSON schema of the request and response body, respectively.
-If an endpoint has no request or response body, the type parameters of ``ccf.Request``/``ccf.Response`` can be omitted.
+If an endpoint has no request or response body, the type parameters of :js:class:`Request`/:js:class:`Response` can be omitted.
 
 As an example, the ``/partition`` endpoint of the sample app is implemented as:
 
@@ -111,7 +113,7 @@ CCF currently does not provide an npm package with TypeScript definitions
 for :ref:`CCF's JavaScript API <build_apps/js_app_bundle:JavaScript API>`.
 
 Instead, the definitions are part of the sample app in
-`src/types/ccf.ts <https://github.com/microsoft/CCF/tree/main/tests/npm-app/src/types/ccf.ts>`_.
+`src/ccf/builtin.ts <https://github.com/microsoft/CCF/tree/main/tests/npm-app/src/ccf/builtin.ts>`_.
 See `src/endpoints <https://github.com/microsoft/CCF/tree/main/tests/npm-app/src/endpoints>`_
 on how the types can be imported and used.
 
