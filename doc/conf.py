@@ -242,3 +242,7 @@ def setup(self):
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
         subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
+
+    # temporary hack for sphinx-js
+    # https://github.com/mozilla/sphinx-js/pull/171
+    self.confdir = self.srcdir
