@@ -12,6 +12,8 @@
 #include "node/nodes.h"
 #include "node/quote.h"
 #include "node/secret_share.h"
+#include "node/rpc/json_handler.h"
+#include "ccf/common_auth_policies.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "tls/base64.h"

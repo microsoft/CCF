@@ -182,6 +182,7 @@ set(HTTP_PARSER_SOURCES
 set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint.cpp
     ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
 )
 
 find_library(CRYPTO_LIBRARY crypto)

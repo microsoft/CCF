@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/common_auth_policies.h"
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
 #include "ds/ccf_deprecated.h"
@@ -76,6 +75,11 @@ namespace ccf::endpoints
 
   /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
+   *
+   * This is the abstract base for several more complete registrys. For a
+   * versioned API wrapping access to common CCF properties, see @c
+   * BaseEndpointRegistry. For implementation of several common endpoints see @c
+   * CommonEndpointRegistry.
    */
   class EndpointRegistry : public Endpoint::Installer
   {

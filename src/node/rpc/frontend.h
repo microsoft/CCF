@@ -15,6 +15,8 @@
 #include "node/service.h"
 #include "rpc_exception.h"
 
+#include "node/rpc/urlqueryparseerror.h"
+
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <mutex>

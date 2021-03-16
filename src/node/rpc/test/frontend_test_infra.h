@@ -6,7 +6,7 @@
 #include "crypto/rsa_key_pair.h"
 #include "ds/files.h"
 #include "ds/logger.h"
-#include "enclave/app_interface.h"
+#include "ccf/app_interface.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/client_signatures.h"

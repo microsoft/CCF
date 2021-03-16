@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ccf/common_auth_policies.h"
 #include "ccf/endpoint_registry.h"
 
 namespace ccfapp

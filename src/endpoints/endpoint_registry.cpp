@@ -3,6 +3,8 @@
 
 #include "ccf/endpoint_registry.h"
 
+#include "ccf/common_auth_policies.h"
+
 namespace ccf::endpoints
 {
   namespace

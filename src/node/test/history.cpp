@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "node/history.h"
 
-#include "enclave/app_interface.h"
+#include "ccf/app_interface.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"

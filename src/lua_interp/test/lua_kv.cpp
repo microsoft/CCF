@@ -5,7 +5,7 @@
 #include "../lua_interp.h"
 #include "ds/hash.h"
 #include "ds/logger.h"
-#include "enclave/app_interface.h"
+#include "ccf/app_interface.h"
 #include "kv/kv_serialiser.h"
 
 #include <doctest/doctest.h>

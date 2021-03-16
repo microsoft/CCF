@@ -3,7 +3,7 @@
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
-#include "enclave/app_interface.h"
+#include "ccf/app_interface.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
 #include "node/rpc/metrics_tracker.h"

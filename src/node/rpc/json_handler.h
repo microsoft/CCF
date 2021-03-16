@@ -9,6 +9,8 @@
 #include "node/rpc/rpc_exception.h"
 #include "node/rpc/serdes.h"
 
+#include "node/rpc/urlqueryparseerror.h"
+
 #include <llhttp/llhttp.h>
 
 namespace ccf
@@ -63,18 +65,11 @@ namespace ccf
    *    }
    * });
    */
-
-  class UrlQueryParseError : public std::invalid_argument
-  {
-  public:
-    using std::invalid_argument::invalid_argument;
-  };
-
   namespace jsonhandler
   {
     using JsonAdapterResponse = std::variant<ErrorDetails, nlohmann::json>;
 
-    static constexpr char const* pack_to_content_type(serdes::Pack p)
+    inline constexpr char const* pack_to_content_type(serdes::Pack p)
     {
       switch (p)
       {
@@ -93,7 +88,7 @@ namespace ccf
       }
     }
 
-    static serdes::Pack detect_json_pack(
+    inline serdes::Pack detect_json_pack(
       const std::shared_ptr<enclave::RpcContext>& ctx)
     {
       std::optional<serdes::Pack> packing = std::nullopt;
@@ -132,7 +127,7 @@ namespace ccf
       return packing.value_or(serdes::Pack::Text);
     }
 
-    static serdes::Pack get_response_pack(
+    inline serdes::Pack get_response_pack(
       const std::shared_ptr<enclave::RpcContext>& ctx,
       serdes::Pack request_pack)
     {
@@ -171,13 +166,13 @@ namespace ccf
       return packing;
     }
 
-    static nlohmann::json get_params_from_body(
+    inline nlohmann::json get_params_from_body(
       const std::shared_ptr<enclave::RpcContext>& ctx, serdes::Pack pack)
     {
       return serdes::unpack(ctx->get_request_body(), pack);
     }
 
-    static nlohmann::json get_params_from_query(
+    inline nlohmann::json get_params_from_query(
       const std::shared_ptr<enclave::RpcContext>& ctx)
     {
       std::string_view query = ctx->get_request_query();
@@ -220,7 +215,7 @@ namespace ccf
       return params;
     }
 
-    static std::pair<serdes::Pack, nlohmann::json> get_json_params(
+    inline std::pair<serdes::Pack, nlohmann::json> get_json_params(
       const std::shared_ptr<enclave::RpcContext>& ctx)
     {
       const auto pack = detect_json_pack(ctx);
@@ -245,7 +240,7 @@ namespace ccf
       return std::make_pair(pack, params);
     }
 
-    static void set_response(
+    inline void set_response(
       JsonAdapterResponse&& res,
       std::shared_ptr<enclave::RpcContext>& ctx,
       serdes::Pack request_packing)
@@ -295,24 +290,24 @@ namespace ccf
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 
-  static jsonhandler::JsonAdapterResponse make_success()
+  inline jsonhandler::JsonAdapterResponse make_success()
   {
     return nlohmann::json();
   }
 
-  static jsonhandler::JsonAdapterResponse make_success(
+  inline jsonhandler::JsonAdapterResponse make_success(
     nlohmann::json&& result_payload)
   {
     return std::move(result_payload);
   }
 
-  static jsonhandler::JsonAdapterResponse make_success(
+  inline jsonhandler::JsonAdapterResponse make_success(
     const nlohmann::json& result_payload)
   {
     return result_payload;
   }
 
-  static inline jsonhandler::JsonAdapterResponse make_error(
+  inline jsonhandler::JsonAdapterResponse make_error(
     http_status status, const std::string& code, const std::string& msg)
   {
     return ErrorDetails{status, code, msg};
@@ -322,7 +317,7 @@ namespace ccf
     std::function<jsonhandler::JsonAdapterResponse(
       endpoints::EndpointContext& args, nlohmann::json&& params)>;
 
-  static endpoints::EndpointFunction json_adapter(
+  inline endpoints::EndpointFunction json_adapter(
     const HandlerJsonParamsAndForward& f)
   {
     return [f](endpoints::EndpointContext& args) {
@@ -336,7 +331,7 @@ namespace ccf
     std::function<jsonhandler::JsonAdapterResponse(
       endpoints::ReadOnlyEndpointContext& args, nlohmann::json&& params)>;
 
-  static endpoints::ReadOnlyEndpointFunction json_read_only_adapter(
+  inline endpoints::ReadOnlyEndpointFunction json_read_only_adapter(
     const ReadOnlyHandlerWithJson& f)
   {
     return [f](endpoints::ReadOnlyEndpointContext& args) {
@@ -350,7 +345,7 @@ namespace ccf
   using CommandHandlerWithJson = std::function<jsonhandler::JsonAdapterResponse(
     endpoints::CommandEndpointContext& args, nlohmann::json&& params)>;
 
-  static endpoints::CommandEndpointFunction json_command_adapter(
+  inline endpoints::CommandEndpointFunction json_command_adapter(
     const CommandHandlerWithJson& f)
   {
     return [f](endpoints::CommandEndpointContext& args) {

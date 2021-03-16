@@ -8,6 +8,8 @@
 #include "node/network_state.h"
 #include "node/quote.h"
 #include "node_interface.h"
+#include "node/rpc/json_handler.h"
+#include "ccf/common_auth_policies.h"
 
 namespace ccf
 {
