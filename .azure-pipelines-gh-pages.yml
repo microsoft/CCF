@@ -73,7 +73,7 @@ jobs:
             or(
                 eq(variables['Build.SourceBranch'], 'refs/heads/main'),
                 startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')
-              )
+            )
           )
         workingDirectory: build/html
 
