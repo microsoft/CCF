@@ -25,32 +25,31 @@ namespace js
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
-  extern void register_class_ids();
-  extern void register_request_body_class(JSContext* ctx);
-  extern void populate_global_console(JSContext* ctx);
-  extern void populate_global_ccf(
+  void register_class_ids();
+  void register_request_body_class(JSContext* ctx);
+  void populate_global_console(JSContext* ctx);
+  void populate_global_ccf(
     kv::Tx& tx,
     const std::optional<kv::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     JSContext* ctx);
 
-  extern JSValue js_print(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
-  extern void js_dump_error(JSContext* ctx);
+  JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
+  void js_dump_error(JSContext* ctx);
 
-  extern JSValue js_body_text(
+  JSValue js_body_text(
     JSContext* ctx,
     JSValueConst this_val,
     int argc,
     [[maybe_unused]] JSValueConst* argv);
 
-  extern JSValue js_body_json(
+  JSValue js_body_json(
     JSContext* ctx,
     JSValueConst this_val,
     int argc,
     [[maybe_unused]] JSValueConst* argv);
 
-  extern JSValue js_body_array_buffer(
+  JSValue js_body_array_buffer(
     JSContext* ctx,
     JSValueConst this_val,
     int argc,
