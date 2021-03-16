@@ -105,7 +105,7 @@ def can_kill_n_nodes(nodes_to_kill_count):
                     "text": """tables = ...
                         trusted_nodes_count = 0
                         tables["public:ccf.gov.nodes.info"]:foreach(function(node_id, details)
-                            if details["status"] == "TRUSTED" then
+                            if details["status"] == "Trusted" then
                                 trusted_nodes_count = trusted_nodes_count + 1
                             end
                         end)

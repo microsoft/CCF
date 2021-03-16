@@ -124,7 +124,7 @@ def test_governance(network, args):
     try:
         network.consortium.open_network(node)
     except infra.proposal.ProposalNotAccepted as e:
-        assert e.proposal.state == infra.proposal.ProposalState.Failed
+        assert e.proposal.state == infra.proposal.ProposalState.FAILED
 
     LOG.info("Proposal to add a new member (with different curve)")
     (
@@ -143,11 +143,11 @@ def test_governance(network, args):
         None,
     )
     assert proposal_entry
-    assert proposal_entry.state == ProposalState.Open
+    assert proposal_entry.state == ProposalState.OPEN
 
     LOG.info("Rest of consortium accept the proposal")
     network.consortium.vote_using_majority(node, new_member_proposal, careful_vote)
-    assert new_member_proposal.state == ProposalState.Accepted
+    assert new_member_proposal.state == ProposalState.ACCEPTED
 
     # Manually add new member to consortium
     network.consortium.members.append(new_member)
@@ -194,7 +194,7 @@ def test_governance(network, args):
 
     LOG.debug("Members vote for proposal")
     network.consortium.vote_using_majority(node, proposal, careful_vote)
-    assert proposal.state == infra.proposal.ProposalState.Accepted
+    assert proposal.state == infra.proposal.ProposalState.ACCEPTED
 
     LOG.info("New member makes a new proposal")
     (
@@ -212,7 +212,7 @@ def test_governance(network, args):
     LOG.debug("Proposer withdraws their proposal")
     response = new_member.withdraw(node, proposal)
     assert response.status_code == http.HTTPStatus.OK.value
-    assert proposal.state == infra.proposal.ProposalState.Withdrawn
+    assert proposal.state == infra.proposal.ProposalState.WITHDRAWN
 
     proposals = network.consortium.get_proposals(primary)
     proposal_entry = next(
@@ -220,7 +220,7 @@ def test_governance(network, args):
         None,
     )
     assert proposal_entry
-    assert proposal_entry.state == ProposalState.Withdrawn
+    assert proposal_entry.state == ProposalState.WITHDRAWN
 
     LOG.debug("Further withdraw proposals fail")
     response = new_member.withdraw(node, proposal)

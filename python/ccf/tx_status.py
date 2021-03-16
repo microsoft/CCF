@@ -5,7 +5,7 @@ from enum import Enum
 
 
 class TxStatus(Enum):
-    Unknown = "UNKNOWN"
-    Pending = "PENDING"
-    Committed = "COMMITTED"
-    Invalid = "INVALID"
+    Unknown = "Unknown"
+    Pending = "Pending"
+    Committed = "Committed"
+    Invalid = "Invalid"

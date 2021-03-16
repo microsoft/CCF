@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import os
 import time
-from enum import Enum
+from enum import Enum, auto
 import paramiko
 import subprocess
 from contextlib import contextmanager
@@ -832,6 +832,6 @@ class CCFRemote(object):
 
 
 class StartType(Enum):
-    new = 0
-    join = 1
-    recover = 2
+    new = auto()
+    join = auto()
+    recover = auto()
