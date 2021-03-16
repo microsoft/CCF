@@ -246,3 +246,8 @@ def setup(self):
     # temporary hack for sphinx-js
     # https://github.com/mozilla/sphinx-js/pull/171
     self.confdir = self.srcdir
+
+    # disable sphinx-js for old ccf versions
+    global jsdoc_config_path
+    if not (srcdir / jsdoc_config_path).exists():
+        jsdoc_config_path = None
