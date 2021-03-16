@@ -8,7 +8,6 @@
 #include "node/rpc/error.h"
 #include "node/rpc/rpc_exception.h"
 #include "node/rpc/serdes.h"
-#include "node/rpc/urlqueryparseerror.h"
 
 #include <llhttp/llhttp.h>
 

@@ -12,7 +12,6 @@
 #include "node/client_signatures.h"
 #include "node/jwt.h"
 #include "node/nodes.h"
-#include "node/rpc/urlqueryparseerror.h"
 #include "node/service.h"
 #include "rpc_exception.h"
 
