@@ -95,21 +95,21 @@ export type EndpointFn<
  * except that keys and values must be of type ``ArrayBuffer``
  * and no guarantees on iteration order are provided.
  */
-export interface KVMap {
+export interface KvMap {
   has(key: ArrayBuffer): boolean;
   get(key: ArrayBuffer): ArrayBuffer | undefined;
-  set(key: ArrayBuffer, value: ArrayBuffer): KVMap;
+  set(key: ArrayBuffer, value: ArrayBuffer): KvMap;
   delete(key: ArrayBuffer): boolean;
 
   /**
    * @param callback A function with parameters ``value, key, kvmap``.
    */
   forEach(
-    callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KVMap) => void
+    callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void
   ): void;
 }
 
-export type KVMaps = { [key: string]: KVMap };
+export type KvMaps = { [key: string]: KvMap };
 
 export interface ProofElement {
   left?: string;
@@ -146,14 +146,14 @@ export interface RsaOaepParams extends WrapAlgoParams {
 /**
  *
  */
-export interface AESKWPParams extends WrapAlgoParams {
+export interface AesKwpParams extends WrapAlgoParams {
   name: "AES-KWP";
 }
 
 /**
  *
  */
-export interface RsaOaepAESKWPParams extends WrapAlgoParams {
+export interface RsaOaepAesKwpParams extends WrapAlgoParams {
   name: "RSA-OAEP-AES-KWP";
   label?: ArrayBuffer;
 }
@@ -226,7 +226,7 @@ export interface CCF {
    * An object that provides access to the maps of the Key-Value Store of CCF.
    * Fields are map names and values are :js:class:`CCF.KVMap` objects.
    */
-  kv: KVMaps;
+  kv: KvMaps;
 
   /**
    * State associated with a specific historic transaction.

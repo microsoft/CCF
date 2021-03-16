@@ -55,7 +55,7 @@ interface RsaOaepParams extends WrapAlgoParams {
   label?: Base64;
 }
 
-interface RsaOaepAesParams extends WrapAlgoParams {
+interface RsaOaepAesKwpParams extends WrapAlgoParams {
   aesKeySize: number; // in bits
   label?: Base64;
 }
@@ -79,7 +79,7 @@ export function wrapKey(
     const wrappedKey = ccf.wrapKey(key, wrappingKey, new_p);
     return { body: wrappedKey };
   } else if (r.wrapAlgo.name == "RSA-OAEP-AES-KWP") {
-    const p = r.wrapAlgo as RsaOaepAesParams;
+    const p = r.wrapAlgo as RsaOaepAesKwpParams;
     const l = p.label ? b64ToBuf(p.label) : undefined;
     const new_p = { name: p.name, aesKeySize: p.aesKeySize, label: l };
     const wrappedKey = ccf.wrapKey(key, wrappingKey, new_p);
