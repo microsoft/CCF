@@ -153,14 +153,6 @@ namespace http
       query_params[k] = v;
     }
 
-    void set_query_params(const nlohmann::json& j)
-    {
-      for (auto it = j.begin(); it != j.end(); ++it)
-      {
-        set_query_param(it.key(), it.value().dump());
-      }
-    }
-
     std::string get_formatted_query() const
     {
       std::string formatted_query;

@@ -327,6 +327,10 @@
         ],
         "type": "object"
       },
+      "TransactionId": {
+        "pattern": "^[0-9]+\\.[0-9]+$",
+        "type": "string"
+      },
       "TxStatus": {
         "enum": [
           "Unknown",
@@ -502,22 +506,18 @@
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "view",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           },
           {
             "in": "query",
-            "name": "view",
-            "required": false,
+            "name": "seqno",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           }
         ],
@@ -776,9 +776,9 @@
           {
             "in": "query",
             "name": "transaction_id",
-            "required": false,
+            "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -851,22 +851,18 @@
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "view",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           },
           {
             "in": "query",
-            "name": "view",
-            "required": false,
+            "name": "seqno",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           }
         ],

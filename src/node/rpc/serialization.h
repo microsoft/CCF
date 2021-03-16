@@ -64,8 +64,6 @@ namespace ccf
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, view, seqno)
 
-  DECLARE_JSON_TYPE(GetTxStatus::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::In, view, seqno)
   DECLARE_JSON_TYPE(GetTxStatus::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, view, seqno, status)
 
@@ -84,16 +82,6 @@ namespace ccf
     local_port,
     primary)
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetNodes::In)
-  // Current limitation of the JSON macros: It is necessary to defined
-  // DECLARE_JSON_REQUIRED_FIELDS even though there are no required
-  // fields. This raises some compiler warnings that are disabled locally.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-  DECLARE_JSON_REQUIRED_FIELDS(GetNodes::In);
-#pragma clang diagnostic pop
-  DECLARE_JSON_OPTIONAL_FIELDS(GetNodes::In, host, port, status)
   DECLARE_JSON_TYPE(GetNodes::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetNodes::Out, nodes)
 
@@ -109,8 +97,6 @@ namespace ccf
   DECLARE_JSON_TYPE(EndpointMetrics::Out)
   DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Out, metrics)
 
-  DECLARE_JSON_TYPE(GetReceipt::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::In, transaction_id)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetReceipt::Element)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-parameter"
