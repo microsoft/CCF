@@ -53,12 +53,13 @@ namespace ccf
   {
     // Service tables
 
-    // Member identities
+    // Members
     static constexpr auto MEMBERS = "public:ccf.gov.members.info";
     static constexpr auto MEMBER_ACKS = "public:ccf.gov.members.acks";
 
-    // User identities
-    static constexpr auto USERS = "public:ccf.gov.users.info";
+    // Users
+    static constexpr auto USER_CERTS = "public:ccf.gov.users.certs";
+    static constexpr auto USER_DATA = "public:ccf.gov.users.data";
 
     // Nodes identities and allowed code ids
     static constexpr auto NODES = "public:ccf.gov.nodes.info";

@@ -78,19 +78,19 @@ namespace ccf
       const auto signed_request = parse_signed_request(ctx);
       if (signed_request.has_value())
       {
-        Users users_table(Tables::USERS);
-        auto users = tx.ro(users_table);
-        auto user = users->get(signed_request->key_id);
-        if (user.has_value())
+        UserCerts users_certs_table(Tables::USER_CERTS);
+        auto users_certs = tx.ro(users_certs_table);
+        auto user_cert = users_certs->get(signed_request->key_id);
+        if (user_cert.has_value())
         {
-          auto verifier = verifiers.get_verifier(user->cert);
+          auto verifier = verifiers.get_verifier(user_cert.value());
           if (verifier->verify(
                 signed_request->req, signed_request->sig, signed_request->md))
           {
             auto identity = std::make_unique<UserSignatureAuthnIdentity>();
             identity->user_id = signed_request->key_id;
-            identity->user_cert = user->cert;
-            identity->user_data = user->user_data;
+            identity->user_cert = user_cert.value();
+            // identity->user_data = user->user_data;
             identity->signed_request = signed_request.value();
             return identity;
           }

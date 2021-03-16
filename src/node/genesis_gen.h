@@ -214,35 +214,46 @@ namespace ccf
       return member.value();
     }
 
-    UserId add_user(const ccf::UserInfo& user_info)
+    UserId add_user(const NewUser& user_info)
     {
-      auto u = tx.rw(tables.users);
+      auto u = tx.rw(tables.user_certs);
 
       auto user_cert_der = crypto::make_verifier(user_info.cert)->cert_der();
       auto id = crypto::Sha256Hash(user_cert_der).hex_str();
 
-      // Cert should be unique
       auto user = u->get(id);
       if (user.has_value())
       {
         throw std::logic_error(
-          fmt::format("User certificate already exists: {}", id));
+          fmt::format("User certificate already exists for {}", id));
       }
 
-      u->put(id, user_info);
+      u->put(id, user_info.cert);
+
+      if (user_info.user_data != nullptr)
+      {
+        auto ud = tx.rw(tables.user_data);
+        auto user_data = ud->get(id);
+        if (user_data.has_value())
+        {
+          throw std::logic_error(
+            fmt::format("User data already exists for {}", id));
+        }
+
+        ud->put(id, user_info.user_data);
+      }
+
       return id;
     }
 
-    bool remove_user(const UserId& user_id)
+    void remove_user(const UserId& user_id)
     {
-      auto u = tx.rw(tables.users);
-      auto user_info = u->get(user_id);
-      if (!user_info.has_value())
-      {
-        return false;
-      }
+      // Has no effect if the user does not exist
+      auto u = tx.rw(tables.user_certs);
+      auto ud = tx.rw(tables.user_data);
+
       u->remove(user_id);
-      return true;
+      ud->remove(user_id);
     }
 
     void add_node(const NodeId& id, const NodeInfo& node_info)

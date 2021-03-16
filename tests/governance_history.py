@@ -26,7 +26,6 @@ def count_governance_operations(ledger):
             if "public:ccf.gov.members.info" in tables:
                 members_table = tables["public:ccf.gov.members.info"]
                 for member_id, member_info in members_table.items():
-                    LOG.success(f"Adding member {member_id}")
                     members[member_id] = member_info["cert"]
 
             if "public:ccf.gov.history" in tables:

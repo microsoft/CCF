@@ -18,7 +18,7 @@ namespace ccf
     /** User certificate, as established by TLS */
     crypto::Pem user_cert;
     /** Additional user data, as defined in @c public:ccf.gov.users.info */
-    nlohmann::json user_data;
+    // nlohmann::json user_data;
   };
 
   class UserCertAuthnPolicy : public AuthnPolicy
@@ -34,13 +34,13 @@ namespace ccf
       const auto& caller_cert = ctx->session->caller_cert;
       auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
-      auto users = tx.ro<Users>(Tables::USERS);
-      // const auto user = users->get(caller_id);
-      if (users->has(caller_id))
+      auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
+      const auto user = user_certs->get(caller_id);
+      if (user.has_value())
       {
         auto identity = std::make_unique<UserCertAuthnIdentity>();
         identity->user_id = caller_id;
-        // identity->user_cert = user->cert;
+        identity->user_cert = user.value();
         // identity->user_data = user->user_data;
         return identity;
       }
@@ -66,7 +66,7 @@ namespace ccf
   {
     MemberId member_id;
     crypto::Pem member_cert;
-    nlohmann::json member_data;
+    // nlohmann::json member_data;
   };
 
   class MemberCertAuthnPolicy : public AuthnPolicy
@@ -88,8 +88,8 @@ namespace ccf
       {
         auto identity = std::make_unique<MemberCertAuthnIdentity>();
         identity->member_id = caller_id;
-        identity->member_cert = member->cert;
-        identity->member_data = member->member_data;
+        // identity->member_cert = member->cert;
+        // identity->member_data = member->member_data;
         return identity;
       }
       else

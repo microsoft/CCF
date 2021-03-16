@@ -417,6 +417,15 @@ namespace ccf
       // the non-authenticated plaintex payload. data contains payload first,
       // then GCM header
 
+      if (status != ESTABLISHED)
+      {
+        LOG_FAIL_FMT(
+          "node channel with {} cannot receive authenticated with payload "
+          "message: not yet established",
+          peer_id);
+        return std::nullopt;
+      }
+
       const uint8_t* data_ = data;
       size_t size_ = size;
 

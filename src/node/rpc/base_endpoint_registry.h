@@ -237,5 +237,28 @@ namespace ccf
         return ApiResult::InternalError;
       }
     }
+
+    // TODO: typedef user_data
+    ApiResult get_user_data_v1(
+      kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data)
+    {
+      try
+      {
+        auto users_data = tx.ro<UserData>(Tables::USER_DATA);
+        auto ud = users_data->get(user_id);
+        if (!ud.has_value())
+        {
+          return ApiResult::NotFound;
+        }
+
+        user_data = ud.value();
+        return ApiResult::OK;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_TRACE_FMT("{}", e.what());
+        return ApiResult::InternalError;
+      }
+    }
   };
 }

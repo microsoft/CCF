@@ -633,7 +633,7 @@ namespace ccf
          }},
         {"new_user",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto user_info = args.get<ccf::UserInfo>();
+           const auto user_info = args.get<NewUser>();
 
            GenesisGenerator g(this->network, tx);
            g.add_user(user_info);
@@ -641,21 +641,13 @@ namespace ccf
            return true;
          }},
         {"remove_user",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const UserId user_id = args;
 
            GenesisGenerator g(this->network, tx);
-           auto r = g.remove_user(user_id);
-           if (!r)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: {} is not a valid user ID", proposal_id, user_id);
-           }
+           g.remove_user(user_id);
 
-           return r;
+           return true;
          }},
         {"set_user_data",
          [this](
@@ -663,19 +655,19 @@ namespace ccf
            kv::Tx& tx,
            const nlohmann::json& args) {
            const auto parsed = args.get<SetUserData>();
-           auto users = tx.rw(this->network.users);
-           auto user_info = users->get(parsed.user_id);
-           if (!user_info.has_value())
+           auto users = tx.rw(this->network.user_certs);
+           auto user = users->get(parsed.user_id);
+           if (!user.has_value())
            {
              LOG_FAIL_FMT(
-               "Proposal {}: {} is not a valid user ID",
+               "Proposal {}: {} is not a valid user",
                proposal_id,
                parsed.user_id);
              return false;
            }
 
-           user_info->user_data = parsed.user_data;
-           users->put(parsed.user_id, user_info.value());
+           auto users_data = tx.rw(this->network.user_data);
+           users_data->put(parsed.user_id, parsed.user_data);
            return true;
          }},
         {"set_ca_cert_bundle",

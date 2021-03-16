@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/pem.h"
 #include "kv/map.h"
 
 namespace ccf
@@ -12,4 +13,23 @@ namespace ccf
     V,
     kv::serialisers::BlitSerialiser,
     kv::serialisers::JsonSerialiser>;
+}
+
+// TODO: Move elsewhere
+namespace kv::serialisers
+{
+  template <>
+  struct BlitSerialiser<crypto::Pem>
+  {
+    static SerialisedEntry to_serialised(const crypto::Pem& pem)
+    {
+      const auto& data = pem.raw();
+      return SerialisedEntry(data.begin(), data.end());
+    }
+
+    static crypto::Pem from_serialised(const SerialisedEntry& data)
+    {
+      return crypto::Pem(data.data(), data.size());
+    }
+  };
 }

@@ -337,7 +337,7 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
-      auto multi_auth = [](auto& ctx) {
+      auto multi_auth = [this](auto& ctx) {
         if (
           auto user_cert_ident =
             ctx.template try_get_caller<ccf::UserCertAuthnIdentity>())
@@ -346,10 +346,16 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
           response += fmt::format(
-            "\nThe caller's user data is: {}",
-            user_cert_ident->user_data.dump());
-          response += fmt::format(
             "\nThe caller's cert is:\n{}", user_cert_ident->user_cert.str());
+
+          nlohmann::json user_data = nullptr;
+          if (
+            get_user_data_v1(ctx.tx, user_cert_ident->user_id, user_data) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's user data is: {}", user_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -364,11 +370,11 @@ namespace loggingapp
             "\nThe caller is a member with ID: {}",
             member_cert_ident->member_id);
           response += fmt::format(
-            "\nThe caller's member data is: {}",
-            member_cert_ident->member_data.dump());
-          response += fmt::format(
             "\nThe caller's cert is:\n{}",
             member_cert_ident->member_cert.str());
+          // response += fmt::format(
+          //   "\nThe caller's member data is: {}",
+          //   member_cert_ident->member_data.dump());
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -796,7 +802,26 @@ namespace loggingapp
 
             // SNIPPET_START: user_data_check
             // Check caller's user-data for required permissions
-            const nlohmann::json user_data = caller_ident.user_data;
+            nlohmann::json user_data = nullptr;
+            auto result =
+              get_user_data_v1(ctx.tx, caller_ident.user_id, user_data);
+            if (result == ccf::ApiResult::NotFound)
+            {
+              return ccf::make_error(
+                HTTP_STATUS_NOT_FOUND,
+                ccf::errors::ResourceNotFound,
+                fmt::format("User {} does not exist", caller_ident.user_id));
+            }
+            else if (result != ccf::ApiResult::OK)
+            {
+              return ccf::make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format(
+                  "Failed to get user data for user {}: {}",
+                  caller_ident.user_id,
+                  ccf::api_result_to_str(result)));
+            }
             const auto is_admin_it = user_data.find("isAdmin");
 
             // Exit if this user has no user data, or the user data is not an
