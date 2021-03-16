@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "apps/utils/metrics.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/endpoint_registry.h"
-#include "json_handler.h"
-#include "metrics.h"
+#include "node/rpc/json_handler.h"
 
 namespace metrics
 {

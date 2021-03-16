@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../smallbank_serializer.h"
+#include "apps/smallbank/smallbank_serializer.h"
+#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
-#include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
 
 #include <charconv>

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/histogram.h"
+#include "ds/json.h"
 #include "ds/logger.h"
 
 #include <nlohmann/json.hpp>

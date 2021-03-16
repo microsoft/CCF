@@ -12,10 +12,9 @@
 #include "node/client_signatures.h"
 #include "node/jwt.h"
 #include "node/nodes.h"
+#include "node/rpc/urlqueryparseerror.h"
 #include "node/service.h"
 #include "rpc_exception.h"
-
-#include "node/rpc/urlqueryparseerror.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -64,7 +63,8 @@ namespace ccf
       endpoints.set_history(history);
     }
 
-    void update_metrics(const std::shared_ptr<enclave::RpcContext>& ctx,
+    void update_metrics(
+      const std::shared_ptr<enclave::RpcContext>& ctx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       int cat = ctx->get_response_status() / 100;

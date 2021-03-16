@@ -3,7 +3,6 @@
 
 #include "ccf/common_endpoint_registry.h"
 
-#include "ccf/base_endpoint_registry.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ds/nonstd.h"

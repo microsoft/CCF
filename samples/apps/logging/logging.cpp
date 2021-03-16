@@ -6,9 +6,9 @@
 #include "logging_schema.h"
 
 // CCF
+#include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
-#include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
 
 #include <charconv>

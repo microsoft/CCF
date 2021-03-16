@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/common_auth_policies.h"
 #include "crypto/hash.h"
 #include "frontend.h"
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
-#include "node_interface.h"
 #include "node/rpc/json_handler.h"
-#include "ccf/common_auth_policies.h"
+#include "node_interface.h"
 
 namespace ccf
 {

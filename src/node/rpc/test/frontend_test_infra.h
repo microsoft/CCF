@@ -3,10 +3,10 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #define DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
+#include "ccf/app_interface.h"
 #include "crypto/rsa_key_pair.h"
 #include "ds/files.h"
 #include "ds/logger.h"
-#include "ccf/app_interface.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/client_signatures.h"

@@ -4,7 +4,6 @@
 #include "ccf/receipt.h"
 #include "ds/json_schema.h"
 #include "kv/kv_types.h"
-#include "metrics.h"
 #include "node/code_id.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
