@@ -144,10 +144,16 @@ namespace ccf
 
   struct MemberSignatureAuthnIdentity : public AuthnIdentity
   {
+    /** CCF member ID */
     MemberId member_id;
+
+    /** Member certificate, used to sign this request, described by keyId */
     crypto::Pem member_cert;
-    nlohmann::json member_data; // TODO: Delete
+
+    /** Canonicalised request and associated signature */
     SignedReq signed_request;
+
+    /** Digest of request */
     std::vector<uint8_t> request_digest;
   };
 

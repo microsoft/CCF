@@ -75,7 +75,6 @@ class PublicDomain:
     _version: int
     _max_conflict_version: int
     _tables: dict
-    # _integrity_tables: Set[str]
 
     def __init__(self, buffer: io.BytesIO):
         self._buffer = buffer
@@ -85,13 +84,6 @@ class PublicDomain:
         self._version = self._read_next()
         self._max_conflict_version = self._read_next()
         self._tables = {}
-        # Keys and Values may have custom serialisers.
-        # Store most as raw bytes, only decode a few which we know are msgpack and are required for ledger verification.
-        # self._integrity_tables = {
-        #     NODES_TABLE_NAME,
-        #     SIGNATURE_TX_TABLE_NAME,
-        #     "public:ccf.gov.history",
-        # }
         self._read()
 
     def _read_next(self):
@@ -111,7 +103,7 @@ class PublicDomain:
             # map_start_indicator
             self._read_next()
             map_name = self._read_next_string()
-            LOG.info(f"Reading map {map_name}")  # TODO: Revert to trace
+            LOG.trace(f"Reading map {map_name}")
             records = {}
             self._tables[map_name] = records
 
@@ -128,7 +120,6 @@ class PublicDomain:
                     k = self._read_next_entry()
                     val = self._read_next_entry()
                     records[k] = val
-                    LOG.error(val)  # TODO: Remove
 
             remove_count = self._read_next()
             if remove_count:
@@ -189,15 +180,6 @@ class LedgerValidator:
         3) The merkle proof is correct for each set of transactions
     """
 
-    # Signature table contains PrimarySignature which extends NodeSignature. NodeId should be at index 1 in the serialized Node
-    # https://github.com/microsoft/CCF/blob/main/src/node/signatures.h
-    EXPECTED_NODE_SIGNATURE_INDEX = 0
-    EXPECTED_NODE_SEQNO_INDEX = 1
-    EXPECTED_NODE_VIEW_INDEX = 2
-    EXPECTED_ROOT_INDEX = 5
-    # https://github.com/microsoft/CCF/blob/main/src/node/node_signature.h
-    EXPECTED_SIGNING_NODE_ID_INDEX = 1
-    EXPECTED_SIGNATURE_INDEX = 0
     # Constant for the size of a hashed transaction
     SHA_256_HASH_SIZE = 32
 

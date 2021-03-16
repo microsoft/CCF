@@ -83,11 +83,22 @@ namespace std
     {
       if (j.is_string())
       {
-        t = tls::raw_from_b64(j.get<std::string>());
-        return;
+        try
+        {
+          t = tls::raw_from_b64(j.get<std::string>());
+          return;
+        }
+        catch (const std::exception& e)
+        {
+          throw JsonParseError(fmt::format(
+            "Vector of bytes object \"{}\" is not valid base64", j.dump()));
+        }
       }
-
-      // TODO: Throw?!
+      else
+      {
+        throw JsonParseError(fmt::format(
+          "Vector of bytes object \"{}\" is not a string", j.dump()));
+      }
     }
 
     if (!j.is_array())

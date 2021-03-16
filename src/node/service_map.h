@@ -15,7 +15,6 @@ namespace ccf
     kv::serialisers::JsonSerialiser>;
 }
 
-// TODO: Move elsewhere
 namespace kv::serialisers
 {
   template <>

@@ -49,7 +49,7 @@ namespace kv::serialisers
         if (rep.size() != t.size())
         {
           throw std::logic_error(fmt::format(
-            "Wrong size {} for deserialisation of array of size {}",
+            "Wrong serialised size {} for deserialisation of array of size {}",
             rep.size(),
             t.size()));
         }
@@ -61,7 +61,8 @@ namespace kv::serialisers
         if (rep.size() != sizeof(T))
         {
           throw std::logic_error(fmt::format(
-            "Wrong size {} for deserialisation of integral of size {}",
+            "Wrong serialised size {} for deserialisation of integral of size "
+            "{}",
             rep.size(),
             sizeof(T)));
         }
