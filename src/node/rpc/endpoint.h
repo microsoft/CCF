@@ -39,6 +39,13 @@ namespace ccf
       Locally,
       Primary
     };
+
+    enum class Mode
+    {
+      ReadWrite,
+      ReadOnly,
+      Historical
+    };
   }
 }
 
@@ -75,6 +82,7 @@ namespace kv::serialisers
 
 MSGPACK_ADD_ENUM(ccf::endpoints::ForwardingRequired);
 MSGPACK_ADD_ENUM(ccf::endpoints::ExecuteOutsideConsensus);
+MSGPACK_ADD_ENUM(ccf::endpoints::Mode);
 
 namespace ccf
 {
@@ -92,10 +100,17 @@ namespace ccf
        {ExecuteOutsideConsensus::Locally, "locally"},
        {ExecuteOutsideConsensus::Primary, "primary"}});
 
+    DECLARE_JSON_ENUM(
+      Mode,
+      {{Mode::ReadWrite, "readwrite"},
+       {Mode::ReadOnly, "readonly"},
+       {Mode::Historical, "historical"}});
+
     using AuthnPolicies = std::vector<std::shared_ptr<AuthnPolicy>>;
 
     struct EndpointProperties
     {
+      Mode mode = Mode::ReadWrite;
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
       ExecuteOutsideConsensus execute_outside_consensus =
         ExecuteOutsideConsensus::Never;
@@ -109,13 +124,15 @@ namespace ccf
         execute_outside_consensus,
         authn_policies,
         openapi,
-        openapi_hidden);
+        openapi_hidden,
+        mode);
     };
 
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
     DECLARE_JSON_REQUIRED_FIELDS(
       EndpointProperties, forwarding_required, authn_policies);
-    DECLARE_JSON_OPTIONAL_FIELDS(EndpointProperties, openapi, openapi_hidden);
+    DECLARE_JSON_OPTIONAL_FIELDS(
+      EndpointProperties, openapi, openapi_hidden, mode);
 
     struct EndpointDefinition
     {

@@ -146,7 +146,12 @@ namespace kv::test
       SeqNo seqno, const Configuration::Nodes& conf) override
     {}
 
-    Configuration::Nodes get_latest_configuration() const override
+    Configuration::Nodes get_latest_configuration_unsafe() const override
+    {
+      return {};
+    }
+
+    Configuration::Nodes get_latest_configuration() override
     {
       return {};
     }

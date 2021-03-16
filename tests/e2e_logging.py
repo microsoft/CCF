@@ -430,14 +430,9 @@ def test_historical_query(network, args):
         LOG.warning("Skipping historical queries in BFT")
         return network
 
-    if args.package == "liblogging":
-        network.txs.issue(network, number_txs=2)
-        network.txs.issue(network, number_txs=2, repeat=True)
-        network.txs.verify()
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
-        )
+    network.txs.issue(network, number_txs=2)
+    network.txs.issue(network, number_txs=2, repeat=True)
+    network.txs.verify()
 
     return network
 
@@ -449,40 +444,34 @@ def test_historical_receipts(network, args):
         LOG.warning("Skipping historical queries in BFT")
         return network
 
-    if args.package == "liblogging":
-        primary, backups = network.find_nodes()
-        cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
-        with open(cert_path) as c:
-            primary_cert = load_pem_x509_certificate(
-                c.read().encode("ascii"), default_backend()
-            )
-
-        TXS_COUNT = 5
-        network.txs.issue(network, number_txs=5)
-        for idx in range(1, TXS_COUNT + 1):
-            for node in [primary, backups[0]]:
-                first_msg = network.txs.priv[idx][0]
-                first_receipt = network.txs.get_receipt(
-                    node, idx, first_msg["seqno"], first_msg["view"]
-                )
-                r = first_receipt.json()["receipt"]
-                assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
-                ccf.receipt.verify(r["root"], r["signature"], primary_cert)
-
-        # receipt.verify() raises if it fails, but does not return anything
-        verified = True
-        try:
-            ccf.receipt.verify(
-                hashlib.sha256(b"").hexdigest(), r["signature"], primary_cert
-            )
-        except InvalidSignature:
-            verified = False
-        assert not verified
-
-    else:
-        LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+    primary, backups = network.find_nodes()
+    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
+    with open(cert_path) as c:
+        primary_cert = load_pem_x509_certificate(
+            c.read().encode("ascii"), default_backend()
         )
+
+    TXS_COUNT = 5
+    network.txs.issue(network, number_txs=5)
+    for idx in range(1, TXS_COUNT + 1):
+        for node in [primary, backups[0]]:
+            first_msg = network.txs.priv[idx][0]
+            first_receipt = network.txs.get_receipt(
+                node, idx, first_msg["seqno"], first_msg["view"]
+            )
+            r = first_receipt.json()["receipt"]
+            assert r["root"] == ccf.receipt.root(r["leaf"], r["proof"])
+            ccf.receipt.verify(r["root"], r["signature"], primary_cert)
+
+    # receipt.verify() raises if it fails, but does not return anything
+    verified = True
+    try:
+        ccf.receipt.verify(
+            hashlib.sha256(b"").hexdigest(), r["signature"], primary_cert
+        )
+    except InvalidSignature:
+        verified = False
+    assert not verified
 
     return network
 

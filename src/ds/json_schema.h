@@ -264,10 +264,14 @@ namespace ds
     }
 
     template <typename T>
-    inline nlohmann::json build_schema(const std::string& title)
+    inline nlohmann::json build_schema(const std::string& title = "")
     {
-      nlohmann::json schema;
-      schema["title"] = title;
+      auto schema = nlohmann::json::object();
+
+      if (!title.empty())
+      {
+        schema["title"] = title;
+      }
 
       fill_schema<T>(schema);
 

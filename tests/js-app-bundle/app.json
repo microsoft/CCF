@@ -7,7 +7,7 @@
         "forwarding_required": "never",
         "execute_outside_consensus": "locally",
         "authn_policies": ["user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "requestBody": {
             "required": true,
@@ -80,7 +80,7 @@
         "forwarding_required": "never",
         "execute_outside_consensus": "locally",
         "authn_policies": ["user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "parameters": [
             {
