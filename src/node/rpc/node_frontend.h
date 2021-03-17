@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/common_endpoint_registry.h"
 #include "ccf/common_auth_policies.h"
 #include "crypto/hash.h"
 #include "frontend.h"

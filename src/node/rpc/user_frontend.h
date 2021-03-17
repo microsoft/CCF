@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/common_endpoint_registry.h"
+#include "enclave/node_context.h"
 #include "frontend.h"
-#include "node/client_signatures.h"
 #include "node/network_tables.h"
 
 namespace ccf

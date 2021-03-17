@@ -1,8 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ccf/app_interface.h"
+#include "ccf/base_endpoint_registry.h"
 #include "ccf/common_auth_policies.h"
 #include "ds/json.h"
+#include "enclave/node_context.h"
+#include "node/network_tables.h"
+#include "node/rpc/frontend.h"
 #include "node/rpc/json_handler.h"
 
 #include <charconv>

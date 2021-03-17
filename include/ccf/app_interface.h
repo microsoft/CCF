@@ -2,11 +2,21 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/node_context.h"
-#include "node/rpc/user_frontend.h"
+#include <memory>
+
+namespace ccf
+{
+  // Forward declarations
+  class RpcFrontend;
+
+  struct NetworkTables;
+}
 
 namespace ccfapp
 {
+  // Forward declaration
+  struct AbstractNodeContext;
+
   // SNIPPET_START: rpc_handler
   /** To be implemented by the application to be registered by CCF.
    *

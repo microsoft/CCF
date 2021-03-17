@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "ccf/common_endpoint_registry.h"
+
+#include "ccf/endpoint_registry.h"
 #include "consensus/aft/request.h"
 #include "crypto/verifier.h"
 #include "ds/buffer.h"
@@ -14,6 +15,7 @@
 #include "node/nodes.h"
 #include "node/service.h"
 #include "rpc_exception.h"
+#include "kv/store.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

@@ -7,6 +7,8 @@
 #include "ds/hash.h"
 #include "ds/logger.h"
 #include "kv/kv_serialiser.h"
+#include "kv/map.h"
+#include "kv/store.h"
 
 #include <doctest/doctest.h>
 

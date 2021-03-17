@@ -17,6 +17,7 @@
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "tls/base64.h"
+#include "ccf/common_endpoint_registry.h"
 
 #include <charconv>
 #include <exception>
