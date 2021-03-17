@@ -265,7 +265,9 @@ namespace ccf
     /** Get the member data associated with a given member id
      */
     ApiResult get_member_data_v1(
-      kv::ReadOnlyTx& tx, const UserId& member_id, nlohmann::json& member_data)
+      kv::ReadOnlyTx& tx,
+      const MemberId& member_id,
+      nlohmann::json& member_data)
     {
       try
       {
@@ -277,6 +279,56 @@ namespace ccf
         }
 
         member_data = mi->member_data;
+        return ApiResult::OK;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_TRACE_FMT("{}", e.what());
+        return ApiResult::InternalError;
+      }
+    }
+
+    /** Get the certificate (PEM) of a given user id
+     */
+    ApiResult get_user_cert_v1(
+      kv::ReadOnlyTx& tx, const UserId& user_id, crypto::Pem& user_cert_pem)
+    {
+      try
+      {
+        auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
+        auto uc = user_certs->get(user_id);
+        if (!uc.has_value())
+        {
+          return ApiResult::NotFound;
+        }
+
+        user_cert_pem = uc.value();
+        return ApiResult::OK;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_TRACE_FMT("{}", e.what());
+        return ApiResult::InternalError;
+      }
+    }
+
+    /** Get the certificate (PEM) of a given member id
+     */
+    ApiResult get_member_cert_v1(
+      kv::ReadOnlyTx& tx,
+      const MemberId& member_id,
+      crypto::Pem& member_cert_pem)
+    {
+      try
+      {
+        auto member_certs = tx.ro<UserCerts>(Tables::MEMBER_CERTS);
+        auto mc = member_certs->get(member_id);
+        if (!mc.has_value())
+        {
+          return ApiResult::NotFound;
+        }
+
+        member_cert_pem = mc.value();
         return ApiResult::OK;
       }
       catch (const std::exception& e)

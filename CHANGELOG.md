@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - New `get_user_data_v1` and `get_member_data_v1` C++ API calls have been added to retrieve the data associated with users/members. The user/member data is no longer included in the `AuthnIdentity` caller struct (#2301).
+- New `get_user_cert_v1` and `get_member_cert_v1` C++ API calls have been added to retrieve the PEM certificate of the users/members. The user/member certificate is no longer included in the `AuthnIdentity` caller struct (#2301).
 
 ### Changed
 

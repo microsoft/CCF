@@ -94,7 +94,6 @@ namespace ds
       {
         return schema_name<typename T::value_type>();
       }
-
       else if constexpr (nonstd::is_specialization<T, std::vector>::value)
       {
         if constexpr (std::is_same<T, std::vector<uint8_t>>::value)

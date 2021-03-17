@@ -15,8 +15,6 @@ namespace ccfapp
 {
   struct SmallBankTables
   {
-    // TODO: Update to RawCopySerialisedMap last, once all service maps have
-    // been update to raw -> JSON
     kv::Map<std::string, uint64_t> accounts;
     kv::Map<uint64_t, int64_t> savings;
     kv::Map<uint64_t, int64_t> checkings;

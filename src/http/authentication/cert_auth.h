@@ -15,8 +15,6 @@ namespace ccf
   {
     /** CCF user ID */
     UserId user_id;
-    /** User certificate, as established by TLS */
-    crypto::Pem user_cert;
   };
 
   class UserCertAuthnPolicy : public AuthnPolicy
@@ -33,12 +31,10 @@ namespace ccf
       auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
       auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
-      const auto user_cert = user_certs->get(caller_id);
-      if (user_cert.has_value())
+      if (user_certs->has(caller_id))
       {
         auto identity = std::make_unique<UserCertAuthnIdentity>();
         identity->user_id = caller_id;
-        identity->user_cert = user_cert.value();
         return identity;
       }
 
@@ -60,9 +56,6 @@ namespace ccf
   {
     /** CCF member ID */
     MemberId member_id;
-
-    /** Member certificate, as established by TLS */
-    crypto::Pem member_cert;
   };
 
   class MemberCertAuthnPolicy : public AuthnPolicy
@@ -79,12 +72,10 @@ namespace ccf
       auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
       auto member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
-      const auto member_cert = member_certs->get(caller_id);
-      if (member_cert.has_value())
+      if (member_certs->has(caller_id))
       {
         auto identity = std::make_unique<MemberCertAuthnIdentity>();
         identity->member_id = caller_id;
-        identity->member_cert = member_cert.value();
         return identity;
       }
 

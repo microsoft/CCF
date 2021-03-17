@@ -1006,7 +1006,6 @@ namespace ccfapp
 
       char const* policy_name = nullptr;
       EntityId id;
-      std::string cert_s;
       bool is_member = false;
 
       if (
@@ -1015,7 +1014,6 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(user_cert_ident);
         id = user_cert_ident->user_id;
-        cert_s = user_cert_ident->user_cert.str();
         is_member = false;
       }
       else if (
@@ -1024,7 +1022,6 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(member_cert_ident);
         id = member_cert_ident->member_id;
-        cert_s = member_cert_ident->member_cert.str();
         is_member = true;
       }
       else if (
@@ -1033,7 +1030,6 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(user_sig_ident);
         id = user_sig_ident->user_id;
-        cert_s = user_sig_ident->user_cert.str();
         is_member = false;
       }
       else if (
@@ -1042,7 +1038,6 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(member_sig_ident);
         id = member_sig_ident->member_id;
-        cert_s = member_sig_ident->member_cert.str();
         is_member = true;
       }
 
@@ -1070,6 +1065,22 @@ namespace ccfapp
           fmt::format("Failed to get data for caller {}", id));
       }
 
+      crypto::Pem cert;
+      if (is_member)
+      {
+        result = get_user_cert_v1(args.tx, id, cert);
+      }
+      else
+      {
+        result = get_member_cert_v1(args.tx, id, cert);
+      }
+
+      if (result == ccf::ApiResult::InternalError)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to get certificate for caller {}", id));
+      }
+
       JS_SetPropertyStr(ctx, caller, "policy", JS_NewString(ctx, policy_name));
       JS_SetPropertyStr(
         ctx, caller, "id", JS_NewStringLen(ctx, id.data(), id.size()));
@@ -1078,7 +1089,7 @@ namespace ccfapp
         ctx,
         caller,
         "cert",
-        JS_NewStringLen(ctx, cert_s.data(), cert_s.size()));
+        JS_NewStringLen(ctx, cert.str().data(), cert.size()));
 
       return caller;
     }

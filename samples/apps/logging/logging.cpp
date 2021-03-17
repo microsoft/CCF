@@ -402,8 +402,15 @@ namespace loggingapp
           auto response = std::string("User TLS cert");
           response += fmt::format(
             "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
-          response += fmt::format(
-            "\nThe caller's cert is:\n{}", user_cert_ident->user_cert.str());
+
+          crypto::Pem user_cert;
+          if (
+            get_user_cert_v1(ctx.tx, user_cert_ident->user_id, user_cert) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's cert is:\n{}", user_cert.str());
+          }
 
           nlohmann::json user_data = nullptr;
           if (
@@ -426,9 +433,16 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller is a member with ID: {}",
             member_cert_ident->member_id);
-          response += fmt::format(
-            "\nThe caller's cert is:\n{}",
-            member_cert_ident->member_cert.str());
+
+          crypto::Pem member_cert;
+          if (
+            get_member_cert_v1(
+              ctx.tx, member_cert_ident->member_id, member_cert) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's cert is:\n{}", member_cert.str());
+          }
 
           nlohmann::json member_data = nullptr;
           if (
