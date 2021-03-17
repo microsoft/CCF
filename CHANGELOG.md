@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Schema documentation for query parameters should now be added with `add_query_parameter`, rather than `set_auto_schema`. The `In` type of `set_auto_schema` should only be used to describe the request body.
 - `json_adapter` will no longer try to convert query parameters to a JSON object. The JSON passed as an argument to these handlers will now be populated only by the request body. The query string should be parsed separately, and `http::parse_query(s)` is added as a starting point. This means strings in query parameters no longer need to be quoted.
 - Enum values returned by built-in REST API endpoints are now PascalCase. Lua governance scripts that use enum values need to be updated as well, for example, `"ACTIVE"` becomes `"Active"` for member info. The same applies when using the `/gov/query` endpoint (#2152).
+- `UserRpcFrontend` has been removed, and the return value of `get_rpc_handler` which apps should construct is now simply a `ccf::RpcFrontend`.
+- There is now a distinction between public and private headers. The public headers under `include/ccf` are those we expect apps to use, and others are implementation details which may change/be deprecated/be hidden in future. Most apps should now be including `"ccf/app_interface.h"` and `"ccf/common_endpoint_registry.h"`.
+- Various endpoint-related types have moved under the `ccf::endpoints` namespace. Apps will need to rename these types where they are not using `auto`, for instance to `ccf::endpoints::EndpointContext` and `ccf::endpoints::ForwardingRequired`.
 
 ## [0.19.1]
 
