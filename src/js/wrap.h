@@ -29,7 +29,7 @@ namespace js
   void register_request_body_class(JSContext* ctx);
   void populate_global_console(JSContext* ctx);
   void populate_global_ccf(
-    kv::Tx& tx,
+    kv::Tx* tx,
     const std::optional<kv::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     JSContext* ctx);
@@ -82,6 +82,8 @@ namespace js
     {
       return rt;
     }
+
+    void add_ccf_classdefs();
   };
 
   class Context

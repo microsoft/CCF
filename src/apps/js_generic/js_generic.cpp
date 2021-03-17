@@ -309,47 +309,17 @@ namespace ccfapp
       }
 
       js::Runtime rt;
+      rt.add_ccf_classdefs();
 
       JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
       JS_SetModuleLoaderFunc(
         rt, nullptr, js_module_loader, &js_module_loader_arg);
 
-      // Register class for KV
-      {
-        auto ret = JS_NewClass(rt, js::kv_class_id, &js::kv_class_def);
-        if (ret != 0)
-        {
-          throw std::logic_error(
-            "Failed to register JS class definition for KV");
-        }
-      }
-
-      // Register class for KV map views
-      {
-        auto ret = JS_NewClass(
-          rt, js::kv_map_handle_class_id, &js::kv_map_handle_class_def);
-        if (ret != 0)
-        {
-          throw std::logic_error(
-            "Failed to register JS class definition for KVMap");
-        }
-      }
-
-      // Register class for request body
-      {
-        auto ret = JS_NewClass(rt, js::body_class_id, &js::body_class_def);
-        if (ret != 0)
-        {
-          throw std::logic_error(
-            "Failed to register JS class definition for Body");
-        }
-      }
-
       js::Context ctx(rt);
 
       js::register_request_body_class(ctx);
       js::populate_global_console(ctx);
-      js::populate_global_ccf(target_tx, transaction_id, receipt, ctx);
+      js::populate_global_ccf(&target_tx, transaction_id, receipt, ctx);
 
       // Compile module
       if (!handler_script.value().text.has_value())
