@@ -172,14 +172,26 @@ install(
   FILE ccf-targets.cmake
 )
 
-# Install all 3rd-party library includes
-install(
-  DIRECTORY 3rdparty
-  DESTINATION include
-  FILES_MATCHING
-  PATTERN "*.h"
-  PATTERN "*.hpp"
-)
+# Install selected 3rd-party library includes
+function(install_3rdparty name)
+  install(
+    DIRECTORY 3rdparty/${name}
+    DESTINATION include/3rdparty
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*.hpp"
+  )
+endfunction()
+install_3rdparty(backward-cpp)
+install_3rdparty(fmt)
+install_3rdparty(llhttp)
+install_3rdparty(merklecpp)
+install_3rdparty(msgpack)
+install_3rdparty(nlohmann)
+install_3rdparty(quickjs)
+install_3rdparty(small_vector)
+install_3rdparty(snmalloc)
+install_3rdparty(sss)
 
 # Install all CCF headers
 install(
