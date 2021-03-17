@@ -150,14 +150,6 @@ def _byte_read_safe(file, num_of_bytes):
     return ret
 
 
-class NodeStatus(Enum):
-    """These are the corresponding status meanings from the ccf.nodes table"""
-
-    PENDING = 0
-    TRUSTED = 1
-    RETIRED = 2
-
-
 class TxBundleInfo(NamedTuple):
     """Bundle for transaction information required for validation """
 
@@ -165,7 +157,7 @@ class TxBundleInfo(NamedTuple):
     existing_root: bytes
     node_cert: bytes
     signature: bytes
-    node_activity: NodeStatus
+    node_activity: str
     signing_node: bytes
 
 
@@ -175,7 +167,7 @@ class LedgerValidator:
     It has the ability to take transactions and it maintains a MerkleTree data structure similar to CCF.
 
     Ledger is valid and hasn't been tampered with if following conditions are met:
-        1) The merkle proof is signed by a TRUSTED node in the given network
+        1) The merkle proof is signed by a Trusted node in the given network
         2) The merkle root and signature are verified with the node cert
         3) The merkle proof is correct for each set of transactions
     """
@@ -218,7 +210,7 @@ class LedgerValidator:
                 # Add the nodes certificate
                 self.node_certificates[node_id] = node_info["cert"].encode()
                 # Update node trust status
-                self.node_activity_status[node_id] = NodeStatus[node_info["status"]]
+                self.node_activity_status[node_id] = node_info["status"]
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
@@ -262,7 +254,7 @@ class LedgerValidator:
         """
         Verify items 1, 2, and 3 for all the transactions up until a signature.
         """
-        # 1) The merkle root is signed by a TRUSTED node in the given network, else throws
+        # 1) The merkle root is signed by a Trusted node in the given network, else throws
         self._verify_node_status(tx_info)
         # 2) The merkle root and signature are verified with the node cert, else throws
         self._verify_root_signature(tx_info)
@@ -271,8 +263,8 @@ class LedgerValidator:
 
     @staticmethod
     def _verify_node_status(tx_info: TxBundleInfo):
-        """Verify item 1, The merkle root is signed by a TRUSTED node in the given network"""
-        if tx_info.node_activity[tx_info.signing_node] != NodeStatus.TRUSTED:
+        """Verify item 1, The merkle root is signed by a Trusted node in the given network"""
+        if tx_info.node_activity[tx_info.signing_node] != "Trusted":
             LOG.error(
                 f"The signing node {tx_info.signing_node!r} is not trusted by the network"
             )

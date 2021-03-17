@@ -302,7 +302,7 @@ class Consortium:
         return proposals
 
     def retire_node(self, remote_node, node_to_retire):
-        LOG.info(f"Retiring node {node_to_retire.local_id}")
+        LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         proposal_body, careful_vote = self.make_proposal(
             "retire_node", node_to_retire.node_id
         )

@@ -94,12 +94,11 @@ namespace std
             "Vector of bytes object \"{}\" is not valid base64", j.dump()));
         }
       }
-      else
-      {
-        throw JsonParseError(fmt::format(
-          "Vector of bytes object \"{}\" is not a string", j.dump()));
-      }
     }
+
+    // Fall-through. So we can convert _from_ [1,2,3] to
+    // std::vector<uint8_t>, but would prefer (and will produce in to_json) a
+    // base64 string
 
     if (!j.is_array())
     {
