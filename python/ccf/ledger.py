@@ -156,8 +156,8 @@ class TxBundleInfo(NamedTuple):
     existing_root: bytes
     node_cert: bytes
     signature: bytes
-    node_activity: str
-    signing_node: bytes
+    node_activity: dict
+    signing_node: str
 
 
 class LedgerValidator:
