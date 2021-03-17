@@ -516,7 +516,7 @@ namespace js
     if (tx != nullptr)
     {
       auto kv = JS_NewObjectClass(ctx, kv_class_id);
-      JS_SetOpaque(kv, &tx);
+      JS_SetOpaque(kv, tx);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
     }
 
