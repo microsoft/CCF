@@ -53,16 +53,6 @@ def test_quote(network, args):
         for quote in quotes:
             mrenclave = quote["mrenclave"]
             assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
-            quote_path = os.path.join(network.common_dir, f"quote{quote['node_id']}")
-            endorsements_path = os.path.join(
-                network.common_dir, f"endorsements{quote['node_id']}"
-            )
-
-            with open(quote_path, "wb") as q:
-                q.write(bytes.fromhex(quote["raw"]))
-
-            with open(endorsements_path, "wb") as e:
-                e.write(bytes.fromhex(quote["endorsements"]))
 
             cafile = os.path.join(network.common_dir, "networkcert.pem")
             assert (

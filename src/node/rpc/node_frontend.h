@@ -14,8 +14,8 @@ namespace ccf
   struct Quote
   {
     NodeId node_id = {};
-    std::string raw = {}; // < Hex-encoded
-    std::string endorsements = {}; // < Hex-encoded
+    std::vector<uint8_t> raw;
+    std::vector<uint8_t> endorsements;
     QuoteFormat format;
 
     std::string mrenclave = {}; // < Hex-encoded
@@ -349,8 +349,8 @@ namespace ccf
         {
           Quote q;
           q.node_id = context.get_node_state().get_node_id();
-          q.raw = ds::to_hex(node_quote_info.quote);
-          q.endorsements = ds::to_hex(node_quote_info.endorsements);
+          q.raw = node_quote_info.quote;
+          q.endorsements = node_quote_info.endorsements;
           q.format = node_quote_info.format;
 
 #ifdef GET_QUOTE
@@ -395,9 +395,8 @@ namespace ccf
           {
             Quote q;
             q.node_id = node_id;
-            q.raw = ds::to_hex(node_info.quote_info.quote);
-            q.endorsements = fmt::format(
-              "{:02x}", fmt::join(node_info.quote_info.endorsements, ""));
+            q.raw = node_info.quote_info.quote;
+            q.endorsements = node_info.quote_info.endorsements;
             q.format = QuoteFormat::oe_sgx_v1;
 
 #ifdef GET_QUOTE
