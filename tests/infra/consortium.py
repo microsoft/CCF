@@ -99,7 +99,7 @@ class Consortium:
                     member = self.get_member_by_service_id(member_service_id)
                     if member:
                         if (
-                            infra.member.MemberStatus[status]
+                            infra.member.MemberStatus(status)
                             == infra.member.MemberStatus.ACTIVE
                         ):
                             member.set_active()
