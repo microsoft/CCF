@@ -3,7 +3,7 @@
     "schemas": {
       "CodeStatus": {
         "enum": [
-          "ALLOWED_TO_JOIN"
+          "AllowedToJoin"
         ],
         "type": "string"
       },
@@ -297,10 +297,10 @@
       },
       "TxStatus": {
         "enum": [
-          "UNKNOWN",
-          "PENDING",
-          "COMMITTED",
-          "INVALID"
+          "Unknown",
+          "Pending",
+          "Committed",
+          "Invalid"
         ],
         "type": "string"
       },

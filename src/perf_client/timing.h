@@ -257,7 +257,7 @@ namespace timing
         // NB: Eventual header re-org should be exposing API types so
         // they can be consumed cleanly from C++ clients
         const auto tx_status = body["status"];
-        if (tx_status == "PENDING" || tx_status == "UNKNOWN")
+        if (tx_status == "Pending" || tx_status == "Unknown")
         {
           if (record)
           {
@@ -268,7 +268,7 @@ namespace timing
           this_thread::sleep_for(10us);
           continue;
         }
-        else if (tx_status == "COMMITTED")
+        else if (tx_status == "Committed")
         {
           LOG_INFO_FMT("Found global commit {}.{}", target.view, target.seqno);
           if (tx_id.has_value())
@@ -293,7 +293,7 @@ namespace timing
           }
           return;
         }
-        else if (tx_status == "INVALID")
+        else if (tx_status == "Invalid")
         {
           throw std::logic_error(fmt::format(
             "Transaction {}.{} is now marked as invalid",

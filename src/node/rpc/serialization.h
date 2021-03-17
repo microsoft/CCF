@@ -11,14 +11,14 @@ namespace ccf
 {
   DECLARE_JSON_ENUM(
     ccf::State,
-    {{ccf::State::uninitialized, "uninitialized"},
-     {ccf::State::initialized, "initialized"},
-     {ccf::State::pending, "pending"},
-     {ccf::State::partOfPublicNetwork, "partOfPublicNetwork"},
-     {ccf::State::partOfNetwork, "partOfNetwork"},
-     {ccf::State::readingPublicLedger, "readingPublicLedger"},
-     {ccf::State::readingPrivateLedger, "readingPrivateLedger"},
-     {ccf::State::verifyingSnapshot, "verifyingSnapshot"}})
+    {{ccf::State::uninitialized, "Uninitialized"},
+     {ccf::State::initialized, "Initialized"},
+     {ccf::State::pending, "Pending"},
+     {ccf::State::partOfPublicNetwork, "PartOfPublicNetwork"},
+     {ccf::State::partOfNetwork, "PartOfNetwork"},
+     {ccf::State::readingPublicLedger, "ReadingPublicLedger"},
+     {ccf::State::readingPrivateLedger, "ReadingPrivateLedger"},
+     {ccf::State::verifyingSnapshot, "VerifyingSnapshot"}})
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetState::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetState::Out, node_id, state, last_signed_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(

@@ -22,9 +22,9 @@ namespace ccf
   };
   DECLARE_JSON_ENUM(
     NodeStatus,
-    {{NodeStatus::PENDING, "PENDING"},
-     {NodeStatus::TRUSTED, "TRUSTED"},
-     {NodeStatus::RETIRED, "RETIRED"}});
+    {{NodeStatus::PENDING, "Pending"},
+     {NodeStatus::TRUSTED, "Trusted"},
+     {NodeStatus::RETIRED, "Retired"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::NodeStatus);

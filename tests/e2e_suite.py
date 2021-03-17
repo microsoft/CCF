@@ -9,7 +9,7 @@ import infra.logging_app as app
 import time
 import json
 import sys
-from enum import Enum
+from enum import Enum, auto
 import random
 import os
 import re
@@ -18,9 +18,9 @@ from loguru import logger as LOG
 
 
 class TestStatus(Enum):
-    success = 1
-    failure = 2
-    skipped = 3
+    success = auto()
+    failure = auto()
+    skipped = auto()
 
 
 def mem_stats(network):

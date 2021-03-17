@@ -36,19 +36,19 @@ namespace ccf
     {
       case TxStatus::Unknown:
       {
-        return "UNKNOWN";
+        return "Unknown";
       }
       case TxStatus::Pending:
       {
-        return "PENDING";
+        return "Pending";
       }
       case TxStatus::Committed:
       {
-        return "COMMITTED";
+        return "Committed";
       }
       case TxStatus::Invalid:
       {
-        return "INVALID";
+        return "Invalid";
       }
       default:
       {
