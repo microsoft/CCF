@@ -87,6 +87,8 @@ namespace aft
       const std::string& peer_service) override
     {}
 
+    void restart() override {}
+
     void destroy_channel(const ccf::NodeId& peer_id) override {}
 
     void destroy_all_channels() override {}
@@ -143,6 +145,7 @@ namespace aft
 
     void initialize(
       const ccf::NodeId& self_id,
+      const crypto::Pem& network_cert,
       crypto::KeyPairPtr node_kp,
       const crypto::Pem& node_cert) override
     {}

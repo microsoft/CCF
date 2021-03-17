@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/verifier.h"
+
 #include "mbedtls_wrappers.h"
 
 namespace crypto
@@ -22,6 +23,11 @@ namespace crypto
     virtual std::vector<uint8_t> cert_der() override;
     virtual Pem cert_pem() override;
 
-    virtual bool validate_certificate(const Pem& ca_pem) override;
+    virtual bool verify_certificate(
+      const std::vector<const Pem*>& trusted_certs) override;
+
+    virtual bool is_self_signed() const override;
+
+    virtual std::string serial_number() const override;
   };
 }

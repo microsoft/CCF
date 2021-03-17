@@ -20,23 +20,14 @@ namespace tls
   {
   private:
     crypto::mbedtls::ECDHContext ctx = nullptr;
-    std::vector<uint8_t> key_share, peer_key_share;
-    crypto::EntropyPtr entropy;
+    std::vector<uint8_t> key_share;
+    std::vector<uint8_t> peer_key_share;
 
-  public:
-    static constexpr mbedtls_ecp_group_id domain_parameter =
-      MBEDTLS_ECP_DP_SECP384R1;
-
-    static constexpr size_t len_public = 1024 + 1;
-    static constexpr size_t len_shared_secret = 1024;
-
-    KeyExchangeContext() :
-      key_share(len_public),
-      entropy(crypto::create_entropy())
+    void create_fresh_key_share()
     {
       auto tmp_ctx =
         crypto::mbedtls::make_unique<crypto::mbedtls::ECDHContext>();
-      size_t len;
+      size_t len = 0;
 
       int rc = mbedtls_ecp_group_load(&tmp_ctx->grp, domain_parameter);
 
@@ -44,6 +35,10 @@ namespace tls
       {
         throw std::logic_error(error_string(rc));
       }
+
+      crypto::EntropyPtr entropy = crypto::create_entropy();
+
+      key_share.resize(len_public);
 
       rc = mbedtls_ecdh_make_public(
         tmp_ctx.get(),
@@ -63,10 +58,21 @@ namespace tls
       ctx = std::move(tmp_ctx);
     }
 
+  public:
+    static constexpr mbedtls_ecp_group_id domain_parameter =
+      MBEDTLS_ECP_DP_SECP384R1;
+
+    static constexpr size_t len_public = 1024 + 1;
+    static constexpr size_t len_shared_secret = 1024;
+
+    KeyExchangeContext() : key_share(len_public)
+    {
+      create_fresh_key_share();
+    }
+
     KeyExchangeContext(
       std::shared_ptr<crypto::KeyPair_mbedTLS> own_kp,
-      std::shared_ptr<crypto::PublicKey_mbedTLS> peer_pubk) :
-      entropy(crypto::create_entropy())
+      std::shared_ptr<crypto::PublicKey_mbedTLS> peer_pubk)
     {
       auto tmp_ctx =
         crypto::mbedtls::make_unique<crypto::mbedtls::ECDHContext>();
@@ -117,8 +123,10 @@ namespace tls
 
     void reset()
     {
+      key_share.clear();
       peer_key_share.clear();
-      entropy.reset();
+      ctx.reset();
+      create_fresh_key_share();
     }
 
     void load_peer_key_share(const std::vector<uint8_t>& ks)
@@ -139,6 +147,8 @@ namespace tls
 
     std::vector<uint8_t> compute_shared_secret()
     {
+      crypto::EntropyPtr entropy = crypto::create_entropy();
+
       // Should only be called once, when peer public has been loaded.
       std::vector<uint8_t> shared_secret(len_shared_secret);
       size_t len;

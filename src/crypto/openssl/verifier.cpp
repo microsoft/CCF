@@ -3,6 +3,7 @@
 
 #include "verifier.h"
 
+#include "crypto/openssl/openssl_wrappers.h"
 #include "public_key.h"
 #include "rsa_key_pair.h"
 
@@ -35,11 +36,11 @@ namespace crypto
 
   Verifier_OpenSSL::Verifier_OpenSSL(const std::vector<uint8_t>& c) : Verifier()
   {
-    Unique_BIO certbio(c.data(), c.size());
-    if (!(cert = PEM_read_bio_X509(certbio, NULL, 0, NULL)))
+    Unique_BIO certbio(c);
+    if (!(cert = Unique_X509(certbio, true)))
     {
       BIO_reset(certbio);
-      if (!(cert = d2i_X509_bio(certbio, NULL)))
+      if (!(cert = Unique_X509(certbio, false)))
       {
         throw std::invalid_argument(fmt::format(
           "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
@@ -66,11 +67,7 @@ namespace crypto
     }
   }
 
-  Verifier_OpenSSL::~Verifier_OpenSSL()
-  {
-    if (cert)
-      X509_free(cert);
-  }
+  Verifier_OpenSSL::~Verifier_OpenSSL() {}
 
   std::vector<uint8_t> Verifier_OpenSSL::cert_der()
   {
@@ -92,41 +89,35 @@ namespace crypto
     return Pem((uint8_t*)bptr->data, bptr->length);
   }
 
-  bool Verifier_OpenSSL::validate_certificate(const Pem& ca_pem)
+  bool Verifier_OpenSSL::verify_certificate(
+    const std::vector<const Pem*>& trusted_certs)
   {
-    X509* ca = nullptr;
-    Unique_BIO cabio(ca_pem.data(), ca_pem.size());
-    CHECKNULL(ca = PEM_read_bio_X509(cabio, NULL, 0, NULL));
+    Unique_X509_STORE store;
+    Unique_X509_STORE_CTX store_ctx;
 
-    X509_STORE* store = nullptr;
-    X509_STORE_CTX* store_ctx = nullptr;
-    CHECKNULL(store = X509_STORE_new());
-    CHECK1(X509_STORE_add_cert(store, ca));
-    CHECKNULL(store_ctx = X509_STORE_CTX_new());
-    CHECK1(X509_STORE_CTX_init(store_ctx, store, cert, NULL));
-    auto ret = X509_verify_cert(store_ctx);
-    std::cout << "VERIFY: " << ret << std::endl;
-
-    if (ret == 0)
+    for (auto& pem : trusted_certs)
     {
-      X509* error_cert = X509_STORE_CTX_get_current_cert(store_ctx);
-      X509_NAME* certsubject = X509_NAME_new();
-      certsubject = X509_get_subject_name(error_cert);
-      BIO* outbio = BIO_new_fp(stdout, BIO_NOCLOSE);
-      BIO_printf(outbio, "Verification failed cert:\n");
-      X509_NAME_print_ex(outbio, certsubject, 0, XN_FLAG_MULTILINE);
-      BIO_printf(outbio, "\n");
-      X509_NAME_free(certsubject);
-      BIO_free(outbio);
-
-      std::cout << "Failed certificate: " << std::endl
-                << this->cert_pem().str() << std::endl;
+      Unique_BIO tcbio(*pem);
+      Unique_X509 tc(tcbio, true);
+      CHECK1(X509_STORE_add_cert(store, tc));
     }
 
-    X509_STORE_CTX_free(store_ctx);
-    X509_STORE_free(store);
-    X509_free(ca);
+    CHECK1(X509_STORE_CTX_init(store_ctx, store, cert, NULL));
+    return X509_verify_cert(store_ctx) == 1;
+  }
 
-    return ret == 1;
+  bool Verifier_OpenSSL::is_self_signed() const
+  {
+    return X509_get_extension_flags(cert) & EXFLAG_SS;
+  }
+
+  std::string Verifier_OpenSSL::serial_number() const
+  {
+    const ASN1_INTEGER* sn = X509_get0_serialNumber(cert);
+    Unique_BIO mem;
+    i2a_ASN1_INTEGER(mem, sn);
+    BUF_MEM* bptr;
+    BIO_get_mem_ptr(mem, &bptr);
+    return std::string(bptr->data, bptr->length);
   }
 }

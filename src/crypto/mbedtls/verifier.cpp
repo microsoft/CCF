@@ -106,8 +106,22 @@ namespace crypto
     return Pem(buf, len);
   }
 
-  bool Verifier_mbedTLS::validate_certificate(const Pem& ca_pem)
+  bool Verifier_mbedTLS::verify_certificate(
+    const std::vector<const Pem*>& trusted_certs)
   {
+    // TODO
     return true;
+  }
+
+  bool Verifier_mbedTLS::is_self_signed() const
+  {
+    // TODO
+    return true;
+  }
+
+  std::string Verifier_mbedTLS::serial_number() const
+  {
+    // TODO
+    return "";
   }
 }

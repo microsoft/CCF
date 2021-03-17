@@ -81,7 +81,7 @@ namespace crypto
 
   KeyPair_OpenSSL::KeyPair_OpenSSL(const Pem& pem, CBuffer pw)
   {
-    Unique_BIO mem(pem.data(), -1);
+    Unique_BIO mem(pem);
     key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
     if (!key)
       throw std::runtime_error("could not parse PEM");
@@ -216,7 +216,7 @@ namespace crypto
     bool ca) const
   {
     X509* icrt = NULL;
-    Unique_BIO mem(signing_request.data(), -1);
+    Unique_BIO mem(signing_request);
     Unique_X509_REQ csr(mem);
     Unique_X509 crt;
 
@@ -237,7 +237,7 @@ namespace crypto
     // Add issuer name
     if (!issuer_cert.empty())
     {
-      Unique_BIO imem(issuer_cert.data(), -1);
+      Unique_BIO imem(issuer_cert);
       OpenSSL::CHECKNULL(icrt = PEM_read_bio_X509(imem, NULL, NULL, NULL));
       OpenSSL::CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
     }

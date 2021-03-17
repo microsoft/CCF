@@ -191,7 +191,18 @@ namespace crypto
       return public_key->public_key_der();
     }
 
-    virtual bool validate_certificate(const Pem& ca_pem) = 0;
+    /** Verify the certificate (held internally)
+     * @param trusted_certs Vector of trusted certificates
+     * @return true if the
+     */
+    virtual bool verify_certificate(
+      const std::vector<const Pem*>& trusted_certs) = 0;
+
+    /** Indicates whether the certificate (held intenally) is self-signed */
+    virtual bool is_self_signed() const = 0;
+
+    /** The serial number of the certificate*/
+    virtual std::string serial_number() const = 0;
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;
