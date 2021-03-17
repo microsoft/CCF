@@ -56,6 +56,7 @@
         "type": "object"
       },
       "EntityId": {
+        "format": "hex",
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
       },
