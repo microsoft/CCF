@@ -8,6 +8,7 @@ import infra.network
 import infra.path
 import infra.proc
 import infra.net
+from infra.node import NodeStatus
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
@@ -148,14 +149,12 @@ def test_node_ids(network, args):
     nodes = network.find_nodes()
     for node in nodes:
         with node.client() as c:
-            r = c.get(
-                f'/node/network/nodes?host="{node.pubhost}"&port="{node.pubport}"'
-            )
+            r = c.get(f"/node/network/nodes?host={node.pubhost}&port={node.pubport}")
             assert r.status_code == http.HTTPStatus.OK.value
             info = r.body.json()["nodes"]
             assert len(info) == 1
             assert info[0]["node_id"] == node.node_id
-            assert info[0]["status"] == "TRUSTED"
+            assert info[0]["status"] == NodeStatus.TRUSTED.value
         return network
 
 
