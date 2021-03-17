@@ -59,11 +59,11 @@ namespace ccf
   };
   DECLARE_JSON_ENUM(
     ProposalState,
-    {{ProposalState::OPEN, "OPEN"},
-     {ProposalState::ACCEPTED, "ACCEPTED"},
-     {ProposalState::WITHDRAWN, "WITHDRAWN"},
-     {ProposalState::REJECTED, "REJECTED"},
-     {ProposalState::FAILED, "FAILED"}});
+    {{ProposalState::OPEN, "Open"},
+     {ProposalState::ACCEPTED, "Accepted"},
+     {ProposalState::WITHDRAWN, "Withdrawn"},
+     {ProposalState::REJECTED, "Rejected"},
+     {ProposalState::FAILED, "Failed"}});
 
   struct Proposal
   {

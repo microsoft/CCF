@@ -20,9 +20,9 @@ namespace ccf
   };
   DECLARE_JSON_ENUM(
     MemberStatus,
-    {{MemberStatus::ACCEPTED, "ACCEPTED"},
-     {MemberStatus::ACTIVE, "ACTIVE"},
-     {MemberStatus::RETIRED, "RETIRED"}});
+    {{MemberStatus::ACCEPTED, "Accepted"},
+     {MemberStatus::ACTIVE, "Active"},
+     {MemberStatus::RETIRED, "Retired"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::MemberStatus);

@@ -19,7 +19,7 @@ namespace ccf
     ALLOWED_TO_JOIN = 0
   };
   DECLARE_JSON_ENUM(
-    CodeStatus, {{CodeStatus::ALLOWED_TO_JOIN, "ALLOWED_TO_JOIN"}});
+    CodeStatus, {{CodeStatus::ALLOWED_TO_JOIN, "AllowedToJoin"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::CodeStatus);

@@ -93,7 +93,7 @@ def run(args):
             primary, new_member_proposal, careful_vote
         )
         votes_issued += p.votes_for
-        assert new_member_proposal.state == infra.proposal.ProposalState.Accepted
+        assert new_member_proposal.state == infra.proposal.ProposalState.ACCEPTED
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
         new_member_proposal, _, _ = network.consortium.generate_and_propose_new_member(
@@ -107,7 +107,7 @@ def run(args):
             ).withdraw(primary, new_member_proposal)
             infra.checker.Checker(c)(response)
         assert response.status_code == http.HTTPStatus.OK.value
-        assert response.body.json()["state"] == ProposalState.Withdrawn.value
+        assert response.body.json()["state"] == ProposalState.WITHDRAWN.value
         withdrawals_issued += 1
 
     # Refresh ledger to beginning

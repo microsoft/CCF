@@ -3,7 +3,7 @@
     "schemas": {
       "CodeStatus": {
         "enum": [
-          "ALLOWED_TO_JOIN"
+          "AllowedToJoin"
         ],
         "type": "string"
       },
@@ -297,9 +297,9 @@
       },
       "NodeStatus": {
         "enum": [
-          "PENDING",
-          "TRUSTED",
-          "RETIRED"
+          "Pending",
+          "Trusted",
+          "Retired"
         ],
         "type": "string"
       },
@@ -343,10 +343,10 @@
       },
       "ServiceStatus": {
         "enum": [
-          "OPENING",
-          "OPEN",
-          "WAITING_FOR_RECOVERY_SHARES",
-          "CLOSED"
+          "Opening",
+          "Open",
+          "WaitingForRecoveryShares",
+          "Closed"
         ],
         "type": "string"
       },
@@ -356,10 +356,10 @@
       },
       "TxStatus": {
         "enum": [
-          "UNKNOWN",
-          "PENDING",
-          "COMMITTED",
-          "INVALID"
+          "Unknown",
+          "Pending",
+          "Committed",
+          "Invalid"
         ],
         "type": "string"
       },
@@ -368,14 +368,14 @@
       },
       "ccf__State": {
         "enum": [
-          "uninitialized",
-          "initialized",
-          "pending",
-          "partOfPublicNetwork",
-          "partOfNetwork",
-          "readingPublicLedger",
-          "readingPrivateLedger",
-          "verifyingSnapshot"
+          "Uninitialized",
+          "Initialized",
+          "Pending",
+          "PartOfPublicNetwork",
+          "PartOfNetwork",
+          "ReadingPublicLedger",
+          "ReadingPrivateLedger",
+          "VerifyingSnapshot"
         ],
         "type": "string"
       },

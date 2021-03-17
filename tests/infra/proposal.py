@@ -18,11 +18,11 @@ class ProposalNotAccepted(Exception):
 
 # Values defined in node/proposals.h
 class ProposalState(Enum):
-    Open = "OPEN"
-    Accepted = "ACCEPTED"
-    Withdrawn = "WITHDRAWN"
-    Rejected = "REJECTED"
-    Failed = "FAILED"
+    OPEN = "Open"
+    ACCEPTED = "Accepted"
+    WITHDRAWN = "Withdrawn"
+    REJECTED = "Rejected"
+    FAILED = "Failed"
 
 
 class Proposal:
