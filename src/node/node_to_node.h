@@ -248,8 +248,6 @@ namespace ccf
     void process_key_exchange_final(
       const NodeId& from, const uint8_t* data, size_t size)
     {
-      // Called on channel initiator when a key exchange response message is
-      // received from the target
       auto n2n_channel = channels->get(from);
       if (!n2n_channel->check_peer_key_share_signature(data, size))
         n2n_channel->reset();

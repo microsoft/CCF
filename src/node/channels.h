@@ -375,7 +375,7 @@ namespace ccf
       {
         case INACTIVE:
           return consume_initiator_key_share(data, size);
-        case WAITING_FOR_FINAL:
+        case INITIATED:
           return consume_responder_key_share(data, size);
         default:
           return false;
@@ -484,6 +484,7 @@ namespace ccf
       // shares back to the initiator
 
       ctx.load_peer_key_share(ks);
+      status = WAITING_FOR_FINAL;
 
       auto oks = ctx.get_own_key_share();
       auto pks = ctx.get_peer_key_share();
@@ -494,10 +495,8 @@ namespace ccf
         peer_id.value(),
         NodeMsgType::channel_msg,
         self.value(),
-        ChannelMsg::key_exchange_final,
+        ChannelMsg::key_exchange_response,
         serialised_signed_share);
-
-      status = WAITING_FOR_FINAL;
 
       return true;
     }
