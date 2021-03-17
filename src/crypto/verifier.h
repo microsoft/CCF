@@ -190,6 +190,8 @@ namespace crypto
     {
       return public_key->public_key_der();
     }
+
+    virtual bool validate_certificate(const Pem& ca_pem) = 0;
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;

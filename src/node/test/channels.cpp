@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "crypto/verifier.h"
 #include "node/entities.h"
 #include "node/node_types.h"
 
@@ -163,6 +164,22 @@ TEST_CASE("Client/Server key exchange")
   auto channel1_cert = channel1_kp->self_sign("CN=Node1");
   auto channel2_kp = crypto::make_key_pair();
   auto channel2_cert = channel2_kp->self_sign("CN=Node2");
+
+  //   auto channel1_kp = crypto::make_key_pair();
+  // auto channel1_csr = channel1_kp->create_csr("CN=Node1");
+  // auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+
+  // auto channel2_kp = crypto::make_key_pair();
+  // auto channel2_csr = channel1_kp->create_csr("CN=Node2");
+  // auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+
+  // std::cout << "Network certificate:" << std::endl
+  //           << network_cert.str() << std::endl;
+
+  // auto v = crypto::make_verifier(channel1_cert);
+  // REQUIRE(v->validate_certificate(network_cert));
+  // v = crypto::make_verifier(channel2_cert);
+  // REQUIRE(v->validate_certificate(network_cert));
 
   auto channel1 = Channel(wf1, channel1_kp, channel1_cert, self, peer);
   auto channel2 = Channel(wf2, channel2_kp, channel2_cert, peer, self);

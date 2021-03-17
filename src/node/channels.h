@@ -6,6 +6,7 @@
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/logger.h"
+#include "ds/serialized.h"
 #include "ds/spin_lock.h"
 #include "entities.h"
 #include "node/entity_id.h"

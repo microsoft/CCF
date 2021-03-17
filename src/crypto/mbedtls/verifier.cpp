@@ -105,4 +105,9 @@ namespace crypto
 
     return Pem(buf, len);
   }
+
+  bool Verifier_mbedTLS::validate_certificate(const Pem& ca_pem)
+  {
+    return true;
+  }
 }
