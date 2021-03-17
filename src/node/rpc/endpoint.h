@@ -49,37 +49,6 @@ namespace ccf
   }
 }
 
-namespace kv::serialisers
-{
-  template <>
-  struct BlitSerialiser<ccf::endpoints::EndpointKey>
-  {
-    static SerialisedEntry to_serialised(
-      const ccf::endpoints::EndpointKey& endpoint_key)
-    {
-      size_t size_ = sizeof(size_t) + endpoint_key.uri_path.size() +
-        sizeof(endpoint_key.verb);
-      SerialisedEntry data(size_);
-      auto data_ = data.data();
-
-      serialized::write(data_, size_, endpoint_key.uri_path);
-      serialized::write(data_, size_, endpoint_key.verb);
-      return data;
-    }
-
-    static ccf::endpoints::EndpointKey from_serialised(
-      const SerialisedEntry& data)
-    {
-      auto data_ = data.data();
-      auto size_ = data.size();
-
-      auto uri_path = serialized::read<ccf::endpoints::URI>(data_, size_);
-      auto verb = serialized::read<ccf::RESTVerb>(data_, size_);
-      return {uri_path, verb};
-    }
-  };
-}
-
 MSGPACK_ADD_ENUM(ccf::endpoints::ForwardingRequired);
 MSGPACK_ADD_ENUM(ccf::endpoints::ExecuteOutsideConsensus);
 MSGPACK_ADD_ENUM(ccf::endpoints::Mode);
@@ -167,6 +136,6 @@ namespace ccf
 
     using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
 
-    using EndpointsMap = ServiceMap<EndpointKey, EndpointProperties>;
+    using EndpointsMap = ccf::ServiceMap<EndpointKey, EndpointProperties>;
   }
 }

@@ -4,7 +4,6 @@
 
 #include "ds/json.h"
 #include "ds/serialized.h"
-#include "kv/serialise_entry_blit.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -132,24 +131,6 @@ namespace ccf
   using MemberId = EntityId;
   using UserId = EntityId;
   using NodeId = EntityId;
-}
-
-namespace kv::serialisers
-{
-  template <>
-  struct BlitSerialiser<ccf::EntityId>
-  {
-    static SerialisedEntry to_serialised(const ccf::EntityId& entity_id)
-    {
-      const auto& data = entity_id.value();
-      return SerialisedEntry(data.begin(), data.end());
-    }
-
-    static ccf::EntityId from_serialised(const SerialisedEntry& data)
-    {
-      return ccf::EntityId(std::string(data.begin(), data.end()));
-    }
-  };
 }
 
 namespace std

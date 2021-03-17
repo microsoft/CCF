@@ -105,7 +105,9 @@ namespace ccf
     Secrets secrets;
     SnapshotEvidence snapshot_evidence;
 
-    // The signatures and serialised_tree tables should always be in sync
+    // The signatures and serialised_tree tables should always be written to at
+    // the same time so that the root of the tree in the signatures table
+    // matches the serialised Merkle tree.
     Signatures signatures;
     SerialisedMerkleTree serialise_tree;
 

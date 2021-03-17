@@ -2,33 +2,20 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/pem.h"
 #include "kv/map.h"
 
 namespace ccf
 {
+  // This type should be used for most service key-value maps so that:
+  // - The raw key is trivially and cheaply deserialisable.
+  // - The JSON value can conveniently be audited offline.
+  // Note: Maps which include large values (e.g. certificate or serialised
+  // Merkle tree) can use the `kv::RawCopySerialisedMap` type to maximise
+  // performance.
   template <typename K, typename V>
   using ServiceMap = kv::MapSerialisedWith<
     K,
     V,
     kv::serialisers::BlitSerialiser,
     kv::serialisers::JsonSerialiser>;
-}
-
-namespace kv::serialisers
-{
-  template <>
-  struct BlitSerialiser<crypto::Pem>
-  {
-    static SerialisedEntry to_serialised(const crypto::Pem& pem)
-    {
-      const auto& data = pem.raw();
-      return SerialisedEntry(data.begin(), data.end());
-    }
-
-    static crypto::Pem from_serialised(const SerialisedEntry& data)
-    {
-      return crypto::Pem(data.data(), data.size());
-    }
-  };
 }

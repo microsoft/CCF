@@ -896,64 +896,54 @@ namespace loggingapp
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 
-      auto record_admin_only =
-        [this](ccf::EndpointContext& ctx, nlohmann::json&& params) {
-          {
-            const auto& caller_ident =
-              ctx.get_caller<ccf::UserCertAuthnIdentity>();
+      auto record_admin_only = [this](
+                                 ccf::EndpointContext& ctx,
+                                 nlohmann::json&& params) {
+        const auto& caller_ident = ctx.get_caller<ccf::UserCertAuthnIdentity>();
 
-            // SNIPPET_START: user_data_check
-            // Check caller's user-data for required permissions
-            nlohmann::json user_data = nullptr;
-            auto result =
-              get_user_data_v1(ctx.tx, caller_ident.user_id, user_data);
-            if (result == ccf::ApiResult::NotFound)
-            {
-              return ccf::make_error(
-                HTTP_STATUS_NOT_FOUND,
-                ccf::errors::ResourceNotFound,
-                fmt::format("User {} does not exist", caller_ident.user_id));
-            }
-            else if (result != ccf::ApiResult::OK)
-            {
-              return ccf::make_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                fmt::format(
-                  "Failed to get user data for user {}: {}",
-                  caller_ident.user_id,
-                  ccf::api_result_to_str(result)));
-            }
-            const auto is_admin_it = user_data.find("isAdmin");
+        // SNIPPET_START: user_data_check
+        // Check caller's user-data for required permissions
+        nlohmann::json user_data = nullptr;
+        auto result = get_user_data_v1(ctx.tx, caller_ident.user_id, user_data);
+        if (result == ccf::ApiResult::InternalError)
+        {
+          return ccf::make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get user data for user {}: {}",
+              caller_ident.user_id,
+              ccf::api_result_to_str(result)));
+        }
+        const auto is_admin_it = user_data.find("isAdmin");
 
-            // Exit if this user has no user data, or the user data is not an
-            // object with isAdmin field, or the value of this field is not true
-            if (
-              !user_data.is_object() || is_admin_it == user_data.end() ||
-              !is_admin_it.value().get<bool>())
-            {
-              return ccf::make_error(
-                HTTP_STATUS_FORBIDDEN,
-                ccf::errors::AuthorizationFailed,
-                "Only admins may access this endpoint.");
-            }
-            // SNIPPET_END: user_data_check
-          }
+        // Exit if this user has no user data, or the user data is not an
+        // object with isAdmin field, or the value of this field is not true
+        if (
+          !user_data.is_object() || is_admin_it == user_data.end() ||
+          !is_admin_it.value().get<bool>())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Only admins may access this endpoint.");
+        }
+        // SNIPPET_END: user_data_check
 
-          const auto in = params.get<LoggingRecord::In>();
+        const auto in = params.get<LoggingRecord::In>();
 
-          if (in.msg.empty())
-          {
-            return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              "Cannot record an empty log message.");
-          }
+        if (in.msg.empty())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            "Cannot record an empty log message.");
+        }
 
-          auto view = ctx.tx.rw(records);
-          view->put(in.id, in.msg);
-          return ccf::make_success(true);
-        };
+        auto view = ctx.tx.rw(records);
+        view->put(in.id, in.msg);
+        return ccf::make_success(true);
+      };
       make_endpoint(
         "log/private/admin_only",
         HTTP_POST,
