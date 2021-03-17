@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ccf/common_auth_policies.h"
+#include "ccf/common_endpoint_registry.h"
 #include "crypto/key_pair.h"
 #include "ds/nonstd.h"
 #include "frontend.h"
@@ -17,7 +18,6 @@
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "tls/base64.h"
-#include "ccf/common_endpoint_registry.h"
 
 #include <charconv>
 #include <exception>

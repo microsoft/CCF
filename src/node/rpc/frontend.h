@@ -10,12 +10,12 @@
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
+#include "kv/store.h"
 #include "node/client_signatures.h"
 #include "node/jwt.h"
 #include "node/nodes.h"
 #include "node/service.h"
 #include "rpc_exception.h"
-#include "kv/store.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
