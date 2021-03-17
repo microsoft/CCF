@@ -39,7 +39,6 @@ namespace js
     return buf;
   }
 
-
   static JSValue js_buf_to_str(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
