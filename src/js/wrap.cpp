@@ -196,7 +196,9 @@ namespace js
     JSValueConst this_val,
     JSAtom property)
   {
-    const auto property_name = JS_AtomToCString(ctx, property);
+    const auto property_name_c = JS_AtomToCString(ctx, property);
+    const std::string property_name(property_name_c);
+    JS_FreeCString(ctx, property_name_c);
     LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
 
     const auto [security_domain, access_category] =
