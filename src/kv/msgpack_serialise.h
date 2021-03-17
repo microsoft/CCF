@@ -121,7 +121,4 @@ namespace kv
       return data_offset >= data_size;
     }
   };
-
-  using KvStoreSerialiser = GenericSerialiseWrapper<MsgPackWriter>;
-  using KvStoreDeserialiser = GenericDeserialiseWrapper<MsgPackReader>;
 }

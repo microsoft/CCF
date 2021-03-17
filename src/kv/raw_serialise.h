@@ -20,11 +20,17 @@ namespace kv
     size_t size = 0;
 
   public:
-    RawWriter() : data(buf.data()) {}
+    RawWriter()
+    {
+      size = 1000;
+      buf.resize(size);
+      data = buf.data();
+    }
 
     template <typename T>
     void append(T&& t)
     {
+      // TODO: Use push back!
       serialized::write(data, size, t);
     }
 
@@ -54,14 +60,15 @@ namespace kv
 
     std::vector<uint8_t> get_raw_data()
     {
-      return buf;
+      LOG_FAIL_FMT("Serialised data of size {}", buf.size() - size);
+      return {buf.data(), buf.data() + buf.size() - size};
     }
   };
 
   class RawReader
   {
   public:
-    const char* data_ptr;
+    const uint8_t* data_ptr;
     size_t data_offset;
     size_t data_size;
 
@@ -77,15 +84,20 @@ namespace kv
     void init(const uint8_t* data_in_ptr, size_t data_in_size)
     {
       data_offset = 0;
-      data_ptr = (const char*)data_in_ptr;
+      data_ptr = data_in_ptr;
       data_size = data_in_size;
     }
 
     template <typename T>
     T read_next()
     {
-      msgpack::unpack(msg, data_ptr, data_size, data_offset);
-      return msg->as<T>();
+      // TODO: Check for reading past the end!
+      auto data_ = data_ptr + data_offset;
+      auto size_ = data_size - data_offset;
+      T t = serialized::read<T>(data_, size_);
+      data_offset += data_ - (data_ptr + data_offset);
+      LOG_FAIL_FMT("Offset is now {}", data_offset);
+      return t;
     }
 
     template <typename T>
@@ -93,7 +105,7 @@ namespace kv
     {
       auto remainder = data_size - data_offset;
       auto data = reinterpret_cast<const uint8_t*>(data_ptr + data_offset);
-      const auto entry_size = serialized::read<uint64_t>(data, remainder);
+      const auto entry_size = serialized::read<size_t>(data, remainder);
 
       if (remainder < entry_size)
       {
@@ -115,6 +127,6 @@ namespace kv
     }
   };
 
-  using KvStoreSerialiser = GenericSerialiseWrapper<MsgPackWriter>;
-  using KvStoreDeserialiser = GenericDeserialiseWrapper<MsgPackReader>;
+  using KvStoreSerialiser = GenericSerialiseWrapper<RawWriter>;
+  using KvStoreDeserialiser = GenericDeserialiseWrapper<RawReader>;
 }

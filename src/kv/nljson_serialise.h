@@ -88,6 +88,6 @@ namespace kv
     }
   };
 
-  using KvStoreSerialiser = GenericSerialiseWrapper<JsonWriter>;
-  using KvStoreDeserialiser = GenericDeserialiseWrapper<JsonReader>;
+  // using KvStoreSerialiser = GenericSerialiseWrapper<JsonWriter>;
+  // using KvStoreDeserialiser = GenericDeserialiseWrapper<JsonReader>;
 }
