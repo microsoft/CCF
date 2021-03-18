@@ -197,7 +197,7 @@ namespace ccf
       member_info->put(member_id, member.value());
     }
 
-    bool retire_member(const MemberId& member_id)
+    bool remove_member(const MemberId& member_id)
     {
       auto member_certs = tx.rw(tables.member_certs);
       auto member_encryption_public_keys =

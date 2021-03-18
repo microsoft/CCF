@@ -578,14 +578,14 @@ namespace ccf
            return true;
          }},
         // retire an existing member
-        {"retire_member",
+        {"remove_member",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
            GenesisGenerator g(this->network, tx);
            bool is_active = g.is_active_member(member_id);
            bool is_recovery = g.is_recovery_member(member_id);
-           if (!g.retire_member(member_id))
+           if (!g.remove_member(member_id))
            {
              return false;
            }

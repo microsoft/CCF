@@ -58,7 +58,7 @@ return {
       if member_data and member_data.is_operator then
         return true
       end
-    elseif call.func == "retire_member" then
+    elseif call.func == "remove_member" then
       if is_operator(call.args) then
         return true
       end

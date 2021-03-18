@@ -107,7 +107,7 @@ DOCTEST_TEST_CASE("Member query/read")
   {
     auto gen_tx = network.tables->create_tx();
     GenesisGenerator gen(network, gen_tx);
-    gen.retire_member(member_id);
+    gen.remove_member(member_id);
     gen.finalize();
 
     auto tx = network.tables->create_tx();
@@ -1436,7 +1436,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     proposal.script = fmt::format(
       R"xxx(
         local tables, member_id = ...
-        return Calls:call("retire_member", member_id))xxx");
+        return Calls:call("remove_member", member_id))xxx");
     proposal.parameter = operator_id;
 
     const auto propose = create_signed_request(
@@ -1481,7 +1481,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     proposal.script = fmt::format(
       R"xxx(
         local tables, member_id = ...
-        return Calls:call("retire_member", member_id))xxx");
+        return Calls:call("remove_member", member_id))xxx");
     proposal.parameter = normal_member_id;
 
     const auto propose = create_signed_request(
