@@ -1497,7 +1497,7 @@ namespace ccf
       };
       make_endpoint(
         "proposals/{proposal_id}/withdraw",
-        HTTP_POST,
+        HTTP_DELETE,
         json_adapter(withdraw),
         member_sig_only)
         .set_auto_schema<void, ProposalInfo>()
