@@ -116,7 +116,7 @@ namespace kv
         set_current_domain(domain);
 
       serialise_internal(KvOperationType::KOT_MAP_START_INDICATOR);
-      serialise_internal(name);
+      serialise_internal_pre_serialised(name);
     }
 
     void serialise_raw(const std::vector<uint8_t>& raw)
@@ -378,16 +378,15 @@ namespace kv
         if (current_reader == &public_reader && !private_reader.is_eos())
           current_reader = &private_reader;
         else
-          return {};
+          return std::nullopt;
       }
 
       if (!try_read_op(KvOperationType::KOT_MAP_START_INDICATOR))
       {
-        return {};
+        return std::nullopt;
       }
 
-      return std::optional<std::string>{
-        current_reader->template read_next<std::string>()};
+      return current_reader->template read_next_pre_serialised<std::string>();
     }
 
     Version deserialise_entry_version()
