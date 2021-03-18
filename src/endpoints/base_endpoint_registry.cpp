@@ -3,6 +3,9 @@
 
 #include "ccf/base_endpoint_registry.h"
 
+#include "node/members.h"
+#include "node/users.h"
+
 namespace ccf
 {
   BaseEndpointRegistry::BaseEndpointRegistry(
@@ -141,12 +144,12 @@ namespace ccf
     }
   }
 
-  ApiResult get_user_data_v1(
+  ApiResult BaseEndpointRegistry::get_user_data_v1(
     kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data)
   {
     try
     {
-      auto users_data = tx.ro<UserInfo>(Tables::USER_INFO);
+      auto users_data = tx.ro<ccf::UserInfo>(Tables::USER_INFO);
       auto ui = users_data->get(user_id);
       if (!ui.has_value())
       {
@@ -163,12 +166,12 @@ namespace ccf
     }
   }
 
-  ApiResult get_member_data_v1(
+  ApiResult BaseEndpointRegistry::get_member_data_v1(
     kv::ReadOnlyTx& tx, const MemberId& member_id, nlohmann::json& member_data)
   {
     try
     {
-      auto member_info = tx.ro<MemberInfo>(Tables::MEMBER_INFO);
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto mi = member_info->get(member_id);
       if (!mi.has_value())
       {
@@ -185,12 +188,12 @@ namespace ccf
     }
   }
 
-  ApiResult get_user_cert_v1(
+  ApiResult BaseEndpointRegistry::get_user_cert_v1(
     kv::ReadOnlyTx& tx, const UserId& user_id, crypto::Pem& user_cert_pem)
   {
     try
     {
-      auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
+      auto user_certs = tx.ro<ccf::UserCerts>(Tables::USER_CERTS);
       auto uc = user_certs->get(user_id);
       if (!uc.has_value())
       {
@@ -207,12 +210,12 @@ namespace ccf
     }
   }
 
-  ApiResult get_member_cert_v1(
+  ApiResult BaseEndpointRegistry::get_member_cert_v1(
     kv::ReadOnlyTx& tx, const MemberId& member_id, crypto::Pem& member_cert_pem)
   {
     try
     {
-      auto member_certs = tx.ro<UserCerts>(Tables::MEMBER_CERTS);
+      auto member_certs = tx.ro<ccf::UserCerts>(Tables::MEMBER_CERTS);
       auto mc = member_certs->get(member_id);
       if (!mc.has_value())
       {

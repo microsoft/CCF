@@ -56,8 +56,7 @@ namespace ccf
   CommonEndpointRegistry::CommonEndpointRegistry(
     const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_) :
     BaseEndpointRegistry(method_prefix_, context_)
-  {
-  }
+  {}
 
   void CommonEndpointRegistry::init_handlers()
   {

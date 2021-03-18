@@ -181,7 +181,8 @@ namespace ccf
     }
 
   public:
-    NodeEndpoints(NetworkState& network, ccfapp::AbstractNodeContext& context_) :
+    NodeEndpoints(
+      NetworkState& network, ccfapp::AbstractNodeContext& context_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
       network(network)
     {

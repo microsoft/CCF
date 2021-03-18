@@ -92,7 +92,7 @@ namespace ccfapp
       return JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>");
     }
 
-    static JSValue create_caller_obj(
+    JSValue create_caller_obj(
       ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       if (args.caller == nullptr)
@@ -226,7 +226,7 @@ namespace ccfapp
       return caller;
     }
 
-    static JSValue create_request_obj(
+    JSValue create_request_obj(
       ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       auto request = JS_NewObject(ctx);

@@ -13,8 +13,8 @@
 #include "node/node_state.h"
 #include "node/node_types.h"
 #include "node/rpc/forwarder.h"
-#include "node/rpc/node_frontend.h"
 #include "node/rpc/member_frontend.h"
+#include "node/rpc/node_frontend.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
@@ -43,10 +43,11 @@ namespace enclave
 
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
-      std::unique_ptr<ccf::historical::StateCache> historical_state_cache = nullptr;
+      std::unique_ptr<ccf::historical::StateCache> historical_state_cache =
+        nullptr;
       ccf::AbstractNodeState* node_state = nullptr;
 
-      NodeContext()  {}
+      NodeContext() {}
 
       ccf::historical::AbstractStateCache& get_historical_state() override
       {
@@ -109,10 +110,11 @@ namespace enclave
         writer_factory, network, rpcsessions, share_manager, curve_id);
 
       context = std::make_unique<NodeContext>();
-      context->historical_state_cache = std::make_unique<ccf::historical::StateCache>(
-        *network.tables,
-        network.ledger_secrets,
-        writer_factory.create_writer_to_outside());
+      context->historical_state_cache =
+        std::make_unique<ccf::historical::StateCache>(
+          *network.tables,
+          network.ledger_secrets,
+          writer_factory.create_writer_to_outside());
       context->node_state = node.get();
 
       rpc_map->register_frontend<ccf::ActorsType::members>(

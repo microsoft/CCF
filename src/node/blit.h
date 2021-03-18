@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/entity_id.h"
 #include "crypto/pem.h"
-#include "entity_id.h"
 #include "kv/serialise_entry_blit.h"
 
 namespace kv::serialisers

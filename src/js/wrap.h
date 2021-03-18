@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/historical_queries_interface.h"
 #include "ds/logger.h"
-#include "historical_queries_interface.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
 
