@@ -57,10 +57,6 @@ namespace ccf
     const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_) :
     BaseEndpointRegistry(method_prefix_, context_)
   {
-    LOG_INFO_FMT(
-      "Constructed a new CommonEndpointRegistry at {}, context is at {}",
-      (size_t)this,
-      (size_t)&context);
   }
 
   void CommonEndpointRegistry::init_handlers()
