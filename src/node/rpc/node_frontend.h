@@ -181,8 +181,8 @@ namespace ccf
     }
 
   public:
-    NodeEndpoints(NetworkState& network, ccfapp::AbstractNodeContext& context) :
-      CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context),
+    NodeEndpoints(NetworkState& network, ccfapp::AbstractNodeContext& context_) :
+      CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
       network(network)
     {
       openapi_info.title = "CCF Public Node API";

@@ -1199,9 +1199,9 @@ namespace ccf
   public:
     MemberEndpoints(
       NetworkState& network,
-      ccfapp::AbstractNodeContext& context,
+      ccfapp::AbstractNodeContext& context_,
       ShareManager& share_manager) :
-      CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context),
+      CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_),
       network(network),
       share_manager(share_manager),
       tsr(network)
