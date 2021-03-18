@@ -62,6 +62,7 @@ add_custom_target(ccf ALL)
 
 set(CCF_IMPL_SOURCE ${CCF_DIR}/src/enclave/main.cpp
                     ${CCF_DIR}/src/enclave/thread_local.cpp
+                    ${CCF_DIR}/src/js/wrap.cpp
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -92,6 +93,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     ccf.enclave
     PUBLIC ${OE_TARGET_ENCLAVE_AND_STD}
            -lgcc
+           quickjs.enclave
            ccfcrypto.enclave
            http_parser.enclave
            lua.enclave
@@ -146,6 +148,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            ccfcrypto.host
            http_parser.host
            lua.host
+           quickjs.host
            aft.virtual
            sss.host
            ccf_endpoints.host
@@ -287,6 +290,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -382,12 +386,12 @@ if(BUILD_TESTS)
     target_link_libraries(http_test PRIVATE http_parser.host)
 
     add_unit_test(
-      frontend_test
+      frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host
-                            sss.host ccf_endpoints.host
+                            sss.host ccf_endpoints.host quickjs.host
     )
 
     add_unit_test(
@@ -396,12 +400,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      member_voting_test
+      member_voting_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
     )
     target_link_libraries(
       member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                                 http_parser.host sss.host ccf_endpoints.host
+                                 http_parser.host sss.host ccf_endpoints.host quickjs.host
     )
 
     set_tests_properties(
@@ -411,12 +415,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      proposal_id_test
+      proposal_id_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
     )
     target_link_libraries(
       proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                               http_parser.host sss.host ccf_endpoints.host
+                               http_parser.host sss.host ccf_endpoints.host quickjs.host
     )
 
     add_unit_test(

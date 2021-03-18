@@ -1111,6 +1111,9 @@ TEST_CASE("Deserialise return status")
   kv::Store store;
 
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
+  ccf::SerialisedMerkleTree serialised_tree(
+    ccf::Tables::SERIALISED_MERKLE_TREE);
+
   ccf::Nodes nodes(ccf::Tables::NODES);
   MapTypes::NumNum data("public:data");
 
@@ -1135,8 +1138,10 @@ TEST_CASE("Deserialise return status")
   {
     auto tx = store.create_reserved_tx(store.next_version());
     auto sig_handle = tx.rw(signatures);
+    auto tree_handle = tx.rw(serialised_tree);
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
+    tree_handle->put(0, {});
     auto [success, reqid, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 

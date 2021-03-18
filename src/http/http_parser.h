@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/hex.h"
 #include "enclave/tls_endpoint.h"
 #include "http_builder.h"
 #include "http_proc.h"
@@ -17,23 +18,6 @@
 
 namespace http
 {
-  static uint8_t hex_char_to_int(char c)
-  {
-    if (c <= '9')
-    {
-      return c - '0';
-    }
-    else if (c <= 'F')
-    {
-      return c - 'A' + 10;
-    }
-    else if (c <= 'f')
-    {
-      return c - 'a' + 10;
-    }
-    return c;
-  }
-
   static std::string url_decode(const std::string_view& s_)
   {
     std::string s(s_);
@@ -46,8 +30,8 @@ namespace http
       char const c = *src++;
       if (c == '%' && (src + 1) < end && isxdigit(src[0]) && isxdigit(src[1]))
       {
-        const auto a = hex_char_to_int(*src++);
-        const auto b = hex_char_to_int(*src++);
+        const auto a = ds::hex_char_to_int(*src++);
+        const auto b = ds::hex_char_to_int(*src++);
         *dst++ = (a << 4) | b;
       }
       else if (c == '+')

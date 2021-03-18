@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/json.h"
+#include "ds/serialized.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -23,6 +24,7 @@ namespace ccf
   public:
     EntityId() = default;
     EntityId(const Value& id_) : id(id_) {}
+    EntityId(Value&& id_) : id(std::move(id_)) {}
 
     void operator=(const EntityId& other)
     {
@@ -123,10 +125,10 @@ namespace ccf
   void add_schema_components(T&, nlohmann::json& j, const EntityId&)
   {
     j["type"] = "string";
+    j["format"] = "hex";
     j["pattern"] = fmt::format("^[a-f0-9]{{{}}}$", EntityId::LENGTH);
   }
 
-  using CallerId = EntityId;
   using MemberId = EntityId;
   using UserId = EntityId;
   using NodeId = EntityId;

@@ -396,7 +396,7 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
-      auto multi_auth = [](auto& ctx) {
+      auto multi_auth = [this](auto& ctx) {
         if (
           auto user_cert_ident =
             ctx.template try_get_caller<ccf::UserCertAuthnIdentity>())
@@ -404,11 +404,24 @@ namespace loggingapp
           auto response = std::string("User TLS cert");
           response += fmt::format(
             "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
-          response += fmt::format(
-            "\nThe caller's user data is: {}",
-            user_cert_ident->user_data.dump());
-          response += fmt::format(
-            "\nThe caller's cert is:\n{}", user_cert_ident->user_cert.str());
+
+          crypto::Pem user_cert;
+          if (
+            get_user_cert_v1(ctx.tx, user_cert_ident->user_id, user_cert) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's cert is:\n{}", user_cert.str());
+          }
+
+          nlohmann::json user_data = nullptr;
+          if (
+            get_user_data_v1(ctx.tx, user_cert_ident->user_id, user_data) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's user data is: {}", user_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -422,12 +435,26 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller is a member with ID: {}",
             member_cert_ident->member_id);
-          response += fmt::format(
-            "\nThe caller's member data is: {}",
-            member_cert_ident->member_data.dump());
-          response += fmt::format(
-            "\nThe caller's cert is:\n{}",
-            member_cert_ident->member_cert.str());
+
+          crypto::Pem member_cert;
+          if (
+            get_member_cert_v1(
+              ctx.tx, member_cert_ident->member_id, member_cert) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's cert is:\n{}", member_cert.str());
+          }
+
+          nlohmann::json member_data = nullptr;
+          if (
+            get_member_data_v1(
+              ctx.tx, member_cert_ident->member_id, member_data) ==
+            ccf::ApiResult::OK)
+          {
+            response += fmt::format(
+              "\nThe caller's member data is: {}", member_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -441,10 +468,16 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller is a user with ID: {}", user_sig_ident->user_id);
           response += fmt::format(
-            "\nThe caller's user data is: {}",
-            user_sig_ident->user_data.dump());
-          response += fmt::format(
             "\nThe caller's cert is:\n{}", user_sig_ident->user_cert.str());
+
+          nlohmann::json user_data = nullptr;
+          if (
+            get_user_data_v1(ctx.tx, user_sig_ident->user_id, user_data) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's user data is: {}", user_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -459,10 +492,17 @@ namespace loggingapp
             "\nThe caller is a member with ID: {}",
             member_sig_ident->member_id);
           response += fmt::format(
-            "\nThe caller's member data is: {}",
-            member_sig_ident->member_data.dump());
-          response += fmt::format(
             "\nThe caller's cert is:\n{}", member_sig_ident->member_cert.str());
+
+          nlohmann::json member_data = nullptr;
+          if (
+            get_member_data_v1(
+              ctx.tx, member_sig_ident->member_id, member_data) ==
+            ccf::ApiResult::OK)
+          {
+            response += fmt::format(
+              "\nThe caller's member data is: {}", member_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -873,45 +913,54 @@ namespace loggingapp
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
 
-      auto record_admin_only =
-        [this](ccf::endpoints::EndpointContext& ctx, nlohmann::json&& params) {
-          {
-            const auto& caller_ident =
-              ctx.get_caller<ccf::UserCertAuthnIdentity>();
+      auto record_admin_only = [this](
+                                 ccf::endpoints::EndpointContext& ctx,
+                                 nlohmann::json&& params) {
+        const auto& caller_ident = ctx.get_caller<ccf::UserCertAuthnIdentity>();
 
-            // SNIPPET_START: user_data_check
-            // Check caller's user-data for required permissions
-            const nlohmann::json user_data = caller_ident.user_data;
-            const auto is_admin_it = user_data.find("isAdmin");
+        // SNIPPET_START: user_data_check
+        // Check caller's user-data for required permissions
+        nlohmann::json user_data = nullptr;
+        auto result = get_user_data_v1(ctx.tx, caller_ident.user_id, user_data);
+        if (result == ccf::ApiResult::InternalError)
+        {
+          return ccf::make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get user data for user {}: {}",
+              caller_ident.user_id,
+              ccf::api_result_to_str(result)));
+        }
+        const auto is_admin_it = user_data.find("isAdmin");
 
-            // Exit if this user has no user data, or the user data is not an
-            // object with isAdmin field, or the value of this field is not true
-            if (
-              !user_data.is_object() || is_admin_it == user_data.end() ||
-              !is_admin_it.value().get<bool>())
-            {
-              return ccf::make_error(
-                HTTP_STATUS_FORBIDDEN,
-                ccf::errors::AuthorizationFailed,
-                "Only admins may access this endpoint.");
-            }
-            // SNIPPET_END: user_data_check
-          }
+        // Exit if this user has no user data, or the user data is not an
+        // object with isAdmin field, or the value of this field is not true
+        if (
+          !user_data.is_object() || is_admin_it == user_data.end() ||
+          !is_admin_it.value().get<bool>())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Only admins may access this endpoint.");
+        }
+        // SNIPPET_END: user_data_check
 
-          const auto in = params.get<LoggingRecord::In>();
+        const auto in = params.get<LoggingRecord::In>();
 
-          if (in.msg.empty())
-          {
-            return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              "Cannot record an empty log message.");
-          }
+        if (in.msg.empty())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            "Cannot record an empty log message.");
+        }
 
-          auto view = ctx.tx.rw(records);
-          view->put(in.id, in.msg);
-          return ccf::make_success(true);
-        };
+        auto view = ctx.tx.rw(records);
+        view->put(in.id, in.msg);
+        return ccf::make_success(true);
+      };
       make_endpoint(
         "log/private/admin_only",
         HTTP_POST,

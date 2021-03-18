@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
 #include "backup_signatures.h"
+#include "blit.h"
 #include "consensus/aft/revealed_nonces.h"
 #include "crypto/hash.h"
 #include "crypto/verifier.h"

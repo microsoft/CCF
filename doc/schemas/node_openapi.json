@@ -56,6 +56,7 @@
         "type": "object"
       },
       "EntityId": {
+        "format": "hex",
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
       },
@@ -262,7 +263,7 @@
       "Quote": {
         "properties": {
           "endorsements": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/base64string"
           },
           "format": {
             "$ref": "#/components/schemas/QuoteFormat"
@@ -274,7 +275,7 @@
             "$ref": "#/components/schemas/EntityId"
           },
           "raw": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/base64string"
           }
         },
         "required": [
@@ -361,6 +362,10 @@
           "Committed",
           "Invalid"
         ],
+        "type": "string"
+      },
+      "base64string": {
+        "format": "base64",
         "type": "string"
       },
       "boolean": {

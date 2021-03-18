@@ -7,6 +7,7 @@
 #include "node/ledger_secrets.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
+#include "tls/base64.h"
 
 #include <nlohmann/json.hpp>
 #include <openenclave/advanced/mallinfo.h>
@@ -45,7 +46,7 @@ namespace ccf
   {
     struct In
     {
-      std::vector<MemberPubInfo> members_info;
+      std::vector<NewMember> members_info;
       std::string gov_script;
       NodeId node_id;
       crypto::Pem node_cert;

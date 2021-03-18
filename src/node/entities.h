@@ -17,10 +17,6 @@ namespace ccf
 
   using Cert = std::vector<uint8_t>;
 
-  // SGX MRENCLAVE is SHA256 digest
-  static constexpr size_t CODE_DIGEST_BYTES = 256 / 8;
-  using CodeDigest = std::array<uint8_t, CODE_DIGEST_BYTES>;
-
   enum class ActorsType : uint64_t
   {
     members = 0,
@@ -57,12 +53,16 @@ namespace ccf
   {
     // Service tables
 
-    // Member identities
-    static constexpr auto MEMBERS = "public:ccf.gov.members.info";
+    // Members
+    static constexpr auto MEMBER_CERTS = "public:ccf.gov.members.certs";
+    static constexpr auto MEMBER_ENCRYPTION_PUBLIC_KEYS =
+      "public:ccf.gov.members.encryption_public_keys";
+    static constexpr auto MEMBER_INFO = "public:ccf.gov.members.info";
     static constexpr auto MEMBER_ACKS = "public:ccf.gov.members.acks";
 
-    // User identities
-    static constexpr auto USERS = "public:ccf.gov.users.info";
+    // Users
+    static constexpr auto USER_CERTS = "public:ccf.gov.users.certs";
+    static constexpr auto USER_INFO = "public:ccf.gov.users.info";
 
     // Nodes identities and allowed code ids
     static constexpr auto NODES = "public:ccf.gov.nodes.info";
@@ -106,6 +106,7 @@ namespace ccf
     static constexpr auto SNAPSHOT_EVIDENCE =
       "public:ccf.internal.snapshot_evidence";
     static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
+    static constexpr auto SERIALISED_MERKLE_TREE = "public:ccf.internal.tree";
     static constexpr auto VALUES = "public:ccf.internal.values";
 
     // Consensus

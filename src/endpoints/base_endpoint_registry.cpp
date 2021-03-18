@@ -140,4 +140,92 @@ namespace ccf
       return ApiResult::InternalError;
     }
   }
+
+  ApiResult get_user_data_v1(
+    kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data)
+  {
+    try
+    {
+      auto users_data = tx.ro<UserInfo>(Tables::USER_INFO);
+      auto ui = users_data->get(user_id);
+      if (!ui.has_value())
+      {
+        return ApiResult::NotFound;
+      }
+
+      user_data = ui->user_data;
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_TRACE_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ApiResult get_member_data_v1(
+    kv::ReadOnlyTx& tx, const MemberId& member_id, nlohmann::json& member_data)
+  {
+    try
+    {
+      auto member_info = tx.ro<MemberInfo>(Tables::MEMBER_INFO);
+      auto mi = member_info->get(member_id);
+      if (!mi.has_value())
+      {
+        return ApiResult::NotFound;
+      }
+
+      member_data = mi->member_data;
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_TRACE_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ApiResult get_user_cert_v1(
+    kv::ReadOnlyTx& tx, const UserId& user_id, crypto::Pem& user_cert_pem)
+  {
+    try
+    {
+      auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
+      auto uc = user_certs->get(user_id);
+      if (!uc.has_value())
+      {
+        return ApiResult::NotFound;
+      }
+
+      user_cert_pem = uc.value();
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_TRACE_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ApiResult get_member_cert_v1(
+    kv::ReadOnlyTx& tx, const MemberId& member_id, crypto::Pem& member_cert_pem)
+  {
+    try
+    {
+      auto member_certs = tx.ro<UserCerts>(Tables::MEMBER_CERTS);
+      auto mc = member_certs->get(member_id);
+      if (!mc.has_value())
+      {
+        return ApiResult::NotFound;
+      }
+
+      member_cert_pem = mc.value();
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_TRACE_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
 }

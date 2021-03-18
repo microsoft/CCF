@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "blit.h"
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/entropy.h"

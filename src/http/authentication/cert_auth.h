@@ -14,12 +14,8 @@ namespace ccf
 {
   struct UserCertAuthnIdentity : public AuthnIdentity
   {
-    /** CCF user ID, as defined in @c public:ccf.gov.users.info table */
+    /** CCF user ID */
     UserId user_id;
-    /** User certificate, as established by TLS */
-    crypto::Pem user_cert;
-    /** Additional user data, as defined in @c public:ccf.gov.users.info */
-    nlohmann::json user_data;
   };
 
   class UserCertAuthnPolicy : public AuthnPolicy
@@ -35,20 +31,15 @@ namespace ccf
       const auto& caller_cert = ctx->session->caller_cert;
       auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
-      auto users = tx.ro<Users>(Tables::USERS);
-      if (users->has(caller_id))
+      auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
+      if (user_certs->has(caller_id))
       {
         auto identity = std::make_unique<UserCertAuthnIdentity>();
         identity->user_id = caller_id;
-        // identity->user_cert = user->cert;
-        // identity->user_data = user->user_data;
         return identity;
       }
-      else
-      {
-        error_reason = "Could not find matching user certificate";
-      }
 
+      error_reason = "Could not find matching user certificate";
       return nullptr;
     }
 
@@ -64,9 +55,8 @@ namespace ccf
 
   struct MemberCertAuthnIdentity : public AuthnIdentity
   {
+    /** CCF member ID */
     MemberId member_id;
-    crypto::Pem member_cert;
-    nlohmann::json member_data;
   };
 
   class MemberCertAuthnPolicy : public AuthnPolicy
@@ -82,21 +72,15 @@ namespace ccf
       const auto& caller_cert = ctx->session->caller_cert;
       auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
 
-      auto members = tx.ro<Members>(Tables::MEMBERS);
-      const auto member = members->get(caller_id);
-      if (member.has_value())
+      auto member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
+      if (member_certs->has(caller_id))
       {
         auto identity = std::make_unique<MemberCertAuthnIdentity>();
         identity->member_id = caller_id;
-        identity->member_cert = member->cert;
-        identity->member_data = member->member_data;
         return identity;
       }
-      else
-      {
-        error_reason = "Could not find matching member certificate";
-      }
 
+      error_reason = "Could not find matching member certificate";
       return nullptr;
     }
 
@@ -124,31 +108,23 @@ namespace ccf
       const std::shared_ptr<enclave::RpcContext>& ctx,
       std::string& error_reason) override
     {
-      const auto caller_cert_pem =
-        crypto::cert_der_to_pem(ctx->session->caller_cert);
-
-      std::unique_ptr<NodeCertAuthnIdentity> identity = nullptr;
+      auto caller_public_key_der =
+        crypto::make_unique_verifier(ctx->session->caller_cert)
+          ->public_key_der();
+      auto node_caller_id = crypto::Sha256Hash(caller_public_key_der).hex_str();
 
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
-      nodes->foreach(
-        [&caller_cert_pem, &identity](const auto& id, const auto& info) {
-          if (info.cert == caller_cert_pem)
-          {
-            identity = std::make_unique<NodeCertAuthnIdentity>();
-            identity->node_id = id;
-            identity->node_info = info;
-            return false;
-          }
-
-          return true;
-        });
-
-      if (identity == nullptr)
+      auto node = nodes->get(node_caller_id);
+      if (node.has_value())
       {
-        error_reason = "Caller cert does not match any known node cert";
+        auto identity = std::make_unique<NodeCertAuthnIdentity>();
+        identity->node_id = node_caller_id;
+        identity->node_info = node.value();
+        return identity;
       }
 
-      return identity;
+      error_reason = "Could not find matching node certificate";
+      return nullptr;
     }
 
     std::optional<OpenAPISecuritySchema> get_openapi_security_schema()

@@ -121,5 +121,29 @@ namespace ccf
     /** Get the view associated with a given seqno, to construct a valid TxID
      */
     ApiResult get_view_for_seqno_v1(kv::SeqNo seqno, kv::Consensus::View& view);
+
+    /** Get the user data associated with a given user id
+     */
+    ApiResult get_user_data_v1(
+      kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data);
+
+    /** Get the member data associated with a given member id
+     */
+    ApiResult get_member_data_v1(
+      kv::ReadOnlyTx& tx,
+      const MemberId& member_id,
+      nlohmann::json& member_data);
+
+    /** Get the certificate (PEM) of a given user id
+     */
+    ApiResult get_user_cert_v1(
+      kv::ReadOnlyTx& tx, const UserId& user_id, crypto::Pem& user_cert_pem);
+
+    /** Get the certificate (PEM) of a given member id
+     */
+    ApiResult get_member_cert_v1(
+      kv::ReadOnlyTx& tx,
+      const MemberId& member_id,
+      crypto::Pem& member_cert_pem);
   };
 }

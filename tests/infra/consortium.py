@@ -302,6 +302,7 @@ class Consortium:
         return proposals
 
     def retire_node(self, remote_node, node_to_retire):
+        LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         proposal_body, careful_vote = self.make_proposal(
             "retire_node", node_to_retire.node_id
         )
@@ -338,6 +339,7 @@ class Consortium:
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def retire_member(self, remote_node, member_to_retire):
+        LOG.info(f"Retiring member {member_to_retire.local_id}")
         proposal_body, careful_vote = self.make_proposal(
             "retire_member", member_to_retire.service_id
         )

@@ -45,5 +45,5 @@ namespace aft
   DECLARE_JSON_REQUIRED_FIELDS(RevealedNonces, tx_id, nonces)
 
   // Always recorded at key 0
-  using RevealedNoncesMap = kv::Map<size_t, RevealedNonces>;
+  using RevealedNoncesMap = ccf::ServiceMap<size_t, RevealedNonces>;
 }

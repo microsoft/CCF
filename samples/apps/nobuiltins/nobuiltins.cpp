@@ -16,8 +16,8 @@ namespace nobuiltins
   struct NodeSummary
   {
     ccf::QuoteFormat quote_format;
-    std::string quote;
-    std::string endorsements;
+    std::vector<uint8_t> quote;
+    std::vector<uint8_t> endorsements;
 
     kv::Consensus::View committed_view;
     kv::Consensus::SeqNo committed_seqno;
@@ -62,10 +62,8 @@ namespace nobuiltins
           }
 
           summary.quote_format = quote_info.format;
-          summary.quote =
-            fmt::format("{:02x}", fmt::join(quote_info.quote, ""));
-          summary.endorsements =
-            fmt::format("{:02x}", fmt::join(quote_info.endorsements, ""));
+          summary.quote = quote_info.quote;
+          summary.endorsements = quote_info.endorsements;
           // SNIPPET_END: get_quote_api_v1
         }
 

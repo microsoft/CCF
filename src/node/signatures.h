@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "crypto/hash.h"
-#include "kv/map.h"
 #include "node_signature.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -18,7 +18,6 @@ namespace ccf
     kv::Consensus::SeqNo commit_seqno = 0;
     kv::Consensus::View commit_view = 0;
     crypto::Sha256Hash root;
-    std::vector<uint8_t> tree = {0};
 
     MSGPACK_DEFINE(
       MSGPACK_BASE(NodeSignature),
@@ -26,8 +25,7 @@ namespace ccf
       view,
       commit_seqno,
       commit_view,
-      root,
-      tree);
+      root);
 
     PrimarySignature() {}
 
@@ -46,21 +44,23 @@ namespace ccf
       kv::Consensus::View commit_view_,
       const crypto::Sha256Hash root_,
       Nonce hashed_nonce_,
-      const std::vector<uint8_t>& sig_,
-      const std::vector<uint8_t>& tree_) :
+      const std::vector<uint8_t>& sig_) :
       NodeSignature(sig_, node_, hashed_nonce_),
       seqno(seqno_),
       view(view_),
       commit_seqno(commit_seqno_),
       commit_view(commit_view_),
-      root(root_),
-      tree(tree_)
+      root(root_)
     {}
   };
   DECLARE_JSON_TYPE_WITH_BASE(PrimarySignature, NodeSignature)
   DECLARE_JSON_REQUIRED_FIELDS(
-    PrimarySignature, seqno, view, commit_seqno, commit_view, root, tree)
+    PrimarySignature, seqno, view, commit_seqno, commit_view, root)
 
   // Signatures are always stored at key `0`
-  using Signatures = kv::Map<size_t, PrimarySignature>;
+  using Signatures = ServiceMap<size_t, PrimarySignature>;
+
+  // Serialised Merkle tree is always stored at key `0`
+  using SerialisedMerkleTree =
+    kv::RawCopySerialisedMap<size_t, std::vector<uint8_t>>;
 }

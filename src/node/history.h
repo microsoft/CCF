@@ -105,8 +105,11 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
+        ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.version);
       signatures->put(0, sig_value);
+      serialised_tree->put(0, {});
       return sig.commit_reserved();
     }
   };
@@ -303,6 +306,8 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
+        ccf::Tables::SERIALISED_MERKLE_TREE);
       crypto::Sha256Hash root = history.get_replicated_state_root();
 
       Nonce hashed_nonce;
@@ -342,8 +347,7 @@ namespace ccf
         commit_txid.term,
         root,
         hashed_nonce,
-        primary_sig,
-        history.serialise_tree(commit_txid.previous_version, txid.version - 1));
+        primary_sig);
 
       if (consensus != nullptr && consensus->type() == ConsensusType::BFT)
       {
@@ -353,6 +357,9 @@ namespace ccf
       }
 
       signatures->put(0, sig_value);
+      serialised_tree->put(
+        0,
+        history.serialise_tree(commit_txid.previous_version, txid.version - 1));
       return sig.commit_reserved();
     }
   };
@@ -605,12 +612,12 @@ namespace ccf
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
       auto tx = store.create_read_only_tx();
-      auto signatures =
-        tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto sig = signatures->get(0);
-      if (!sig.has_value())
+      auto tree_h = tx.template ro<ccf::SerialisedMerkleTree>(
+        ccf::Tables::SERIALISED_MERKLE_TREE);
+      auto tree = tree_h->get(0);
+      if (!tree.has_value())
       {
-        LOG_FAIL_FMT("No signature found in signatures map");
+        LOG_FAIL_FMT("No tree found in serialised tree map");
         return false;
       }
 
@@ -618,7 +625,7 @@ namespace ccf
         !replicated_state_tree.in_range(1),
         "Tree is not empty before initialising from snapshot");
 
-      replicated_state_tree.deserialise(sig->tree);
+      replicated_state_tree.deserialise(tree.value());
 
       crypto::Sha256Hash hash;
       std::copy_n(

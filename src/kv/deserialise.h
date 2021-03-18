@@ -81,9 +81,11 @@ namespace kv
       auto search = changes.find(ccf::Tables::SIGNATURES);
       if (search != changes.end())
       {
-        // Transactions containing a signature must only contain
-        // a signature and must be verified
-        if (changes.size() > 1)
+        // Transactions containing a signature must only contain the signature
+        // and the serialised Merkle tree and must be verified
+        if (
+          changes.size() > 2 ||
+          changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) == changes.end())
         {
           LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);

@@ -63,7 +63,7 @@ def test_module_set_and_remove(network, args):
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
         r = c.post("/gov/read", {"table": "public:gov.modules", "key": module_path})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json()["js"] == module_content, r.body
+        assert r.body.json() == module_content, r.body
 
     LOG.info("Member makes a module remove proposal")
     proposal_body, careful_vote = ccf.proposal_generator.remove_module(module_path)
