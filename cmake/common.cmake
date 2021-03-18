@@ -182,6 +182,7 @@ set(HTTP_PARSER_SOURCES
 set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint.cpp
     ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
 )
 
@@ -276,7 +277,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
   add_warning_checks(cchost.virtual)
   add_san(cchost.virtual)
-  add_lvi_mitigations(cchost.virtual)
+  # add_lvi_mitigations(cchost.virtual)
   target_link_libraries(
     cchost.virtual
     PRIVATE uv
@@ -348,6 +349,9 @@ install(
 )
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
 use_client_mbedtls(ccf_endpoints.host)
+add_san(ccf_endpoints.host)
+# add_lvi_mitigations(ccf_endpoints.host)
+add_warning_checks(ccf_endpoints.host)
 install(
   TARGETS ccf_endpoints.host
   EXPORT ccf
@@ -607,7 +611,7 @@ function(add_picobench name)
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
 
-  add_lvi_mitigations(${name})
+  # add_lvi_mitigations(${name})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 

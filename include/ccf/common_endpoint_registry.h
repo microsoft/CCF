@@ -16,10 +16,7 @@ namespace ccf
   {
   public:
     CommonEndpointRegistry(
-      const std::string& method_prefix_,
-      ccfapp::AbstractNodeContext& context_) :
-      BaseEndpointRegistry(method_prefix_, context_)
-    {}
+      const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_);
 
     void init_handlers() override;
   };

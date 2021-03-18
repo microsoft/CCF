@@ -79,11 +79,7 @@ namespace ccf
 
   public:
     BaseEndpointRegistry(
-      const std::string& method_prefix_,
-      ccfapp::AbstractNodeContext& context_) :
-      ccf::endpoints::EndpointRegistry(method_prefix_),
-      context(context_)
-    {}
+      const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_);
 
     /** Get the status of a transaction by ID, provided as a view+seqno pair.
      * This is a node-local property - while it will converge on all nodes in
@@ -94,58 +90,12 @@ namespace ccf
     ApiResult get_status_for_txid_v1(
       kv::Consensus::View view,
       kv::Consensus::SeqNo seqno,
-      ccf::TxStatus& tx_status)
-    {
-      try
-      {
-        if (consensus != nullptr)
-        {
-          const auto tx_view = consensus->get_view(seqno);
-          const auto committed_seqno = consensus->get_committed_seqno();
-          const auto committed_view = consensus->get_view(committed_seqno);
-
-          tx_status = ccf::evaluate_tx_status(
-            view, seqno, tx_view, committed_view, committed_seqno);
-        }
-        else
-        {
-          tx_status = ccf::TxStatus::Unknown;
-        }
-
-        return ApiResult::OK;
-      }
-      catch (const std::exception& e)
-      {
-        LOG_TRACE_FMT("{}", e.what());
-        return ApiResult::InternalError;
-      }
-    }
+      ccf::TxStatus& tx_status);
 
     /** Get the ID of latest transaction known to be committed.
      */
     ApiResult get_last_committed_txid_v1(
-      kv::Consensus::View& view, kv::Consensus::SeqNo& seqno)
-    {
-      if (consensus != nullptr)
-      {
-        try
-        {
-          const auto [v, s] = consensus->get_committed_txid();
-          view = v;
-          seqno = s;
-          return ApiResult::OK;
-        }
-        catch (const std::exception& e)
-        {
-          LOG_TRACE_FMT("{}", e.what());
-          return ApiResult::InternalError;
-        }
-      }
-      else
-      {
-        return ApiResult::Uninitialised;
-      }
-    }
+      kv::Consensus::View& view, kv::Consensus::SeqNo& seqno);
 
     /** Generate an OpenAPI document describing the currently installed
      * endpoints.
@@ -161,78 +111,15 @@ namespace ccf
       const std::string& title,
       const std::string& description,
       const std::string& document_version,
-      nlohmann::json& document)
-    {
-      try
-      {
-        document =
-          ds::openapi::create_document(title, description, document_version);
-        build_api(document, tx);
-        return ApiResult::OK;
-      }
-      catch (const std::exception& e)
-      {
-        LOG_TRACE_FMT("{}", e.what());
-        return ApiResult::InternalError;
-      }
-    }
+      nlohmann::json& document);
 
     /** Get a quote attesting to the hardware this node is running on.
      */
     ApiResult get_quote_for_this_node_v1(
-      kv::ReadOnlyTx& tx, QuoteInfo& quote_info)
-    {
-      try
-      {
-        const auto node_id = context.get_node_state().get_node_id();
-        auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
-        const auto node_info = nodes->get(node_id);
-
-        if (!node_info.has_value())
-        {
-          LOG_TRACE_FMT("{} is not a known node", node_id);
-          return ApiResult::NotFound;
-        }
-
-        quote_info = node_info->quote_info;
-        return ApiResult::OK;
-      }
-      catch (const std::exception& e)
-      {
-        LOG_TRACE_FMT("{}", e.what());
-        return ApiResult::InternalError;
-      }
-    }
+      kv::ReadOnlyTx& tx, QuoteInfo& quote_info);
 
     /** Get the view associated with a given seqno, to construct a valid TxID
      */
-    ApiResult get_view_for_seqno_v1(kv::SeqNo seqno, kv::Consensus::View& view)
-    {
-      try
-      {
-        if (consensus != nullptr)
-        {
-          const auto v = consensus->get_view(seqno);
-          if (v != ccf::VIEW_UNKNOWN)
-          {
-            view = v;
-            return ApiResult::OK;
-          }
-          else
-          {
-            return ApiResult::NotFound;
-          }
-        }
-        else
-        {
-          return ApiResult::Uninitialised;
-        }
-      }
-      catch (const std::exception& e)
-      {
-        LOG_TRACE_FMT("{}", e.what());
-        return ApiResult::InternalError;
-      }
-    }
+    ApiResult get_view_for_seqno_v1(kv::SeqNo seqno, kv::Consensus::View& view);
   };
 }

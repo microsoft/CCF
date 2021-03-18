@@ -14,6 +14,7 @@
 #include "node/node_types.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc/member_frontend.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 

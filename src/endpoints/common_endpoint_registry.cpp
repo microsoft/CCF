@@ -14,40 +14,53 @@
 
 namespace ccf
 {
-  inline std::optional<ccf::TxID> txid_from_query_string(
-    ccf::endpoints::EndpointContext& args)
+  namespace
   {
-    const auto parsed_query =
-      http::parse_query(args.rpc_ctx->get_request_query());
-    constexpr auto param_key = "transaction_id";
-
-    const auto it = parsed_query.find(param_key);
-    if (it == parsed_query.end())
+    std::optional<ccf::TxID> txid_from_query_string(
+      ccf::endpoints::EndpointContext& args)
     {
-      args.rpc_ctx->set_error(
-        HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidQueryParameterValue,
-        fmt::format("Query string must contain a '{}' parameter", param_key));
-      return std::nullopt;
+      const auto parsed_query =
+        http::parse_query(args.rpc_ctx->get_request_query());
+      constexpr auto param_key = "transaction_id";
+
+      const auto it = parsed_query.find(param_key);
+      if (it == parsed_query.end())
+      {
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidQueryParameterValue,
+          fmt::format("Query string must contain a '{}' parameter", param_key));
+        return std::nullopt;
+      }
+
+      const auto& txid_str = it->second;
+
+      const auto tx_id_opt = ccf::TxID::from_str(txid_str);
+      if (!tx_id_opt.has_value())
+      {
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::InvalidQueryParameterValue,
+          fmt::format(
+            "The value '{}' passed as '{}' could not be "
+            "converted to a valid Tx ID.",
+            txid_str,
+            param_key));
+        return std::nullopt;
+      }
+
+      return tx_id_opt;
     }
+  }
 
-    const auto& txid_str = it->second;
-
-    const auto tx_id_opt = ccf::TxID::from_str(txid_str);
-    if (!tx_id_opt.has_value())
-    {
-      args.rpc_ctx->set_error(
-        HTTP_STATUS_BAD_REQUEST,
-        ccf::errors::InvalidQueryParameterValue,
-        fmt::format(
-          "The value '{}' passed as '{}' could not be "
-          "converted to a valid Tx ID.",
-          txid_str,
-          param_key));
-      return std::nullopt;
-    }
-
-    return tx_id_opt;
+  CommonEndpointRegistry::CommonEndpointRegistry(
+    const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_) :
+    BaseEndpointRegistry(method_prefix_, context_)
+  {
+    LOG_INFO_FMT(
+      "Constructed a new CommonEndpointRegistry at {}, context is at {}",
+      (size_t)this,
+      (size_t)&context);
   }
 
   void CommonEndpointRegistry::init_handlers()

@@ -19,7 +19,6 @@
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "rpc/frontend.h"
-#include "rpc/member_frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
 #include "secret_share.h"
