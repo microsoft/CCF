@@ -587,7 +587,9 @@ namespace ccf
            bool is_recovery = g.is_recovery_member(member_id);
            if (!g.remove_member(member_id))
            {
-             return false;
+             // Idempotent: if the member does not exist (or has already been
+             // retired), the proposal succeeds with no effect
+             return true;
            }
 
            if (is_active && is_recovery)
