@@ -86,9 +86,7 @@ class Consortium:
                         "text": """tables = ...
                         non_retired_members = {}
                         tables["public:ccf.gov.members.info"]:foreach(function(service_id, info)
-                        if info["status"] ~= "Retired" then
-                            table.insert(non_retired_members, {service_id, info})
-                        end
+                        table.insert(non_retired_members, {service_id, info})
                         end)
                         return non_retired_members
                         """
@@ -345,7 +343,7 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
-        member_to_retire.status_code = infra.member.MemberStatus.RETIRED
+        self.members.remove(member_to_retire)
 
     def open_network(self, remote_node):
         """

@@ -91,6 +91,18 @@ namespace ccf
       return member_encryption_public_keys->get(member_id).has_value();
     }
 
+    bool is_active_member(const MemberId& member_id)
+    {
+      auto member_info = tx.ro(tables.member_info);
+      auto mi = member_info->get(member_id);
+      if (!mi.has_value())
+      {
+        return false;
+      }
+
+      return mi->status == MemberStatus::ACTIVE;
+    }
+
     std::map<MemberId, crypto::Pem> get_active_recovery_members()
     {
       auto member_info = tx.ro(tables.member_info);
@@ -171,12 +183,6 @@ namespace ccf
           "Member {} cannot be activated as they do not exist", member_id));
       }
 
-      if (member->status == MemberStatus::RETIRED)
-      {
-        throw std::logic_error(fmt::format(
-          "Member {} cannot be activated as they are retired: {}", member_id));
-      }
-
       member->status = MemberStatus::ACTIVE;
       if (
         is_recovery_member(member_id) &&
@@ -198,6 +204,7 @@ namespace ccf
         tx.rw(tables.member_encryption_public_keys);
       auto member_info = tx.rw(tables.member_info);
       auto member_acks = tx.rw(tables.member_acks);
+      auto member_gov_history = tx.rw(tables.governance_history);
 
       auto member_to_retire = member_info->get(member_id);
       if (!member_to_retire.has_value())
@@ -233,12 +240,11 @@ namespace ccf
 
       // For now, only mark the member as retired and delete its entries from
       // all other members tables
-      member_to_retire->status = MemberStatus::RETIRED;
-      member_info->put(member_id, member_to_retire.value());
-
+      member_info->remove(member_id);
       member_encryption_public_keys->remove(member_id);
       member_certs->remove(member_id);
       member_acks->remove(member_id);
+      member_gov_history->remove(member_id);
 
       return true;
     }

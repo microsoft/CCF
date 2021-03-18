@@ -21,10 +21,13 @@ class NoRecoveryShareFound(Exception):
         self.response = response
 
 
+class UnauthenticatedMember(Exception):
+    """Member is not known by the service"""
+
+
 class MemberStatus(Enum):
     ACCEPTED = "Accepted"
     ACTIVE = "Active"
-    RETIRED = "Retired"
 
 
 class MemberInfo(NamedTuple):
@@ -147,16 +150,20 @@ class Member:
     def update_ack_state_digest(self, remote_node):
         with remote_node.client(*self.auth()) as mc:
             r = mc.post("/gov/ack/update_state_digest")
-            assert (
-                r.status_code == http.HTTPStatus.OK.value
-            ), f"Error ack/update_state_digest: {r}"
+            if r.status_code == http.HTTPStatus.UNAUTHORIZED:
+                raise UnauthenticatedMember(
+                    f"Failed to ack member {self.local_id}: {r.status_code}"
+                )
             return r.body.json()
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post("/gov/ack", body=state_digest)
-            assert r.status_code == http.HTTPStatus.NO_CONTENT, f"Error ACK: {r}"
+            if r.status_code == http.HTTPStatus.UNAUTHORIZED:
+                raise UnauthenticatedMember(
+                    f"Failed to ack member {self.local_id}: {r.status_code}"
+                )
             self.status_code = MemberStatus.ACTIVE
             return r
 

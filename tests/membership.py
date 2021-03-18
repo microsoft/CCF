@@ -43,6 +43,14 @@ def test_retire_member(network, args, member_to_retire=None, recovery_member=Tru
         member_to_retire = network.consortium.get_any_active_member(recovery_member)
     network.consortium.retire_member(primary, member_to_retire)
 
+    # Check that retired member cannot authenticated to service
+    try:
+        member_to_retire.ack(primary)
+    except infra.member.UnauthenticatedMember:
+        pass
+    else:
+        assert False, "Member should have been retired"
+
     return network
 
 
