@@ -117,7 +117,8 @@ endif()
 
 if("virtual" IN_LIST COMPILE_TARGETS)
   # virtual version
-  add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
+  add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE}
+  )
 
   target_compile_definitions(
     ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
@@ -155,7 +156,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(ccf.virtual)
-  add_lvi_mitigations(ccf.virtual)
 
   install(
     TARGETS ccf.virtual
