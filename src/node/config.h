@@ -25,5 +25,5 @@ namespace ccf
 
   // The key for this table is always 0 as there is always only one active
   // configuration.
-  using Configuration = kv::Map<size_t, ServiceConfiguration>;
+  using Configuration = ServiceMap<size_t, ServiceConfiguration>;
 }

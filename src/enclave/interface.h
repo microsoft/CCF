@@ -64,7 +64,7 @@ struct CCFConfig
 
   struct Genesis
   {
-    std::vector<ccf::MemberPubInfo> members_info;
+    std::vector<ccf::NewMember> members_info;
     std::string gov_script;
     size_t recovery_threshold;
     MSGPACK_DEFINE(members_info, gov_script, recovery_threshold);

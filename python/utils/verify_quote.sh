@@ -65,8 +65,8 @@ trap cleanup EXIT
 
 curl_output=$(curl -sS --fail -X GET "${node_address}"/node/quotes/self "${@}")
 
-echo "${curl_output}" | jq -r .raw | xxd -r -p > "${tmp_dir}/${quote_file_name}"
-echo "${curl_output}" | jq -r .endorsements | xxd -r -p > "${tmp_dir}/${endorsements_file_name}"
+echo "${curl_output}" | jq -r .raw | base64 --decode > "${tmp_dir}/${quote_file_name}"
+echo "${curl_output}" | jq -r .endorsements | base64 --decode > "${tmp_dir}/${endorsements_file_name}"
 
 if [ ! -s "${tmp_dir}/${quote_file_name}" ]; then
     echo "Error: Node quote is empty. Virtual mode does not support SGX quotes."

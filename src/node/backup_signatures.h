@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "crypto/hash.h"
-#include "kv/map.h"
 #include "node_signature.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -35,5 +35,5 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(BackupSignatures, view, seqno, root, signatures)
 
   // Always recorded at key 0
-  using BackupSignaturesMap = kv::Map<size_t, BackupSignatures>;
+  using BackupSignaturesMap = ServiceMap<size_t, BackupSignatures>;
 }

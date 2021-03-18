@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "entities.h"
-#include "kv/map.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 #include <vector>
@@ -48,5 +48,5 @@ namespace ccf
 
   // This map is used to communicate encrypted ledger secrets from the primary
   // to the backups during recovery (past secrets) and re-keying (new secret)
-  using Secrets = kv::Map<size_t, EncryptedLedgerSecretsNodesInfo>;
+  using Secrets = ServiceMap<size_t, EncryptedLedgerSecretsNodesInfo>;
 }

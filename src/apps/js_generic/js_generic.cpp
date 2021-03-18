@@ -54,7 +54,7 @@ namespace ccfapp
       JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
       return nullptr;
     }
-    std::string js = module->js;
+    auto& js = module.value();
 
     const char* buf = js.c_str();
     size_t buf_len = js.size();
@@ -91,7 +91,7 @@ namespace ccfapp
       return JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>");
     }
 
-    static JSValue create_caller_obj(EndpointContext& args, JSContext* ctx)
+    JSValue create_caller_obj(EndpointContext& args, JSContext* ctx)
     {
       if (args.caller == nullptr)
       {
@@ -135,9 +135,8 @@ namespace ccfapp
       }
 
       char const* policy_name = nullptr;
-      CallerId id;
-      nlohmann::json data;
-      std::string cert_s;
+      EntityId id;
+      bool is_member = false;
 
       if (
         auto user_cert_ident =
@@ -145,8 +144,7 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(user_cert_ident);
         id = user_cert_ident->user_id;
-        data = user_cert_ident->user_data;
-        cert_s = user_cert_ident->user_cert.str();
+        is_member = false;
       }
       else if (
         auto member_cert_ident =
@@ -154,8 +152,7 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(member_cert_ident);
         id = member_cert_ident->member_id;
-        data = member_cert_ident->member_data;
-        cert_s = member_cert_ident->member_cert.str();
+        is_member = true;
       }
       else if (
         auto user_sig_ident =
@@ -163,8 +160,7 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(user_sig_ident);
         id = user_sig_ident->user_id;
-        data = user_sig_ident->user_data;
-        cert_s = user_sig_ident->user_cert.str();
+        is_member = false;
       }
       else if (
         auto member_sig_ident =
@@ -172,13 +168,47 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(member_sig_ident);
         id = member_sig_ident->member_id;
-        data = member_sig_ident->member_data;
-        cert_s = member_sig_ident->member_cert.str();
+        is_member = true;
       }
 
       if (policy_name == nullptr)
       {
         throw std::logic_error("Unable to convert caller info to JS object");
+      }
+
+      // Retrieve user/member data from authenticated caller id
+      nlohmann::json data = nullptr;
+      ccf::ApiResult result = ccf::ApiResult::OK;
+
+      if (is_member)
+      {
+        result = get_member_data_v1(args.tx, id, data);
+      }
+      else
+      {
+        result = get_user_data_v1(args.tx, id, data);
+      }
+
+      if (result == ccf::ApiResult::InternalError)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to get data for caller {}", id));
+      }
+
+      crypto::Pem cert;
+      if (is_member)
+      {
+        result = get_user_cert_v1(args.tx, id, cert);
+      }
+      else
+      {
+        result = get_member_cert_v1(args.tx, id, cert);
+      }
+
+      if (result == ccf::ApiResult::InternalError)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to get certificate for caller {}", id));
       }
 
       JS_SetPropertyStr(ctx, caller, "policy", JS_NewString(ctx, policy_name));
@@ -189,12 +219,12 @@ namespace ccfapp
         ctx,
         caller,
         "cert",
-        JS_NewStringLen(ctx, cert_s.data(), cert_s.size()));
+        JS_NewStringLen(ctx, cert.str().data(), cert.size()));
 
       return caller;
     }
 
-    static JSValue create_request_obj(EndpointContext& args, JSContext* ctx)
+    JSValue create_request_obj(EndpointContext& args, JSContext* ctx)
     {
       auto request = JS_NewObject(ctx);
 

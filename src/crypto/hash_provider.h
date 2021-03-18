@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/buffer.h"
+#include "ds/hex.h"
 #include "ds/json.h"
 
 #include <cstdint>
@@ -12,8 +13,6 @@
 
 namespace crypto
 {
-  extern void default_sha256(const CBuffer& data, uint8_t* h);
-
   enum class MDType
   {
     NONE = 0,
@@ -22,6 +21,21 @@ namespace crypto
     SHA384,
     SHA512
   };
+
+  DECLARE_JSON_ENUM(
+    MDType,
+    {{MDType::NONE, "NONE"},
+     {MDType::SHA1, "SHA1"},
+     {MDType::SHA256, "SHA256"},
+     {MDType::SHA384, "SHA384"},
+     {MDType::SHA512, "SHA512"}});
+}
+
+MSGPACK_ADD_ENUM(crypto::MDType);
+
+namespace crypto
+{
+  extern void default_sha256(const CBuffer& data, uint8_t* h);
 
   using HashBytes = std::vector<uint8_t>;
 
@@ -64,14 +78,32 @@ namespace crypto
 
     std::string hex_str() const
     {
-      return fmt::format("{:02x}", fmt::join(h, ""));
+      return ds::to_hex(h);
     };
 
     MSGPACK_DEFINE(h);
   };
 
-  DECLARE_JSON_TYPE(Sha256Hash);
-  DECLARE_JSON_REQUIRED_FIELDS(Sha256Hash, h);
+  inline void to_json(nlohmann::json& j, const Sha256Hash& hash)
+  {
+    j = hash.hex_str();
+  }
+
+  inline void from_json(const nlohmann::json& j, Sha256Hash& hash)
+  {
+    auto value = j.get<std::string>();
+    try
+    {
+      ds::from_hex(value, hash.h.begin(), hash.h.end());
+    }
+    catch (const std::logic_error& e)
+    {
+      throw JsonParseError(fmt::format(
+        "Input string \"{}\" is not valid hex-encoded SHA-256: {}",
+        value,
+        e.what()));
+    }
+  }
 
   inline bool operator==(const Sha256Hash& lhs, const Sha256Hash& rhs)
   {
