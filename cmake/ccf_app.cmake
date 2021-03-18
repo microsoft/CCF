@@ -232,7 +232,6 @@ function(add_ccf_app name)
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     add_san(${virt_name})
-    add_lvi_mitigations(${virt_name})
 
     add_dependencies(${name} ${virt_name})
     if(PARSED_ARGS_DEPS)

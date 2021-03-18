@@ -234,7 +234,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
   add_san(cchost)
-  add_lvi_mitigations(cchost)
 
   target_link_libraries(
     cchost
@@ -277,7 +276,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
   add_warning_checks(cchost.virtual)
   add_san(cchost.virtual)
-  # add_lvi_mitigations(cchost.virtual)
   target_link_libraries(
     cchost.virtual
     PRIVATE uv
@@ -340,8 +338,8 @@ install(
 
 # CCF endpoints libs
 add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
-set_property(TARGET ccf_endpoints.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 use_oe_mbedtls(ccf_endpoints.enclave)
+add_warning_checks(ccf_endpoints.enclave)
 install(
   TARGETS ccf_endpoints.enclave
   EXPORT ccf
@@ -350,7 +348,6 @@ install(
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
 use_client_mbedtls(ccf_endpoints.host)
 add_san(ccf_endpoints.host)
-# add_lvi_mitigations(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
 install(
   TARGETS ccf_endpoints.host
@@ -610,8 +607,6 @@ function(add_picobench name)
   )
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
-
-  # add_lvi_mitigations(${name})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 
