@@ -17,31 +17,44 @@ namespace kv
   private:
     using WriterData = std::vector<uint8_t>;
 
+    // Number of bytes to reserve initially for storage of transaction frame
+    static constexpr size_t initial_reserve_size = 72;
+
     WriterData buf;
     uint8_t* data = nullptr;
     size_t size = 0;
 
+    void serialise_size(size_t size)
+    {
+      WriterData size_entry(sizeof(size_t));
+      auto data_ = size_entry.data();
+      auto size_ = size_entry.size();
+      serialized::write(data_, size_, size);
+
+      buf.insert(
+        buf.end(),
+        std::make_move_iterator(size_entry.begin()),
+        std::make_move_iterator(size_entry.end()));
+    }
+
   public:
     RawWriter()
     {
-      // Reserve
-      buf.reserve(72);
-      // size = 1000;
-      // buf.resize(size);
-      // data = buf.data();
+      buf.reserve(initial_reserve_size);
     }
 
     template <typename T>
     void append(T&& t)
     {
-      const auto data = reinterpret_cast<const uint8_t*>(&t);
-      WriterData entry = {data, data + sizeof(T)};
+      WriterData entry(sizeof(T));
+      auto data_ = entry.data();
+      auto size_ = entry.size();
+      serialized::write(data_, size_, t);
+
       buf.insert(
         buf.end(),
         std::make_move_iterator(entry.begin()),
         std::make_move_iterator(entry.end()));
-      LOG_FAIL_FMT("Offset: {}", buf.size());
-      LOG_FAIL_FMT("Buf is now of capacity: {}", buf.capacity());
     }
 
     // Where we have pre-serialised data, we dump it length-prefixed into the
@@ -53,35 +66,14 @@ namespace kv
     template <typename T>
     void append_pre_serialised(const T& entry)
     {
-      //   const uint64_t size = entry.size();
-      //   sb.write(reinterpret_cast<char const*>(&size), sizeof(size));
-      // serialized::write(data, size, entry.size());
-      // buf.push_back(entry.size());
-      auto entry_size = entry.size();
-      const auto size_ = reinterpret_cast<const uint8_t*>(&entry_size);
-      WriterData size = {size_, size_ + sizeof(size_t)};
-      buf.insert(
-        buf.end(),
-        std::make_move_iterator(size.begin()),
-        std::make_move_iterator(size.end()));
+      serialise_size(entry.size());
       if (entry.size() > 0)
       {
         buf.insert(
           buf.end(),
           std::make_move_iterator(entry.begin()),
           std::make_move_iterator(entry.end()));
-        LOG_FAIL_FMT("Offset: {}", buf.size());
-        // TODO: Remove
-        // buf.emplace_back(std::move(entry));
       }
-      // buf.emplace_back(entry.size());
-      // if (entry.size() > 0)
-      // {
-      //   buf.emplace_back(entry);
-      //   // serialized::write(data, size, entry.data(), entry.size());
-      //   // sb.write(reinterpret_cast<char const*>(entry.data()),
-      //   entry.size());
-      // }
     }
 
     void clear()
@@ -91,8 +83,6 @@ namespace kv
 
     WriterData get_raw_data()
     {
-      LOG_FAIL_FMT("Capacity at the end {}", buf.capacity());
-      LOG_FAIL_FMT("Serialised data of size {}", buf.size());
       return buf;
     }
   };
@@ -123,21 +113,16 @@ namespace kv
     template <typename T>
     T read_next()
     {
-      LOG_FAIL_FMT("Read next, offset: {}", data_offset);
-
-      // TODO: Check for reading past the end!
       auto data_ = data_ptr + data_offset;
       auto size_ = data_size - data_offset;
       T t = serialized::read<T>(data_, size_);
       data_offset += data_ - (data_ptr + data_offset);
-      LOG_FAIL_FMT("Offset is now {}", data_offset);
       return t;
     }
 
     template <typename T>
     T read_next_pre_serialised()
     {
-      LOG_FAIL_FMT("Read next pre serialised: {}", data_offset);
       auto remainder = data_size - data_offset;
       auto data = reinterpret_cast<const uint8_t*>(data_ptr + data_offset);
       const auto entry_size = serialized::read<size_t>(data, remainder);
