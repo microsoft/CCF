@@ -21,8 +21,6 @@ namespace kv
     static constexpr size_t initial_reserve_size = 72;
 
     WriterData buf;
-    uint8_t* data = nullptr;
-    size_t size = 0;
 
     void serialise_size(size_t size)
     {
