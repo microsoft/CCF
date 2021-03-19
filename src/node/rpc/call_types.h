@@ -85,7 +85,7 @@ namespace ccf
 
   struct CallerInfo
   {
-    CallerId caller_id;
+    EntityId caller_id;
   };
 
   struct GetCallerId

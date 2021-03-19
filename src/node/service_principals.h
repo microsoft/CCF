@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/map.h"
+#include "service_map.h"
 
 #include <nlohmann/json.hpp>
 
 namespace ccf
 {
-  using ServicePrincipals = kv::Map<std::string, nlohmann::json>;
+  using ServicePrincipals = ServiceMap<std::string, nlohmann::json>;
 }

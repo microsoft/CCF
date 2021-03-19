@@ -5,8 +5,8 @@
 #include "ds/json.h"
 #include "ds/msgpack_adaptor_nlohmann.h"
 #include "entities.h"
-#include "kv/map.h"
 #include "script.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 #include <unordered_map>
@@ -94,7 +94,7 @@ namespace ccf
     Proposal, script, parameter, proposer, state, votes)
 
   using ProposalId = std::string;
-  using Proposals = kv::Map<ProposalId, Proposal>;
+  using Proposals = ServiceMap<ProposalId, Proposal>;
 
   struct ProposalInfo
   {

@@ -286,7 +286,7 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
   }
 }
 
-struct NewMember
+struct TestNewMember
 {
   size_t local_id;
   MemberId service_id;
@@ -332,7 +332,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   MemberRpcFrontend frontend(network, context, share_manager);
   frontend.open();
 
-  vector<NewMember> new_members(n_new_members);
+  vector<TestNewMember> new_members(n_new_members);
 
   auto i = 0ul;
   for (auto& new_member : new_members)
@@ -510,13 +510,18 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
         frontend_process(frontend, send_good_sig_req, new_member->cert);
       DOCTEST_CHECK(good_response.status == HTTP_STATUS_NO_CONTENT);
 
-      // (6) read own member status
+      // (6) read own member information
+      const auto read_cert_req = create_request(
+        read_params(new_member->service_id, Tables::MEMBER_CERTS), "read");
+      const auto cert = parse_response_body<crypto::Pem>(
+        frontend_process(frontend, read_cert_req, new_member->cert));
+      DOCTEST_CHECK(cert == new_member->cert);
+
       const auto read_status_req = create_request(
-        read_params(new_member->service_id, Tables::MEMBERS), "read");
-      const auto mi = parse_response_body<MemberInfo>(
+        read_params(new_member->service_id, Tables::MEMBER_INFO), "read");
+      const auto mi = parse_response_body<MemberDetails>(
         frontend_process(frontend, read_status_req, new_member->cert));
       DOCTEST_CHECK(mi.status == MemberStatus::ACTIVE);
-      DOCTEST_CHECK(mi.cert == new_member->cert);
     }
   }
 }
@@ -897,7 +902,7 @@ recovery_threshold, consensus = "CFT"}) return Calls:call("raw_puts", p) )xxx"s,
 
 DOCTEST_TEST_CASE("Remove proposal")
 {
-  NewMember caller;
+  TestNewMember caller;
   auto cert = caller.kp->self_sign("CN=new member");
   auto v = crypto::make_verifier(cert);
   caller.cert = v->cert_pem();
@@ -1108,7 +1113,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     auto tx1 = network.tables->create_tx();
     user_der = crypto::make_verifier(user_cert)->cert_der();
     user_id = crypto::Sha256Hash(user_der).hex_str();
-    DOCTEST_REQUIRE(tx1.rw(network.users)->get(user_id).has_value());
+    DOCTEST_REQUIRE(tx1.rw(network.user_certs)->get(user_id).has_value());
   }
 
   {
@@ -1139,7 +1144,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
 
     auto tx1 = network.tables->create_tx();
-    auto user = tx1.rw(network.users)->get(user_id);
+    auto user = tx1.rw(network.user_certs)->get(user_id);
     DOCTEST_CHECK(!user.has_value());
   }
 }
@@ -1637,13 +1642,13 @@ DOCTEST_TEST_CASE("User data")
     gen.finalize();
 
     read_user_info =
-      create_request(read_params(user_id, Tables::USERS), "read");
+      create_request(read_params(user_id, Tables::USER_INFO), "read");
 
     {
-      DOCTEST_INFO("user data is initially empty");
-      const auto read_response = parse_response_body<ccf::UserInfo>(
-        frontend_process(frontend, read_user_info, member_cert));
-      DOCTEST_CHECK(read_response.user_data.is_null());
+      DOCTEST_INFO("user data is not initially set");
+      check_error(
+        frontend_process(frontend, read_user_info, member_cert),
+        HTTP_STATUS_NOT_FOUND);
     }
   }
 
@@ -1654,11 +1659,11 @@ DOCTEST_TEST_CASE("User data")
     gen.finalize();
 
     read_user_info =
-      create_request(read_params(user_id, Tables::USERS), "read");
+      create_request(read_params(user_id, Tables::USER_INFO), "read");
 
     {
       DOCTEST_INFO("initial user data object can be read");
-      const auto read_response = parse_response_body<ccf::UserInfo>(
+      const auto read_response = parse_response_body<ccf::UserDetails>(
         frontend_process(frontend, read_user_info, member_cert));
       DOCTEST_CHECK(read_response.user_data == user_data_string);
     }
@@ -1699,7 +1704,7 @@ DOCTEST_TEST_CASE("User data")
     }
 
     DOCTEST_INFO("user data object can be read");
-    const auto read_response = parse_response_body<ccf::UserInfo>(
+    const auto read_response = parse_response_body<ccf::UserDetails>(
       frontend_process(frontend, read_user_info, member_cert));
     DOCTEST_CHECK(read_response.user_data == user_data_object);
   }
@@ -1735,7 +1740,7 @@ DOCTEST_TEST_CASE("User data")
     }
 
     DOCTEST_INFO("user data object can be read");
-    const auto response = parse_response_body<ccf::UserInfo>(
+    const auto response = parse_response_body<ccf::UserDetails>(
       frontend_process(frontend, read_user_info, member_cert));
     DOCTEST_CHECK(response.user_data == user_data_string);
   }

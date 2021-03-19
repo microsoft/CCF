@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/map.h"
+#include "service_map.h"
 
 #include <exception>
 
@@ -13,7 +13,7 @@ namespace ccf
 
   // This table is only used to keep track of node IDs for the BFT variant of
   // the consensus
-  using Values = kv::Map<ValueId, Value>;
+  using Values = ServiceMap<ValueId, Value>;
 
   enum ValueIds : ValueId
   {

@@ -9,9 +9,12 @@ namespace ccf
 {
   static const std::map<WlIds, Whitelist> default_whitelists = {
     {MEMBER_CAN_READ,
-     {Tables::MEMBERS,
+     {Tables::MEMBER_CERTS,
+      Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS,
+      Tables::MEMBER_INFO,
       Tables::MEMBER_ACKS,
-      Tables::USERS,
+      Tables::USER_CERTS,
+      Tables::USER_INFO,
       Tables::NODES,
       Tables::VALUES,
       Tables::SIGNATURES,
@@ -30,7 +33,8 @@ namespace ccf
       Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER}},
 
     {MEMBER_CAN_PROPOSE,
-     {Tables::USERS,
+     {Tables::USER_CERTS,
+      Tables::USER_INFO,
       Tables::VALUES,
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
