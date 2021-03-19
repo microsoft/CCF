@@ -981,8 +981,7 @@ DOCTEST_TEST_CASE("Remove proposal")
       nullptr,
       fmt::format("proposals/{}/withdraw", wrong_proposal_id),
       kp,
-      member_cert,
-      HTTP_DELETE);
+      member_cert);
 
     check_error(
       frontend_process(frontend, withdraw, member_cert),
@@ -995,8 +994,7 @@ DOCTEST_TEST_CASE("Remove proposal")
       nullptr,
       fmt::format("proposals/{}/withdraw", proposal_id),
       caller.kp,
-      cert,
-      HTTP_DELETE);
+      cert);
 
     check_error(
       frontend_process(frontend, withdraw, cert), HTTP_STATUS_FORBIDDEN);
@@ -1008,8 +1006,7 @@ DOCTEST_TEST_CASE("Remove proposal")
       nullptr,
       fmt::format("proposals/{}/withdraw", proposal_id),
       kp,
-      member_cert,
-      HTTP_DELETE);
+      member_cert);
 
     check_result_state(
       frontend_process(frontend, withdraw, member_cert),

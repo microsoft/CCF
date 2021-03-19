@@ -587,9 +587,7 @@ namespace ccf
            bool is_recovery = g.is_recovery_member(member_id);
            if (!g.remove_member(member_id))
            {
-             // Idempotent: if the member does not exist (or has already been
-             // retired), the proposal succeeds with no effect
-             return true;
+             return false;
            }
 
            if (is_active && is_recovery)
@@ -1497,7 +1495,7 @@ namespace ccf
       };
       make_endpoint(
         "proposals/{proposal_id}/withdraw",
-        HTTP_DELETE,
+        HTTP_POST,
         json_adapter(withdraw),
         member_sig_only)
         .set_auto_schema<void, ProposalInfo>()

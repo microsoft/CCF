@@ -209,9 +209,11 @@ namespace ccf
       auto member_to_retire = member_info->get(member_id);
       if (!member_to_retire.has_value())
       {
+        // The remove member proposal is idempotent so if the member does not
+        // exist, the proposal should succeed with no effect
         LOG_FAIL_FMT(
           "Could not retire member {}: member does not exist", member_id);
-        return false;
+        return true;
       }
 
       // If the member was active and had a recovery share, check that
@@ -238,8 +240,6 @@ namespace ccf
         }
       }
 
-      // For now, only mark the member as retired and delete its entries from
-      // all other members tables
       member_info->remove(member_id);
       member_encryption_public_keys->remove(member_id);
       member_certs->remove(member_id);

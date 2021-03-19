@@ -43,13 +43,13 @@ def test_remove_member(network, args, member_to_retire=None, recovery_member=Tru
         member_to_retire = network.consortium.get_any_active_member(recovery_member)
     network.consortium.remove_member(primary, member_to_retire)
 
-    # Check that retired member cannot authenticated to service
+    # Check that remove member cannot be authenticated by the service
     try:
         member_to_retire.ack(primary)
     except infra.member.UnauthenticatedMember:
         pass
     else:
-        assert False, "Member should have been retired"
+        assert False, "Member should have been removed"
 
     return network
 
@@ -185,6 +185,9 @@ def recovery_shares_scenario(args):
         member_to_retire = network.consortium.get_member_by_local_id(
             non_recovery_member_id
         )
+        test_remove_member(network, args, member_to_retire=member_to_retire)
+
+        LOG.info("Retiring an already-removed member succeeds with no effect")
         test_remove_member(network, args, member_to_retire=member_to_retire)
 
         LOG.info("Adding one non-recovery member")
