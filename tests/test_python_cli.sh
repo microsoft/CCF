@@ -32,6 +32,3 @@ python -m ccf.proposal_generator trust_node 42
 
 python -m ccf.proposal_generator new_node_code --help
 python -m ccf.proposal_generator new_node_code 1234abcd
-
-python -m ccf.proposal_generator accept_recovery --help
-python -m ccf.proposal_generator accept_recovery

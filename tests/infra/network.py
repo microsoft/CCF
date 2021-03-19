@@ -462,7 +462,7 @@ class Network:
         primary, _ = self.find_primary()
         self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
         self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
-        self.consortium.accept_recovery(primary)
+        self.consortium.open_network(primary)
         self.consortium.recover_with_shares(primary)
 
         for node in self.get_joined_nodes():

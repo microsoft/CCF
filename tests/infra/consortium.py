@@ -465,6 +465,28 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def open_network(self, remote_node):
+        """
+        Assuming a network in state OPENING, this functions creates a new
+        proposal and make members vote to transition the network to state
+        OPEN.
+        """
+        is_recovery = True
+        with remote_node.client() as c:
+            r = c.get("/node/state")
+            if r.body.json()["state"] == infra.node.State.PART_OF_NETWORK.value:
+                is_recovery = False
+
+        proposal_body, careful_vote = self.make_proposal("open_network")
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        self.vote_using_majority(
+            remote_node, proposal, careful_vote, wait_for_global_commit=True
+        )
+        # If the node was already in state "PartOfNetwork", the open network
+        # proposal should open the service
+        if not is_recovery:
+            self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN)
+
     def recover_with_shares(self, remote_node):
         submitted_shares_count = 0
         with remote_node.client() as nc:

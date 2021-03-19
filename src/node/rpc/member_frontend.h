@@ -880,11 +880,13 @@ namespace ccf
              this->network.node_code_ids,
              proposal_id);
          }},
-        {"accept_recovery",
+        {"open_network",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            if (context.get_node_state().is_part_of_public_network())
            {
+             // If the node is in public mode, initiate the end of recovery
+             // protocol.
              const auto accept_recovery =
                context.get_node_state().accept_recovery(tx);
              if (!accept_recovery)
@@ -893,44 +895,57 @@ namespace ccf
              }
              return accept_recovery;
            }
-           else
+           else if (context.get_node_state().is_part_of_network())
            {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node is not part of public network", proposal_id);
-             return false;
-           }
-         }},
-        {"open_network",
-         [this](
-           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           // On network open, the service checks that a sufficient number of
-           // recovery members have become active. If so, recovery shares are
-           // allocated to each recovery member
-           try
-           {
-             share_manager.issue_recovery_shares(tx);
-           }
-           catch (const std::logic_error& e)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Issuing recovery shares failed when opening the "
-               "network: {}",
-               proposal_id,
-               e.what());
-             return false;
+             // Otherwise, if the node is part of the network. Open the network
+             // straight away. We first check that a sufficient number of
+             // recovery members have become active. If so, recovery shares are
+             // allocated to each recovery member.
+             try
+             {
+               share_manager.issue_recovery_shares(tx);
+             }
+             catch (const std::logic_error& e)
+             {
+               LOG_FAIL_FMT(
+                 "Proposal {}: Issuing recovery shares failed when opening the "
+                 "network: {}",
+                 proposal_id,
+                 e.what());
+               return false;
+             }
+
+             GenesisGenerator g(this->network, tx);
+             const auto network_opened = g.open_service();
+             if (!network_opened)
+             {
+               LOG_FAIL_FMT("Proposal {}: Open network failed", proposal_id);
+             }
+             else
+             {
+               context.get_node_state().open_user_frontend();
+             }
+             return network_opened;
            }
 
-           GenesisGenerator g(this->network, tx);
-           const auto network_opened = g.open_service();
-           if (!network_opened)
+           // Idempotence: if the service is already open or the end of the
+           // recovery procedure has been initiated, the proposal should
+           // succeed
+           auto service = tx.ro<Service>(Tables::SERVICE)->get(0);
+           if (!service.has_value())
            {
-             LOG_FAIL_FMT("Proposal {}: Open network failed", proposal_id);
+             throw std::logic_error(
+               "Service information cannot be found in current state");
            }
-           else
+
+           if (
+             context.get_node_state().is_reading_private_ledger() ||
+             service->status == ServiceStatus::OPEN)
            {
-             context.get_node_state().open_user_frontend();
+             return true;
            }
-           return network_opened;
+
+           return false;
          }},
         {"rekey_ledger",
          [this](

@@ -61,7 +61,7 @@ def test_share_resilience(network, args, from_snapshot=False):
         snapshot_dir=snapshot_dir,
     )
     primary, _ = recovered_network.find_primary()
-    recovered_network.consortium.accept_recovery(primary)
+    recovered_network.consortium.open_network(primary)
 
     # Submit all required recovery shares minus one. Last recovery share is
     # submitted after a new primary is found.
