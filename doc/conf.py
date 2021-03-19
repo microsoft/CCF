@@ -249,6 +249,11 @@ def setup(self):
     js_source_path = str(srcdir / js_source_path)
     jsdoc_config_path = str(srcdir / jsdoc_config_path)
 
-    # disable sphinx-js for old ccf versions
     if not os.path.exists(jsdoc_config_path):
-        jsdoc_config_path = None
+        # try old location
+        js_source_path = str(srcdir / "../src/js")
+        jsdoc_config_path = str(srcdir / "../src/js/tsconfig.json")
+        
+        # disable sphinx-js for old ccf versions
+        if not os.path.exists(jsdoc_config_path):
+            jsdoc_config_path = None
