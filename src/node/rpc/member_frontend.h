@@ -1139,7 +1139,7 @@ namespace ccf
       }
       else
       {
-        // If a function in the proposal is unknown, mark the proposal as
+        // If no function in the proposal is known, mark the proposal as
         // failed
         LOG_FAIL_FMT(
           "Proposal {}: Failed to find any proposal function", proposal_id);
