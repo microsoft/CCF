@@ -77,7 +77,7 @@ When the recovery threshold is reached, the ``POST recovery_share`` RPC returns 
 
 Once the recovery of the private ledger is complete on a quorum of nodes that have joined the new network, the ledger is fully recovered and users are able to continue issuing business transactions.
 
-.. note:: Recovery shares are updated every time a new recovery member is added or remove and when the ledger is rekeyed. It also possible for members to update the recovery shares via the ``update_recovery_shares`` proposal.
+.. note:: Recovery shares are updated every time a new recovery member is added or removed and when the ledger is rekeyed. It also possible for members to update the recovery shares via the ``update_recovery_shares`` proposal.
 
 Summary Diagram
 ---------------
