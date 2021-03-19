@@ -24,8 +24,8 @@ python -m ccf.proposal_generator new_user alice_cert.pem
 python -m ccf.proposal_generator new_user alice_cert.pem '"ADMIN"'
 python -m ccf.proposal_generator new_user alice_cert.pem '{"type": "ADMIN", "friendlyName": "Alice"}'
 
-python -m ccf.proposal_generator open_network --help
-python -m ccf.proposal_generator open_network
+python -m ccf.proposal_generator transition_network_to_open --help
+python -m ccf.proposal_generator transition_network_to_open
 
 python -m ccf.proposal_generator trust_node --help
 python -m ccf.proposal_generator trust_node 42

@@ -122,7 +122,7 @@ def test_governance(network, args):
 
     LOG.info("Network cannot be opened twice")
     try:
-        network.consortium.open_network(node)
+        network.consortium.transition_network_to_open(node)
     except infra.proposal.ProposalNotAccepted as e:
         assert e.proposal.state == infra.proposal.ProposalState.FAILED
 

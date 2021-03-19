@@ -347,19 +347,6 @@ class Consortium:
         self.vote_using_majority(remote_node, proposal, careful_vote)
         member_to_retire.status_code = infra.member.MemberStatus.RETIRED
 
-    def open_network(self, remote_node):
-        """
-        Assuming a network in state OPENING, this functions creates a new
-        proposal and make members vote to transition the network to state
-        OPEN.
-        """
-        proposal_body, careful_vote = self.make_proposal("open_network")
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        self.vote_using_majority(
-            remote_node, proposal, careful_vote, wait_for_global_commit=True
-        )
-        self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN)
-
     def rekey_ledger(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("rekey_ledger")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
@@ -465,7 +452,7 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def open_network(self, remote_node):
+    def transition_network_to_open(self, remote_node):
         """
         Assuming a network in state OPENING, this functions creates a new
         proposal and make members vote to transition the network to state
@@ -477,7 +464,7 @@ class Consortium:
             if r.body.json()["state"] == infra.node.State.PART_OF_NETWORK.value:
                 is_recovery = False
 
-        proposal_body, careful_vote = self.make_proposal("open_network")
+        proposal_body, careful_vote = self.make_proposal("transition_network_to_open")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, careful_vote, wait_for_global_commit=True

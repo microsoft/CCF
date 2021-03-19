@@ -408,7 +408,7 @@ class Network:
         self.consortium.add_users(primary, initial_users)
         LOG.info(f"Initial set of users added: {len(initial_users)}")
 
-        self.consortium.open_network(remote_node=primary)
+        self.consortium.transition_network_to_open(remote_node=primary)
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
@@ -462,7 +462,7 @@ class Network:
         primary, _ = self.find_primary()
         self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
         self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
-        self.consortium.open_network(primary)
+        self.consortium.transition_network_to_open(primary)
         self.consortium.recover_with_shares(primary)
 
         for node in self.get_joined_nodes():

@@ -880,7 +880,7 @@ namespace ccf
              this->network.node_code_ids,
              proposal_id);
          }},
-        {"open_network",
+        {"transition_network_to_open",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            if (context.get_node_state().is_part_of_public_network())
@@ -1095,12 +1095,14 @@ namespace ccf
 
       // execute proposed calls
       ProposedCalls pc = proposed_calls;
+      bool proposal_is_found = false;
       for (const auto& call : pc)
       {
         // proposing a hardcoded C++ function?
         const auto f = hardcoded_funcs.find(call.func);
         if (f != hardcoded_funcs.end())
         {
+          proposal_is_found = true;
           if (!f->second(proposal_id, tx, call.args))
           {
             proposal.state = ProposalState::FAILED;
@@ -1116,6 +1118,7 @@ namespace ccf
         {
           continue;
         }
+        proposal_is_found = true;
         tsr.run<void>(
           tx,
           {s.value(),
@@ -1126,7 +1129,15 @@ namespace ccf
       }
 
       // if the vote was successful, update the proposal's state
-      proposal.state = ProposalState::ACCEPTED;
+      if (proposal_is_found)
+      {
+        proposal.state = ProposalState::ACCEPTED;
+      }
+      else
+      {
+        // TODO: Add a test for this
+        proposal.state = ProposalState::FAILED;
+      }
       proposals->put(proposal_id, proposal);
 
       return get_proposal_info(proposal_id, proposal);
