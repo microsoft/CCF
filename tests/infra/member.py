@@ -54,6 +54,7 @@ class Member:
         self.share_script = share_script
         self.member_data = member_data
         self.is_recovery_member = is_recovery_member
+        self.is_retired = False
         self.authenticate_session = authenticate_session
 
         self.member_info = MemberInfo(
@@ -114,11 +115,16 @@ class Member:
             return (None, self.local_id)
 
     def is_active(self):
-        return self.status_code == MemberStatus.ACTIVE
+        return self.status_code == MemberStatus.ACTIVE and not self.is_retired
 
     def set_active(self):
         # Use this with caution (i.e. only when the network is opening)
         self.status_code = MemberStatus.ACTIVE
+
+    def set_retired(self):
+        # Members should be marked as retired once they have been removed
+        # from the service
+        self.is_retired = True
 
     def propose(self, remote_node, proposal):
         with remote_node.client(*self.auth(write=True)) as mc:

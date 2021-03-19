@@ -343,14 +343,7 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
-
-        if member_to_remove in self.members:
-            self.members.remove(member_to_remove)
-        else:
-            # Check for proposal idempotence
-            assert (
-                proposal.state == infra.proposal.ProposalState.ACCEPTED
-            ), "Removing an already removed member should always succeed"
+        member_to_remove.set_retired()
 
     def open_network(self, remote_node):
         """
