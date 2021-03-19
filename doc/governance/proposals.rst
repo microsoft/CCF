@@ -23,7 +23,7 @@ Assuming the CCF Python package has been installed in the current Python environ
 
     $ python -m ccf.proposal_generator
     usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE] [-vo VOTE_OUTPUT_FILE] [-pp] [-i] [-v]
-                             {accept_recovery,new_member,new_node_code,new_user,transition_service_to_open,rekey_ledger,remove_user,retire_member,retire_node,set_js_app,set_recovery_threshold,set_user_data,trust_node,update_recovery_shares}
+                             {new_member,new_node_code,new_user,transition_service_to_open,rekey_ledger,remove_user,retire_member,retire_node,set_js_app,set_recovery_threshold,set_user_data,trust_node,update_recovery_shares}
 
 Additional detail is available from the ``--help`` option. You can also find the script in a checkout of CCF:
 

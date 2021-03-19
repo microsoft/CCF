@@ -447,11 +447,6 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def accept_recovery(self, remote_node):
-        proposal_body, careful_vote = self.make_proposal("accept_recovery")
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
-
     def transition_service_to_open(self, remote_node):
         """
         Assuming a network in state OPENING, this functions creates a new
