@@ -206,13 +206,13 @@ namespace ccf
       auto member_acks = tx.rw(tables.member_acks);
       auto member_gov_history = tx.rw(tables.governance_history);
 
-      auto member_to_retire = member_info->get(member_id);
-      if (!member_to_retire.has_value())
+      auto member_to_remove = member_info->get(member_id);
+      if (!member_to_remove.has_value())
       {
         // The remove member proposal is idempotent so if the member does not
         // exist, the proposal should succeed with no effect
         LOG_FAIL_FMT(
-          "Could not retire member {}: member does not exist", member_id);
+          "Could not remove member {}: member does not exist", member_id);
         return true;
       }
 
@@ -220,10 +220,10 @@ namespace ccf
       // the new number of active members is still sufficient for
       // recovery
       if (
-        member_to_retire->status == MemberStatus::ACTIVE &&
+        member_to_remove->status == MemberStatus::ACTIVE &&
         is_recovery_member(member_id))
       {
-        // Because the member to retire is active, there is at least one active
+        // Because the member to remove is active, there is at least one active
         // member (i.e. get_active_recovery_members_count_after >= 0)
         size_t get_active_recovery_members_count_after =
           get_active_recovery_members().size() - 1;
@@ -231,7 +231,7 @@ namespace ccf
         if (get_active_recovery_members_count_after < recovery_threshold)
         {
           LOG_FAIL_FMT(
-            "Failed to retire recovery member {}: number of active recovery "
+            "Failed to remove recovery member {}: number of active recovery "
             "members ({}) would be less than recovery threshold ({})",
             member_id,
             get_active_recovery_members_count_after,

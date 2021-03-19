@@ -87,7 +87,7 @@ def sufficient_recovery_member_count():
             <= network.consortium.recovery_threshold
         ):
             raise TestRequirementsNotMet(
-                "Cannot retire recovery member since number of active recovery members"
+                "Cannot remove recovery member since number of active recovery members"
                 f" ({len(network.consortium.get_active_members()) - 1}) would be less than"
                 f" the recovery threshold ({network.consortium.recovery_threshold})"
             )

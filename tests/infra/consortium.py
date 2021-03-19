@@ -84,11 +84,11 @@ class Consortium:
                     "/gov/query",
                     {
                         "text": """tables = ...
-                        non_retired_members = {}
+                        members = {}
                         tables["public:ccf.gov.members.info"]:foreach(function(service_id, info)
-                        table.insert(non_retired_members, {service_id, info})
+                        table.insert(members, {service_id, info})
                         end)
-                        return non_retired_members
+                        return members
                         """
                     },
                 )
@@ -336,16 +336,16 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
-    def remove_member(self, remote_node, member_to_retire):
-        LOG.info(f"Retiring member {member_to_retire.local_id}")
+    def remove_member(self, remote_node, member_to_remove):
+        LOG.info(f"Retiring member {member_to_remove.local_id}")
         proposal_body, careful_vote = self.make_proposal(
-            "remove_member", member_to_retire.service_id
+            "remove_member", member_to_remove.service_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-        if member_to_retire in self.members:
-            self.members.remove(member_to_retire)
+        if member_to_remove in self.members:
+            self.members.remove(member_to_remove)
         else:
             # Check for proposal idempotence
             assert (

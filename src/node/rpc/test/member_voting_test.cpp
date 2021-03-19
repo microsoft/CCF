@@ -103,7 +103,7 @@ DOCTEST_TEST_CASE("Member query/read")
     check_error(response, HTTP_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  DOCTEST_SUBCASE("Read: member is retired")
+  DOCTEST_SUBCASE("Read: member is removed")
   {
     auto gen_tx = network.tables->create_tx();
     GenesisGenerator gen(network, gen_tx);
@@ -1431,7 +1431,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   }
 
   {
-    DOCTEST_INFO("New operator retires original operator");
+    DOCTEST_INFO("New operator removes original operator");
     Propose::In proposal;
     proposal.script = fmt::format(
       R"xxx(
