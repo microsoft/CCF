@@ -883,15 +883,32 @@ namespace ccf
         {"transition_network_to_open",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
+           auto service = tx.ro<Service>(Tables::SERVICE)->get(0);
+           if (!service.has_value())
+           {
+             throw std::logic_error(
+               "Service information cannot be found in current state");
+           }
+
+           // Idempotence: if the service is already open or waiting for
+           // recovery shares, the proposal should succeed
+           if (
+             service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES ||
+             service->status == ServiceStatus::OPEN)
+           {
+             return true;
+           }
+
            if (context.get_node_state().is_part_of_public_network())
            {
-             // If the node is in public mode, initiate the end of recovery
-             // protocol.
+             // If the node is in public mode, start accepting member recovery
+             // shares
              const auto accept_recovery =
                context.get_node_state().accept_recovery(tx);
              if (!accept_recovery)
              {
-               LOG_FAIL_FMT("Proposal {}: Accept recovery failed", proposal_id);
+               LOG_FAIL_FMT(
+                 "Proposal {}: Failed to accept recovery", proposal_id);
              }
              return accept_recovery;
            }
@@ -908,8 +925,8 @@ namespace ccf
              catch (const std::logic_error& e)
              {
                LOG_FAIL_FMT(
-                 "Proposal {}: Issuing recovery shares failed when opening the "
-                 "network: {}",
+                 "Proposal {}: Failed to issuing recovery shares failed when "
+                 "transitioning the service to open network: {}",
                  proposal_id,
                  e.what());
                return false;
@@ -919,7 +936,7 @@ namespace ccf
              const auto network_opened = g.open_service();
              if (!network_opened)
              {
-               LOG_FAIL_FMT("Proposal {}: Open network failed", proposal_id);
+               LOG_FAIL_FMT("Proposal {}: Failed to open service", proposal_id);
              }
              else
              {
@@ -928,23 +945,10 @@ namespace ccf
              return network_opened;
            }
 
-           // Idempotence: if the service is already open or the end of the
-           // recovery procedure has been initiated, the proposal should
-           // succeed
-           auto service = tx.ro<Service>(Tables::SERVICE)->get(0);
-           if (!service.has_value())
-           {
-             throw std::logic_error(
-               "Service information cannot be found in current state");
-           }
-
-           if (
-             context.get_node_state().is_reading_private_ledger() ||
-             service->status == ServiceStatus::OPEN)
-           {
-             return true;
-           }
-
+           LOG_FAIL_FMT(
+             "Proposal {}: Service is not in expected state to transition to "
+             "open",
+             proposal_id);
            return false;
          }},
         {"rekey_ledger",

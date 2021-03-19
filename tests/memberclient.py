@@ -120,11 +120,8 @@ def test_governance(network, args):
     LOG.info("Original members can ACK")
     network.consortium.get_any_active_member().ack(node)
 
-    LOG.info("Network cannot be opened twice")
-    try:
-        network.consortium.transition_network_to_open(node)
-    except infra.proposal.ProposalNotAccepted as e:
-        assert e.proposal.state == infra.proposal.ProposalState.FAILED
+    LOG.info("Network can be opened again, with no effect")
+    network.consortium.transition_network_to_open(node)
 
     LOG.info("Proposal to add a new member (with different curve)")
     (
