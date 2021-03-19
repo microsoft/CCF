@@ -20,10 +20,10 @@ export namespace kv {
 
   export type Poll = StringPoll | NumericPoll;
 
-  export type PollMap = ccfUtil.TypedKVMap<string, Poll>;
+  export type PollMap = ccfUtil.TypedKvMap<string, Poll>;
 
   export function getPollMap(): PollMap {
-    return new ccfUtil.TypedKVMap(
+    return new ccfUtil.TypedKvMap(
       ccf.kv.polls,
       ccfUtil.string,
       ccfUtil.json<kv.Poll>()
