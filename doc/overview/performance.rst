@@ -19,54 +19,78 @@ The micro-benchmark tests can be run from the CCF build directory:
 
     ./tests.sh -VV -L "bench"
 
-These test performance-critical features of CCF such as certificate verification and KV-alterations. As an example, here is sample output of ``tls_bench``:
+These test performance-critical features of CCF such as certificate verification and KV-alterations. As an example, here is sample output of ``crypto_bench``:
 
 .. code-block:: bash
 
-    sign:
+    sign secp384r1:
     ===============================================================================
-       Name (baseline is *)   |   Dim   |  Total ms |  ns/op  |Baseline| Ops/second
+      Name (baseline is *)   |   Dim   |  Total ms |  ns/op  |Baseline| Ops/second
     ===============================================================================
-               sign_384_1byte |       1 |     1.527 | 1527100 | 40.081 |      654.8
-        sign_256k1_mbed_1byte |       1 |     0.893 |  893300 | 23.446 |     1119.4
-      sign_256k1_bitc_1byte * |       1 |     0.038 |   38100 |      - |    26246.7
-                  sign_384_1k |       1 |     1.557 | 1557100 | 40.869 |      642.2
-           sign_256k1_mbed_1k |       1 |     0.922 |  922200 | 24.205 |     1084.4
-         sign_256k1_bitc_1k * |       1 |     0.041 |   41100 |  1.079 |    24330.9
-                sign_384_100k |       1 |     1.782 | 1782100 | 46.774 |      561.1
-         sign_256k1_mbed_100k |       1 |     1.268 | 1267700 | 33.273 |      788.8
-       sign_256k1_bitc_100k * |       1 |     0.377 |  377300 |  9.903 |     2650.4
+        sign_384_mbed_1byte * |      10 |    13.353 | 1335306 |      - |      748.9
+          sign_384_ossl_1byte |      10 |     6.877 |  687683 |  0.515 |     1454.2
+            sign_384_mbed_1k |      10 |    13.351 | 1335096 |  1.000 |      749.0
+            sign_384_ossl_1k |      10 |     7.045 |  704453 |  0.528 |     1419.5
+          sign_384_mbed_100k |      10 |    15.656 | 1565637 |  1.172 |      638.7
+          sign_384_ossl_100k |      10 |     8.101 |  810073 |  0.607 |     1234.5
     ===============================================================================
-    verify:
+    sign secp256r1:
     ===============================================================================
-       Name (baseline is *)   |   Dim   |  Total ms |  ns/op  |Baseline| Ops/second
+      Name (baseline is *)   |   Dim   |  Total ms |  ns/op  |Baseline| Ops/second
     ===============================================================================
-             verify_384_1byte |       1 |     2.917 | 2917301 | 51.542 |      342.8
-      verify_256k1_mbed_1byte |       1 |     1.714 | 1714500 | 30.292 |      583.3
-    verify_256k1_bitc_1byte * |       1 |     0.057 |   56600 |      - |    17667.8
-                verify_384_1k |       1 |     2.966 | 2966300 | 52.408 |      337.1
-         verify_256k1_mbed_1k |       1 |     1.722 | 1721700 | 30.419 |      580.8
-       verify_256k1_bitc_1k * |       1 |     0.060 |   59600 |  1.053 |    16778.5
-              verify_384_100k |       1 |     3.162 | 3161701 | 55.860 |      316.3
-       verify_256k1_mbed_100k |       1 |     2.111 | 2110901 | 37.295 |      473.7
-     verify_256k1_bitc_100k * |       1 |     0.398 |  398000 |  7.032 |     2512.6
+      sign_256r1_mbed_1byte * |      10 |     8.861 |  886134 |      - |     1128.5
+        sign_256r1_ossl_1byte |      10 |     0.183 |   18280 |  0.021 |    54704.3
+          sign_256r1_mbed_1k |      10 |     8.916 |  891604 |  1.006 |     1121.6
+          sign_256r1_ossl_1k |      10 |     0.199 |   19870 |  0.022 |    50326.9
+        sign_256r1_mbed_100k |      10 |    11.952 | 1195225 |  1.349 |      836.7
+        sign_256r1_ossl_100k |      10 |     1.786 |  178600 |  0.202 |     5599.1
+    ===============================================================================
+    verify secp384r1:
+    ===============================================================================
+      Name (baseline is *)   |   Dim   |  Total ms |  ns/op  |Baseline| Ops/second
+    ===============================================================================
+      verify_384_mbed_1byte * |      10 |    25.739 | 2573852 |      - |      388.5
+        verify_384_ossl_1byte |      10 |     5.179 |  517872 |  0.201 |     1931.0
+          verify_384_mbed_1k |      10 |    25.878 | 2587842 |  1.005 |      386.4
+          verify_384_ossl_1k |      10 |     5.170 |  516972 |  0.201 |     1934.3
+        verify_384_mbed_100k |      10 |    28.007 | 2800703 |  1.088 |      357.1
+        verify_384_ossl_100k |      10 |     6.208 |  620803 |  0.241 |     1610.8
+    ===============================================================================
+    verify secp256r1:
+    ===============================================================================
+      Name (baseline is *)   |   Dim   |  Total ms |  ns/op  |Baseline| Ops/second
+    ===============================================================================
+    verify_256r1_mbed_1byte * |      10 |    17.673 | 1767258 |      - |      565.8
+      verify_256r1_ossl_1byte |      10 |     0.482 |   48160 |  0.027 |    20764.0
+        verify_256r1_mbed_1k |      10 |    17.568 | 1756758 |  0.994 |      569.2
+        verify_256r1_ossl_1k |      10 |     0.498 |   49820 |  0.028 |    20072.1
+      verify_256r1_mbed_100k |      10 |    20.771 | 2077120 |  1.175 |      481.4
+      verify_256r1_ossl_100k |      10 |     2.085 |  208471 |  0.118 |     4796.8
     ===============================================================================
     hash:
     ===============================================================================
-       Name (baseline is *)   |   Dim   |  Total ms |  ns/op  |Baseline| Ops/second
+      Name (baseline is *)   |   Dim   |  Total ms |  ns/op  |Baseline| Ops/second
     ===============================================================================
-               hash_384_1byte |       1 |     0.001 |     600 |  0.750 |  1666666.7
-        hash_256k1_mbed_1byte |       1 |     0.001 |     600 |  0.750 |  1666666.7
-      hash_256k1_bitc_1byte * |       1 |     0.001 |     800 |      - |  1250000.0
-                  hash_384_1k |       1 |     0.003 |    3100 |  3.875 |   322580.6
-           hash_256k1_mbed_1k |       1 |     0.004 |    4200 |  5.250 |   238095.2
-         hash_256k1_bitc_1k * |       1 |     0.004 |    4500 |  5.625 |   222222.2
-                hash_384_100k |       1 |     0.223 |  223000 |278.750 |     4484.3
-         hash_256k1_mbed_100k |       1 |     0.340 |  340100 |425.125 |     2940.3
-       hash_256k1_bitc_100k * |       1 |     0.340 |  340400 |425.500 |     2937.7
+        sha_384_mbed_1byte * |      10 |     0.003 |     340 |      - |  2941176.5
+          sha_256_mbed_1byte |      10 |     0.003 |     290 |  0.853 |  3448275.9
+          sha_512_mbed_1byte |      10 |     0.004 |     350 |  1.029 |  2857142.9
+          sha_384_ossl_1byte |      10 |     0.004 |     360 |  1.059 |  2777777.8
+          sha_256_ossl_1byte |      10 |     0.003 |     290 |  0.853 |  3448275.9
+          sha_512_ossl_1byte |      10 |     0.004 |     390 |  1.147 |  2564102.6
+              sha_384_mbed_1k |      10 |     0.024 |    2400 |  7.059 |   416649.3
+              sha_256_mbed_1k |      10 |     0.035 |    3460 | 10.176 |   289017.3
+              sha_512_mbed_1k |      10 |     0.024 |    2440 |  7.176 |   409836.1
+              sha_384_ossl_1k |      10 |     0.015 |    1460 |  4.294 |   684931.5
+              sha_256_ossl_1k |      10 |     0.018 |    1850 |  5.441 |   540540.5
+              sha_512_ossl_1k |      10 |     0.015 |    1530 |  4.500 |   653594.8
+            sha_384_mbed_100k |      10 |     2.039 |  203891 |599.679 |     4904.6
+            sha_256_mbed_100k |      10 |     3.053 |  305291 |897.916 |     3275.6
+            sha_512_mbed_100k |      10 |     2.039 |  203901 |599.709 |     4904.3
+            sha_384_ossl_100k |      10 |     1.061 |  106090 |312.031 |     9425.9
+            sha_256_ossl_100k |      10 |     1.592 |  159150 |468.091 |     6283.3
+            sha_512_ossl_100k |      10 |     1.064 |  106380 |312.884 |     9400.2
     ===============================================================================
 
-This compares the signing, verification, and hashing performance of different cryptographic curve implementations in CCF. The `bitcoin-core implementation <bitcoin_256k1_>`_ of elliptic curve secp256k1 is significantly faster than other supported curves, particularly when verification becomes a bottleneck.
 
 End-to-end performance tests
 ----------------------------
