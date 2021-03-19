@@ -134,12 +134,11 @@ This can give a direct A/B comparison of various changes. For example, if each r
 
 .. image:: ../img/1k_signed.png
 
-Since CCF verifies the signature on every transaction, the per-request time has increased by approximately 3X (verification is very expensive relative to the simple business logic in SmallBank). These signatures are over the secp256k1 curve, verified by the fast `bitcoin <bitcoin_256k1>`_ implementation - a slower curve or implementation would cause a corresponding reduction in the maximum possible throughput.
+Since CCF verifies the signature on every transaction, the per-request time has increased by approximately 3X (verification is very expensive relative to the simple business logic in SmallBank).
 
 These plots can also be used over longer tests to gauge outlier severity and frequency, and ensure global commit never lags significantly behind local commit. If the number of requests is increased to 200,000:
 
 .. image:: ../img/200k_unsigned.png
 .. image:: ../img/200k_signed.png
 
-.. _bitcoin_256k1: https://github.com/bitcoin-core/secp256k1
 .. _SmallBank: https://github.com/microsoft/CCF/tree/main/samples/apps/smallbank
