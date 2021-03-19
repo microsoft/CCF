@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 import { ValidateError as TsoaValidateError, FieldErrors } from "@tsoa/runtime";
-import { Request, Response } from "./ccf/builtin";
+import * as ccfapp from "ccf-app";
 
 export interface ErrorResponse {
   message: string;
@@ -67,8 +67,8 @@ export class NotFoundError extends HttpError {
  */
 export function errorHandler(
   err: unknown,
-  req: Request
-): Response<ErrorResponse | ValidateErrorResponse> {
+  req: ccfapp.Request
+): ccfapp.Response<ErrorResponse | ValidateErrorResponse> {
   if (err instanceof TsoaValidateError) {
     return {
       body: {

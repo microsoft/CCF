@@ -7,7 +7,7 @@
 // This avoids polluting the global namespace and helps with
 // writing shims for tests outside of the CCF environment.
 
-export const ccf: CCF = globalThis.ccf;
+export const ccf: CCF = (<any>globalThis).ccf;
 
 // This should eventually cover all JSON-compatible values.
 // There are attempts at https://github.com/microsoft/TypeScript/issues/1897

@@ -23,7 +23,7 @@ import {
   UnauthorizedError,
 } from "../error_handler";
 import { User } from "../authentication";
-import * as CCF from "../ccf/builtin";
+import * as ccfapp from "ccf-app";
 import { kv } from "../models/poll";
 
 // GET  /csv return all opinions of authenticated user as CSV
@@ -46,7 +46,7 @@ export class CSVController extends Controller {
 
   @SuccessResponse(200, "Opinions of authenticated user in CSV format")
   @Get()
-  public getOpinionsAsCSV(@Request() request: CCF.Request): any {
+  public getOpinionsAsCSV(@Request() request: ccfapp.Request): any {
     const user: User = request.caller;
 
     const rows = [];
@@ -69,7 +69,7 @@ export class CSVController extends Controller {
     "Opinions were not recorded because either an opinion data type did not match the poll type or a poll with the given topic was not found"
   )
   @Post()
-  public submitOpinionsFromCSV(@Request() request: CCF.Request): void {
+  public submitOpinionsFromCSV(@Request() request: ccfapp.Request): void {
     const user: User = request.caller;
 
     const rows = parse<any>(request.body.text(), { header: true }).data;

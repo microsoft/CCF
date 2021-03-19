@@ -28,7 +28,7 @@ import {
   UnauthorizedError,
 } from "../error_handler";
 import { User } from "../authentication";
-import * as CCF from "../ccf/builtin";
+import * as ccfapp from "ccf-app";
 import { kv } from "../models/poll";
 
 export const MINIMUM_OPINION_THRESHOLD = 10;
@@ -116,7 +116,7 @@ export class PollController extends Controller {
   public createPoll(
     @Path() topic: string,
     @Body() body: CreatePollRequest,
-    @Request() request: CCF.Request
+    @Request() request: ccfapp.Request
   ): void {
     const user: User = request.caller;
 
@@ -139,7 +139,7 @@ export class PollController extends Controller {
   @Post()
   public createPolls(
     @Body() body: CreatePollsRequest,
-    @Request() request: CCF.Request
+    @Request() request: ccfapp.Request
   ): void {
     const user: User = request.caller;
 
@@ -169,7 +169,7 @@ export class PollController extends Controller {
   public submitOpinion(
     @Path() topic: string,
     @Body() body: SubmitOpinionRequest,
-    @Request() request: CCF.Request
+    @Request() request: ccfapp.Request
   ): void {
     const user: User = request.caller;
 
@@ -193,7 +193,7 @@ export class PollController extends Controller {
   @Put()
   public submitOpinions(
     @Body() body: SubmitOpinionsRequest,
-    @Request() request: CCF.Request
+    @Request() request: ccfapp.Request
   ): void {
     const user: User = request.caller;
 
@@ -222,7 +222,7 @@ export class PollController extends Controller {
   @Get("{topic}")
   public getPoll(
     @Path() topic: string,
-    @Request() request: CCF.Request
+    @Request() request: ccfapp.Request
   ): GetPollResponse {
     const user: User = request.caller;
 
@@ -236,7 +236,7 @@ export class PollController extends Controller {
 
   @SuccessResponse(200, "Poll data")
   @Get()
-  public getPolls(@Request() request: CCF.Request): GetPollsResponse {
+  public getPolls(@Request() request: ccfapp.Request): GetPollsResponse {
     const user: User = request.caller;
 
     let response: GetPollsResponse = { polls: {} };

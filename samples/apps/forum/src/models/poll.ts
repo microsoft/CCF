@@ -1,5 +1,4 @@
-import { ccf } from "../ccf/builtin";
-import * as ccfUtil from "../ccf/util";
+import * as ccfapp from "ccf-app";
 
 export namespace kv {
   type User = string;
@@ -20,13 +19,13 @@ export namespace kv {
 
   export type Poll = StringPoll | NumericPoll;
 
-  export type PollMap = ccfUtil.TypedKVMap<string, Poll>;
+  export type PollMap = ccfapp.TypedKVMap<string, Poll>;
 
   export function getPollMap(): PollMap {
-    return new ccfUtil.TypedKVMap(
-      ccf.kv.polls,
-      ccfUtil.string,
-      ccfUtil.json<kv.Poll>()
+    return new ccfapp.TypedKVMap(
+      ccfapp.ccf.kv.polls,
+      ccfapp.string,
+      ccfapp.json<kv.Poll>()
     );
   }
 }
