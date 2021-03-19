@@ -66,7 +66,7 @@ export function authentication(
     }
 
     // Get the stored signing key to validate the token.
-    const keysMap = new ccfUtil.TypedKVMap(
+    const keysMap = new ccfUtil.TypedKvMap(
       ccf.kv["public:ccf.gov.jwt.public_signing_keys"],
       ccfUtil.string,
       ccfUtil.typedArray(Uint8Array)
@@ -99,7 +99,7 @@ export function authentication(
     }
 
     // Get the issuer associated to the signing key.
-    const keyIssuerMap = new ccfUtil.TypedKVMap(
+    const keyIssuerMap = new ccfUtil.TypedKvMap(
       ccf.kv["public:ccf.gov.jwt.public_signing_key_issuer"],
       ccfUtil.string,
       ccfUtil.string
