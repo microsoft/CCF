@@ -181,7 +181,7 @@ class Response:
 
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
-        status_color = "red" if int(self.status_code / 100) in (4, 5) else "green"
+        status_color = "red" if self.status_code // 100 in (4, 5) else "green"
         body_s = escape_loguru_tags(truncate(str(self.body)))
         # Body can't end with a \, or it will escape the loguru closing tag
         if len(body_s) > 0 and body_s[-1] == "\\":
