@@ -121,7 +121,16 @@ It is an object implementing the :js:class:`CCF <CCF>` interface documented belo
 .. js:autoclass:: CCF
    :members:
 
-.. js:autoclass:: KVMap
+.. js:autoclass:: KvMap
+   :members:
+
+.. js:autoclass:: HistoricalState
+   :members:
+
+.. js:autoclass:: Receipt
+   :members:
+
+.. js:autoclass:: ProofElement
    :members:
 
 .. js:autoclass:: WrapAlgoParams
@@ -130,10 +139,10 @@ It is an object implementing the :js:class:`CCF <CCF>` interface documented belo
 .. js:autoclass:: RsaOaepParams
    :members:
 
-.. js:autoclass:: AESKWPParams
+.. js:autoclass:: AesKwpParams
    :members:
 
-.. js:autoclass:: RsaOaepAESKWPParams
+.. js:autoclass:: RsaOaepAesKwpParams
    :members:
 
 .. js:autoclass:: CryptoKeyPair
