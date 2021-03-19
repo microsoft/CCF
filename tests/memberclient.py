@@ -247,8 +247,8 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # network = test_missing_signature_header(network, args)
-        # network = test_corrupted_signature(network, args)
+        network = test_missing_signature_header(network, args)
+        network = test_corrupted_signature(network, args)
         network = test_governance(network, args)
 
 

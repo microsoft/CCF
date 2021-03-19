@@ -1099,14 +1099,13 @@ namespace ccf
 
       // execute proposed calls
       ProposedCalls pc = proposed_calls;
-      bool proposal_is_found = false;
+      std::optional<std::string> unknown_call = std::nullopt;
       for (const auto& call : pc)
       {
         // proposing a hardcoded C++ function?
         const auto f = hardcoded_funcs.find(call.func);
         if (f != hardcoded_funcs.end())
         {
-          proposal_is_found = true;
           if (!f->second(proposal_id, tx, call.args))
           {
             proposal.state = ProposalState::FAILED;
@@ -1120,9 +1119,9 @@ namespace ccf
         const auto s = tx.rw(network.gov_scripts)->get(call.func);
         if (!s.has_value())
         {
-          continue;
+          unknown_call = call.func;
+          break;
         }
-        proposal_is_found = true;
         tsr.run<void>(
           tx,
           {s.value(),
@@ -1132,17 +1131,19 @@ namespace ccf
           call.args);
       }
 
-      if (proposal_is_found)
+      if (!unknown_call.has_value())
       {
         // if the vote was successful, update the proposal's state
         proposal.state = ProposalState::ACCEPTED;
       }
       else
       {
-        // If no function in the proposal is known, mark the proposal as
+        // If any function in the proposal is unknown, mark the proposal as
         // failed
         LOG_FAIL_FMT(
-          "Proposal {}: Failed to find any proposal function", proposal_id);
+          "Proposal {}: \"{}\" call is unknown",
+          proposal_id,
+          unknown_call.value());
         proposal.state = ProposalState::FAILED;
       }
       proposals->put(proposal_id, proposal);
