@@ -123,6 +123,19 @@ def test_governance(network, args):
     LOG.info("Network can be opened again, with no effect")
     network.consortium.transition_network_to_open(node)
 
+    LOG.info("Unknown proposal is rejected on completion")
+    unkwown_proposal = {"script": {"text": 'return Calls:call("unknown_proposal")'}}
+    accept_vote = {"ballot": {"text": "return true"}}
+
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, unkwown_proposal
+    )
+    try:
+        network.consortium.vote_using_majority(primary, proposal, accept_vote)
+        assert False, "Unknown proposal should fail on completion"
+    except infra.proposal.ProposalNotAccepted:
+        pass
+
     LOG.info("Proposal to add a new member (with different curve)")
     (
         new_member_proposal,
@@ -234,8 +247,8 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = test_missing_signature_header(network, args)
-        network = test_corrupted_signature(network, args)
+        # network = test_missing_signature_header(network, args)
+        # network = test_corrupted_signature(network, args)
         network = test_governance(network, args)
 
 

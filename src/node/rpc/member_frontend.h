@@ -1132,14 +1132,17 @@ namespace ccf
           call.args);
       }
 
-      // if the vote was successful, update the proposal's state
       if (proposal_is_found)
       {
+        // if the vote was successful, update the proposal's state
         proposal.state = ProposalState::ACCEPTED;
       }
       else
       {
-        // TODO: Add a test for this
+        // If a function in the proposal is unknown, mark the proposal as
+        // failed
+        LOG_FAIL_FMT(
+          "Proposal {}: Failed to find any proposal function", proposal_id);
         proposal.state = ProposalState::FAILED;
       }
       proposals->put(proposal_id, proposal);
