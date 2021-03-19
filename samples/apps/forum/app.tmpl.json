@@ -2,7 +2,7 @@
   "endpoints": {
     "/polls/{topic}": {
       "post": {
-        "js_module": "build/PollControllerProxy.js",
+        "js_module": "PollControllerProxy.js",
         "js_function": "createPoll",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -10,7 +10,7 @@
         "mode": "readwrite"
       },
       "put": {
-        "js_module": "build/PollControllerProxy.js",
+        "js_module": "PollControllerProxy.js",
         "js_function": "submitOpinion",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -18,7 +18,7 @@
         "mode": "readwrite"
       },
       "get": {
-        "js_module": "build/PollControllerProxy.js",
+        "js_module": "PollControllerProxy.js",
         "js_function": "getPoll",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -28,7 +28,7 @@
     },
     "/polls": {
       "post": {
-        "js_module": "build/PollControllerProxy.js",
+        "js_module": "PollControllerProxy.js",
         "js_function": "createPolls",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -36,7 +36,7 @@
         "mode": "readwrite"
       },
       "put": {
-        "js_module": "build/PollControllerProxy.js",
+        "js_module": "PollControllerProxy.js",
         "js_function": "submitOpinions",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -44,7 +44,7 @@
         "mode": "readwrite"
       },
       "get": {
-        "js_module": "build/PollControllerProxy.js",
+        "js_module": "PollControllerProxy.js",
         "js_function": "getPolls",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -54,7 +54,7 @@
     },
     "/site": {
       "get": {
-        "js_module": "build/SiteControllerProxy.js",
+        "js_module": "SiteControllerProxy.js",
         "js_function": "getStartPage",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -64,7 +64,7 @@
     },
     "/site/polls/create": {
       "get": {
-        "js_module": "build/SiteControllerProxy.js",
+        "js_module": "SiteControllerProxy.js",
         "js_function": "getPollsCreatePage",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -74,7 +74,7 @@
     },
     "/site/opinions/submit": {
       "get": {
-        "js_module": "build/SiteControllerProxy.js",
+        "js_module": "SiteControllerProxy.js",
         "js_function": "getOpinionsSubmitPage",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -84,7 +84,7 @@
     },
     "/site/view": {
       "get": {
-        "js_module": "build/SiteControllerProxy.js",
+        "js_module": "SiteControllerProxy.js",
         "js_function": "getViewPage",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -94,7 +94,7 @@
     },
     "/csv": {
       "get": {
-        "js_module": "build/CSVControllerProxy.js",
+        "js_module": "CSVControllerProxy.js",
         "js_function": "getOpinionsAsCSV",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -112,7 +112,7 @@
         }
       },
       "post": {
-        "js_module": "build/CSVControllerProxy.js",
+        "js_module": "CSVControllerProxy.js",
         "js_function": "submitOpinionsFromCSV",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
