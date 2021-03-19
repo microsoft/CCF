@@ -394,8 +394,8 @@ def retire_node_code(code_digest: str, **kwargs):
 
 
 @cli_proposal
-def transition_network_to_open(**kwargs):
-    return build_proposal("transition_network_to_open", **kwargs)
+def transition_service_to_open(**kwargs):
+    return build_proposal("transition_service_to_open", **kwargs)
 
 
 @cli_proposal

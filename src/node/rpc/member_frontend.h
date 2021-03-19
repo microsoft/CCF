@@ -880,7 +880,7 @@ namespace ccf
              this->network.node_code_ids,
              proposal_id);
          }},
-        {"transition_network_to_open",
+        {"transition_service_to_open",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            auto service = tx.ro<Service>(Tables::SERVICE)->get(0);

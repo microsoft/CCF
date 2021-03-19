@@ -121,7 +121,7 @@ def test_governance(network, args):
     network.consortium.get_any_active_member().ack(node)
 
     LOG.info("Network can be opened again, with no effect")
-    network.consortium.transition_network_to_open(node)
+    network.consortium.transition_service_to_open(node)
 
     LOG.info("Unknown proposal is rejected on completion")
     unkwown_proposal = {"script": {"text": 'return Calls:call("unknown_proposal")'}}
