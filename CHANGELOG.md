@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- `accept_recovery` and `open_network` proposals have been merged into a single `transition_service_to_open`.
+- `accept_recovery` and `open_network` proposals have been merged into a single idempotent `transition_service_to_open` proposal.
 
 ## [0.19.2]
 
