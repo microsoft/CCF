@@ -48,7 +48,7 @@ export function jwt(request: ccfapp.Request): ccfapp.Response<JwtResponse | Erro
   }
 
   // Get the stored signing key to validate the token.
-  const keysMap = new ccfapp.TypedKVMap(
+  const keysMap = new ccfapp.TypedKvMap(
     ccfapp.ccf.kv["public:ccf.gov.jwt.public_signing_keys"],
     ccfapp.string,
     ccfapp.typedArray(Uint8Array)

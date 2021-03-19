@@ -8,7 +8,7 @@ interface LogEntry extends LogItem {
   id: number;
 }
 
-const logMap = new ccfapp.TypedKVMap(
+const logMap = new ccfapp.TypedKvMap(
   ccfapp.ccf.kv.log,
   ccfapp.uint32,
   ccfapp.json<LogItem>()

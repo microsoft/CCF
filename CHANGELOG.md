@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Enum values returned by built-in REST API endpoints are now PascalCase. Lua governance scripts that use enum values need to be updated as well, for example, `"ACTIVE"` becomes `"Active"` for member info. The same applies when using the `/gov/query` endpoint (#2152).
 - Most service tables (e.g. for nodes and signatures) are now serialised as JSON instead of msgpack. Some tables (e.g. user and member certificates) are serialised as raw bytes for performance reasons (#2301).
 - The users and members tables have been split into `public:ccf.gov.users.certs`/`public:ccf.gov.users.info` and `public:ccf.gov.members.certs`/`public:ccf.gov.members.encryption_public_keys`/`public:ccf.gov.members.info` respectively (#2301).
+- TypeScript interface/class names have been renamed to PascalCase (#2325).
 
 ## [0.19.1]
 
