@@ -20,7 +20,7 @@ steps:
       echo "##vso[task.setvariable variable=wheel]$WHL"
     workingDirectory: python
     displayName: Build wheel
-  
+
   - script: |
       CCF_VERSION=$(<../build/VERSION)
       npm version $CCF_VERSION

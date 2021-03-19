@@ -7,7 +7,9 @@ interface CryptoResponse {
   available: boolean;
 }
 
-export function crypto(request: ccfapp.Request): ccfapp.Response<CryptoResponse> {
+export function crypto(
+  request: ccfapp.Request
+): ccfapp.Response<CryptoResponse> {
   // Most functionality of jsrsasign requires keys.
   // Generating a key here is too slow, so we'll just check if the
   // JS API got exported correctly.

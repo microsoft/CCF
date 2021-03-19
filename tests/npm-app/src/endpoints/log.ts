@@ -32,7 +32,9 @@ export function setLogItem(request: ccfapp.Request<LogItem>): ccfapp.Response {
   return {};
 }
 
-export function getAllLogItems(request: ccfapp.Request): ccfapp.Response<Array<LogEntry>> {
+export function getAllLogItems(
+  request: ccfapp.Request
+): ccfapp.Response<Array<LogEntry>> {
   let items: Array<LogEntry> = [];
   logMap.forEach(function (item, id, table) {
     items.push({ id: id, msg: item.msg });

@@ -23,7 +23,9 @@ interface BodyClaims {
 // Rather than using the built-in JWT authenticator provided by the framework,
 // this is an unauthenticated endpoint which extracts, parses, and validates
 // the JWT itself directly in TS.
-export function jwt(request: ccfapp.Request): ccfapp.Response<JwtResponse | ErrorResponse> {
+export function jwt(
+  request: ccfapp.Request
+): ccfapp.Response<JwtResponse | ErrorResponse> {
   const authHeader = request.headers["authorization"];
   if (!authHeader) {
     return unauthorized("authorization header missing");

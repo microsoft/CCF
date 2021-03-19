@@ -9,13 +9,8 @@
     "declaration": true,
     "outDir": "lib",
     "rootDir": "src",
-    "strict": true,
+    "strict": true
   },
-  "exclude": [
-    "lib",
-    "node_modules"
-  ],
-  "include": [
-    "src"
-  ]
+  "exclude": ["lib", "node_modules"],
+  "include": ["src"]
 }
