@@ -390,17 +390,61 @@ DECLARE_JSON_REQUIRED_FIELDS(EnumStruct, se);
 
 TEST_CASE("enum")
 {
-  EnumStruct es;
-  es.se = EnumStruct::SampleEnum::Two;
+  {
+    INFO("Schema generation");
+    EnumStruct es;
+    es.se = EnumStruct::SampleEnum::Two;
 
-  nlohmann::json j = es;
+    nlohmann::json j = es;
 
-  REQUIRE(j["se"] == "two");
+    REQUIRE(j["se"] == "two");
 
-  const auto schema = ds::json::build_schema<EnumStruct>("EnumStruct");
+    const auto schema = ds::json::build_schema<EnumStruct>("EnumStruct");
 
-  const nlohmann::json expected{"one", "two", "three"};
-  REQUIRE(schema["properties"]["se"]["enum"] == expected);
+    const nlohmann::json expected{"one", "two", "three"};
+    REQUIRE(schema["properties"]["se"]["enum"] == expected);
+  }
+
+  {
+    INFO("Conversion");
+
+    nlohmann::json j;
+
+    // Test good conversions
+    j = "one";
+    REQUIRE(j.get<EnumStruct::SampleEnum>() == EnumStruct::SampleEnum::One);
+
+    j = "two";
+    REQUIRE(j.get<EnumStruct::SampleEnum>() == EnumStruct::SampleEnum::Two);
+
+    j = "three";
+    REQUIRE(j.get<EnumStruct::SampleEnum>() == EnumStruct::SampleEnum::Three);
+
+    // Any other value will throw
+    j = "One";
+    REQUIRE_THROWS(j.get<EnumStruct::SampleEnum>());
+
+    j = "two ";
+    REQUIRE_THROWS(j.get<EnumStruct::SampleEnum>());
+
+    j = " three";
+    REQUIRE_THROWS(j.get<EnumStruct::SampleEnum>());
+
+    j = "penguin";
+    REQUIRE_THROWS(j.get<EnumStruct::SampleEnum>());
+
+    j = 0;
+    REQUIRE_THROWS(j.get<EnumStruct::SampleEnum>());
+
+    j = 1;
+    REQUIRE_THROWS(j.get<EnumStruct::SampleEnum>());
+
+    j = nlohmann::json::object();
+    REQUIRE_THROWS(j.get<EnumStruct::SampleEnum>());
+
+    j = nullptr;
+    REQUIRE_THROWS(j.get<EnumStruct::SampleEnum>());
+  }
 }
 
 namespace examples
