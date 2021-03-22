@@ -13,6 +13,7 @@ namespace kv
   using SerialisedKey = kv::serialisers::SerialisedEntry;
   using SerialisedValue = kv::serialisers::SerialisedEntry;
 
+  // TODO: Cleanup?
   enum class KvOperationType : uint32_t
   {
     KOT_NOT_SUPPORTED = 0,

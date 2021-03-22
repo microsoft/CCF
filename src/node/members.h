@@ -4,6 +4,7 @@
 #include "client_signatures.h"
 #include "crypto/pem.h"
 #include "ds/hash.h"
+#include "ds/json.h"
 #include "entity_id.h"
 #include "node_signature.h"
 
@@ -57,7 +58,7 @@ namespace ccf
         member_data == rhs.member_data;
     }
 
-    MSGPACK_DEFINE(cert, encryption_pub_key, member_data);
+    MSGPACK_DEFINE(cert, encryption_pub_key); // TODO: member_data);
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember)
   DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert)
