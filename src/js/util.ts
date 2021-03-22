@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-import { ccf, KVMap } from "./builtin";
+import { ccf, KvMap } from "./builtin";
 
 // This should eventually cover all JSON-compatible values.
 // There are attempts at https://github.com/microsoft/TypeScript/issues/1897
@@ -184,9 +184,9 @@ export const typedArray = <T extends TypedArray>(
 ) => new TypedArrayConverter(clazz);
 export const arrayBuffer = new IdentityConverter();
 
-export class TypedKVMap<K, V> {
+export class TypedKvMap<K, V> {
   constructor(
-    private kv: KVMap,
+    private kv: KvMap,
     private kt: DataConverter<K>,
     private vt: DataConverter<V>
   ) {}
@@ -197,21 +197,21 @@ export class TypedKVMap<K, V> {
     const v = this.kv.get(this.kt.encode(key));
     return v === undefined ? undefined : this.vt.decode(v);
   }
-  set(key: K, value: V): TypedKVMap<K, V> {
+  set(key: K, value: V): TypedKvMap<K, V> {
     this.kv.set(this.kt.encode(key), this.vt.encode(value));
     return this;
   }
   delete(key: K): boolean {
     return this.kv.delete(this.kt.encode(key));
   }
-  forEach(callback: (value: V, key: K, table: TypedKVMap<K, V>) => void): void {
+  forEach(callback: (value: V, key: K, table: TypedKvMap<K, V>) => void): void {
     let kt = this.kt;
     let vt = this.vt;
     let typedMap = this;
     this.kv.forEach(function (
       raw_v: ArrayBuffer,
       raw_k: ArrayBuffer,
-      table: KVMap
+      table: KvMap
     ) {
       callback(vt.decode(raw_v), kt.decode(raw_k), typedMap);
     });

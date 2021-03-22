@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.19.3]
+
+### Changed
+
+- The status filter passed to `/node/network/nodes` now takes the correct CamelCased values (#2238).
+- `UserRpcFrontend` has been removed, and the return value of `get_rpc_handler` which apps should construct is now simply a `ccf::RpcFrontend`.
+- There is now a distinction between public and private headers. The public headers under `include/ccf` are those we expect apps to use, and others are implementation details which may change/be deprecated/be hidden in future. Most apps should now be including `"ccf/app_interface.h"` and `"ccf/common_endpoint_registry.h"`.
+- Various endpoint-related types have moved under the `ccf::endpoints` namespace. Apps will need to rename these types where they are not using `auto`, for instance to `ccf::endpoints::EndpointContext` and `ccf::endpoints::ForwardingRequired`.
+
 ## [0.19.2]
 
 ### Added
@@ -20,9 +29,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Enum values returned by built-in REST API endpoints are now PascalCase. Lua governance scripts that use enum values need to be updated as well, for example, `"ACTIVE"` becomes `"Active"` for member info. The same applies when using the `/gov/query` endpoint (#2152).
 - Most service tables (e.g. for nodes and signatures) are now serialised as JSON instead of msgpack. Some tables (e.g. user and member certificates) are serialised as raw bytes for performance reasons (#2301).
 - The users and members tables have been split into `public:ccf.gov.users.certs`/`public:ccf.gov.users.info` and `public:ccf.gov.members.certs`/`public:ccf.gov.members.encryption_public_keys`/`public:ccf.gov.members.info` respectively (#2301).
-- `UserRpcFrontend` has been removed, and the return value of `get_rpc_handler` which apps should construct is now simply a `ccf::RpcFrontend`.
-- There is now a distinction between public and private headers. The public headers under `include/ccf` are those we expect apps to use, and others are implementation details which may change/be deprecated/be hidden in future. Most apps should now be including `"ccf/app_interface.h"` and `"ccf/common_endpoint_registry.h"`.
-- Various endpoint-related types have moved under the `ccf::endpoints` namespace. Apps will need to rename these types where they are not using `auto`, for instance to `ccf::endpoints::EndpointContext` and `ccf::endpoints::ForwardingRequired`.
+- TypeScript interface/class names have been renamed to PascalCase (#2325).
 
 ## [0.19.1]
 
@@ -758,6 +765,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.19.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.3
 [0.19.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.2
 [0.19.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.1
 [0.19.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.0
