@@ -372,8 +372,8 @@ int main(int argc, char** argv)
       "Path to JS file that defines the contents of the "
       "public:ccf.gov.constitution table")
     ->capture_default_str()
-    ->check(CLI::ExistingFile)
-    ->required();
+    ->check(CLI::ExistingFile);
+  ->required();
 
   std::vector<cli::ParsedMemberInfo> members_info;
   cli::add_member_info_option(

@@ -8,6 +8,7 @@
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
+#include "node/gov.h"
 #include "node/jwt.h"
 #include "node/members.h"
 #include "node/nodes.h"
@@ -16,7 +17,6 @@
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "tls/base64.h"
-#include "node/gov.h"
 
 #include <charconv>
 #include <exception>
@@ -1960,14 +1960,14 @@ namespace ccf
            in.public_encryption_key,
            NodeStatus::TRUSTED});
 
-        #ifdef GET_QUOTE
+#ifdef GET_QUOTE
         CodeDigest node_code_id;
         std::copy_n(
           std::begin(in.code_digest),
           CODE_DIGEST_BYTES,
           std::begin(node_code_id));
         g.trust_node_code_id(node_code_id);
-        #endif
+#endif
 
         for (const auto& wl : default_whitelists)
         {
@@ -2101,7 +2101,6 @@ namespace ccf
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
-
     }
   };
 
