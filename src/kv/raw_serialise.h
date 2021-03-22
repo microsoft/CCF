@@ -22,6 +22,21 @@ namespace kv
 
     WriterData buf;
 
+    template <typename T>
+    void serialise_entry(const T& entry)
+    {
+      buf.insert(buf.end(), entry.begin(), entry.end());
+    }
+
+    template <typename T>
+    void serialise_entry(T&& entry)
+    {
+      buf.insert(
+        buf.end(),
+        std::make_move_iterator(entry.begin()),
+        std::make_move_iterator(entry.end()));
+    }
+
     void serialise_size(size_t size)
     {
       WriterData size_entry(sizeof(size_t));
@@ -29,10 +44,7 @@ namespace kv
       auto size_ = size_entry.size();
       serialized::write(data_, size_, size);
 
-      buf.insert(
-        buf.end(),
-        std::make_move_iterator(size_entry.begin()),
-        std::make_move_iterator(size_entry.end()));
+      serialise_entry(std::move(size_entry));
     }
 
   public:
@@ -49,28 +61,16 @@ namespace kv
       auto size_ = entry.size();
       serialized::write(data_, size_, t);
 
-      buf.insert(
-        buf.end(),
-        std::make_move_iterator(entry.begin()),
-        std::make_move_iterator(entry.end()));
+      serialise_entry(std::move(entry));
     }
 
-    // Where we have pre-serialised data, we dump it length-prefixed into the
-    // output buffer. If we call append, then pack will prefix the data with
-    // some type information, potentially redundantly repacking already-packed
-    // data. This means the output is no longer a stream of msgpack objects!
-    // Parsers are expected to know the type of the Ks and Vs for the tables
-    // they care about, and skip over any others
     template <typename T>
     void append_pre_serialised(const T& entry)
     {
       serialise_size(entry.size());
       if (entry.size() > 0)
       {
-        buf.insert(
-          buf.end(),
-          std::make_move_iterator(entry.begin()),
-          std::make_move_iterator(entry.end()));
+        serialise_entry(entry);
       }
     }
 
@@ -111,10 +111,12 @@ namespace kv
     template <typename T>
     T read_next()
     {
-      auto data_ = data_ptr + data_offset;
-      auto size_ = data_size - data_offset;
-      T t = serialized::read<T>(data_, size_);
-      data_offset += data_ - (data_ptr + data_offset);
+      auto remainder = data_size - data_offset;
+      auto data = data_ptr + data_offset;
+      T t = serialized::read<T>(data, remainder);
+
+      const auto bytes_read = data_size - data_offset - remainder;
+      data_offset += bytes_read;
       return t;
     }
 
