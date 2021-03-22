@@ -4,9 +4,11 @@
 #include "crypto/key_pair.h"
 #include "ds/nonstd.h"
 #include "frontend.h"
+#include "js/wrap.h"
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
+#include "node/gov.h"
 #include "node/jwt.h"
 #include "node/members.h"
 #include "node/nodes.h"
@@ -1970,6 +1972,8 @@ namespace ccf
 
         g.set_gov_scripts(
           lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
+
+        tx.rw(this->network.constitution)->put(0, in.constitution);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);
