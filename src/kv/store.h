@@ -410,6 +410,7 @@ namespace kv
       if (view_history)
       {
         view_history_ = d.deserialise_view_history();
+        LOG_FAIL_FMT("View history of size {}", view_history_.size());
       }
 
       OrderedChanges changes;

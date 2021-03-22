@@ -252,8 +252,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
       # ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
-      # ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
-      # ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
     )
     target_link_libraries(
       kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host

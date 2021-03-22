@@ -66,6 +66,12 @@ namespace kv
     }
 
     template <typename T>
+    void serialise_internal_vector(const T& t)
+    {
+      current_writer->append_vector(t);
+    }
+
+    template <typename T>
     void serialise_internal_pre_serialised(const T& raw)
     {
       current_writer->template append_pre_serialised<T>(raw);
@@ -127,7 +133,7 @@ namespace kv
 
     void serialise_view_history(const std::vector<Version>& view_history)
     {
-      serialise_internal(view_history);
+      serialise_internal_vector(view_history);
     }
 
     template <class Version>
@@ -427,7 +433,7 @@ namespace kv
 
     std::vector<Version> deserialise_view_history()
     {
-      return current_reader->template read_next<std::vector<Version>>();
+      return current_reader->template read_next_vector<Version>();
     }
 
     uint64_t deserialise_remove_header()
