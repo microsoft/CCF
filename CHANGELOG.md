@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Retired members are now deleted from the store, instead of being marked as `Retired`.
 - `retire_member` proposal has been renamed to `remove_member` and is now idempotent (i.e. succeeds even if the member was already removed).
 
+## [0.19.3]
+
+### Changed
+
+- The status filter passed to `/node/network/nodes` now takes the correct CamelCased values (#2238).
+
 ## [0.19.2]
 
 ### Added
@@ -763,6 +769,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.19.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.3
 [0.19.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.2
 [0.19.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.1
 [0.19.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.0
