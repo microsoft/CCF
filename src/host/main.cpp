@@ -433,9 +433,10 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
-  CurveID curve_id = CurveID::SECP384R1;
-  std::vector<std::pair<std::string, CurveID>> curve_id_map = {
-    {"secp384r1", CurveID::SECP384R1}, {"secp256r1", CurveID::SECP256R1}};
+  crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
+  std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
+    {"secp384r1", crypto::CurveID::SECP384R1},
+    {"secp256r1", crypto::CurveID::SECP256R1}};
   app
     .add_option(
       "--curve-id",

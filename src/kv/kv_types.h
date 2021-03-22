@@ -86,7 +86,8 @@ namespace kv
   public:
     virtual void add_configuration(
       SeqNo seqno, const Configuration::Nodes& conf) = 0;
-    virtual Configuration::Nodes get_latest_configuration() const = 0;
+    virtual Configuration::Nodes get_latest_configuration() = 0;
+    virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
   };
 
   class ConsensusHook
@@ -544,6 +545,7 @@ namespace kv
     virtual ccf::PrimarySignature& get_signature() = 0;
     virtual aft::Request& get_request() = 0;
     virtual kv::Version get_max_conflict_version() = 0;
+    virtual bool support_async_execution() = 0;
   };
 
   class AbstractStore

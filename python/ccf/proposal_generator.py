@@ -347,7 +347,7 @@ def set_module(module_name: str, module_path: str, **kwargs):
     if module_name_.suffix == ".js":
         with open(module_path) as f:
             js = f.read()
-        proposal_args = {"name": module_name, "module": {"js": js}}
+        proposal_args = {"name": module_name, "module": js}
     else:
         raise ValueError("module name must end with .js")
     return build_proposal("set_module", proposal_args, **kwargs)
@@ -367,7 +367,7 @@ def read_modules(modules_path: str) -> List[dict]:
         rel_module_name = rel_module_name.replace("\\", "/")  # Windows support
         with open(path) as f:
             js = f.read()
-            modules.append({"name": rel_module_name, "module": {"js": js}})
+            modules.append({"name": rel_module_name, "module": js})
     return modules
 
 

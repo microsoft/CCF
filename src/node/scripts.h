@@ -6,7 +6,7 @@
 
 namespace ccf
 {
-  using Scripts = kv::Map<std::string, Script>;
+  using Scripts = ServiceMap<std::string, Script>;
 
   struct GovScriptIds
   {

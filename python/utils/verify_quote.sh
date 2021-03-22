@@ -49,7 +49,7 @@ done
 if [ ${#trusted_mrenclaves[@]} -eq 0 ]; then
     for code_id in $(curl -sS --fail -X GET "${node_address}"/node/code "${@}" | jq .versions | jq -c ".[]"); do
         code_status=$(echo "${code_id}" | jq -r .status)
-        if [ "${code_status}" = "ALLOWED_TO_JOIN" ]; then
+        if [ "${code_status}" = "AllowedToJoin" ]; then
             trusted_mrenclaves+=($(echo "${code_id}" | jq -r .digest))
         fi
     done
@@ -65,8 +65,8 @@ trap cleanup EXIT
 
 curl_output=$(curl -sS --fail -X GET "${node_address}"/node/quotes/self "${@}")
 
-echo "${curl_output}" | jq -r .raw | xxd -r -p > "${tmp_dir}/${quote_file_name}"
-echo "${curl_output}" | jq -r .endorsements | xxd -r -p > "${tmp_dir}/${endorsements_file_name}"
+echo "${curl_output}" | jq -r .raw | base64 --decode > "${tmp_dir}/${quote_file_name}"
+echo "${curl_output}" | jq -r .endorsements | base64 --decode > "${tmp_dir}/${endorsements_file_name}"
 
 if [ ! -s "${tmp_dir}/${quote_file_name}" ]; then
     echo "Error: Node quote is empty. Virtual mode does not support SGX quotes."

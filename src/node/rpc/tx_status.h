@@ -36,19 +36,19 @@ namespace ccf
     {
       case TxStatus::Unknown:
       {
-        return "UNKNOWN";
+        return "Unknown";
       }
       case TxStatus::Pending:
       {
-        return "PENDING";
+        return "Pending";
       }
       case TxStatus::Committed:
       {
-        return "COMMITTED";
+        return "Committed";
       }
       case TxStatus::Invalid:
       {
-        return "INVALID";
+        return "Invalid";
       }
       default:
       {
@@ -66,7 +66,7 @@ namespace ccf
 
   constexpr int64_t VIEW_UNKNOWN = std::numeric_limits<int64_t>::min();
 
-  static TxStatus evaluate_tx_status(
+  [[maybe_unused]] static TxStatus evaluate_tx_status(
     int64_t target_view,
     int64_t target_seqno,
     int64_t local_view,

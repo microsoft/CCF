@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "json_schema.h"
+#include "tls/base64.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -61,19 +62,48 @@ namespace std
   template <typename T>
   inline void to_json(nlohmann::json& j, const std::vector<T>& t)
   {
-    j = nlohmann::json::array();
-    for (const auto& e : t)
+    if constexpr (std::is_same_v<T, uint8_t>)
     {
-      j.push_back(e);
+      j = tls::b64_from_raw(t);
+    }
+    else
+    {
+      j = nlohmann::json::array();
+      for (const auto& e : t)
+      {
+        j.push_back(e);
+      }
     }
   }
 
   template <typename T>
   inline void from_json(const nlohmann::json& j, std::vector<T>& t)
   {
+    if constexpr (std::is_same_v<T, uint8_t>)
+    {
+      if (j.is_string())
+      {
+        try
+        {
+          t = tls::raw_from_b64(j.get<std::string>());
+          return;
+        }
+        catch (const std::exception& e)
+        {
+          throw JsonParseError(fmt::format(
+            "Vector of bytes object \"{}\" is not valid base64", j.dump()));
+        }
+      }
+    }
+
+    // Fall-through. So we can convert _from_ [1,2,3] to
+    // std::vector<uint8_t>, but would prefer (and will produce in to_json) a
+    // base64 string
+
     if (!j.is_array())
     {
-      throw JsonParseError("Expected array, found: " + j.dump());
+      throw JsonParseError(
+        fmt::format("Vector object \"{}\" is not an array", j.dump()));
     }
 
     for (auto i = 0u; i < j.size(); ++i)
@@ -723,8 +753,46 @@ namespace std
     (POP2)(ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
   }
 
+// Enum conversion, based on NLOHMANN_JSON_SERIALIZE_ENUM, but less permissive
+// (throws on unknown JSON values)
 #define DECLARE_JSON_ENUM(TYPE, ...) \
-  NLOHMANN_JSON_SERIALIZE_ENUM(TYPE, __VA_ARGS__) \
+  template <typename BasicJsonType> \
+  inline void to_json(BasicJsonType& j, const TYPE& e) \
+  { \
+    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
+    static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
+    auto it = std::find_if( \
+      std::begin(m), \
+      std::end(m), \
+      [e](const std::pair<TYPE, BasicJsonType>& ej_pair) -> bool { \
+        return ej_pair.first == e; \
+      }); \
+    if (it == std::end(m)) \
+    { \
+      throw JsonParseError(fmt::format( \
+        "Value {} in enum " #TYPE " has no specified JSON conversion", \
+        (size_t)e)); \
+    } \
+    j = it->second; \
+  } \
+  template <typename BasicJsonType> \
+  inline void from_json(const BasicJsonType& j, TYPE& e) \
+  { \
+    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
+    static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
+    auto it = std::find_if( \
+      std::begin(m), \
+      std::end(m), \
+      [&j](const std::pair<TYPE, BasicJsonType>& ej_pair) -> bool { \
+        return ej_pair.second == j; \
+      }); \
+    if (it == std::end(m)) \
+    { \
+      throw JsonParseError( \
+        fmt::format("{} is not convertible to " #TYPE, j.dump())); \
+    } \
+    e = it->first; \
+  } \
   inline std::string schema_name(const TYPE&) \
   { \
     return #TYPE; \

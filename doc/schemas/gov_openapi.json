@@ -3,7 +3,7 @@
     "schemas": {
       "CodeStatus": {
         "enum": [
-          "ALLOWED_TO_JOIN"
+          "AllowedToJoin"
         ],
         "type": "string"
       },
@@ -56,6 +56,7 @@
         "type": "object"
       },
       "EntityId": {
+        "format": "hex",
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
       },
@@ -261,11 +262,11 @@
       },
       "ProposalState": {
         "enum": [
-          "OPEN",
-          "ACCEPTED",
-          "WITHDRAWN",
-          "REJECTED",
-          "FAILED"
+          "Open",
+          "Accepted",
+          "Withdrawn",
+          "Rejected",
+          "Failed"
         ],
         "type": "string"
       },
@@ -286,7 +287,7 @@
       "Script": {
         "properties": {
           "bytecode": {
-            "$ref": "#/components/schemas/uint8_array"
+            "$ref": "#/components/schemas/base64string"
           },
           "text": {
             "$ref": "#/components/schemas/string"
@@ -327,12 +328,16 @@
         ],
         "type": "object"
       },
+      "TransactionId": {
+        "pattern": "^[0-9]+\\.[0-9]+$",
+        "type": "string"
+      },
       "TxStatus": {
         "enum": [
-          "UNKNOWN",
-          "PENDING",
-          "COMMITTED",
-          "INVALID"
+          "Unknown",
+          "Pending",
+          "Committed",
+          "Invalid"
         ],
         "type": "string"
       },
@@ -347,6 +352,10 @@
         ],
         "type": "object"
       },
+      "base64string": {
+        "format": "base64",
+        "type": "string"
+      },
       "int64": {
         "maximum": 9223372036854775807,
         "minimum": -9223372036854775808,
@@ -360,17 +369,6 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
-      },
-      "uint8": {
-        "maximum": 255,
-        "minimum": 0,
-        "type": "integer"
-      },
-      "uint8_array": {
-        "items": {
-          "$ref": "#/components/schemas/uint8"
-        },
-        "type": "array"
       }
     },
     "securitySchemes": {
@@ -502,22 +500,18 @@
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "view",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           },
           {
             "in": "query",
-            "name": "view",
-            "required": false,
+            "name": "seqno",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           }
         ],
@@ -776,9 +770,9 @@
           {
             "in": "query",
             "name": "transaction_id",
-            "required": false,
+            "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -851,22 +845,18 @@
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "view",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           },
           {
             "in": "query",
-            "name": "view",
-            "required": false,
+            "name": "seqno",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           }
         ],

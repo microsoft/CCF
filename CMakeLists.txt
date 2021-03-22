@@ -269,6 +269,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -368,8 +369,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                            http_parser.host sss.host quickjs.host
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host
+                            sss.host quickjs.host
     )
 
     add_unit_test(
@@ -382,9 +383,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
     )
     target_link_libraries(
-      member_voting_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-              http_parser.host sss.host quickjs.host
+      member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                                 http_parser.host sss.host quickjs.host
     )
 
     set_tests_properties(
@@ -398,9 +398,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
     )
     target_link_libraries(
-      proposal_id_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-              http_parser.host sss.host quickjs.host
+      proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+                               http_parser.host sss.host quickjs.host
     )
 
     add_unit_test(
@@ -604,13 +603,6 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-  )
-
-  add_e2e_test(
-    NAME governance_js_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
     CONSENSUS cft
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
   )

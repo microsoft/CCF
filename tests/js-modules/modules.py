@@ -63,7 +63,7 @@ def test_module_set_and_remove(network, args):
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
         r = c.post("/gov/read", {"table": "public:gov.modules", "key": module_path})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json()["js"] == module_content, r.body
+        assert r.body.json() == module_content, r.body
 
     LOG.info("Member makes a module remove proposal")
     proposal_body, careful_vote = ccf.proposal_generator.remove_module(module_path)
@@ -253,6 +253,12 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert len(r.body.data()) == key_size // 8
         assert r.body.data() != b"\x00" * (key_size // 8)
+
+        r = c.post("/app/generateRsaKeyPair", {"size": 2048})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
 
         aes_key_to_wrap = infra.crypto.generate_aes_key(256)
         wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(

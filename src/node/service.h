@@ -4,7 +4,7 @@
 
 #include "ds/json.h"
 #include "entities.h"
-#include "kv/map.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 
@@ -20,11 +20,10 @@ namespace ccf
 
   DECLARE_JSON_ENUM(
     ServiceStatus,
-    {{ServiceStatus::OPENING, "OPENING"},
-     {ServiceStatus::OPEN, "OPEN"},
-     {ServiceStatus::WAITING_FOR_RECOVERY_SHARES,
-      "WAITING_FOR_RECOVERY_SHARES"},
-     {ServiceStatus::CLOSED, "CLOSED"}});
+    {{ServiceStatus::OPENING, "Opening"},
+     {ServiceStatus::OPEN, "Open"},
+     {ServiceStatus::WAITING_FOR_RECOVERY_SHARES, "WaitingForRecoveryShares"},
+     {ServiceStatus::CLOSED, "Closed"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::ServiceStatus);
@@ -43,5 +42,5 @@ namespace ccf
 
   // As there is only one service active at a given time, the key for the
   // Service table is always 0.
-  using Service = kv::Map<size_t, ServiceInfo>;
+  using Service = ServiceMap<size_t, ServiceInfo>;
 }

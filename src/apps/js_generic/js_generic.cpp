@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
+#include "crypto/rsa_key_pair.h"
 #include "enclave/app_interface.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
@@ -21,575 +22,8 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using KVMap = kv::untyped::Map;
-
-  JSClassID kv_class_id;
-  JSClassID kv_map_handle_class_id;
-  JSClassID body_class_id;
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
-
-  static JSValue js_generate_aes_key(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    int32_t key_size;
-    if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-    // Supported key sizes for AES.
-    if (key_size != 128 && key_size != 192 && key_size != 256)
-    {
-      JS_ThrowRangeError(ctx, "invalid key size");
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
-
-    return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
-  }
-
-  static JSValue js_wrap_key(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 3)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 3", argc);
-
-    // API loosely modeled after
-    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey.
-
-    size_t key_size;
-    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-    if (!key)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    size_t wrapping_key_size;
-    uint8_t* wrapping_key = JS_GetArrayBuffer(ctx, &wrapping_key_size, argv[1]);
-    if (!wrapping_key)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::JSAutoFreeCtx& auto_free = *(js::JSAutoFreeCtx*)auto_free_ptr;
-
-    auto parameters = argv[2];
-    JSValue wrap_algo_name_val =
-      auto_free(JS_GetPropertyStr(ctx, parameters, "name"));
-
-    auto wrap_algo_name_cstr = auto_free(JS_ToCString(ctx, wrap_algo_name_val));
-
-    if (!wrap_algo_name_cstr)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    try
-    {
-      auto algo_name = std::string(wrap_algo_name_cstr);
-      if (algo_name == "RSA-OAEP")
-      {
-        // key can in principle be arbitrary data (see note on maximum size
-        // in rsa_key_pair.h). wrapping_key is a public RSA key.
-
-        auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
-        size_t label_buf_size = 0;
-        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
-
-        auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
-          Pem(wrapping_key, wrapping_key_size),
-          {key, key + key_size},
-          {label_buf, label_buf + label_buf_size});
-
-        return JS_NewArrayBufferCopy(
-          ctx, wrapped_key.data(), wrapped_key.size());
-      }
-      else if (algo_name == "AES-KWP")
-      {
-        std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
-          {wrapping_key, wrapping_key + wrapping_key_size},
-          {key, key + key_size});
-
-        return JS_NewArrayBufferCopy(
-          ctx, wrapped_key.data(), wrapped_key.size());
-      }
-      else if (algo_name == "RSA-OAEP-AES-KWP")
-      {
-        auto aes_key_size_value =
-          auto_free(JS_GetPropertyStr(ctx, parameters, "aesKeySize"));
-        int32_t aes_key_size = 0;
-        if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value) < 0)
-        {
-          js::js_dump_error(ctx);
-          return JS_EXCEPTION;
-        }
-
-        auto label_val = auto_free(JS_GetPropertyStr(ctx, parameters, "label"));
-        size_t label_buf_size = 0;
-        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
-
-        auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
-          aes_key_size,
-          Pem(wrapping_key, wrapping_key_size),
-          {key, key + key_size},
-          {label_buf, label_buf + label_buf_size});
-
-        return JS_NewArrayBufferCopy(
-          ctx, wrapped_key.data(), wrapped_key.size());
-      }
-      else
-      {
-        JS_ThrowRangeError(
-          ctx,
-          "unsupported key wrapping algorithm, supported: RSA-OAEP, AES-KWP, "
-          "RSA-OAEP-AES-KWP");
-        js::js_dump_error(ctx);
-        return JS_EXCEPTION;
-      }
-    }
-    catch (std::exception& ex)
-    {
-      JS_ThrowRangeError(ctx, "%s", ex.what());
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-    catch (...)
-    {
-      JS_ThrowRangeError(ctx, "caught unknown exception");
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-  }
-
-  static void js_free_arraybuffer_cstring(JSRuntime*, void* opaque, void* ptr)
-  {
-    JS_FreeCString((JSContext*)opaque, (char*)ptr);
-  }
-
-  static JSValue js_str_to_buf(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    if (!JS_IsString(argv[0]))
-      return JS_ThrowTypeError(ctx, "Argument must be a string");
-
-    size_t str_size = 0;
-    const char* str = JS_ToCStringLen(ctx, &str_size, argv[0]);
-
-    if (!str)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    JSValue buf = JS_NewArrayBuffer(
-      ctx, (uint8_t*)str, str_size, js_free_arraybuffer_cstring, ctx, false);
-
-    if (JS_IsException(buf))
-      js::js_dump_error(ctx);
-
-    return buf;
-  }
-
-  static JSValue js_buf_to_str(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    size_t buf_size;
-    uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_size, argv[0]);
-
-    if (!buf)
-      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
-
-    JSValue str = JS_NewStringLen(ctx, (char*)buf, buf_size);
-
-    if (JS_IsException(str))
-      js::js_dump_error(ctx);
-
-    return str;
-  }
-
-  static JSValue js_json_compatible_to_buf(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    JSValue str = JS_JSONStringify(ctx, argv[0], JS_NULL, JS_NULL);
-
-    if (JS_IsException(str))
-    {
-      js::js_dump_error(ctx);
-      return str;
-    }
-
-    JSValue buf = js_str_to_buf(ctx, JS_NULL, 1, &str);
-    JS_FreeValue(ctx, str);
-    return buf;
-  }
-
-  static JSValue js_buf_to_json_compatible(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    size_t buf_size;
-    uint8_t* buf = JS_GetArrayBuffer(ctx, &buf_size, argv[0]);
-
-    if (!buf)
-      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
-
-    std::vector<uint8_t> buf_null_terminated(buf_size + 1);
-    buf_null_terminated[buf_size] = 0;
-    buf_null_terminated.assign(buf, buf + buf_size);
-
-    JSValue obj =
-      JS_ParseJSON(ctx, (char*)buf_null_terminated.data(), buf_size, "<json>");
-
-    if (JS_IsException(obj))
-      js::js_dump_error(ctx);
-
-    return obj;
-  }
-
-  // KV
-
-  static JSValue js_kv_map_has(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    size_t key_size;
-    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-
-    if (!key)
-      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
-
-    auto has = handle->has({key, key + key_size});
-
-    return JS_NewBool(ctx, has);
-  }
-
-  static JSValue js_kv_map_get(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    size_t key_size;
-    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-
-    if (!key)
-      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
-
-    auto val = handle->get({key, key + key_size});
-
-    if (!val.has_value())
-      return JS_UNDEFINED;
-
-    JSValue buf =
-      JS_NewArrayBufferCopy(ctx, val.value().data(), val.value().size());
-
-    if (JS_IsException(buf))
-      js::js_dump_error(ctx);
-
-    return buf;
-  }
-
-  static JSValue js_kv_map_delete(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    size_t key_size;
-    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-
-    if (!key)
-      return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
-
-    auto val = handle->remove({key, key + key_size});
-
-    return JS_NewBool(ctx, val);
-  }
-
-  static JSValue js_kv_map_delete_read_only(
-    JSContext* ctx, JSValueConst, int, JSValueConst*)
-  {
-    return JS_ThrowTypeError(ctx, "Cannot call delete on read-only map");
-  }
-
-  static JSValue js_kv_map_set(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-
-    if (argc != 2)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 2", argc);
-
-    size_t key_size;
-    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
-
-    size_t val_size;
-    uint8_t* val = JS_GetArrayBuffer(ctx, &val_size, argv[1]);
-
-    if (!key || !val)
-      return JS_ThrowTypeError(ctx, "Arguments must be ArrayBuffers");
-
-    handle->put({key, key + key_size}, {val, val + val_size});
-
-    return JS_DupValue(ctx, this_val);
-  }
-
-  static JSValue js_kv_map_set_read_only(
-    JSContext* ctx, JSValueConst, int, JSValueConst*)
-  {
-    return JS_ThrowTypeError(ctx, "Cannot call set on read-only map");
-  }
-
-  static JSValue js_kv_map_foreach(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
-  {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
-
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    JSValue func = argv[0];
-
-    if (!JS_IsFunction(ctx, func))
-      return JS_ThrowTypeError(ctx, "Argument must be a function");
-
-    bool failed = false;
-    handle->foreach(
-      [ctx, this_val, func, &failed](const auto& k, const auto& v) {
-        JSValue args[3];
-
-        // JS forEach expects (v, k, map) rather than (k, v)
-        args[0] = JS_NewArrayBufferCopy(ctx, v.data(), v.size());
-        args[1] = JS_NewArrayBufferCopy(ctx, k.data(), k.size());
-        args[2] = JS_DupValue(ctx, this_val);
-
-        auto val = JS_Call(ctx, func, JS_UNDEFINED, 3, args);
-
-        JS_FreeValue(ctx, args[0]);
-        JS_FreeValue(ctx, args[1]);
-        JS_FreeValue(ctx, args[2]);
-
-        if (JS_IsException(val))
-        {
-          js::js_dump_error(ctx);
-          failed = true;
-          return false;
-        }
-
-        JS_FreeValue(ctx, val);
-
-        return true;
-      });
-
-    if (failed)
-    {
-      return JS_EXCEPTION;
-    }
-
-    return JS_UNDEFINED;
-  }
-
-  static int js_kv_lookup(
-    JSContext* ctx,
-    JSPropertyDescriptor* desc,
-    JSValueConst this_val,
-    JSAtom property)
-  {
-    const auto property_name = JS_AtomToCString(ctx, property);
-    LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
-
-    const auto [security_domain, access_category] =
-      kv::parse_map_name(property_name);
-
-    auto read_only = false;
-    switch (access_category)
-    {
-      case kv::AccessCategory::INTERNAL:
-      {
-        if (security_domain == kv::SecurityDomain::PUBLIC)
-        {
-          read_only = true;
-        }
-        else
-        {
-          throw std::runtime_error(fmt::format(
-            "JS application cannot access private internal CCF table '{}'",
-            property_name));
-        }
-        break;
-      }
-      case kv::AccessCategory::GOVERNANCE:
-      {
-        read_only = true;
-        break;
-      }
-      case kv::AccessCategory::APPLICATION:
-      {
-        break;
-      }
-      default:
-      {
-        throw std::logic_error(fmt::format(
-          "Unhandled AccessCategory for table '{}'", property_name));
-      }
-    }
-
-    auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, kv_class_id));
-    auto handle = tx_ptr->rw<KVMap>(property_name);
-
-    // This follows the interface of Map:
-    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
-    // Keys and values are ArrayBuffers. Keys are matched based on their
-    // contents.
-    auto view_val = JS_NewObjectClass(ctx, kv_map_handle_class_id);
-    JS_SetOpaque(view_val, handle);
-
-    JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "has",
-      JS_NewCFunction(ctx, ccfapp::js_kv_map_has, "has", 1));
-
-    JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "get",
-      JS_NewCFunction(ctx, ccfapp::js_kv_map_get, "get", 1));
-
-    auto setter = ccfapp::js_kv_map_set;
-    auto deleter = ccfapp::js_kv_map_delete;
-
-    if (read_only)
-    {
-      setter = ccfapp::js_kv_map_set_read_only;
-      deleter = ccfapp::js_kv_map_delete_read_only;
-    }
-
-    JS_SetPropertyStr(
-      ctx, view_val, "set", JS_NewCFunction(ctx, setter, "set", 2));
-    JS_SetPropertyStr(
-      ctx, view_val, "delete", JS_NewCFunction(ctx, deleter, "delete", 1));
-
-    JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "forEach",
-      JS_NewCFunction(ctx, ccfapp::js_kv_map_foreach, "forEach", 1));
-
-    desc->flags = 0;
-    desc->value = view_val;
-
-    return true;
-  }
-
-  // END KV
-
-  // Request
-
-  static JSValue js_body_text(
-    JSContext* ctx,
-    JSValueConst this_val,
-    int argc,
-    [[maybe_unused]] JSValueConst* argv)
-  {
-    if (argc != 0)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected none", argc);
-
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
-    auto body_ = JS_NewStringLen(ctx, (const char*)body->data(), body->size());
-    return body_;
-  }
-
-  static JSValue js_body_json(
-    JSContext* ctx,
-    JSValueConst this_val,
-    int argc,
-    [[maybe_unused]] JSValueConst* argv)
-  {
-    if (argc != 0)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected none", argc);
-
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
-    std::string body_str(body->begin(), body->end());
-    auto body_ = JS_ParseJSON(ctx, body_str.c_str(), body->size(), "<body>");
-    return body_;
-  }
-
-  static JSValue js_body_array_buffer(
-    JSContext* ctx,
-    JSValueConst this_val,
-    int argc,
-    [[maybe_unused]] JSValueConst* argv)
-  {
-    if (argc != 0)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected none", argc);
-
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
-    auto body_ = JS_NewArrayBufferCopy(ctx, body->data(), body->size());
-    return body_;
-  }
-
-  // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
-  // with a synchronous interface.
-  static const JSCFunctionListEntry js_body_proto_funcs[] = {
-    JS_CFUNC_DEF("text", 0, js_body_text),
-    JS_CFUNC_DEF("json", 0, js_body_json),
-    JS_CFUNC_DEF("arrayBuffer", 0, js_body_array_buffer),
-  };
-
-  // END request
 
   // Modules
 
@@ -620,7 +54,7 @@ namespace ccfapp
       JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
       return nullptr;
     }
-    std::string js = module->js;
+    auto& js = module.value();
 
     const char* buf = js.c_str();
     size_t buf_len = js.size();
@@ -648,79 +82,8 @@ namespace ccfapp
   {
   private:
     NetworkTables& network;
-
-    JSClassDef kv_class_def = {};
-    JSClassExoticMethods kv_exotic_methods = {};
-
-    JSClassDef kv_map_handle_class_def = {};
-
-    JSClassDef body_class_def = {};
-
+    ccfapp::AbstractNodeContext& context;
     metrics::Tracker metrics_tracker;
-
-    static JSValue create_ccf_obj(EndpointContext& args, JSContext* ctx)
-    {
-      auto ccf = JS_NewObject(ctx);
-
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "strToBuf",
-        JS_NewCFunction(ctx, ccfapp::js_str_to_buf, "strToBuf", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "bufToStr",
-        JS_NewCFunction(ctx, ccfapp::js_buf_to_str, "bufToStr", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "jsonCompatibleToBuf",
-        JS_NewCFunction(
-          ctx, ccfapp::js_json_compatible_to_buf, "jsonCompatibleToBuf", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "bufToJsonCompatible",
-        JS_NewCFunction(
-          ctx, ccfapp::js_buf_to_json_compatible, "bufToJsonCompatible", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "generateAesKey",
-        JS_NewCFunction(ctx, ccfapp::js_generate_aes_key, "generateAesKey", 1));
-      JS_SetPropertyStr(
-        ctx,
-        ccf,
-        "wrapKey",
-        JS_NewCFunction(ctx, ccfapp::js_wrap_key, "wrapKey", 3));
-
-      auto kv = JS_NewObjectClass(ctx, kv_class_id);
-      JS_SetOpaque(kv, &args.tx);
-      JS_SetPropertyStr(ctx, ccf, "kv", kv);
-
-      return ccf;
-    }
-
-    static JSValue create_console_obj(JSContext* ctx)
-    {
-      auto console = JS_NewObject(ctx);
-
-      JS_SetPropertyStr(
-        ctx, console, "log", JS_NewCFunction(ctx, js::js_print, "log", 1));
-
-      return console;
-    }
-
-    static void populate_global_obj(EndpointContext& args, JSContext* ctx)
-    {
-      auto global_obj = JS_GetGlobalObject(ctx);
-
-      JS_SetPropertyStr(ctx, global_obj, "console", create_console_obj(ctx));
-      JS_SetPropertyStr(ctx, global_obj, "ccf", create_ccf_obj(args, ctx));
-
-      JS_FreeValue(ctx, global_obj);
-    }
 
     static JSValue create_json_obj(const nlohmann::json& j, JSContext* ctx)
     {
@@ -728,7 +91,7 @@ namespace ccfapp
       return JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>");
     }
 
-    static JSValue create_caller_obj(EndpointContext& args, JSContext* ctx)
+    JSValue create_caller_obj(EndpointContext& args, JSContext* ctx)
     {
       if (args.caller == nullptr)
       {
@@ -772,9 +135,8 @@ namespace ccfapp
       }
 
       char const* policy_name = nullptr;
-      CallerId id;
-      nlohmann::json data;
-      std::string cert_s;
+      EntityId id;
+      bool is_member = false;
 
       if (
         auto user_cert_ident =
@@ -782,8 +144,7 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(user_cert_ident);
         id = user_cert_ident->user_id;
-        data = user_cert_ident->user_data;
-        cert_s = user_cert_ident->user_cert.str();
+        is_member = false;
       }
       else if (
         auto member_cert_ident =
@@ -791,8 +152,7 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(member_cert_ident);
         id = member_cert_ident->member_id;
-        data = member_cert_ident->member_data;
-        cert_s = member_cert_ident->member_cert.str();
+        is_member = true;
       }
       else if (
         auto user_sig_ident =
@@ -800,8 +160,7 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(user_sig_ident);
         id = user_sig_ident->user_id;
-        data = user_sig_ident->user_data;
-        cert_s = user_sig_ident->user_cert.str();
+        is_member = false;
       }
       else if (
         auto member_sig_ident =
@@ -809,13 +168,47 @@ namespace ccfapp
       {
         policy_name = get_policy_name_from_ident(member_sig_ident);
         id = member_sig_ident->member_id;
-        data = member_sig_ident->member_data;
-        cert_s = member_sig_ident->member_cert.str();
+        is_member = true;
       }
 
       if (policy_name == nullptr)
       {
         throw std::logic_error("Unable to convert caller info to JS object");
+      }
+
+      // Retrieve user/member data from authenticated caller id
+      nlohmann::json data = nullptr;
+      ccf::ApiResult result = ccf::ApiResult::OK;
+
+      if (is_member)
+      {
+        result = get_member_data_v1(args.tx, id, data);
+      }
+      else
+      {
+        result = get_user_data_v1(args.tx, id, data);
+      }
+
+      if (result == ccf::ApiResult::InternalError)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to get data for caller {}", id));
+      }
+
+      crypto::Pem cert;
+      if (is_member)
+      {
+        result = get_user_cert_v1(args.tx, id, cert);
+      }
+      else
+      {
+        result = get_member_cert_v1(args.tx, id, cert);
+      }
+
+      if (result == ccf::ApiResult::InternalError)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to get certificate for caller {}", id));
       }
 
       JS_SetPropertyStr(ctx, caller, "policy", JS_NewString(ctx, policy_name));
@@ -826,12 +219,12 @@ namespace ccfapp
         ctx,
         caller,
         "cert",
-        JS_NewStringLen(ctx, cert_s.data(), cert_s.size()));
+        JS_NewStringLen(ctx, cert.str().data(), cert.size()));
 
       return caller;
     }
 
-    static JSValue create_request_obj(EndpointContext& args, JSContext* ctx)
+    JSValue create_request_obj(EndpointContext& args, JSContext* ctx)
     {
       auto request = JS_NewObject(ctx);
 
@@ -865,7 +258,7 @@ namespace ccfapp
       JS_SetPropertyStr(ctx, request, "params", params);
 
       const auto& request_body = args.rpc_ctx->get_request_body();
-      auto body_ = JS_NewObjectClass(ctx, body_class_id);
+      auto body_ = JS_NewObjectClass(ctx, js::body_class_id);
       JS_SetOpaque(body_, (void*)&request_body);
       JS_SetPropertyStr(ctx, request, "body", body_);
 
@@ -878,6 +271,48 @@ namespace ccfapp
       const std::string& method,
       const ccf::RESTVerb& verb,
       EndpointContext& args)
+    {
+      // Is this a historical endpoint?
+      auto endpoints =
+        args.tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
+      auto info = endpoints->get(ccf::endpoints::EndpointKey{method, verb});
+
+      if (
+        info.has_value() &&
+        info.value().mode == ccf::endpoints::Mode::Historical)
+      {
+        auto is_tx_committed = [this](
+                                 kv::Consensus::View view,
+                                 kv::Consensus::SeqNo seqno,
+                                 std::string& error_reason) {
+          return ccf::historical::is_tx_committed(
+            consensus, view, seqno, error_reason);
+        };
+
+        ccf::historical::adapter(
+          [this, &method, &verb](
+            ccf::EndpointContext& args, ccf::historical::StatePtr state) {
+            auto tx = state->store->create_tx();
+            auto tx_id = state->transaction_id;
+            auto receipt = state->receipt;
+            do_execute_request(method, verb, args, tx, tx_id, receipt);
+          },
+          context.get_historical_state(),
+          is_tx_committed)(args);
+      }
+      else
+      {
+        do_execute_request(method, verb, args, args.tx, std::nullopt, nullptr);
+      }
+    }
+
+    void do_execute_request(
+      const std::string& method,
+      const ccf::RESTVerb& verb,
+      EndpointContext& args,
+      kv::Tx& target_tx,
+      const std::optional<kv::TxID>& transaction_id,
+      ccf::historical::TxReceiptPtr receipt)
     {
       const auto local_method = method.substr(method.find_first_not_of('/'));
 
@@ -903,57 +338,18 @@ namespace ccfapp
         }
       }
 
-      js::JSAutoFreeRuntime rt;
-      JS_SetMaxStackSize(rt, 1024 * 1024);
-      JS_SetMemoryLimit(rt, 100 * 1024 * 1024);
+      js::Runtime rt;
+      rt.add_ccf_classdefs();
 
       JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
       JS_SetModuleLoaderFunc(
         rt, nullptr, js_module_loader, &js_module_loader_arg);
 
-      // Register class for KV
-      {
-        auto ret = JS_NewClass(rt, kv_class_id, &kv_class_def);
-        if (ret != 0)
-        {
-          throw std::logic_error(
-            "Failed to register JS class definition for KV");
-        }
-      }
+      js::Context ctx(rt);
 
-      // Register class for KV map views
-      {
-        auto ret =
-          JS_NewClass(rt, kv_map_handle_class_id, &kv_map_handle_class_def);
-        if (ret != 0)
-        {
-          throw std::logic_error(
-            "Failed to register JS class definition for KVMap");
-        }
-      }
-
-      // Register class for request body
-      {
-        auto ret = JS_NewClass(rt, body_class_id, &body_class_def);
-        if (ret != 0)
-        {
-          throw std::logic_error(
-            "Failed to register JS class definition for Body");
-        }
-      }
-
-      js::JSAutoFreeCtx ctx(rt);
-
-      // Set prototype for request body class
-      JSValue body_proto = JS_NewObject(ctx);
-      size_t func_count =
-        sizeof(js_body_proto_funcs) / sizeof(js_body_proto_funcs[0]);
-      JS_SetPropertyFunctionList(
-        ctx, body_proto, js_body_proto_funcs, func_count);
-      JS_SetClassProto(ctx, body_class_id, body_proto);
-
-      // Populate globalThis with console and ccf globals
-      populate_global_obj(args, ctx);
+      js::register_request_body_class(ctx);
+      js::populate_global_console(ctx);
+      js::populate_global_ccf(&target_tx, transaction_id, receipt, ctx);
 
       // Compile module
       if (!handler_script.value().text.has_value())
@@ -962,52 +358,8 @@ namespace ccfapp
       }
       std::string code = handler_script.value().text.value();
       const std::string path = "/__endpoint__.js";
-      JSValue module = JS_Eval(
-        ctx,
-        code.c_str(),
-        code.size(),
-        path.c_str(),
-        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
-      if (JS_IsException(module))
-      {
-        js::js_dump_error(ctx);
-
-        args.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Exception thrown while compiling.");
-        return;
-      }
-
-      // Evaluate module
-      auto eval_val = JS_EvalFunction(ctx, module);
-      if (JS_IsException(eval_val))
-      {
-        js::js_dump_error(ctx);
-        args.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          "Exception thrown while executing.");
-        return;
-      }
-      JS_FreeValue(ctx, eval_val);
-
-      // Get exported function from module
-      assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
-      auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
-      if (JS_GetModuleExportEntriesCount(module_def) != 1)
-      {
-        throw std::runtime_error(
-          "Endpoint module exports more than one function");
-      }
-      auto export_func = JS_GetModuleExportEntry(ctx, module_def, 0);
-      if (!JS_IsFunction(ctx, export_func))
-      {
-        JS_FreeValue(ctx, export_func);
-        throw std::runtime_error(
-          "Endpoint module exports something that is not a function");
-      }
+      auto export_func = ctx.function(code, path);
 
       // Call exported function
       auto request = create_request_obj(args, ctx);
@@ -1177,19 +529,10 @@ namespace ccfapp
   public:
     JSHandlers(NetworkTables& network, AbstractNodeContext& context) :
       UserEndpointRegistry(context),
-      network(network)
+      network(network),
+      context(context)
     {
-      JS_NewClassID(&kv_class_id);
-      kv_exotic_methods.get_own_property = js_kv_lookup;
-      kv_class_def.class_name = "KV Tables";
-      kv_class_def.exotic = &kv_exotic_methods;
-
-      JS_NewClassID(&kv_map_handle_class_id);
-      kv_map_handle_class_def.class_name = "KV Map Handle";
-
-      JS_NewClassID(&body_class_id);
-      body_class_def.class_name = "Body";
-
+      js::register_class_ids();
       metrics_tracker.install_endpoint(*this);
     }
 

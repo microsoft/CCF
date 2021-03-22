@@ -3,7 +3,7 @@
 #pragma once
 #include "ds/json.h"
 #include "entities.h"
-#include "kv/map.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 #include <optional>
@@ -55,7 +55,7 @@ namespace ccf
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;
 
-  using JwtIssuers = kv::Map<JwtIssuer, JwtIssuerMetadata>;
+  using JwtIssuers = ServiceMap<JwtIssuer, JwtIssuerMetadata>;
   using JwtPublicSigningKeys = kv::RawCopySerialisedMap<JwtKeyId, Cert>;
   using JwtPublicSigningKeyIssuer =
     kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;

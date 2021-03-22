@@ -5,7 +5,6 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
-#include "kv/map.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
@@ -103,6 +102,15 @@ public:
       return make_success(std::move(params));
     };
     make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
+
+    auto echo_query_function = [this](EndpointContext& ctx, nlohmann::json&&) {
+      const auto parsed_query =
+        http::parse_query(ctx.rpc_ctx->get_request_query());
+      return make_success(std::move(parsed_query));
+    };
+    make_endpoint(
+      "echo_parsed_query", HTTP_POST, json_adapter(echo_query_function))
+      .install();
 
     auto get_caller_function = [this](EndpointContext& ctx, nlohmann::json&&) {
       const auto& ident = ctx.get_caller<UserCertAuthnIdentity>();
@@ -282,7 +290,7 @@ class RpcContextRecorder
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
   crypto::Pem last_caller_cert;
-  std::optional<CallerId> last_caller_id = std::nullopt;
+  std::optional<EntityId> last_caller_id = std::nullopt;
 
   void record_ctx(EndpointContext& ctx)
   {
@@ -802,13 +810,18 @@ TEST_CASE("MinimalEndpointFunction")
     }
 
     {
-      INFO("Calling echo, with params in query");
-      auto echo_call = create_simple_request("echo", pack_type);
-      const nlohmann::json j_params = {{"foo", "helloworld"},
-                                       {"bar", 1},
-                                       {"fooz", "2"},
-                                       {"baz", "\"awkward\"\"escapes"}};
-      echo_call.set_query_params(j_params);
+      INFO("Calling echo_query, with params in query");
+      auto echo_call = create_simple_request("echo_parsed_query", pack_type);
+      const std::map<std::string, std::string> query_params = {
+        {"foo", "helloworld"},
+        {"bar", "1"},
+        {"fooz", "\"2\""},
+        {"baz", "\"awkward\"\"escapes"}};
+      for (const auto& [k, v] : query_params)
+      {
+        echo_call.set_query_param(k, v);
+      }
+
       const auto serialized_call = echo_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -816,7 +829,8 @@ TEST_CASE("MinimalEndpointFunction")
       CHECK(response.status == HTTP_STATUS_OK);
 
       const auto response_body = parse_response_body(response.body, pack_type);
-      CHECK(response_body == j_params);
+      const auto response_map = response_body.get<decltype(query_params)>();
+      CHECK(response_map == query_params);
     }
 
     {

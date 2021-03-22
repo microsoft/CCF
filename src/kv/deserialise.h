@@ -34,6 +34,17 @@ namespace kv
 
   class CFTExecutionWrapper : public AbstractExecutionWrapper
   {
+  private:
+    ExecutionWrapperStore* store;
+    std::shared_ptr<TxHistory> history;
+    const std::vector<uint8_t> data;
+    bool public_only;
+    kv::Version v;
+    Term term;
+    OrderedChanges changes;
+    MapCollection new_maps;
+    kv::ConsensusHookPtrs hooks;
+
   public:
     CFTExecutionWrapper(
       ExecutionWrapperStore* store_,
@@ -70,9 +81,11 @@ namespace kv
       auto search = changes.find(ccf::Tables::SIGNATURES);
       if (search != changes.end())
       {
-        // Transactions containing a signature must only contain
-        // a signature and must be verified
-        if (changes.size() > 1)
+        // Transactions containing a signature must only contain the signature
+        // and the serialised Merkle tree and must be verified
+        if (
+          changes.size() > 2 ||
+          changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) == changes.end())
         {
           LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
@@ -144,16 +157,10 @@ namespace kv
       return v - 1;
     }
 
-    ExecutionWrapperStore* store;
-    std::shared_ptr<TxHistory> history;
-    const std::vector<uint8_t> data;
-    bool public_only;
-    kv::Version v;
-    kv::Version max_conflict_version;
-    Term term;
-    OrderedChanges changes;
-    MapCollection new_maps;
-    kv::ConsensusHookPtrs hooks;
+    bool support_async_execution() override
+    {
+      return false;
+    }
   };
 
   class BFTExecutionWrapper : public AbstractExecutionWrapper
@@ -229,6 +236,11 @@ namespace kv
     kv::Version get_max_conflict_version() override
     {
       return v - 1;
+    }
+
+    virtual bool support_async_execution() override
+    {
+      return false;
     }
   };
 
@@ -495,6 +507,11 @@ namespace kv
     kv::Version get_max_conflict_version() override
     {
       return max_conflict_version;
+    }
+
+    bool support_async_execution() override
+    {
+      return true;
     }
   };
 }

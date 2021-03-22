@@ -228,8 +228,7 @@ namespace ds
         {
           throw std::logic_error(fmt::format(
             "Adding security scheme with name '{}'. Does not match previous "
-            "scheme "
-            "registered with this name: {} vs {}",
+            "scheme registered with this name: {} vs {}",
             name,
             security_scheme.dump(),
             existing_scheme.dump()));
@@ -255,8 +254,17 @@ namespace ds
         }
         else if constexpr (nonstd::is_specialization<T, std::vector>::value)
         {
-          schema["type"] = "array";
-          schema["items"] = add_schema_component<typename T::value_type>();
+          if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
+          {
+            // Byte vectors are always base64 encoded
+            schema["type"] = "string";
+            schema["format"] = "base64";
+          }
+          else
+          {
+            schema["type"] = "array";
+            schema["items"] = add_schema_component<typename T::value_type>();
+          }
 
           return add_schema_to_components(
             document, ds::json::schema_name<T>(), schema);

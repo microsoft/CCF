@@ -54,7 +54,8 @@ extensions = [
     "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
-    "sphinx_panels"
+    "sphinx_panels",
+    "sphinx_js",
 ]
 
 autosectionlabel_prefix_document = True
@@ -118,7 +119,7 @@ html_sidebars = {
 }
 
 html_css_files = [
-    'css/custom.css',
+    "css/custom.css",
 ]
 
 
@@ -193,7 +194,8 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-smv_tag_whitelist = r"^ccf-.*$"
+# Build tags from ccf-0.16.3 onwards
+smv_tag_whitelist = r"^ccf-(0\.(1([6-9]\.[3-9]|[7-9].*)|[2-9].*)|[1-9].*)$"
 smv_branch_whitelist = r"^main$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
@@ -226,6 +228,11 @@ spelling_lang = "en_UK"
 tokenizer_lang = "en_UK"
 spelling_word_list_filename = ["spelling_wordlist.txt"]
 
+# sphinx_js options
+js_language = "typescript"
+js_source_path = "../src/js"
+jsdoc_config_path = "../src/js/tsconfig.json"
+
 
 def setup(self):
     import subprocess
@@ -236,3 +243,12 @@ def setup(self):
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
         subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
+
+    global js_source_path
+    global jsdoc_config_path
+    js_source_path = str(srcdir / js_source_path)
+    jsdoc_config_path = str(srcdir / jsdoc_config_path)
+
+    # disable sphinx-js for old ccf versions
+    if not os.path.exists(jsdoc_config_path):
+        jsdoc_config_path = None

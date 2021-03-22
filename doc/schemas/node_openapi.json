@@ -3,7 +3,7 @@
     "schemas": {
       "CodeStatus": {
         "enum": [
-          "ALLOWED_TO_JOIN"
+          "AllowedToJoin"
         ],
         "type": "string"
       },
@@ -56,6 +56,7 @@
         "type": "object"
       },
       "EntityId": {
+        "format": "hex",
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
       },
@@ -297,16 +298,16 @@
       },
       "NodeStatus": {
         "enum": [
-          "PENDING",
-          "TRUSTED",
-          "RETIRED"
+          "Pending",
+          "Trusted",
+          "Retired"
         ],
         "type": "string"
       },
       "Quote": {
         "properties": {
           "endorsements": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/base64string"
           },
           "format": {
             "$ref": "#/components/schemas/QuoteFormat"
@@ -318,7 +319,7 @@
             "$ref": "#/components/schemas/EntityId"
           },
           "raw": {
-            "$ref": "#/components/schemas/string"
+            "$ref": "#/components/schemas/base64string"
           }
         },
         "required": [
@@ -343,20 +344,28 @@
       },
       "ServiceStatus": {
         "enum": [
-          "OPENING",
-          "OPEN",
-          "WAITING_FOR_RECOVERY_SHARES",
-          "CLOSED"
+          "Opening",
+          "Open",
+          "WaitingForRecoveryShares",
+          "Closed"
         ],
+        "type": "string"
+      },
+      "TransactionId": {
+        "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
       },
       "TxStatus": {
         "enum": [
-          "UNKNOWN",
-          "PENDING",
-          "COMMITTED",
-          "INVALID"
+          "Unknown",
+          "Pending",
+          "Committed",
+          "Invalid"
         ],
+        "type": "string"
+      },
+      "base64string": {
+        "format": "base64",
         "type": "string"
       },
       "boolean": {
@@ -364,14 +373,14 @@
       },
       "ccf__State": {
         "enum": [
-          "uninitialized",
-          "initialized",
-          "pending",
-          "partOfPublicNetwork",
-          "partOfNetwork",
-          "readingPublicLedger",
-          "readingPrivateLedger",
-          "verifyingSnapshot"
+          "Uninitialized",
+          "Initialized",
+          "Pending",
+          "PartOfPublicNetwork",
+          "PartOfNetwork",
+          "ReadingPublicLedger",
+          "ReadingPrivateLedger",
+          "VerifyingSnapshot"
         ],
         "type": "string"
       },
@@ -476,22 +485,18 @@
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "view",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           },
           {
             "in": "query",
-            "name": "view",
-            "required": false,
+            "name": "seqno",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           }
         ],
@@ -549,7 +554,7 @@
             "name": "host",
             "required": false,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/string"
             }
           },
           {
@@ -557,7 +562,7 @@
             "name": "port",
             "required": false,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/string"
             }
           },
           {
@@ -565,12 +570,7 @@
             "name": "status",
             "required": false,
             "schema": {
-              "enum": [
-                "PENDING",
-                "TRUSTED",
-                "RETIRED"
-              ],
-              "type": "string"
+              "$ref": "#/components/schemas/string"
             }
           }
         ],
@@ -679,9 +679,9 @@
           {
             "in": "query",
             "name": "transaction_id",
-            "required": false,
+            "required": true,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -720,22 +720,18 @@
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "view",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           },
           {
             "in": "query",
-            "name": "view",
-            "required": false,
+            "name": "seqno",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/int64"
             }
           }
         ],

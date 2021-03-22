@@ -8,6 +8,8 @@ import infra.crypto
 import ccf.ledger
 from infra.proposal import ProposalState
 import http
+import base64
+import json
 from loguru import logger as LOG
 
 
@@ -22,32 +24,24 @@ def count_governance_operations(ledger):
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
-            if "public:ccf.gov.members.info" in tables:
-                members_table = tables["public:ccf.gov.members.info"]
-                for member_id, member_info in members_table.items():
-                    member_id_unpacked = str(
-                        ccf.ledger.extract_msgpacked_data(member_id)
-                    )
-                    member_info_unpacked = ccf.ledger.extract_msgpacked_data(
-                        member_info
-                    )
-                    members[member_id_unpacked] = member_info_unpacked[0][0][0]
+            if "public:ccf.gov.members.certs" in tables:
+                members_table = tables["public:ccf.gov.members.certs"]
+                for member_id, member_cert in members_table.items():
+                    members[member_id] = member_cert
 
             if "public:ccf.gov.history" in tables:
                 governance_history_table = tables["public:ccf.gov.history"]
                 for member_id, signed_request in governance_history_table.items():
-                    member_id_unpacked = str(
-                        ccf.ledger.extract_msgpacked_data(member_id)
-                    )
-                    signed_request_unpacked = ccf.ledger.extract_msgpacked_data(
-                        signed_request
-                    )
-                    assert member_id_unpacked in members
-                    cert = members[member_id_unpacked]
-                    sig = signed_request_unpacked[0][0]
-                    req = signed_request_unpacked[0][1]
-                    request_body = signed_request_unpacked[0][2]
-                    digest = signed_request_unpacked[0][3]
+                    assert member_id in members
+
+                    signed_request = json.loads(signed_request)
+
+                    cert = members[member_id]
+                    sig = base64.b64decode(signed_request["sig"])
+                    req = base64.b64decode(signed_request["req"])
+                    request_body = base64.b64decode(signed_request["request_body"])
+                    digest = signed_request["md"]
+
                     infra.crypto.verify_request_sig(
                         cert, sig, req, request_body, digest
                     )
@@ -99,7 +93,7 @@ def run(args):
             primary, new_member_proposal, careful_vote
         )
         votes_issued += p.votes_for
-        assert new_member_proposal.state == infra.proposal.ProposalState.Accepted
+        assert new_member_proposal.state == infra.proposal.ProposalState.ACCEPTED
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
         new_member_proposal, _, _ = network.consortium.generate_and_propose_new_member(
@@ -113,7 +107,7 @@ def run(args):
             ).withdraw(primary, new_member_proposal)
             infra.checker.Checker(c)(response)
         assert response.status_code == http.HTTPStatus.OK.value
-        assert response.body.json()["state"] == ProposalState.Withdrawn.value
+        assert response.body.json()["state"] == ProposalState.WITHDRAWN.value
         withdrawals_issued += 1
 
     # Refresh ledger to beginning

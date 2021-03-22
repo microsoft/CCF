@@ -4,7 +4,8 @@
 import { KJUR, KEYUTIL } from "jsrsasign";
 import jwt_decode from "jwt-decode";
 import { Base64 } from "js-base64";
-import * as ccf from "./types/ccf";
+import { ccf, Request } from "./ccf/builtin";
+import * as ccfUtil from "./ccf/util";
 import { UnauthorizedError } from "./error_handler";
 
 export interface User {
@@ -33,7 +34,7 @@ export const MS_APP_ID = "1773214f-72b8-48f9-ae18-81e30fab04db";
 export const MS_APP_ID_URI = "api://1773214f-72b8-48f9-ae18-81e30fab04db";
 
 export function authentication(
-  request: ccf.Request,
+  request: Request,
   securityName: string,
   scopes?: string[]
 ): void {
@@ -65,10 +66,10 @@ export function authentication(
     }
 
     // Get the stored signing key to validate the token.
-    const keysMap = new ccf.TypedKVMap(
+    const keysMap = new ccfUtil.TypedKvMap(
       ccf.kv["public:ccf.gov.jwt.public_signing_keys"],
-      ccf.string,
-      ccf.typedArray(Uint8Array)
+      ccfUtil.string,
+      ccfUtil.typedArray(Uint8Array)
     );
     const publicKeyDer = keysMap.get(signingKeyId);
     if (publicKeyDer === undefined) {
@@ -98,10 +99,10 @@ export function authentication(
     }
 
     // Get the issuer associated to the signing key.
-    const keyIssuerMap = new ccf.TypedKVMap(
+    const keyIssuerMap = new ccfUtil.TypedKvMap(
       ccf.kv["public:ccf.gov.jwt.public_signing_key_issuer"],
-      ccf.string,
-      ccf.string
+      ccfUtil.string,
+      ccfUtil.string
     );
     const keyIssuer = keyIssuerMap.get(signingKeyId);
 
@@ -136,7 +137,7 @@ export function authentication(
       throw new Error(`BUG: unknown key issuer: ${keyIssuer}`);
     }
 
-    request.user = {
+    request.caller = {
       claims: claims,
       userId: claims.sub,
     } as User;

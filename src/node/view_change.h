@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "crypto/hash.h"
-#include "kv/map.h"
 #include "node_signature.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -87,5 +87,5 @@ namespace ccf
     ViewChangeConfirmation, view, seqno, signature, view_change_messages);
 
   // Always recorded at key 0
-  using NewViewsMap = kv::Map<size_t, ViewChangeConfirmation>;
+  using NewViewsMap = ServiceMap<size_t, ViewChangeConfirmation>;
 }

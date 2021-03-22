@@ -4,7 +4,8 @@
 
 #include "ds/json.h"
 #include "http/authentication/authentication_types.h"
-#include "kv/map.h"
+#include "kv/serialise_entry_blit.h"
+#include "node/service_map.h"
 
 #include <string>
 #include <utility>
@@ -39,11 +40,50 @@ namespace ccf
       Locally,
       Primary
     };
+
+    enum class Mode
+    {
+      ReadWrite,
+      ReadOnly,
+      Historical
+    };
   }
 }
 
 MSGPACK_ADD_ENUM(ccf::endpoints::ForwardingRequired);
 MSGPACK_ADD_ENUM(ccf::endpoints::ExecuteOutsideConsensus);
+MSGPACK_ADD_ENUM(ccf::endpoints::Mode);
+
+namespace kv::serialisers
+{
+  template <>
+  struct BlitSerialiser<ccf::endpoints::EndpointKey>
+  {
+    static SerialisedEntry to_serialised(
+      const ccf::endpoints::EndpointKey& endpoint_key)
+    {
+      size_t size_ = sizeof(size_t) + endpoint_key.uri_path.size() +
+        sizeof(endpoint_key.verb);
+      SerialisedEntry data(size_);
+      auto data_ = data.data();
+
+      serialized::write(data_, size_, endpoint_key.uri_path);
+      serialized::write(data_, size_, endpoint_key.verb);
+      return data;
+    }
+
+    static ccf::endpoints::EndpointKey from_serialised(
+      const SerialisedEntry& data)
+    {
+      auto data_ = data.data();
+      auto size_ = data.size();
+
+      auto uri_path = serialized::read<ccf::endpoints::URI>(data_, size_);
+      auto verb = serialized::read<ccf::RESTVerb>(data_, size_);
+      return {uri_path, verb};
+    }
+  };
+}
 
 namespace ccf
 {
@@ -61,10 +101,17 @@ namespace ccf
        {ExecuteOutsideConsensus::Locally, "locally"},
        {ExecuteOutsideConsensus::Primary, "primary"}});
 
+    DECLARE_JSON_ENUM(
+      Mode,
+      {{Mode::ReadWrite, "readwrite"},
+       {Mode::ReadOnly, "readonly"},
+       {Mode::Historical, "historical"}});
+
     using AuthnPolicies = std::vector<std::shared_ptr<AuthnPolicy>>;
 
     struct EndpointProperties
     {
+      Mode mode = Mode::ReadWrite;
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
       ExecuteOutsideConsensus execute_outside_consensus =
         ExecuteOutsideConsensus::Never;
@@ -78,13 +125,15 @@ namespace ccf
         execute_outside_consensus,
         authn_policies,
         openapi,
-        openapi_hidden);
+        openapi_hidden,
+        mode);
     };
 
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
     DECLARE_JSON_REQUIRED_FIELDS(
       EndpointProperties, forwarding_required, authn_policies);
-    DECLARE_JSON_OPTIONAL_FIELDS(EndpointProperties, openapi, openapi_hidden);
+    DECLARE_JSON_OPTIONAL_FIELDS(
+      EndpointProperties, openapi, openapi_hidden, mode);
 
     struct EndpointDefinition
     {
@@ -119,6 +168,6 @@ namespace ccf
 
     using EndpointDefinitionPtr = std::shared_ptr<const EndpointDefinition>;
 
-    using EndpointsMap = kv::Map<EndpointKey, EndpointProperties>;
+    using EndpointsMap = ccf::ServiceMap<EndpointKey, EndpointProperties>;
   }
 }

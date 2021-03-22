@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/map.h"
+#include "service_map.h"
 
 #include <set>
 #include <string>
@@ -12,7 +12,7 @@ namespace ccf
   using WlId = uint8_t;
   using Whitelist = std::set<std::string>;
   // whitelists are sets of table names
-  using Whitelists = kv::Map<WlId, Whitelist>;
+  using Whitelists = ServiceMap<WlId, Whitelist>;
 
   enum WlIds : WlId
   {

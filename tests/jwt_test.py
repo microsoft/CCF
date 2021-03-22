@@ -88,7 +88,7 @@ def test_jwt_without_key_policy(network, args):
         # Note that /gov/read returns all data as JSON.
         # Here, the stored data is a uint8 array, therefore it
         # is returned as an array of integers.
-        cert_kv_der = bytes(r.body.json())
+        cert_kv_der = base64.b64decode(r.body.json())
         cert_kv_pem = infra.crypto.cert_der_to_pem(cert_kv_der)
         assert infra.crypto.are_certs_equal(
             cert_pem, cert_kv_pem
@@ -116,7 +116,7 @@ def test_jwt_without_key_policy(network, args):
             "/gov/read", {"table": "public:ccf.gov.jwt.public_signing_keys", "key": kid}
         )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-        cert_kv_der = bytes(r.body.json())
+        cert_kv_der = base64.b64decode(r.body.json())
         cert_kv_pem = infra.crypto.cert_der_to_pem(cert_kv_der)
         assert infra.crypto.are_certs_equal(
             cert_pem, cert_kv_pem
@@ -320,7 +320,7 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
             # Note that /gov/read returns all data as JSON.
             # Here, the stored data is a uint8 array, therefore it
             # is returned as an array of integers.
-            cert_kv_der = bytes(r.body.json())
+            cert_kv_der = base64.b64decode(r.body.json())
             cert_kv_pem = infra.crypto.cert_der_to_pem(cert_kv_der)
             assert infra.crypto.are_certs_equal(
                 cert_pem, cert_kv_pem

@@ -33,11 +33,11 @@ RECOMMENDED_RSA_PUBLIC_EXPONENT = 65537
 
 # As per tls::MDType
 class CCFDigestType(IntEnum):
-    MD_NONE = 0
-    MD_SHA1 = 1
-    MD_SHA256 = 2
-    MD_SHA384 = 3
-    MD_SHA512 = 4
+    NONE = 0
+    SHA1 = 1
+    SHA256 = 2
+    SHA384 = 3
+    SHA512 = 4
 
 
 def verify_request_sig(raw_cert, sig, req, request_body, md):
@@ -53,7 +53,7 @@ def verify_request_sig(raw_cert, sig, req, request_body, md):
     pub_key = cert.public_key()
     signature_hash_alg = ec.ECDSA(
         hashes.SHA256()
-        if md == CCFDigestType.MD_SHA256
+        if CCFDigestType[md] == CCFDigestType.SHA256
         else cert.signature_hash_algorithm
     )
     pub_key.verify(sig, req, signature_hash_alg)
@@ -173,3 +173,13 @@ def compute_public_key_der_hash_hex_from_pem(pem: str):
 def compute_cert_der_hash_hex_from_pem(pem: str):
     cert = load_pem_x509_certificate(pem.encode(), default_backend())
     return cert.fingerprint(hashes.SHA256()).hex()
+
+
+def check_key_pair_pem(private: str, public: str, password=None) -> bool:
+    prv = load_pem_private_key(private.encode(), password=password)
+    pub = load_pem_public_key(public.encode())
+    prv_pub_der = prv.public_key().public_bytes(
+        Encoding.DER, PublicFormat.SubjectPublicKeyInfo
+    )
+    pub_der = pub.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    return prv_pub_der == pub_der

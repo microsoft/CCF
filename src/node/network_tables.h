@@ -13,7 +13,6 @@
 #include "entities.h"
 #include "governance_history.h"
 #include "jwt.h"
-#include "kv/map.h"
 #include "kv/store.h"
 #include "members.h"
 #include "modules.h"
@@ -22,6 +21,7 @@
 #include "scripts.h"
 #include "secrets.h"
 #include "service.h"
+#include "service_map.h"
 #include "service_principals.h"
 #include "shares.h"
 #include "signatures.h"
@@ -58,7 +58,9 @@ namespace ccf
     //
     // Governance tables
     //
-    Members members;
+    MemberCerts member_certs;
+    MmeberPublicEncryptionKeys member_encryption_public_keys;
+    MemberInfo member_info;
 
     Scripts gov_scripts;
     Modules modules;
@@ -81,7 +83,8 @@ namespace ccf
     //
     // User tables
     //
-    Users users;
+    UserCerts user_certs;
+    UserInfo user_info;
 
     ServicePrincipals service_principals;
 
@@ -101,8 +104,13 @@ namespace ccf
     Service service;
     Values values;
     Secrets secrets;
-    Signatures signatures;
     SnapshotEvidence snapshot_evidence;
+
+    // The signatures and serialised_tree tables should always be written to at
+    // the same time so that the root of the tree in the signatures table
+    // matches the serialised Merkle tree.
+    Signatures signatures;
+    SerialisedMerkleTree serialise_tree;
 
     //
     // bft related tables
@@ -117,7 +125,9 @@ namespace ccf
     
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
       tables(make_store(consensus_type)),
-      members(Tables::MEMBERS),
+      member_certs(Tables::MEMBER_CERTS),
+      member_encryption_public_keys(Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS),
+      member_info(Tables::MEMBER_INFO),
       gov_scripts(Tables::GOV_SCRIPTS),
       modules(Tables::MODULES),
       proposals(Tables::PROPOSALS),
@@ -133,15 +143,17 @@ namespace ccf
       jwt_issuers(Tables::JWT_ISSUERS),
       jwt_public_signing_keys(Tables::JWT_PUBLIC_SIGNING_KEYS),
       jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
-      users(Tables::USERS),
+      user_certs(Tables::USER_CERTS),
+      user_info(Tables::USER_INFO),
       service_principals(Tables::SERVICE_PRINCIPALS),
       nodes(Tables::NODES),
       app_scripts(Tables::APP_SCRIPTS),
       service(Tables::SERVICE),
       values(Tables::VALUES),
       secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
-      signatures(Tables::SIGNATURES),
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
+      signatures(Tables::SIGNATURES),
+      serialise_tree(Tables::SERIALISED_MERKLE_TREE),
       bft_requests_map(Tables::AFT_REQUESTS),
       backup_signatures_map(Tables::BACKUP_SIGNATURES),
       revealed_nonces_map(Tables::NONCES),
@@ -156,7 +168,9 @@ namespace ccf
     auto get_scriptable_tables() const
     {
       return std::make_tuple(
-        std::ref(members),
+        std::ref(member_certs),
+        std::ref(member_encryption_public_keys),
+        std::ref(member_info),
         std::ref(gov_scripts),
         std::ref(modules),
         std::ref(proposals),
@@ -169,7 +183,8 @@ namespace ccf
         std::ref(jwt_issuers),
         std::ref(jwt_public_signing_keys),
         std::ref(jwt_public_signing_key_issuer),
-        std::ref(users),
+        std::ref(user_certs),
+        std::ref(user_info),
         std::ref(service_principals),
         std::ref(nodes),
         std::ref(service),

@@ -14,8 +14,8 @@ namespace ccf
   struct Quote
   {
     NodeId node_id = {};
-    std::string raw = {}; // < Hex-encoded
-    std::string endorsements = {}; // < Hex-encoded
+    std::vector<uint8_t> raw;
+    std::vector<uint8_t> endorsements;
     QuoteFormat format;
 
     std::string mrenclave = {}; // < Hex-encoded
@@ -349,15 +349,14 @@ namespace ccf
         {
           Quote q;
           q.node_id = context.get_node_state().get_node_id();
-          q.raw = fmt::format("{:02x}", fmt::join(node_quote_info.quote, ""));
-          q.endorsements =
-            fmt::format("{:02x}", fmt::join(node_quote_info.endorsements, ""));
+          q.raw = node_quote_info.quote;
+          q.endorsements = node_quote_info.endorsements;
           q.format = node_quote_info.format;
 
 #ifdef GET_QUOTE
           auto code_id =
             EnclaveAttestationProvider::get_code_id(node_quote_info);
-          q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
+          q.mrenclave = ds::to_hex(code_id);
 #endif
 
           return make_success(q);
@@ -396,16 +395,14 @@ namespace ccf
           {
             Quote q;
             q.node_id = node_id;
-            q.raw =
-              fmt::format("{:02x}", fmt::join(node_info.quote_info.quote, ""));
-            q.endorsements = fmt::format(
-              "{:02x}", fmt::join(node_info.quote_info.endorsements, ""));
+            q.raw = node_info.quote_info.quote;
+            q.endorsements = node_info.quote_info.endorsements;
             q.format = QuoteFormat::oe_sgx_v1;
 
 #ifdef GET_QUOTE
             auto code_id =
               EnclaveAttestationProvider::get_code_id(node_info.quote_info);
-            q.mrenclave = fmt::format("{:02x}", fmt::join(code_id, ""));
+            q.mrenclave = ds::to_hex(code_id);
 #endif
             quotes.emplace_back(q);
           }
@@ -455,33 +452,64 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
-      auto get_nodes = [this](auto& args, nlohmann::json&& params) {
-        const auto in = params.get<GetNodes::In>();
+      auto get_nodes = [this](auto& args, nlohmann::json&&) {
+        const auto parsed_query =
+          http::parse_query(args.rpc_ctx->get_request_query());
+
+        std::string error_string; // Ignored - all params are optional
+        const auto host = http::get_query_value_opt<std::string>(
+          parsed_query, "host", error_string);
+        const auto port = http::get_query_value_opt<std::string>(
+          parsed_query, "port", error_string);
+        const auto status_str = http::get_query_value_opt<std::string>(
+          parsed_query, "status", error_string);
+
+        std::optional<NodeStatus> status;
+        if (status_str.has_value())
+        {
+          // Convert the query argument to a JSON string, try to parse it as a
+          // NodeStatus, return an error if this doesn't work
+          try
+          {
+            status = nlohmann::json(status_str.value()).get<NodeStatus>();
+          }
+          catch (const JsonParseError& e)
+          {
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              fmt::format(
+                "Query parameter '{}' is not a valid node status",
+                status_str.value()));
+          }
+        }
+
         GetNodes::Out out;
 
         auto nodes = args.tx.ro(this->network.nodes);
-        nodes->foreach(
-          [this, &in, &out](const NodeId& nid, const NodeInfo& ni) {
-            if (in.host.has_value() && in.host.value() != ni.pubhost)
-              return true;
-            if (in.port.has_value() && in.port.value() != ni.pubport)
-              return true;
-            if (in.status.has_value() && in.status.value() != ni.status)
-              return true;
-            bool is_primary = false;
-            if (consensus != nullptr)
-            {
-              is_primary = consensus->primary() == nid;
-            }
-            out.nodes.push_back({nid,
-                                 ni.status,
-                                 ni.pubhost,
-                                 ni.pubport,
-                                 ni.rpchost,
-                                 ni.rpcport,
-                                 is_primary});
+        nodes->foreach([this, host, port, status, &out](
+                         const NodeId& nid, const NodeInfo& ni) {
+          if (host.has_value() && host.value() != ni.pubhost)
             return true;
-          });
+          if (port.has_value() && port.value() != ni.pubport)
+            return true;
+          if (status.has_value() && status.value() != ni.status)
+            return true;
+
+          bool is_primary = false;
+          if (consensus != nullptr)
+          {
+            is_primary = consensus->primary() == nid;
+          }
+          out.nodes.push_back({nid,
+                               ni.status,
+                               ni.pubhost,
+                               ni.pubport,
+                               ni.rpchost,
+                               ni.rpcport,
+                               is_primary});
+          return true;
+        });
 
         return make_success(out);
       };
@@ -492,7 +520,10 @@ namespace ccf
         no_auth_required)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Primary)
-        .set_auto_schema<GetNodes>()
+        .set_auto_schema<void, GetNodes::Out>()
+        .add_query_parameter<std::string>("host", OptionalParameter)
+        .add_query_parameter<std::string>("port", OptionalParameter)
+        .add_query_parameter<std::string>("status", OptionalParameter)
         .install();
 
       auto get_node_info = [this](auto& args, nlohmann::json&&) {

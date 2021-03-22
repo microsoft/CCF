@@ -3,9 +3,9 @@
 #pragma once
 #include "entities.h"
 #include "entity_id.h"
-#include "kv/map.h"
 #include "node_info_network.h"
 #include "quote_info.h"
+#include "service_map.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>
@@ -21,9 +21,9 @@ namespace ccf
   };
   DECLARE_JSON_ENUM(
     NodeStatus,
-    {{NodeStatus::PENDING, "PENDING"},
-     {NodeStatus::TRUSTED, "TRUSTED"},
-     {NodeStatus::RETIRED, "RETIRED"}});
+    {{NodeStatus::PENDING, "Pending"},
+     {NodeStatus::TRUSTED, "Trusted"},
+     {NodeStatus::RETIRED, "Retired"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::NodeStatus);
@@ -54,7 +54,7 @@ namespace ccf
     NodeInfo, cert, quote_info, encryption_pub_key, status);
   DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno);
 
-  using Nodes = kv::Map<NodeId, NodeInfo>;
+  using Nodes = ServiceMap<NodeId, NodeInfo>;
 }
 
 FMT_BEGIN_NAMESPACE

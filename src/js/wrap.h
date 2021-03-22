@@ -3,6 +3,9 @@
 #pragma once
 
 #include "ds/logger.h"
+#include "historical_queries_interface.h"
+#include "kv/kv_types.h"
+#include "kv/tx.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -10,29 +13,67 @@
 
 namespace js
 {
+  extern JSClassID kv_class_id;
+  extern JSClassID kv_map_handle_class_id;
+  extern JSClassID body_class_id;
+
+  extern JSClassDef kv_class_def;
+  extern JSClassExoticMethods kv_exotic_methods;
+  extern JSClassDef kv_map_handle_class_def;
+  extern JSClassDef body_class_def;
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
-  extern JSValue js_print(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
+  void register_class_ids();
+  void register_request_body_class(JSContext* ctx);
+  void populate_global_console(JSContext* ctx);
+  void populate_global_ccf(
+    kv::Tx* tx,
+    const std::optional<kv::TxID>& transaction_id,
+    ccf::historical::TxReceiptPtr receipt,
+    JSContext* ctx);
 
-  extern void js_dump_error(JSContext* ctx);
+  JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
+  void js_dump_error(JSContext* ctx);
 
-  class JSAutoFreeRuntime
+  JSValue js_body_text(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv);
+
+  JSValue js_body_json(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv);
+
+  JSValue js_body_array_buffer(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv);
+
+  class Runtime
   {
     JSRuntime* rt;
 
   public:
-    inline JSAutoFreeRuntime()
+    inline Runtime(
+      size_t max_stack_size = 1024 * 1024,
+      size_t max_heap_size = 100 * 1024 * 1024)
     {
       rt = JS_NewRuntime();
       if (rt == nullptr)
       {
         throw std::runtime_error("Failed to initialise QuickJS runtime");
       }
+      JS_SetMaxStackSize(rt, max_stack_size);
+      JS_SetMemoryLimit(rt, max_heap_size);
     }
 
-    inline ~JSAutoFreeRuntime()
+    inline ~Runtime()
     {
       JS_FreeRuntime(rt);
     }
@@ -41,14 +82,16 @@ namespace js
     {
       return rt;
     }
+
+    void add_ccf_classdefs();
   };
 
-  class JSAutoFreeCtx
+  class Context
   {
     JSContext* ctx;
 
   public:
-    inline JSAutoFreeCtx(JSRuntime* rt)
+    inline Context(JSRuntime* rt)
     {
       ctx = JS_NewContext(rt);
       if (ctx == nullptr)
@@ -58,7 +101,7 @@ namespace js
       JS_SetContextOpaque(ctx, this);
     }
 
-    inline ~JSAutoFreeCtx()
+    inline ~Context()
     {
       JS_FreeContext(ctx);
     }
@@ -121,6 +164,8 @@ namespace js
     {
       return JSWrappedCString(ctx, cstr);
     };
+
+    JSValue function(const std::string& code, const std::string& path);
   };
 
 #pragma clang diagnostic pop

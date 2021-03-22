@@ -96,7 +96,15 @@ namespace ds
       }
       else if constexpr (nonstd::is_specialization<T, std::vector>::value)
       {
-        return fmt::format("{}_array", schema_name<typename T::value_type>());
+        if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
+        {
+          // Byte vectors are always base64 encoded
+          return "base64string";
+        }
+        else
+        {
+          return fmt::format("{}_array", schema_name<typename T::value_type>());
+        }
       }
       else if constexpr (
         nonstd::is_specialization<T, std::map>::value ||
@@ -193,8 +201,16 @@ namespace ds
       }
       else if constexpr (nonstd::is_specialization<T, std::vector>::value)
       {
-        schema["type"] = "array";
-        schema["items"] = schema_element<typename T::value_type>();
+        if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
+        {
+          // Byte vectors are always base64 encoded
+          schema["type"] = "base64string";
+        }
+        else
+        {
+          schema["type"] = "array";
+          schema["items"] = schema_element<typename T::value_type>();
+        }
       }
       else if constexpr (
         nonstd::is_specialization<T, std::map>::value ||
@@ -264,10 +280,14 @@ namespace ds
     }
 
     template <typename T>
-    inline nlohmann::json build_schema(const std::string& title)
+    inline nlohmann::json build_schema(const std::string& title = "")
     {
-      nlohmann::json schema;
-      schema["title"] = title;
+      auto schema = nlohmann::json::object();
+
+      if (!title.empty())
+      {
+        schema["title"] = title;
+      }
 
       fill_schema<T>(schema);
 

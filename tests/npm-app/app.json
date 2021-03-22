@@ -7,7 +7,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": [],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "responses": {
             "200": {
@@ -57,7 +57,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "responses": {
             "200": {
@@ -90,7 +90,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "requestBody": {
             "required": true,
@@ -118,6 +118,58 @@
         }
       }
     },
+    "/generateRsaKeyPair": {
+      "post": {
+        "js_module": "src/endpoints/crypto.js",
+        "js_function": "generateRsaKeyPair",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "size": {
+                      "type": "number"
+                    },
+                    "exponent": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["size"],
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Generated key pair",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "privateKey": {
+                        "type": "string"
+                      },
+                      "publicKey": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["privateKey", "publicKey"],
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/wrapKey": {
       "post": {
         "js_module": "src/endpoints/crypto.js",
@@ -125,7 +177,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": true,
+        "mode": "readonly",
         "openapi": {
           "requestBody": {
             "required": true,
@@ -166,7 +218,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": false,
+        "mode": "readonly",
         "openapi": {
           "responses": {
             "200": {
@@ -205,7 +257,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": false,
+        "mode": "readonly",
         "openapi": {
           "requestBody": {
             "required": true,
@@ -231,7 +283,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": false,
+        "mode": "readonly",
         "openapi": {
           "responses": {
             "200": {
@@ -261,7 +313,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": false,
+        "mode": "readwrite",
         "openapi": {
           "responses": {
             "200": {
@@ -298,7 +350,7 @@
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
-        "readonly": false,
+        "mode": "readonly",
         "openapi": {
           "responses": {
             "200": {

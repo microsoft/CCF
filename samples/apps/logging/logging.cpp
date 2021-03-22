@@ -164,20 +164,34 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: get
-      auto get =
-        [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
-          const auto in = params.get<LoggingGet::In>();
-          auto records_handle = args.tx.ro(records);
-          auto record = records_handle->get(in.id);
+      auto get = [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&&) {
+        // Parse id from query
+        const auto parsed_query =
+          http::parse_query(args.rpc_ctx->get_request_query());
 
-          if (record.has_value())
-            return ccf::make_success(LoggingGet::Out{record.value()});
-
+        std::string error_reason;
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ResourceNotFound,
-            fmt::format("No such record: {}.", in.id));
-        };
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+        }
+
+        auto records_handle = args.tx.ro(records);
+        auto record = records_handle->get(id);
+
+        if (record.has_value())
+        {
+          return ccf::make_success(LoggingGet::Out{record.value()});
+        }
+
+        return ccf::make_error(
+          HTTP_STATUS_BAD_REQUEST,
+          ccf::errors::ResourceNotFound,
+          fmt::format("No such record: {}.", id));
+      };
       // SNIPPET_END: get
 
       // SNIPPET_START: install_get
@@ -186,20 +200,35 @@ namespace loggingapp
         HTTP_GET,
         ccf::json_read_only_adapter(get),
         auth_policies)
-        .set_auto_schema<LoggingGet>()
+        .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
         .install();
       // SNIPPET_END: install_get
 
-      auto remove = [this](kv::Tx& tx, nlohmann::json&& params) {
-        const auto in = params.get<LoggingRemove::In>();
-        auto records_handle = tx.rw(records);
-        auto removed = records_handle->remove(in.id);
+      auto remove = [this](ccf::EndpointContext& ctx, nlohmann::json&&) {
+        // Parse id from query
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+        }
+
+        auto records_handle = ctx.tx.rw(records);
+        auto removed = records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
       make_endpoint(
         "log/private", HTTP_DELETE, ccf::json_adapter(remove), auth_policies)
-        .set_auto_schema<LoggingRemove>()
+        .set_auto_schema<void, LoggingRemove::Out>()
+        .add_query_parameter<size_t>("id")
         .install();
 
       // SNIPPET_START: record_public
@@ -215,7 +244,7 @@ namespace loggingapp
         }
 
         auto records_handle = tx.rw(public_records);
-        records_handle->put(params["id"], in.msg);
+        records_handle->put(in.id, in.msg);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
@@ -229,10 +258,23 @@ namespace loggingapp
 
       // SNIPPET_START: get_public
       auto get_public =
-        [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
-          const auto in = params.get<LoggingGet::In>();
+        [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&&) {
+          // Parse id from query
+          const auto parsed_query =
+            http::parse_query(args.rpc_ctx->get_request_query());
+
+          std::string error_reason;
+          size_t id;
+          if (!http::get_query_value(parsed_query, "id", id, error_reason))
+          {
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+          }
+
           auto public_records_handle = args.tx.ro(public_records);
-          auto record = public_records_handle->get(in.id);
+          auto record = public_records_handle->get(id);
 
           if (record.has_value())
             return ccf::make_success(LoggingGet::Out{record.value()});
@@ -240,7 +282,7 @@ namespace loggingapp
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::ResourceNotFound,
-            fmt::format("No such record: {}.", in.id));
+            fmt::format("No such record: {}.", id));
         };
       // SNIPPET_END: get_public
       make_read_only_endpoint(
@@ -248,13 +290,27 @@ namespace loggingapp
         HTTP_GET,
         ccf::json_read_only_adapter(get_public),
         auth_policies)
-        .set_auto_schema<LoggingGet>()
+        .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
         .install();
 
-      auto remove_public = [this](kv::Tx& tx, nlohmann::json&& params) {
-        const auto in = params.get<LoggingRemove::In>();
-        auto records_handle = tx.rw(public_records);
-        auto removed = records_handle->remove(in.id);
+      auto remove_public = [this](ccf::EndpointContext& ctx, nlohmann::json&&) {
+        // Parse id from query
+        const auto parsed_query =
+          http::parse_query(ctx.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+        }
+
+        auto records_handle = ctx.tx.rw(public_records);
+        auto removed = records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -263,7 +319,8 @@ namespace loggingapp
         HTTP_DELETE,
         ccf::json_adapter(remove_public),
         auth_policies)
-        .set_auto_schema<LoggingRemove>()
+        .set_auto_schema<void, LoggingRemove::Out>()
+        .add_query_parameter<size_t>("id")
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
@@ -337,7 +394,7 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
-      auto multi_auth = [](auto& ctx) {
+      auto multi_auth = [this](auto& ctx) {
         if (
           auto user_cert_ident =
             ctx.template try_get_caller<ccf::UserCertAuthnIdentity>())
@@ -345,11 +402,24 @@ namespace loggingapp
           auto response = std::string("User TLS cert");
           response += fmt::format(
             "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
-          response += fmt::format(
-            "\nThe caller's user data is: {}",
-            user_cert_ident->user_data.dump());
-          response += fmt::format(
-            "\nThe caller's cert is:\n{}", user_cert_ident->user_cert.str());
+
+          crypto::Pem user_cert;
+          if (
+            get_user_cert_v1(ctx.tx, user_cert_ident->user_id, user_cert) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's cert is:\n{}", user_cert.str());
+          }
+
+          nlohmann::json user_data = nullptr;
+          if (
+            get_user_data_v1(ctx.tx, user_cert_ident->user_id, user_data) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's user data is: {}", user_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -363,12 +433,26 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller is a member with ID: {}",
             member_cert_ident->member_id);
-          response += fmt::format(
-            "\nThe caller's member data is: {}",
-            member_cert_ident->member_data.dump());
-          response += fmt::format(
-            "\nThe caller's cert is:\n{}",
-            member_cert_ident->member_cert.str());
+
+          crypto::Pem member_cert;
+          if (
+            get_member_cert_v1(
+              ctx.tx, member_cert_ident->member_id, member_cert) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's cert is:\n{}", member_cert.str());
+          }
+
+          nlohmann::json member_data = nullptr;
+          if (
+            get_member_data_v1(
+              ctx.tx, member_cert_ident->member_id, member_data) ==
+            ccf::ApiResult::OK)
+          {
+            response += fmt::format(
+              "\nThe caller's member data is: {}", member_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -382,10 +466,16 @@ namespace loggingapp
           response += fmt::format(
             "\nThe caller is a user with ID: {}", user_sig_ident->user_id);
           response += fmt::format(
-            "\nThe caller's user data is: {}",
-            user_sig_ident->user_data.dump());
-          response += fmt::format(
             "\nThe caller's cert is:\n{}", user_sig_ident->user_cert.str());
+
+          nlohmann::json user_data = nullptr;
+          if (
+            get_user_data_v1(ctx.tx, user_sig_ident->user_id, user_data) ==
+            ccf::ApiResult::OK)
+          {
+            response +=
+              fmt::format("\nThe caller's user data is: {}", user_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -400,10 +490,17 @@ namespace loggingapp
             "\nThe caller is a member with ID: {}",
             member_sig_ident->member_id);
           response += fmt::format(
-            "\nThe caller's member data is: {}",
-            member_sig_ident->member_data.dump());
-          response += fmt::format(
             "\nThe caller's cert is:\n{}", member_sig_ident->member_cert.str());
+
+          nlohmann::json member_data = nullptr;
+          if (
+            get_member_data_v1(
+              ctx.tx, member_sig_ident->member_id, member_data) ==
+            ccf::ApiResult::OK)
+          {
+            response += fmt::format(
+              "\nThe caller's member data is: {}", member_data.dump());
+          }
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(response));
@@ -520,14 +617,26 @@ namespace loggingapp
       auto get_historical = [this](
                               ccf::EndpointContext& args,
                               ccf::historical::StatePtr historical_state) {
-        const auto [pack, params] =
-          ccf::jsonhandler::get_json_params(args.rpc_ctx);
+        const auto pack = ccf::jsonhandler::detect_json_pack(args.rpc_ctx);
 
-        const auto in = params.get<LoggingGetHistorical::In>();
+        // Parse id from query
+        const auto parsed_query =
+          http::parse_query(args.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+        size_t id;
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+          return;
+        }
 
         auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle = historical_tx.ro(records);
-        const auto v = records_handle->get(in.id);
+        const auto v = records_handle->get(id);
 
         if (v.has_value())
         {
@@ -546,30 +655,8 @@ namespace loggingapp
                                kv::Consensus::View view,
                                kv::Consensus::SeqNo seqno,
                                std::string& error_reason) {
-        if (consensus == nullptr)
-        {
-          error_reason = "Node is not fully configured";
-          return false;
-        }
-
-        const auto tx_view = consensus->get_view(seqno);
-        const auto committed_seqno = consensus->get_committed_seqno();
-        const auto committed_view = consensus->get_view(committed_seqno);
-
-        const auto tx_status = ccf::evaluate_tx_status(
-          view, seqno, tx_view, committed_view, committed_seqno);
-        if (tx_status != ccf::TxStatus::Committed)
-        {
-          error_reason = fmt::format(
-            "Only committed transactions can be queried. Transaction {}.{} is "
-            "{}",
-            view,
-            seqno,
-            ccf::tx_status_to_str(tx_status));
-          return false;
-        }
-
-        return true;
+        return ccf::historical::is_tx_committed(
+          consensus, view, seqno, error_reason);
       };
       make_endpoint(
         "log/private/historical",
@@ -577,7 +664,8 @@ namespace loggingapp
         ccf::historical::adapter(
           get_historical, context.get_historical_state(), is_tx_committed),
         auth_policies)
-        .set_auto_schema<LoggingGetHistorical>()
+        .set_auto_schema<void, LoggingGetHistorical::Out>()
+        .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
       // SNIPPET_END: get_historical
@@ -587,14 +675,26 @@ namespace loggingapp
         [this](
           ccf::EndpointContext& args,
           ccf::historical::StatePtr historical_state) {
-          const auto [pack, params] =
-            ccf::jsonhandler::get_json_params(args.rpc_ctx);
+          const auto pack = ccf::jsonhandler::detect_json_pack(args.rpc_ctx);
 
-          const auto in = params.get<LoggingGetReceipt::In>();
+          // Parse id from query
+          const auto parsed_query =
+            http::parse_query(args.rpc_ctx->get_request_query());
+
+          std::string error_reason;
+          size_t id;
+          if (!http::get_query_value(parsed_query, "id", id, error_reason))
+          {
+            args.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidQueryParameterValue,
+              std::move(error_reason));
+            return;
+          }
 
           auto historical_tx = historical_state->store->create_read_only_tx();
           auto records_handle = historical_tx.ro(records);
-          const auto v = records_handle->get(in.id);
+          const auto v = records_handle->get(id);
 
           if (v.has_value())
           {
@@ -616,7 +716,8 @@ namespace loggingapp
           context.get_historical_state(),
           is_tx_committed),
         auth_policies)
-        .set_auto_schema<LoggingGetReceipt>()
+        .set_auto_schema<void, LoggingGetReceipt::Out>()
+        .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
       // SNIPPET_END: get_historical_with_receipt
@@ -624,21 +725,39 @@ namespace loggingapp
       static constexpr auto get_historical_range_path =
         "log/private/historical/range";
       auto get_historical_range = [&, this](ccf::EndpointContext& args) {
-        // Parse request body
-        const auto query_j =
-          ccf::jsonhandler::get_params_from_query(args.rpc_ctx);
-        const auto in = query_j.get<LoggingGetHistoricalRange::In>();
+        // Parse arguments from query
+        const auto parsed_query =
+          http::parse_query(args.rpc_ctx->get_request_query());
+
+        std::string error_reason;
+
+        size_t from_seqno;
+        size_t to_seqno;
+        size_t id;
+        if (
+          !http::get_query_value(
+            parsed_query, "from_seqno", from_seqno, error_reason) ||
+          !http::get_query_value(
+            parsed_query, "to_seqno", to_seqno, error_reason) ||
+          !http::get_query_value(parsed_query, "id", id, error_reason))
+        {
+          args.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            std::move(error_reason));
+          return;
+        }
 
         // Range must be in order
-        if (in.to_seqno < in.from_seqno)
+        if (to_seqno < from_seqno)
         {
           args.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format(
               "Invalid range: Starts at {} but ends at {}",
-              in.from_seqno,
-              in.to_seqno));
+              from_seqno,
+              to_seqno));
           return;
         }
 
@@ -652,12 +771,12 @@ namespace loggingapp
           return;
         }
 
-        const auto view_of_final_seqno = consensus->get_view(in.to_seqno);
+        const auto view_of_final_seqno = consensus->get_view(to_seqno);
         const auto committed_seqno = consensus->get_committed_seqno();
         const auto committed_view = consensus->get_view(committed_seqno);
         const auto tx_status = ccf::evaluate_tx_status(
           view_of_final_seqno,
-          in.to_seqno,
+          to_seqno,
           view_of_final_seqno,
           committed_view,
           committed_seqno);
@@ -671,16 +790,16 @@ namespace loggingapp
               "is "
               "{}",
               view_of_final_seqno,
-              in.to_seqno,
+              to_seqno,
               ccf::tx_status_to_str(tx_status)));
           return;
         }
 
         // Set a maximum range, paginate larger requests
         static constexpr size_t max_seqno_per_page = 20;
-        const auto range_begin = in.from_seqno;
+        const auto range_begin = from_seqno;
         const auto range_end =
-          std::min(in.to_seqno, range_begin + max_seqno_per_page);
+          std::min(to_seqno, range_begin + max_seqno_per_page);
 
         // Use hash of request as RequestHandle. WARNING: This means identical
         // requests from different users will collide, and overwrite each
@@ -696,7 +815,7 @@ namespace loggingapp
         };
 
         ccf::historical::RequestHandle handle =
-          make_handle(range_begin, range_end, in.id);
+          make_handle(range_begin, range_end, id);
 
         // Fetch the requested range
         auto& historical_cache = context.get_historical_state();
@@ -728,13 +847,13 @@ namespace loggingapp
 
           auto historical_tx = store->create_read_only_tx();
           auto records_handle = historical_tx.ro(records);
-          const auto v = records_handle->get(in.id);
+          const auto v = records_handle->get(id);
 
           if (v.has_value())
           {
             LoggingGetHistoricalRange::Entry e;
             e.seqno = store_seqno;
-            e.id = in.id;
+            e.id = id;
             e.msg = v.value();
             response.entries.push_back(e);
           }
@@ -746,14 +865,14 @@ namespace loggingapp
 
         // If this didn't cover the total requested range, begin fetching the
         // next page and tell the caller how to retrieve it
-        if (range_end != in.to_seqno)
+        if (range_end != to_seqno)
         {
           const auto next_page_start = range_end + 1;
           const auto next_page_end =
-            std::min(in.to_seqno, next_page_start + max_seqno_per_page);
+            std::min(to_seqno, next_page_start + max_seqno_per_page);
 
           ccf::historical::RequestHandle next_page_handle =
-            make_handle(next_page_start, next_page_end, in.id);
+            make_handle(next_page_start, next_page_end, id);
           historical_cache.get_store_range(
             next_page_handle, next_page_start, next_page_end);
 
@@ -763,8 +882,8 @@ namespace loggingapp
             "/app/{}?from_seqno={}&to_seqno={}&id={}",
             get_historical_range_path,
             next_page_start,
-            in.to_seqno,
-            in.id);
+            to_seqno,
+            id);
         }
 
         // Construct the HTTP response
@@ -784,49 +903,61 @@ namespace loggingapp
         HTTP_GET,
         get_historical_range,
         auth_policies)
-        .set_auto_schema<LoggingGetHistoricalRange>()
+        .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
+        .add_query_parameter<size_t>("from_seqno")
+        .add_query_parameter<size_t>("to_seqno")
+        .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::ForwardingRequired::Never)
         .install();
 
-      auto record_admin_only =
-        [this](ccf::EndpointContext& ctx, nlohmann::json&& params) {
-          {
-            const auto& caller_ident =
-              ctx.get_caller<ccf::UserCertAuthnIdentity>();
+      auto record_admin_only = [this](
+                                 ccf::EndpointContext& ctx,
+                                 nlohmann::json&& params) {
+        const auto& caller_ident = ctx.get_caller<ccf::UserCertAuthnIdentity>();
 
-            // SNIPPET_START: user_data_check
-            // Check caller's user-data for required permissions
-            const nlohmann::json user_data = caller_ident.user_data;
-            const auto is_admin_it = user_data.find("isAdmin");
+        // SNIPPET_START: user_data_check
+        // Check caller's user-data for required permissions
+        nlohmann::json user_data = nullptr;
+        auto result = get_user_data_v1(ctx.tx, caller_ident.user_id, user_data);
+        if (result == ccf::ApiResult::InternalError)
+        {
+          return ccf::make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get user data for user {}: {}",
+              caller_ident.user_id,
+              ccf::api_result_to_str(result)));
+        }
+        const auto is_admin_it = user_data.find("isAdmin");
 
-            // Exit if this user has no user data, or the user data is not an
-            // object with isAdmin field, or the value of this field is not true
-            if (
-              !user_data.is_object() || is_admin_it == user_data.end() ||
-              !is_admin_it.value().get<bool>())
-            {
-              return ccf::make_error(
-                HTTP_STATUS_FORBIDDEN,
-                ccf::errors::AuthorizationFailed,
-                "Only admins may access this endpoint.");
-            }
-            // SNIPPET_END: user_data_check
-          }
+        // Exit if this user has no user data, or the user data is not an
+        // object with isAdmin field, or the value of this field is not true
+        if (
+          !user_data.is_object() || is_admin_it == user_data.end() ||
+          !is_admin_it.value().get<bool>())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Only admins may access this endpoint.");
+        }
+        // SNIPPET_END: user_data_check
 
-          const auto in = params.get<LoggingRecord::In>();
+        const auto in = params.get<LoggingRecord::In>();
 
-          if (in.msg.empty())
-          {
-            return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              "Cannot record an empty log message.");
-          }
+        if (in.msg.empty())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidInput,
+            "Cannot record an empty log message.");
+        }
 
-          auto view = ctx.tx.rw(records);
-          view->put(in.id, in.msg);
-          return ccf::make_success(true);
-        };
+        auto view = ctx.tx.rw(records);
+        view->put(in.id, in.msg);
+        return ccf::make_success(true);
+      };
       make_endpoint(
         "log/private/admin_only",
         HTTP_POST,

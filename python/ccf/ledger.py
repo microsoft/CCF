@@ -5,11 +5,12 @@ import io
 import struct
 import os
 
-from typing import BinaryIO, NamedTuple, Optional, Set
-from enum import IntEnum
+from typing import BinaryIO, NamedTuple, Optional
 
 # Default implementation has buggy interaction between read_bytes and tell, so use fallback
 import msgpack.fallback as msgpack  # type: ignore
+import json
+import base64
 
 from loguru import logger as LOG  # type: ignore
 from cryptography.x509 import load_pem_x509_certificate
@@ -73,7 +74,6 @@ class PublicDomain:
     _version: int
     _max_conflict_version: int
     _tables: dict
-    _msgpacked_tables: Set[str]
 
     def __init__(self, buffer: io.BytesIO):
         self._buffer = buffer
@@ -83,12 +83,6 @@ class PublicDomain:
         self._version = self._read_next()
         self._max_conflict_version = self._read_next()
         self._tables = {}
-        # Keys and Values may have custom serialisers.
-        # Store most as raw bytes, only decode a few which we know are msgpack and are required for ledger verification.
-        self._msgpacked_tables = {
-            SIGNATURE_TX_TABLE_NAME,
-            NODES_TABLE_NAME,
-        }
         self._read()
 
     def _read_next(self):
@@ -124,19 +118,12 @@ class PublicDomain:
                 for _ in range(write_count):
                     k = self._read_next_entry()
                     val = self._read_next_entry()
-                    if map_name in self._msgpacked_tables:
-                        k = msgpack.unpackb(k, **UNPACK_ARGS)
-                        val = msgpack.unpackb(val, **UNPACK_ARGS)
-                    if map_name == NODES_TABLE_NAME:
-                        k = str(k)
                     records[k] = val
 
             remove_count = self._read_next()
             if remove_count:
                 for _ in range(remove_count):
                     k = self._read_next_entry()
-                    if map_name in self._msgpacked_tables:
-                        k = msgpack.unpackb(k, **UNPACK_ARGS)
                     records[k] = None
 
             LOG.trace(
@@ -162,14 +149,6 @@ def _byte_read_safe(file, num_of_bytes):
     return ret
 
 
-class NodeStatus(IntEnum):
-    """These are the corresponding status meanings from the ccf.nodes table"""
-
-    PENDING = 0
-    TRUSTED = 1
-    RETIRED = 2
-
-
 class TxBundleInfo(NamedTuple):
     """Bundle for transaction information required for validation """
 
@@ -178,7 +157,7 @@ class TxBundleInfo(NamedTuple):
     node_cert: bytes
     signature: bytes
     node_activity: dict
-    signing_node: bytes
+    signing_node: str
 
 
 class LedgerValidator:
@@ -187,27 +166,11 @@ class LedgerValidator:
     It has the ability to take transactions and it maintains a MerkleTree data structure similar to CCF.
 
     Ledger is valid and hasn't been tampered with if following conditions are met:
-        1) The merkle proof is signed by a TRUSTED node in the given network
+        1) The merkle proof is signed by a Trusted node in the given network
         2) The merkle root and signature are verified with the node cert
         3) The merkle proof is correct for each set of transactions
     """
 
-    # The node that is expected to sign the signature transaction
-    # The certificate used to sign the signature transaction
-    # https://github.com/microsoft/CCF/blob/main/src/node/nodes.h
-    EXPECTED_NODE_CERT_INDEX = 1
-    # The current network trust status of the Node at the time of the current transaction
-    EXPECTED_NODE_STATUS_INDEX = 4
-
-    # Signature table contains PrimarySignature which extends NodeSignature. NodeId should be at index 1 in the serialized Node
-    # https://github.com/microsoft/CCF/blob/main/src/node/signatures.h
-    EXPECTED_NODE_SIGNATURE_INDEX = 0
-    EXPECTED_NODE_SEQNO_INDEX = 1
-    EXPECTED_NODE_VIEW_INDEX = 2
-    EXPECTED_ROOT_INDEX = 5
-    # https://github.com/microsoft/CCF/blob/main/src/node/node_signature.h
-    EXPECTED_SIGNING_NODE_ID_INDEX = 1
-    EXPECTED_SIGNATURE_INDEX = 0
     # Constant for the size of a hashed transaction
     SHA_256_HASH_SIZE = 32
 
@@ -240,34 +203,29 @@ class LedgerValidator:
         # Add contributing nodes certs and update nodes network trust status for verification
         if NODES_TABLE_NAME in tables:
             node_table = tables[NODES_TABLE_NAME]
-            for nodeid, values in node_table.items():
+            for node_id, node_info in node_table.items():
+                node_id = node_id.decode()
+                node_info = json.loads(node_info)
                 # Add the nodes certificate
-                self.node_certificates[nodeid] = values[self.EXPECTED_NODE_CERT_INDEX]
+                self.node_certificates[node_id] = node_info["cert"].encode()
                 # Update node trust status
-                self.node_activity_status[nodeid] = NodeStatus(
-                    values[self.EXPECTED_NODE_STATUS_INDEX]
-                )
+                self.node_activity_status[node_id] = node_info["status"]
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
             self.signature_count += 1
             signature_table = tables[SIGNATURE_TX_TABLE_NAME]
 
-            for nodeid, values in signature_table.items():
-                current_seqno = values[self.EXPECTED_NODE_SEQNO_INDEX]
-                current_view = values[self.EXPECTED_NODE_VIEW_INDEX]
-                signing_node = str(
-                    values[self.EXPECTED_NODE_SIGNATURE_INDEX][
-                        self.EXPECTED_SIGNING_NODE_ID_INDEX
-                    ]
-                )
+            for _, signature in signature_table.items():
+                signature = json.loads(signature)
+                current_seqno = signature["seqno"]
+                current_view = signature["view"]
+                signing_node = signature["node"]
 
                 # Get binary representations for the cert, existing root, and signature
-                cert = b"".join(self.node_certificates[signing_node])
-                existing_root = b"".join(values[self.EXPECTED_ROOT_INDEX])
-                signature = values[self.EXPECTED_NODE_SIGNATURE_INDEX][
-                    self.EXPECTED_SIGNATURE_INDEX
-                ]
+                cert = self.node_certificates[signing_node]
+                existing_root = bytes.fromhex(signature["root"])
+                signature = base64.b64decode(signature["sig"])
 
                 tx_info = TxBundleInfo(
                     self.merkle,
@@ -295,7 +253,7 @@ class LedgerValidator:
         """
         Verify items 1, 2, and 3 for all the transactions up until a signature.
         """
-        # 1) The merkle root is signed by a TRUSTED node in the given network, else throws
+        # 1) The merkle root is signed by a Trusted node in the given network, else throws
         self._verify_node_status(tx_info)
         # 2) The merkle root and signature are verified with the node cert, else throws
         self._verify_root_signature(tx_info)
@@ -304,8 +262,8 @@ class LedgerValidator:
 
     @staticmethod
     def _verify_node_status(tx_info: TxBundleInfo):
-        """Verify item 1, The merkle root is signed by a TRUSTED node in the given network"""
-        if tx_info.node_activity[tx_info.signing_node] != NodeStatus.TRUSTED:
+        """Verify item 1, The merkle root is signed by a Trusted node in the given network"""
+        if tx_info.node_activity[tx_info.signing_node] != "Trusted":
             LOG.error(
                 f"The signing node {tx_info.signing_node!r} is not trusted by the network"
             )
@@ -533,10 +491,6 @@ class Ledger:
 
     def __iter__(self):
         return self
-
-
-def extract_msgpacked_data(data: bytes):
-    return msgpack.unpackb(data, **UNPACK_ARGS)
 
 
 class InvalidRootException(Exception):
