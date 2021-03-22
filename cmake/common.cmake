@@ -65,10 +65,15 @@ endif()
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+# TODO: Can these be removed?
 include_directories(${CCF_DIR}/include)
 include_directories(${CCF_DIR}/src)
 
-include_directories(SYSTEM ${CCF_DIR}/3rdparty)
+set(CCF_3RD_PARTY_EXPORTED_DIR "${CCF_DIR}/3rdparty/exported")
+set(CCF_3RD_PARTY_INTERNAL_DIR "${CCF_DIR}/3rdparty/internal")
+
+include_directories(SYSTEM ${CCF_3RD_PARTY_EXPORTED_DIR})
+include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
 
 find_package(MbedTLS REQUIRED)
 
@@ -143,7 +148,7 @@ else()
 endif()
 
 # Lua module
-set(LUA_DIR ${CCF_DIR}/3rdparty/lua)
+set(LUA_DIR ${CCF_3RD_PARTY_INTERNAL_DIR}/lua)
 set(LUA_SOURCES
     ${LUA_DIR}/lapi.c
     ${LUA_DIR}/lauxlib.c
@@ -175,8 +180,8 @@ set(LUA_SOURCES
 )
 
 set(HTTP_PARSER_SOURCES
-    ${CCF_DIR}/3rdparty/llhttp/api.c ${CCF_DIR}/3rdparty/llhttp/http.c
-    ${CCF_DIR}/3rdparty/llhttp/llhttp.c
+  ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
+  ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
 set(CCF_ENDPOINTS_SOURCES
@@ -199,7 +204,7 @@ include(${CCF_DIR}/cmake/sss.cmake)
 function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
   target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
-  target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
+  target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test)
   enable_coverage(${name})
   target_link_libraries(
     ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
@@ -262,7 +267,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     # Remove the following two lines once we upgrade to snmalloc 0.5.4
     set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
     set(USE_POSIX_COMMIT_CHECKS off)
-    add_subdirectory(3rdparty/snmalloc EXCLUDE_FROM_ALL)
+    add_subdirectory(3rdparty/internal/snmalloc EXCLUDE_FROM_ALL)
     set(SNMALLOC_LIB snmalloc_lib)
     set(SNMALLOC_CPP src/enclave/snmalloc.cpp)
   endif()
@@ -616,7 +621,7 @@ function(add_picobench name)
   )
 
   # -Wall -Werror catches a number of warnings in picobench
-  target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
+  target_include_directories(${name} SYSTEM PRIVATE 3rdparty/test)
 
   add_test(
     NAME ${name}
