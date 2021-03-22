@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.19.3]
+
+### Changed
+
+- The status filter passed to `/node/network/nodes` now takes the correct CamelCased values (#2238).
+
 ## [0.19.2]
 
 ### Added
@@ -756,6 +762,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.19.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.3
 [0.19.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.2
 [0.19.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.1
 [0.19.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.0
