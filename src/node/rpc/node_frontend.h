@@ -468,15 +468,15 @@ namespace ccf
         if (status_str.has_value())
         {
           const auto& s = status_str.value();
-          if (s == "PENDING")
+          if (s == "Pending")
           {
             status = NodeStatus::PENDING;
           }
-          else if (s == "TRUSTED")
+          else if (s == "Trusted")
           {
             status = NodeStatus::TRUSTED;
           }
-          else if (s == "RETIRED")
+          else if (s == "Retired")
           {
             status = NodeStatus::RETIRED;
           }
