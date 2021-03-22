@@ -753,8 +753,46 @@ namespace std
     (POP2)(ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
   }
 
+// Enum conversion, based on NLOHMANN_JSON_SERIALIZE_ENUM, but less permissive
+// (throws on unknown JSON values)
 #define DECLARE_JSON_ENUM(TYPE, ...) \
-  NLOHMANN_JSON_SERIALIZE_ENUM(TYPE, __VA_ARGS__) \
+  template <typename BasicJsonType> \
+  inline void to_json(BasicJsonType& j, const TYPE& e) \
+  { \
+    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
+    static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
+    auto it = std::find_if( \
+      std::begin(m), \
+      std::end(m), \
+      [e](const std::pair<TYPE, BasicJsonType>& ej_pair) -> bool { \
+        return ej_pair.first == e; \
+      }); \
+    if (it == std::end(m)) \
+    { \
+      throw JsonParseError(fmt::format( \
+        "Value {} in enum " #TYPE " has no specified JSON conversion", \
+        (size_t)e)); \
+    } \
+    j = it->second; \
+  } \
+  template <typename BasicJsonType> \
+  inline void from_json(const BasicJsonType& j, TYPE& e) \
+  { \
+    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
+    static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
+    auto it = std::find_if( \
+      std::begin(m), \
+      std::end(m), \
+      [&j](const std::pair<TYPE, BasicJsonType>& ej_pair) -> bool { \
+        return ej_pair.second == j; \
+      }); \
+    if (it == std::end(m)) \
+    { \
+      throw JsonParseError( \
+        fmt::format("{} is not convertible to " #TYPE, j.dump())); \
+    } \
+    e = it->first; \
+  } \
   inline std::string schema_name(const TYPE&) \
   { \
     return #TYPE; \

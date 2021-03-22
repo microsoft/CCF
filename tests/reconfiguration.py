@@ -145,6 +145,39 @@ def test_retire_primary(network, args):
     return network
 
 
+@reqs.description("Test node filtering by status")
+def test_node_filter(network, args):
+    primary, _ = network.find_primary_and_any_backup()
+    with primary.client() as c:
+        trusted_before = c.get("/node/network/nodes?status=Trusted").body.json()
+        pending_before = c.get("/node/network/nodes?status=Pending").body.json()
+        retired_before = c.get("/node/network/nodes?status=Retired").body.json()
+        new_node = network.create_and_add_pending_node(
+            args.package, "local://localhost", args, target_node=primary
+        )
+        trusted_after = c.get("/node/network/nodes?status=Trusted").body.json()
+        pending_after = c.get("/node/network/nodes?status=Pending").body.json()
+        retired_after = c.get("/node/network/nodes?status=Retired").body.json()
+        assert trusted_before == trusted_after, (trusted_before, trusted_after)
+        assert len(pending_before["nodes"]) + 1 == len(pending_after["nodes"]), (
+            pending_before,
+            pending_after,
+        )
+        assert retired_before == retired_after, (retired_before, retired_after)
+
+        assert all(
+            info["status"] == "Trusted" for info in trusted_after["nodes"]
+        ), trusted_after
+        assert all(
+            info["status"] == "Pending" for info in pending_after["nodes"]
+        ), pending_after
+        assert all(
+            info["status"] == "Retired" for info in retired_after["nodes"]
+        ), retired_after
+    assert new_node
+    return network
+
+
 def run(args):
     txs = app.LoggingTxs()
     with infra.network.network(
@@ -167,6 +200,7 @@ def run(args):
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)
         test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+        test_node_filter(network, args)
         errors, _ = network.get_joined_nodes()[-1].stop()
         if not any(
             "No snapshot found: Node will request all historical transactions" in s
