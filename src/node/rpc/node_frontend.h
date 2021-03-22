@@ -467,26 +467,20 @@ namespace ccf
         std::optional<NodeStatus> status;
         if (status_str.has_value())
         {
-          const auto& s = status_str.value();
-          if (s == "PENDING")
+          // Convert the query argument to a JSON string, try to parse it as a
+          // NodeStatus, return an error if this doesn't work
+          try
           {
-            status = NodeStatus::PENDING;
+            status = nlohmann::json(status_str.value()).get<NodeStatus>();
           }
-          else if (s == "TRUSTED")
-          {
-            status = NodeStatus::TRUSTED;
-          }
-          else if (s == "RETIRED")
-          {
-            status = NodeStatus::RETIRED;
-          }
-          else
+          catch (const nlohmann::json::parse_error& e)
           {
             return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidQueryParameterValue,
               fmt::format(
-                "Query parameter '{}' is not a valid node status", s));
+                "Query parameter '{}' is not a valid node status",
+                status_str.value()));
           }
         }
 
