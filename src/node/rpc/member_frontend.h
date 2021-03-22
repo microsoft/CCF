@@ -435,8 +435,7 @@ namespace ccf
               return false;
             }
             auto& actual_claim_val = claims[claim_name];
-            auto actual_claim_val_hex =
-              fmt::format("{:02x}", fmt::join(actual_claim_val, ""));
+            auto actual_claim_val_hex = ds::to_hex(actual_claim_val);
             if (expected_claim_val_hex != actual_claim_val_hex)
             {
               LOG_FAIL_FMT(
@@ -572,7 +571,7 @@ namespace ccf
         // add a new member
         {"new_member",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto parsed = args.get<MemberPubInfo>();
+           const auto parsed = args.get<NewMember>();
            GenesisGenerator g(this->network, tx);
            g.add_member(parsed);
 
@@ -583,33 +582,30 @@ namespace ccf
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
-           GenesisGenerator g(this->network, tx);
-
-           auto member_info = g.get_member_info(member_id);
+           auto members = tx.rw(this->network.member_info);
+           auto member_info = members->get(member_id);
            if (!member_info.has_value())
            {
+             LOG_FAIL_FMT(
+               "Cannot retire member {} as they do not exist", member_id);
              return false;
            }
 
-           if (!g.retire_member(member_id))
-           {
-             return false;
-           }
-
+           GenesisGenerator g(this->network, tx);
            if (
              member_info->status == MemberStatus::ACTIVE &&
-             member_info->is_recovery())
+             g.is_recovery_member(member_id))
            {
-             // A retired member with recovery share should not have access to
-             // the private ledger going forward so rekey ledger, issuing new
-             // share to remaining active members
+             // A retired recovery member should not have access to the private
+             // ledger going forward so rekey ledger, issuing new share to
+             // remaining active members
              if (!context.get_node_state().rekey_ledger(tx))
              {
                return false;
              }
            }
 
-           return true;
+           return g.retire_member(member_id);
          }},
         {"set_member_data",
          [this](
@@ -617,7 +613,7 @@ namespace ccf
            kv::Tx& tx,
            const nlohmann::json& args) {
            const auto parsed = args.get<SetMemberData>();
-           auto members = tx.rw(this->network.members);
+           auto members = tx.rw(this->network.member_info);
            auto member_info = members->get(parsed.member_id);
            if (!member_info.has_value())
            {
@@ -634,7 +630,7 @@ namespace ccf
          }},
         {"new_user",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto user_info = args.get<ccf::UserInfo>();
+           const auto user_info = args.get<NewUser>();
 
            GenesisGenerator g(this->network, tx);
            g.add_user(user_info);
@@ -642,21 +638,13 @@ namespace ccf
            return true;
          }},
         {"remove_user",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const UserId user_id = args;
 
            GenesisGenerator g(this->network, tx);
-           auto r = g.remove_user(user_id);
-           if (!r)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: {} is not a valid user ID", proposal_id, user_id);
-           }
+           g.remove_user(user_id);
 
-           return r;
+           return true;
          }},
         {"set_user_data",
          [this](
@@ -664,19 +652,19 @@ namespace ccf
            kv::Tx& tx,
            const nlohmann::json& args) {
            const auto parsed = args.get<SetUserData>();
-           auto users = tx.rw(this->network.users);
-           auto user_info = users->get(parsed.user_id);
-           if (!user_info.has_value())
+           auto users = tx.rw(this->network.user_certs);
+           auto user = users->get(parsed.user_id);
+           if (!user.has_value())
            {
              LOG_FAIL_FMT(
-               "Proposal {}: {} is not a valid user ID",
+               "Proposal {}: {} is not a valid user",
                proposal_id,
                parsed.user_id);
              return false;
            }
 
-           user_info->user_data = parsed.user_data;
-           users->put(parsed.user_id, user_info.value());
+           auto user_info = tx.rw(this->network.user_info);
+           user_info->put(parsed.user_id, {parsed.user_data});
            return true;
          }},
         {"set_ca_cert_bundle",
@@ -1145,8 +1133,8 @@ namespace ccf
       const MemberId& id,
       std::initializer_list<MemberStatus> allowed)
     {
-      auto member = tx.ro(this->network.members)->get(id);
-      if (!member)
+      auto member = tx.ro(this->network.member_info)->get(id);
+      if (!member.has_value())
       {
         return false;
       }
@@ -1662,9 +1650,6 @@ namespace ccf
         const auto& signed_request = caller_identity.signed_request;
 
         auto mas = ctx.tx.rw(this->network.member_acks);
-        auto sig = ctx.tx.rw(this->network.signatures);
-        auto members = ctx.tx.rw(this->network.members);
-
         const auto ma = mas->get(caller_identity.member_id);
         if (!ma)
         {
@@ -1685,6 +1670,7 @@ namespace ccf
             "Submitted state digest is not valid.");
         }
 
+        auto sig = ctx.tx.rw(this->network.signatures);
         const auto s = sig->get(0);
         if (!s)
         {
@@ -1719,10 +1705,11 @@ namespace ccf
             "No service currently available.");
         }
 
+        auto members = ctx.tx.rw(this->network.member_info);
         auto member_info = members->get(caller_identity.member_id);
         if (
           service_status.value() == ServiceStatus::OPEN &&
-          member_info->is_recovery())
+          g.is_recovery_member(caller_identity.member_id))
         {
           // When the service is OPEN and the new active member is a recovery
           // member, all recovery members are allocated new recovery shares
@@ -2117,7 +2104,6 @@ namespace ccf
   {
   protected:
     MemberEndpoints member_endpoints;
-    Members* members;
 
   public:
     MemberRpcFrontend(
@@ -2125,8 +2111,7 @@ namespace ccf
       ccfapp::AbstractNodeContext& context,
       ShareManager& share_manager) :
       RpcFrontend(*network.tables, member_endpoints),
-      member_endpoints(network, context, share_manager),
-      members(&network.members)
+      member_endpoints(network, context, share_manager)
     {}
   };
 } // namespace ccf

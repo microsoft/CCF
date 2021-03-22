@@ -27,6 +27,14 @@ namespace ccf::historical
     return signatures->get(0);
   }
 
+  static std::optional<std::vector<uint8_t>> get_tree(const StorePtr& sig_store)
+  {
+    auto tx = sig_store->create_read_only_tx();
+    auto tree =
+      tx.ro<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
+    return tree->get(0);
+  }
+
   class StateCache : public AbstractStateCache
   {
   protected:
@@ -216,7 +224,7 @@ namespace ccf::historical
           // Iterate through earlier indices. If this signature covers them (and
           // the digests match), move them to Trusted
           const auto sig = get_signature(new_details->store);
-          ccf::MerkleTreeHistory tree(sig->tree);
+          ccf::MerkleTreeHistory tree(get_tree(new_details->store).value());
 
           for (auto seqno = first_requested_seqno; seqno < new_seqno; ++seqno)
           {
@@ -277,7 +285,7 @@ namespace ccf::historical
               if (details->store != nullptr && details->is_signature)
               {
                 const auto sig = get_signature(details->store);
-                ccf::MerkleTreeHistory tree(sig->tree);
+                ccf::MerkleTreeHistory tree(get_tree(details->store).value());
                 if (tree.in_range(new_seqno))
                 {
                   const auto trusted_digest = tree.get_leaf(new_seqno);
@@ -310,7 +318,7 @@ namespace ccf::historical
             if (details->store != nullptr && details->is_signature)
             {
               const auto sig = get_signature(details->store);
-              ccf::MerkleTreeHistory tree(sig->tree);
+              ccf::MerkleTreeHistory tree(get_tree(details->store).value());
               if (tree.in_range(new_seqno))
               {
                 const auto trusted_digest = tree.get_leaf(new_seqno);
@@ -393,8 +401,15 @@ namespace ccf::historical
         return false;
       }
 
+      const auto tree_ = get_tree(sig_store);
+      if (!tree_.has_value())
+      {
+        LOG_FAIL_FMT("Signature at {}: Missing tree value", sig_seqno);
+        return false;
+      }
+
       // Build tree from signature
-      ccf::MerkleTreeHistory tree(sig->tree);
+      ccf::MerkleTreeHistory tree(tree_.value());
       const auto real_root = tree.get_root();
       if (real_root != sig->root)
       {
@@ -412,7 +427,7 @@ namespace ccf::historical
 
       auto verifier = crypto::make_verifier(node_info->cert);
       const auto verified =
-        verifier->verify_hash(real_root.h, sig->sig, MDType::SHA256);
+        verifier->verify_hash(real_root.h, sig->sig, crypto::MDType::SHA256);
       if (!verified)
       {
         LOG_FAIL_FMT("Signature at {}: Signature invalid", sig_seqno);

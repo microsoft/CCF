@@ -3,22 +3,29 @@
 #pragma once
 
 #include "crypto/pem.h"
-#include "kv/map.h"
+#include "service_map.h"
 
 #include <nlohmann/json.hpp>
 
 namespace ccf
 {
-  struct UserInfo
+  struct NewUser
   {
     crypto::Pem cert;
     nlohmann::json user_data = nullptr;
-
-    MSGPACK_DEFINE(cert, user_data);
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(UserInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(UserInfo, cert);
-  DECLARE_JSON_OPTIONAL_FIELDS(UserInfo, user_data);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewUser)
+  DECLARE_JSON_REQUIRED_FIELDS(NewUser, cert)
+  DECLARE_JSON_OPTIONAL_FIELDS(NewUser, user_data)
 
-  using Users = kv::Map<UserId, UserInfo>;
+  using UserCerts = kv::RawCopySerialisedMap<UserId, crypto::Pem>;
+
+  struct UserDetails
+  {
+    nlohmann::json user_data = nullptr;
+  };
+  DECLARE_JSON_TYPE(UserDetails)
+  DECLARE_JSON_REQUIRED_FIELDS(UserDetails, user_data)
+
+  using UserInfo = ServiceMap<UserId, UserDetails>;
 }

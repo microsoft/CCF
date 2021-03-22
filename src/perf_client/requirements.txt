@@ -3,3 +3,4 @@ jupyter
 matplotlib
 notebook
 sklearn
+pygments>=2.7.4

@@ -5,7 +5,6 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
-#include "kv/map.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
@@ -291,7 +290,7 @@ class RpcContextRecorder
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
   crypto::Pem last_caller_cert;
-  std::optional<CallerId> last_caller_id = std::nullopt;
+  std::optional<EntityId> last_caller_id = std::nullopt;
 
   void record_ctx(EndpointContext& ctx)
   {

@@ -55,7 +55,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
     "sphinx_panels",
-    "sphinx_js"
+    "sphinx_js",
 ]
 
 autosectionlabel_prefix_document = True
@@ -119,7 +119,7 @@ html_sidebars = {
 }
 
 html_css_files = [
-    'css/custom.css',
+    "css/custom.css",
 ]
 
 
@@ -229,9 +229,10 @@ tokenizer_lang = "en_UK"
 spelling_word_list_filename = ["spelling_wordlist.txt"]
 
 # sphinx_js options
-js_language = 'typescript'
-js_source_path = '../src/js'
-jsdoc_config_path = '../tests/npm-app/tsconfig.json'
+js_language = "typescript"
+js_source_path = "../src/js"
+jsdoc_config_path = "../src/js/tsconfig.json"
+
 
 def setup(self):
     import subprocess
@@ -242,3 +243,12 @@ def setup(self):
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
         subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
+
+    global js_source_path
+    global jsdoc_config_path
+    js_source_path = str(srcdir / js_source_path)
+    jsdoc_config_path = str(srcdir / jsdoc_config_path)
+
+    # disable sphinx-js for old ccf versions
+    if not os.path.exists(jsdoc_config_path):
+        jsdoc_config_path = None
