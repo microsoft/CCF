@@ -150,18 +150,30 @@ def test_node_filter(network, args):
     primary, _ = network.find_primary_and_any_backup()
     with primary.client() as c:
         trusted_before = c.get("/node/network/nodes?status=Trusted").body.json()
+        pending_before = c.get("/node/network/nodes?status=Pending").body.json()
+        retired_before = c.get("/node/network/nodes?status=Retired").body.json()
         new_node = network.create_and_add_pending_node(
             args.package, "local://localhost", args, target_node=primary
         )
         trusted_after = c.get("/node/network/nodes?status=Trusted").body.json()
-        assert trusted_before == trusted_after
-        pending = c.get("/node/network/nodes?status=Pending").body.json()
-        pending_nodes = pending["nodes"]
-        assert (
-            len(pending_nodes) == 1 and pending_nodes[0]["status"] == "Pending"
-        ), pending_nodes
-        retired = c.get("/node/network/nodes?status=Retired").body.json()
-        assert retired["nodes"] == [], retired
+        pending_after = c.get("/node/network/nodes?status=Pending").body.json()
+        retired_after = c.get("/node/network/nodes?status=Retired").body.json()
+        assert trusted_before == trusted_after, (trusted_before, trusted_after)
+        assert len(pending_before["nodes"]) + 1 == len(pending_after["nodes"]), (
+            pending_before,
+            pending_after,
+        )
+        assert retired_before == retired_after, (retired_before, retired_after)
+
+        assert all(
+            info["status"] == "Trusted" for info in trusted_after["nodes"]
+        ), trusted_after
+        assert all(
+            info["status"] == "Pending" for info in pending_after["nodes"]
+        ), pending_after
+        assert all(
+            info["status"] == "Retired" for info in retired_after["nodes"]
+        ), retired_after
     assert new_node
     return network
 
