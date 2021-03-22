@@ -374,7 +374,8 @@ struct EnumStruct
   {
     One,
     Two,
-    Three
+    Three,
+    Unconverted // Deliberately omitted from conversion
   };
 
   SampleEnum se;
@@ -406,7 +407,7 @@ TEST_CASE("enum")
   }
 
   {
-    INFO("Conversion");
+    INFO("from_json");
 
     nlohmann::json j;
 
@@ -444,6 +445,26 @@ TEST_CASE("enum")
 
     j = nullptr;
     REQUIRE_THROWS(j.get<EnumStruct::SampleEnum>());
+  }
+
+  {
+    INFO("to_json");
+
+    nlohmann::json j;
+
+    j = EnumStruct::SampleEnum::One;
+    REQUIRE(j.is_string());
+    REQUIRE(j.get<std::string>() == "one");
+
+    j = EnumStruct::SampleEnum::Two;
+    REQUIRE(j.is_string());
+    REQUIRE(j.get<std::string>() == "two");
+
+    j = EnumStruct::SampleEnum::Three;
+    REQUIRE(j.is_string());
+    REQUIRE(j.get<std::string>() == "three");
+
+    REQUIRE_THROWS(j = EnumStruct::SampleEnum::Unconverted);
   }
 }
 

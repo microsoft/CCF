@@ -473,7 +473,7 @@ namespace ccf
           {
             status = nlohmann::json(status_str.value()).get<NodeStatus>();
           }
-          catch (const nlohmann::json::parse_error& e)
+          catch (const JsonParseError& e)
           {
             return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST,
