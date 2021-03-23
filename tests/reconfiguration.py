@@ -145,6 +145,39 @@ def test_retire_primary(network, args):
     return network
 
 
+@reqs.description("Test node filtering by status")
+def test_node_filter(network, args):
+    primary, _ = network.find_primary_and_any_backup()
+    with primary.client() as c:
+
+        def get_nodes(status):
+            r = c.get(f"/node/network/nodes?status={status}")
+            nodes = r.body.json()["nodes"]
+            return sorted(nodes, key=lambda node: node["node_id"])
+
+        trusted_before = get_nodes("Trusted")
+        pending_before = get_nodes("Pending")
+        retired_before = get_nodes("Retired")
+        new_node = network.create_and_add_pending_node(
+            args.package, "local://localhost", args, target_node=primary
+        )
+        trusted_after = get_nodes("Trusted")
+        pending_after = get_nodes("Pending")
+        retired_after = get_nodes("Retired")
+        assert trusted_before == trusted_after, (trusted_before, trusted_after)
+        assert len(pending_before) + 1 == len(pending_after), (
+            pending_before,
+            pending_after,
+        )
+        assert retired_before == retired_after, (retired_before, retired_after)
+
+        assert all(info["status"] == "Trusted" for info in trusted_after), trusted_after
+        assert all(info["status"] == "Pending" for info in pending_after), pending_after
+        assert all(info["status"] == "Retired" for info in retired_after), retired_after
+    assert new_node
+    return network
+
+
 def run(args):
     txs = app.LoggingTxs()
     with infra.network.network(
@@ -167,6 +200,7 @@ def run(args):
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)
         test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+        test_node_filter(network, args)
         errors, _ = network.get_joined_nodes()[-1].stop()
         if not any(
             "No snapshot found: Node will request all historical transactions" in s
