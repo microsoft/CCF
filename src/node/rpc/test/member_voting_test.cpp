@@ -102,6 +102,24 @@ DOCTEST_TEST_CASE("Member query/read")
 
     check_error(response, HTTP_STATUS_INTERNAL_SERVER_ERROR);
   }
+
+  DOCTEST_SUBCASE("Read: member is removed")
+  {
+    auto gen_tx = network.tables->create_tx();
+    GenesisGenerator gen(network, gen_tx);
+    gen.remove_member(member_id);
+    gen.finalize();
+
+    auto tx = network.tables->create_tx();
+    tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
+    DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
+
+    auto read_call =
+      create_request(read_params<int>(key, Tables::VALUES), "read");
+    const auto response = frontend_process(frontend, read_call, member_cert);
+
+    check_error(response, HTTP_STATUS_UNAUTHORIZED);
+  }
 }
 
 DOCTEST_TEST_CASE("Proposer ballot")
@@ -1413,12 +1431,12 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   }
 
   {
-    DOCTEST_INFO("New operator retires original operator");
+    DOCTEST_INFO("New operator removes original operator");
     Propose::In proposal;
     proposal.script = fmt::format(
       R"xxx(
         local tables, member_id = ...
-        return Calls:call("retire_member", member_id))xxx");
+        return Calls:call("remove_member", member_id))xxx");
     proposal.parameter = operator_id;
 
     const auto propose = create_signed_request(
@@ -1463,7 +1481,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     proposal.script = fmt::format(
       R"xxx(
         local tables, member_id = ...
-        return Calls:call("retire_member", member_id))xxx");
+        return Calls:call("remove_member", member_id))xxx");
     proposal.parameter = normal_member_id;
 
     const auto propose = create_signed_request(
