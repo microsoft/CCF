@@ -5,7 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-<<<<<<< HEAD
 ## [0.19.4]
 
 ### Changed
@@ -13,13 +12,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Retired members are now deleted from the store, instead of being marked as `Retired` (#1401).
 - `retire_member` proposal has been renamed to `remove_member` and is now idempotent (i.e. succeeds even if the member was already removed) (#1401).
 - `accept_recovery` and `open_network` proposals have been merged into a single idempotent `transition_service_to_open` proposal (#1791).
-=======
-## Unreleased
-
-### Changed
-
-- `accept_recovery` and `open_network` proposals have been merged into a single idempotent `transition_service_to_open` proposal.
->>>>>>> 1a705553571baf3458b711d5ab9adce66f906f65
 
 ## [0.19.3]
 
