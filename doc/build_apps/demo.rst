@@ -67,7 +67,7 @@ Now we can submit a first command, to find the current commit index of the test 
 .. code-block:: bash
 
     $ curl https://127.251.192.205:36981/app/commit -X GET --cacert networkcert.pem --cert user0_cert.pem --key user0_privk.pem
-    {"seqno":30,"view":2}
+    {"transaction_id": 2.30}
 
 This should look much like a standard HTTP server, with error codes for missing resources or resources the caller is not authorized to access:
 
