@@ -20,6 +20,8 @@ with section("parse"):
             "kwargs": {
                 "NAME": "*",
                 "PYTHON_SCRIPT": "*",
+                "GOV_SCRIPT": "*",
+                "CONSTITUTION": "*",
                 "LABEL": "*",
                 "CURL_CLIENT": "*",
                 "CONSENSUS": "*",
@@ -41,6 +43,8 @@ with section("parse"):
             "kwargs": {
                 "NAME": "*",
                 "PYTHON_SCRIPT": "*",
+                "GOV_SCRIPT": "*",
+                "CONSTITUTION": "*",
                 "CLIENT_BIN": "*",
                 "VERIFICATION_FILE": "*",
                 "LABEL": "*",
