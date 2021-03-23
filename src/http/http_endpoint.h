@@ -72,7 +72,17 @@ namespace http
           }
           else
           {
-            ws_next_read = wp.consume(buf.data(), r);
+            try
+            {
+              ws_next_read = wp.consume(buf.data(), r);
+            }
+            catch (const std::exception& e)
+            {
+              LOG_DEBUG_FMT("Error parsing WebSocket request: {}", e.what());
+              close();
+              return;
+            }
+
             if (!ws_next_read)
             {
               close();
@@ -106,8 +116,7 @@ namespace http
           }
           catch (const std::exception& e)
           {
-            LOG_FAIL_FMT("Error parsing request");
-            LOG_DEBUG_FMT("Error parsing request: {}", e.what());
+            LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
             close();
             break;
           }

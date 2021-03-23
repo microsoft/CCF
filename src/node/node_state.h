@@ -764,35 +764,40 @@ namespace ccf
       }
       else
       {
-        throw std::logic_error(fmt::format(
-          "Node should be in state {} or {} to access public store",
+        LOG_FAIL_FMT(
+          "Node should be in state {} or {} to recover public ledger entry",
           State::readingPublicLedger,
-          State::verifyingSnapshot));
+          State::verifyingSnapshot);
+        return;
       }
 
       LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
       // When reading the public ledger, deserialise in the real store
-      auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
-      auto result = r->apply();
-      if (result == kv::ApplyResult::FAIL)
+      kv::ApplyResult result = kv::ApplyResult::FAIL;
+      try
       {
-        LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
-        store->rollback(ledger_idx - 1);
-        if (sm.check(State::verifyingSnapshot))
+        auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
+        result = r->apply();
+        if (result == kv::ApplyResult::FAIL)
         {
-          throw std::logic_error(
-            "Error deserialising public ledger entry when verifying snapshot");
+          LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
+          store->rollback(ledger_idx - 1);
+          recover_public_ledger_end_unsafe();
+          return;
         }
-        recover_public_ledger_end_unsafe();
-        return;
-      }
 
-      // Not synchronised because consensus isn't effectively running then
-      for (auto& hook : r->get_hooks())
+        // Not synchronised because consensus isn't effectively running then
+        for (auto& hook : r->get_hooks())
+        {
+          hook->call(consensus.get());
+        }
+      }
+      catch (const std::exception& e)
       {
-        hook->call(consensus.get());
+        LOG_FAIL_EXC(e.what());
+        return;
       }
 
       // If the ledger entry is a signature, it is safe to compact the store
@@ -878,13 +883,28 @@ namespace ccf
     void verify_snapshot_end()
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::verifyingSnapshot);
-
-      if (
-        !startup_snapshot_info ||
-        !startup_snapshot_info->is_snapshot_verified())
+      if (!sm.check(State::verifyingSnapshot))
       {
-        throw std::logic_error("Snapshot evidence was not committed in ledger");
+        LOG_FAIL_FMT(
+          "Node is state {} cannot finalise snapshot verification",
+          State::verifyingSnapshot);
+        return;
+      }
+
+      if (startup_snapshot_info == nullptr)
+      {
+        // Node should shutdown if the startup snapshot cannot be verified
+        throw std::logic_error(
+          "No known startup snapshot to finalise snapshot verification");
+      }
+
+      if (!startup_snapshot_info->is_snapshot_verified())
+      {
+        // Node should shutdown if the startup snapshot cannot be verified
+        throw std::logic_error(fmt::format(
+          "Snapshot evidence at {} was not committed in ledger ending at {}",
+          startup_snapshot_info->evidence_seqno,
+          ledger_idx));
       }
 
       ledger_truncate(startup_snapshot_info->seqno);
@@ -1009,7 +1029,10 @@ namespace ccf
     void recover_private_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::readingPrivateLedger);
+      if (!sm.check(State::readingPrivateLedger))
+      {
+        return;
+      }
 
       LOG_INFO_FMT(
         "Deserialising private ledger entry ({})", ledger_entry.size());
@@ -1156,9 +1179,9 @@ namespace ccf
       }
       else
       {
-        throw std::logic_error(
-          "Cannot end ledger recovery if not reading public or private "
-          "ledger");
+        LOG_FAIL_FMT(
+          "Node in state {} cannot finalise ledger recovery", sm.value());
+        return;
       }
     }
 
@@ -1314,6 +1337,8 @@ namespace ccf
 
         default:
         {
+          LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
+          return;
         }
       }
     }

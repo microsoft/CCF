@@ -162,7 +162,20 @@ namespace messaging
       }
 
       // Handlers may register or remove handlers, so iterator is invalidated
-      it->second(data, size);
+      try
+      {
+        it->second(data, size);
+      }
+      catch (const std::exception& e)
+      {
+        // If an exception is thrown during the dispatch of a message, log the
+        // type and size of the message and re-throw
+        LOG_FAIL_FMT(
+          "Exception processing message {} of size {}",
+          get_decorated_message_name(m),
+          size);
+        throw e;
+      }
 
       auto& counts = message_counts[m];
       counts.messages++;
