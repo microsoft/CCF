@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
+#include "ds/msgpack_adaptor_nlohmann.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
@@ -590,21 +591,21 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
   SUBCASE("nlohmann")
   {
-    // auto consensus = std::make_shared<kv::test::StubConsensus>();
-    // using Table = kv::Map<nlohmann::json, nlohmann::json>;
-    // kv::Store s0(consensus), s1;
-    // Table t("public:t");
+    auto consensus = std::make_shared<kv::test::StubConsensus>();
+    using Table = kv::Map<nlohmann::json, nlohmann::json>;
+    kv::Store s0(consensus), s1;
+    Table t("public:t");
 
-    // auto tx = s0.create_tx();
-    // tx.rw(t)->put(k0, v0);
-    // tx.rw(t)->put(k1, v1);
-    // REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    auto tx = s0.create_tx();
+    tx.rw(t)->put(k0, v0);
+    tx.rw(t)->put(k1, v1);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-    // const auto latest_data = consensus->get_latest_data();
-    // REQUIRE(latest_data.has_value());
-    // REQUIRE(
-    //   s1.deserialize(latest_data.value(), ConsensusType::CFT)->apply() !=
-    //   kv::ApplyResult::FAIL);
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+    REQUIRE(
+      s1.deserialize(latest_data.value(), ConsensusType::CFT)->apply() !=
+      kv::ApplyResult::FAIL);
   }
 }
 

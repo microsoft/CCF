@@ -157,24 +157,24 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # test_add_node_from_backup(network, args)
-        # test_add_node(network, args)
-        # test_retire_backup(network, args)
-        # test_add_as_many_pending_nodes(network, args)
-        # test_add_node(network, args)
-        # test_retire_primary(network, args)
+        test_add_node_from_backup(network, args)
+        test_add_node(network, args)
+        test_retire_backup(network, args)
+        test_add_as_many_pending_nodes(network, args)
+        test_add_node(network, args)
+        test_retire_primary(network, args)
 
         test_add_node_from_snapshot(network, args)
-        # test_add_node_from_snapshot(network, args, from_backup=True)
-        # test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-        # errors, _ = network.get_joined_nodes()[-1].stop()
-        # if not any(
-        #     "No snapshot found: Node will request all historical transactions" in s
-        #     for s in errors
-        # ):
-        #     raise ValueError(
-        #         "New node shouldn't join from snapshot if snapshot cannot be verified"
-        #     )
+        test_add_node_from_snapshot(network, args, from_backup=True)
+        test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+        errors, _ = network.get_joined_nodes()[-1].stop()
+        if not any(
+            "No snapshot found: Node will request all historical transactions" in s
+            for s in errors
+        ):
+            raise ValueError(
+                "New node shouldn't join from snapshot if snapshot cannot be verified"
+            )
 
 
 if __name__ == "__main__":

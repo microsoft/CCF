@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ds/json.h"
-#include "ds/msgpack_adaptor_nlohmann.h"
 #include "entities.h"
 #include "script.h"
 #include "service_map.h"

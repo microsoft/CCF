@@ -250,7 +250,7 @@ if(BUILD_TESTS)
     add_unit_test(
       kv_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
-      # ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_dynamic_tables.cpp
