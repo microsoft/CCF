@@ -149,12 +149,32 @@ namespace std
   _18, \
   _19, \
   _20, \
+  _21, \
+  _22, \
+  _23, \
+  _24, \
+  _25, \
+  _26, \
+  _27, \
+  _28, \
+  _29, \
+  _30, \
   N, \
   ...) \
   _FOR_JSON_##N
 #define _FOR_JSON_COUNT_NN_WITH_0(...) \
   __FOR_JSON_COUNT_NN( \
     __VA_ARGS__, \
+    30, \
+    29, \
+    28, \
+    27, \
+    26, \
+    25, \
+    24, \
+    23, \
+    22, \
+    21, \
     20, \
     19, \
     18, \
@@ -199,6 +219,16 @@ namespace std
 #define _FOR_JSON_18(POP_N) _FOR_JSON_18_##POP_N
 #define _FOR_JSON_19(POP_N) _FOR_JSON_19_##POP_N
 #define _FOR_JSON_20(POP_N) _FOR_JSON_20_##POP_N
+#define _FOR_JSON_21(POP_N) _FOR_JSON_21_##POP_N
+#define _FOR_JSON_22(POP_N) _FOR_JSON_22_##POP_N
+#define _FOR_JSON_23(POP_N) _FOR_JSON_23_##POP_N
+#define _FOR_JSON_24(POP_N) _FOR_JSON_24_##POP_N
+#define _FOR_JSON_25(POP_N) _FOR_JSON_25_##POP_N
+#define _FOR_JSON_26(POP_N) _FOR_JSON_26_##POP_N
+#define _FOR_JSON_27(POP_N) _FOR_JSON_27_##POP_N
+#define _FOR_JSON_28(POP_N) _FOR_JSON_28_##POP_N
+#define _FOR_JSON_29(POP_N) _FOR_JSON_29_##POP_N
+#define _FOR_JSON_30(POP_N) _FOR_JSON_30_##POP_N
 
 // FOREACH macro machinery for forwarding to single arg macros
 #define _FOR_JSON_0_POP1(FUNC, TYPE)
@@ -260,6 +290,36 @@ namespace std
 #define _FOR_JSON_20_POP1(FUNC, TYPE, ARG1, ...) \
   _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
   _FOR_JSON_19_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_21_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_20_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_22_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_21_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_23_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_22_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_24_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_23_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_25_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_24_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_26_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_25_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_27_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_26_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_28_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_27_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_29_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_28_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_30_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_29_POP1(FUNC, TYPE, ##__VA_ARGS__)
 
 // FOREACH macro machinery for forwarding to double arg macros
 #define _FOR_JSON_0_POP2(FUNC, TYPE)
