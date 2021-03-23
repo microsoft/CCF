@@ -2195,7 +2195,7 @@ namespace aft
       else
       {
         LOG_INFO_FMT(
-          "Voting against candidate at {}.{} because I'm at {}.{}",
+          "Voting against candidate at {}.{} because local state is at {}.{}",
           r.term_of_last_committable_idx,
           r.last_committable_idx,
           term_of_last_committable_idx,
