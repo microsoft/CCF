@@ -471,6 +471,13 @@ if(BUILD_TESTS)
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
   add_picobench(digest_bench SRCS src/crypto/test/digest_bench.cpp)
 
+  add_e2e_test(
+    NAME governance_js_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+  )
+
   # Storing signed governance operations
   add_e2e_test(
     NAME governance_history_test
