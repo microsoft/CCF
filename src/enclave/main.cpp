@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ds/json.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/stacktrace_utils.h"
@@ -8,7 +9,6 @@
 #include "oe_shim.h"
 
 #include <chrono>
-#include <msgpack/msgpack.hpp>
 #include <thread>
 
 // the central enclave object
@@ -118,10 +118,7 @@ extern "C"
 
     oe_lfence();
 
-    msgpack::object_handle oh = msgpack::unpack(ccf_config, ccf_config_size);
-    msgpack::object obj = oh.get();
-    CCFConfig cc;
-    obj.convert(cc);
+    CCFConfig cc = nlohmann::json::parse(ccf_config, ccf_config_size);
 
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];

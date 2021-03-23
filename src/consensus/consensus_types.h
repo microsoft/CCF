@@ -15,12 +15,14 @@ namespace consensus
     size_t raft_election_timeout;
     size_t bft_view_change_timeout;
     size_t bft_status_interval;
-    MSGPACK_DEFINE(
-      raft_request_timeout,
-      raft_election_timeout,
-      bft_view_change_timeout,
-      bft_status_interval);
   };
+  DECLARE_JSON_TYPE(Configuration);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    Configuration,
+    raft_request_timeout,
+    raft_election_timeout,
+    bft_view_change_timeout,
+    bft_status_interval);
 
 #pragma pack(push, 1)
   template <typename T>

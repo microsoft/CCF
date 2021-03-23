@@ -82,15 +82,18 @@ namespace host
       size_t node_cert_len = 0;
       size_t network_cert_len = 0;
 
-      msgpack::sbuffer sbuf;
-      msgpack::pack(sbuf, ccf_config);
+      // msgpack::sbuffer sbuf;
+      // msgpack::pack(sbuf, ccf_config);
+
+      auto config = nlohmann::json(ccf_config).dump();
+      LOG_FAIL_FMT("Config: {}", config);
 
       auto err = enclave_create_node(
         e,
         &ret,
         (void*)&enclave_config,
-        sbuf.data(),
-        sbuf.size(),
+        config.data(),
+        config.size(),
         node_cert.data(),
         node_cert.size(),
         &node_cert_len,

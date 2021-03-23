@@ -9,6 +9,7 @@
 #include "crypto/curve.h"
 #include "crypto/san.h"
 #include "ds/buffer.h"
+#include "ds/json.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
 #include "ds/ring_buffer_types.h"
@@ -41,7 +42,11 @@ struct EnclaveConfig
 #endif
 };
 
-MSGPACK_ADD_ENUM(crypto::CurveID);
+DECLARE_JSON_ENUM(
+  crypto::CurveID,
+  {{crypto::CurveID::NONE, "None"},
+   {crypto::CurveID::SECP384R1, "secp384r1"},
+   {crypto::CurveID::SECP256R1, "secp256r1"}});
 
 struct CCFConfig
 {
@@ -58,7 +63,6 @@ struct CCFConfig
   {
     size_t sig_tx_interval;
     size_t sig_ms_interval;
-    MSGPACK_DEFINE(sig_tx_interval, sig_ms_interval);
   };
   SignatureIntervals signature_intervals = {};
 
@@ -67,7 +71,6 @@ struct CCFConfig
     std::vector<ccf::NewMember> members_info;
     std::string gov_script;
     size_t recovery_threshold;
-    MSGPACK_DEFINE(members_info, gov_script, recovery_threshold);
   };
   Genesis genesis = {};
 
@@ -77,7 +80,6 @@ struct CCFConfig
     std::string target_port;
     std::vector<uint8_t> network_cert;
     size_t join_timer;
-    MSGPACK_DEFINE(target_host, target_port, network_cert, join_timer);
   };
   Joining joining = {};
 
@@ -87,22 +89,36 @@ struct CCFConfig
   size_t jwt_key_refresh_interval_s;
 
   crypto::CurveID curve_id;
-
-  MSGPACK_DEFINE(
-    consensus_config,
-    node_info_network,
-    domain,
-    snapshot_tx_interval,
-    startup_snapshot,
-    startup_snapshot_evidence_seqno,
-    signature_intervals,
-    genesis,
-    joining,
-    subject_name,
-    subject_alternative_names,
-    jwt_key_refresh_interval_s,
-    curve_id);
 };
+
+DECLARE_JSON_TYPE(CCFConfig::SignatureIntervals);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig::SignatureIntervals, sig_tx_interval, sig_ms_interval);
+
+DECLARE_JSON_TYPE(CCFConfig::Genesis);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig::Genesis, members_info, gov_script, recovery_threshold);
+
+DECLARE_JSON_TYPE(CCFConfig::Joining);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig::Joining, target_host, target_port, network_cert, join_timer);
+
+DECLARE_JSON_TYPE(CCFConfig);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig,
+  consensus_config,
+  node_info_network,
+  domain,
+  snapshot_tx_interval,
+  startup_snapshot,
+  startup_snapshot_evidence_seqno,
+  signature_intervals,
+  genesis,
+  joining,
+  subject_name,
+  subject_alternative_names,
+  jwt_key_refresh_interval_s,
+  curve_id);
 
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message
