@@ -666,7 +666,9 @@ def test_view_history(network, args):
             r = c.get("/node/commit")
             check(c)
 
-            commit_view, commit_seqno = ccf.clients.parse_tx_id(r.body.json()["transaction_id"])
+            commit_view, commit_seqno = ccf.clients.parse_tx_id(
+                r.body.json()["transaction_id"]
+            )
 
             # Retrieve status for all possible Tx IDs
             seqno_to_views = {}
