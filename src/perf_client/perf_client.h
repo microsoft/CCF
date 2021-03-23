@@ -223,7 +223,10 @@ namespace client
         }
       }
 
-      if (response_times.is_timing_active() && reply.status == HTTP_STATUS_OK)
+      if (
+        response_times.is_timing_active() &&
+        (reply.status == HTTP_STATUS_OK ||
+         reply.status == HTTP_STATUS_NO_CONTENT))
       {
         const auto tx_id = timing::extract_transaction_id(reply);
 
