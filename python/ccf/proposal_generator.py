@@ -261,8 +261,8 @@ def new_member(
 
 
 @cli_proposal
-def retire_member(member_id: str, **kwargs):
-    return build_proposal("retire_member", member_id, **kwargs)
+def remove_member(member_id: str, **kwargs):
+    return build_proposal("remove_member", member_id, **kwargs)
 
 
 @cli_proposal

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.19.4]
+
+### Changed
+
+- Retired members are now deleted from the store, instead of being marked as `Retired`.
+- `retire_member` proposal has been renamed to `remove_member` and is now idempotent (i.e. succeeds even if the member was already removed).
+
 ## [0.19.3]
 
 ### Changed
@@ -762,6 +769,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.19.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.4
 [0.19.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.3
 [0.19.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.2
 [0.19.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.1
