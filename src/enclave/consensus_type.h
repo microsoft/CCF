@@ -4,8 +4,6 @@
 
 #include "ds/json.h"
 
-#include <msgpack/msgpack.hpp>
-
 enum ConsensusType
 {
   CFT = 0,
@@ -15,4 +13,3 @@ enum ConsensusType
 DECLARE_JSON_ENUM(
   ConsensusType, {{ConsensusType::CFT, "CFT"}, {ConsensusType::BFT, "BFT"}})
 
-MSGPACK_ADD_ENUM(ConsensusType);

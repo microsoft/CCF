@@ -5,7 +5,6 @@
 
 #include "ds/json.h"
 
-#include <msgpack/msgpack.hpp>
 #include <string>
 
 namespace ccf
@@ -18,8 +17,6 @@ namespace ccf
     std::string nodeport;
     std::string rpcport;
     std::string pubport;
-
-    MSGPACK_DEFINE(rpchost, pubhost, nodehost, nodeport, rpcport, pubport);
   };
   DECLARE_JSON_TYPE(NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(

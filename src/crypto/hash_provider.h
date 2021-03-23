@@ -8,7 +8,6 @@
 
 #include <cstdint>
 #include <iostream>
-#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace crypto
@@ -30,8 +29,6 @@ namespace crypto
      {MDType::SHA384, "SHA384"},
      {MDType::SHA512, "SHA512"}});
 }
-
-MSGPACK_ADD_ENUM(crypto::MDType);
 
 namespace crypto
 {
@@ -80,8 +77,6 @@ namespace crypto
     {
       return ds::to_hex(h);
     };
-
-    MSGPACK_DEFINE(h);
   };
 
   inline void to_json(nlohmann::json& j, const Sha256Hash& hash)

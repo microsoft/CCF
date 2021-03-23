@@ -2,24 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/hex.h"
+
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-#include <msgpack/msgpack.hpp>
 #include <sstream>
 
 namespace fmt
 {
-  inline std::string uint8_vector_to_hex_string(const std::vector<uint8_t>& v)
-  {
-    std::stringstream ss;
-    for (auto it = v.begin(); it != v.end(); it++)
-    {
-      ss << std::hex << static_cast<unsigned>(*it);
-    }
-
-    return ss.str();
-  }
-
   template <>
   struct formatter<std::vector<uint8_t>>
   {
@@ -32,7 +22,7 @@ namespace fmt
     template <typename FormatContext>
     auto format(const std::vector<uint8_t>& p, FormatContext& ctx)
     {
-      return format_to(ctx.out(), uint8_vector_to_hex_string(p));
+      return format_to(ctx.out(), ds::to_hex(p));
     }
   };
 
@@ -48,8 +38,7 @@ namespace fmt
     template <typename FormatContext>
     auto format(const std::array<uint8_t, 32>& p, FormatContext& ctx)
     {
-      return format_to(
-        ctx.out(), uint8_vector_to_hex_string({p.begin(), p.end()}));
+      return format_to(ctx.out(), ds::to_hex(p));
     }
   };
 }

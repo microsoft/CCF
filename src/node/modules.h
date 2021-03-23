@@ -4,7 +4,6 @@
 
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <optional>
 #include <stdint.h>
 #include <string>

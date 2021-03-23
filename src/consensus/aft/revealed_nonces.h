@@ -6,7 +6,6 @@
 #include "kv/map.h"
 #include "node/entity_id.h"
 
-#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
@@ -17,8 +16,6 @@ namespace aft
   {
     ccf::NodeId node_id;
     Nonce nonce;
-
-    MSGPACK_DEFINE(node_id, nonce);
 
     RevealedNonce(const ccf::NodeId& node_id_, Nonce nonce_) :
       node_id(node_id_),
@@ -34,8 +31,6 @@ namespace aft
   {
     kv::TxID tx_id;
     std::vector<RevealedNonce> nonces;
-
-    MSGPACK_DEFINE(tx_id, nonces);
 
     RevealedNonces() = default;
 

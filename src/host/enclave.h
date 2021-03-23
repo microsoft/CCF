@@ -8,7 +8,6 @@
 #include "enclave/interface.h"
 
 #include <dlfcn.h>
-#include <msgpack/msgpack.hpp>
 #ifdef VIRTUAL_ENCLAVE
 #  include "enclave/ccf_v.h"
 #else
@@ -82,11 +81,7 @@ namespace host
       size_t node_cert_len = 0;
       size_t network_cert_len = 0;
 
-      // msgpack::sbuffer sbuf;
-      // msgpack::pack(sbuf, ccf_config);
-
       auto config = nlohmann::json(ccf_config).dump();
-      LOG_FAIL_FMT("Config: {}", config);
 
       auto err = enclave_create_node(
         e,

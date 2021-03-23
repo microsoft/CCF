@@ -9,7 +9,6 @@
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-#include <msgpack/msgpack.hpp>
 
 namespace crypto
 {

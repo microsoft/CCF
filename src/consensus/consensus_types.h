@@ -4,7 +4,6 @@
 
 #include "node/nodes.h"
 
-#include <msgpack/msgpack.hpp>
 #include <stdint.h>
 
 namespace consensus

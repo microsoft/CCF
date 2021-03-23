@@ -69,7 +69,6 @@ namespace kv
     {
       size_t vec_size = sizeof(T) * vec.size();
       serialise_size(vec_size);
-      LOG_FAIL_FMT("Serialising view history: {}", vec_size);
 
       WriterData data(vec_size);
       auto data_ = data.data();

@@ -6,8 +6,6 @@
 #include "enclave/consensus_type.h"
 #include "entities.h"
 
-#include <msgpack/msgpack.hpp>
-
 namespace ccf
 {
   struct ServiceConfiguration
@@ -16,8 +14,6 @@ namespace ccf
     size_t recovery_threshold = 0;
 
     ConsensusType consensus = ConsensusType::CFT;
-
-    MSGPACK_DEFINE(recovery_threshold, consensus)
   };
   DECLARE_JSON_TYPE(ServiceConfiguration)
   DECLARE_JSON_REQUIRED_FIELDS(

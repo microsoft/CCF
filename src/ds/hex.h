@@ -2,8 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
-
+#define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <string>
 #include <vector>

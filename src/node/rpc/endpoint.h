@@ -20,8 +20,6 @@ namespace ccf
     {
       URI uri_path;
       RESTVerb verb = HTTP_POST;
-
-      MSGPACK_DEFINE(uri_path, verb);
     };
 
     DECLARE_JSON_TYPE(EndpointKey);
@@ -119,14 +117,6 @@ namespace ccf
 
       nlohmann::json openapi;
       bool openapi_hidden = false;
-
-      MSGPACK_DEFINE(
-        forwarding_required,
-        execute_outside_consensus,
-        authn_policies,
-        openapi,
-        openapi_hidden,
-        mode);
     };
 
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);

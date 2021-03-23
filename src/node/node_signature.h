@@ -74,8 +74,6 @@ namespace ccf
 
       return n;
     }
-
-    MSGPACK_DEFINE(sig, node, hashed_nonce);
   };
   DECLARE_JSON_TYPE(NodeSignature);
   DECLARE_JSON_REQUIRED_FIELDS(NodeSignature, sig, node, hashed_nonce);

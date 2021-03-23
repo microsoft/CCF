@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <msgpack/msgpack.hpp>
 #include <optional>
 #include <stdint.h>
 #include <string>
@@ -38,8 +37,6 @@ namespace ccf
     {
       return !operator==(other);
     }
-
-    MSGPACK_DEFINE(bytecode, text);
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Script);
