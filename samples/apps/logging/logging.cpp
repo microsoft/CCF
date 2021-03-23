@@ -40,7 +40,8 @@ namespace loggingapp
       const auto& headers = ctx->get_request_headers();
 
       {
-        // If a specific header is present, throw an exception to simulate a dangerously implemented auth policy
+        // If a specific header is present, throw an exception to simulate a
+        // dangerously implemented auth policy
         constexpr auto explode_header_key = "x-custom-auth-explode";
         const auto explode_header_it = headers.find(explode_header_key);
         if (explode_header_it != headers.end())
@@ -578,7 +579,8 @@ namespace loggingapp
       auto custom_policy = std::make_shared<CustomAuthPolicy>();
       make_endpoint("custom_auth", HTTP_GET, custom_auth, {custom_policy})
         .set_auto_schema<void, nlohmann::json>()
-        // To test that custom auth works on both the receiving node and a forwardee, we always forward it
+        // To test that custom auth works on both the receiving node and a
+        // forwardee, we always forward it
         .set_forwarding_required(ccf::ForwardingRequired::Always)
         .install();
       // SNIPPET_END: custom_auth_endpoint
