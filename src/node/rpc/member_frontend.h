@@ -2178,12 +2178,12 @@ namespace ccf
           auto proposal = JS_NewStringLen(context, body, body_len);
           JSValueConst* argv = (JSValueConst*)&proposal;
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wc99-extensions"
 
           auto val = context(JS_Call(context, validate, JS_UNDEFINED, 1, argv));
 
-#pragma clang diagnostic pop
+#  pragma clang diagnostic pop
 
           JS_FreeValue(context, proposal);
           JS_FreeValue(context, validate);
@@ -2260,8 +2260,186 @@ namespace ccf
         json_adapter(post_proposals_js),
         member_sig_only)
         .install();
-    }
+
+      auto get_proposal_js =
+        [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          const auto& caller_identity =
+            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
+          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is not active.");
+          }
+
+          ProposalId proposal_id;
+          std::string error;
+          if (!get_proposal_id_from_path(
+                ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
+
+          auto pm =
+            ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+          auto p = pm->get(proposal_id);
+
+          if (!p)
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ProposalNotFound,
+              fmt::format("Proposal {} does not exist.", proposal_id));
+          }
+
+          auto pi = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(
+            "public:ccf.gov.proposals_info.js");
+          auto pi_ = pi->get(proposal_id);
+
+          if (!pi_)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "No proposal info associated with {} exists.", proposal_id));
+          }
+          // yikes
+          auto pp = nlohmann::json::parse(p.value());
+          nlohmann::json pir = pi_.value();
+          pir["proposal"] = pp;
+
+          return make_success(pir);
+        };
+
+      make_read_only_endpoint(
+        "proposals.js/{proposal_id}",
+        HTTP_GET,
+        json_read_only_adapter(get_proposal_js),
+        member_cert_or_sig)
+        .set_auto_schema<void, jsgov::ProposalInfo>()
+        .install();
+
+      auto vote_js = [this](EndpointContext& ctx, nlohmann::json&& params) {
+        const auto& caller_identity =
+          ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
+        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
+        }
+
+        ProposalId proposal_id;
+        std::string error;
+        if (!get_proposal_id_from_path(
+              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+        }
+
+        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
+          "public:ccf.gov.proposals_info.js");
+        auto pi_ = pi->get(proposal_id);
+        if (!pi_)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ProposalNotFound,
+            fmt::format("Could not find proposal {}.", proposal_id));
+        }
+
+        if (pi_->ballots.find(caller_identity.member_id) != pi_->ballots.end())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::VoteAlreadyExists,
+            "Vote already submitted.");
+        }
+        pi_->ballots[caller_identity.member_id] = params["ballot"];
+        pi->put(proposal_id, pi_.value());
+
+        record_voting_history(
+          ctx.tx, caller_identity.member_id, caller_identity.signed_request);
+
+        return make_success(true);
+      };
+      make_endpoint(
+        "proposals.js/{proposal_id}/votes",
+        HTTP_POST,
+        json_adapter(vote_js),
+        member_sig_only)
+        .set_auto_schema<void, jsgov::ProposalInfo>()
+        .install();
+
+      auto get_vote_js =
+        [this](ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          const auto& caller_identity =
+            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
+          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is not active.");
+          }
+
+          std::string error;
+          ProposalId proposal_id;
+          if (!get_proposal_id_from_path(
+                ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
+
+          MemberId vote_member_id;
+          if (!get_member_id_from_path(
+                ctx.rpc_ctx->get_request_path_params(), vote_member_id, error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
+
+          auto pi = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(
+            "public:ccf.gov.proposals_info.js");
+          auto pi_ = pi->get(proposal_id);
+          if (!pi_)
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ProposalNotFound,
+              fmt::format("Proposal {} does not exist.", proposal_id));
+          }
+
+          const auto vote_it = pi_->ballots.find(vote_member_id);
+          if (vote_it == pi_->ballots.end())
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::VoteNotFound,
+              fmt::format(
+                "Member {} has not voted for proposal {}.",
+                vote_member_id,
+                proposal_id));
+          }
+
+          return make_success(vote_it->second);
+        };
+      make_read_only_endpoint(
+        "proposals.js/{proposal_id}/votes/{member_id}",
+        HTTP_GET,
+        json_read_only_adapter(get_vote_js),
+        member_cert_or_sig)
+        .set_auto_schema<void, std::string>()
+        .install();
+
 #endif
+    }
   };
 
   class MemberRpcFrontend : public RpcFrontend
