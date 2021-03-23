@@ -5,7 +5,7 @@ import time
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
-from ccf.clients import CCFConnectionException, flush_info
+from ccf.clients import CCFConnectionException, flush_info, parse_tx_id
 import infra.path
 import infra.proc
 import infra.node
@@ -788,8 +788,8 @@ class Network:
             with primary.client() as c:
                 resp = c.get("/node/commit")
                 body = resp.body.json()
-                seqno = body["seqno"]
-                view = body["view"]
+                tx_id = body["transaction_id"]
+                view, seqno = parse_tx_id(tx_id)
                 if seqno != 0:
                     break
             time.sleep(0.1)
@@ -802,8 +802,7 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    c.get("/node/commit")
-                    resp = c.get(f"/node/local_tx?view={view}&seqno={seqno}")
+                    resp = c.get(f"/node/local_tx?transaction_id={view}.{seqno}")
                     if resp.status_code != 200:
                         # Node may not have joined the network yet, try again
                         break
@@ -837,7 +836,7 @@ class Network:
                     r = c.get("/node/commit")
                     assert r.status_code == http.HTTPStatus.OK.value
                     body = r.body.json()
-                    commits.append(f"{body['view']}.{body['seqno']}")
+                    commits.append(body["transaction_id"])
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)
@@ -877,7 +876,7 @@ class Network:
         while time.time() < end_time:
             with node.client() as c:
                 r = c.get("/node/commit")
-                current_commit_seqno = r.body.json()["seqno"]
+                current_commit_seqno = parse_tx_id(r.body.json()["transaction_id"])[1]
                 if current_commit_seqno >= seqno:
                     with node.client(
                         self.consortium.get_any_active_member().local_id

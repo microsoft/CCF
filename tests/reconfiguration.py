@@ -33,11 +33,15 @@ def count_nodes(configs, network):
 def check_can_progress(node, timeout=3):
     with node.client() as c:
         r = c.get("/node/commit")
+        original_seqno = ccf.clients.parse_tx_id(r.body.json()["transaction_id"])[1]
         with node.client("user0") as uc:
             uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
         end_time = time.time() + timeout
         while time.time() < end_time:
-            if c.get("/node/commit").body.json()["seqno"] > r.body.json()["seqno"]:
+            current_seqno = ccf.clients.parse_tx_id(
+                c.get("/node/commit").body.json()["transaction_id"]
+            )[1]
+            if current_seqno > original_seqno:
                 return
             time.sleep(0.1)
         assert False, f"Stuck at {r}"

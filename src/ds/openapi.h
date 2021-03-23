@@ -240,6 +240,12 @@ namespace ds
       }
     }
 
+    template <typename T, typename U>
+    void add_schema_components(T&, nlohmann::json& j, const U& u)
+    {
+      fill_json_schema(j, u);
+    }
+
     struct SchemaHelper
     {
       nlohmann::json& document;

@@ -57,7 +57,30 @@ namespace ccf
     }
   };
 
-  // ADL-found functions used during OpenAPI/JSON schema generation
+  // ADL-found functions used during JSON conversion and OpenAPI/JSON schema
+  // generation
+  inline void to_json(nlohmann::json& j, const TxID& tx_id)
+  {
+    j = tx_id.to_str();
+  }
+
+  inline void from_json(const nlohmann::json& j, TxID& tx_id)
+  {
+    if (!j.is_string())
+    {
+      throw JsonParseError(
+        fmt::format("Cannot parse TxID: Expected string, got {}", j.dump()));
+    }
+
+    const auto opt = TxID::from_str(j.get<std::string>());
+    if (!opt.has_value())
+    {
+      throw JsonParseError(fmt::format("Cannot parse TxID: {}", j.dump()));
+    }
+
+    tx_id = opt.value();
+  }
+
   inline std::string schema_name(const TxID&)
   {
     return "TransactionId";

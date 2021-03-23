@@ -54,7 +54,7 @@ class TxRates:
     def process_next(self):
         with self.primary.client() as client:
             rv = client.get("/node/commit")
-            next_commit = rv.body.json()["seqno"]
+            next_commit = ccf.clients.parse_tx_id(rv.body.json()["transaction_id"])[1]
             more_to_process = self.commit != next_commit
             self.commit = next_commit
 
