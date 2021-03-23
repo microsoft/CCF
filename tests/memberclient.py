@@ -107,7 +107,7 @@ def test_corrupted_signature(network, args):
             ccf.clients.RequestClient._auth_provider = original_auth
 
         # Remove the new member once we're done with them
-        network.consortium.retire_member(node, member)
+        network.consortium.remove_member(node, member)
 
     return network
 

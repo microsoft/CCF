@@ -52,6 +52,7 @@ namespace ccf
     CreateNetworkNodeToNode::In,
     members_info,
     gov_script,
+    constitution,
     node_id,
     node_cert,
     network_cert,

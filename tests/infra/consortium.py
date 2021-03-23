@@ -84,13 +84,11 @@ class Consortium:
                     "/gov/query",
                     {
                         "text": """tables = ...
-                        non_retired_members = {}
+                        members = {}
                         tables["public:ccf.gov.members.info"]:foreach(function(service_id, info)
-                        if info["status"] ~= "Retired" then
-                            table.insert(non_retired_members, {service_id, info})
-                        end
+                        table.insert(members, {service_id, info})
                         end)
-                        return non_retired_members
+                        return members
                         """
                     },
                 )
@@ -338,14 +336,14 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
-    def retire_member(self, remote_node, member_to_retire):
-        LOG.info(f"Retiring member {member_to_retire.local_id}")
+    def remove_member(self, remote_node, member_to_remove):
+        LOG.info(f"Retiring member {member_to_remove.local_id}")
         proposal_body, careful_vote = self.make_proposal(
-            "retire_member", member_to_retire.service_id
+            "remove_member", member_to_remove.service_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
-        member_to_retire.status_code = infra.member.MemberStatus.RETIRED
+        member_to_remove.set_retired()
 
     def rekey_ledger(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("rekey_ledger")

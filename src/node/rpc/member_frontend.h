@@ -4,9 +4,11 @@
 #include "crypto/key_pair.h"
 #include "ds/nonstd.h"
 #include "frontend.h"
+#include "js/wrap.h"
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
+#include "node/gov.h"
 #include "node/jwt.h"
 #include "node/members.h"
 #include "node/nodes.h"
@@ -578,23 +580,19 @@ namespace ccf
            return true;
          }},
         // retire an existing member
-        {"retire_member",
+        {"remove_member",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
-           auto members = tx.rw(this->network.member_info);
-           auto member_info = members->get(member_id);
-           if (!member_info.has_value())
+           GenesisGenerator g(this->network, tx);
+           bool is_active = g.is_active_member(member_id);
+           bool is_recovery = g.is_recovery_member(member_id);
+           if (!g.remove_member(member_id))
            {
-             LOG_FAIL_FMT(
-               "Cannot retire member {} as they do not exist", member_id);
              return false;
            }
 
-           GenesisGenerator g(this->network, tx);
-           if (
-             member_info->status == MemberStatus::ACTIVE &&
-             g.is_recovery_member(member_id))
+           if (is_active && is_recovery)
            {
              // A retired recovery member should not have access to the private
              // ledger going forward so rekey ledger, issuing new share to
@@ -605,7 +603,7 @@ namespace ccf
              }
            }
 
-           return g.retire_member(member_id);
+           return true;
          }},
         {"set_member_data",
          [this](
@@ -2008,6 +2006,8 @@ namespace ccf
 
         g.set_gov_scripts(
           lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
+
+        tx.rw(this->network.constitution)->put(0, in.constitution);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);
