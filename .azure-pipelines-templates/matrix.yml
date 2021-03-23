@@ -67,7 +67,7 @@ jobs:
         parameters:
           target: SGX
           env: ${{ parameters.env.SGX }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON"
+          cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DENABLE_JS_GOV=ON"
           suffix: "Release"
           artifact_name: "SGX_Release"
 

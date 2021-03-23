@@ -2099,6 +2099,7 @@ namespace ccf
         .install();
 
       // JavaScript governance
+#ifdef ENABLE_JS_GOV
 
       auto post_proposals_js =
         [this](EndpointContext& ctx, nlohmann::json&& params) {
@@ -2260,6 +2261,7 @@ namespace ccf
         member_sig_only)
         .install();
     }
+#endif
   };
 
   class MemberRpcFrontend : public RpcFrontend
