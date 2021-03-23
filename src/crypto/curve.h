@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/hash.h"
+#include "ds/json.h"
 #include "ds/logger.h"
 
 #include <mbedtls/ecp.h>
@@ -22,6 +23,12 @@ namespace crypto
     /// The SECP256R1 curve
     SECP256R1
   };
+
+  DECLARE_JSON_ENUM(
+    CurveID,
+    {{CurveID::NONE, "None"},
+     {CurveID::SECP384R1, "secp384r1"},
+     {CurveID::SECP256R1, "secp256r1"}});
 
   static constexpr CurveID service_identity_curve_choice = CurveID::SECP384R1;
   // SNIPPET_END: supported_curves

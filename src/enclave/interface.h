@@ -42,12 +42,6 @@ struct EnclaveConfig
 #endif
 };
 
-DECLARE_JSON_ENUM(
-  crypto::CurveID,
-  {{crypto::CurveID::NONE, "None"},
-   {crypto::CurveID::SECP384R1, "secp384r1"},
-   {crypto::CurveID::SECP256R1, "secp256r1"}});
-
 struct CCFConfig
 {
   consensus::Configuration consensus_config = {};

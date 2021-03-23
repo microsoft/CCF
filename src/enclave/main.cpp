@@ -118,7 +118,8 @@ extern "C"
 
     oe_lfence();
 
-    CCFConfig cc = nlohmann::json::parse(ccf_config, ccf_config_size);
+    CCFConfig cc =
+      nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
 
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
