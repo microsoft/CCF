@@ -83,7 +83,7 @@ namespace ccf
       std::nullopt;
 
     // Version at which the _next_ ledger secret is applicable from
-    // Note: In most cases (e.g. re-key, member retirement), this is unset and
+    // Note: In most cases (e.g. re-key, member removal), this is unset and
     // the version at which the next ledger secret is applicable from is
     // derived from the local hook on recovery. In one case (i.e. after recovery
     // of the public ledger), a new ledger secret is created to protect the
