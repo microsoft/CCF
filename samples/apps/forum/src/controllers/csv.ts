@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+import * as ccfapp from "ccf-app";
+
 import {
   SuccessResponse,
   Request,
@@ -23,8 +25,7 @@ import {
   UnauthorizedError,
 } from "../error_handler";
 import { User } from "../authentication";
-import * as ccfapp from "ccf-app";
-import { kv } from "../models/poll";
+import { PollMap, getPollMap } from "../models/poll";
 
 // GET  /csv return all opinions of authenticated user as CSV
 // POST /csv submits opinions for authenticated user from CSV
@@ -37,11 +38,11 @@ import { kv } from "../models/poll";
   "Schema validation error"
 )
 export class CSVController extends Controller {
-  private kvPolls: kv.PollMap;
+  private kvPolls: PollMap;
 
   constructor() {
     super();
-    this.kvPolls = kv.getPollMap();
+    this.kvPolls = getPollMap();
   }
 
   @SuccessResponse(200, "Opinions of authenticated user in CSV format")

@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+import * as ccfapp from "ccf-app";
+
 import {
   Body,
   Path,
@@ -28,8 +30,7 @@ import {
   UnauthorizedError,
 } from "../error_handler";
 import { User } from "../authentication";
-import * as ccfapp from "ccf-app";
-import { kv } from "../models/poll";
+import { PollMap, getPollMap } from "../models/poll";
 
 export const MINIMUM_OPINION_THRESHOLD = 10;
 
@@ -100,11 +101,11 @@ export {
   "Schema validation error"
 )
 export class PollController extends Controller {
-  private kvPolls: kv.PollMap;
+  private kvPolls: PollMap;
 
   constructor() {
     super();
-    this.kvPolls = kv.getPollMap();
+    this.kvPolls = getPollMap();
   }
 
   @SuccessResponse(201, "Poll has been successfully created")

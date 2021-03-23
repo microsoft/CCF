@@ -133,9 +133,6 @@ It is an object implementing the :js:class:`CCF <CCF>` interface documented belo
 .. js:autoclass:: ProofElement
    :members:
 
-.. js:autoclass:: WrapAlgoParams
-   :members:
-
 .. js:autoclass:: RsaOaepParams
    :members:
 

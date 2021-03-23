@@ -8,11 +8,7 @@ interface LogEntry extends LogItem {
   id: number;
 }
 
-const logMap = new ccfapp.TypedKvMap(
-  ccfapp.ccf.kv.log,
-  ccfapp.uint32,
-  ccfapp.json<LogItem>()
-);
+const logMap = ccfapp.typedKv("log", ccfapp.uint32, ccfapp.json<LogItem>());
 
 export function getLogItem(request: ccfapp.Request): ccfapp.Response<LogItem> {
   const id = parseInt(request.query.split("=")[1]);
@@ -36,7 +32,7 @@ export function getAllLogItems(
   request: ccfapp.Request
 ): ccfapp.Response<Array<LogEntry>> {
   let items: Array<LogEntry> = [];
-  logMap.forEach(function (item, id, table) {
+  logMap.forEach(function (item, id) {
     items.push({ id: id, msg: item.msg });
   });
   return {

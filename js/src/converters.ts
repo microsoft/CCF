@@ -1,19 +1,19 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-import { ccf, KvMap } from "./builtin";
+import { ccf } from "./global";
 
 // This should eventually cover all JSON-compatible values.
 // There are attempts at https://github.com/microsoft/TypeScript/issues/1897
 // to create such a type but it needs further refinement.
-type JsonCompatible<T> = any;
+export type JsonCompatible<T> = any;
 
 export interface DataConverter<T> {
   encode(val: T): ArrayBuffer;
   decode(arr: ArrayBuffer): T;
 }
 
-export class BoolConverter implements DataConverter<boolean> {
+class BoolConverter implements DataConverter<boolean> {
   encode(val: boolean): ArrayBuffer {
     const buf = new ArrayBuffer(1);
     new DataView(buf).setUint8(0, val ? 1 : 0);
@@ -23,8 +23,11 @@ export class BoolConverter implements DataConverter<boolean> {
     return new DataView(buf).getUint8(0) === 1 ? true : false;
   }
 }
-export class Int8Converter implements DataConverter<number> {
+class Int8Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    if (val < -128 || val > 127) {
+      throw new RangeError("value is not within int8 range");
+    }
     const buf = new ArrayBuffer(1);
     new DataView(buf).setInt8(0, val);
     return buf;
@@ -33,8 +36,11 @@ export class Int8Converter implements DataConverter<number> {
     return new DataView(buf).getInt8(0);
   }
 }
-export class Uint8Converter implements DataConverter<number> {
+class Uint8Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    if (val < 0 || val > 255) {
+      throw new RangeError("value is not within uint8 range");
+    }
     const buf = new ArrayBuffer(2);
     new DataView(buf).setUint8(0, val);
     return buf;
@@ -43,8 +49,11 @@ export class Uint8Converter implements DataConverter<number> {
     return new DataView(buf).getUint8(0);
   }
 }
-export class Int16Converter implements DataConverter<number> {
+class Int16Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    if (val < -32768 || val > 32767) {
+      throw new RangeError("value is not within int16 range");
+    }
     const buf = new ArrayBuffer(2);
     new DataView(buf).setInt16(0, val, true);
     return buf;
@@ -53,8 +62,11 @@ export class Int16Converter implements DataConverter<number> {
     return new DataView(buf).getInt16(0, true);
   }
 }
-export class Uint16Converter implements DataConverter<number> {
+class Uint16Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    if (val < 0 || val > 65535) {
+      throw new RangeError("value is not within uint16 range");
+    }
     const buf = new ArrayBuffer(2);
     new DataView(buf).setUint16(0, val, true);
     return buf;
@@ -63,8 +75,11 @@ export class Uint16Converter implements DataConverter<number> {
     return new DataView(buf).getUint16(0, true);
   }
 }
-export class Int32Converter implements DataConverter<number> {
+class Int32Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    if (val < -2147483648 || val > 2147483647) {
+      throw new RangeError("value is not within int32 range");
+    }
     const buf = new ArrayBuffer(4);
     new DataView(buf).setInt32(0, val, true);
     return buf;
@@ -73,8 +88,11 @@ export class Int32Converter implements DataConverter<number> {
     return new DataView(buf).getInt32(0, true);
   }
 }
-export class Uint32Converter implements DataConverter<number> {
+class Uint32Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
+    if (val < 0 || val > 4294967295) {
+      throw new RangeError("value is not within int32 range");
+    }
     const buf = new ArrayBuffer(4);
     new DataView(buf).setUint32(0, val, true);
     return buf;
@@ -83,7 +101,7 @@ export class Uint32Converter implements DataConverter<number> {
     return new DataView(buf).getUint32(0, true);
   }
 }
-export class Int64Converter implements DataConverter<bigint> {
+class Int64Converter implements DataConverter<bigint> {
   encode(val: bigint): ArrayBuffer {
     const buf = new ArrayBuffer(8);
     new DataView(buf).setBigInt64(0, val, true);
@@ -93,7 +111,7 @@ export class Int64Converter implements DataConverter<bigint> {
     return new DataView(buf).getBigInt64(0, true);
   }
 }
-export class Uint64Converter implements DataConverter<bigint> {
+class Uint64Converter implements DataConverter<bigint> {
   encode(val: bigint): ArrayBuffer {
     const buf = new ArrayBuffer(8);
     new DataView(buf).setBigUint64(0, val, true);
@@ -103,7 +121,7 @@ export class Uint64Converter implements DataConverter<bigint> {
     return new DataView(buf).getBigUint64(0, true);
   }
 }
-export class Float32Converter implements DataConverter<number> {
+class Float32Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
     const buf = new ArrayBuffer(4);
     new DataView(buf).setFloat32(0, val, true);
@@ -113,7 +131,7 @@ export class Float32Converter implements DataConverter<number> {
     return new DataView(buf).getFloat32(0, true);
   }
 }
-export class Float64Converter implements DataConverter<number> {
+class Float64Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
     const buf = new ArrayBuffer(8);
     new DataView(buf).setFloat64(0, val, true);
@@ -123,7 +141,7 @@ export class Float64Converter implements DataConverter<number> {
     return new DataView(buf).getFloat64(0, true);
   }
 }
-export class StringConverter implements DataConverter<string> {
+class StringConverter implements DataConverter<string> {
   encode(val: string): ArrayBuffer {
     return ccf.strToBuf(val);
   }
@@ -131,8 +149,7 @@ export class StringConverter implements DataConverter<string> {
     return ccf.bufToStr(buf);
   }
 }
-export class JSONConverter<T extends JsonCompatible<T>>
-  implements DataConverter<T> {
+class JSONConverter<T extends JsonCompatible<T>> implements DataConverter<T> {
   encode(val: T): ArrayBuffer {
     return ccf.jsonCompatibleToBuf(val);
   }
@@ -147,8 +164,7 @@ interface TypedArrayConstructor<T extends TypedArray> {
   new (buffer: ArrayBuffer, byteOffset?: number, length?: number): T;
 }
 
-export class TypedArrayConverter<T extends TypedArray>
-  implements DataConverter<T> {
+class TypedArrayConverter<T extends TypedArray> implements DataConverter<T> {
   constructor(private clazz: TypedArrayConstructor<T>) {}
   encode(val: T): ArrayBuffer {
     return val.buffer.slice(val.byteOffset, val.byteOffset + val.byteLength);
@@ -157,7 +173,8 @@ export class TypedArrayConverter<T extends TypedArray>
     return new this.clazz(buf);
   }
 }
-export class IdentityConverter implements DataConverter<ArrayBuffer> {
+
+class IdentityConverter implements DataConverter<ArrayBuffer> {
   encode(val: ArrayBuffer): ArrayBuffer {
     return val;
   }
@@ -183,37 +200,3 @@ export const typedArray = <T extends TypedArray>(
   clazz: TypedArrayConstructor<T>
 ) => new TypedArrayConverter(clazz);
 export const arrayBuffer = new IdentityConverter();
-
-export class TypedKvMap<K, V> {
-  constructor(
-    private kv: KvMap,
-    private kt: DataConverter<K>,
-    private vt: DataConverter<V>
-  ) {}
-  has(key: K): boolean {
-    return this.kv.has(this.kt.encode(key));
-  }
-  get(key: K): V | undefined {
-    const v = this.kv.get(this.kt.encode(key));
-    return v === undefined ? undefined : this.vt.decode(v);
-  }
-  set(key: K, value: V): TypedKvMap<K, V> {
-    this.kv.set(this.kt.encode(key), this.vt.encode(value));
-    return this;
-  }
-  delete(key: K): boolean {
-    return this.kv.delete(this.kt.encode(key));
-  }
-  forEach(callback: (value: V, key: K, table: TypedKvMap<K, V>) => void): void {
-    let kt = this.kt;
-    let vt = this.vt;
-    let typedMap = this;
-    this.kv.forEach(function (
-      raw_v: ArrayBuffer,
-      raw_k: ArrayBuffer,
-      table: KvMap
-    ) {
-      callback(vt.decode(raw_v), kt.decode(raw_k), typedMap);
-    });
-  }
-}

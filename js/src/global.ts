@@ -4,89 +4,14 @@
 // The global ccf variable and associated types are exported
 // as a regular module instead of using an ambient namespace
 // in a .d.ts definition file.
-// This avoids polluting the global namespace and helps with
-// writing shims for tests outside of the CCF environment.
+// This avoids polluting the global namespace.
 
 export const ccf: CCF = (<any>globalThis).ccf;
 
 // This should eventually cover all JSON-compatible values.
 // There are attempts at https://github.com/microsoft/TypeScript/issues/1897
 // to create such a type but it needs further refinement.
-type JsonCompatible<T> = any;
-
-export interface Body<T extends JsonCompatible<T>> {
-  text: () => string;
-  json: () => T;
-  arrayBuffer: () => ArrayBuffer;
-}
-
-export interface Request<T extends JsonCompatible<T> = any> {
-  /**
-   * An object mapping lower-case HTTP header names to their values.
-   */
-  headers: { [key: string]: string };
-
-  /**
-   * An object mapping URL path parameter names to their values.
-   */
-  params: { [key: string]: string };
-
-  /**
-   * The query string of the requested URL.
-   */
-  query: string;
-
-  /**
-   * An object with ``text()``/``json()``/``arrayBuffer()`` functions
-   * to access the request body in various ways.
-   */
-  body: Body<T>;
-
-  /**
-   * An object describing the authenticated identity retrieved
-   * by this endpoint's authentication policies.
-   *
-   * ``caller.policy`` is a string indicating which policy accepted this request,
-   * for use when multiple policies are listed.
-   * The other fields depend on which policy accepted;
-   * most set ``caller.id``, ``caller.data``, and ``caller.cert``,
-   * while the ``"jwt"`` policy sets ``caller.jwt``.
-   */
-  caller: any;
-}
-
-export type ResponseBodyType<T> = string | ArrayBuffer | JsonCompatible<T>;
-
-export interface Response<T extends ResponseBodyType<T> = any> {
-  /**
-   * (Optional) The HTTP status code to return.
-   * Defaults to ``200``, or ``500`` if an exception is raised.
-   */
-  statusCode?: number;
-
-  /**
-   * (Optional) An object mapping lower-case HTTP header names to their values.
-   * The type of ``body`` determines the default value of the ``content-type`` header.
-   */
-  headers?: { [key: string]: string };
-
-  /**
-   * (Optional) The body of the response.
-   * Either
-   * a `string <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String>`_ (``text/plain``),
-   * an `ArrayBuffer <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer>`_ (``application/octet-stream``),
-   * a `TypedArray <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray>`_ (``application/octet-stream``),
-   * or as fall-back any `JSON-serializable <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify>`_ value (``application/json``).
-   *
-   * The content type in parentheses is the default and can be overridden in ``headers``.
-   */
-  body?: T;
-}
-
-export type EndpointFn<
-  A extends JsonCompatible<A> = any,
-  B extends ResponseBodyType<B> = any
-> = (request: Request<A>) => Response<B>;
+export type JsonCompatible<T> = any;
 
 /**
  * A map in the Key Value Store.
@@ -157,14 +82,10 @@ export interface HistoricalState {
   receipt: Receipt;
 }
 
-export interface WrapAlgoParams {
-  name: string;
-}
-
 /**
  *
  */
-export interface RsaOaepParams extends WrapAlgoParams {
+export interface RsaOaepParams {
   name: "RSA-OAEP";
   label?: ArrayBuffer;
 }
@@ -172,17 +93,20 @@ export interface RsaOaepParams extends WrapAlgoParams {
 /**
  *
  */
-export interface AesKwpParams extends WrapAlgoParams {
+export interface AesKwpParams {
   name: "AES-KWP";
 }
 
 /**
  *
  */
-export interface RsaOaepAesKwpParams extends WrapAlgoParams {
+export interface RsaOaepAesKwpParams {
   name: "RSA-OAEP-AES-KWP";
+  aesKeySize: number;
   label?: ArrayBuffer;
 }
+
+export type WrapAlgoParams = RsaOaepParams | AesKwpParams | RsaOaepAesKwpParams;
 
 export interface CryptoKeyPair {
   /**

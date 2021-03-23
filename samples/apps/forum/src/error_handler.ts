@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-import { ValidateError as TsoaValidateError, FieldErrors } from "@tsoa/runtime";
 import * as ccfapp from "ccf-app";
+import { ValidateError as TsoaValidateError, FieldErrors } from "@tsoa/runtime";
 
 export interface ErrorResponse {
   message: string;

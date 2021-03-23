@@ -2,6 +2,7 @@ import * as rs from "jsrsasign";
 import { Base64 } from "js-base64";
 
 import * as ccfapp from "ccf-app";
+import * as ccfcrypto from "ccf-app/crypto";
 
 interface CryptoResponse {
   available: boolean;
@@ -24,7 +25,7 @@ interface GenerateAesKeyRequest {
 export function generateAesKey(
   request: ccfapp.Request<GenerateAesKeyRequest>
 ): ccfapp.Response<ArrayBuffer> {
-  return { body: ccfapp.ccf.generateAesKey(request.body.json().size) };
+  return { body: ccfcrypto.generateAesKey(request.body.json().size) };
 }
 
 interface GenerateRsaKeyPairRequest {
@@ -32,35 +33,38 @@ interface GenerateRsaKeyPairRequest {
   exponent?: number;
 }
 
-export interface CryptoKeyPair {
+export interface GenerateRsaKeyPairResponse {
   privateKey: string;
   publicKey: string;
 }
 
 export function generateRsaKeyPair(
   request: ccfapp.Request<GenerateRsaKeyPairRequest>
-): ccfapp.Response<CryptoKeyPair> {
+): ccfapp.Response<GenerateRsaKeyPairResponse> {
   const req = request.body.json();
   const res = req.exponent
-    ? ccfapp.ccf.generateRsaKeyPair(req.size, req.exponent)
-    : ccfapp.ccf.generateRsaKeyPair(req.size);
+    ? ccfcrypto.generateRsaKeyPair(req.size, req.exponent)
+    : ccfcrypto.generateRsaKeyPair(req.size);
   return { body: res };
 }
 
 type Base64 = string;
 
-interface WrapAlgoParams {
-  name: string;
-}
-
-interface RsaOaepParams extends WrapAlgoParams {
+interface RsaOaepParams {
+  name: "RSA-OAEP";
   label?: Base64;
 }
 
-interface RsaOaepAesKwpParams extends WrapAlgoParams {
+interface RsaOaepAesKwpParams {
+  name: "RSA-OAEP-AES-KWP";
   aesKeySize: number; // in bits
   label?: Base64;
 }
+
+type WrapAlgoParams =
+  | RsaOaepParams
+  | RsaOaepAesKwpParams
+  | ccfcrypto.AesKwpParams;
 
 interface WrapKeyRequest {
   key: Base64; // typically an AES key
@@ -74,31 +78,26 @@ export function wrapKey(
   const r = request.body.json();
   const key = b64ToBuf(r.key);
   const wrappingKey = b64ToBuf(r.wrappingKey);
+  let wrappedKey: ArrayBuffer;
   if (r.wrapAlgo.name == "RSA-OAEP") {
-    const p = r.wrapAlgo as RsaOaepParams;
-    const l = p.label ? b64ToBuf(p.label) : undefined;
-    const new_p = { name: p.name, label: l };
-    const wrappedKey = ccfapp.ccf.wrapKey(key, wrappingKey, new_p);
-    return { body: wrappedKey };
+    const label = r.wrapAlgo.label ? b64ToBuf(r.wrapAlgo.label) : undefined;
+    wrappedKey = ccfcrypto.wrapKey(key, wrappingKey, {
+      name: r.wrapAlgo.name,
+      label: label,
+    });
   } else if (r.wrapAlgo.name == "RSA-OAEP-AES-KWP") {
-    const p = r.wrapAlgo as RsaOaepAesKwpParams;
-    const l = p.label ? b64ToBuf(p.label) : undefined;
-    const new_p = { name: p.name, aesKeySize: p.aesKeySize, label: l };
-    const wrappedKey = ccfapp.ccf.wrapKey(key, wrappingKey, new_p);
-    return { body: wrappedKey };
+    const label = r.wrapAlgo.label ? b64ToBuf(r.wrapAlgo.label) : undefined;
+    wrappedKey = ccfcrypto.wrapKey(key, wrappingKey, {
+      name: r.wrapAlgo.name,
+      aesKeySize: r.wrapAlgo.aesKeySize,
+      label: label,
+    });
   } else {
-    const wrappedKey = ccfapp.ccf.wrapKey(key, wrappingKey, r.wrapAlgo);
-    return { body: wrappedKey };
+    wrappedKey = ccfcrypto.wrapKey(key, wrappingKey, r.wrapAlgo);
   }
+  return { body: wrappedKey };
 }
 
 function b64ToBuf(b64: string): ArrayBuffer {
   return Base64.toUint8Array(b64).buffer;
-}
-
-function publicPemToDer(pem: string): ArrayBuffer {
-  const pemHeader = "-----BEGIN PUBLIC KEY-----";
-  const pemFooter = "-----END PUBLIC KEY-----";
-  const pemContents = pem.substring(pemHeader.length, pem.indexOf(pemFooter));
-  return b64ToBuf(pemContents);
 }
