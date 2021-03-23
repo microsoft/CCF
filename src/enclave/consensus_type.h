@@ -12,4 +12,3 @@ enum ConsensusType
 
 DECLARE_JSON_ENUM(
   ConsensusType, {{ConsensusType::CFT, "CFT"}, {ConsensusType::BFT, "BFT"}})
-
