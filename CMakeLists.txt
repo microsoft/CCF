@@ -60,6 +60,7 @@ option(ENABLE_JS_GOV "Disable JS Governance" ON)
 if(ENABLE_JS_GOV)
   add_definitions(-DENABLE_JS_GOV)
 endif()
+option(BUILD_TPCC "Build TPPC sample app and clients" ON)
 
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
@@ -667,6 +668,10 @@ if(BUILD_TESTS)
 
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/smallbank/smallbank.cmake)
+  endif()
+
+  if(BUILD_TPCC)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
   endif()
 
   if(TLS_TEST)
