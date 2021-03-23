@@ -21,10 +21,13 @@ class NoRecoveryShareFound(Exception):
         self.response = response
 
 
+class UnauthenticatedMember(Exception):
+    """Member is not known by the service"""
+
+
 class MemberStatus(Enum):
     ACCEPTED = "Accepted"
     ACTIVE = "Active"
-    RETIRED = "Retired"
 
 
 class MemberInfo(NamedTuple):
@@ -51,6 +54,7 @@ class Member:
         self.share_script = share_script
         self.member_data = member_data
         self.is_recovery_member = is_recovery_member
+        self.is_retired = False
         self.authenticate_session = authenticate_session
 
         self.member_info = MemberInfo(
@@ -111,11 +115,16 @@ class Member:
             return (None, self.local_id)
 
     def is_active(self):
-        return self.status_code == MemberStatus.ACTIVE
+        return self.status_code == MemberStatus.ACTIVE and not self.is_retired
 
     def set_active(self):
         # Use this with caution (i.e. only when the network is opening)
         self.status_code = MemberStatus.ACTIVE
+
+    def set_retired(self):
+        # Members should be marked as retired once they have been removed
+        # from the service
+        self.is_retired = True
 
     def propose(self, remote_node, proposal):
         with remote_node.client(*self.auth(write=True)) as mc:
@@ -147,16 +156,20 @@ class Member:
     def update_ack_state_digest(self, remote_node):
         with remote_node.client(*self.auth()) as mc:
             r = mc.post("/gov/ack/update_state_digest")
-            assert (
-                r.status_code == http.HTTPStatus.OK.value
-            ), f"Error ack/update_state_digest: {r}"
+            if r.status_code == http.HTTPStatus.UNAUTHORIZED:
+                raise UnauthenticatedMember(
+                    f"Failed to ack member {self.local_id}: {r.status_code}"
+                )
             return r.body.json()
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post("/gov/ack", body=state_digest)
-            assert r.status_code == http.HTTPStatus.NO_CONTENT, f"Error ACK: {r}"
+            if r.status_code == http.HTTPStatus.UNAUTHORIZED:
+                raise UnauthenticatedMember(
+                    f"Failed to ack member {self.local_id}: {r.status_code}"
+                )
             self.status_code = MemberStatus.ACTIVE
             return r
 
