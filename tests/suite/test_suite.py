@@ -31,7 +31,7 @@ suites["rekey_recovery"] = suite_rekey_recovery
 suite_membership_recovery = [
     membership.test_add_member,
     recovery.test,
-    membership.test_retire_member,
+    membership.test_remove_member,
     recovery.test,
     membership.test_set_recovery_threshold,
     recovery.test,
@@ -74,8 +74,8 @@ all_tests_suite = [
     # membership:
     membership.test_set_recovery_threshold,
     membership.test_add_member,
-    membership.test_retire_member,
-    membership.test_retire_member,
+    membership.test_remove_member,
+    membership.test_remove_member,
     membership.test_update_recovery_shares,
     # memberclient:
     memberclient.test_missing_signature_header,

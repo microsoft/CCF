@@ -59,6 +59,7 @@ namespace ccf
     ERROR(NodeAlreadyRecovering)
     ERROR(ProposalNotOpen)
     ERROR(ProposalNotFound)
+    ERROR(ProposalFailedToValidate)
     ERROR(ServiceNotWaitingForRecoveryShares)
     ERROR(StateDigestMismatch)
     ERROR(TransactionNotFound)

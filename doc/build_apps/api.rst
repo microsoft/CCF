@@ -76,7 +76,7 @@ Historical Queries
 
 .. doxygenclass:: ccf::historical::AbstractStateCache
    :project: CCF
-   :members: set_default_expiry_duration, get_store_at, get_store_range, drop_request
+   :members: set_default_expiry_duration, get_state_at, get_store_at, get_store_range, drop_request
 
 .. doxygenstruct:: ccf::historical::State
    :project: CCF
