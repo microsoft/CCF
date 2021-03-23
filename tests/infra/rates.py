@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import json
 from statistics import mean, harmonic_mean, median, pstdev
+import ccf.clients
 
 from loguru import logger as LOG
 

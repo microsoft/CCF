@@ -240,10 +240,17 @@ namespace ds
       }
     }
 
-    template <typename T, typename U>
-    void add_schema_components(T&, nlohmann::json& j, const U& u)
+    // This adds a schema description of T to the object j, potentially
+    // modifying another part of the given Doc (for instance, by adding the
+    // schema to a shared component in the document, and making j be a reference
+    // to that). This default implementation simply falls back to
+    // fill_json_schema, which already exists to describe leaf types. A
+    // recursive implementation for struct-to-object types is created by the
+    // json.h macros, and this could be implemented manually for other types.
+    template <typename Doc, typename T>
+    void add_schema_components(Doc&, nlohmann::json& j, const T& t)
     {
-      fill_json_schema(j, u);
+      fill_json_schema(j, t);
     }
 
     struct SchemaHelper

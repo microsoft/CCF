@@ -4,6 +4,7 @@ import infra.e2e_args
 import infra.network
 import infra.proc
 import infra.logging_app as app
+import ccf.clients
 import suite.test_requirements as reqs
 import time
 
