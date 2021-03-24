@@ -611,12 +611,12 @@ namespace ccf
         outgoing_msg.reset();
       }
 
-      auto our_cv = make_verifier(node_cert);
+      auto node_cv = make_verifier(node_cert);
       LOG_INFO_FMT("Node channel with {} is now established.", peer_id);
 
       LOG_DEBUG_FMT(
-        "Node certificate serial numbers: ours={} theirs={}",
-        our_cv->serial_number(),
+        "Node certificate serial numbers: node={} peer={}",
+        node_cv->serial_number(),
         peer_cv->serial_number());
     }
 
@@ -636,7 +636,7 @@ namespace ccf
         get_signed_key_share());
 
       auto sn = make_verifier(node_cert)->serial_number();
-      LOG_DEBUG_FMT("key_exchange_init -> {} our serial: {}", peer_id, sn);
+      LOG_DEBUG_FMT("key_exchange_init -> {} node serial: {}", peer_id, sn);
     }
 
     bool send(NodeMsgType type, CBuffer aad, CBuffer plain = nullb)

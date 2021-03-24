@@ -7,6 +7,7 @@
 #include "rsa_key_pair.h"
 
 #include <mbedtls/pem.h>
+#include <mbedtls/x509_crt.h>
 
 namespace crypto
 {
@@ -109,19 +110,60 @@ namespace crypto
   bool Verifier_mbedTLS::verify_certificate(
     const std::vector<const Pem*>& trusted_certs)
   {
-    // TODO
-    return true;
+    int rc = 0;
+
+    mbedtls_x509_crt* chain = NULL;
+
+    if (!trusted_certs.empty())
+    {
+      chain = new mbedtls_x509_crt[trusted_certs.size()];
+
+      for (size_t i = 0; i < trusted_certs.size(); i++)
+      {
+        mbedtls_x509_crt_init(&chain[i]);
+      }
+
+      for (size_t i = 0; i < trusted_certs.size(); i++)
+      {
+        auto& tc = trusted_certs[i];
+        if (
+          (rc = mbedtls_x509_crt_parse(&chain[i], tc->data(), tc->size())) != 0)
+        {
+          goto exit;
+        }
+      }
+    }
+
+    uint32_t flags;
+    rc = mbedtls_x509_crt_verify(
+      cert.get(), chain, NULL, NULL, &flags, NULL, NULL);
+
+  exit:
+    for (size_t i = 0; i < trusted_certs.size(); i++)
+    {
+      mbedtls_x509_crt_free(&chain[i]);
+    }
+    delete[] chain;
+
+    return rc == 0 && flags == 0;
   }
 
   bool Verifier_mbedTLS::is_self_signed() const
   {
-    // TODO
-    return true;
+    return (cert->issuer_raw.len == cert->subject_raw.len) &&
+      memcmp(cert->issuer_raw.p, cert->subject_raw.p, cert->subject_raw.len) ==
+      0;
   }
 
   std::string Verifier_mbedTLS::serial_number() const
   {
-    // TODO
-    return "";
+    char buf[64];
+    int rc = mbedtls_x509_serial_gets(buf, sizeof(buf), &cert->serial);
+    if (rc < 0)
+    {
+      throw std::runtime_error(
+        "mbedtls_x509_serial_gets failed: " + error_string(rc));
+    }
+    return buf;
   }
 }
