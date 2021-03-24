@@ -15,10 +15,7 @@ namespace kv
   class RawWriter
   {
   private:
-    using WriterData = std::vector<uint8_t>;
-
-    // Number of bytes to reserve initially for storage of transaction frame
-    static constexpr size_t initial_reserve_size = 72;
+    using WriterData = kv::serialisers::SerialisedEntry;
 
     WriterData buf;
 
@@ -48,10 +45,7 @@ namespace kv
     }
 
   public:
-    RawWriter()
-    {
-      buf.reserve(initial_reserve_size);
-    }
+    RawWriter() = default;
 
     template <typename T>
     void append(T&& t)
@@ -94,9 +88,9 @@ namespace kv
       buf.clear();
     }
 
-    WriterData get_raw_data()
+    std::vector<uint8_t> get_raw_data()
     {
-      return buf;
+      return {buf.data(), buf.data() + buf.size()};
     }
   };
 
