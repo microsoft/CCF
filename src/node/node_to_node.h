@@ -253,26 +253,34 @@ namespace ccf
 
     void recv_message(const NodeId& from, OArray&& oa) override
     {
-      const uint8_t* data = oa.data();
-      size_t size = oa.size();
-      switch (serialized::read<ChannelMsg>(data, size))
+      try
       {
-        case key_exchange:
+        const uint8_t* data = oa.data();
+        size_t size = oa.size();
+        switch (serialized::read<ChannelMsg>(data, size))
         {
-          process_key_exchange(from, data, size);
+          case key_exchange:
+          {
+            process_key_exchange(from, data, size);
+            break;
+          }
+
+          case key_exchange_response:
+          {
+            complete_key_exchange(from, data, size);
+            break;
+          }
+
+          default:
+          {
+          }
           break;
         }
-
-        case key_exchange_response:
-        {
-          complete_key_exchange(from, data, size);
-          break;
-        }
-
-        default:
-        {
-        }
-        break;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_EXC(e.what());
+        return;
       }
     }
   };
