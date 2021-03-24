@@ -878,57 +878,76 @@ namespace ccf
              this->network.node_code_ids,
              proposal_id);
          }},
-        {"accept_recovery",
+        {"transition_service_to_open",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
+           auto service = tx.ro<Service>(Tables::SERVICE)->get(0);
+           if (!service.has_value())
+           {
+             throw std::logic_error(
+               "Service information cannot be found in current state");
+           }
+
+           // Idempotence: if the service is already open or waiting for
+           // recovery shares, the proposal should succeed
+           if (
+             service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES ||
+             service->status == ServiceStatus::OPEN)
+           {
+             return true;
+           }
+
            if (context.get_node_state().is_part_of_public_network())
            {
+             // If the node is in public mode, start accepting member recovery
+             // shares
              const auto accept_recovery =
                context.get_node_state().accept_recovery(tx);
              if (!accept_recovery)
              {
-               LOG_FAIL_FMT("Proposal {}: Accept recovery failed", proposal_id);
+               LOG_FAIL_FMT(
+                 "Proposal {}: Failed to accept recovery", proposal_id);
              }
              return accept_recovery;
            }
-           else
+           else if (context.get_node_state().is_part_of_network())
            {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node is not part of public network", proposal_id);
-             return false;
-           }
-         }},
-        {"open_network",
-         [this](
-           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           // On network open, the service checks that a sufficient number of
-           // recovery members have become active. If so, recovery shares are
-           // allocated to each recovery member
-           try
-           {
-             share_manager.issue_recovery_shares(tx);
-           }
-           catch (const std::logic_error& e)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Issuing recovery shares failed when opening the "
-               "network: {}",
-               proposal_id,
-               e.what());
-             return false;
+             // Otherwise, if the node is part of the network. Open the network
+             // straight away. We first check that a sufficient number of
+             // recovery members have become active. If so, recovery shares are
+             // allocated to each recovery member.
+             try
+             {
+               share_manager.issue_recovery_shares(tx);
+             }
+             catch (const std::logic_error& e)
+             {
+               LOG_FAIL_FMT(
+                 "Proposal {}: Failed to issuing recovery shares failed when "
+                 "transitioning the service to open network: {}",
+                 proposal_id,
+                 e.what());
+               return false;
+             }
+
+             GenesisGenerator g(this->network, tx);
+             const auto network_opened = g.open_service();
+             if (!network_opened)
+             {
+               LOG_FAIL_FMT("Proposal {}: Failed to open service", proposal_id);
+             }
+             else
+             {
+               context.get_node_state().open_user_frontend();
+             }
+             return network_opened;
            }
 
-           GenesisGenerator g(this->network, tx);
-           const auto network_opened = g.open_service();
-           if (!network_opened)
-           {
-             LOG_FAIL_FMT("Proposal {}: Open network failed", proposal_id);
-           }
-           else
-           {
-             context.get_node_state().open_user_frontend();
-           }
-           return network_opened;
+           LOG_FAIL_FMT(
+             "Proposal {}: Service is not in expected state to transition to "
+             "open",
+             proposal_id);
+           return false;
          }},
         {"rekey_ledger",
          [this](
@@ -1078,6 +1097,7 @@ namespace ccf
 
       // execute proposed calls
       ProposedCalls pc = proposed_calls;
+      std::optional<std::string> unknown_call = std::nullopt;
       for (const auto& call : pc)
       {
         // proposing a hardcoded C++ function?
@@ -1097,7 +1117,8 @@ namespace ccf
         const auto s = tx.rw(network.gov_scripts)->get(call.func);
         if (!s.has_value())
         {
-          continue;
+          unknown_call = call.func;
+          break;
         }
         tsr.run<void>(
           tx,
@@ -1108,8 +1129,21 @@ namespace ccf
           call.args);
       }
 
-      // if the vote was successful, update the proposal's state
-      proposal.state = ProposalState::ACCEPTED;
+      if (!unknown_call.has_value())
+      {
+        // if the vote was successful, update the proposal's state
+        proposal.state = ProposalState::ACCEPTED;
+      }
+      else
+      {
+        // If any function in the proposal is unknown, mark the proposal as
+        // failed
+        LOG_FAIL_FMT(
+          "Proposal {}: \"{}\" call is unknown",
+          proposal_id,
+          unknown_call.value());
+        proposal.state = ProposalState::FAILED;
+      }
       proposals->put(proposal_id, proposal);
 
       return get_proposal_info(proposal_id, proposal);

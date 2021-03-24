@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Retired members are now deleted from the store, instead of being marked as `Retired`.
-- `retire_member` proposal has been renamed to `remove_member` and is now idempotent (i.e. succeeds even if the member was already removed).
+- Retired members are now deleted from the store, instead of being marked as `Retired` (#1401).
+- `retire_member` proposal has been renamed to `remove_member` and is now idempotent (i.e. succeeds even if the member was already removed) (#1401).
+- `accept_recovery` and `open_network` proposals have been merged into a single idempotent `transition_service_to_open` proposal (#1791).
 
 ## [0.19.3]
 
