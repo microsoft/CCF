@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/buffer.h"
 #include "ds/logger.h"
 
 #include <fmt/format.h>
@@ -38,6 +39,14 @@ namespace ds
   inline static std::string to_hex(const T& data)
   {
     return to_hex(data.begin(), data.end());
+  }
+
+  inline static std::string to_hex(CBuffer buf)
+  {
+    std::string r;
+    for (size_t i = 0; i < buf.n; i++)
+      r += fmt::format("{:02x}", buf.p[i]);
+    return r;
   }
 
   template <typename Iter>

@@ -2040,22 +2040,9 @@ namespace ccf
             "Primary is unknown");
         }
 
-        auto nodes = ctx.tx.ro(this->network.nodes);
-        auto info = nodes->get(primary_id.value());
-        if (!info.has_value())
-        {
-          LOG_FAIL_FMT(
-            "JWT key auto-refresh: could not find node info of primary");
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Could not find node info of primary.");
-        }
-
-        auto primary_cert_pem = info.value().cert;
-        auto cert_der = ctx.rpc_ctx->session->caller_cert;
-        auto caller_cert_pem = crypto::cert_der_to_pem(cert_der);
-        if (caller_cert_pem != primary_cert_pem)
+        const auto* cert_auth_ident =
+          ctx.try_get_caller<ccf::NodeCertAuthnIdentity>();
+        if (primary_id.value() != cert_auth_ident->node_id)
         {
           LOG_FAIL_FMT(
             "JWT key auto-refresh: request does not originate from primary");

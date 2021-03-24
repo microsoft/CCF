@@ -8,6 +8,32 @@
 
 namespace crypto
 {
+  namespace OpenSSL
+  {
+    std::vector<uint8_t> hkdf(
+      MDType md_type,
+      size_t length,
+      const std::vector<uint8_t>& ikm,
+      const std::vector<uint8_t>& salt,
+      const std::vector<uint8_t>& info)
+    {
+      auto md = get_md_type(md_type);
+      EVP_PKEY_CTX* pctx;
+      std::vector<uint8_t> r(length);
+      pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+      CHECK1(EVP_PKEY_derive_init(pctx));
+      CHECK1(EVP_PKEY_CTX_set_hkdf_md(pctx, md));
+      CHECK1(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt.data(), salt.size()));
+      CHECK1(EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm.data(), ikm.size()));
+      CHECK1(EVP_PKEY_CTX_add1_hkdf_info(pctx, info.data(), info.size()));
+      size_t outlen = length;
+      CHECK1(EVP_PKEY_derive(pctx, r.data(), &outlen));
+      EVP_PKEY_CTX_free(pctx);
+      r.resize(outlen);
+      return r;
+    }
+  }
+
   using namespace OpenSSL;
 
   void openssl_sha256(const CBuffer& data, uint8_t* h)
