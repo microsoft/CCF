@@ -65,7 +65,7 @@ namespace kv
     }
 
     template <typename T>
-    void serialise_internal_vector(const T& t)
+    void serialise_internal_vector(const std::vector<T>& t)
     {
       current_writer->append_vector(t);
     }
