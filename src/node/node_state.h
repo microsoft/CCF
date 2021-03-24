@@ -876,7 +876,7 @@ namespace ccf
       if (!sm.check(State::verifyingSnapshot))
       {
         LOG_FAIL_FMT(
-          "Node is state {} cannot finalise snapshot verification", s.value());
+          "Node in state {} cannot finalise snapshot verification", sm.value());
         return;
       }
 
