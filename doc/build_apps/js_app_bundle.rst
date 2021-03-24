@@ -113,48 +113,19 @@ JavaScript provides a set of built-in
 `global functions, objects, and values <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects>`_.
 
 CCF provides the additional global variable ``ccf`` to access native CCF functionality.
-It is an object implementing the :js:class:`CCF <CCF>` interface documented below.
+It is an object implementing the ``CCF`` interface documented below.
+
+TODO
 
 .. note::
   `Web APIs <https://developer.mozilla.org/en-US/docs/Web/API>`_ are not available.
 
-.. js:autoclass:: CCF
-   :members:
-
-.. js:autoclass:: KvMap
-   :members:
-
-.. js:autoclass:: HistoricalState
-   :members:
-
-.. js:autoclass:: Receipt
-   :members:
-
-.. js:autoclass:: ProofElement
-   :members:
-
-.. js:autoclass:: RsaOaepParams
-   :members:
-
-.. js:autoclass:: AesKwpParams
-   :members:
-
-.. js:autoclass:: RsaOaepAesKwpParams
-   :members:
-
-.. js:autoclass:: CryptoKeyPair
-   :members:
-
 Endpoint handlers
 ~~~~~~~~~~~~~~~~~
 
-An endpoint handler is an exported function that receives a :js:class:`Request <Request>` object, returns a :js:class:`Response <Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
+An endpoint handler is an exported function that receives a ``Request`` object, returns a ``Response`` object, and is referenced in the ``app.json`` file of the app bundle (see above).
 
-.. js:autoclass:: Request
-   :members:
-
-.. js:autoclass:: Response
-   :members:
+TODO
 
 See the following handler from the example app bundle in the
 `tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_

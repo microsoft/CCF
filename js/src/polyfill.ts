@@ -7,7 +7,11 @@
  * It must be imported before all other imports like so:
  *
  * import 'ccf-app/polyfills';
+ * 
+ * @module
  */
+
+export const dummy = 42;
 
 import * as crypto from "crypto";
 import { TextEncoder, TextDecoder } from "util";

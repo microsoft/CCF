@@ -7,9 +7,9 @@
     "resolveJsonModule": true,
     "lib": ["ES2020"],
     "declaration": true,
-    "outDir": ".",
+    "strict": true,
     "rootDir": "src",
-    "strict": true
+    "outDir": "."
   },
   "include": ["src"],
   "exclude": []

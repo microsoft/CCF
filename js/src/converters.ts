@@ -183,20 +183,24 @@ class IdentityConverter implements DataConverter<ArrayBuffer> {
   }
 }
 
-export const bool = new BoolConverter();
-export const int8 = new Int8Converter();
-export const uint8 = new Uint8Converter();
-export const int16 = new Int16Converter();
-export const uint16 = new Uint16Converter();
-export const int32 = new Int32Converter();
-export const uint32 = new Uint32Converter();
-export const int64 = new Int64Converter();
-export const uint64 = new Uint64Converter();
-export const float32 = new Float32Converter();
-export const float64 = new Float64Converter();
-export const string = new StringConverter();
-export const json = <T extends JsonCompatible<T>>() => new JSONConverter<T>();
-export const typedArray = <T extends TypedArray>(
+export const bool: DataConverter<boolean> = new BoolConverter();
+export const int8: DataConverter<number> = new Int8Converter();
+export const uint8: DataConverter<number> = new Uint8Converter();
+export const int16: DataConverter<number> = new Int16Converter();
+export const uint16: DataConverter<number> = new Uint16Converter();
+export const int32: DataConverter<number> = new Int32Converter();
+export const uint32: DataConverter<number> = new Uint32Converter();
+export const int64: DataConverter<bigint> = new Int64Converter();
+export const uint64: DataConverter<bigint> = new Uint64Converter();
+export const float32: DataConverter<number> = new Float32Converter();
+export const float64: DataConverter<number> = new Float64Converter();
+export const string: DataConverter<string> = new StringConverter();
+export const json: <T extends JsonCompatible<T>>() => DataConverter<
+  JsonCompatible<T>
+> = <T extends JsonCompatible<T>>() => new JSONConverter<T>();
+export const typedArray: <T extends TypedArray>(
+  clazz: TypedArrayConstructor<T>
+) => DataConverter<T> = <T extends TypedArray>(
   clazz: TypedArrayConstructor<T>
 ) => new TypedArrayConverter(clazz);
-export const arrayBuffer = new IdentityConverter();
+export const arrayBuffer: DataConverter<ArrayBuffer> = new IdentityConverter();

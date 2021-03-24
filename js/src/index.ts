@@ -2,11 +2,17 @@
 // Licensed under the Apache 2.0 License.
 
 /**
- * The module exports the main API giving access to common functionality
+ * This module exports the main API giving access to common functionality
  * in a flat namespace.
  *
- * Any modules not exported here have to be explicitly imported.
+ * Any modules not re-exported here have to be explicitly imported.
  * This is the case for advanced functionality like cryptography.
+ *
+ * ```ts
+ * import * as ccfapp from 'ccf-app';
+ * ```
+ * 
+ * @module ROOT
  */
 
 export * from "./kv";

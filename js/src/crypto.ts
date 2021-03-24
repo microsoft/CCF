@@ -3,8 +3,19 @@
 
 import { ccf } from "./global";
 
+/**
+ * @inheritDoc CCF.generateAesKey
+ */
 export const generateAesKey = ccf.generateAesKey;
+
+/**
+ * @inheritDoc CCF.generateRsaKeyPair
+ */
 export const generateRsaKeyPair = ccf.generateRsaKeyPair;
+
+/**
+ * @inheritDoc CCF.wrapKey
+ */
 export const wrapKey = ccf.wrapKey;
 
 export {

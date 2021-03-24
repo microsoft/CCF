@@ -46,4 +46,9 @@ export function typedKv<K, V>(
   return new TypedKvMap(ccf.kv[name], kt, vt);
 }
 
+/**
+ * @inheritDoc CCF.kv
+ */
 export const rawKv = ccf.kv;
+
+export { KvMap, KvMaps } from "./global";

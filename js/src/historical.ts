@@ -3,6 +3,9 @@
 
 import { ccf } from "./global";
 
+/**
+ * @inheritDoc CCF.historicalState
+ */
 export const historicalState = ccf.historicalState;
 
 export { HistoricalState, Receipt, Proof, ProofElement } from "./global";

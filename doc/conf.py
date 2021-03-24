@@ -54,8 +54,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
-    "sphinx_panels",
-    "sphinx_js",
+    "sphinx_panels"
 ]
 
 autosectionlabel_prefix_document = True
@@ -228,10 +227,12 @@ spelling_lang = "en_UK"
 tokenizer_lang = "en_UK"
 spelling_word_list_filename = ["spelling_wordlist.txt"]
 
-# sphinx_js options
+# sphinx_js options (CCF 0.19.1 - 0.19.3)
+# From 0.19.4 onwards, typedoc is used to generate HTML.
+# Note that sphinx_js is enabled dynamically in setup().
 js_language = "typescript"
-js_source_path = "../js/src"
-jsdoc_config_path = "../js/tsconfig_docs.json"
+js_source_path = "../src/js"
+jsdoc_config_path = "../src/js/tsconfig.json"
 
 
 def setup(self):
@@ -240,20 +241,28 @@ def setup(self):
 
     srcdir = pathlib.Path(self.srcdir)
 
+    # doxygen
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
         subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
 
+    # typedoc (CCF 0.19.4 onwards)
+    js_pkg_dir = srcdir / ".." / "js"
+    js_docs_dir = srcdir / "html" / "js"
+    if js_pkg_dir.exists():
+        subprocess.run(["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
+                       cwd=js_pkg_dir, check=True)
+        subprocess.run(["npm", "run", "docs", "--", "--out", str(js_docs_dir)],
+                       cwd=js_pkg_dir, check=True)    
+
+    # sphinx_js (CCF 0.19.1 - 0.19.3)
     global js_source_path
     global jsdoc_config_path
     js_source_path = str(srcdir / js_source_path)
     jsdoc_config_path = str(srcdir / jsdoc_config_path)
-
-    if not os.path.exists(jsdoc_config_path):
-        # try old location (0.19.1 - 0.19.3)
-        js_source_path = str(srcdir / "../src/js")
-        jsdoc_config_path = str(srcdir / "../src/js/tsconfig.json")
-        
-        # disable sphinx-js for old ccf versions (prior to 0.19.1)
-        if not os.path.exists(jsdoc_config_path):
-            jsdoc_config_path = None
+    if os.path.exists(jsdoc_config_path):
+        subprocess.run(["npm", "install", "--no-package-lock", "--no-audit", "--no-fund",
+                        "typescript@4.0.7", "typedoc@0.19.2"],
+                       cwd=srcdir / "..", check=True)
+        os.environ['PATH'] += os.pathsep + str(srcdir / ".." / "node_modules" / ".bin")
+        self.setup_extension("sphinx_js")
