@@ -1,3 +1,17 @@
+<style>
+/* We are not interested in type hierarchies. */
+.tsd-hierarchy {
+    display: none;
+}
+
+/* Hide index in module pages, too much clutter. */
+{{#ifCond model.name '!=' project.name}}
+.tsd-index-group {
+    display: none;
+}
+{{/ifCond}}
+</style>
+
 {{#if (versions)}}
 {{#with (versions)}}
     <script>
