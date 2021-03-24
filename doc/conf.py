@@ -250,6 +250,10 @@ def setup(self):
     js_pkg_dir = srcdir / ".." / "js"
     js_docs_dir = srcdir / "html" / "js"
     if js_pkg_dir.exists():
+        # make versions.json from sphinx-multiversion available
+        if self.config.smv_metadata_path:
+            os.environ['SMV_METADATA_PATH'] = self.config.smv_metadata_path
+            os.environ['SMV_CURRENT_VERSION'] = self.config.smv_current_version
         subprocess.run(["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
                        cwd=js_pkg_dir, check=True)
         subprocess.run(["npm", "run", "docs", "--", "--out", str(js_docs_dir)],

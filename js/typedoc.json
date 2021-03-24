@@ -10,5 +10,8 @@
         "src/polyfill.ts"
     ],
     "out": "html",
-    "theme": "default"
+    "theme": "./doc/theme",
+    "readme": "none",
+    "categorizeByGroup": false,
+    "listInvalidSymbolLinks": true
 }
