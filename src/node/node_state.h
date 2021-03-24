@@ -876,7 +876,7 @@ namespace ccf
       if (!sm.check(State::verifyingSnapshot))
       {
         LOG_FAIL_FMT(
-          "Node is state {} cannot finalise snapshot verification", s.value());
+          "Node is state {} cannot finalise snapshot verification", sm.value());
         return;
       }
 
@@ -1021,7 +1021,7 @@ namespace ccf
       if (!sm.check(State::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
-          "Node is state {} cannot recover private ledger entry", s.value());
+          "Node is state {} cannot recover private ledger entry", sm.value());
         return;
       }
 
