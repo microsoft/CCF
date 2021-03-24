@@ -4,10 +4,8 @@
 
 #include "ds/serialized.h"
 #include "generic_serialise_wrapper.h"
-#include "serialised_entry.h"
 
-#include <iterator>
-#include <sstream>
+#include <small_vector/SmallVector.h>
 #include <type_traits>
 
 namespace kv
@@ -15,71 +13,78 @@ namespace kv
   class RawWriter
   {
   private:
-    using WriterData = kv::serialisers::SerialisedEntry;
+    // Avoid heap allocations for transactions which only touch a limited number
+    // keys of keys in a few maps
+    using WriterData = llvm_vecsmall::SmallVector<uint8_t, 64>;
 
     WriterData buf;
 
     template <typename T>
-    void serialise_entry(const T& entry)
+    void serialise_entry(const T& t)
     {
-      buf.insert(buf.end(), entry.begin(), entry.end());
+      size_t size_before = buf.size();
+      buf.resize(buf.size() + sizeof(T));
+
+      auto data_ = buf.data() + size_before;
+      auto size_ = buf.size() - size_before;
+      serialized::write(data_, size_, t);
     }
 
     template <typename T>
-    void serialise_entry(T&& entry)
+    void serialise_vector(const T& entry)
     {
-      buf.insert(
-        buf.end(),
-        std::make_move_iterator(entry.begin()),
-        std::make_move_iterator(entry.end()));
+      size_t entry_size_bytes = sizeof(typename T::value_type) * entry.size();
+      size_t size_before = buf.size();
+
+      buf.resize(buf.size() + entry_size_bytes);
+
+      auto data_ = buf.data() + size_before;
+      auto size_ = buf.size() - size_before;
+      serialized::write(
+        data_,
+        size_,
+        reinterpret_cast<const uint8_t*>(entry.data()),
+        entry_size_bytes);
     }
 
-    void serialise_size(size_t size)
+    void serialise_string(const std::string& str)
     {
-      WriterData size_entry(sizeof(size_t));
-      auto data_ = size_entry.data();
-      auto size_ = size_entry.size();
-      serialized::write(data_, size_, size);
+      size_t size_before = buf.size();
+      buf.resize(buf.size() + sizeof(size_t) + str.size());
 
-      serialise_entry(std::move(size_entry));
+      auto data_ = buf.data() + size_before;
+      auto size_ = buf.size() - size_before;
+      serialized::write(data_, size_, str);
     }
 
   public:
     RawWriter() = default;
 
     template <typename T>
-    void append(T&& t)
+    void append(const T& entry)
     {
-      WriterData entry(sizeof(T));
-      auto data_ = entry.data();
-      auto size_ = entry.size();
-      serialized::write(data_, size_, t);
-
-      serialise_entry(std::move(entry));
-    }
-
-    template <typename T>
-    void append_vector(const std::vector<T>& vec)
-    {
-      size_t vec_size = sizeof(T) * vec.size();
-      serialise_size(vec_size);
-
-      WriterData data(vec_size);
-      auto data_ = data.data();
-      auto size_ = data.size();
-      serialized::write(
-        data_, size_, reinterpret_cast<const uint8_t*>(vec.data()), vec_size);
-
-      serialise_entry(std::move(data));
-    }
-
-    template <typename T>
-    void append_pre_serialised(const T& entry)
-    {
-      serialise_size(entry.size());
-      if (entry.size() > 0)
+      if constexpr (
+        nonstd::is_std_vector<T>::value ||
+        std::is_same_v<T, kv::serialisers::SerialisedEntry>)
+      {
+        serialise_entry(entry.size() * sizeof(typename T::value_type));
+        if (entry.size() > 0)
+        {
+          serialise_vector(entry);
+        }
+      }
+      else if constexpr (std::is_same_v<T, std::string>)
+      {
+        serialise_string(entry);
+      }
+      else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>)
       {
         serialise_entry(entry);
+      }
+      else
+      {
+        static_assert(
+          nonstd::dependent_false<T>::value, "Can't serialise this type");
       }
     }
 
@@ -152,30 +157,36 @@ namespace kv
     template <typename T>
     T read_next()
     {
-      return read_entry<T>();
-    }
+      if constexpr (
+        nonstd::is_std_vector<T>::value ||
+        std::is_same_v<T, kv::serialisers::SerialisedEntry>)
+      {
+        size_t entry_offset = 0;
+        size_t entry_size = read_size_prefixed_entry(entry_offset);
 
-    template <typename T>
-    std::vector<T> read_next_vector()
-    {
-      size_t entry_offset = 0;
-      size_t entry_size = read_size_prefixed_entry(entry_offset);
+        T ret(entry_size / sizeof(typename T::value_type));
+        auto data_ = reinterpret_cast<uint8_t*>(ret.data());
+        auto size_ = entry_size;
+        serialized::write(data_, size_, data_ptr + entry_offset, entry_size);
 
-      std::vector<T> vec(entry_size / sizeof(T));
-      auto data_ = reinterpret_cast<uint8_t*>(vec.data());
-      auto size_ = entry_size;
-      serialized::write(data_, size_, data_ptr + entry_offset, entry_size);
+        return ret;
+      }
+      else if constexpr (std::is_same_v<T, std::string>)
+      {
+        size_t entry_offset = 0;
+        read_size_prefixed_entry(entry_offset);
 
-      return vec;
-    }
-
-    template <typename T>
-    T read_next_pre_serialised()
-    {
-      size_t entry_offset = 0;
-      read_size_prefixed_entry(entry_offset);
-
-      return {data_ptr + entry_offset, data_ptr + data_offset};
+        return {data_ptr + entry_offset, data_ptr + data_offset};
+      }
+      else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>)
+      {
+        return read_entry<T>();
+      }
+      else
+      {
+        static_assert(
+          nonstd::dependent_false<T>::value, "Can't deserialise this type");
+      }
     }
 
     bool is_eos()
