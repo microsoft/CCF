@@ -14,14 +14,14 @@ A member proposes to recover the network and other members can vote on the propo
 
 .. code-block:: bash
 
-    $ cat accept_recovery.json
+    $ cat transition_service_to_open.json
     {
         "script": {
-            "text": "tables = ...; return Calls:call(\"accept_recovery\")"
+            "text": "tables = ...; return Calls:call(\"transition_service_to_open\")"
         }
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @accept_recovery.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @transition_service_to_open.json -H "content-type: application/json"
     {
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
         "proposer_id": 0,
