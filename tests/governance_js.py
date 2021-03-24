@@ -79,7 +79,7 @@ def test_ballot_storage(network, args):
         r = c.post(f"/gov/proposals.js/{pid}/votes", {})
         assert r.status_code == 400, r.body.text()
 
-        vote = {"ballot": "function vote (proposal, proposer_id, tx) { return true }"}
+        vote = {"ballot": "function vote (proposal, proposer_id) { return true }"}
         r = c.post(f"/gov/proposals.js/{pid}/votes", vote)
         assert r.status_code == 200, r.body.text()
 
@@ -87,6 +87,11 @@ def test_ballot_storage(network, args):
         r = c.get(f"/gov/proposals.js/{pid}/votes/{member_id}")
         assert r.status_code == 200, r.body.text()
         assert r.body.text() == f'"{vote["ballot"]}"'
+
+    with primary.client(None, "member1") as c:
+        vote = {"ballot": "function vote (proposal, proposer_id) { return false }"}
+        r = c.post(f"/gov/proposals.js/{pid}/votes", vote)
+        assert r.status_code == 200, r.body.text()
 
     return network
 

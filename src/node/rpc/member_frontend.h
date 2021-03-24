@@ -2353,6 +2353,18 @@ namespace ccf
             fmt::format("Could not find proposal {}.", proposal_id));
         }
 
+        auto pm =
+          ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+        auto p = pm->get(proposal_id);
+
+        if (!p)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ProposalNotFound,
+            fmt::format("Proposal {} does not exist.", proposal_id));
+        }
+
         if (pi_->ballots.find(caller_identity.member_id) != pi_->ballots.end())
         {
           return make_error(
@@ -2367,10 +2379,13 @@ namespace ccf
           "proposer_id, tx);",
           params["ballot"]);
 
-        js::Runtime rt;
-        js::Context context(rt);
-        auto ballot_func = context.function(ballot_script, "body[\"ballot\"]");
-        JS_FreeValue(context, ballot_func);
+        {
+          js::Runtime rt;
+          js::Context context(rt);
+          auto ballot_func =
+            context.function(ballot_script, "body[\"ballot\"]");
+          JS_FreeValue(context, ballot_func);
+        }
 
         pi_->ballots[caller_identity.member_id] = params["ballot"];
         pi->put(proposal_id, pi_.value());
@@ -2379,8 +2394,49 @@ namespace ccf
         record_voting_history(
           ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
-        // Evaluate votes
-        return make_success(true);
+        std::vector<std::pair<MemberId, bool>> votes;
+        for (const auto& [mid, mb] : pi_->ballots)
+        {
+          std::string mbs = fmt::format(
+            "{}\n export default (proposal, proposer_id, tx) => vote(proposal, "
+            "proposer_id, tx);",
+            mb);
+
+          js::Runtime rt;
+          js::Context context(rt);
+          rt.add_ccf_classdefs();
+          js::populate_global_ccf(nullptr, std::nullopt, nullptr, context);
+          auto ballot_func = context.function(
+            mbs, fmt::format("ballot from {} for {}", mid, proposal_id));
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wc99-extensions"
+
+          JSValue argv[2];
+          auto prop =
+            JS_NewStringLen(context, p.value().c_str(), p.value().size());
+          argv[0] = prop;
+          auto pid = JS_NewStringLen(
+            context, pi_->proposer_id.data(), pi_->proposer_id.size());
+          argv[1] = pid;
+
+          auto val =
+            context(JS_Call(context, ballot_func, JS_UNDEFINED, 0, nullptr));
+          if (!JS_IsException(val))
+          {
+            votes.emplace_back(mid, JS_ToBool(context, val));
+          }
+#  pragma clang diagnostic pop
+          JS_FreeValue(context, ballot_func);
+          JS_FreeValue(context, prop);
+        }
+
+        auto rv = nlohmann::json::array();
+        for (const auto& v : votes)
+        {
+          rv.push_back(v);
+        }
+
+        return make_success(rv);
       };
       make_endpoint(
         "proposals.js/{proposal_id}/votes",

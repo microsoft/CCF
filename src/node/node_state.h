@@ -14,6 +14,7 @@
 #include "genesis_gen.h"
 #include "history.h"
 #include "hooks.h"
+#include "js/wrap.h"
 #include "network_state.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
@@ -342,6 +343,7 @@ namespace ccf
 
       config = std::move(config_);
 
+      js::register_class_ids();
       create_node_cert();
       open_frontend(ActorsType::nodes);
 

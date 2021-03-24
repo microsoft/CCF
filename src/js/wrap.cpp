@@ -523,7 +523,7 @@ namespace js
     }
 
     // Historical queries
-    if (receipt)
+    if (receipt != nullptr)
     {
       auto state = JS_NewObject(ctx);
 
