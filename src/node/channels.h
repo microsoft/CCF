@@ -275,7 +275,7 @@ namespace ccf
       // Serialise channel key share, signature, and certificate and
       // length-prefix them
       auto space =
-        ks.size() + signature.size() + node_cert.size() + +4 * sizeof(size_t);
+        ks.size() + signature.size() + node_cert.size() + 4 * sizeof(size_t);
       if (with_salt)
       {
         space += hkdf_salt.size() + sizeof(size_t);
