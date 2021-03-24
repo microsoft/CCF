@@ -56,7 +56,7 @@ option(ZAP_TEST
        "ZAP fuzz test using https://www.zaproxy.org/docs/docker/api-scan/" OFF
 )
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
-option(ENABLE_JS_GOV "Disable JS Governance" ON)
+option(ENABLE_JS_GOV "Enable JS Governance" ON)
 if(ENABLE_JS_GOV)
   add_definitions(-DENABLE_JS_GOV)
 endif()

@@ -560,6 +560,121 @@
         ]
       }
     },
+    "/proposals.js": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
+      }
+    },
+    "/proposals.js/{proposal_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposal_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/proposals.js/{proposal_id}/votes": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposal_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
+      }
+    },
+    "/proposals.js/{proposal_id}/votes/{member_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposal_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "in": "path",
+          "name": "member_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "/proposals/{proposal_id}": {
       "get": {
         "responses": {
