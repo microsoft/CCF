@@ -290,7 +290,9 @@ namespace ccf
       LOG_DEBUG_FMT("key_exchange_final from {}", from);
       auto n2n_channel = channels->get(from);
       if (!n2n_channel->check_peer_key_share_signature(data, size))
+      {
         n2n_channel->reset();
+      }
     }
 
     void process_key_exchange_restart(

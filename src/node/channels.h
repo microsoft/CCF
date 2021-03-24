@@ -622,6 +622,9 @@ namespace ccf
 
     void initiate()
     {
+      if (status == WAITING_FOR_FINAL || status == ESTABLISHED)
+        return;
+
       status = INITIATED;
 
       to_host->write(
