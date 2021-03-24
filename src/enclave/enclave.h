@@ -300,11 +300,19 @@ namespace enclave
                 if (
                   node->is_reading_public_ledger() ||
                   node->is_verifying_snapshot())
+                {
                   node->recover_public_ledger_entry(body);
+                }
                 else if (node->is_reading_private_ledger())
+                {
                   node->recover_private_ledger_entry(body);
+                }
                 else
-                  LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
+                {
+                  auto [s, _, __] = node->state();
+                  LOG_FAIL_FMT(
+                    "Cannot recover ledger entry: Unexpected node state {}", s);
+                }
                 break;
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
@@ -430,6 +438,9 @@ namespace enclave
 #ifndef VIRTUAL_ENCLAVE
       catch (const std::exception& e)
       {
+        // It is expected that all enclave modules consuming ring buffer
+        // messages catch any thrown exception they can recover from. Uncaught
+        // exceptions bubble up to here and cause the node to shutdown.
         RINGBUFFER_WRITE_MESSAGE(
           AdminMessage::fatal_error_msg, to_host, std::string(e.what()));
         return false;

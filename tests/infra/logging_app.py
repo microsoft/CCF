@@ -182,6 +182,7 @@ class LoggingTxs:
                     break
                 elif rep.status_code == http.HTTPStatus.NOT_FOUND:
                     LOG.warning("User frontend is not yet opened")
+                    time.sleep(0.1)
                     continue
 
                 if historical:
