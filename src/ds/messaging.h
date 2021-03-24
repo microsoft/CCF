@@ -168,10 +168,8 @@ namespace messaging
       }
       catch (const std::exception& e)
       {
-        // If an exception is thrown during the dispatch of a message, log the
-        // type and size of the message and re-throw
         LOG_FAIL_FMT(
-          "Exception processing message {} of size {}",
+          "Exception while processing message {} of size {}",
           get_decorated_message_name(m),
           size);
         throw e;

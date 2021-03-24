@@ -774,30 +774,20 @@ namespace ccf
       LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
-      // When reading the public ledger, deserialise in the real store
-      kv::ApplyResult result = kv::ApplyResult::FAIL;
-      try
+      auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
+      auto result = r->apply();
+      if (result == kv::ApplyResult::FAIL)
       {
-        auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
-        result = r->apply();
-        if (result == kv::ApplyResult::FAIL)
-        {
-          LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
-          store->rollback(ledger_idx - 1);
-          recover_public_ledger_end_unsafe();
-          return;
-        }
-
-        // Not synchronised because consensus isn't effectively running then
-        for (auto& hook : r->get_hooks())
-        {
-          hook->call(consensus.get());
-        }
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_EXC(e.what());
+        LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
+        store->rollback(ledger_idx - 1);
+        recover_public_ledger_end_unsafe();
         return;
+      }
+
+      // Not synchronised because consensus isn't effectively running then
+      for (auto& hook : r->get_hooks())
+      {
+        hook->call(consensus.get());
       }
 
       // If the ledger entry is a signature, it is safe to compact the store
@@ -886,8 +876,7 @@ namespace ccf
       if (!sm.check(State::verifyingSnapshot))
       {
         LOG_FAIL_FMT(
-          "Node is state {} cannot finalise snapshot verification",
-          State::verifyingSnapshot);
+          "Node is state {} cannot finalise snapshot verification", s.value());
         return;
       }
 
@@ -1031,6 +1020,8 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       if (!sm.check(State::readingPrivateLedger))
       {
+        LOG_FAIL_FMT(
+          "Node is state {} cannot recover private ledger entry", s.value());
         return;
       }
 

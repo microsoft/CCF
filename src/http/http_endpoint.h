@@ -78,6 +78,7 @@ namespace http
             }
             catch (const std::exception& e)
             {
+              LOG_FAIL_FMT("Error parsing WebSocket request");
               LOG_DEBUG_FMT("Error parsing WebSocket request: {}", e.what());
               close();
               return;
@@ -116,6 +117,7 @@ namespace http
           }
           catch (const std::exception& e)
           {
+            LOG_FAIL_FMT("Error parsing HTTP request");
             LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
             close();
             break;
