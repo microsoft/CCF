@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "../tpcc_serializer.h"
-#include "enclave/app_interface.h"
-#include "node/rpc/metrics_tracker.h"
+#include "apps/utils/metrics_tracker.h"
+#include "ccf/app_interface.h"
 #include "node/rpc/user_frontend.h"
 #include "tpcc_setup.h"
 #include "tpcc_tables.h"
@@ -22,7 +22,7 @@ namespace ccfapp
     metrics::Tracker metrics_tracker;
 
     void set_error_status(
-      EndpointContext& args, int status, std::string&& message)
+      ccf::endpoints::EndpointContext& args, int status, std::string&& message)
     {
       args.rpc_ctx->set_response_status(status);
       args.rpc_ctx->set_response_header(
@@ -30,7 +30,7 @@ namespace ccfapp
       args.rpc_ctx->set_response_body(std::move(message));
     }
 
-    void set_ok_status(EndpointContext& args)
+    void set_ok_status(ccf::endpoints::EndpointContext& args)
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       args.rpc_ctx->set_response_header(
@@ -38,7 +38,7 @@ namespace ccfapp
         http::headervalues::contenttype::OCTET_STREAM);
     }
 
-    void set_no_content_status(EndpointContext& args)
+    void set_no_content_status(ccf::endpoints::EndpointContext& args)
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
     }
@@ -117,8 +117,8 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
-      const ccf::endpoints::AuthnPolicies user_sig_or_cert = {
-        user_signature_auth_policy, user_cert_auth_policy};
+      const ccf::AuthnPolicies user_sig_or_cert = {user_signature_auth_policy,
+                                                   user_cert_auth_policy};
 
       std::vector<ccf::RESTVerb> verbs = {HTTP_POST, ws::Verb::WEBSOCKET};
       for (auto verb : verbs)
@@ -139,28 +139,27 @@ namespace ccfapp
     }
 
     void tick(
-      std::chrono::milliseconds elapsed,
-      kv::Consensus::Statistics stats) override
+      std::chrono::milliseconds elapsed, size_t tx_count) override
     {
-      metrics_tracker.tick(elapsed, stats);
+      metrics_tracker.tick(elapsed, tx_count);
 
-      ccf::UserEndpointRegistry::tick(elapsed, stats);
+      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
 
-  class Tpcc : public ccf::UserRpcFrontend
+  class Tpcc : public ccf::RpcFrontend
   {
   private:
     TpccHandlers tpcc_handlers;
 
   public:
     Tpcc(kv::Store& store, AbstractNodeContext& context) :
-      UserRpcFrontend(store, tpcc_handlers),
+      RpcFrontend(store, tpcc_handlers),
       tpcc_handlers(context)
     {}
   };
 
-  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
+  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     NetworkTables& nwt, AbstractNodeContext& context)
   {
     return make_shared<Tpcc>(*nwt.tables, context);

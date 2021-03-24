@@ -583,7 +583,7 @@ namespace loggingapp
         .set_auto_schema<void, nlohmann::json>()
         // To test that custom auth works on both the receiving node and a
         // forwardee, we always forward it
-        .set_forwarding_required(ccf::ForwardingRequired::Always)
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Always)
         .install();
       // SNIPPET_END: custom_auth_endpoint
 
