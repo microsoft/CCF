@@ -125,14 +125,14 @@ Once users are added to the opening network, members should create a proposal to
 
 .. code-block:: bash
 
-    $ cat open_network.json
+    $ cat transition_service_to_open.json
     {
         "script": {
-            "text": "return Calls:call(\"open_network\")"
+            "text": "return Calls:call(\"transition_service_to_open\")"
         }
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @open_network.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @transition_service_to_open.json -H "content-type: application/json"
     {
         "proposal_id": "77374e16de0b2d61f58aec84d01e6218205d19c9401d2df127d893ce62576b81",
         "proposer_id": 0,
