@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/hash_provider.h"
 #include "crypto/key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
@@ -88,6 +89,7 @@ namespace ccf
     // Used for key exchange
     tls::KeyExchangeContext kex_ctx;
     ChannelStatus status = INACTIVE;
+    std::vector<uint8_t> hkdf_salt;
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> key;
@@ -187,6 +189,8 @@ namespace ccf
     {
       RINGBUFFER_WRITE_MESSAGE(
         ccf::add_node, to_host, peer_id.value(), peer_hostname, peer_service);
+      auto e = crypto::create_entropy();
+      hkdf_salt = e->random(32);
     }
 
     Channel(
@@ -203,7 +207,10 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       peer_id(peer_id_),
       outgoing(false)
-    {}
+    {
+      auto e = crypto::create_entropy();
+      hkdf_salt = e->random(32);
+    }
 
     ~Channel()
     {
@@ -253,6 +260,7 @@ namespace ccf
 
     std::vector<uint8_t> sign_key_share(
       const std::vector<uint8_t>& ks,
+      bool with_salt = false,
       const std::vector<uint8_t>* extra = nullptr)
     {
       std::vector<uint8_t> t = ks;
@@ -267,7 +275,11 @@ namespace ccf
       // Serialise channel key share, signature, and certificate and
       // length-prefix them
       auto space =
-        ks.size() + signature.size() + node_cert.size() + 4 * sizeof(size_t);
+        ks.size() + signature.size() + node_cert.size() + +4 * sizeof(size_t);
+      if (with_salt)
+      {
+        space += hkdf_salt.size() + sizeof(size_t);
+      }
       std::vector<uint8_t> serialised_signed_key_share(space);
       auto data_ = serialised_signed_key_share.data();
       serialized::write(data_, space, protocol_version);
@@ -277,80 +289,34 @@ namespace ccf
       serialized::write(data_, space, signature.data(), signature.size());
       serialized::write(data_, space, node_cert.size());
       serialized::write(data_, space, node_cert.data(), node_cert.size());
+      if (with_salt)
+      {
+        serialized::write(data_, space, hkdf_salt.size());
+        serialized::write(data_, space, hkdf_salt.data(), hkdf_salt.size());
+      }
 
       return serialised_signed_key_share;
     }
 
-    std::vector<uint8_t> get_signed_key_share()
+    std::vector<uint8_t> get_signed_key_share(bool with_salt)
     {
-      return sign_key_share(kex_ctx.get_own_key_share());
+      return sign_key_share(kex_ctx.get_own_key_share(), with_salt);
     }
 
-    CBuffer extract_key_share(const uint8_t*& data, size_t& size) const
-    {
-      auto pp_size = serialized::read<size_t>(data, size);
-      CBuffer r(data, pp_size);
-
-      if (r.n > size)
-      {
-        LOG_FAIL_FMT(
-          "Peer public key header wants {} bytes, but only {} remain",
-          r.n,
-          size);
-        r.n = 0;
-      }
-      else
-      {
-        data += r.n;
-        size -= r.n;
-      }
-
-      return r;
-    }
-
-    CBuffer extract_signature(const uint8_t*& data, size_t& size) const
-    {
-      auto sig_size = serialized::read<size_t>(data, size);
-      CBuffer r(data, sig_size);
-
-      if (r.n > size)
-      {
-        LOG_FAIL_FMT(
-          "Signature header wants {} bytes, but only {} remain", r.n, size);
-        r.n = 0;
-      }
-      else
-      {
-        data += r.n;
-        size -= r.n;
-      }
-
-      return r;
-    }
-
-    CBuffer extract_peer_certificate(const uint8_t*& data, size_t& size) const
+    CBuffer extract_buffer(const uint8_t*& data, size_t& size) const
     {
       if (size == 0)
       {
         return {};
       }
 
-      auto sig_size = serialized::read<size_t>(data, size);
-      CBuffer r(data, sig_size);
+      auto sz = serialized::read<size_t>(data, size);
+      CBuffer r(data, sz);
 
       if (r.n > size)
       {
         LOG_FAIL_FMT(
-          "Certificate header wants {} bytes, but only {} remain", r.n, size);
-        r.n = 0;
-      }
-      else if (r.n < size)
-      {
-        LOG_FAIL_FMT(
-          "Expected certificate to use all remaining {} bytes, but only uses "
-          "{}",
-          size,
-          r.n);
+          "Buffer header wants {} bytes, but only {} remain", r.n, size);
         r.n = 0;
       }
       else
@@ -430,14 +396,9 @@ namespace ccf
       }
 
       size_t peer_version = serialized::read<size_t>(data, size);
-      CBuffer ks = extract_key_share(data, size);
-      CBuffer sig = extract_signature(data, size);
-      CBuffer pc = extract_peer_certificate(data, size);
-
-      if (peer_version != protocol_version || ks.n == 0 || sig.n == 0)
-      {
-        return false;
-      }
+      CBuffer ks = extract_buffer(data, size);
+      CBuffer sig = extract_buffer(data, size);
+      CBuffer pc = extract_buffer(data, size);
 
       LOG_DEBUG_FMT(
         "From responder {}: version={} ks={} sig={} pc={}",
@@ -446,6 +407,17 @@ namespace ccf
         ds::to_hex(ks),
         ds::to_hex(sig),
         ds::to_hex(pc));
+
+      if (size != 0)
+      {
+        LOG_FAIL_FMT("{} exccess bytes remaining", size);
+        return false;
+      }
+
+      if (peer_version != protocol_version || ks.n == 0 || sig.n == 0)
+      {
+        return false;
+      }
 
       if (!verify_peer_certificate(pc))
       {
@@ -488,7 +460,8 @@ namespace ccf
         ds::to_hex(ks),
         ds::to_hex(serialised_signature));
 
-      establish();
+      establish(true);
+
       return true;
     }
 
@@ -515,17 +488,27 @@ namespace ccf
       }
 
       size_t peer_version = serialized::read<size_t>(data, size);
-      CBuffer ks = extract_key_share(data, size);
-      CBuffer sig = extract_signature(data, size);
-      CBuffer pc = extract_peer_certificate(data, size);
+      CBuffer ks = extract_buffer(data, size);
+      CBuffer sig = extract_buffer(data, size);
+      CBuffer pc = extract_buffer(data, size);
+      CBuffer salt = extract_buffer(data, size);
 
       LOG_DEBUG_FMT(
-        "From initiator {}: version={} ks={} sig={} pc={}",
+        "From initiator {}: version={} ks={} sig={} pc={} salt={}",
         peer_id,
         peer_version,
         ds::to_hex(ks),
         ds::to_hex(sig),
-        ds::to_hex(pc));
+        ds::to_hex(pc),
+        ds::to_hex(salt));
+
+      if (size != 0)
+      {
+        LOG_FAIL_FMT("{} exccess bytes remaining", size);
+        return false;
+      }
+
+      hkdf_salt = {salt.p, salt.p + salt.n};
 
       if (peer_version != protocol_version || ks.n == 0 || sig.n == 0)
       {
@@ -551,7 +534,7 @@ namespace ccf
 
       auto oks = kex_ctx.get_own_key_share();
       std::vector<uint8_t> pks = {ks.p, ks.p + ks.n};
-      auto serialised_signed_share = sign_key_share(oks, &pks);
+      auto serialised_signed_share = sign_key_share(oks, false, &pks);
 
       to_host->write(
         node_outbound,
@@ -586,20 +569,35 @@ namespace ccf
 
       auto oks = kex_ctx.get_own_key_share();
 
-      CBuffer sig = extract_signature(data, size);
+      CBuffer sig = extract_buffer(data, size);
 
       if (!verify_peer_signature(oks, sig))
         return false;
 
-      establish();
+      establish(false);
+
       return true;
     }
 
-    void establish()
+    void establish(bool initiator)
     {
       auto shared_secret = kex_ctx.compute_shared_secret();
-      key = crypto::make_key_aes_gcm(shared_secret);
+      std::string label;
+      if (initiator)
+      {
+        label = self.value() + peer_id.value();
+      }
+      else
+      {
+        label = peer_id.value() + self.value();
+      }
+      std::vector<uint8_t> info = {label.data(), label.data() + label.size()};
+      LOG_DEBUG_FMT("salt={}", ds::to_hex(hkdf_salt));
+      auto key_bytes = crypto::hkdf(
+        crypto::MDType::SHA256, 32, shared_secret, hkdf_salt, info);
+      key = crypto::make_key_aes_gcm(key_bytes);
       kex_ctx.free_ctx();
+
       status = ESTABLISHED;
 
       if (outgoing_msg.has_value())
@@ -633,7 +631,7 @@ namespace ccf
         NodeMsgType::channel_msg,
         self.value(),
         ChannelMsg::key_exchange_init,
-        get_signed_key_share());
+        get_signed_key_share(true));
 
       auto sn = make_verifier(node_cert)->serial_number();
       LOG_DEBUG_FMT("key_exchange_init -> {} node serial: {}", peer_id, sn);
@@ -754,10 +752,14 @@ namespace ccf
       LOG_INFO_FMT("Resetting channel with {}", peer_id);
 
       status = INACTIVE;
+
       kex_ctx.reset();
       key.reset();
       peer_cert = {};
       peer_cv.reset();
+
+      auto e = crypto::create_entropy();
+      hkdf_salt = e->random(32);
     }
 
     void restart()

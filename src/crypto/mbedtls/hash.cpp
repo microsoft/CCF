@@ -9,8 +9,40 @@
 #include <mbedtls/sha256.h>
 #include <stdexcept>
 
+#ifdef INSIDE_ENCLAVE
+// Note: Older system packages of mbedTLS may not support HKDF.
+#  include <mbedtls/hkdf.h>
+#endif
+
 namespace crypto
 {
+  namespace mbedtls
+  {
+#ifdef INSIDE_ENCLAVE
+    std::vector<uint8_t> hkdf(
+      MDType md_type,
+      size_t length,
+      const std::vector<uint8_t>& ikm,
+      const std::vector<uint8_t>& salt,
+      const std::vector<uint8_t>& info)
+    {
+      auto md = mbedtls_md_info_from_type(get_md_type(md_type));
+      std::vector<uint8_t> okm(length);
+      int rc = mbedtls_hkdf(
+        md,
+        salt.data(),
+        salt.size(),
+        ikm.data(),
+        ikm.size(),
+        info.data(),
+        info.size(),
+        okm.data(),
+        okm.size());
+      return okm;
+    }
+#endif
+  }
+
   using namespace mbedtls;
 
   void mbedtls_sha256(const CBuffer& data, uint8_t* h)

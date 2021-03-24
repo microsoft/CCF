@@ -22,6 +22,20 @@ namespace crypto
 
   /** Create a default incremental SHA256 hash provider */
   std::shared_ptr<ISha256Hash> make_incremental_sha256();
+
+  inline std::vector<uint8_t> hkdf(
+    MDType md_type,
+    size_t length,
+    const std::vector<uint8_t>& ikm,
+    const std::vector<uint8_t>& salt = {},
+    const std::vector<uint8_t>& info = {})
+  {
+#if defined(CRYPTO_PROVIDER_IS_MBEDTLS) && defined(INSIDE_ENCLAVE)
+    return mbedtls::hkdf(md_type, length, ikm, salt, info);
+#else
+    return OpenSSL::hkdf(md_type, length, ikm, salt, info);
+#endif
+  }
 }
 
 namespace fmt

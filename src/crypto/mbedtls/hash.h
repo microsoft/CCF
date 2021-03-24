@@ -35,6 +35,15 @@ namespace crypto
       }
       return MBEDTLS_MD_NONE;
     }
+
+#ifdef INSIDE_ENCLAVE
+    std::vector<uint8_t> hkdf(
+      MDType md_type,
+      size_t length,
+      const std::vector<uint8_t>& ikm,
+      const std::vector<uint8_t>& salt = {},
+      const std::vector<uint8_t>& info = {});
+#endif
   }
 
   class MBedHashProvider : public HashProvider
