@@ -107,43 +107,55 @@ namespace crypto
     return Pem(buf, len);
   }
 
-  bool Verifier_mbedTLS::verify_certificate(
-    const std::vector<const Pem*>& trusted_certs)
+  class CertificateChain
   {
-    int rc = 0;
+  public:
+    size_t n = 0;
+    mbedtls_x509_crt* raw = NULL;
 
-    mbedtls_x509_crt* chain = NULL;
-
-    if (!trusted_certs.empty())
+    CertificateChain(const std::vector<const Pem*>& certs)
     {
-      chain = new mbedtls_x509_crt[trusted_certs.size()];
-
-      for (size_t i = 0; i < trusted_certs.size(); i++)
+      if (!certs.empty())
       {
-        mbedtls_x509_crt_init(&chain[i]);
-      }
+        n = certs.size();
+        raw = new mbedtls_x509_crt[certs.size()];
 
-      for (size_t i = 0; i < trusted_certs.size(); i++)
-      {
-        auto& tc = trusted_certs[i];
-        if (
-          (rc = mbedtls_x509_crt_parse(&chain[i], tc->data(), tc->size())) != 0)
+        for (size_t i = 0; i < certs.size(); i++)
         {
-          goto exit;
+          mbedtls_x509_crt_init(&raw[i]);
+        }
+
+        for (size_t i = 0; i < certs.size(); i++)
+        {
+          auto& tc = certs[i];
+          int rc = mbedtls_x509_crt_parse(&raw[i], tc->data(), tc->size());
+          if (rc != 0)
+          {
+            throw std::runtime_error(
+              "Could not parse PEM certificate: " + error_string(rc));
+          }
         }
       }
     }
 
-    uint32_t flags;
-    rc = mbedtls_x509_crt_verify(
-      cert.get(), chain, NULL, NULL, &flags, NULL, NULL);
-
-  exit:
-    for (size_t i = 0; i < trusted_certs.size(); i++)
+    ~CertificateChain()
     {
-      mbedtls_x509_crt_free(&chain[i]);
+      for (size_t i = 0; i < n; i++)
+      {
+        mbedtls_x509_crt_free(&raw[i]);
+      }
+      delete[] raw;
     }
-    delete[] chain;
+  };
+
+  bool Verifier_mbedTLS::verify_certificate(
+    const std::vector<const Pem*>& trusted_certs)
+  {
+    CertificateChain chain(trusted_certs);
+
+    uint32_t flags;
+    int rc = mbedtls_x509_crt_verify(
+      cert.get(), chain.raw, NULL, NULL, &flags, NULL, NULL);
 
     return rc == 0 && flags == 0;
   }

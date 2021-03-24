@@ -3,6 +3,7 @@
 
 #include "public_key.h"
 
+#include "hash.h"
 #include "openssl_wrappers.h"
 
 #include <openssl/ec.h>

@@ -6,6 +6,7 @@
 #include "curve.h"
 #include "ds/net.h"
 #include "entropy.h"
+#include "hash.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

@@ -2,9 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "mbedtls/hash.h"
-
-#include "openssl/hash.h"
+#include "hash_provider.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -23,19 +21,13 @@ namespace crypto
   /** Create a default incremental SHA256 hash provider */
   std::shared_ptr<ISha256Hash> make_incremental_sha256();
 
-  inline std::vector<uint8_t> hkdf(
+  /** Perform HKDF key derivation */
+  std::vector<uint8_t> hkdf(
     MDType md_type,
     size_t length,
     const std::vector<uint8_t>& ikm,
     const std::vector<uint8_t>& salt = {},
-    const std::vector<uint8_t>& info = {})
-  {
-#if defined(CRYPTO_PROVIDER_IS_MBEDTLS) && defined(INSIDE_ENCLAVE)
-    return mbedtls::hkdf(md_type, length, ikm, salt, info);
-#else
-    return OpenSSL::hkdf(md_type, length, ikm, salt, info);
-#endif
-  }
+    const std::vector<uint8_t>& info = {});
 }
 
 namespace fmt

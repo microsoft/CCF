@@ -89,6 +89,8 @@ namespace ccf
     // Used for key exchange
     tls::KeyExchangeContext kex_ctx;
     ChannelStatus status = INACTIVE;
+    static constexpr size_t salt_len = 32;
+    static constexpr size_t shared_key_size = 32;
     std::vector<uint8_t> hkdf_salt;
 
     // Used for AES GCM authentication/encryption
@@ -190,7 +192,7 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(
         ccf::add_node, to_host, peer_id.value(), peer_hostname, peer_service);
       auto e = crypto::create_entropy();
-      hkdf_salt = e->random(32);
+      hkdf_salt = e->random(salt_len);
     }
 
     Channel(
@@ -209,7 +211,7 @@ namespace ccf
       outgoing(false)
     {
       auto e = crypto::create_entropy();
-      hkdf_salt = e->random(32);
+      hkdf_salt = e->random(salt_len);
     }
 
     ~Channel()
@@ -342,7 +344,7 @@ namespace ccf
           return false;
         }
 
-        LOG_DEBUG_FMT(
+        LOG_TRACE_FMT(
           "New peer certificate: {}\n{}",
           peer_cv->serial_number(),
           peer_cert.str());
@@ -353,7 +355,7 @@ namespace ccf
 
     bool verify_peer_signature(CBuffer msg, CBuffer sig)
     {
-      LOG_DEBUG_FMT(
+      LOG_TRACE_FMT(
         "Verifying peer signature with peer certificate serial {}",
         peer_cv ? peer_cv->serial_number() : "no peer_cv!");
 
@@ -388,7 +390,7 @@ namespace ccf
 
     bool consume_responder_key_share(const uint8_t* data, size_t size)
     {
-      LOG_DEBUG_FMT("status == {}", status);
+      LOG_TRACE_FMT("status == {}", status);
 
       if (status != INITIATED && status != ESTABLISHED)
       {
@@ -400,7 +402,7 @@ namespace ccf
       CBuffer sig = extract_buffer(data, size);
       CBuffer pc = extract_buffer(data, size);
 
-      LOG_DEBUG_FMT(
+      LOG_TRACE_FMT(
         "From responder {}: version={} ks={} sig={} pc={}",
         peer_id,
         peer_version,
@@ -414,7 +416,16 @@ namespace ccf
         return false;
       }
 
-      if (peer_version != protocol_version || ks.n == 0 || sig.n == 0)
+      if (peer_version != protocol_version)
+      {
+        LOG_FAIL_FMT(
+          "Protocol version mismatch (node={}, peer={})",
+          protocol_version,
+          peer_version);
+        return false;
+      }
+
+      if (ks.n == 0 || sig.n == 0)
       {
         return false;
       }
@@ -454,7 +465,7 @@ namespace ccf
         ChannelMsg::key_exchange_final,
         serialised_signature);
 
-      LOG_DEBUG_FMT(
+      LOG_TRACE_FMT(
         "key_exchange_final -> {}: ks={} serialised_signed_key_share={}",
         peer_id,
         ds::to_hex(ks),
@@ -474,7 +485,7 @@ namespace ccf
     bool consume_initiator_key_share(
       const uint8_t* data, size_t size, bool priority = false)
     {
-      LOG_DEBUG_FMT("status == {}", status);
+      LOG_TRACE_FMT("status == {}", status);
 
       if (status == INITIATED)
       {
@@ -493,7 +504,7 @@ namespace ccf
       CBuffer pc = extract_buffer(data, size);
       CBuffer salt = extract_buffer(data, size);
 
-      LOG_DEBUG_FMT(
+      LOG_TRACE_FMT(
         "From initiator {}: version={} ks={} sig={} pc={} salt={}",
         peer_id,
         peer_version,
@@ -510,7 +521,16 @@ namespace ccf
 
       hkdf_salt = {salt.p, salt.p + salt.n};
 
-      if (peer_version != protocol_version || ks.n == 0 || sig.n == 0)
+      if (peer_version != protocol_version)
+      {
+        LOG_FAIL_FMT(
+          "Protocol version mismatch (node={}, peer={})",
+          protocol_version,
+          peer_version);
+        return false;
+      }
+
+      if (ks.n == 0 || sig.n == 0)
       {
         return false;
       }
@@ -544,7 +564,7 @@ namespace ccf
         ChannelMsg::key_exchange_response,
         serialised_signed_share);
 
-      LOG_DEBUG_FMT(
+      LOG_TRACE_FMT(
         "key_exchange_response -> {}: oks={} serialised_signed_share={}",
         peer_id,
         ds::to_hex(oks),
@@ -560,7 +580,7 @@ namespace ccf
 
     bool check_peer_key_share_signature(const uint8_t* data, size_t size)
     {
-      LOG_DEBUG_FMT("status == {}", status);
+      LOG_TRACE_FMT("status == {}", status);
 
       if (status != WAITING_FOR_FINAL)
       {
@@ -592,9 +612,12 @@ namespace ccf
         label = peer_id.value() + self.value();
       }
       std::vector<uint8_t> info = {label.data(), label.data() + label.size()};
-      LOG_DEBUG_FMT("salt={}", ds::to_hex(hkdf_salt));
       auto key_bytes = crypto::hkdf(
-        crypto::MDType::SHA256, 32, shared_secret, hkdf_salt, info);
+        crypto::MDType::SHA256,
+        shared_key_size,
+        shared_secret,
+        hkdf_salt,
+        info);
       key = crypto::make_key_aes_gcm(key_bytes);
       kex_ctx.free_ctx();
 
@@ -612,7 +635,7 @@ namespace ccf
       auto node_cv = make_verifier(node_cert);
       LOG_INFO_FMT("Node channel with {} is now established.", peer_id);
 
-      LOG_DEBUG_FMT(
+      LOG_TRACE_FMT(
         "Node certificate serial numbers: node={} peer={}",
         node_cv->serial_number(),
         peer_cv->serial_number());
@@ -622,6 +645,8 @@ namespace ccf
     {
       if (status == WAITING_FOR_FINAL || status == ESTABLISHED)
         return;
+
+      LOG_INFO_FMT("Initiating node channel with {}.", peer_id);
 
       status = INITIATED;
 
@@ -634,7 +659,7 @@ namespace ccf
         get_signed_key_share(true));
 
       auto sn = make_verifier(node_cert)->serial_number();
-      LOG_DEBUG_FMT("key_exchange_init -> {} node serial: {}", peer_id, sn);
+      LOG_TRACE_FMT("key_exchange_init -> {} node serial: {}", peer_id, sn);
     }
 
     bool send(NodeMsgType type, CBuffer aad, CBuffer plain = nullb)
@@ -664,7 +689,7 @@ namespace ccf
         gcm_hdr,
         cipher);
 
-      LOG_DEBUG_FMT("-> {}: encrypted msg of type {}", peer_id, type);
+      LOG_TRACE_FMT("-> {}: encrypted msg", peer_id);
 
       return true;
     }
@@ -759,12 +784,12 @@ namespace ccf
       peer_cv.reset();
 
       auto e = crypto::create_entropy();
-      hkdf_salt = e->random(32);
+      hkdf_salt = e->random(salt_len);
     }
 
     void restart()
     {
-      LOG_INFO_FMT("Restarting node channel with {}", peer_id);
+      LOG_TRACE_FMT("Restarting node channel with {}", peer_id);
 
       to_host->write(
         node_outbound,
@@ -773,7 +798,7 @@ namespace ccf
         self.value(),
         ChannelMsg::key_exchange_restart);
 
-      LOG_DEBUG_FMT("key_exchange_restart -> {}", peer_id);
+      LOG_TRACE_FMT("key_exchange_restart -> {}", peer_id);
     }
   };
 

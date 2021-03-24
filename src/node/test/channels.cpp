@@ -58,9 +58,13 @@ struct NodeOutboundMsg
 
   std::vector<uint8_t> unauthenticated_data() const
   {
-    std::vector<uint8_t> r = data();
-    r.erase(r.begin(), r.begin() + 8); // Skip 8 bytes of message type
-    return r;
+    auto r = data();
+    auto type_hdr_bytes = std::vector<uint8_t>(r.begin(), r.begin() + 8);
+    CBuffer type_hdr(type_hdr_bytes.data(), type_hdr_bytes.size());
+    ChannelMsg channel_msg_type =
+      serialized::read<ChannelMsg>(type_hdr.p, type_hdr.n);
+    auto data = std::vector<uint8_t>(r.begin() + 8, r.end());
+    return data;
   }
 };
 
