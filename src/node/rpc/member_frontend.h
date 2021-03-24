@@ -2165,7 +2165,7 @@ namespace ccf
           }
 
           std::string validate_script = fmt::format(
-            "{} export default (input) => validate(input);",
+            "{}\n export default (input) => validate(input);",
             constitution.value());
 
           auto validate =
@@ -2360,12 +2360,26 @@ namespace ccf
             ccf::errors::VoteAlreadyExists,
             "Vote already submitted.");
         }
+        // Validate vote
+
+        std::string ballot_script = fmt::format(
+          "{}\n export default (proposal, proposer_id, tx) => vote(proposal, "
+          "proposer_id, tx);",
+          params["ballot"]);
+
+        js::Runtime rt;
+        js::Context context(rt);
+        auto ballot_func = context.function(ballot_script, "body[\"ballot\"]");
+        JS_FreeValue(context, ballot_func);
+
         pi_->ballots[caller_identity.member_id] = params["ballot"];
         pi->put(proposal_id, pi_.value());
 
+        // Do we still need to do this?
         record_voting_history(
           ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
+        // Evaluate votes
         return make_success(true);
       };
       make_endpoint(
