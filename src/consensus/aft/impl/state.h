@@ -21,7 +21,7 @@ namespace aft
     std::vector<kv::Version> views;
 
   public:
-    static constexpr kv::Consensus::View InvalidView = ccf::VIEW_UNKNOWN;
+    static constexpr ccf::View InvalidView = ccf::VIEW_UNKNOWN;
 
     void initialise(const std::vector<kv::Version>& terms_)
     {
@@ -33,7 +33,7 @@ namespace aft
       LOG_DEBUG_FMT("Initialised views: {}", fmt::join(views, ", "));
     }
 
-    void update(kv::Version idx, kv::Consensus::View view)
+    void update(kv::Version idx, ccf::View view)
     {
       LOG_DEBUG_FMT("Updating view to: {} at version: {}", view, idx);
       if (!views.empty())
@@ -55,7 +55,7 @@ namespace aft
       LOG_DEBUG_FMT("Resulting views: {}", fmt::join(views, ", "));
     }
 
-    kv::Consensus::View view_at(kv::Version idx)
+    ccf::View view_at(kv::Version idx)
     {
       auto it = upper_bound(views.begin(), views.end(), idx);
 
@@ -107,7 +107,7 @@ namespace aft
     std::map<ccf::NodeId, std::shared_ptr<Replica>> configuration;
 
     ccf::NodeId my_node_id;
-    kv::Consensus::View current_view;
+    ccf::View current_view;
     kv::Version last_idx;
     kv::Version commit_idx;
 

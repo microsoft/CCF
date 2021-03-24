@@ -480,7 +480,7 @@ namespace js
 
   JSValue create_ccf_obj(
     kv::Tx* tx,
-    const std::optional<kv::TxID>& transaction_id,
+    const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     JSContext* ctx)
   {
@@ -575,7 +575,7 @@ namespace js
 
   void populate_global_ccf(
     kv::Tx* tx,
-    const std::optional<kv::TxID>& transaction_id,
+    const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     JSContext* ctx)
   {

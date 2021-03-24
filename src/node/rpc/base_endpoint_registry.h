@@ -95,8 +95,8 @@ namespace ccf
      * @see ccf::TxStatus
      */
     ApiResult get_status_for_txid_v1(
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
+      ccf::View view,
+      ccf::SeqNo seqno,
       ccf::TxStatus& tx_status)
     {
       try
@@ -127,7 +127,7 @@ namespace ccf
     /** Get the ID of latest transaction known to be committed.
      */
     ApiResult get_last_committed_txid_v1(
-      kv::Consensus::View& view, kv::Consensus::SeqNo& seqno)
+      ccf::View& view, ccf::SeqNo& seqno)
     {
       if (consensus != nullptr)
       {
@@ -209,7 +209,7 @@ namespace ccf
 
     /** Get the view associated with a given seqno, to construct a valid TxID
      */
-    ApiResult get_view_for_seqno_v1(kv::SeqNo seqno, kv::Consensus::View& view)
+    ApiResult get_view_for_seqno_v1(ccf::SeqNo seqno, ccf::View& view)
     {
       try
       {

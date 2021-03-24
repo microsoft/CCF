@@ -935,7 +935,7 @@ namespace kv
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
       Version previous_rollback_count = 0;
-      kv::Consensus::View replication_view = 0;
+      ccf::View replication_view = 0;
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);

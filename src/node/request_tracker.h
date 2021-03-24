@@ -124,7 +124,7 @@ namespace aft
     }
 
     void insert_signed_request(
-      kv::Consensus::SeqNo seqno, std::chrono::milliseconds time)
+      ccf::SeqNo seqno, std::chrono::milliseconds time)
     {
       std::unique_lock<SpinLock> guard(lock);
       if (seqno > seqno_last_signature)
@@ -134,7 +134,7 @@ namespace aft
       }
     }
 
-    std::tuple<kv::Consensus::SeqNo, std::chrono::milliseconds>
+    std::tuple<ccf::SeqNo, std::chrono::milliseconds>
     get_seqno_time_last_request() const
     {
       std::unique_lock<SpinLock> guard(lock);
@@ -159,7 +159,7 @@ namespace aft
     snmalloc::DLList<Request, std::nullptr_t, true>
       hashes_without_requests_list;
 
-    kv::Consensus::SeqNo seqno_last_signature = -1;
+    ccf::SeqNo seqno_last_signature = -1;
     std::chrono::milliseconds time_last_signature =
       std::chrono::milliseconds(0);
     mutable SpinLock lock;

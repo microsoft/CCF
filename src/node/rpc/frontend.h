@@ -151,7 +151,7 @@ namespace ccf
       kv::Tx& tx,
       const PreExec& pre_exec = {},
       kv::Version prescribed_commit_version = kv::NoVersion,
-      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion)
+      ccf::SeqNo max_conflict_version = kv::NoVersion)
     {
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
@@ -589,8 +589,8 @@ namespace ccf
 
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
-      kv::Consensus::SeqNo prescribed_commit_version,
-      kv::Consensus::SeqNo max_conflict_version) override
+      ccf::SeqNo prescribed_commit_version,
+      ccf::SeqNo max_conflict_version) override
     {
       auto tx = tables.create_tx();
       return process_bft(
@@ -607,8 +607,8 @@ namespace ccf
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
       kv::Tx& tx,
-      kv::Consensus::SeqNo prescribed_commit_version = kv::NoVersion,
-      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) override
+      ccf::SeqNo prescribed_commit_version = kv::NoVersion,
+      ccf::SeqNo max_conflict_version = kv::NoVersion) override
     {
       // Note: this can only happen if the primary is malicious,
       // and has executed a user transaction when the service wasn't

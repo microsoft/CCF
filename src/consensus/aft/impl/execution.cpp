@@ -52,9 +52,9 @@ namespace aft
   kv::Version ExecutorImpl::execute_request(
     std::unique_ptr<RequestMessage> request,
     bool is_create_request,
-    kv::Consensus::SeqNo prescribed_commit_version,
+    ccf::SeqNo prescribed_commit_version,
     std::shared_ptr<aft::RequestTracker> request_tracker,
-    kv::Consensus::SeqNo max_conflict_version)
+    ccf::SeqNo max_conflict_version)
   {
     std::shared_ptr<enclave::RpcContext>& ctx = request->get_request_ctx().ctx;
     std::shared_ptr<enclave::RpcHandler>& frontend =
@@ -93,7 +93,7 @@ namespace aft
 
   std::unique_ptr<aft::RequestMessage> ExecutorImpl::create_request_message(
     const kv::TxHistory::RequestCallbackArgs& args,
-    kv::Consensus::SeqNo committed_seqno)
+    ccf::SeqNo committed_seqno)
   {
     Request request = {
       args.rid, args.caller_cert, args.request, args.frame_format};
@@ -119,8 +119,8 @@ namespace aft
   kv::Version ExecutorImpl::execute_request(
     aft::Request& request,
     std::shared_ptr<aft::RequestTracker> request_tracker,
-    kv::Consensus::SeqNo prescribed_commit_version,
-    kv::Consensus::SeqNo max_conflict_version)
+    ccf::SeqNo prescribed_commit_version,
+    ccf::SeqNo max_conflict_version)
   {
     auto ctx = create_request_ctx(request);
 

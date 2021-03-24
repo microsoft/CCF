@@ -8,6 +8,7 @@
 #include "enclave/consensus_type.h"
 #include "node/entity_id.h"
 #include "serialiser_declare.h"
+#include "tx_id.h"
 
 #include <array>
 #include <chrono>
@@ -56,10 +57,6 @@ namespace kv
   DECLARE_JSON_TYPE(TxID);
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
 
-  // SeqNo indexes transactions processed by the consensus protocol providing
-  // ordering
-  using SeqNo = int64_t;
-
   struct Configuration
   {
     struct NodeInfo
@@ -77,7 +74,7 @@ namespace kv
 
     using Nodes = std::unordered_map<NodeId, NodeInfo>;
 
-    SeqNo idx;
+    ccf::SeqNo idx;
     Nodes nodes;
   };
 
@@ -85,7 +82,7 @@ namespace kv
   {
   public:
     virtual void add_configuration(
-      SeqNo seqno, const Configuration::Nodes& conf) = 0;
+      ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
   };
@@ -285,11 +282,6 @@ namespace kv
     NodeId local_id;
 
   public:
-    using SeqNo = SeqNo;
-    // View describes an epoch of SeqNos. View is incremented when Consensus's
-    // primary changes
-    using View = int64_t;
-
     Consensus(const NodeId& id) : state(Backup), local_id(id) {}
     virtual ~Consensus() {}
 
@@ -314,32 +306,33 @@ namespace kv
     }
 
     virtual void force_become_primary(
-      SeqNo, View, const std::vector<SeqNo>&, SeqNo)
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo)
     {
       state = Primary;
     }
 
-    virtual void init_as_backup(SeqNo, View, const std::vector<SeqNo>&)
+    virtual void init_as_backup(
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&)
     {
       state = Backup;
     }
 
-    virtual bool replicate(const BatchVector& entries, View view) = 0;
-    virtual std::pair<View, SeqNo> get_committed_txid() = 0;
+    virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
+    virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
 
     struct SignableTxIndices
     {
       Term term;
-      SeqNo version, previous_version;
+      ccf::SeqNo version, previous_version;
     };
 
     virtual std::optional<SignableTxIndices> get_signable_txid() = 0;
 
-    virtual View get_view(SeqNo seqno) = 0;
-    virtual View get_view() = 0;
-    virtual std::vector<SeqNo> get_view_history(SeqNo) = 0;
-    virtual void initialise_view_history(const std::vector<SeqNo>&) = 0;
-    virtual SeqNo get_committed_seqno() = 0;
+    virtual ccf::View get_view(ccf::SeqNo seqno) = 0;
+    virtual ccf::View get_view() = 0;
+    virtual std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo) = 0;
+    virtual void initialise_view_history(const std::vector<ccf::SeqNo>&) = 0;
+    virtual ccf::SeqNo get_committed_seqno() = 0;
     virtual std::optional<NodeId> primary() = 0;
     virtual bool view_change_in_progress() = 0;
     virtual std::set<NodeId> active_nodes() = 0;

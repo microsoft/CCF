@@ -99,8 +99,8 @@ namespace ccf
 
         std::string error_reason;
 
-        kv::Consensus::View view;
-        kv::Consensus::SeqNo seqno;
+        ccf::View view;
+        ccf::SeqNo seqno;
         if (
           !http::get_query_value(parsed_query, "view", view, error_reason) ||
           !http::get_query_value(parsed_query, "seqno", seqno, error_reason))
@@ -130,8 +130,8 @@ namespace ccf
       make_command_endpoint(
         "tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
         .set_auto_schema<void, GetTxStatus::Out>()
-        .add_query_parameter<kv::Consensus::View>("view")
-        .add_query_parameter<kv::Consensus::SeqNo>("seqno")
+        .add_query_parameter<ccf::View>("view")
+        .add_query_parameter<ccf::SeqNo>("seqno")
         .install();
 
       make_command_endpoint(
@@ -140,8 +140,8 @@ namespace ccf
         json_command_adapter(get_tx_status),
         no_auth_required)
         .set_auto_schema<void, GetTxStatus::Out>()
-        .add_query_parameter<kv::Consensus::View>("view")
-        .add_query_parameter<kv::Consensus::SeqNo>("seqno")
+        .add_query_parameter<ccf::View>("view")
+        .add_query_parameter<ccf::SeqNo>("seqno")
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
@@ -205,8 +205,8 @@ namespace ccf
         .install();
 
       auto is_tx_committed = [this](
-                               kv::Consensus::View view,
-                               kv::Consensus::SeqNo seqno,
+                               ccf::View view,
+                               ccf::SeqNo seqno,
                                std::string& error_reason) {
         if (consensus == nullptr)
         {

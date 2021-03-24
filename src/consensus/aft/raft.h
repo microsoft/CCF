@@ -281,7 +281,7 @@ namespace aft
       return replica_state == Follower;
     }
 
-    ccf::NodeId get_primary(kv::Consensus::View view)
+    ccf::NodeId get_primary(ccf::View view)
     {
       CCF_ASSERT_FMT(
         consensus_type == ConsensusType::BFT,
@@ -742,8 +742,8 @@ namespace aft
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
-          kv::Consensus::View new_view = view_change_tracker->get_target_view();
-          kv::Consensus::SeqNo seqno;
+          ccf::View new_view = view_change_tracker->get_target_view();
+          ccf::SeqNo seqno;
           std::unique_ptr<ccf::ViewChangeRequest> vc;
 
           auto progress_tracker = store->get_progress_tracker();
@@ -922,7 +922,7 @@ namespace aft
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
     }
 
-    void append_new_view(kv::Consensus::View view)
+    void append_new_view(ccf::View view)
     {
       state->current_view = view;
       become_leader();
@@ -936,7 +936,7 @@ namespace aft
     bool has_bft_timeout_occurred(std::chrono::milliseconds time)
     {
       auto oldest_entry = request_tracker->oldest_entry();
-      kv::Consensus::SeqNo last_sig_seqno;
+      ccf::SeqNo last_sig_seqno;
       std::chrono::milliseconds last_sig_time;
       std::tie(last_sig_seqno, last_sig_time) =
         request_tracker->get_seqno_time_last_request();

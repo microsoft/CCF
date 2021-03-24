@@ -87,7 +87,7 @@ namespace ccf
           std::pair<NodeId, BftNodeSignature>(node_id, bft_node_sig));
 
         certificates.insert(
-          std::pair<kv::Consensus::SeqNo, CommitCert>(tx_id.version, cert));
+          std::pair<ccf::SeqNo, CommitCert>(tx_id.version, cert));
 
         LOG_TRACE_FMT(
           "Adding new root for view:{}, seqno:{}", tx_id.term, tx_id.version);
@@ -330,7 +330,7 @@ namespace ccf
         // signature and and we will verify the root when we get it from the
         // primary
         auto r =
-          certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
+          certificates.insert(std::pair<ccf::SeqNo, CommitCert>(
             tx_id.version, CommitCert()));
         it = r.first;
       }
@@ -367,7 +367,7 @@ namespace ccf
         // signature and and we will verify the root when we get it from the
         // primary
         auto r =
-          certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
+          certificates.insert(std::pair<ccf::SeqNo, CommitCert>(
             tx_id.version, CommitCert()));
         it = r.first;
         did_add = true;
@@ -467,13 +467,13 @@ namespace ccf
       hash = crypto::Sha256Hash({data.h.data(), data.h.size()});
     }
 
-    kv::Consensus::SeqNo get_highest_committed_nonce()
+    ccf::SeqNo get_highest_committed_nonce()
     {
       return highest_commit_level;
     }
 
-    std::tuple<std::unique_ptr<ViewChangeRequest>, kv::Consensus::SeqNo>
-    get_view_change_message(kv::Consensus::View view)
+    std::tuple<std::unique_ptr<ViewChangeRequest>, ccf::SeqNo>
+    get_view_change_message(ccf::View view)
     {
       std::unique_lock<SpinLock> guard(lock);
       auto it = certificates.find(highest_prepared_level.version);
@@ -500,8 +500,8 @@ namespace ccf
     bool apply_view_change_message(
       ViewChangeRequest& view_change,
       const NodeId& from,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno)
+      ccf::View view,
+      ccf::SeqNo seqno)
     {
       std::unique_lock<SpinLock> guard(lock);
       if (!store->verify_view_change_request(view_change, from, view, seqno))
@@ -559,14 +559,14 @@ namespace ccf
     bool apply_new_view(
       const NodeId& from,
       uint32_t node_count,
-      kv::Consensus::View& view_,
-      kv::Consensus::SeqNo& seqno_) const
+      ccf::View& view_,
+      ccf::SeqNo& seqno_) const
     {
       std::unique_lock<SpinLock> guard(lock);
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
-      kv::Consensus::View view = new_view->view;
-      kv::Consensus::SeqNo seqno = new_view->seqno;
+      ccf::View view = new_view->view;
+      ccf::SeqNo seqno = new_view->seqno;
 
       if (
         seqno < highest_prepared_level.version ||
@@ -634,10 +634,10 @@ namespace ccf
   private:
     NodeId id;
     std::shared_ptr<crypto::Entropy> entropy;
-    kv::Consensus::SeqNo highest_commit_level = 0;
+    ccf::SeqNo highest_commit_level = 0;
     kv::TxID highest_prepared_level = {0, 0};
 
-    std::map<kv::Consensus::SeqNo, CommitCert> certificates;
+    std::map<ccf::SeqNo, CommitCert> certificates;
     mutable SpinLock lock;
 
     kv::TxHistory::Result add_signature_internal(
@@ -661,7 +661,7 @@ namespace ccf
         // will be recorded and verified when the primary sends the apporiate
         // Merkle root.
         auto r =
-          certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
+          certificates.insert(std::pair<ccf::SeqNo, CommitCert>(
             tx_id.version, CommitCert()));
         it = r.first;
       }
@@ -765,8 +765,8 @@ namespace ccf
     void try_match_unmatched_nonces(
       CommitCert& cert,
       BftNodeSignature& bft_node_sig,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
+      ccf::View view,
+      ccf::SeqNo seqno,
       const NodeId& node_id)
     {
       auto it_unmatched_nonces = cert.unmatched_nonces.find(node_id);
@@ -849,7 +849,7 @@ namespace ccf
 
     void try_update_watermark(
       CommitCert& cert,
-      kv::Consensus::SeqNo seqno,
+      ccf::SeqNo seqno,
       bool should_clear_old_entries)
     {
       if (cert.nonces_committed_to_ledger && seqno > highest_commit_level)

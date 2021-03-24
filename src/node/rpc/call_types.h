@@ -20,8 +20,8 @@ namespace ccf
   {
     struct Out
     {
-      kv::Consensus::View view;
-      kv::Consensus::SeqNo seqno;
+      ccf::View view;
+      ccf::SeqNo seqno;
     };
   };
 
@@ -29,8 +29,8 @@ namespace ccf
   {
     struct Out
     {
-      kv::Consensus::View view;
-      kv::Consensus::SeqNo seqno;
+      ccf::View view;
+      ccf::SeqNo seqno;
       TxStatus status;
     };
   };
@@ -54,7 +54,7 @@ namespace ccf
     struct Out
     {
       ServiceStatus service_status;
-      std::optional<kv::Consensus::View> current_view;
+      std::optional<ccf::View> current_view;
       std::optional<NodeId> primary_id;
     };
   };

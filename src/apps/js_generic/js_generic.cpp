@@ -282,8 +282,8 @@ namespace ccfapp
         info.value().mode == ccf::endpoints::Mode::Historical)
       {
         auto is_tx_committed = [this](
-                                 kv::Consensus::View view,
-                                 kv::Consensus::SeqNo seqno,
+                                 ccf::View view,
+                                 ccf::SeqNo seqno,
                                  std::string& error_reason) {
           return ccf::historical::is_tx_committed(
             consensus, view, seqno, error_reason);

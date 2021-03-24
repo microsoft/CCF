@@ -100,28 +100,28 @@ namespace ccf
 
     historical::StorePtr get_store_at(
       historical::RequestHandle handle,
-      kv::SeqNo seqno,
+      ccf::SeqNo seqno,
       historical::ExpiryDuration seconds_until_expiry)
     {
       return nullptr;
     }
 
     historical::StorePtr get_store_at(
-      historical::RequestHandle handle, kv::SeqNo seqno)
+      historical::RequestHandle handle, ccf::SeqNo seqno)
     {
       return nullptr;
     }
 
     historical::StatePtr get_state_at(
-      historical::RequestHandle handle, kv::SeqNo seqno)
+      historical::RequestHandle handle, ccf::SeqNo seqno)
     {
       return nullptr;
     }
 
     std::vector<historical::StorePtr> get_store_range(
       historical::RequestHandle handle,
-      kv::SeqNo start_seqno,
-      kv::SeqNo end_seqno,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno,
       historical::ExpiryDuration seconds_until_expiry)
     {
       return {};
@@ -129,8 +129,8 @@ namespace ccf
 
     std::vector<historical::StorePtr> get_store_range(
       historical::RequestHandle handle,
-      kv::SeqNo start_seqno,
-      kv::SeqNo end_seqno)
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno)
     {
       return {};
     }
