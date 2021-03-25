@@ -247,13 +247,19 @@ def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}
     :typedoc:interfacemethod:`ccf-app/endpoints/Body#json`
     :typedoc:interface:`Body <ccf-app/endpoints/Body>`
     """
+    # check for custom label
     if '<' in text:
         label, text = text.split(' <')
         text = text[:-1]
     else:
         label = text
+    
+    # extract hash if any, has to be appended after .html later on
     text_without_hash, *hash_name = text.split('#')
     url_hash = f'#{hash_name[0].lower()}' if hash_name else ''
+    
+    # translate role kind into typedoc subfolder
+    # and add '()' for functions/methods
     kind_name = name.replace('typedoc:', '')
     if kind_name in ['module', 'interface']:
         kind_name += 's'
@@ -271,18 +277,22 @@ def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}
     else:
         raise ValueError(f'unknown typedoc kind: {kind_name}')
 
+    # build typedoc url relative to doc root
     pkg_name, *element_path = text_without_hash.split('/')
     element_path = '.'.join(element_path).lower()
     typedoc_path = f'js/{pkg_name}/{kind_name}/{element_path}.html{url_hash}'
 
+    # construct final url relative to current page
     source = inliner.document.attributes['source']
     rel_source = source.split('/doc/', 1)[1]
     levels = rel_source.count('/')
     refuri = '../' * levels + typedoc_path
 
+    # build docutils node
     text_node = nodes.literal(label, label, classes=['code'])
     ref_node = nodes.reference('', '', refuri=refuri)
     ref_node += text_node
+    
     return [ref_node], []
 
 
