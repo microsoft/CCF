@@ -47,7 +47,11 @@ configure_file(
 )
 configure_file(${CCF_DIR}/python/setup.py.in ${CCF_DIR}/python/setup.py @ONLY)
 
-set(CONSENSUSES cft bft)
+if(${ENABLE_BFT})
+  set(CONSENSUSES cft bft)
+else()
+  set(CONSENSUSES cft)
+endif()
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
