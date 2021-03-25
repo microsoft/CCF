@@ -41,6 +41,13 @@ function validate(input) {
   return { valid: errors.length == 0, description: errors.join(", ") };
 }
 
-function resolve(proposal, votes, tx) {
-  return "PENDING"; // "PASSED" "REJECTED"
+function resolve(proposal, votes) {
+  if (votes.length == 0)
+  {
+    return "Open";
+  }
+  else
+  {
+    return "Accepted";
+  }
 }

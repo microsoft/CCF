@@ -2456,6 +2456,42 @@ namespace ccf
           rv.push_back(v);
         }
 
+        {
+          auto constitution = ctx.tx.ro(network.constitution)->get(0);
+          if (!constitution.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "No constitution is set - proposals cannot be evaluated");
+          }
+
+          std::string mbs = fmt::format(
+            "{}\n export default (proposal, votes) => resolve(proposal, votes);",
+            constitution.value());
+
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wc99-extensions"
+
+          js::Runtime rt;
+          js::Context context(rt);
+          rt.add_ccf_classdefs();
+          js::populate_global_ccf(nullptr, std::nullopt, nullptr, context);
+          auto resolve_func = context.function(
+            mbs, fmt::format("resolve {}", proposal_id));
+          JSValue argv[1];
+          auto prop =
+            JS_NewStringLen(context, p.value().c_str(), p.value().size());
+          argv[0] = prop;
+          // Votes
+          auto val =
+            context(JS_Call(context, resolve_func, JS_UNDEFINED, 0, nullptr));
+
+#  pragma clang diagnostic pop
+          JS_FreeValue(context, resolve_func);
+          JS_FreeValue(context, prop);
+        }
+
         return make_success(rv);
       };
       make_endpoint(
