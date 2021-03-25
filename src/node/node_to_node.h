@@ -24,8 +24,6 @@ namespace ccf
       const std::string& peer_hostname,
       const std::string& peer_service) = 0;
 
-    virtual void restart() = 0;
-
     virtual void destroy_channel(const NodeId& peer_id) = 0;
 
     virtual void close_all_outgoing() = 0;
@@ -178,14 +176,6 @@ namespace ccf
       channels->create_channel(peer_id, hostname, service);
     }
 
-    virtual void restart() override
-    {
-      if (channels)
-      {
-        channels->restart();
-      }
-    }
-
     void destroy_channel(const NodeId& peer_id) override
     {
       if (peer_id == self.value())
@@ -267,10 +257,7 @@ namespace ccf
       // with the lower ID wins.
 
       auto n2n_channel = channels->get(from);
-      if (!n2n_channel->consume_initiator_key_share(data, size, self < from))
-      {
-        /* Unchecked ok? */
-      }
+      n2n_channel->consume_initiator_key_share(data, size, self < from);
     }
 
     void process_key_exchange_response(
@@ -278,10 +265,7 @@ namespace ccf
     {
       LOG_DEBUG_FMT("key_exchange_response from {}", from);
       auto n2n_channel = channels->get(from);
-      if (!n2n_channel->consume_responder_key_share(data, size))
-      {
-        /* Unchecked ok? */
-      }
+      n2n_channel->consume_responder_key_share(data, size);
     }
 
     void process_key_exchange_final(
@@ -293,15 +277,6 @@ namespace ccf
       {
         n2n_channel->reset();
       }
-    }
-
-    void process_key_exchange_restart(
-      const NodeId& from, const uint8_t*, size_t)
-    {
-      LOG_DEBUG_FMT("key_exchange_restart from {}", from);
-      auto n2n_channel = channels->get(from);
-      n2n_channel->reset();
-      n2n_channel->initiate();
     }
 
     void recv_message(const NodeId& from, OArray&& oa) override
@@ -328,12 +303,6 @@ namespace ccf
           case key_exchange_final:
           {
             process_key_exchange_final(from, data, size);
-            break;
-          }
-
-          case key_exchange_restart:
-          {
-            process_key_exchange_restart(from, data, size);
             break;
           }
 

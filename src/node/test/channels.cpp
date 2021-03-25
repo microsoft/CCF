@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "crypto/verifier.h"
+#include "ds/hex.h"
 #include "node/entities.h"
 #include "node/node_types.h"
 
@@ -238,10 +239,10 @@ TEST_CASE("Client/Server key exchange")
   }
 
   std::vector<uint8_t> initiator_signature;
+  NodeOutboundMsg<MsgType> queued_msg;
 
   INFO("Extract responder signature from message");
   {
-    // Messages sent before channel was established are flushed, so only 1 each.
     auto msgs = read_outbound_msgs<MsgType>(eio1);
     REQUIRE(msgs.size() == 2);
     REQUIRE(msgs[0].type == channel_msg);
@@ -251,6 +252,8 @@ TEST_CASE("Client/Server key exchange")
     auto md = msgs[1].data();
     REQUIRE(md.size() == msg.size() + sizeof(GcmHdr));
     REQUIRE(memcmp(md.data(), msg.data(), msg.size()) == 0);
+
+    queued_msg = msgs[1]; // save for later
   }
 
   INFO("Cross-check responder signature and establish channels");
@@ -258,6 +261,16 @@ TEST_CASE("Client/Server key exchange")
     REQUIRE(channel2.check_peer_key_share_signature(initiator_signature));
     REQUIRE(channel1.get_status() == ESTABLISHED);
     REQUIRE(channel2.get_status() == ESTABLISHED);
+  }
+
+  INFO("Receive queued message");
+  {
+    // Receive the queued message to ensure the sequence numbers are contiguous.
+    auto hdr = queued_msg.authenticated_hdr;
+    auto payload = queued_msg.payload;
+    const auto* data = payload.data();
+    auto size = payload.size();
+    channel2.recv_authenticated({hdr.begin(), hdr.size()}, data, size);
   }
 
   INFO("Protect integrity of message (peer1 -> peer2)");
@@ -474,17 +487,17 @@ TEST_CASE("Replay and out-of-order")
       read_outbound_msgs<MsgType>(eio2).size();
     REQUIRE(n == 0);
 
-    channel1.restart();
+    channel1.initiate();
     REQUIRE(channel1.get_status() == ESTABLISHED);
 
     auto fst = get_first(eio1, NodeMsgType::channel_msg);
-    channel2.reset();
     channel2.initiate();
-    REQUIRE(channel2.get_status() == INITIATED);
+    REQUIRE(channel2.get_status() == ESTABLISHED);
 
     fst = get_first(eio2, NodeMsgType::channel_msg);
-    REQUIRE(channel1.consume_initiator_key_share(fst.unauthenticated_data()));
-    REQUIRE(channel1.get_status() == WAITING_FOR_FINAL);
+    REQUIRE(
+      channel1.consume_initiator_key_share(fst.unauthenticated_data(), true));
+    REQUIRE(channel1.get_status() == ESTABLISHED);
     fst = get_first(eio1, NodeMsgType::channel_msg);
     REQUIRE(channel2.consume_responder_key_share(fst.unauthenticated_data()));
     auto msgs = read_outbound_msgs<MsgType>(eio2);
@@ -501,20 +514,20 @@ TEST_CASE("Replay and out-of-order")
 
   INFO("Restart, message, resume");
   {
+    // Both channels keep the status ESTABLISHED throughout.
     auto n = read_outbound_msgs<MsgType>(eio1).size() +
       read_outbound_msgs<MsgType>(eio2).size();
     REQUIRE(n == 0);
 
-    channel1.restart();
+    channel1.initiate();
     REQUIRE(channel1.get_status() == ESTABLISHED);
 
     REQUIRE(
       channel2.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
 
     auto fst = get_first(eio1, NodeMsgType::channel_msg);
-    channel2.reset();
     channel2.initiate();
-    REQUIRE(channel2.get_status() == INITIATED);
+    REQUIRE(channel2.get_status() == ESTABLISHED);
 
     auto msgs = read_outbound_msgs<MsgType>(eio2);
     REQUIRE(msgs.size() == 2);
@@ -526,9 +539,9 @@ TEST_CASE("Replay and out-of-order")
       {msgs[0].authenticated_hdr.begin(), msgs[0].authenticated_hdr.size()},
       t,
       ts));
-    REQUIRE(
-      channel1.consume_initiator_key_share(msgs[1].unauthenticated_data()));
-    REQUIRE(channel1.get_status() == WAITING_FOR_FINAL);
+    REQUIRE(channel1.consume_initiator_key_share(
+      msgs[1].unauthenticated_data(), true));
+    REQUIRE(channel1.get_status() == ESTABLISHED);
     fst = get_first(eio1, NodeMsgType::channel_msg);
     REQUIRE(channel2.consume_responder_key_share(fst.unauthenticated_data()));
     msgs = read_outbound_msgs<MsgType>(eio2);
