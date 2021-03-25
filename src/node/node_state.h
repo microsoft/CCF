@@ -6,7 +6,9 @@
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/entropy.h"
+#include "crypto/pem.h"
 #include "crypto/symmetric_key.h"
+#include "crypto/verifier.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
@@ -20,7 +22,6 @@
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "rpc/frontend.h"
-#include "rpc/member_frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
 #include "secret_share.h"
@@ -342,7 +343,6 @@ namespace ccf
 
       config = std::move(config_);
 
-      create_node_cert();
       open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
@@ -357,6 +357,8 @@ namespace ccf
         {
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
+
+          node_cert = create_endorsed_node_cert();
 
           network.ledger_secrets->init();
 
@@ -403,8 +405,7 @@ namespace ccf
         }
         case StartType::Join:
         {
-          // TLS connections are not endorsed by the network until the node
-          // has joined
+          node_cert = create_self_signed_node_cert();
           accept_node_tls_connections();
 
           if (!config.startup_snapshot.empty())
@@ -426,6 +427,7 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
+          node_cert = create_endorsed_node_cert();
 
           setup_history();
 
@@ -519,6 +521,8 @@ namespace ccf
           {
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
+
+            node_cert = create_endorsed_node_cert();
 
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info.ledger_secrets));
@@ -764,27 +768,22 @@ namespace ccf
       }
       else
       {
-        throw std::logic_error(fmt::format(
-          "Node should be in state {} or {} to access public store",
+        LOG_FAIL_FMT(
+          "Node should be in state {} or {} to recover public ledger entry",
           State::readingPublicLedger,
-          State::verifyingSnapshot));
+          State::verifyingSnapshot);
+        return;
       }
 
       LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
-      // When reading the public ledger, deserialise in the real store
       auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
       auto result = r->apply();
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
         store->rollback(ledger_idx - 1);
-        if (sm.check(State::verifyingSnapshot))
-        {
-          throw std::logic_error(
-            "Error deserialising public ledger entry when verifying snapshot");
-        }
         recover_public_ledger_end_unsafe();
         return;
       }
@@ -878,13 +877,27 @@ namespace ccf
     void verify_snapshot_end()
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::verifyingSnapshot);
-
-      if (
-        !startup_snapshot_info ||
-        !startup_snapshot_info->is_snapshot_verified())
+      if (!sm.check(State::verifyingSnapshot))
       {
-        throw std::logic_error("Snapshot evidence was not committed in ledger");
+        LOG_FAIL_FMT(
+          "Node in state {} cannot finalise snapshot verification", sm.value());
+        return;
+      }
+
+      if (startup_snapshot_info == nullptr)
+      {
+        // Node should shutdown if the startup snapshot cannot be verified
+        throw std::logic_error(
+          "No known startup snapshot to finalise snapshot verification");
+      }
+
+      if (!startup_snapshot_info->is_snapshot_verified())
+      {
+        // Node should shutdown if the startup snapshot cannot be verified
+        throw std::logic_error(fmt::format(
+          "Snapshot evidence at {} was not committed in ledger ending at {}",
+          startup_snapshot_info->evidence_seqno,
+          ledger_idx));
       }
 
       ledger_truncate(startup_snapshot_info->seqno);
@@ -1009,7 +1022,12 @@ namespace ccf
     void recover_private_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::readingPrivateLedger);
+      if (!sm.check(State::readingPrivateLedger))
+      {
+        LOG_FAIL_FMT(
+          "Node is state {} cannot recover private ledger entry", sm.value());
+        return;
+      }
 
       LOG_INFO_FMT(
         "Deserialising private ledger entry ({})", ledger_entry.size());
@@ -1156,9 +1174,9 @@ namespace ccf
       }
       else
       {
-        throw std::logic_error(
-          "Cannot end ledger recovery if not reading public or private "
-          "ledger");
+        LOG_FAIL_FMT(
+          "Node in state {} cannot finalise ledger recovery", sm.value());
+        return;
       }
     }
 
@@ -1314,6 +1332,8 @@ namespace ccf
 
         default:
         {
+          LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
+          return;
         }
       }
     }
@@ -1421,10 +1441,18 @@ namespace ccf
       return sans;
     }
 
-    void create_node_cert()
+    Pem create_self_signed_node_cert()
     {
       auto sans = get_subject_alternative_names();
-      node_cert = node_sign_kp->self_sign(config.subject_name, sans);
+      return node_sign_kp->self_sign(config.subject_name, sans);
+    }
+
+    Pem create_endorsed_node_cert()
+    {
+      auto nw = crypto::make_key_pair(network.identity->priv_key);
+      auto csr = node_sign_kp->create_csr(config.subject_name);
+      auto sans = get_subject_alternative_names();
+      return nw->sign_csr(network.identity->cert, csr, sans);
     }
 
     void accept_node_tls_connections()
@@ -1432,6 +1460,8 @@ namespace ccf
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed)
       // node certificate. Once the node is part of the network, this
       // certificate should be replaced with network-endorsed counterpart
+
+      assert(!node_cert.empty());
       rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
@@ -1441,13 +1471,8 @@ namespace ccf
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
 
-      auto nw = crypto::make_key_pair(network.identity->priv_key);
-      auto csr = node_sign_kp->create_csr(config.subject_name);
-      auto sans = get_subject_alternative_names();
-      auto endorsed_node_cert = nw->sign_csr(network.identity->cert, csr, sans);
-
-      rpcsessions->set_cert(
-        endorsed_node_cert, node_sign_kp->private_key_pem());
+      assert(!node_cert.empty() && !make_verifier(node_cert)->is_self_signed());
+      rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
@@ -1763,7 +1788,8 @@ namespace ccf
 
     void setup_n2n_channels()
     {
-      n2n_channels->initialize(self, {network.identity->priv_key});
+      n2n_channels->initialize(
+        self, network.identity->cert, node_sign_kp, node_cert);
     }
 
     void setup_cmd_forwarder()

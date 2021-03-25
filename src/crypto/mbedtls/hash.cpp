@@ -9,8 +9,37 @@
 #include <mbedtls/sha256.h>
 #include <stdexcept>
 
+// Note: Older system packages of mbedTLS may not support HKDF; if this include
+// file is not found, consider upgrading your mbedTLS.
+#include <mbedtls/hkdf.h>
+
 namespace crypto
 {
+  namespace mbedtls
+  {
+    std::vector<uint8_t> hkdf(
+      MDType md_type,
+      size_t length,
+      const std::vector<uint8_t>& ikm,
+      const std::vector<uint8_t>& salt,
+      const std::vector<uint8_t>& info)
+    {
+      auto md = mbedtls_md_info_from_type(get_md_type(md_type));
+      std::vector<uint8_t> okm(length);
+      int rc = mbedtls_hkdf(
+        md,
+        salt.data(),
+        salt.size(),
+        ikm.data(),
+        ikm.size(),
+        info.data(),
+        info.size(),
+        okm.data(),
+        okm.size());
+      return okm;
+    }
+  }
+
   using namespace mbedtls;
 
   void mbedtls_sha256(const CBuffer& data, uint8_t* h)

@@ -120,11 +120,21 @@ def test_governance(network, args):
     LOG.info("Original members can ACK")
     network.consortium.get_any_active_member().ack(node)
 
-    LOG.info("Network cannot be opened twice")
+    LOG.info("Network can be opened again, with no effect")
+    network.consortium.transition_service_to_open(node)
+
+    LOG.info("Unknown proposal is rejected on completion")
+    unkwown_proposal = {"script": {"text": 'return Calls:call("unknown_proposal")'}}
+    accept_vote = {"ballot": {"text": "return true"}}
+
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, unkwown_proposal
+    )
     try:
-        network.consortium.open_network(node)
-    except infra.proposal.ProposalNotAccepted as e:
-        assert e.proposal.state == infra.proposal.ProposalState.FAILED
+        network.consortium.vote_using_majority(primary, proposal, accept_vote)
+        assert False, "Unknown proposal should fail on completion"
+    except infra.proposal.ProposalNotAccepted:
+        pass
 
     LOG.info("Proposal to add a new member (with different curve)")
     (

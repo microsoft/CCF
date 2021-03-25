@@ -3,7 +3,7 @@ Logging (C++)
 
 A C++ application exposes itself to CCF by implementing:
 
-.. literalinclude:: ../../src/enclave/app_interface.h
+.. literalinclude:: ../../include/ccf/app_interface.h
     :language: cpp
     :start-after: SNIPPET_START: rpc_handler
     :end-before: SNIPPET_END: rpc_handler
@@ -41,7 +41,7 @@ The Logging application simply has:
 RPC Handler
 -----------
 
-The type returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:class:`ccf::UserRpcFrontend`, passing the base constructor a reference to an implementation of :cpp:class:`ccf::EndpointRegistry`:
+The type returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:class:`ccf::RpcFrontend`, passing the base constructor a reference to an implementation of :cpp:class:`ccf::EndpointRegistry`:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp

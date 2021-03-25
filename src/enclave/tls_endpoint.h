@@ -6,7 +6,7 @@
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
 #include "ds/thread_messaging.h"
-#include "endpoint.h"
+#include "enclave/endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
 

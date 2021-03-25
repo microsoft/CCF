@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/endpoint_registry.h"
 #include "enclave/rpc_context.h"
-#include "endpoint_registry.h"
 #include "http/http_consts.h"
 #include "node/rpc/error.h"
 #include "node/rpc/rpc_exception.h"
@@ -50,7 +50,7 @@ namespace ccf
    * };
    *
    * it is possible to write the shorter, clearer, return-based lambda:
-   * auto foo = json_adapter([](kv::Tx& tx, nlohmann::json&& params)
+   * auto foo = json_adapter([](auto& ctx, nlohmann::json&& params)
    * {
    *    auto result = fn(params);
    *    if (is_error(result))
@@ -63,18 +63,11 @@ namespace ccf
    *    }
    * });
    */
-
-  class UrlQueryParseError : public std::invalid_argument
-  {
-  public:
-    using std::invalid_argument::invalid_argument;
-  };
-
   namespace jsonhandler
   {
     using JsonAdapterResponse = std::variant<ErrorDetails, nlohmann::json>;
 
-    static constexpr char const* pack_to_content_type(serdes::Pack p)
+    inline constexpr char const* pack_to_content_type(serdes::Pack p)
     {
       switch (p)
       {
@@ -93,7 +86,7 @@ namespace ccf
       }
     }
 
-    static serdes::Pack detect_json_pack(
+    inline serdes::Pack detect_json_pack(
       const std::shared_ptr<enclave::RpcContext>& ctx)
     {
       std::optional<serdes::Pack> packing = std::nullopt;
@@ -132,7 +125,7 @@ namespace ccf
       return packing.value_or(serdes::Pack::Text);
     }
 
-    static serdes::Pack get_response_pack(
+    inline serdes::Pack get_response_pack(
       const std::shared_ptr<enclave::RpcContext>& ctx,
       serdes::Pack request_pack = serdes::Pack::Text)
     {
@@ -171,13 +164,13 @@ namespace ccf
       return packing;
     }
 
-    static nlohmann::json get_params_from_body(
+    inline nlohmann::json get_params_from_body(
       const std::shared_ptr<enclave::RpcContext>& ctx, serdes::Pack pack)
     {
       return serdes::unpack(ctx->get_request_body(), pack);
     }
 
-    static std::pair<serdes::Pack, nlohmann::json> get_json_params(
+    inline std::pair<serdes::Pack, nlohmann::json> get_json_params(
       const std::shared_ptr<enclave::RpcContext>& ctx)
     {
       const auto pack = detect_json_pack(ctx);
@@ -198,7 +191,7 @@ namespace ccf
       return std::make_pair(pack, params);
     }
 
-    static void set_response(
+    inline void set_response(
       JsonAdapterResponse&& res,
       std::shared_ptr<enclave::RpcContext>& ctx,
       serdes::Pack request_packing)
@@ -248,58 +241,37 @@ namespace ccf
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 
-  static jsonhandler::JsonAdapterResponse make_success()
+  inline jsonhandler::JsonAdapterResponse make_success()
   {
     return nlohmann::json();
   }
 
-  static jsonhandler::JsonAdapterResponse make_success(
+  inline jsonhandler::JsonAdapterResponse make_success(
     nlohmann::json&& result_payload)
   {
     return std::move(result_payload);
   }
 
-  static jsonhandler::JsonAdapterResponse make_success(
+  inline jsonhandler::JsonAdapterResponse make_success(
     const nlohmann::json& result_payload)
   {
     return result_payload;
   }
 
-  static inline jsonhandler::JsonAdapterResponse make_error(
+  inline jsonhandler::JsonAdapterResponse make_error(
     http_status status, const std::string& code, const std::string& msg)
   {
     return ErrorDetails{status, code, msg};
   }
 
-  using HandlerTxOnly =
-    std::function<jsonhandler::JsonAdapterResponse(kv::Tx& tx)>;
-
-  static EndpointFunction json_adapter(const HandlerTxOnly& f)
-  {
-    return [f](EndpointContext& args) {
-      const auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
-      jsonhandler::set_response(f(args.tx), args.rpc_ctx, packing);
-    };
-  }
-
-  using HandlerJsonParamsOnly = std::function<jsonhandler::JsonAdapterResponse(
-    kv::Tx& tx, nlohmann::json&& params)>;
-  static EndpointFunction json_adapter(const HandlerJsonParamsOnly& f)
-  {
-    return [f](EndpointContext& args) {
-      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
-      jsonhandler::set_response(
-        f(args.tx, std::move(params)), args.rpc_ctx, packing);
-    };
-  }
-
   using HandlerJsonParamsAndForward =
     std::function<jsonhandler::JsonAdapterResponse(
-      EndpointContext& args, nlohmann::json&& params)>;
+      endpoints::EndpointContext& args, nlohmann::json&& params)>;
 
-  static EndpointFunction json_adapter(const HandlerJsonParamsAndForward& f)
+  inline endpoints::EndpointFunction json_adapter(
+    const HandlerJsonParamsAndForward& f)
   {
-    return [f](EndpointContext& args) {
+    return [f](endpoints::EndpointContext& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args, std::move(params)), args.rpc_ctx, packing);
@@ -308,12 +280,12 @@ namespace ccf
 
   using ReadOnlyHandlerWithJson =
     std::function<jsonhandler::JsonAdapterResponse(
-      ReadOnlyEndpointContext& args, nlohmann::json&& params)>;
+      endpoints::ReadOnlyEndpointContext& args, nlohmann::json&& params)>;
 
-  static ReadOnlyEndpointFunction json_read_only_adapter(
+  inline endpoints::ReadOnlyEndpointFunction json_read_only_adapter(
     const ReadOnlyHandlerWithJson& f)
   {
-    return [f](ReadOnlyEndpointContext& args) {
+    return [f](endpoints::ReadOnlyEndpointContext& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args, std::move(params)), args.rpc_ctx, packing);
@@ -322,12 +294,12 @@ namespace ccf
 #pragma clang diagnostic pop
 
   using CommandHandlerWithJson = std::function<jsonhandler::JsonAdapterResponse(
-    CommandEndpointContext& args, nlohmann::json&& params)>;
+    endpoints::CommandEndpointContext& args, nlohmann::json&& params)>;
 
-  static CommandEndpointFunction json_command_adapter(
+  inline endpoints::CommandEndpointFunction json_command_adapter(
     const CommandHandlerWithJson& f)
   {
-    return [f](CommandEndpointContext& args) {
+    return [f](endpoints::CommandEndpointContext& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args, std::move(params)), args.rpc_ctx, packing);

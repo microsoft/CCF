@@ -3,6 +3,7 @@
 
 #include "public_key.h"
 
+#include "hash.h"
 #include "openssl_wrappers.h"
 
 #include <openssl/ec.h>
@@ -22,7 +23,7 @@ namespace crypto
 
   PublicKey_OpenSSL::PublicKey_OpenSSL(const Pem& pem)
   {
-    Unique_BIO mem(pem.data(), -1);
+    Unique_BIO mem(pem);
     key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
     if (!key)
       throw std::runtime_error("could not parse PEM");

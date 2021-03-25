@@ -65,7 +65,7 @@ endif()
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-include_directories(${CCF_DIR}/include/ccf)
+include_directories(${CCF_DIR}/include)
 include_directories(${CCF_DIR}/src)
 
 include_directories(SYSTEM ${CCF_DIR}/3rdparty)
@@ -179,6 +179,13 @@ set(HTTP_PARSER_SOURCES
     ${CCF_DIR}/3rdparty/llhttp/llhttp.c
 )
 
+set(CCF_ENDPOINTS_SOURCES
+    ${CCF_DIR}/src/endpoints/endpoint.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+)
+
 find_library(CRYPTO_LIBRARY crypto)
 
 list(APPEND COMPILE_LIBCXX -stdlib=libc++)
@@ -227,7 +234,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
   add_san(cchost)
-  add_lvi_mitigations(cchost)
 
   target_link_libraries(
     cchost
@@ -270,7 +276,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
   add_warning_checks(cchost.virtual)
   add_san(cchost.virtual)
-  add_lvi_mitigations(cchost.virtual)
   target_link_libraries(
     cchost.virtual
     PRIVATE uv
@@ -327,6 +332,25 @@ add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 install(
   TARGETS http_parser.host
+  EXPORT ccf
+  DESTINATION lib
+)
+
+# CCF endpoints libs
+add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
+use_oe_mbedtls(ccf_endpoints.enclave)
+add_warning_checks(ccf_endpoints.enclave)
+install(
+  TARGETS ccf_endpoints.enclave
+  EXPORT ccf
+  DESTINATION lib
+)
+add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
+use_client_mbedtls(ccf_endpoints.host)
+add_san(ccf_endpoints.host)
+add_warning_checks(ccf_endpoints.host)
+install(
+  TARGETS ccf_endpoints.host
   EXPORT ccf
   DESTINATION lib
 )
@@ -598,8 +622,6 @@ function(add_picobench name)
   )
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
-
-  add_lvi_mitigations(${name})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 

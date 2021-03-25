@@ -1,13 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "apps/utils/metrics_tracker.h"
+#include "ccf/app_interface.h"
+#include "ccf/historical_queries_adapter.h"
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
-#include "enclave/app_interface.h"
 #include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "named_auth_policies.h"
-#include "node/rpc/metrics_tracker.h"
 #include "node/rpc/user_frontend.h"
 
 #include <memory>
@@ -91,7 +92,8 @@ namespace ccfapp
       return JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>");
     }
 
-    JSValue create_caller_obj(EndpointContext& args, JSContext* ctx)
+    JSValue create_caller_obj(
+      ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       if (args.caller == nullptr)
       {
@@ -224,7 +226,8 @@ namespace ccfapp
       return caller;
     }
 
-    JSValue create_request_obj(EndpointContext& args, JSContext* ctx)
+    JSValue create_request_obj(
+      ccf::endpoints::EndpointContext& args, JSContext* ctx)
     {
       auto request = JS_NewObject(ctx);
 
@@ -270,7 +273,7 @@ namespace ccfapp
     void execute_request(
       const std::string& method,
       const ccf::RESTVerb& verb,
-      EndpointContext& args)
+      ccf::endpoints::EndpointContext& args)
     {
       // Is this a historical endpoint?
       auto endpoints =
@@ -291,7 +294,8 @@ namespace ccfapp
 
         ccf::historical::adapter(
           [this, &method, &verb](
-            ccf::EndpointContext& args, ccf::historical::StatePtr state) {
+            ccf::endpoints::EndpointContext& args,
+            ccf::historical::StatePtr state) {
             auto tx = state->store->create_tx();
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
@@ -309,7 +313,7 @@ namespace ccfapp
     void do_execute_request(
       const std::string& method,
       const ccf::RESTVerb& verb,
-      EndpointContext& args,
+      ccf::endpoints::EndpointContext& args,
       kv::Tx& target_tx,
       const std::optional<kv::TxID>& transaction_id,
       ccf::historical::TxReceiptPtr receipt)
@@ -523,7 +527,7 @@ namespace ccfapp
       return;
     }
 
-    struct JSDynamicEndpoint : public EndpointDefinition
+    struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
     {};
 
   public:
@@ -550,7 +554,7 @@ namespace ccfapp
       }
     }
 
-    EndpointDefinitionPtr find_endpoint(
+    ccf::endpoints::EndpointDefinitionPtr find_endpoint(
       kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
     {
       const auto method = fmt::format("/{}", rpc_ctx.get_method());
@@ -576,14 +580,14 @@ namespace ccfapp
       // templated matches. If there is one, that's a match. More is an error,
       // none means delegate to the base class.
       {
-        std::vector<EndpointDefinitionPtr> matches;
+        std::vector<ccf::endpoints::EndpointDefinitionPtr> matches;
 
         endpoints->foreach([this, &matches, &key, &rpc_ctx](
                              const auto& other_key, const auto& properties) {
           if (key.verb == other_key.verb)
           {
             const auto opt_spec =
-              EndpointRegistry::parse_path_template(other_key.uri_path);
+              ccf::endpoints::parse_path_template(other_key.uri_path);
             if (opt_spec.has_value())
             {
               const auto& template_spec = opt_spec.value();
@@ -631,11 +635,12 @@ namespace ccfapp
         }
       }
 
-      return EndpointRegistry::find_endpoint(tx, rpc_ctx);
+      return ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
     }
 
     void execute_endpoint(
-      EndpointDefinitionPtr e, EndpointContext& args) override
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::EndpointContext& args) override
     {
       auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
@@ -645,7 +650,7 @@ namespace ccfapp
         return;
       }
 
-      EndpointRegistry::execute_endpoint(e, args);
+      ccf::endpoints::EndpointRegistry::execute_endpoint(e, args);
     }
 
     // Since we do our own dispatch within the default handler, report the
@@ -690,31 +695,29 @@ namespace ccfapp
       });
     }
 
-    void tick(
-      std::chrono::milliseconds elapsed,
-      kv::Consensus::Statistics stats) override
+    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
     {
-      metrics_tracker.tick(elapsed, stats);
+      metrics_tracker.tick(elapsed, tx_count);
 
-      ccf::UserEndpointRegistry::tick(elapsed, stats);
+      ccf::UserEndpointRegistry::tick(elapsed, tx_count);
     }
   };
 
 #pragma clang diagnostic pop
 
-  class JS : public ccf::UserRpcFrontend
+  class JS : public ccf::RpcFrontend
   {
   private:
     JSHandlers js_handlers;
 
   public:
     JS(NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::UserRpcFrontend(*network.tables, js_handlers),
+      ccf::RpcFrontend(*network.tables, js_handlers),
       js_handlers(network, context)
     {}
   };
 
-  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
+  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
     return make_shared<JS>(network, context);

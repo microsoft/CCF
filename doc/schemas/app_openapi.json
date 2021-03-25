@@ -94,78 +94,26 @@
       },
       "GetCommit__Out": {
         "properties": {
-          "seqno": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "view": {
-            "$ref": "#/components/schemas/int64"
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
           }
         },
         "required": [
-          "view",
-          "seqno"
-        ],
-        "type": "object"
-      },
-      "GetReceipt__Element": {
-        "properties": {
-          "left": {
-            "$ref": "#/components/schemas/string"
-          },
-          "right": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
-      "GetReceipt__Element_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetReceipt__Element"
-        },
-        "type": "array"
-      },
-      "GetReceipt__Out": {
-        "properties": {
-          "leaf": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/EntityId"
-          },
-          "proof": {
-            "$ref": "#/components/schemas/GetReceipt__Element_array"
-          },
-          "root": {
-            "$ref": "#/components/schemas/string"
-          },
-          "signature": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "signature",
-          "root",
-          "proof",
-          "leaf",
-          "node_id"
+          "transaction_id"
         ],
         "type": "object"
       },
       "GetTxStatus__Out": {
         "properties": {
-          "seqno": {
-            "$ref": "#/components/schemas/int64"
-          },
           "status": {
             "$ref": "#/components/schemas/TxStatus"
           },
-          "view": {
-            "$ref": "#/components/schemas/int64"
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
           }
         },
         "required": [
-          "view",
-          "seqno",
+          "transaction_id",
           "status"
         ],
         "type": "object"
@@ -242,7 +190,7 @@
             "$ref": "#/components/schemas/string"
           },
           "receipt": {
-            "$ref": "#/components/schemas/GetReceipt__Out"
+            "$ref": "#/components/schemas/Receipt"
           }
         },
         "required": [
@@ -276,6 +224,50 @@
           "msg"
         ],
         "type": "object"
+      },
+      "Receipt": {
+        "properties": {
+          "leaf": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/Receipt__Element_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "signature",
+          "root",
+          "proof",
+          "leaf",
+          "node_id"
+        ],
+        "type": "object"
+      },
+      "Receipt__Element": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/string"
+          },
+          "right": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "Receipt__Element_array": {
+        "items": {
+          "$ref": "#/components/schemas/Receipt__Element"
+        },
+        "type": "array"
       },
       "Report": {
         "properties": {
@@ -311,11 +303,6 @@
       "int32": {
         "maximum": 2147483647,
         "minimum": -2147483648,
-        "type": "integer"
-      },
-      "int64": {
-        "maximum": 9223372036854775807,
-        "minimum": -9223372036854775808,
         "type": "integer"
       },
       "json": {},
@@ -438,18 +425,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "view",
+            "name": "transaction_id",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/int64"
-            }
-          },
-          {
-            "in": "query",
-            "name": "seqno",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/int64"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -927,7 +906,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetReceipt__Out"
+                  "$ref": "#/components/schemas/Receipt"
                 }
               }
             },
@@ -941,18 +920,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "view",
+            "name": "transaction_id",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/int64"
-            }
-          },
-          {
-            "in": "query",
-            "name": "seqno",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/int64"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
