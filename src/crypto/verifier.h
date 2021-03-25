@@ -35,13 +35,27 @@ namespace crypto
       size_t contents_size,
       const uint8_t* sig,
       size_t sig_size,
-      MDType md_type) const
+      MDType md_type = MDType::NONE) const
     {
       if (md_type == MDType::NONE)
+      {
         md_type = this->md_type;
+      }
 
       return public_key->verify(
         contents, contents_size, sig, sig_size, md_type);
+    }
+
+    /** Verify a signature
+     * @param contents Contents over which the signature was generated
+     * @param sig Signature
+     * @param md_type Hash algorithm
+     * @return Boolean indicating success
+     */
+    virtual bool verify(
+      CBuffer contents, CBuffer sig, MDType md_type = MDType::NONE) const
+    {
+      return verify(contents.p, contents.n, sig.p, sig.n, md_type);
     }
 
     /** Verify a signature
@@ -176,6 +190,19 @@ namespace crypto
     {
       return public_key->public_key_der();
     }
+
+    /** Verify the certificate (held internally)
+     * @param trusted_certs Vector of trusted certificates
+     * @return true if the
+     */
+    virtual bool verify_certificate(
+      const std::vector<const Pem*>& trusted_certs) = 0;
+
+    /** Indicates whether the certificate (held intenally) is self-signed */
+    virtual bool is_self_signed() const = 0;
+
+    /** The serial number of the certificate*/
+    virtual std::string serial_number() const = 0;
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;

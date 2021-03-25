@@ -4,6 +4,8 @@
 
 #include "crypto/verifier.h"
 
+#include "crypto/openssl/openssl_wrappers.h"
+
 #include <openssl/x509.h>
 
 namespace crypto
@@ -11,7 +13,7 @@ namespace crypto
   class Verifier_OpenSSL : public Verifier
   {
   protected:
-    mutable X509* cert;
+    mutable OpenSSL::Unique_X509 cert;
 
     MDType get_md_type(int mdt) const;
 
@@ -23,5 +25,12 @@ namespace crypto
 
     virtual std::vector<uint8_t> cert_der() override;
     virtual Pem cert_pem() override;
+
+    virtual bool verify_certificate(
+      const std::vector<const Pem*>& trusted_certs) override;
+
+    virtual bool is_self_signed() const override;
+
+    virtual std::string serial_number() const override;
   };
 }

@@ -30,7 +30,7 @@ namespace crypto
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const Pem& pem, CBuffer pw)
   {
-    Unique_BIO mem(pem.data(), -1);
+    Unique_BIO mem(pem);
     key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
     if (!key)
     {

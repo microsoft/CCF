@@ -97,7 +97,7 @@ namespace enclave
       auto search = sessions.find(id);
       if (search == sessions.end())
       {
-        LOG_FAIL_FMT("Replying to unknown session {}", id);
+        LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
         return false;
       }
 

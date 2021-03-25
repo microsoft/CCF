@@ -6,6 +6,7 @@
 #include "curve.h"
 #include "ds/net.h"
 #include "entropy.h"
+#include "hash.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -116,6 +117,16 @@ namespace crypto
     const std::vector<uint8_t>& contents, const std::vector<uint8_t>& signature)
   {
     return PublicKey_mbedTLS::verify(contents, signature);
+  }
+
+  bool KeyPair_mbedTLS::verify(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size)
+  {
+    return PublicKey_mbedTLS::verify(
+      contents, contents_size, signature, signature_size);
   }
 
   std::vector<uint8_t> KeyPair_mbedTLS::sign(CBuffer d, MDType md_type) const
