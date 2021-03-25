@@ -1,10 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
+#include "ccf/app_interface.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
 #include "ds/logger.h"
-#include "enclave/app_interface.h"
+#include "kv/map.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
@@ -26,7 +27,6 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
-using namespace ccfapp;
 using namespace ccf;
 using namespace std;
 
@@ -42,11 +42,11 @@ public:
 
   // For testing only, we don't need to specify auth policies everywhere and
   // default to no auth
-  ccf::EndpointRegistry::Endpoint make_endpoint(
+  ccf::endpoints::Endpoint make_endpoint(
     const std::string& method,
     RESTVerb verb,
-    const EndpointFunction& f,
-    const ccf::endpoints::AuthnPolicies& ap = no_auth_required)
+    const ccf::endpoints::EndpointFunction& f,
+    const ccf::AuthnPolicies& ap = no_auth_required)
   {
     return endpoints.make_endpoint(method, verb, f, ap);
   }
@@ -64,7 +64,7 @@ public:
     };
     make_endpoint(
       "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
-      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
 
     auto empty_function_signed = [this](auto& args) {
@@ -75,7 +75,7 @@ public:
       HTTP_POST,
       empty_function_signed,
       {user_signature_auth_policy})
-      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
 
     auto empty_function_no_auth = [this](auto& args) {
@@ -86,24 +86,24 @@ public:
       HTTP_POST,
       empty_function_no_auth,
       no_auth_required)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
   }
 };
 
-class TestMinimalEndpointFunction : public BaseTestFrontend
+class TestJsonWrappedEndpointFunction : public BaseTestFrontend
 {
 public:
-  TestMinimalEndpointFunction(kv::Store& tables) : BaseTestFrontend(tables)
+  TestJsonWrappedEndpointFunction(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
-    auto echo_function = [this](kv::Tx& tx, nlohmann::json&& params) {
+    auto echo_function = [this](auto& ctx, nlohmann::json&& params) {
       return make_success(std::move(params));
     };
     make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
 
-    auto echo_query_function = [this](EndpointContext& ctx, nlohmann::json&&) {
+    auto echo_query_function = [this](auto& ctx, nlohmann::json&&) {
       const auto parsed_query =
         http::parse_query(ctx.rpc_ctx->get_request_query());
       return make_success(std::move(parsed_query));
@@ -112,8 +112,8 @@ public:
       "echo_parsed_query", HTTP_POST, json_adapter(echo_query_function))
       .install();
 
-    auto get_caller_function = [this](EndpointContext& ctx, nlohmann::json&&) {
-      const auto& ident = ctx.get_caller<UserCertAuthnIdentity>();
+    auto get_caller_function = [this](auto& ctx, nlohmann::json&&) {
+      const auto& ident = ctx.template get_caller<UserCertAuthnIdentity>();
       return make_success(ident.user_id);
     };
     make_endpoint(
@@ -123,7 +123,7 @@ public:
       {user_cert_auth_policy})
       .install();
 
-    auto failable_function = [this](kv::Tx& tx, nlohmann::json&& params) {
+    auto failable_function = [this](auto& ctx, nlohmann::json&& params) {
       const auto it = params.find("error");
       if (it != params.end())
       {
@@ -176,7 +176,7 @@ public:
   {
     open();
 
-    auto maybe_commit = [this](EndpointContext& args) {
+    auto maybe_commit = [this](ccf::endpoints::EndpointContext& args) {
       const auto parsed =
         serdes::unpack(args.rpc_ctx->get_request_body(), default_pack);
 
@@ -205,18 +205,23 @@ public:
   {
     open();
 
-    auto command = [this](CommandEndpointContext& args) {
+    auto command = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_command_endpoint("command", HTTP_POST, command, no_auth_required)
+    endpoints
+      .make_command_endpoint("command", HTTP_POST, command, no_auth_required)
       .install();
 
-    auto read_only = [this](ReadOnlyEndpointContext& args) {
+    auto read_only = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_read_only_endpoint("read_only", HTTP_POST, read_only, no_auth_required)
+    endpoints
+      .make_read_only_endpoint(
+        "read_only", HTTP_POST, read_only, no_auth_required)
       .install();
-    make_read_only_endpoint("read_only", HTTP_GET, read_only, no_auth_required)
+    endpoints
+      .make_read_only_endpoint(
+        "read_only", HTTP_GET, read_only, no_auth_required)
       .install();
   }
 };
@@ -254,14 +259,14 @@ public:
     member_endpoints
       .make_endpoint(
         "empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
-      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
       .install();
   }
 };
 
 class TestNoCertsFrontend : public RpcFrontend
 {
-  EndpointRegistry endpoints;
+  ccf::endpoints::EndpointRegistry endpoints;
 
 public:
   TestNoCertsFrontend(kv::Store& tables) :
@@ -276,7 +281,7 @@ public:
     endpoints
       .make_endpoint(
         "empty_function", HTTP_POST, empty_function, no_auth_required)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
       .install();
   }
 };
@@ -292,7 +297,7 @@ public:
   crypto::Pem last_caller_cert;
   std::optional<EntityId> last_caller_id = std::nullopt;
 
-  void record_ctx(EndpointContext& ctx)
+  void record_ctx(ccf::endpoints::EndpointContext& ctx)
   {
     last_caller_cert =
       crypto::cert_der_to_pem(ctx.rpc_ctx->session->caller_cert);
@@ -785,11 +790,11 @@ TEST_CASE("Member caller")
   }
 }
 
-TEST_CASE("MinimalEndpointFunction")
+TEST_CASE("JsonWrappedEndpointFunction")
 {
   NetworkState network;
   prepare_callers(network);
-  TestMinimalEndpointFunction frontend(*network.tables);
+  TestJsonWrappedEndpointFunction frontend(*network.tables);
   for (const auto pack_type : {serdes::Pack::Text, serdes::Pack::MsgPack})
   {
     {

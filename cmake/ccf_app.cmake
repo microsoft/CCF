@@ -232,7 +232,6 @@ function(add_ccf_app name)
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     add_san(${virt_name})
-    add_lvi_mitigations(${virt_name})
 
     add_dependencies(${name} ${virt_name})
     if(PARSED_ARGS_DEPS)
@@ -251,5 +250,24 @@ function(add_enclave_library_c name files)
   add_library(${name} STATIC ${files})
   target_compile_options(${name} PRIVATE -nostdinc)
   target_link_libraries(${name} PRIVATE ${OE_TARGET_LIBC})
+  set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+endfunction()
+
+# Convenience wrapper to build C++-libraries that can be linked in enclave, ie.
+# in a CCF application.
+function(add_enclave_library name files)
+  add_library(${name} ${files})
+  target_compile_options(${name} PUBLIC -nostdinc -nostdinc++)
+  target_compile_definitions(
+    ${name} PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+  )
+  target_link_libraries(${name} PUBLIC ${OE_TARGET_ENCLAVE_AND_STD} -lgcc)
+  set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+endfunction()
+
+function(add_host_library name files)
+  add_library(${name} ${files})
+  target_compile_options(${name} PUBLIC ${COMPILE_LIBCXX})
+  target_link_libraries(${name} PUBLIC ${LINK_LIBCXX} -lgcc openenclave::oehost)
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()
