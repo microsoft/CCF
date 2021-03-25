@@ -7,6 +7,7 @@
 #include "crypto/hash.h"
 
 #include <mbedtls/ecp.h>
+#include <mbedtls/pk.h>
 #include <stdexcept>
 #include <string>
 

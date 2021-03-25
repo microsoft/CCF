@@ -229,7 +229,8 @@ public:
           "{}{}={}",
           it == params.begin() ? "?" : "&",
           it.key(),
-          it.value().dump());
+          it.value().is_string() ? it.value().get<std::string>() :
+                                   it.value().dump());
       }
     }
     return call(full_path, nullptr, HTTP_GET);

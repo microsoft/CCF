@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.network
+from ccf.tx_id import TxID
 from http import HTTPStatus
 import openapi_spec_validator
 
@@ -12,24 +13,23 @@ def test_nobuiltins_endpoints(network, args):
         r = c.get("/app/commit")
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
-        view = body_j["view"]
-        seqno = body_j["seqno"]
+        tx_id = TxID.from_str(body_j["transaction_id"])
 
         r = c.get("/app/node_summary")
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
-        assert body_j["committed_view"] == view
-        assert body_j["committed_seqno"] == seqno
+        assert body_j["committed_view"] == tx_id.view
+        assert body_j["committed_seqno"] == tx_id.seqno
         assert body_j["quote_format"] == "OE_SGX_v1"
 
         r = c.get("/app/api")
         assert r.status_code == HTTPStatus.OK
         openapi_spec_validator.validate_spec(r.body.json())
 
-        r = c.get(f"/app/tx_id?seqno={seqno}")
+        r = c.get(f"/app/tx_id?seqno={tx_id.seqno}")
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
-        assert body_j["transaction_id"] == f"{view}.{seqno}"
+        assert body_j["transaction_id"] == f"{tx_id}"
 
 
 def run(args):

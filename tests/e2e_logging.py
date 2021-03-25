@@ -20,6 +20,7 @@ import hashlib
 import ccf.clients
 from ccf.log_capture import flush_info
 import ccf.receipt
+from ccf.tx_id import TxID
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
@@ -698,15 +699,14 @@ def test_view_history(network, args):
             r = c.get("/node/commit")
             check(c)
 
-            commit_view = r.body.json()["view"]
-            commit_seqno = r.body.json()["seqno"]
+            commit_tx_id = TxID.from_str(r.body.json()["transaction_id"])
 
             # Retrieve status for all possible Tx IDs
             seqno_to_views = {}
-            for seqno in range(1, commit_seqno + 1):
+            for seqno in range(1, commit_tx_id.seqno + 1):
                 views = []
-                for view in range(1, commit_view + 1):
-                    r = c.get(f"/node/tx?view={view}&seqno={seqno}", log_capture=[])
+                for view in range(1, commit_tx_id.view + 1):
+                    r = c.get(f"/node/tx?transaction_id={view}.{seqno}", log_capture=[])
                     check(r)
                     status = TxStatus(r.body.json()["status"])
                     if status == TxStatus.Committed:
@@ -819,7 +819,7 @@ def test_tx_statuses(network, args):
 
             done = False
             for view, seqno in SentTxs.get_all_tx_ids():
-                r = c.get(f"/node/tx?view={view}&seqno={seqno}")
+                r = c.get(f"/node/tx?transaction_id={view}.{seqno}")
                 check(r)
                 status = TxStatus(r.body.json()["status"])
                 SentTxs.update_status(view, seqno, status)

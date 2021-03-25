@@ -4,6 +4,7 @@
 #include "curve.h"
 #include "ds/net.h"
 #include "entropy.h"
+#include "hash.h"
 #include "key_pair.h"
 
 #define FMT_HEADER_ONLY

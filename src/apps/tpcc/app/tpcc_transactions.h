@@ -15,7 +15,7 @@ namespace tpcc
   class TpccTransactions
   {
   private:
-    ccf::EndpointContext& args;
+    ccf::endpoints::EndpointContext& args;
     std::mt19937 rand_generator;
 
     static constexpr int STOCK_LEVEL_ORDERS = 20;
@@ -702,7 +702,8 @@ namespace tpcc
     }
 
   public:
-    TpccTransactions(ccf::EndpointContext& args_, uint32_t seed) : args(args_)
+    TpccTransactions(ccf::endpoints::EndpointContext& args_, uint32_t seed) :
+      args(args_)
     {
       rand_generator.seed(seed);
     }

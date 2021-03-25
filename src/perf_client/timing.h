@@ -3,8 +3,8 @@
 #pragma once
 
 // CCF
+#include "ccf/tx_id.h"
 #include "clients/rpc_tls_client.h"
-#include "tx_id.h"
 
 // STL/3rdparty
 #include <chrono>
@@ -225,8 +225,7 @@ namespace timing
     void wait_for_global_commit(const ccf::TxID& target, bool record = true)
     {
       auto params = nlohmann::json::object();
-      params["view"] = target.view;
-      params["seqno"] = target.seqno;
+      params["transaction_id"] = target.to_str();
 
       constexpr auto get_tx_status = "tx";
 

@@ -24,9 +24,10 @@ namespace ccf
   // Types of channel messages
   enum ChannelMsg : Node2NodeMsg
   {
-    key_exchange = 0,
+    key_exchange_init = 0,
     key_exchange_response,
-    encrypted_msg
+    key_exchange_final,
+    key_exchange_restart
   };
 
   // Types of frontend messages

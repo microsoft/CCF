@@ -11,6 +11,7 @@ import infra.proc
 import infra.node
 import infra.consortium
 from ccf.tx_status import TxStatus
+from ccf.tx_id import TxID
 import random
 from dataclasses import dataclass
 from math import ceil
@@ -788,22 +789,20 @@ class Network:
             with primary.client() as c:
                 resp = c.get("/node/commit")
                 body = resp.body.json()
-                seqno = body["seqno"]
-                view = body["view"]
-                if seqno != 0:
+                tx_id = TxID.from_str(body["transaction_id"])
+                if tx_id.valid():
                     break
             time.sleep(0.1)
         assert (
-            seqno != 0
-        ), f"Primary {primary.node_id} has not made any progress yet (view: {view}, seqno: {seqno})"
+            tx_id.valid()
+        ), f"Primary {primary.node_id} has not made any progress yet ({tx_id})"
 
         caught_up_nodes = []
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    c.get("/node/commit")
-                    resp = c.get(f"/node/local_tx?view={view}&seqno={seqno}")
+                    resp = c.get(f"/node/local_tx?transaction_id={tx_id}")
                     if resp.status_code != 200:
                         # Node may not have joined the network yet, try again
                         break
@@ -812,7 +811,7 @@ class Network:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:
                         raise RuntimeError(
-                            f"Node {node.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
+                            f"Node {node.node_id} reports transaction ID {tx_id} is invalid and will never be committed"
                         )
                     else:
                         pass
@@ -837,7 +836,7 @@ class Network:
                     r = c.get("/node/commit")
                     assert r.status_code == http.HTTPStatus.OK.value
                     body = r.body.json()
-                    commits.append(f"{body['view']}.{body['seqno']}")
+                    commits.append(body["transaction_id"])
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)
@@ -877,8 +876,8 @@ class Network:
         while time.time() < end_time:
             with node.client() as c:
                 r = c.get("/node/commit")
-                current_commit_seqno = r.body.json()["seqno"]
-                if current_commit_seqno >= seqno:
+                current_tx = TxID.from_str(r.body.json()["transaction_id"])
+                if current_tx.seqno >= seqno:
                     with node.client(
                         self.consortium.get_any_active_member().local_id
                     ) as nc:

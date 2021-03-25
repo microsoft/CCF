@@ -9,7 +9,7 @@ A CCF application is composed of the following:
 Application Entry Point
 -----------------------
 
-.. doxygenclass:: ccf::UserRpcFrontend
+.. doxygenclass:: ccf::RpcFrontend
    :project: CCF
    :members:
 

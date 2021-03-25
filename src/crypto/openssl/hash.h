@@ -3,8 +3,10 @@
 #pragma once
 
 #include "crypto/hash_provider.h"
+#include "openssl_wrappers.h"
 
 #include <openssl/evp.h>
+#include <openssl/kdf.h>
 #include <openssl/sha.h>
 
 #define FMT_HEADER_ONLY
@@ -33,6 +35,13 @@ namespace crypto
       }
       return nullptr;
     }
+
+    std::vector<uint8_t> hkdf(
+      MDType md_type,
+      size_t length,
+      const std::vector<uint8_t>& ikm,
+      const std::vector<uint8_t>& salt = {},
+      const std::vector<uint8_t>& info = {});
   }
 
   // Hash Provider (OpenSSL)

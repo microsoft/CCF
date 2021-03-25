@@ -3,13 +3,13 @@
 
 #include "js/wrap.h"
 
+#include "ccf/tx_id.h"
 #include "ds/logger.h"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
 #include "kv/untyped_map.h"
 #include "node/rpc/call_types.h"
 #include "tls/base64.h"
-#include "tx_id.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -533,8 +533,8 @@ namespace js
       JS_SetPropertyStr(
         ctx, state, "transactionId", JS_NewString(ctx, tx_id.to_str().c_str()));
 
-      ccf::GetReceipt::Out receipt_out;
-      receipt_out.from_receipt(receipt);
+      ccf::Receipt receipt_out;
+      receipt->describe(receipt_out);
       auto js_receipt = JS_NewObject(ctx);
       JS_SetPropertyStr(
         ctx,

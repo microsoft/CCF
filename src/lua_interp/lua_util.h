@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/entity_id.h"
+#include "ccf/entity_id.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
