@@ -177,7 +177,7 @@ install(
 
 # Install exported 3rd-party library includes
 install(
-  DIRECTORY 3rdparty/exported
+  DIRECTORY 3rdparty/exported/
   DESTINATION include/3rdparty
   FILES_MATCHING
   PATTERN "*.h"
