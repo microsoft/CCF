@@ -180,7 +180,7 @@ set(LUA_SOURCES
 )
 
 set(HTTP_PARSER_SOURCES
-  ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
+  ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
   ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
