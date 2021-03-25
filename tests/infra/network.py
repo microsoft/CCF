@@ -393,7 +393,7 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
-        self.consortium.activate(self.find_node_by_role())
+        self.consortium.activate(self.find_random_node())
 
         if args.js_app_script:
             LOG.error(
@@ -403,23 +403,23 @@ class Network:
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()
             self.consortium.set_js_app(
-                remote_node=self.find_node_by_role(), app_script_path=args.js_app_script
+                remote_node=self.find_random_node(), app_script_path=args.js_app_script
             )
 
         if args.js_app_bundle:
             self.consortium.deploy_js_app(
-                remote_node=self.find_node_by_role(), app_bundle_path=args.js_app_bundle
+                remote_node=self.find_random_node(), app_bundle_path=args.js_app_bundle
             )
 
         for path in args.jwt_issuer:
             self.consortium.set_jwt_issuer(
-                remote_node=self.find_node_by_role(), json_path=path
+                remote_node=self.find_random_node(), json_path=path
             )
 
-        self.consortium.add_users(self.find_node_by_role(), initial_users)
+        self.consortium.add_users(self.find_random_node(), initial_users)
         LOG.info(f"Initial set of users added: {len(initial_users)}")
 
-        self.consortium.transition_service_to_open(remote_node=self.find_node_by_role())
+        self.consortium.transition_service_to_open(remote_node=self.find_random_node())
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
@@ -770,6 +770,9 @@ class Network:
             return self.find_primary()[0]
         else:
             return self.find_any_backup()
+
+    def find_random_node(self):
+        return random.choice(self.get_joined_nodes())
 
     def find_nodes(self, timeout=3):
         primary, _ = self.find_primary(timeout=timeout)
