@@ -56,6 +56,7 @@ option(ZAP_TEST
        "ZAP fuzz test using https://www.zaproxy.org/docs/docker/api-scan/" OFF
 )
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
+option(BUILD_TPCC "Build TPPC sample app and clients" ON)
 
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
@@ -211,6 +212,7 @@ install(
 
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
 install(FILES tests/sandbox/sandbox_gov.lua DESTINATION bin)
+install(FILES tests/sandbox/sandbox_constitution.js DESTINATION bin)
 install(FILES tests/start_network.py DESTINATION bin)
 install(FILES tests/requirements.txt DESTINATION bin)
 
@@ -663,6 +665,10 @@ if(BUILD_TESTS)
 
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/smallbank/smallbank.cmake)
+  endif()
+
+  if(BUILD_TPCC)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
   endif()
 
   if(TLS_TEST)

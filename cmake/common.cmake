@@ -191,6 +191,13 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
 )
 
+set(CCF_ENDPOINTS_SOURCES
+    ${CCF_DIR}/src/endpoints/endpoint.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+)
+
 find_library(CRYPTO_LIBRARY crypto)
 
 list(APPEND COMPILE_LIBCXX -stdlib=libc++)
@@ -367,6 +374,9 @@ set(WORKER_THREADS
 )
 
 set(CCF_NETWORK_TEST_DEFAULT_GOV ${CCF_DIR}/src/runtime_config/gov.lua)
+set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
+    ${CCF_DIR}/src/runtime_config/constitution.js
+)
 set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
 )
@@ -412,7 +422,7 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
+    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;CONSTITUTION;LABEL;CURL_CLIENT;CONSENSUS;"
     "ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
@@ -420,13 +430,18 @@ function(add_e2e_test)
     set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
   endif()
 
+  if(NOT PARSED_ARGS_CONSTITUTION)
+    set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
+  endif()
+
   if(BUILD_END_TO_END_TESTS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --consensus
-        ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --constitution
+        ${PARSED_ARGS_CONSTITUTION} --consensus ${PARSED_ARGS_CONSENSUS}
+        ${PARSED_ARGS_ADDITIONAL_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -536,13 +551,20 @@ endfunction()
 function(add_perf_test)
 
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
+    PARSE_ARGV
+    0
+    PARSED_ARGS
+    ""
+    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
     "ADDITIONAL_ARGS"
   )
 
   if(NOT PARSED_ARGS_GOV_SCRIPT)
     set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
+  endif()
+
+  if(NOT PARSED_ARGS_CONSTITUTION)
+    set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
   endif()
 
   if(PARSED_ARGS_VERIFICATION_FILE)
@@ -574,10 +596,10 @@ function(add_perf_test)
     NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS} -g
-      ${PARSED_ARGS_GOV_SCRIPT} --write-tx-times ${VERIFICATION_ARG} --label
-      ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
-      ${NODES}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
+      --constitution ${PARSED_ARGS_CONSTITUTION} -g ${PARSED_ARGS_GOV_SCRIPT}
+      --write-tx-times ${VERIFICATION_ARG} --label ${LABEL_ARG}
+      --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
   )
 
   # Make python test client framework importable

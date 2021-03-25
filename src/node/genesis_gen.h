@@ -91,6 +91,18 @@ namespace ccf
       return member_encryption_public_keys->get(member_id).has_value();
     }
 
+    bool is_active_member(const MemberId& member_id)
+    {
+      auto member_info = tx.ro(tables.member_info);
+      auto mi = member_info->get(member_id);
+      if (!mi.has_value())
+      {
+        return false;
+      }
+
+      return mi->status == MemberStatus::ACTIVE;
+    }
+
     std::map<MemberId, crypto::Pem> get_active_recovery_members()
     {
       auto member_info = tx.ro(tables.member_info);
@@ -171,12 +183,6 @@ namespace ccf
           "Member {} cannot be activated as they do not exist", member_id));
       }
 
-      if (member->status == MemberStatus::RETIRED)
-      {
-        throw std::logic_error(fmt::format(
-          "Member {} cannot be activated as they are retired: {}", member_id));
-      }
-
       member->status = MemberStatus::ACTIVE;
       if (
         is_recovery_member(member_id) &&
@@ -191,30 +197,33 @@ namespace ccf
       member_info->put(member_id, member.value());
     }
 
-    bool retire_member(const MemberId& member_id)
+    bool remove_member(const MemberId& member_id)
     {
       auto member_certs = tx.rw(tables.member_certs);
       auto member_encryption_public_keys =
         tx.rw(tables.member_encryption_public_keys);
       auto member_info = tx.rw(tables.member_info);
       auto member_acks = tx.rw(tables.member_acks);
+      auto member_gov_history = tx.rw(tables.governance_history);
 
-      auto member_to_retire = member_info->get(member_id);
-      if (!member_to_retire.has_value())
+      auto member_to_remove = member_info->get(member_id);
+      if (!member_to_remove.has_value())
       {
+        // The remove member proposal is idempotent so if the member does not
+        // exist, the proposal should succeed with no effect
         LOG_FAIL_FMT(
-          "Could not retire member {}: member does not exist", member_id);
-        return false;
+          "Could not remove member {}: member does not exist", member_id);
+        return true;
       }
 
       // If the member was active and had a recovery share, check that
       // the new number of active members is still sufficient for
       // recovery
       if (
-        member_to_retire->status == MemberStatus::ACTIVE &&
+        member_to_remove->status == MemberStatus::ACTIVE &&
         is_recovery_member(member_id))
       {
-        // Because the member to retire is active, there is at least one active
+        // Because the member to remove is active, there is at least one active
         // member (i.e. get_active_recovery_members_count_after >= 0)
         size_t get_active_recovery_members_count_after =
           get_active_recovery_members().size() - 1;
@@ -222,7 +231,7 @@ namespace ccf
         if (get_active_recovery_members_count_after < recovery_threshold)
         {
           LOG_FAIL_FMT(
-            "Failed to retire recovery member {}: number of active recovery "
+            "Failed to remove recovery member {}: number of active recovery "
             "members ({}) would be less than recovery threshold ({})",
             member_id,
             get_active_recovery_members_count_after,
@@ -231,14 +240,11 @@ namespace ccf
         }
       }
 
-      // For now, only mark the member as retired and delete its entries from
-      // all other members tables
-      member_to_retire->status = MemberStatus::RETIRED;
-      member_info->put(member_id, member_to_retire.value());
-
+      member_info->remove(member_id);
       member_encryption_public_keys->remove(member_id);
       member_certs->remove(member_id);
       member_acks->remove(member_id);
+      member_gov_history->remove(member_id);
 
       return true;
     }
@@ -349,6 +355,12 @@ namespace ccf
       {
         LOG_FAIL_FMT("Failed to get active service");
         return false;
+      }
+
+      if (active_service->status == ServiceStatus::OPEN)
+      {
+        // If the service is already open, return with no effect
+        return true;
       }
 
       if (

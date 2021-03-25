@@ -131,7 +131,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "005a3da976877a27457178a6bc1e10d65dd06324"
+          "commitHash": "3523423483a61179f47cc7ff0da012fb6f81ec1b"
         }
       }
     },
@@ -141,6 +141,15 @@
         "git": {
           "repositoryUrl": "https://github.com/microsoft/merklecpp",
           "commitHash": "5b2be3862f29f13412bffa5f210658adbf0456e2"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/evanj/tpccbench",
+          "commitHash": "715f394ade83e545ffc0aa79c14fefc1c0987f21"
         }
       }
     }

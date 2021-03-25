@@ -674,9 +674,9 @@ namespace aft
           }
         }
       }
-      catch (const std::logic_error& err)
+      catch (const std::exception& e)
       {
-        LOG_FAIL_EXC(err.what());
+        LOG_FAIL_EXC(e.what());
         return;
       }
 
@@ -2195,7 +2195,7 @@ namespace aft
       else
       {
         LOG_INFO_FMT(
-          "Voting against candidate at {}.{} because I'm at {}.{}",
+          "Voting against candidate at {}.{} because local state is at {}.{}",
           r.term_of_last_committable_idx,
           r.last_committable_idx,
           term_of_last_committable_idx,

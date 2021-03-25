@@ -4,6 +4,7 @@ import infra.e2e_args
 import infra.network
 import infra.proc
 import infra.logging_app as app
+import ccf.clients
 import suite.test_requirements as reqs
 import time
 
@@ -33,11 +34,15 @@ def count_nodes(configs, network):
 def check_can_progress(node, timeout=3):
     with node.client() as c:
         r = c.get("/node/commit")
+        original_seqno = ccf.clients.parse_tx_id(r.body.json()["transaction_id"])[1]
         with node.client("user0") as uc:
             uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
         end_time = time.time() + timeout
         while time.time() < end_time:
-            if c.get("/node/commit").body.json()["seqno"] > r.body.json()["seqno"]:
+            current_seqno = ccf.clients.parse_tx_id(
+                c.get("/node/commit").body.json()["transaction_id"]
+            )[1]
+            if current_seqno > original_seqno:
                 return
             time.sleep(0.1)
         assert False, f"Stuck at {r}"
@@ -149,31 +154,31 @@ def test_retire_primary(network, args):
 def test_node_filter(network, args):
     primary, _ = network.find_primary_and_any_backup()
     with primary.client() as c:
-        trusted_before = c.get("/node/network/nodes?status=Trusted").body.json()
-        pending_before = c.get("/node/network/nodes?status=Pending").body.json()
-        retired_before = c.get("/node/network/nodes?status=Retired").body.json()
+
+        def get_nodes(status):
+            r = c.get(f"/node/network/nodes?status={status}")
+            nodes = r.body.json()["nodes"]
+            return sorted(nodes, key=lambda node: node["node_id"])
+
+        trusted_before = get_nodes("Trusted")
+        pending_before = get_nodes("Pending")
+        retired_before = get_nodes("Retired")
         new_node = network.create_and_add_pending_node(
             args.package, "local://localhost", args, target_node=primary
         )
-        trusted_after = c.get("/node/network/nodes?status=Trusted").body.json()
-        pending_after = c.get("/node/network/nodes?status=Pending").body.json()
-        retired_after = c.get("/node/network/nodes?status=Retired").body.json()
+        trusted_after = get_nodes("Trusted")
+        pending_after = get_nodes("Pending")
+        retired_after = get_nodes("Retired")
         assert trusted_before == trusted_after, (trusted_before, trusted_after)
-        assert len(pending_before["nodes"]) + 1 == len(pending_after["nodes"]), (
+        assert len(pending_before) + 1 == len(pending_after), (
             pending_before,
             pending_after,
         )
         assert retired_before == retired_after, (retired_before, retired_after)
 
-        assert all(
-            info["status"] == "Trusted" for info in trusted_after["nodes"]
-        ), trusted_after
-        assert all(
-            info["status"] == "Pending" for info in pending_after["nodes"]
-        ), pending_after
-        assert all(
-            info["status"] == "Retired" for info in retired_after["nodes"]
-        ), retired_after
+        assert all(info["status"] == "Trusted" for info in trusted_after), trusted_after
+        assert all(info["status"] == "Pending" for info in pending_after), pending_after
+        assert all(info["status"] == "Retired" for info in retired_after), retired_after
     assert new_node
     return network
 

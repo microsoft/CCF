@@ -6,9 +6,11 @@
 #include "crypto/key_pair.h"
 #include "ds/nonstd.h"
 #include "frontend.h"
+#include "js/wrap.h"
 #include "lua_interp/lua_json.h"
 #include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
+#include "node/gov.h"
 #include "node/jwt.h"
 #include "node/members.h"
 #include "node/nodes.h"
@@ -581,23 +583,19 @@ namespace ccf
            return true;
          }},
         // retire an existing member
-        {"retire_member",
+        {"remove_member",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
-           auto members = tx.rw(this->network.member_info);
-           auto member_info = members->get(member_id);
-           if (!member_info.has_value())
+           GenesisGenerator g(this->network, tx);
+           bool is_active = g.is_active_member(member_id);
+           bool is_recovery = g.is_recovery_member(member_id);
+           if (!g.remove_member(member_id))
            {
-             LOG_FAIL_FMT(
-               "Cannot retire member {} as they do not exist", member_id);
              return false;
            }
 
-           GenesisGenerator g(this->network, tx);
-           if (
-             member_info->status == MemberStatus::ACTIVE &&
-             g.is_recovery_member(member_id))
+           if (is_active && is_recovery)
            {
              // A retired recovery member should not have access to the private
              // ledger going forward so rekey ledger, issuing new share to
@@ -608,7 +606,7 @@ namespace ccf
              }
            }
 
-           return g.retire_member(member_id);
+           return true;
          }},
         {"set_member_data",
          [this](
@@ -883,57 +881,76 @@ namespace ccf
              this->network.node_code_ids,
              proposal_id);
          }},
-        {"accept_recovery",
+        {"transition_service_to_open",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
+           auto service = tx.ro<Service>(Tables::SERVICE)->get(0);
+           if (!service.has_value())
+           {
+             throw std::logic_error(
+               "Service information cannot be found in current state");
+           }
+
+           // Idempotence: if the service is already open or waiting for
+           // recovery shares, the proposal should succeed
+           if (
+             service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES ||
+             service->status == ServiceStatus::OPEN)
+           {
+             return true;
+           }
+
            if (context.get_node_state().is_part_of_public_network())
            {
+             // If the node is in public mode, start accepting member recovery
+             // shares
              const auto accept_recovery =
                context.get_node_state().accept_recovery(tx);
              if (!accept_recovery)
              {
-               LOG_FAIL_FMT("Proposal {}: Accept recovery failed", proposal_id);
+               LOG_FAIL_FMT(
+                 "Proposal {}: Failed to accept recovery", proposal_id);
              }
              return accept_recovery;
            }
-           else
+           else if (context.get_node_state().is_part_of_network())
            {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node is not part of public network", proposal_id);
-             return false;
-           }
-         }},
-        {"open_network",
-         [this](
-           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           // On network open, the service checks that a sufficient number of
-           // recovery members have become active. If so, recovery shares are
-           // allocated to each recovery member
-           try
-           {
-             share_manager.issue_recovery_shares(tx);
-           }
-           catch (const std::logic_error& e)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Issuing recovery shares failed when opening the "
-               "network: {}",
-               proposal_id,
-               e.what());
-             return false;
+             // Otherwise, if the node is part of the network. Open the network
+             // straight away. We first check that a sufficient number of
+             // recovery members have become active. If so, recovery shares are
+             // allocated to each recovery member.
+             try
+             {
+               share_manager.issue_recovery_shares(tx);
+             }
+             catch (const std::logic_error& e)
+             {
+               LOG_FAIL_FMT(
+                 "Proposal {}: Failed to issuing recovery shares failed when "
+                 "transitioning the service to open network: {}",
+                 proposal_id,
+                 e.what());
+               return false;
+             }
+
+             GenesisGenerator g(this->network, tx);
+             const auto network_opened = g.open_service();
+             if (!network_opened)
+             {
+               LOG_FAIL_FMT("Proposal {}: Failed to open service", proposal_id);
+             }
+             else
+             {
+               context.get_node_state().open_user_frontend();
+             }
+             return network_opened;
            }
 
-           GenesisGenerator g(this->network, tx);
-           const auto network_opened = g.open_service();
-           if (!network_opened)
-           {
-             LOG_FAIL_FMT("Proposal {}: Open network failed", proposal_id);
-           }
-           else
-           {
-             context.get_node_state().open_user_frontend();
-           }
-           return network_opened;
+           LOG_FAIL_FMT(
+             "Proposal {}: Service is not in expected state to transition to "
+             "open",
+             proposal_id);
+           return false;
          }},
         {"rekey_ledger",
          [this](
@@ -1083,6 +1100,7 @@ namespace ccf
 
       // execute proposed calls
       ProposedCalls pc = proposed_calls;
+      std::optional<std::string> unknown_call = std::nullopt;
       for (const auto& call : pc)
       {
         // proposing a hardcoded C++ function?
@@ -1102,7 +1120,8 @@ namespace ccf
         const auto s = tx.rw(network.gov_scripts)->get(call.func);
         if (!s.has_value())
         {
-          continue;
+          unknown_call = call.func;
+          break;
         }
         tsr.run<void>(
           tx,
@@ -1113,8 +1132,21 @@ namespace ccf
           call.args);
       }
 
-      // if the vote was successful, update the proposal's state
-      proposal.state = ProposalState::ACCEPTED;
+      if (!unknown_call.has_value())
+      {
+        // if the vote was successful, update the proposal's state
+        proposal.state = ProposalState::ACCEPTED;
+      }
+      else
+      {
+        // If any function in the proposal is unknown, mark the proposal as
+        // failed
+        LOG_FAIL_FMT(
+          "Proposal {}: \"{}\" call is unknown",
+          proposal_id,
+          unknown_call.value());
+        proposal.state = ProposalState::FAILED;
+      }
       proposals->put(proposal_id, proposal);
 
       return get_proposal_info(proposal_id, proposal);
@@ -1973,6 +2005,8 @@ namespace ccf
         g.set_gov_scripts(
           lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
 
+        ctx.tx.rw(this->network.constitution)->put(0, in.constitution);
+
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
@@ -2003,22 +2037,9 @@ namespace ccf
             "Primary is unknown");
         }
 
-        auto nodes = ctx.tx.ro(this->network.nodes);
-        auto info = nodes->get(primary_id.value());
-        if (!info.has_value())
-        {
-          LOG_FAIL_FMT(
-            "JWT key auto-refresh: could not find node info of primary");
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Could not find node info of primary.");
-        }
-
-        auto primary_cert_pem = info.value().cert;
-        auto cert_der = ctx.rpc_ctx->session->caller_cert;
-        auto caller_cert_pem = crypto::cert_der_to_pem(cert_der);
-        if (caller_cert_pem != primary_cert_pem)
+        const auto& cert_auth_ident =
+          ctx.template get_caller<ccf::NodeCertAuthnIdentity>();
+        if (primary_id.value() != cert_auth_ident.node_id)
         {
           LOG_FAIL_FMT(
             "JWT key auto-refresh: request does not originate from primary");

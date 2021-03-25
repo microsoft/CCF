@@ -21,11 +21,9 @@ TEST_CASE("Simple key exchange")
     // Trying to load empty peer's public
     std::vector<uint8_t> empty_peer;
     REQUIRE_THROWS_AS(
-      peer1_ctx.load_peer_public(empty_peer.data(), empty_peer.size()),
-      std::logic_error);
+      peer1_ctx.load_peer_key_share(empty_peer), std::logic_error);
     REQUIRE_THROWS_AS(
-      peer2_ctx.load_peer_public(empty_peer.data(), empty_peer.size()),
-      std::logic_error);
+      peer2_ctx.load_peer_key_share(empty_peer), std::logic_error);
 
     REQUIRE_THROWS_AS(peer1_ctx.compute_shared_secret(), std::logic_error);
     REQUIRE_THROWS_AS(peer2_ctx.compute_shared_secret(), std::logic_error);
@@ -34,18 +32,18 @@ TEST_CASE("Simple key exchange")
   INFO("Compute shared secret");
   {
     tls::KeyExchangeContext peer1_ctx, peer2_ctx;
-    auto peer1_public = peer1_ctx.get_own_public();
-    auto peer2_public = peer2_ctx.get_own_public();
+    auto peer1_public = peer1_ctx.get_own_key_share();
+    auto peer2_public = peer2_ctx.get_own_key_share();
 
-    auto peer1_public_ = peer1_ctx.get_own_public();
-    auto peer2_public_ = peer2_ctx.get_own_public();
+    auto peer1_public_ = peer1_ctx.get_own_key_share();
+    auto peer2_public_ = peer2_ctx.get_own_key_share();
 
-    // Calling get_own_public() should always return the same result
+    // Calling get_own_key_share() should always return the same result
     REQUIRE(peer1_public == peer1_public_);
     REQUIRE(peer2_public == peer2_public_);
 
-    peer1_ctx.load_peer_public(peer2_public.data(), peer2_public.size());
-    peer2_ctx.load_peer_public(peer1_public.data(), peer1_public.size());
+    peer1_ctx.load_peer_key_share(peer2_public);
+    peer2_ctx.load_peer_key_share(peer1_public);
 
     auto peer1_secret = peer1_ctx.compute_shared_secret();
     auto peer2_secret = peer2_ctx.compute_shared_secret();

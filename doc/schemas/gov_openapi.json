@@ -112,16 +112,12 @@
       },
       "GetCommit__Out": {
         "properties": {
-          "seqno": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "view": {
-            "$ref": "#/components/schemas/int64"
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
           }
         },
         "required": [
-          "view",
-          "seqno"
+          "transaction_id"
         ],
         "type": "object"
       },
@@ -138,19 +134,15 @@
       },
       "GetTxStatus__Out": {
         "properties": {
-          "seqno": {
-            "$ref": "#/components/schemas/int64"
-          },
           "status": {
             "$ref": "#/components/schemas/TxStatus"
           },
-          "view": {
-            "$ref": "#/components/schemas/int64"
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
           }
         },
         "required": [
-          "view",
-          "seqno",
+          "transaction_id",
           "status"
         ],
         "type": "object"
@@ -356,11 +348,6 @@
         "format": "base64",
         "type": "string"
       },
-      "int64": {
-        "maximum": 9223372036854775807,
-        "minimum": -9223372036854775808,
-        "type": "integer"
-      },
       "json": {},
       "string": {
         "type": "string"
@@ -500,18 +487,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "view",
+            "name": "transaction_id",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/int64"
-            }
-          },
-          {
-            "in": "query",
-            "name": "seqno",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/int64"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -845,18 +824,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "view",
+            "name": "transaction_id",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/int64"
-            }
-          },
-          {
-            "in": "query",
-            "name": "seqno",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/int64"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],

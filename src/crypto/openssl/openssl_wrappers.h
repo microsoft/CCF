@@ -3,6 +3,7 @@
 #pragma once
 
 #define FMT_HEADER_ONLY
+#include <crypto/pem.h>
 #include <fmt/format.h>
 #include <memory>
 #include <openssl/ec.h>
@@ -10,6 +11,7 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
 namespace crypto
@@ -41,14 +43,22 @@ namespace crypto
     public:
       Unique_BIO() : p(BIO_new(BIO_s_mem()), [](auto x) { BIO_free(x); })
       {
-        if (!p)
-          throw std::runtime_error("out of memory");
+        OpenSSL::CHECKNULL(p.get());
       }
       Unique_BIO(const void* buf, int len) :
         p(BIO_new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
       {
-        if (!p)
-          throw std::runtime_error("out of memory");
+        OpenSSL::CHECKNULL(p.get());
+      }
+      Unique_BIO(const std::vector<uint8_t>& d) :
+        p(BIO_new_mem_buf(d.data(), d.size()), [](auto x) { BIO_free(x); })
+      {
+        OpenSSL::CHECKNULL(p.get());
+      }
+      Unique_BIO(const Pem& pem) :
+        p(BIO_new_mem_buf(pem.data(), -1), [](auto x) { BIO_free(x); })
+      {
+        OpenSSL::CHECKNULL(p.get());
       }
       operator BIO*()
       {
@@ -64,14 +74,12 @@ namespace crypto
       Unique_EVP_PKEY_CTX(EVP_PKEY* key) :
         p(EVP_PKEY_CTX_new(key, NULL), EVP_PKEY_CTX_free)
       {
-        if (!p)
-          throw std::runtime_error("out of memory");
+        OpenSSL::CHECKNULL(p.get());
       }
       Unique_EVP_PKEY_CTX() :
         p(EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL), EVP_PKEY_CTX_free)
       {
-        if (!p)
-          throw std::runtime_error("out of memory");
+        OpenSSL::CHECKNULL(p.get());
       }
       operator EVP_PKEY_CTX*()
       {
@@ -86,14 +94,12 @@ namespace crypto
     public:
       Unique_X509_REQ() : p(X509_REQ_new(), X509_REQ_free)
       {
-        if (!p)
-          throw std::runtime_error("out of memory");
+        OpenSSL::CHECKNULL(p.get());
       }
       Unique_X509_REQ(BIO* mem) :
         p(PEM_read_bio_X509_REQ(mem, NULL, NULL, NULL), X509_REQ_free)
       {
-        if (!p)
-          throw std::runtime_error("out of memory");
+        OpenSSL::CHECKNULL(p.get());
       }
       operator X509_REQ*()
       {
@@ -108,16 +114,46 @@ namespace crypto
     public:
       Unique_X509() : p(X509_new(), X509_free)
       {
-        if (!p)
-          throw std::runtime_error("out of memory");
+        OpenSSL::CHECKNULL(p.get());
       }
-      Unique_X509(BIO* mem) :
-        p(PEM_read_bio_X509(mem, NULL, NULL, NULL), X509_free)
+      Unique_X509(BIO* mem, bool pem) :
+        p(pem ? PEM_read_bio_X509(mem, NULL, NULL, NULL) :
+                d2i_X509_bio(mem, NULL),
+          X509_free)
       {
-        if (!p)
-          throw std::runtime_error("out of memory");
+        // p == nullptr is OK (e.g. wrong format)
       }
       operator X509*()
+      {
+        return p.get();
+      }
+    };
+
+    class Unique_X509_STORE
+    {
+      std::unique_ptr<X509_STORE, void (*)(X509_STORE*)> p;
+
+    public:
+      Unique_X509_STORE() : p(X509_STORE_new(), X509_STORE_free)
+      {
+        OpenSSL::CHECKNULL(p.get());
+      }
+      operator X509_STORE*()
+      {
+        return p.get();
+      }
+    };
+
+    class Unique_X509_STORE_CTX
+    {
+      std::unique_ptr<X509_STORE_CTX, void (*)(X509_STORE_CTX*)> p;
+
+    public:
+      Unique_X509_STORE_CTX() : p(X509_STORE_CTX_new(), X509_STORE_CTX_free)
+      {
+        OpenSSL::CHECKNULL(p.get());
+      }
+      operator X509_STORE_CTX*()
       {
         return p.get();
       }
@@ -130,8 +166,7 @@ namespace crypto
     public:
       Unique_EVP_CIPHER_CTX() : p(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free)
       {
-        if (!p)
-          throw std::runtime_error("out of memory");
+        OpenSSL::CHECKNULL(p.get());
       }
       operator EVP_CIPHER_CTX*()
       {

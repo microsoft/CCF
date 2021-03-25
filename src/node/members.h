@@ -16,13 +16,10 @@ namespace ccf
   {
     ACCEPTED = 0,
     ACTIVE = 1,
-    RETIRED = 2
   };
   DECLARE_JSON_ENUM(
     MemberStatus,
-    {{MemberStatus::ACCEPTED, "Accepted"},
-     {MemberStatus::ACTIVE, "Active"},
-     {MemberStatus::RETIRED, "Retired"}});
+    {{MemberStatus::ACCEPTED, "Accepted"}, {MemberStatus::ACTIVE, "Active"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::MemberStatus);

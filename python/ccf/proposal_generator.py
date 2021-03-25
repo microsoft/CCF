@@ -261,8 +261,8 @@ def new_member(
 
 
 @cli_proposal
-def retire_member(member_id: str, **kwargs):
-    return build_proposal("retire_member", member_id, **kwargs)
+def remove_member(member_id: str, **kwargs):
+    return build_proposal("remove_member", member_id, **kwargs)
 
 
 @cli_proposal
@@ -394,13 +394,8 @@ def retire_node_code(code_digest: str, **kwargs):
 
 
 @cli_proposal
-def accept_recovery(**kwargs):
-    return build_proposal("accept_recovery", **kwargs)
-
-
-@cli_proposal
-def open_network(**kwargs):
-    return build_proposal("open_network", **kwargs)
+def transition_service_to_open(**kwargs):
+    return build_proposal("transition_service_to_open", **kwargs)
 
 
 @cli_proposal

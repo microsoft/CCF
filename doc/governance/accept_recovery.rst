@@ -9,19 +9,19 @@ Accepting Recovery
 ------------------
 
 Once the public recovered network has been established by operators, members are allowed to vote to confirm that the configuration of the new network is suitable to complete the recovery procedure.
- 
+
 A member proposes to recover the network and other members can vote on the proposal:
 
 .. code-block:: bash
 
-    $ cat accept_recovery.json
+    $ cat transition_service_to_open.json
     {
         "script": {
-            "text": "tables = ...; return Calls:call(\"accept_recovery\")"
+            "text": "tables = ...; return Calls:call(\"transition_service_to_open\")"
         }
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @accept_recovery.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @transition_service_to_open.json -H "content-type: application/json"
     {
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
         "proposer_id": 0,
@@ -77,7 +77,7 @@ When the recovery threshold is reached, the ``POST recovery_share`` RPC returns 
 
 Once the recovery of the private ledger is complete on a quorum of nodes that have joined the new network, the ledger is fully recovered and users are able to continue issuing business transactions.
 
-.. note:: Recovery shares are updated every time a new recovery member is added or retired and when the ledger is rekeyed. It also possible for members to update the recovery shares via the ``update_recovery_shares`` proposal.
+.. note:: Recovery shares are updated every time a new recovery member is added or removed and when the ledger is rekeyed. It also possible for members to update the recovery shares via the ``update_recovery_shares`` proposal.
 
 Summary Diagram
 ---------------
