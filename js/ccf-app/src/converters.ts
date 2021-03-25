@@ -1,6 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+/**
+ * This module provides converters from/to `ArrayBuffer` objects.
+ * 
+ * Converters are commonly used as {@linkcode kv.typedKv} arguments.
+ * Another use case is {@linkcode crypto.wrapKey} to convert
+ * PEM-encoded keys to `ArrayBuffer`.
+ * 
+ * @module
+ */
+
 import { ccf } from "./global";
 
 // This should eventually cover all JSON-compatible values.

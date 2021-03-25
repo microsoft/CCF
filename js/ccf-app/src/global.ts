@@ -1,6 +1,22 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+/**
+ * This module describes the global {@linkcode ccf} variable.
+ * Direct access of this module or the {@linkcode ccf} variable is
+ * typically not needed as all of its functionality is exposed
+ * via other, often more high-level, modules.
+ * 
+ * Accessing the {@linkcode ccf} global in a type-safe way is done
+ * as follows:
+ * 
+ * ```
+ * import { ccf } from 'ccf-app/global';
+ * ```
+ * 
+ * @module
+ */
+
 // The global ccf variable and associated types are exported
 // as a regular module instead of using an ambient namespace
 // in a .d.ts definition file.
@@ -16,8 +32,8 @@ export type JsonCompatible<T> = any;
 /**
  * A map in the Key Value Store.
  *
- * ``KVMap`` is modelled after JavaScript's ``Map`` object,
- * except that keys and values must be of type ``ArrayBuffer``
+ * `KVMap` is modelled after JavaScript's `Map` object,
+ * except that keys and values must be of type `ArrayBuffer`
  * and no guarantees on iteration order are provided.
  */
 export interface KvMap {
@@ -25,15 +41,14 @@ export interface KvMap {
   get(key: ArrayBuffer): ArrayBuffer | undefined;
   set(key: ArrayBuffer, value: ArrayBuffer): KvMap;
   delete(key: ArrayBuffer): boolean;
-
-  /**
-   * @param callback A function with parameters ``value, key, kvmap``.
-   */
   forEach(
     callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void
   ): void;
 }
 
+/**
+ * @inheritDoc CCF.kv
+ */
 export type KvMaps = { [key: string]: KvMap };
 
 export interface ProofElement {
@@ -48,6 +63,9 @@ export interface ProofElement {
   right?: string;
 }
 
+/**
+ * @inheritDoc Receipt.proof
+ */
 export type Proof = ProofElement[];
 
 export interface Receipt {
@@ -77,32 +95,69 @@ export interface Receipt {
   nodeId: string;
 }
 
+/**
+ * State associated with a specific historic transaction.
+ */
 export interface HistoricalState {
+  /**
+   * The ID of the transaction.
+   */
   transactionId: string;
+
+  /**
+   * The receipt for the historic transaction.
+   */
   receipt: Receipt;
 }
 
 /**
- *
+ * [RSA-OAEP](https://datatracker.ietf.org/doc/html/rfc8017)
+ * key wrapping with SHA-256 as digest function.
+ * 
+ * The `key` argument of {@link CCF.wrapKey} can be of
+ * arbitrary content up to the maximum size supported
+ * by the wrapping algorithm. 
+ * The `wrappingKey` argument must be a PEM-encoded RSA private key.
  */
 export interface RsaOaepParams {
   name: "RSA-OAEP";
+
+  /**
+   * A label to be associated with the wrapped key.
+   */
   label?: ArrayBuffer;
 }
 
 /**
- *
+ * [AES key wrapping with padding](https://tools.ietf.org/html/rfc5649).
+ * 
+ * The `key` argument of {@link CCF.wrapKey} can be of
+ * arbitrary content.
+ * The `wrappingKey` argument must be an AES key.
  */
 export interface AesKwpParams {
   name: "AES-KWP";
 }
 
 /**
- *
+ * [RSA AES key wrapping](http://docs.oasis-open.org/pkcs11/pkcs11-curr/v2.40/cos01/pkcs11-curr-v2.40-cos01.html#_Toc370634387)
+ * with SHA-256 as digest function.
+ * 
+ * The `key` argument of {@link CCF.wrapKey} can be of
+ * arbitrary content.
+ * The `wrappingKey` argument must be a PEM-encoded RSA private key.
  */
 export interface RsaOaepAesKwpParams {
   name: "RSA-OAEP-AES-KWP";
+
+  /**
+   * Size of the temporary AES key in bits.
+   */  
   aesKeySize: number;
+
+  /**
+   * A label to be associated with the wrapped key.
+   */
   label?: ArrayBuffer;
 }
 
@@ -134,14 +189,14 @@ export interface CCF {
   /**
    * Serialize a value to JSON and convert it to an ArrayBuffer.
    *
-   * Equivalent to ``ccf.strToBuf(JSON.stringify(v))``.
+   * Equivalent to `ccf.strToBuf(JSON.stringify(v))`.
    */
   jsonCompatibleToBuf<T extends JsonCompatible<T>>(v: T): ArrayBuffer;
 
   /**
    * Parse JSON from an ArrayBuffer.
    *
-   * Equivalent to ``JSON.parse(ccf.bufToStr(v))``.
+   * Equivalent to `JSON.parse(ccf.bufToStr(v))`.
    */
   bufToJsonCompatible<T extends JsonCompatible<T>>(v: ArrayBuffer): T;
 
@@ -156,15 +211,15 @@ export interface CCF {
    * Generate an RSA key pair.
    *
    * @param size The length in bits of the RSA modulus. Minimum: 2048.
-   * @param exponent (optional) The public exponent. Default: 65537.
+   * @param exponent The public exponent. Default: 65537.
    */
   generateRsaKeyPair(size: number, exponent?: number): CryptoKeyPair;
 
   /**
    * Wraps a key using a wrapping key.
    *
-   * Constraints on the ``key`` and ``wrappingKey`` parameters depend
-   * on the wrapping algorithm that is used (``wrapAlgo``).
+   * Constraints on the `key` and `wrappingKey` parameters depend
+   * on the wrapping algorithm that is used (`wrapAlgo`).
    */
   wrapKey(
     key: ArrayBuffer,
@@ -174,7 +229,7 @@ export interface CCF {
 
   /**
    * An object that provides access to the maps of the Key-Value Store of CCF.
-   * Fields are map names and values are :js:class:`CCF.KVMap` objects.
+   * Fields are map names and values are {@linkcode KvMap} objects.
    */
   kv: KvMaps;
 

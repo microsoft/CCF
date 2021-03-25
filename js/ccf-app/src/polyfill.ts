@@ -3,12 +3,15 @@
 
 /**
  * This module polyfills CCF's native functions for use in
- * unit tests run in Node.js instead of CCF.
+ * unit tests that run in Node.js instead of CCF.
  * It must be imported before all other imports like so:
  *
  * ```
  * import 'ccf-app/polyfills';
  * ```
+ * 
+ * Note that some functionality is not polyfilled,
+ * for example historic state (for historical endpoints).
  * 
  * @module
  */
