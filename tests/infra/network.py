@@ -626,11 +626,10 @@ class Network:
         )
 
         primary, _ = self.find_primary()
-        target_node = self.find_node_by_role()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
-                    target_node,
+                    primary,
                     new_node.node_id,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
