@@ -14,7 +14,7 @@ class TxID:
         return f"{self.view}.{self.seqno}"
 
     def valid(self):
-        return self.view is not None
+        return self.view is not None and self.seqno != 0
 
     @staticmethod
     def from_str(s: str):
