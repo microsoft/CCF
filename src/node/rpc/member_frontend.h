@@ -2037,9 +2037,9 @@ namespace ccf
             "Primary is unknown");
         }
 
-        const auto* cert_auth_ident =
-          ctx.try_get_caller<ccf::NodeCertAuthnIdentity>();
-        if (primary_id.value() != cert_auth_ident->node_id)
+        const auto& cert_auth_ident =
+          ctx.template get_caller<ccf::NodeCertAuthnIdentity>();
+        if (primary_id.value() != cert_auth_ident.node_id)
         {
           LOG_FAIL_FMT(
             "JWT key auto-refresh: request does not originate from primary");
