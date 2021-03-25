@@ -8,7 +8,7 @@
  * Any modules not re-exported here have to be explicitly imported.
  * This is the case for advanced functionality like cryptography.
  *
- * ```ts
+ * ```
  * import * as ccfapp from 'ccf-app';
  * ```
  * 

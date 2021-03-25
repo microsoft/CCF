@@ -17,6 +17,8 @@
 import os
 import sys
 
+from docutils import nodes
+
 sys.path.insert(0, os.path.abspath("../python"))
 
 
@@ -234,12 +236,61 @@ js_language = "typescript"
 js_source_path = "../src/js"
 jsdoc_config_path = "../src/js/tsconfig.json"
 
+def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]):
+    """
+    Supported syntaxes:
+    :typedoc:module:`ccf-app/global`
+    :typedoc:function:`ccf-app/crypto#wrapKey`
+    :typedoc:interface:`ccf-app/endpoints/Body`
+    :typedoc:class:`ccf-app/kv/TypedKvMap`
+    :typedoc:classmethod:`ccf-app/kv/TypedKvMap#delete`
+    :typedoc:interfacemethod:`ccf-app/endpoints/Body#json`
+    :typedoc:interface:`Body <ccf-app/endpoints/Body>`
+    """
+    if '<' in text:
+        label, text = text.split(' <')
+        text = text[:-1]
+    else:
+        label = text
+    text_without_hash, *hash_name = text.split('#')
+    url_hash = f'#{hash_name[0].lower()}' if hash_name else ''
+    kind_name = name.replace('typedoc:', '')
+    if kind_name in ['module', 'interface']:
+        kind_name += 's'
+    elif kind_name == 'class':
+        kind_name += 'es'
+    elif kind_name == 'function':
+        kind_name = 'modules'
+        label += '()'
+    elif kind_name == 'classmethod':
+        kind_name = 'classes'
+        label += '()'
+    elif kind_name == 'interfacemethod':
+        kind_name = 'interfaces'
+        label += '()'
+    else:
+        raise ValueError(f'unknown typedoc kind: {kind_name}')
 
-def setup(self):
+    pkg_name, *element_path = text_without_hash.split('/')
+    element_path = '.'.join(element_path).lower()
+    typedoc_path = f'js/{pkg_name}/{kind_name}/{element_path}.html{url_hash}'
+
+    source = inliner.document.attributes['source']
+    rel_source = source.split('/doc/', 1)[1]
+    levels = rel_source.count('/')
+    refuri = '../' * levels + typedoc_path
+
+    text_node = nodes.literal(label, label, classes=['code'])
+    ref_node = nodes.reference('', '', refuri=refuri)
+    ref_node += text_node
+    return [ref_node], []
+
+
+def setup(app):
     import subprocess
     import pathlib
 
-    srcdir = pathlib.Path(self.srcdir)
+    srcdir = pathlib.Path(app.srcdir)
 
     # doxygen
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
@@ -247,17 +298,21 @@ def setup(self):
         subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
 
     # typedoc (CCF 0.19.4 onwards)
-    js_pkg_dir = srcdir / ".." / "js"
-    js_docs_dir = srcdir / "html" / "js"
+    js_pkg_dir = srcdir / ".." / "js" / "ccf-app"
+    js_docs_dir = srcdir / "html" / "js" / "ccf-app"
     if js_pkg_dir.exists():
         # make versions.json from sphinx-multiversion available
-        if self.config.smv_metadata_path:
-            os.environ['SMV_METADATA_PATH'] = self.config.smv_metadata_path
-            os.environ['SMV_CURRENT_VERSION'] = self.config.smv_current_version
+        if app.config.smv_metadata_path:
+            os.environ['SMV_METADATA_PATH'] = app.config.smv_metadata_path
+            os.environ['SMV_CURRENT_VERSION'] = app.config.smv_current_version
         subprocess.run(["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
                        cwd=js_pkg_dir, check=True)
         subprocess.run(["npm", "run", "docs", "--", "--out", str(js_docs_dir)],
                        cwd=js_pkg_dir, check=True)    
+        # allow to link to typedoc pages
+        for kind in ['module', 'interface', 'class', 'function',
+                     'interfacemethod', 'classmethod']:
+            app.add_role(f'typedoc:{kind}', typedoc_role)
 
     # sphinx_js (CCF 0.19.1 - 0.19.3)
     global js_source_path
@@ -269,4 +324,4 @@ def setup(self):
                         "typescript@4.0.7", "typedoc@0.19.2"],
                        cwd=srcdir / "..", check=True)
         os.environ['PATH'] += os.pathsep + str(srcdir / ".." / "node_modules" / ".bin")
-        self.setup_extension("sphinx_js")
+        app.setup_extension("sphinx_js")

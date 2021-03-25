@@ -4,9 +4,9 @@
 import { JsonCompatible } from "./global";
 
 export interface Body<T extends JsonCompatible<T>> {
-  text: () => string;
-  json: () => T;
-  arrayBuffer: () => ArrayBuffer;
+  text(): string;
+  json(): T;
+  arrayBuffer(): ArrayBuffer;
 }
 
 export interface Request<T extends JsonCompatible<T> = any> {
