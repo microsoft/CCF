@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/entity_id.h"
 #include "crypto/hash.h"
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
-#include "node/entity_id.h"
 #include "serialiser_declare.h"
 
 #include <array>
@@ -253,8 +253,8 @@ namespace kv
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::pair<kv::TxID, crypto::Sha256Hash>
     get_replicated_state_txid_and_root() = 0;
-    virtual std::vector<uint8_t> get_receipt(Version v) = 0;
-    virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
+    virtual std::vector<uint8_t> get_proof(Version v) = 0;
+    virtual bool verify_proof(const std::vector<uint8_t>& proof) = 0;
     virtual bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
@@ -354,16 +354,6 @@ namespace kv
     virtual void periodic(std::chrono::milliseconds) {}
     virtual void periodic_end() {}
 
-    struct Statistics
-    {
-      uint32_t time_spent = 0;
-      uint32_t count_num_samples = 0;
-      uint32_t tx_count = 0;
-    };
-    virtual Statistics get_statistics()
-    {
-      return Statistics();
-    }
     virtual void enable_all_domains() {}
 
     virtual uint32_t node_count() = 0;

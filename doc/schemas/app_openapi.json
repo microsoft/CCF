@@ -103,50 +103,6 @@
         ],
         "type": "object"
       },
-      "GetReceipt__Element": {
-        "properties": {
-          "left": {
-            "$ref": "#/components/schemas/string"
-          },
-          "right": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
-      "GetReceipt__Element_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetReceipt__Element"
-        },
-        "type": "array"
-      },
-      "GetReceipt__Out": {
-        "properties": {
-          "leaf": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/EntityId"
-          },
-          "proof": {
-            "$ref": "#/components/schemas/GetReceipt__Element_array"
-          },
-          "root": {
-            "$ref": "#/components/schemas/string"
-          },
-          "signature": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "signature",
-          "root",
-          "proof",
-          "leaf",
-          "node_id"
-        ],
-        "type": "object"
-      },
       "GetTxStatus__Out": {
         "properties": {
           "status": {
@@ -234,7 +190,7 @@
             "$ref": "#/components/schemas/string"
           },
           "receipt": {
-            "$ref": "#/components/schemas/GetReceipt__Out"
+            "$ref": "#/components/schemas/Receipt"
           }
         },
         "required": [
@@ -268,6 +224,50 @@
           "msg"
         ],
         "type": "object"
+      },
+      "Receipt": {
+        "properties": {
+          "leaf": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/Receipt__Element_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "signature",
+          "root",
+          "proof",
+          "leaf",
+          "node_id"
+        ],
+        "type": "object"
+      },
+      "Receipt__Element": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/string"
+          },
+          "right": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "Receipt__Element_array": {
+        "items": {
+          "$ref": "#/components/schemas/Receipt__Element"
+        },
+        "type": "array"
       },
       "Report": {
         "properties": {
@@ -906,7 +906,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetReceipt__Out"
+                  "$ref": "#/components/schemas/Receipt"
                 }
               }
             },

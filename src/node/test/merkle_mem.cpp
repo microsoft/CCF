@@ -62,7 +62,7 @@ static int append_flush_and_retract()
       LOG_INFO_FMT("  MAX RSS: {}Kb", get_maxrss());
       const auto serialised = t.serialise();
       LOG_INFO_FMT("  SERIALISED: {}Kb", serialised.size() / 1024);
-      const auto receipt = t.get_receipt(t.end_index());
+      const auto receipt = t.get_proof(t.end_index());
       LOG_INFO_FMT("  SERIALISED RECEIPT: {}bytes", receipt.to_v().size());
     }
   }

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "node/history.h"
 
-#include "enclave/app_interface.h"
+#include "ccf/app_interface.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
@@ -71,7 +71,7 @@ TEST_CASE("Check signature verification")
   ccf::Nodes nodes(ccf::Tables::NODES);
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
 
-  auto kp = make_key_pair();
+  auto kp = crypto::make_key_pair();
 
   std::shared_ptr<kv::Consensus> consensus =
     std::make_shared<DummyConsensus>(&backup_store);
@@ -157,8 +157,7 @@ TEST_CASE("Check signing works across rollback")
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
-  auto v1_receipt =
-    primary_history->get_receipt(primary_store.current_version());
+  auto v1_proof = primary_history->get_proof(primary_store.current_version());
 
   INFO("Transaction that we will roll back");
   {
@@ -188,14 +187,13 @@ TEST_CASE("Check signing works across rollback")
     }
   }
 
-  auto v2_receipt =
-    primary_history->get_receipt(primary_store.current_version());
+  auto v2_proof = primary_history->get_proof(primary_store.current_version());
 
-  INFO("Check that past & current receipts are ok");
+  INFO("Check that past & current proofs are ok");
   {
-    REQUIRE(primary_history->verify_receipt(v1_receipt));
-    REQUIRE(primary_history->verify_receipt(v2_receipt));
-    REQUIRE(primary_history->verify_receipt(primary_history->get_receipt(1)));
+    REQUIRE(primary_history->verify_proof(v1_proof));
+    REQUIRE(primary_history->verify_proof(v2_proof));
+    REQUIRE(primary_history->verify_proof(primary_history->get_proof(1)));
   }
 
   INFO("Check merkle roots are updating");
