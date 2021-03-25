@@ -12,7 +12,7 @@ To guarantee that their request is successfully committed to the ledger, a user 
 
 .. code-block:: bash
 
-    $ curl -X GET "https://<ccf-node-address>/app/tx?view=2&seqno=18" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -i
+    $ curl -X GET "https://<ccf-node-address>/app/tx?transaction_id=2.18" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -i
     HTTP/1.1 200 OK
     content-length: 23
     content-type: application/json

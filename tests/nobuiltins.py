@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.network
+import ccf.clients
 from http import HTTPStatus
 import openapi_spec_validator
 
@@ -12,8 +13,7 @@ def test_nobuiltins_endpoints(network, args):
         r = c.get("/app/commit")
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
-        view = body_j["view"]
-        seqno = body_j["seqno"]
+        view, seqno = ccf.clients.parse_tx_id(body_j["transaction_id"])
 
         r = c.get("/app/node_summary")
         assert r.status_code == HTTPStatus.OK

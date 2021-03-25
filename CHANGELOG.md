@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Retired members are now deleted from the store, instead of being marked as `Retired` (#1401).
 - `retire_member` proposal has been renamed to `remove_member` and is now idempotent (i.e. succeeds even if the member was already removed) (#1401).
 - `accept_recovery` and `open_network` proposals have been merged into a single idempotent `transition_service_to_open` proposal (#1791).
+- The `/tx` endpoint now takes a single `transaction_id` query parameter. For example, rather than calling `/node/tx?view=2&seqno=42`, call `/node/tx?transaction_id=2.42`.
+- The `/commit` endpoint now returns a response with a single `transaction_id` rather than separate `view` and `seqno` fields.
 
 ## [0.19.3]
 

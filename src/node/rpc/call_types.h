@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
 #include "ds/json_schema.h"
 #include "kv/kv_types.h"
 #include "metrics.h"
@@ -10,6 +11,7 @@
 #include "node/nodes.h"
 #include "node/service.h"
 #include "node_call_types.h"
+#include "tx_id.h"
 #include "tx_status.h"
 
 #include <nlohmann/json.hpp>
@@ -20,8 +22,7 @@ namespace ccf
   {
     struct Out
     {
-      kv::Consensus::View view;
-      kv::Consensus::SeqNo seqno;
+      ccf::TxID transaction_id;
     };
   };
 
@@ -29,8 +30,7 @@ namespace ccf
   {
     struct Out
     {
-      kv::Consensus::View view;
-      kv::Consensus::SeqNo seqno;
+      ccf::TxID transaction_id;
       TxStatus status;
     };
   };

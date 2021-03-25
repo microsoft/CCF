@@ -14,20 +14,22 @@
 
 namespace ccf
 {
+  static constexpr auto tx_id_param_key = "transaction_id";
+
   static inline std::optional<ccf::TxID> txid_from_query_string(
     EndpointContext& args)
   {
     const auto parsed_query =
       http::parse_query(args.rpc_ctx->get_request_query());
-    constexpr auto param_key = "transaction_id";
 
-    const auto it = parsed_query.find(param_key);
+    const auto it = parsed_query.find(tx_id_param_key);
     if (it == parsed_query.end())
     {
       args.rpc_ctx->set_error(
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::InvalidQueryParameterValue,
-        fmt::format("Query string must contain a '{}' parameter", param_key));
+        fmt::format(
+          "Query string must contain a '{}' parameter", tx_id_param_key));
       return std::nullopt;
     }
 
@@ -43,7 +45,7 @@ namespace ccf
           "The value '{}' passed as '{}' could not be "
           "converted to a valid Tx ID.",
           txid_str,
-          param_key));
+          tx_id_param_key));
       return std::nullopt;
     }
 
@@ -70,11 +72,15 @@ namespace ccf
       BaseEndpointRegistry::init_handlers();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
-        GetCommit::Out out;
-        const auto result = get_last_committed_txid_v1(out.view, out.seqno);
+        kv::Consensus::View view;
+        kv::Consensus::SeqNo seqno;
+        const auto result = get_last_committed_txid_v1(view, seqno);
 
         if (result == ccf::ApiResult::OK)
         {
+          GetCommit::Out out;
+          out.transaction_id.view = view;
+          out.transaction_id.seqno = seqno;
           return make_success(out);
         }
         else
@@ -98,12 +104,9 @@ namespace ccf
           http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
-
-        kv::Consensus::View view;
-        kv::Consensus::SeqNo seqno;
-        if (
-          !http::get_query_value(parsed_query, "view", view, error_reason) ||
-          !http::get_query_value(parsed_query, "seqno", seqno, error_reason))
+        std::string tx_id_str;
+        if (!http::get_query_value(
+              parsed_query, tx_id_param_key, tx_id_str, error_reason))
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -111,12 +114,25 @@ namespace ccf
             std::move(error_reason));
         }
 
+        const auto tx_id = ccf::TxID::from_str(tx_id_str);
+        if (!tx_id.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidQueryParameterValue,
+            fmt::format(
+              "The value '{}' passed as query parameter '{}' could not be "
+              "converted to a valid Transaction ID.",
+              tx_id_str,
+              tx_id_param_key));
+        }
+
         GetTxStatus::Out out;
-        const auto result = get_status_for_txid_v1(view, seqno, out.status);
+        const auto result =
+          get_status_for_txid_v1(tx_id->view, tx_id->seqno, out.status);
         if (result == ccf::ApiResult::OK)
         {
-          out.view = view;
-          out.seqno = seqno;
+          out.transaction_id = tx_id.value();
           return make_success(out);
         }
         else
@@ -130,8 +146,7 @@ namespace ccf
       make_command_endpoint(
         "tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
         .set_auto_schema<void, GetTxStatus::Out>()
-        .add_query_parameter<kv::Consensus::View>("view")
-        .add_query_parameter<kv::Consensus::SeqNo>("seqno")
+        .add_query_parameter<ccf::TxID>(tx_id_param_key)
         .install();
 
       make_command_endpoint(
@@ -140,8 +155,7 @@ namespace ccf
         json_command_adapter(get_tx_status),
         no_auth_required)
         .set_auto_schema<void, GetTxStatus::Out>()
-        .add_query_parameter<kv::Consensus::View>("view")
-        .add_query_parameter<kv::Consensus::SeqNo>("seqno")
+        .add_query_parameter<ccf::TxID>(tx_id_param_key)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
@@ -258,7 +272,7 @@ namespace ccf
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, GetReceipt::Out>()
-        .add_query_parameter<ccf::TxID>("transaction_id")
+        .add_query_parameter<ccf::TxID>(tx_id_param_key)
         .install();
     }
   };
