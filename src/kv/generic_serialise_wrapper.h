@@ -64,18 +64,6 @@ namespace kv
       current_writer->append(t);
     }
 
-    // template <typename T>
-    // void serialise_internal_vector(const std::vector<T>& t)
-    // {
-    //   current_writer->append_vector(t);
-    // }
-
-    // template <typename T>
-    // void serialise_internal(const T& raw)
-    // {
-    //   current_writer->template append_pre_serialised<T>(raw);
-    // }
-
     void set_current_domain(SecurityDomain domain)
     {
       switch (domain)
@@ -119,7 +107,9 @@ namespace kv
       }
 
       if (domain != current_domain)
+      {
         set_current_domain(domain);
+      }
 
       serialise_internal(KvOperationType::KOT_MAP_START_INDICATOR);
       serialise_internal(name);
@@ -132,8 +122,6 @@ namespace kv
 
     void serialise_view_history(const std::vector<Version>& view_history)
     {
-      // serialise_internal_vector(view_history);
-      LOG_FAIL_FMT("Serialise view history");
       serialise_internal(view_history);
     }
 
