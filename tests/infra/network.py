@@ -470,11 +470,10 @@ class Network:
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         """
-        primary, _ = self.find_primary()
-        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
-        self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
-        self.consortium.transition_service_to_open(primary)
-        self.consortium.recover_with_shares(primary)
+        self.consortium.check_for_service(self.find_random_node(), status=ServiceStatus.OPENING)
+        self.consortium.wait_for_all_nodes_to_be_trusted(self.find_random_node(), self.nodes)
+        self.consortium.transition_service_to_open(self.find_random_node())
+        self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
             self.wait_for_state(
@@ -484,7 +483,7 @@ class Network:
             )
             self._wait_for_app_open(node)
 
-        self.consortium.check_for_service(primary, ServiceStatus.OPEN)
+        self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
