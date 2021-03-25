@@ -18,7 +18,7 @@ namespace crypto
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem)
   {
-    Unique_BIO mem(pem.data(), -1);
+    Unique_BIO mem(pem);
     key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
     if (!key || !EVP_PKEY_get0_RSA(key))
     {

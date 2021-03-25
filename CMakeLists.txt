@@ -65,12 +65,15 @@ option(BUILD_TPCC "Build TPPC sample app and clients" ON)
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
 
+set(CCF_IMPL_SOURCE
+    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
+    ${CCF_DIR}/src/js/wrap.cpp
+)
+
 if("sgx" IN_LIST COMPILE_TARGETS)
   # enclave version
   add_library(
-    ccf.enclave STATIC
-    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/js/wrap.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_GENERATED_DIR}/ccf_t.cpp
+    ccf.enclave STATIC ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
   target_compile_definitions(
@@ -82,9 +85,13 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_include_directories(
     ccf.enclave SYSTEM
-    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-           $<INSTALL_INTERFACE:include/ccf/>
-           $<INSTALL_INTERFACE:include/3rdparty/>
+    PUBLIC
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+                                        #< which are currently under src, and
+                                        #< should be removed or renamed
+      $<INSTALL_INTERFACE:include/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -97,6 +104,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            aft.enclave
            sss.enclave
+           ccf_endpoints.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -116,11 +124,7 @@ endif()
 
 if("virtual" IN_LIST COMPILE_TARGETS)
   # virtual version
-  add_library(
-    ccf.virtual STATIC
-    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/js/wrap.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp
-  )
+  add_library(ccf.virtual STATIC ${CCF_IMPL_SOURCE})
 
   target_compile_definitions(
     ccf.virtual PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
@@ -132,9 +136,13 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   target_include_directories(
     ccf.virtual SYSTEM
-    PUBLIC $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-           $<INSTALL_INTERFACE:include/ccf/>
-           $<INSTALL_INTERFACE:include/3rdparty/>
+    PUBLIC
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
+                                        #< which are currently under src, and
+                                        #< should be removed or renamed
+      $<INSTALL_INTERFACE:include/>
+      $<INSTALL_INTERFACE:include/3rdparty/>
   )
 
   target_link_libraries(
@@ -147,6 +155,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            quickjs.host
            aft.virtual
            sss.host
+           ccf_endpoints.host
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -154,7 +163,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_san(ccf.virtual)
-  add_lvi_mitigations(ccf.virtual)
 
   install(
     TARGETS ccf.virtual
@@ -171,14 +179,26 @@ install(
   FILE ccf-targets.cmake
 )
 
-# Install all 3rd-party library includes
-install(
-  DIRECTORY 3rdparty
-  DESTINATION include
-  FILES_MATCHING
-  PATTERN "*.h"
-  PATTERN "*.hpp"
-)
+# Install selected 3rd-party library includes
+function(install_3rdparty name)
+  install(
+    DIRECTORY 3rdparty/${name}
+    DESTINATION include/3rdparty
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*.hpp"
+  )
+endfunction()
+install_3rdparty(backward-cpp)
+install_3rdparty(fmt)
+install_3rdparty(llhttp)
+install_3rdparty(merklecpp)
+install_3rdparty(msgpack)
+install_3rdparty(nlohmann)
+install_3rdparty(quickjs)
+install_3rdparty(small_vector)
+install_3rdparty(snmalloc)
+install_3rdparty(sss)
 
 # Install all CCF headers
 install(
@@ -376,7 +396,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host
-                            sss.host quickjs.host
+                            sss.host ccf_endpoints.host quickjs.host
     )
 
     add_unit_test(
@@ -389,8 +409,9 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
     )
     target_link_libraries(
-      member_voting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                                 http_parser.host sss.host quickjs.host
+      member_voting_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host sss.host
+              ccf_endpoints.host quickjs.host
     )
 
     set_tests_properties(
@@ -404,8 +425,9 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
     )
     target_link_libraries(
-      proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                               http_parser.host sss.host quickjs.host
+      proposal_id_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host sss.host
+              ccf_endpoints.host quickjs.host
     )
 
     add_unit_test(
@@ -414,7 +436,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                                 http_parser.host sss.host
+                                 http_parser.host sss.host ccf_endpoints.host
     )
 
     add_unit_test(

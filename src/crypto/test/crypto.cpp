@@ -335,6 +335,38 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
   }
 }
 
+TEST_CASE("RSA-OAEP mbedTLS vs OpenSSL")
+{
+  std::vector<uint8_t> input = create_entropy()->random(32);
+
+  size_t key_sz = 2048;
+
+  auto kp_mbed = std::make_shared<RSAKeyPair_mbedTLS>(key_sz);
+  auto pk_mbed =
+    std::make_shared<RSAPublicKey_mbedTLS>(kp_mbed->public_key_pem());
+
+  auto kp_ossl =
+    std::make_shared<RSAKeyPair_OpenSSL>(kp_mbed->private_key_pem());
+  auto pk_ossl =
+    std::make_shared<RSAPublicKey_OpenSSL>(pk_mbed->public_key_pem());
+
+  INFO("mbedTLS -> OpenSSL");
+  {
+    auto wrapped = pk_mbed->rsa_oaep_wrap(input);
+    REQUIRE(wrapped.size() == key_sz / 8);
+    auto unwrapped = kp_ossl->rsa_oaep_unwrap(wrapped);
+    REQUIRE(input == unwrapped);
+  }
+
+  INFO("OpenSSL -> mbedTLS");
+  {
+    auto wrapped = pk_ossl->rsa_oaep_wrap(input);
+    REQUIRE(wrapped.size() == key_sz / 8);
+    auto unwrapped = kp_mbed->rsa_oaep_unwrap(wrapped);
+    REQUIRE(input == unwrapped);
+  }
+}
+
 TEST_CASE("Extract public key from cert")
 {
   for (const auto curve : supported_curves)

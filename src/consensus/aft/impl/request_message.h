@@ -13,8 +13,7 @@
 namespace aft
 {
 // Request messages have the following format.
-#pragma pack(push)
-#pragma pack(1)
+#pragma pack(push, 1)
   struct RequestMessageRep : public consensus::ConsensusHeader<RaftMsgType>
   {
     RequestMessageRep() = default;
