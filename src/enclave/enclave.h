@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "app_interface.h"
+#include "ccf/app_interface.h"
 #include "crypto/hash.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
@@ -13,6 +13,7 @@
 #include "node/node_state.h"
 #include "node/node_types.h"
 #include "node/rpc/forwarder.h"
+#include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
@@ -42,16 +43,15 @@ namespace enclave
 
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
-      ccf::historical::StateCache historical_state_cache;
+      std::unique_ptr<ccf::historical::StateCache> historical_state_cache =
+        nullptr;
       ccf::AbstractNodeState* node_state = nullptr;
 
-      NodeContext(ccf::historical::StateCache&& hsc) :
-        historical_state_cache(std::move(hsc))
-      {}
+      NodeContext() {}
 
       ccf::historical::AbstractStateCache& get_historical_state() override
       {
-        return historical_state_cache;
+        return *historical_state_cache;
       }
 
       ccf::AbstractNodeState& get_node_state() override
@@ -109,10 +109,12 @@ namespace enclave
       node = std::make_unique<ccf::NodeState>(
         writer_factory, network, rpcsessions, share_manager, curve_id);
 
-      context = std::make_unique<NodeContext>(ccf::historical::StateCache(
-        *network.tables,
-        network.ledger_secrets,
-        writer_factory.create_writer_to_outside()));
+      context = std::make_unique<NodeContext>();
+      context->historical_state_cache =
+        std::make_unique<ccf::historical::StateCache>(
+          *network.tables,
+          network.ledger_secrets,
+          writer_factory.create_writer_to_outside());
       context->node_state = node.get();
 
       rpc_map->register_frontend<ccf::ActorsType::members>(
@@ -250,7 +252,7 @@ namespace enclave
               last_tick_time = time_now;
 
               node->tick(elapsed_ms);
-              context->historical_state_cache.tick(elapsed_ms);
+              context->historical_state_cache->tick(elapsed_ms);
               threading::ThreadMessaging::thread_messaging.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
@@ -315,7 +317,7 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context->historical_state_cache.handle_ledger_entry(
+                context->historical_state_cache->handle_ledger_entry(
                   index, body);
                 break;
               }
@@ -348,7 +350,7 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                context->historical_state_cache.handle_no_entry(index);
+                context->historical_state_cache->handle_no_entry(index);
                 break;
               }
               default:

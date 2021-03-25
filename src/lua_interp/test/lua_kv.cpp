@@ -3,10 +3,12 @@
 #include "../lua_kv.h"
 
 #include "../lua_interp.h"
+#include "ccf/app_interface.h"
 #include "ds/hash.h"
 #include "ds/logger.h"
-#include "enclave/app_interface.h"
 #include "kv/kv_serialiser.h"
+#include "kv/map.h"
+#include "kv/store.h"
 
 #include <doctest/doctest.h>
 

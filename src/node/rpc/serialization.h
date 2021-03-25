@@ -98,17 +98,6 @@ namespace ccf
   DECLARE_JSON_TYPE(EndpointMetrics::Out)
   DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Out, metrics)
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetReceipt::Element)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-  DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::Element);
-#pragma clang diagnostic pop
-  DECLARE_JSON_OPTIONAL_FIELDS(GetReceipt::Element, left, right)
-  DECLARE_JSON_TYPE(GetReceipt::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    GetReceipt::Out, signature, root, proof, leaf, node_id)
-
   DECLARE_JSON_TYPE(VerifyReceipt::In)
   DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::In, receipt)
   DECLARE_JSON_TYPE(VerifyReceipt::Out)
