@@ -4,6 +4,7 @@
 
 #include "ds/json.h"
 #include "entities.h"
+#include "proposals.h"
 #include "kv/map.h"
 
 namespace ccf
@@ -15,10 +16,11 @@ namespace ccf
     struct ProposalInfo
     {
       ccf::MemberId proposer_id;
+      ccf::ProposalState state;
       std::unordered_map<ccf::MemberId, std::string> ballots = {};
     };
     DECLARE_JSON_TYPE(ProposalInfo)
-    DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposer_id, ballots);
+    DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposer_id, state, ballots);
 
     using ProposalMap = kv::RawCopySerialisedMap<ProposalId, Proposal>;
     using ProposalInfoMap = kv::MapSerialisedWith<

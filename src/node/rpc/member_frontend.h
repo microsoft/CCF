@@ -2261,7 +2261,7 @@ namespace ccf
 
           auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
             "public:ccf.gov.proposals_info.js");
-          pi->put(proposal_id, {caller_identity.member_id, {}});
+          pi->put(proposal_id, {caller_identity.member_id, ccf::ProposalState::OPEN, {}});
 
           record_voting_history(
             ctx.tx, caller_identity.member_id, caller_identity.signed_request);
