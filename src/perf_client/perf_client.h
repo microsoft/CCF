@@ -556,8 +556,7 @@ namespace client
       size_t seqno)
     {
       nlohmann::json p;
-      p["seqno"] = seqno;
-      p["view"] = view;
+      p["transaction_id"] = fmt::format("{}.{}", view, seqno);
       return connection->get("tx", p);
     }
 

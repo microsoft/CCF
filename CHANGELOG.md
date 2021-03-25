@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Retired members are now deleted from the store, instead of being marked as `Retired` (#1401).
 - `retire_member` proposal has been renamed to `remove_member` and is now idempotent (i.e. succeeds even if the member was already removed) (#1401).
 - `accept_recovery` and `open_network` proposals have been merged into a single idempotent `transition_service_to_open` proposal (#1791).
+- The `/tx` endpoint now takes a single `transaction_id` query parameter. For example, rather than calling `/node/tx?view=2&seqno=42`, call `/node/tx?transaction_id=2.42`.
+- The `/commit` endpoint now returns a response with a single `transaction_id` rather than separate `view` and `seqno` fields.
 - `UserRpcFrontend` has been removed, and the return value of `get_rpc_handler` which apps should construct is now simply a `ccf::RpcFrontend`.
 - There is now a distinction between public and private headers. The public headers under `include/ccf` are those we expect apps to use, and others are implementation details which may change/be deprecated/be hidden in future. Most apps should now be including `"ccf/app_interface.h"` and `"ccf/common_endpoint_registry.h"`.
 - Various endpoint-related types have moved under the `ccf::endpoints` namespace. Apps will need to rename these types where they are not using `auto`, for instance to `ccf::endpoints::EndpointContext` and `ccf::endpoints::ForwardingRequired`.

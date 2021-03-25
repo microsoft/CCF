@@ -119,11 +119,15 @@ namespace nobuiltins
         .install();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
-        ccf::GetCommit::Out out;
-        const auto result = get_last_committed_txid_v1(out.view, out.seqno);
+        kv::Consensus::View view;
+        kv::Consensus::SeqNo seqno;
+        const auto result = get_last_committed_txid_v1(view, seqno);
 
         if (result == ccf::ApiResult::OK)
         {
+          ccf::GetCommit::Out out;
+          out.transaction_id.view = view;
+          out.transaction_id.seqno = seqno;
           return ccf::make_success(out);
         }
         else

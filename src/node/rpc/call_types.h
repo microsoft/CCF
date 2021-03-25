@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
 #include "ccf/receipt.h"
+#include "ccf/tx_id.h"
 #include "ds/json_schema.h"
 #include "kv/kv_types.h"
 #include "node/code_id.h"
@@ -20,8 +22,7 @@ namespace ccf
   {
     struct Out
     {
-      kv::Consensus::View view;
-      kv::Consensus::SeqNo seqno;
+      ccf::TxID transaction_id;
     };
   };
 
@@ -29,8 +30,7 @@ namespace ccf
   {
     struct Out
     {
-      kv::Consensus::View view;
-      kv::Consensus::SeqNo seqno;
+      ccf::TxID transaction_id;
       TxStatus status;
     };
   };

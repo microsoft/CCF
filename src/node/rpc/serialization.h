@@ -63,10 +63,10 @@ namespace ccf
     configuration)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, view, seqno)
+  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, transaction_id)
 
   DECLARE_JSON_TYPE(GetTxStatus::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, view, seqno, status)
+  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, transaction_id, status)
 
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(

@@ -13,7 +13,7 @@ from loguru import logger as LOG
 def wait_for_pending(client, view, seqno, timeout=3):
     end_time = time.time() + timeout
     while time.time() < end_time:
-        r = client.get(f"/node/tx?view={view}&seqno={seqno}")
+        r = client.get(f"/node/tx?transaction_id={view}.{seqno}")
         assert (
             r.status_code == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status_code}"
