@@ -5,7 +5,7 @@ import time
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
-from ccf.clients import CCFConnectionException, flush_info
+from ccf.clients import CCFConnectionException, flush_info, parse_tx_id
 import infra.path
 import infra.proc
 import infra.node
