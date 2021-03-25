@@ -24,7 +24,7 @@ namespace ccf
   using GcmHdr = crypto::GcmHeader<sizeof(SeqNo)>;
 
 #ifndef NDEBUG
-  static constexpr size_t message_limit = 25;
+  static constexpr size_t message_limit = 2048;
 #else
   // 2**24.5 as per RFC8446 Section 5.5
   static constexpr size_t message_limit = 23726566;
