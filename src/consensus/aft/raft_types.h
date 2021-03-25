@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/entity_id.h"
 #include "consensus/consensus_types.h"
 #include "crypto/hash.h"
 #include "ds/ring_buffer_types.h"
@@ -9,7 +10,6 @@
 #include "enclave/rpc_handler.h"
 #include "kv/kv_types.h"
 #include "mbedtls/ecdsa.h"
-#include "node/entity_id.h"
 #include "node/progress_tracker.h"
 
 #include <array>

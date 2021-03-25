@@ -207,21 +207,6 @@ namespace histogram
         count[i] += that.count[i];
     }
 
-    void print(std::stringstream& ss)
-    {
-      ss << "\tLow: " << low << std::endl
-         << "\tHigh: " << high << std::endl
-         << "\tUnderflow: " << underflow << std::endl
-         << "\tOverflow: " << underflow << std::endl;
-
-      for (size_t i = 0; i < BUCKETS; i++)
-      {
-        auto r = get_range(i);
-        ss << "\t" << std::get<0>(r) << ".." << std::get<1>(r) << ": "
-           << count[i] << std::endl;
-      }
-    }
-
     std::map<std::pair<size_t, size_t>, size_t> get_range_count()
     {
       std::map<std::pair<size_t, size_t>, size_t> range_counts;
@@ -288,22 +273,6 @@ namespace histogram
       std::lock_guard<std::mutex> lock(m);
       histogram.next = head;
       head = &histogram;
-    }
-
-    void print()
-    {
-      std::lock_guard<std::mutex> lock(m);
-      std::stringstream ss;
-      H* p = head;
-
-      ss << name << ": " << file << ":" << line << ":" << std::endl;
-
-      while (p != nullptr)
-      {
-        p->print(ss);
-        p = p->next;
-      }
-      std::cout << ss.str() << std::endl;
     }
   };
 

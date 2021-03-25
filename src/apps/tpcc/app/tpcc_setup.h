@@ -14,7 +14,7 @@ namespace tpcc
   class SetupDb
   {
   private:
-    ccf::EndpointContext& args;
+    ccf::endpoints::EndpointContext& args;
     bool already_run;
     int32_t new_orders_per_district;
     std::mt19937 rand_generator;
@@ -467,7 +467,7 @@ namespace tpcc
 
   public:
     SetupDb(
-      ccf::EndpointContext& args_,
+      ccf::endpoints::EndpointContext& args_,
       int32_t new_orders_per_district_,
       uint32_t seed) :
       args(args_),

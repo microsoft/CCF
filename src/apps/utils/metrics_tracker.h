@@ -2,9 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "endpoint_registry.h"
-#include "json_handler.h"
-#include "metrics.h"
+#include "apps/utils/metrics.h"
+#include "ccf/common_auth_policies.h"
+#include "ccf/endpoint_registry.h"
+#include "node/rpc/json_handler.h"
 
 namespace metrics
 {
@@ -14,7 +15,7 @@ namespace metrics
     metrics::Metrics metrics;
 
   public:
-    ccf::CommandEndpointFunction get_endpoint_handler()
+    ccf::endpoints::CommandEndpointFunction get_endpoint_handler()
     {
       auto get_metrics = [this](auto&, nlohmann::json&&) {
         auto result = metrics.get_metrics_report();
@@ -24,7 +25,7 @@ namespace metrics
       return ccf::json_command_adapter(get_metrics);
     }
 
-    void install_endpoint(ccf::EndpointRegistry& reg)
+    void install_endpoint(ccf::endpoints::EndpointRegistry& reg)
     {
       reg
         .make_command_endpoint(
@@ -35,10 +36,9 @@ namespace metrics
         .install();
     }
 
-    void tick(
-      std::chrono::milliseconds elapsed, kv::Consensus::Statistics stats)
+    void tick(std::chrono::milliseconds elapsed, size_t tx_count)
     {
-      metrics.track_tx_rates(elapsed, stats);
+      metrics.track_tx_rates(elapsed, tx_count);
     }
   };
 }
