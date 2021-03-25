@@ -98,11 +98,6 @@ in the CCF git repository.
 .. note::
     See the :ref:`tsoa-based app example <build_apps/js_app_tsoa:TypeScript Application using tsoa>` on how to generate OpenAPI definitions with TypeScript.
 
-.. warning::
-    CCF currently ignores all fields except ``"js_module"`` and ``"js_function"``.
-    This will be addressed in the near future, see
-    `#1460 <https://github.com/microsoft/CCF/issues/1460>`_ and `#1565 <https://github.com/microsoft/CCF/issues/1565>`_.
-
 JavaScript API
 --------------
 
@@ -113,9 +108,7 @@ JavaScript provides a set of built-in
 `global functions, objects, and values <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects>`_.
 
 CCF provides the additional global variable ``ccf`` to access native CCF functionality.
-It is an object implementing the ``CCF`` interface documented below.
-
-TODO
+It is an object implementing the :typedoc:interface:`CCF <ccf-app/global/CCF>` interface.
 
 .. note::
   `Web APIs <https://developer.mozilla.org/en-US/docs/Web/API>`_ are not available.
@@ -123,9 +116,7 @@ TODO
 Endpoint handlers
 ~~~~~~~~~~~~~~~~~
 
-An endpoint handler is an exported function that receives a ``Request`` object, returns a ``Response`` object, and is referenced in the ``app.json`` file of the app bundle (see above).
-
-TODO
+An endpoint handler is an exported function that receives a :typedoc:interface:`Request <ccf-app/endpoints/Request>` object, returns a :typedoc:interface:`Response <ccf-app/endpoints/Response>` object, and is referenced in the ``app.json`` file of the app bundle (see above).
 
 See the following handler from the example app bundle in the
 `tests/js-app-bundle <https://github.com/microsoft/CCF/tree/main/tests/js-app-bundle>`_

@@ -25,14 +25,11 @@ The sample app has the following folder layout:
     $ tree --dirsfirst npm-app
     npm-app
     ├── src
-    │   ├── endpoints
-    │   │   ├── all.ts
-    │   │   ├── crypto.ts
-    │   │   ├── partition.ts
-    │   │   └── proto.ts
-    │   └── ccf
-    │       ├── builtin.ts
-    │       └── util.ts
+    │   └── endpoints
+    │       ├── all.ts
+    │       ├── crypto.ts
+    │       ├── partition.ts
+    │       └── proto.ts
     ├── app.json
     ├── package.json
     ├── rollup.config.js
@@ -41,8 +38,6 @@ The sample app has the following folder layout:
 It contains these files:
 
 - ``src/endpoints/*.ts``: :ref:`build_apps/js_app_ts:Endpoint handlers`.
-- ``src/ccf/builtin.ts``: :ref:`build_apps/js_app_ts:Type definitions` for CCF objects.
-- ``src/ccf/util.ts``: Utilities for working with CCF's Key Value Store.
 - ``app.json``: :ref:`App metadata <build_apps/js_app_ts:Metadata>`.
 - ``package.json``: Dependencies and build command.
 - ``rollup.config.js``: Rollup configuration, see :ref:`build_apps/js_app_ts:Conversion to an app bundle` for more details.
@@ -64,6 +59,8 @@ An endpoint handler, here named ``abc``, has the following structure:
 
 .. code-block:: ts
 
+    import * as ccfapp from 'ccf-app';
+
     interface AbcRequest {
         ...
     }
@@ -72,7 +69,7 @@ An endpoint handler, here named ``abc``, has the following structure:
         ...
     }
 
-    export function abc(request: Request<AbcRequest>): Response<AbcResponse> {
+    export function abc(request: ccfapp.Request<AbcRequest>): ccfapp.Response<AbcResponse> {
         // access request details
         const data = request.body.json();
         
@@ -88,7 +85,7 @@ An endpoint handler, here named ``abc``, has the following structure:
     }
 
 ``AbcRequest`` and ``AbcResponse`` define the JSON schema of the request and response body, respectively.
-If an endpoint has no request or response body, the type parameters of :js:class:`Request`/:js:class:`Response` can be omitted.
+If an endpoint has no request or response body, the type parameters of :typedoc:interface:`ccfapp.Request <ccf-app/endpoints/Request>`/:typedoc:interface:`ccfapp.Response <ccf-app/endpoints/Response>` can be omitted.
 
 As an example, the ``/partition`` endpoint of the sample app is implemented as:
 
@@ -99,23 +96,15 @@ Here, the request body is a JSON array with elements of arbitrary type,
 and the response body is an even/odd partitioning of those elements as nested JSON array.
 The example also shows how an external library, here ``lodash``, is imported and used.
 
-See the :ref:`JavaScript API reference <build_apps/js_app_bundle:JavaScript API>` for more details on the request and response object fields.
-
-.. note::
+.. warning::
     Even though request body schemas can be defined as part of the OpenAPI :ref:`metadata <build_apps/js_app_ts:Metadata>`,
     CCF does not validate incoming request data against those schemas.
     It is up to the application to perform any necessary validation. 
 
-Type definitions
-----------------
+.. tip::
+    See the :typedoc:package:`ccf-app` package API documentation for how to access the Key-Value Store and other CCF functionality.
+    Although not recommended, instead of using the :typedoc:package:`ccf-app` package, all native CCF functionality can also be directly accessed through the :typedoc:interface:`ccf <ccf-app/global/CCF>` global variable.
 
-CCF currently does not provide an npm package with TypeScript definitions
-for :ref:`CCF's JavaScript API <build_apps/js_app_bundle:JavaScript API>`.
-
-Instead, the definitions are part of the sample app in
-`src/ccf/builtin.ts <https://github.com/microsoft/CCF/tree/main/tests/npm-app/src/ccf/builtin.ts>`_.
-See `src/endpoints <https://github.com/microsoft/CCF/tree/main/tests/npm-app/src/endpoints>`_
-on how the types can be imported and used.
 
 Metadata
 --------

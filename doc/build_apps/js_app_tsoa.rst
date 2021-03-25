@@ -41,9 +41,6 @@ The sample app has the following folder layout:
     │   │   └── site.ts
     │   ├── models
     │   │   └── poll.ts
-    │   ├── ccf
-    │   │   ├── builtin.ts
-    │   │   └── util.ts
     │   ├── authentication.ts
     │   └── error_handler.ts
     ├── tsoa-support
@@ -60,8 +57,6 @@ It contains these files:
 
 - ``src/controllers/*.ts``: :ref:`build_apps/js_app_tsoa:Controllers`.
 - ``src/models/*.ts``: Data models shared between endpoint handlers.
-- ``src/ccf/builtin.ts``: :ref:`build_apps/js_app_tsoa:Type definitions` for CCF objects.
-- ``src/ccf/util.ts``: Utilities for working with CCF's Key Value Store.
 - ``src/authentication.ts``: `authentication module <https://tsoa-community.github.io/docs/authentication.html>`_. 
   See also :ref:`build_apps/auth/jwt_ms_example:JWT Authentication example using Microsoft Identity Platform`.
 - ``src/error_handler.ts``: global error handler.
@@ -105,25 +100,23 @@ see the `tsoa documentation <https://tsoa-community.github.io/docs/getting-start
    :ref:`Endpoint handler functions <build_apps/js_app_bundle:Endpoint handlers>`, as required by CCF's JavaScript app bundles,
    are auto-generated from controllers during the :ref:`conversion to an app bundle <build_apps/js_app_tsoa:Conversion to an app bundle>`.
 
-Type Definitions
-----------------
+.. tip::
+    See the :typedoc:package:`ccf-app` package API documentation for how to access the Key-Value Store and other CCF functionality.
+    Although not recommended, instead of using the :typedoc:package:`ccf-app` package, all native CCF functionality can also be directly accessed through the :typedoc:interface:`ccf <ccf-app/global/CCF>` global variable.
 
-CCF currently does not provide an npm package with TypeScript definitions
-for :ref:`CCF's JavaScript API <build_apps/js_app_bundle:JavaScript API>`.
+Request / Response objects
+--------------------------
 
-Instead, the definitions are part of the sample app in
-`src/ccf/builtin.ts <https://github.com/microsoft/CCF/tree/samples/apps/forum/src/ccf/builtin.ts>`_.
-
-Using CCF's :js:class:`Response` object is not needed when using tsoa because the return value always has to be the body itself.
+Using CCF's :typedoc:interface:`Response <ccf-app/endpoints/Response>` object is not needed when using tsoa because the return value always has to be the body itself.
 Headers and the status code can be set using `Controller methods <https://tsoa-community.github.io/reference/classes/_tsoa_runtime.controller-1.html>`_.
 
-Sometimes though it is necessary to access CCF's :js:class:`Request` object, for example when the request body is not JSON.
-In this case, instead of using ``@Body() body: MyType`` as function argument, ``@Request() request: CCF.Request`` can be used.
+Sometimes though it is necessary to access CCF's :typedoc:interface:`Request <ccf-app/endpoints/Request>` object, for example when the request body is not JSON.
+In this case, instead of using ``@Body() body: MyType`` as function argument, ``@Request() request: ccfapp.Request`` can be used.
 See `src/controllers/csv.ts <https://github.com/microsoft/CCF/tree/main/samples/apps/forum/src/controllers/csv.ts>`_
 for a concrete example.
 
 .. warning::
-    Requesting CCF's :js:class:`Request` object via ``@Request()`` instead of using ``@Body()`` disables automatic schema validation.
+    Requesting CCF's :typedoc:interface:`Request <ccf-app/endpoints/Request>` object via ``@Request()`` instead of using ``@Body()`` disables automatic schema validation.
 
 Metadata
 --------

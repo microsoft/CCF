@@ -239,6 +239,7 @@ jsdoc_config_path = "../src/js/tsconfig.json"
 def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]):
     """
     Supported syntaxes:
+    :typedoc:package:`ccf-app`
     :typedoc:module:`ccf-app/global`
     :typedoc:function:`ccf-app/crypto#wrapKey`
     :typedoc:interface:`ccf-app/endpoints/Body`
@@ -261,7 +262,10 @@ def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}
     # translate role kind into typedoc subfolder
     # and add '()' for functions/methods
     kind_name = name.replace('typedoc:', '')
-    if kind_name in ['module', 'interface']:
+    is_kind_package = False
+    if kind_name == 'package':
+        is_kind_package = True
+    elif kind_name in ['module', 'interface']:
         kind_name += 's'
     elif kind_name == 'class':
         kind_name += 'es'
@@ -279,8 +283,10 @@ def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}
 
     # build typedoc url relative to doc root
     pkg_name, *element_path = text_without_hash.split('/')
-    element_path = '.'.join(element_path).lower()
-    typedoc_path = f'js/{pkg_name}/{kind_name}/{element_path}.html{url_hash}'
+    typedoc_path = f'js/{pkg_name}'
+    if not is_kind_package:
+        element_path = '.'.join(element_path).lower()
+        typedoc_path += f'/{kind_name}/{element_path}.html{url_hash}'
 
     # construct final url relative to current page
     source = inliner.document.attributes['source']
@@ -289,7 +295,7 @@ def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}
     refuri = '../' * levels + typedoc_path
 
     # build docutils node
-    text_node = nodes.literal(label, label, classes=['code'])
+    text_node = nodes.literal(label, label, classes=['xref'])
     ref_node = nodes.reference('', '', refuri=refuri)
     ref_node += text_node
     
@@ -320,7 +326,7 @@ def setup(app):
         subprocess.run(["npm", "run", "docs", "--", "--out", str(js_docs_dir)],
                        cwd=js_pkg_dir, check=True)    
         # allow to link to typedoc pages
-        for kind in ['module', 'interface', 'class', 'function',
+        for kind in ['package', 'module', 'interface', 'class', 'function',
                      'interfacemethod', 'classmethod']:
             app.add_role(f'typedoc:{kind}', typedoc_role)
 
