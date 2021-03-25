@@ -16,6 +16,10 @@
         }
 
         window.addEventListener("DOMContentLoaded",function(){
+            const backToCcfEl = document.getElementById("back-to-ccf-docs");
+            const titleEl = document.querySelector('.tsd-page-title>.container');
+            titleEl.prepend(backToCcfEl);
+
             const versionsEl = document.getElementById("versions-container");
             const navEl = document.querySelector("nav.tsd-navigation.primary>ul");
             navEl.prepend(versionsEl);
@@ -45,5 +49,9 @@
         {{/each}}
         </select>
     </li>
+
+    <h4 id="back-to-ccf-docs">
+        <a href="{{relativeURL "../.."}}">⮨ Back to CCF documentation</a>
+    </h4>
 {{/with}}
 {{/if}}
