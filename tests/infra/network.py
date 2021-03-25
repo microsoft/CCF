@@ -393,7 +393,7 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
-        self.consortium.activate(primary)
+        self.consortium.activate(self.find_node_by_role())
 
         if args.js_app_script:
             LOG.error(
@@ -403,21 +403,23 @@ class Network:
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()
             self.consortium.set_js_app(
-                remote_node=primary, app_script_path=args.js_app_script
+                remote_node=self.find_node_by_role(), app_script_path=args.js_app_script
             )
 
         if args.js_app_bundle:
             self.consortium.deploy_js_app(
-                remote_node=primary, app_bundle_path=args.js_app_bundle
+                remote_node=self.find_node_by_role(), app_bundle_path=args.js_app_bundle
             )
 
         for path in args.jwt_issuer:
-            self.consortium.set_jwt_issuer(remote_node=primary, json_path=path)
+            self.consortium.set_jwt_issuer(
+                remote_node=self.find_node_by_role(), json_path=path
+            )
 
-        self.consortium.add_users(primary, initial_users)
+        self.consortium.add_users(self.find_node_by_role(), initial_users)
         LOG.info(f"Initial set of users added: {len(initial_users)}")
 
-        self.consortium.transition_service_to_open(remote_node=primary)
+        self.consortium.transition_service_to_open(remote_node=self.find_node_by_role())
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
@@ -624,10 +626,13 @@ class Network:
         )
 
         primary, _ = self.find_primary()
+        target_node = self.find_node_by_role()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
-                    primary, new_node.node_id, timeout=ceil(args.join_timer * 2 / 1000)
+                    target_node,
+                    new_node.node_id,
+                    timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node
             # was added as pending. Only wait for the join timer for the
