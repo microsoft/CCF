@@ -30,6 +30,12 @@ namespace crypto
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature) override;
 
+    virtual bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* signature,
+      size_t signature_size) override;
+
     virtual std::vector<uint8_t> sign(
       CBuffer d, MDType md_type = {}) const override;
 

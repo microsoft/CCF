@@ -31,4 +31,18 @@ namespace crypto
   {
     return std::make_shared<ISha256OpenSSL>();
   }
+
+  std::vector<uint8_t> hkdf(
+    MDType md_type,
+    size_t length,
+    const std::vector<uint8_t>& ikm,
+    const std::vector<uint8_t>& salt,
+    const std::vector<uint8_t>& info)
+  {
+#if defined(CRYPTO_PROVIDER_IS_MBEDTLS)
+    return mbedtls::hkdf(md_type, length, ikm, salt, info);
+#else
+    return OpenSSL::hkdf(md_type, length, ikm, salt, info);
+#endif
+  }
 }
