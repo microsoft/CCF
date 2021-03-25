@@ -702,7 +702,8 @@ namespace tpcc
     }
 
   public:
-    TpccTransactions(ccf::endpoints::EndpointContext& args_, uint32_t seed) : args(args_)
+    TpccTransactions(ccf::endpoints::EndpointContext& args_, uint32_t seed) :
+      args(args_)
     {
       rand_generator.seed(seed);
     }
