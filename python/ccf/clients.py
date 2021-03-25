@@ -18,6 +18,7 @@ import struct
 import base64
 import re
 from typing import Union, Optional, List, Any
+from ccf.tx_id import TxID
 
 import requests
 from loguru import logger as LOG  # type: ignore
@@ -88,16 +89,6 @@ class Identity:
     cert: str
     #: Identity description
     description: str
-
-
-def parse_tx_id(s: Optional[str]):
-    try:
-        if s is not None:
-            view_s, seqno_s = s.split(".")
-            return int(view_s), int(seqno_s)
-    except (AttributeError, ValueError):
-        pass
-    return None, None
 
 
 class FakeSocket:
@@ -195,12 +186,12 @@ class Response:
 
     @staticmethod
     def from_requests_response(rr):
-        view, seqno = parse_tx_id(rr.headers.get(CCF_TX_ID_HEADER))
+        tx_id = TxID.from_str(rr.headers.get(CCF_TX_ID_HEADER))
         return Response(
             status_code=rr.status_code,
             body=RequestsResponseBody(rr),
-            seqno=seqno,
-            view=view,
+            seqno=tx_id.seqno,
+            view=tx_id.view,
             headers=rr.headers,
         )
 
@@ -221,12 +212,12 @@ class Response:
 
         raw_body = response.read()
 
-        view, seqno = parse_tx_id(response.getheader(CCF_TX_ID_HEADER))
+        tx_id = TxID.from_str(response.getheader(CCF_TX_ID_HEADER))
         return Response(
             response.status,
             body=RawResponseBody(raw_body),
-            seqno=seqno,
-            view=view,
+            seqno=tx_id.seqno,
+            view=tx_id.view,
             headers=response.headers,
         )
 
