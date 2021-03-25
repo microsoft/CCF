@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import json
 from statistics import mean, harmonic_mean, median, pstdev
-import ccf.clients
+from ccf.tx_id import TxID
 
 from loguru import logger as LOG
 
@@ -55,9 +55,9 @@ class TxRates:
     def process_next(self):
         with self.primary.client() as client:
             rv = client.get("/node/commit")
-            next_commit = ccf.clients.parse_tx_id(rv.body.json()["transaction_id"])[1]
-            more_to_process = self.commit != next_commit
-            self.commit = next_commit
+            tx_id = TxID.from_str(rv.body.json()["transaction_id"])
+            more_to_process = self.commit != tx_id.seqno
+            self.commit = tx_id.seqno
 
             return more_to_process
 
