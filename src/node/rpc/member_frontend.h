@@ -2340,7 +2340,9 @@ namespace ccf
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .install();
 
-      auto vote_js = [this](endpoints::EndpointContext& ctx, nlohmann::json&& params) {
+      auto vote_js = [this](
+                       endpoints::EndpointContext& ctx,
+                       nlohmann::json&& params) {
         const auto& caller_identity =
           ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
         if (!check_member_active(ctx.tx, caller_identity.member_id))
