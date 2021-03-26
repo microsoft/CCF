@@ -66,9 +66,7 @@ namespace kv
 
     bool committed = false;
     bool success = false;
-    // TODO: NoVersion is a valid version to read from (for the first
-    // transaction), so we need an additional value to track when the
-    // read_version is unset
+
     std::optional<Version> read_version = std::nullopt;
     Version version = NoVersion;
     Version max_conflict_version = NoVersion;

@@ -29,7 +29,6 @@ namespace ccf
   // ephemeral.
   using SeqNo = uint64_t;
 
-  // TODO: This is a change! Became 0, which doesn't look so invalid!
   // No transactions occur in View 0.
   constexpr View VIEW_UNKNOWN = 0;
 

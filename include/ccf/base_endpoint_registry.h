@@ -81,9 +81,6 @@ namespace ccf
     BaseEndpointRegistry(
       const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_);
 
-    // TODO: Changed the API of all of these functions! Just signed->unsigned...
-    // do we need to support the old yet?
-
     /** Get the status of a transaction by ID, provided as a view+seqno pair.
      * This is a node-local property - while it will converge on all nodes in
      * a healthy network, it is derived from distributed state rather than
