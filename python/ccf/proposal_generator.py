@@ -383,14 +383,12 @@ def retire_node(node_id: str, **kwargs):
 
 @cli_proposal
 def new_node_code(code_digest: str, **kwargs):
-    code_digest_bytes = list(bytearray.fromhex(code_digest))
-    return build_proposal("new_node_code", code_digest_bytes, **kwargs)
+    return build_proposal("new_node_code", code_digest, **kwargs)
 
 
 @cli_proposal
 def retire_node_code(code_digest: str, **kwargs):
-    code_digest_bytes = list(bytearray.fromhex(code_digest))
-    return build_proposal("retire_node_code", code_digest_bytes, **kwargs)
+    return build_proposal("retire_node_code", code_digest, **kwargs)
 
 
 @cli_proposal
