@@ -6,14 +6,14 @@
  * Direct access of this module or the {@linkcode ccf} variable is
  * typically not needed as all of its functionality is exposed
  * via other, often more high-level, modules.
- * 
+ *
  * Accessing the {@linkcode ccf} global in a type-safe way is done
  * as follows:
- * 
+ *
  * ```
  * import { ccf } from 'ccf-app/global';
  * ```
- * 
+ *
  * @module
  */
 
@@ -113,10 +113,10 @@ export interface HistoricalState {
 /**
  * [RSA-OAEP](https://datatracker.ietf.org/doc/html/rfc8017)
  * key wrapping with SHA-256 as digest function.
- * 
+ *
  * The `key` argument of {@link CCF.wrapKey} can be of
  * arbitrary content up to the maximum size supported
- * by the wrapping algorithm. 
+ * by the wrapping algorithm.
  * The `wrappingKey` argument must be a PEM-encoded RSA private key.
  */
 export interface RsaOaepParams {
@@ -130,7 +130,7 @@ export interface RsaOaepParams {
 
 /**
  * [AES key wrapping with padding](https://tools.ietf.org/html/rfc5649).
- * 
+ *
  * The `key` argument of {@link CCF.wrapKey} can be of
  * arbitrary content.
  * The `wrappingKey` argument must be an AES key.
@@ -142,7 +142,7 @@ export interface AesKwpParams {
 /**
  * [RSA AES key wrapping](http://docs.oasis-open.org/pkcs11/pkcs11-curr/v2.40/cos01/pkcs11-curr-v2.40-cos01.html#_Toc370634387)
  * with SHA-256 as digest function.
- * 
+ *
  * The `key` argument of {@link CCF.wrapKey} can be of
  * arbitrary content.
  * The `wrappingKey` argument must be a PEM-encoded RSA private key.
@@ -152,7 +152,7 @@ export interface RsaOaepAesKwpParams {
 
   /**
    * Size of the temporary AES key in bits.
-   */  
+   */
   aesKeySize: number;
 
   /**

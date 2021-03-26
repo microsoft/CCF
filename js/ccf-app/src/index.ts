@@ -11,7 +11,7 @@
  * ```
  * import * as ccfapp from 'ccf-app';
  * ```
- * 
+ *
  * @module ROOT
  */
 

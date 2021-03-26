@@ -4,10 +4,10 @@
 /**
  * This module provides access to the historical state
  * in historic endpoints, corresponding to a specific transaction.
- * 
+ *
  * Note that the Key-Value Store also reflects the historic state
  * and can be accessed through the {@linkcode kv} module as usual.
- * 
+ *
  * @module
  */
 

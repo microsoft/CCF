@@ -1,14 +1,14 @@
 {
-    "1": {
-        "name": "main",
-        "source": "branches"
-    },
-    "2": {
-        "name": "ccf-0.19.1",
-        "source": "tags"
-    },
-    "3": {
-        "name": "ccf-0.19.2",
-        "source": "tags"
-    }
+  "1": {
+    "name": "main",
+    "source": "branches"
+  },
+  "2": {
+    "name": "ccf-0.19.1",
+    "source": "tags"
+  },
+  "3": {
+    "name": "ccf-0.19.2",
+    "source": "tags"
+  }
 }

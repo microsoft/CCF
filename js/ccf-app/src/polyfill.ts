@@ -9,10 +9,10 @@
  * ```
  * import 'ccf-app/polyfills';
  * ```
- * 
+ *
  * Note that some functionality is not polyfilled,
  * for example historic state (for historical endpoints).
- * 
+ *
  * @module
  */
 

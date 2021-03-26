@@ -3,26 +3,26 @@
 
 /**
  * This module provides access to the Key-Value Store of CCF.
- * 
+ *
  * Example of using raw access:
  * ```
  * import * as ccfapp from 'ccf-app';
- * 
+ *
  * const foo = ccfapp.rawKv['foo'];
  * foo.set(
  *  ccfapp.string.encode("key-1"),
  *  ccfapp.json.encode({"prop1": 42})
- * ); 
+ * );
  * ```
- * 
+ *
  * Example of using typed access:
  * ```
  * import * as ccfapp from 'ccf-app';
- * 
+ *
  * const foo = ccfapp.typedKv('foo', ccfapp.string, ccfapp.json);
  * foo.set("key-1", {"prop1": 42});
  * ```
- * 
+ *
  * @module
  */
 
@@ -35,7 +35,7 @@ export class TypedKvMap<K, V> {
     private kt: DataConverter<K>,
     private vt: DataConverter<V>
   ) {}
-  
+
   has(key: K): boolean {
     return this.kv.has(this.kt.encode(key));
   }
@@ -73,9 +73,9 @@ export class TypedKvMap<K, V> {
  * where keys and values are automatically converted
  * to and from ``ArrayBuffer`` based on the given key
  * and value converters.
- * 
+ *
  * See the {@linkcode converters} module for available converters.
- * 
+ *
  * @param name The map name in the Key-Value Store.
  * @param kt The converter to use for map keys.
  * @param vt The converter to use for map values.

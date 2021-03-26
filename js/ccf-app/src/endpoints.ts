@@ -4,7 +4,7 @@
 /**
  * The `endpoints` module contains all types needed to handle
  * requests and responses in endpoint functions.
- * 
+ *
  * @module
  */
 
@@ -12,7 +12,7 @@ import { JsonCompatible } from "./global";
 
 /**
  * The body of a request.
- * 
+ *
  * @template T (Optional) The JSON type of the body.
  */
 export interface Body<T extends JsonCompatible<T> = any> {
@@ -34,7 +34,7 @@ export interface Body<T extends JsonCompatible<T> = any> {
 
 /**
  * The request, passed as argument to endpoint functions.
- * 
+ *
  * @template T (Optional) The JSON type of the body.
  */
 export interface Request<T extends JsonCompatible<T> = any> {
@@ -72,67 +72,69 @@ export interface AuthnIdentityCommon {
    * for use when multiple policies are listed in the endpoint
    * configuration of ``app.json``.
    */
-  policy: string
+  policy: string;
 }
 
 export interface EmptyAuthnIdentity extends AuthnIdentityCommon {
-  policy: 'no_auth'
+  policy: "no_auth";
 }
 
 interface UserMemberAuthnIdentityCommon extends AuthnIdentityCommon {
-   /** 
+  /**
    * User/member ID.
    */
-   id: string
+  id: string;
 
-   /**
-    * User/member data object.
-    */
-   data: any
- 
-   /**
-    * PEM-encoded user/member certificate.
-    */
-   cert: string
+  /**
+   * User/member data object.
+   */
+  data: any;
+
+  /**
+   * PEM-encoded user/member certificate.
+   */
+  cert: string;
 }
 
 export interface UserCertAuthnIdentity extends UserMemberAuthnIdentityCommon {
-  policy: 'user_cert'
+  policy: "user_cert";
 }
 
 export interface MemberCertAuthnIdentity extends UserMemberAuthnIdentityCommon {
-  policy: 'member_cert'
+  policy: "member_cert";
 }
 
-export interface UserSignatureAuthnIdentity extends UserMemberAuthnIdentityCommon {
-  policy: 'user_signature'
+export interface UserSignatureAuthnIdentity
+  extends UserMemberAuthnIdentityCommon {
+  policy: "user_signature";
 }
 
-export interface MemberSignatureAuthnIdentity extends UserMemberAuthnIdentityCommon {
-  policy: 'member_signature'
+export interface MemberSignatureAuthnIdentity
+  extends UserMemberAuthnIdentityCommon {
+  policy: "member_signature";
 }
 
 export interface JwtAuthnIdentity extends AuthnIdentityCommon {
-  policy: 'jwt'
+  policy: "jwt";
 
   /**
    * The issuer of the key that was used to validate the JWT signature.
-   * 
+   *
    * Note that the key issuer is not necessarily the same as the "iss"
    * claim in the JWT payload. Rather, it is the issuer used in the
    * ``set_jwt_issuer`` proposal.
    */
-  key_issuer: string
+  key_issuer: string;
 
   /**
    * The parsed JWT header.
    */
-  header: any
+  header: any;
 
   /**
    * The parsed JWT payload.
    */
-  payload: any
+  payload: any;
 }
 
 /**
@@ -140,18 +142,20 @@ export interface JwtAuthnIdentity extends AuthnIdentityCommon {
  * Each identity corresponds to a matching {@linkcode AuthnIdentityCommon.policy | policy}.
  * Policies have to be declared for each endpoint in ``app.json``.
  */
-export type AuthnIdentity = 
-  EmptyAuthnIdentity | 
-  UserCertAuthnIdentity | MemberCertAuthnIdentity |
-  UserSignatureAuthnIdentity | MemberSignatureAuthnIdentity |
-  JwtAuthnIdentity
+export type AuthnIdentity =
+  | EmptyAuthnIdentity
+  | UserCertAuthnIdentity
+  | MemberCertAuthnIdentity
+  | UserSignatureAuthnIdentity
+  | MemberSignatureAuthnIdentity
+  | JwtAuthnIdentity;
 
 /** See {@linkcode Response.body}. */
 export type ResponseBodyType<T> = string | ArrayBuffer | JsonCompatible<T>;
 
 /**
  * The response object returned from an endpoint function.
- * 
+ *
  * Example returning JSON:
  * ```
  * return {
@@ -160,7 +164,7 @@ export type ResponseBodyType<T> = string | ArrayBuffer | JsonCompatible<T>;
  *   }
  * };
  * ```
- * 
+ *
  * Example returning plaintext and custom headers and status code:
  * ```
  * return {
@@ -171,7 +175,7 @@ export type ResponseBodyType<T> = string | ArrayBuffer | JsonCompatible<T>;
  *   body: "nobody's home"
  * };
  * ```
- * 
+ *
  * See the property descriptions below for further details on
  * allowed data types, default headers, and default status codes.
  */
@@ -190,7 +194,7 @@ export interface Response<T extends ResponseBodyType<T> = any> {
 
   /**
    * The body of the response.
-   * 
+   *
    * Either
    * - a [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) (`text/plain`),
    * - an [ArrayBuffer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) (`application/octet-stream`),
@@ -206,10 +210,10 @@ export interface Response<T extends ResponseBodyType<T> = any> {
  * The type of an endpoint function.
  * This type definition is typically not directly used.
  * Endpoint functions are usually defined as follows:
- * 
+ *
  * ```
  * import * as ccfapp from 'ccf-app';
- * 
+ *
  * export function myEndpoint(request: ccfapp.Request): ccfapp.Response
  * { ... }
  * ```

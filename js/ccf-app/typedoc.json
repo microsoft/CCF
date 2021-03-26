@@ -1,16 +1,16 @@
 {
-    "entryPoints": [
-        "src/index.ts",
-        "src/converters.ts",
-        "src/crypto.ts",
-        "src/endpoints.ts",
-        "src/global.ts",
-        "src/historical.ts",
-        "src/kv.ts",
-        "src/polyfill.ts"
-    ],
-    "out": "html",
-    "theme": "./doc/theme",
-    "categorizeByGroup": false,
-    "listInvalidSymbolLinks": true
+  "entryPoints": [
+    "src/index.ts",
+    "src/converters.ts",
+    "src/crypto.ts",
+    "src/endpoints.ts",
+    "src/global.ts",
+    "src/historical.ts",
+    "src/kv.ts",
+    "src/polyfill.ts"
+  ],
+  "out": "html",
+  "theme": "./doc/theme",
+  "categorizeByGroup": false,
+  "listInvalidSymbolLinks": true
 }
