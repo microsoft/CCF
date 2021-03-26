@@ -200,12 +200,9 @@ TEST_CASE("Client/Server key exchange")
     REQUIRE(msgs[1].type == channel_msg);
     REQUIRE(read_outbound_msgs<MsgType>(eio2).size() == 0);
 
-#ifndef CRYPTO_PROVIDER_IS_MBEDTLS
+#ifndef DETERMINISTIC_ECDSA
     // Signing twice should have produced different signatures
     REQUIRE(msgs[0].unauthenticated_data() != msgs[1].unauthenticated_data());
-
-    // Note: mbedTLS seems to produce identical signatures (sometimes if not
-    // always). This may require investigation.
 #endif
 
     channel1_signed_key_share = msgs[0].unauthenticated_data();
