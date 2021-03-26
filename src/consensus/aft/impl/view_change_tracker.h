@@ -101,16 +101,14 @@ namespace aft
       return ResultAddView::OK;
     }
 
-    ccf::SeqNo write_view_change_confirmation_append_entry(
-      ccf::View view)
+    ccf::SeqNo write_view_change_confirmation_append_entry(ccf::View view)
     {
       ccf::ViewChangeConfirmation nv =
         create_view_change_confirmation_msg(view);
       return store->write_view_change_confirmation(nv);
     }
 
-    std::vector<uint8_t> get_serialized_view_change_confirmation(
-      ccf::View view)
+    std::vector<uint8_t> get_serialized_view_change_confirmation(ccf::View view)
     {
       ccf::ViewChangeConfirmation nv =
         create_view_change_confirmation_msg(view);

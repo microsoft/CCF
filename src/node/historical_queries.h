@@ -103,7 +103,8 @@ namespace ccf::historical
       // Entries from outside the requested range (such as the next signature)
       // may be needed to trust this range. They are stored here, distinct from
       // user-requested stores.
-      std::optional<std::pair<ccf::SeqNo, StoreDetailsPtr>> supporting_signature;
+      std::optional<std::pair<ccf::SeqNo, StoreDetailsPtr>>
+        supporting_signature;
 
       // Only set when recovering ledger secrets
       std::unique_ptr<LedgerSecretRecoveryInfo> ledger_secret_recovery_info =
@@ -662,8 +663,8 @@ namespace ccf::historical
 
       std::vector<StatePtr> trusted_states;
 
-      for (ccf::SeqNo seqno = start_seqno;
-           seqno <= static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
+      for (ccf::SeqNo seqno = start_seqno; seqno <=
+           static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
            ++seqno)
       {
         auto target_details = request.get_store_details(seqno);
@@ -777,7 +778,9 @@ namespace ccf::historical
     }
 
     std::vector<StorePtr> get_store_range(
-      RequestHandle handle, ccf::SeqNo start_seqno, ccf::SeqNo end_seqno) override
+      RequestHandle handle,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno) override
     {
       return get_store_range(
         handle, start_seqno, end_seqno, default_expiry_duration);

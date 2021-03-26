@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/tx_id.h"
 #include "ccf/receipt.h"
+#include "ccf/tx_id.h"
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
 #include "node/history.h"

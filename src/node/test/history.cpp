@@ -26,7 +26,7 @@ public:
 
   DummyConsensus(kv::Store* store_) : store(store_) {}
 
-  bool replicate(const kv::BatchVector& entries, View view) override
+  bool replicate(const kv::BatchVector& entries, ccf::View view) override
   {
     if (store)
     {
@@ -37,12 +37,12 @@ public:
     return true;
   }
 
-  std::pair<View, SeqNo> get_committed_txid() override
+  std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
   {
     return {2, 0};
   }
 
-  SeqNo get_committed_seqno() override
+  ccf::SeqNo get_committed_seqno() override
   {
     return 0;
   }
@@ -215,7 +215,7 @@ public:
 
   CompactingConsensus(kv::Store* store_) : store(store_) {}
 
-  bool replicate(const kv::BatchVector& entries, View view) override
+  bool replicate(const kv::BatchVector& entries, ccf::View view) override
   {
     for (auto& [version, data, committable, hooks] : entries)
     {
@@ -226,12 +226,12 @@ public:
     return true;
   }
 
-  std::pair<View, SeqNo> get_committed_txid() override
+  std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
   {
     return {2, 0};
   }
 
-  SeqNo get_committed_seqno() override
+  ccf::SeqNo get_committed_seqno() override
   {
     return 0;
   }
@@ -246,7 +246,7 @@ public:
     return kv::test::PrimaryNodeId;
   }
 
-  View get_view(kv::Version version) override
+  ccf::View get_view(kv::Version version) override
   {
     return 2;
   }
@@ -267,7 +267,7 @@ public:
 
   kv::PendingTxInfo call() override
   {
-    auto txr = store.create_reserved_tx(txid.version);
+    auto txr = store.create_reserved_tx(txid.seqno);
     auto txrv = txr.rw(other_table);
     txrv->put(0, 1);
     return txr.commit_reserved();
@@ -335,7 +335,7 @@ public:
     rollback_to(rollback_to_)
   {}
 
-  bool replicate(const kv::BatchVector& entries, View view) override
+  bool replicate(const kv::BatchVector& entries, ccf::View view) override
   {
     for (auto& [version, data, committable, hook] : entries)
     {
@@ -346,12 +346,12 @@ public:
     return true;
   }
 
-  std::pair<View, SeqNo> get_committed_txid() override
+  std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
   {
     return {2, 0};
   }
 
-  SeqNo get_committed_seqno() override
+  ccf::SeqNo get_committed_seqno() override
   {
     return 0;
   }
@@ -366,12 +366,12 @@ public:
     return kv::test::PrimaryNodeId;
   }
 
-  View get_view(SeqNo seqno) override
+  ccf::View get_view(ccf::SeqNo seqno) override
   {
     return 2;
   }
 
-  View get_view() override
+  ccf::View get_view() override
   {
     return 2;
   }

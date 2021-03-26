@@ -23,9 +23,7 @@ namespace ccf
     BackupSignatures() = default;
 
     BackupSignatures(
-      ccf::View view_,
-      ccf::SeqNo seqno_,
-      const crypto::Sha256Hash root_) :
+      ccf::View view_, ccf::SeqNo seqno_, const crypto::Sha256Hash root_) :
       view(view_),
       seqno(seqno_),
       root(root_)

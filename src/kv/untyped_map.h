@@ -126,8 +126,9 @@ namespace kv::untyped
               auto search = state.get(it->first);
               if (search.has_value())
               {
-                max_conflict_version =
-                  std::max(max_conflict_version, static_cast<kv::Version>(abs(search->version)));
+                max_conflict_version = std::max(
+                  max_conflict_version,
+                  static_cast<kv::Version>(abs(search->version)));
               }
               else
               {
@@ -194,8 +195,9 @@ namespace kv::untyped
           {
             if (search.has_value() && max_conflict_version != kv::NoVersion)
             {
-              max_conflict_version =
-                std::max(max_conflict_version, static_cast<kv::Version>(abs(search->version)));
+              max_conflict_version = std::max(
+                max_conflict_version,
+                static_cast<kv::Version>(abs(search->version)));
             }
             else
             {
@@ -213,8 +215,9 @@ namespace kv::untyped
             auto search = current->state.get(it->first);
             if (search.has_value() && max_conflict_version != kv::NoVersion)
             {
-              max_conflict_version =
-                std::max(max_conflict_version, static_cast<kv::Version>(abs(search->version)));
+              max_conflict_version = std::max(
+                max_conflict_version,
+                static_cast<kv::Version>(abs(search->version)));
               max_conflict_version =
                 std::max(max_conflict_version, search->read_version);
             }
@@ -257,8 +260,8 @@ namespace kv::untyped
             {
               continue;
             }
-            state =
-              state.put(it->first, VersionV{search->version, v_, search->value});
+            state = state.put(
+              it->first, VersionV{search->version, v_, search->value});
           }
           if (change_set.writes.empty())
           {

@@ -123,8 +123,7 @@ namespace aft
         hashes_without_requests_list.is_empty();
     }
 
-    void insert_signed_request(
-      ccf::SeqNo seqno, std::chrono::milliseconds time)
+    void insert_signed_request(ccf::SeqNo seqno, std::chrono::milliseconds time)
     {
       std::unique_lock<SpinLock> guard(lock);
       if (seqno > seqno_last_signature)

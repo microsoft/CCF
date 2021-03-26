@@ -74,8 +74,7 @@ namespace ccf
     std::map<NodeId, ViewChangeRequest> view_change_messages;
 
     ViewChangeConfirmation() = default;
-    ViewChangeConfirmation(
-      ccf::View view_, ccf::SeqNo seqno_) :
+    ViewChangeConfirmation(ccf::View view_, ccf::SeqNo seqno_) :
       view(view_),
       seqno(seqno_)
     {}

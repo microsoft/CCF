@@ -92,8 +92,7 @@ namespace aft
   }
 
   std::unique_ptr<aft::RequestMessage> ExecutorImpl::create_request_message(
-    const kv::TxHistory::RequestCallbackArgs& args,
-    ccf::SeqNo committed_seqno)
+    const kv::TxHistory::RequestCallbackArgs& args, ccf::SeqNo committed_seqno)
   {
     Request request = {
       args.rid, args.caller_cert, args.request, args.frame_format};

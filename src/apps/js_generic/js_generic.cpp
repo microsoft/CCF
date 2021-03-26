@@ -284,13 +284,11 @@ namespace ccfapp
         info.has_value() &&
         info.value().mode == ccf::endpoints::Mode::Historical)
       {
-        auto is_tx_committed = [this](
-                                 ccf::View view,
-                                 ccf::SeqNo seqno,
-                                 std::string& error_reason) {
-          return ccf::historical::is_tx_committed(
-            consensus, view, seqno, error_reason);
-        };
+        auto is_tx_committed =
+          [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+            return ccf::historical::is_tx_committed(
+              consensus, view, seqno, error_reason);
+          };
 
         ccf::historical::adapter(
           [this, &method, &verb](

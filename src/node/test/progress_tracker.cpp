@@ -36,10 +36,7 @@ public:
     override);
   MAKE_MOCK3(
     sign_view_change_request,
-    void(
-      ccf::ViewChangeRequest& view_change,
-      ccf::View view,
-      ccf::SeqNo seqno),
+    void(ccf::ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno),
     override);
   MAKE_MOCK4(
     verify_view_change_request,
