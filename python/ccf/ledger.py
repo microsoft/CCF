@@ -140,8 +140,7 @@ class PublicDomain:
 
     def get_seqno(self) -> int:
         """
-        Returns the sequence number of the transaction at which the transaction
-        was recorded in the ledger.
+        Returns the sequence number at which the transaction was recorded in the ledger.
         """
         return self._version
 

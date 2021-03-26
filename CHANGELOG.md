@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.19.4]
 
+### Added
+
+- A new `read_ledger.py` Python command line utility was added to parse and display the content of a ledger directory.
+
 ### Changed
 
 - Retired members are now deleted from the store, instead of being marked as `Retired` (#1401).
