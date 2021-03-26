@@ -16,6 +16,8 @@
 #
 import os
 import sys
+import subprocess
+import pathlib
 
 from docutils import nodes
 
@@ -302,17 +304,11 @@ def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}
     return [ref_node], []
 
 
-def setup(app):
-    import subprocess
-    import pathlib
+def config_inited(app, config):
+    # anything that needs to access app.config goes here
 
     srcdir = pathlib.Path(app.srcdir)
     outdir = pathlib.Path(app.outdir)
-
-    # doxygen
-    breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
-    if not os.environ.get("SKIP_DOXYGEN"):
-        subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
 
     # typedoc (CCF 0.19.4 onwards)
     js_pkg_dir = srcdir / ".." / "js" / "ccf-app"
@@ -330,6 +326,16 @@ def setup(app):
         for kind in ['package', 'module', 'interface', 'class', 'function',
                      'interfacemethod', 'classmethod']:
             app.add_role(f'typedoc:{kind}', typedoc_role)
+
+def setup(app):
+    app.connect("config-inited", config_inited)
+
+    srcdir = pathlib.Path(app.srcdir)
+
+    # doxygen
+    breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
+    if not os.environ.get("SKIP_DOXYGEN"):
+        subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
 
     # sphinx_js (CCF 0.19.1 - 0.19.3)
     global js_source_path
