@@ -4,8 +4,8 @@
 
 #include "ds/json.h"
 #include "entities.h"
-#include "proposals.h"
 #include "kv/map.h"
+#include "proposals.h"
 
 namespace ccf
 {

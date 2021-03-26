@@ -42,12 +42,9 @@ function validate(input) {
 }
 
 function resolve(proposal, votes) {
-  if (votes.length == 0)
-  {
+  if (votes.length == 0) {
     return "Open";
-  }
-  else
-  {
+  } else {
     return "Accepted";
   }
 }
