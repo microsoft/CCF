@@ -2378,7 +2378,7 @@ namespace ccf
         };
 
       make_read_only_endpoint(
-        "proposals.js/{proposal_id}",
+        "proposals.js/{proposal_id}/actions",
         HTTP_GET,
         json_read_only_adapter(get_proposal_actions_js),
         member_cert_or_sig)
