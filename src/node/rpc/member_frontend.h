@@ -2341,15 +2341,16 @@ namespace ccf
         .install();
 
       auto get_proposal_actions_js =
-        [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+        [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
           const auto& caller_identity =
             ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
           if (!check_member_active(ctx.tx, caller_identity.member_id))
           {
-            return make_error(
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_FORBIDDEN,
               ccf::errors::AuthorizationFailed,
               "Member is not active.");
+            return;
           }
 
           ProposalId proposal_id;
@@ -2357,8 +2358,11 @@ namespace ccf
           if (!get_proposal_id_from_path(
                 ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
           {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              std::move(error));
+            return;
           }
 
           auto pm =
@@ -2367,20 +2371,23 @@ namespace ccf
 
           if (!p)
           {
-            return make_error(
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_NOT_FOUND,
               ccf::errors::ProposalNotFound,
               fmt::format("Proposal {} does not exist.", proposal_id));
+            return;
           }
 
-          // Can't be using the wrapper here, must return as raw JSON
-          return make_success(p.value());
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(std::move(p.value()));
         };
 
       make_read_only_endpoint(
         "proposals.js/{proposal_id}/actions",
         HTTP_GET,
-        json_read_only_adapter(get_proposal_actions_js),
+        get_proposal_actions_js,
         member_cert_or_sig)
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .install();

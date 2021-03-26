@@ -70,23 +70,25 @@ def test_proposal_storage(network, args):
         r = c.get("/gov/proposals.js/42/actions")
         assert r.status_code == 404, r.body.text()
 
-        r = c.post("/gov/proposals.js", valid_set_recovery_threshold)
-        assert r.status_code == 200, r.body.text()
-        proposal_id = r.body.json()["proposal_id"]
+        for prop in (valid_set_recovery_threshold, valid_set_recovery_threshold_twice):
+            r = c.post("/gov/proposals.js", prop)
+            assert r.status_code == 200, r.body.text()
+            proposal_id = r.body.json()["proposal_id"]
 
-        r = c.get(f"/gov/proposals.js/{proposal_id}")
-        assert r.status_code == 200, r.body.text()
-        expected = {
-            "proposer_id": network.consortium.get_member_by_local_id(
-                "member0"
-            ).service_id,
-            "state": "Open",
-            "ballots": [],
-        }
-        assert r.body.json() == expected, r.body.json()
+            r = c.get(f"/gov/proposals.js/{proposal_id}")
+            assert r.status_code == 200, r.body.text()
+            expected = {
+                "proposer_id": network.consortium.get_member_by_local_id(
+                    "member0"
+                ).service_id,
+                "state": "Open",
+                "ballots": [],
+            }
+            assert r.body.json() == expected, r.body.json()
 
-        r = c.get(f"/gov/proposals.js/{proposal_id}/actions")
-        assert r.status_code == 200, r.body.text()
+            r = c.get(f"/gov/proposals.js/{proposal_id}/actions")
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json() == prop, r.body.json()
 
     return network
 
