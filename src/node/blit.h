@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/entity_id.h"
+#include "code_id.h"
 #include "crypto/pem.h"
 #include "kv/serialise_entry_blit.h"
 
@@ -35,6 +36,23 @@ namespace kv::serialisers
     static crypto::Pem from_serialised(const SerialisedEntry& data)
     {
       return crypto::Pem(data.data(), data.size());
+    }
+  };
+
+  template <>
+  struct BlitSerialiser<ccf::CodeDigest>
+  {
+    static SerialisedEntry to_serialised(const ccf::CodeDigest& code_digest)
+    {
+      auto hex_str = ds::to_hex(code_digest.data);
+      return SerialisedEntry(hex_str.begin(), hex_str.end());
+    }
+
+    static ccf::CodeDigest from_serialised(const SerialisedEntry& data)
+    {
+      ccf::CodeDigest ret;
+      ds::from_hex(std::string(data.data(), data.end()), ret.data);
+      return ret;
     }
   };
 }

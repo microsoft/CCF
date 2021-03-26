@@ -509,9 +509,9 @@ namespace ccf
       if (existing_code_id)
       {
         LOG_FAIL_FMT(
-          "Proposal {}: Code signature already exists with digest: {:02x}",
+          "Proposal {}: Code signature already exists with digest: {}",
           proposal_id,
-          fmt::join(new_code_id, ""));
+          ds::to_hex(new_code_id.data));
         return false;
       }
       code_ids->put(new_code_id, CodeStatus::ALLOWED_TO_JOIN);
@@ -529,9 +529,9 @@ namespace ccf
       if (!existing_code_id)
       {
         LOG_FAIL_FMT(
-          "Proposal {}: No such code id in table: {:02x}",
+          "Proposal {}: No such code id in table: {}",
           proposal_id,
-          fmt::join(code_id, ""));
+          ds::to_hex(code_id.data));
         return false;
       }
       code_ids->remove(code_id);
@@ -1989,12 +1989,7 @@ namespace ccf
            NodeStatus::TRUSTED});
 
 #ifdef GET_QUOTE
-        CodeDigest node_code_id;
-        std::copy_n(
-          std::begin(in.code_digest),
-          CODE_DIGEST_BYTES,
-          std::begin(node_code_id));
-        g.trust_node_code_id(node_code_id);
+        g.trust_node_code_id(in.code_digest);
 #endif
 
         for (const auto& wl : default_whitelists)

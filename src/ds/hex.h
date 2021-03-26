@@ -79,4 +79,10 @@ namespace ds
     from_hex(str, ret.begin(), ret.end());
     return ret;
   }
+
+  template <typename T>
+  inline static void from_hex(const std::string& str, T& out)
+  {
+    from_hex(str, out.begin(), out.end());
+  }
 }
