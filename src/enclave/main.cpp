@@ -56,6 +56,15 @@ extern "C"
       return false;
     }
 
+#ifndef ENABLE_BFT
+    // As BFT consensus is currently experimental, disable it in release
+    // enclaves
+    if (consensus_type != ConsensusType::CFT)
+    {
+      return false;
+    }
+#endif
+
     num_pending_threads = (uint16_t)num_worker_threads + 1;
 
     if (
