@@ -10,7 +10,7 @@
  *
  * Example:
  * ```
- * import * as ccfapp from 'ccf-app';
+ * import * as ccfapp from '@microsoft/ccf-app';
  *
  * const val = 'my-string';
  * const buf = ccfapp.string.encode(val);  // ArrayBuffer

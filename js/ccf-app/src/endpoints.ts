@@ -214,7 +214,7 @@ export interface Response<T extends ResponseBodyType<T> = any> {
  * Endpoint functions are usually defined as follows:
  *
  * ```
- * import * as ccfapp from 'ccf-app';
+ * import * as ccfapp from '@microsoft/ccf-app';
  *
  * export function myEndpoint(request: ccfapp.Request): ccfapp.Response
  * { ... }

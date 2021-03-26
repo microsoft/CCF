@@ -11,7 +11,7 @@
  * as follows:
  *
  * ```
- * import { ccf } from 'ccf-app/global';
+ * import { ccf } from '@microsoft/ccf-app/global';
  * ```
  *
  * @module

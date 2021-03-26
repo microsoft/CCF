@@ -1,5 +1,5 @@
 {
-  "name": "ccf-app",
+  "name": "@microsoft/ccf-app",
   "version": "0.0.0",
   "description": "CCF app support package",
   "main": "index.js",

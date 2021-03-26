@@ -1,8 +1,8 @@
 import * as rs from "jsrsasign";
 import { Base64 } from "js-base64";
 
-import * as ccfapp from "ccf-app";
-import * as ccfcrypto from "ccf-app/crypto";
+import * as ccfapp from "@microsoft/ccf-app";
+import * as ccfcrypto from "@microsoft/ccf-app/crypto";
 
 interface CryptoResponse {
   available: boolean;

@@ -1,4 +1,4 @@
-import * as ccfapp from "ccf-app";
+import * as ccfapp from "@microsoft/ccf-app";
 
 interface LogItem {
   msg: string;

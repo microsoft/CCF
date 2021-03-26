@@ -1,7 +1,7 @@
 // Importing the browser bundle works around https://github.com/protobufjs/protobuf.js/issues/1402.
 import protobuf from "protobufjs/dist/protobuf.js";
 
-import * as ccfapp from "ccf-app";
+import * as ccfapp from "@microsoft/ccf-app";
 
 type ProtoResponse = Uint8Array;
 

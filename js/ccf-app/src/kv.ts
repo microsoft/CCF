@@ -6,7 +6,7 @@
  *
  * Example of using raw access:
  * ```
- * import * as ccfapp from 'ccf-app';
+ * import * as ccfapp from '@microsoft/ccf-app';
  *
  * const foo = ccfapp.rawKv['foo'];
  * foo.set(
@@ -17,7 +17,7 @@
  *
  * Example of using typed access:
  * ```
- * import * as ccfapp from 'ccf-app';
+ * import * as ccfapp from '@microsoft/ccf-app';
  *
  * const foo = ccfapp.typedKv('foo', ccfapp.string, ccfapp.json);
  * foo.set("key-1", {"prop1": 42});

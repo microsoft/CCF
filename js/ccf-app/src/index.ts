@@ -9,7 +9,7 @@
  * This is the case for advanced functionality like cryptography.
  *
  * ```
- * import * as ccfapp from 'ccf-app';
+ * import * as ccfapp from '@microsoft/ccf-app';
  * ```
  *
  * @module ROOT

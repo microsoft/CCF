@@ -62,18 +62,13 @@ You should replace this with a reference to a published version (adjust the vers
 
 .. code-block:: json
 
-    "ccf-app": "https://github.com/microsoft/CCF/releases/download/ccf-0.19.3/ccf-app-0.19.3.tgz",
+    "@microsoft/ccf-app": "~0.19.4",
 
 Now you can continue with installing all dependencies:
 
 .. code-block:: bash
 
     $ npm install
-
-.. note::
-    
-    Currently, :typedoc:package:`ccf-app` is not published on npm.
-    This may change in the future.
 
 Endpoint handlers
 -----------------

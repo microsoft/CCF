@@ -1,6 +1,6 @@
 import * as _ from "lodash-es";
 
-import * as ccfapp from "ccf-app";
+import * as ccfapp from "@microsoft/ccf-app";
 
 type PartitionRequest = any[];
 type PartitionResponse = [any[], any[]];

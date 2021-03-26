@@ -8,7 +8,7 @@
   },
   "type": "module",
   "dependencies": {
-    "ccf-app": "file:../../../js/ccf-app",
+    "@microsoft/ccf-app": "file:../../../js/ccf-app",
     "@tsoa/runtime": "^3.3.0",
     "lodash-es": "^4.17.15",
     "mathjs": "^7.5.1",

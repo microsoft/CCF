@@ -7,7 +7,7 @@
  * It must be imported before all other imports like so:
  *
  * ```
- * import 'ccf-app/polyfills';
+ * import '@microsoft/ccf-app/polyfills';
  * ```
  *
  * Note that some functionality is not polyfilled,

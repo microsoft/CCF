@@ -2,7 +2,7 @@ import { KJUR, KEYUTIL } from "jsrsasign";
 import jwt_decode from "jwt-decode";
 import { Base64 } from "js-base64";
 
-import * as ccfapp from "ccf-app";
+import * as ccfapp from "@microsoft/ccf-app";
 
 interface JwtResponse {
   userId: string;
