@@ -1,5 +1,5 @@
 import * as crypto from "crypto";
-import { WrapAlgoParams } from '../src/global'
+import { WrapAlgoParams } from "../src/global";
 
 function nodeBufToArrBuf(buf: Buffer): ArrayBuffer {
   // Note: buf.buffer is not safe, see docs.
@@ -8,8 +8,12 @@ function nodeBufToArrBuf(buf: Buffer): ArrayBuffer {
   return arrBuf;
 }
 
-export function unwrapKey(wrappedKey: ArrayBuffer, unwrappingKey: ArrayBuffer, unwrapAlgo: WrapAlgoParams): ArrayBuffer {
-  if (unwrapAlgo.name == 'RSA-OAEP') {
+export function unwrapKey(
+  wrappedKey: ArrayBuffer,
+  unwrappingKey: ArrayBuffer,
+  unwrapAlgo: WrapAlgoParams
+): ArrayBuffer {
+  if (unwrapAlgo.name == "RSA-OAEP") {
     return nodeBufToArrBuf(
       crypto.privateDecrypt(
         {
@@ -20,7 +24,7 @@ export function unwrapKey(wrappedKey: ArrayBuffer, unwrappingKey: ArrayBuffer, u
         new Uint8Array(wrappedKey)
       )
     );
-  } else if (unwrapAlgo.name == 'AES-KWP') {
+  } else if (unwrapAlgo.name == "AES-KWP") {
     const iv = Buffer.from("A65959A6", "hex"); // defined in RFC 5649
     const decipher = crypto.createDecipheriv(
       "id-aes256-wrap-pad",
@@ -28,9 +32,12 @@ export function unwrapKey(wrappedKey: ArrayBuffer, unwrappingKey: ArrayBuffer, u
       iv
     );
     return nodeBufToArrBuf(
-      Buffer.concat([decipher.update(new Uint8Array(wrappedKey)), decipher.final()])
+      Buffer.concat([
+        decipher.update(new Uint8Array(wrappedKey)),
+        decipher.final(),
+      ])
     );
-  } else if (unwrapAlgo.name == 'RSA-OAEP-AES-KWP') {
+  } else if (unwrapAlgo.name == "RSA-OAEP-AES-KWP") {
     /*
     const keyInfo = crypto.createPrivateKey(unwrappingKey);
     // asymmetricKeyDetails added in Node.js 15.7.0, we're at 14.
@@ -42,11 +49,11 @@ export function unwrapKey(wrappedKey: ArrayBuffer, unwrappingKey: ArrayBuffer, u
     const wrap1 = wrappedKey.slice(0, modulusLengthInBytes);
     const wrap2 = wrappedKey.slice(modulusLengthInBytes);
     const aesKey = unwrapKey(wrap1, unwrappingKey, {
-      name: 'RSA-OAEP',
-      label: unwrapAlgo.label
+      name: "RSA-OAEP",
+      label: unwrapAlgo.label,
     });
     return unwrapKey(wrap2, aesKey, {
-      name: 'AES-KWP'
+      name: "AES-KWP",
     });
   } else {
     throw new Error("unsupported unwrapAlgo.name");
