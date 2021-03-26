@@ -77,7 +77,7 @@ namespace kv
       {
         serialise_string(entry);
       }
-      else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>)
+      else if constexpr (std::is_integral_v<T>)
       {
         serialise_entry(entry);
       }
@@ -178,7 +178,7 @@ namespace kv
 
         return {data_ptr + entry_offset, data_ptr + data_offset};
       }
-      else if constexpr (std::is_integral_v<T> || std::is_enum_v<T>)
+      else if constexpr (std::is_integral_v<T>)
       {
         return read_entry<T>();
       }

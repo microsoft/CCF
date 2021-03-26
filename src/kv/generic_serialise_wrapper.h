@@ -13,35 +13,6 @@ namespace kv
   using SerialisedKey = kv::serialisers::SerialisedEntry;
   using SerialisedValue = kv::serialisers::SerialisedEntry;
 
-  enum class KvOperationType : uint32_t
-  {
-    KOT_NOT_SUPPORTED = 0,
-    KOT_SET_VERSION = (1 << 0),
-    KOT_MAP_START_INDICATOR = (1 << 1),
-    KOT_ENTRY_VERSION = (1 << 2),
-    KOT_READ = (1 << 3),
-    KOT_WRITE_VERSION = (1 << 4),
-    KOT_WRITE = (1 << 5),
-    KOT_REMOVE_VERSION = (1 << 6),
-    KOT_REMOVE = (1 << 7),
-  };
-
-  typedef std::underlying_type<KvOperationType>::type KotBase;
-
-  inline KvOperationType operator&(
-    const KvOperationType& a, const KvOperationType& b)
-  {
-    return static_cast<KvOperationType>(
-      static_cast<KotBase>(a) & static_cast<KotBase>(b));
-  }
-
-  inline KvOperationType operator|(
-    const KvOperationType& a, const KvOperationType& b)
-  {
-    return static_cast<KvOperationType>(
-      static_cast<KotBase>(a) | static_cast<KotBase>(b));
-  }
-
   template <typename W>
   class GenericSerialiseWrapper
   {
@@ -111,7 +82,6 @@ namespace kv
         set_current_domain(domain);
       }
 
-      serialise_internal(KvOperationType::KOT_MAP_START_INDICATOR);
       serialise_internal(name);
     }
 
@@ -146,21 +116,6 @@ namespace kv
     {
       serialise_internal(k);
       serialise_internal(v);
-    }
-
-    void serialise_write_version(
-      const SerialisedKey& k, const SerialisedValue& v, const Version& version)
-    {
-      serialise_internal(KvOperationType::KOT_WRITE_VERSION);
-      serialise_internal(k);
-      serialise_internal(v);
-      serialise_internal(version);
-    }
-
-    void serialise_remove_version(const SerialisedKey& k)
-    {
-      serialise_internal(KvOperationType::KOT_REMOVE_VERSION);
-      serialise_internal(k);
     }
 
     void serialise_remove(const SerialisedKey& k)
@@ -249,50 +204,11 @@ namespace kv
     R private_reader;
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
-    KvOperationType unhandled_op;
     bool is_snapshot;
     Version version;
     Version max_conflict_version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
-
-    bool try_read_op(KvOperationType type)
-    {
-      return try_read_op(type, *current_reader);
-    }
-
-    bool try_read_op(KvOperationType type, R& reader)
-    {
-      return try_read_op_flag(type, reader) == type;
-    }
-
-    KvOperationType try_read_op_flag(KvOperationType type)
-    {
-      return try_read_op_flag(type, *current_reader);
-    }
-
-    KvOperationType try_read_op_flag(KvOperationType type, R& reader)
-    {
-      if (unhandled_op != KvOperationType::KOT_NOT_SUPPORTED)
-      {
-        auto curr_type = (type & unhandled_op);
-        if (curr_type != KvOperationType::KOT_NOT_SUPPORTED)
-        {
-          // clear cached op header
-          unhandled_op = KvOperationType::KOT_NOT_SUPPORTED;
-        }
-        return curr_type;
-      }
-
-      auto next_op = reader.template read_next<KvOperationType>();
-      if ((type & next_op) == next_op)
-      {
-        return next_op;
-      }
-
-      unhandled_op = next_op;
-      return KvOperationType::KOT_NOT_SUPPORTED;
-    }
 
     // Should only be called once, once the GCM header and length of public
     // domain have been read
@@ -307,7 +223,6 @@ namespace kv
     GenericDeserialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       std::optional<SecurityDomain> domain_restriction = std::nullopt) :
-      unhandled_op(KvOperationType::KOT_NOT_SUPPORTED),
       crypto_util(e),
       domain_restriction(domain_restriction)
     {}
@@ -372,14 +287,13 @@ namespace kv
       if (current_reader->is_eos())
       {
         if (current_reader == &public_reader && !private_reader.is_eos())
+        {
           current_reader = &private_reader;
+        }
         else
+        {
           return std::nullopt;
-      }
-
-      if (!try_read_op(KvOperationType::KOT_MAP_START_INDICATOR))
-      {
-        return std::nullopt;
+        }
       }
 
       return current_reader->template read_next<std::string>();

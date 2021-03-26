@@ -24,7 +24,6 @@ GCM_SIZE_IV = 12
 LEDGER_TRANSACTION_SIZE = 4
 LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
-START_MAP_INDICATOR = 2
 
 # Public table names as defined in CCF
 # https://github.com/microsoft/CCF/blob/main/src/node/entities.h
@@ -108,14 +107,10 @@ class PublicDomain:
     def _read(self):
         while True:
             try:
-                assert (
-                    unpack(self._buffer, "<i") == START_MAP_INDICATOR
-                ), "Unexpected value, expected start of map indicator"
+                map_name = self._read_string()
+                LOG.trace(f"Reading map {map_name}")
             except EOFError:
                 break
-
-            map_name = self._read_string()
-            LOG.trace(f"Reading map {map_name}")
 
             records = {}
             self._tables[map_name] = records
