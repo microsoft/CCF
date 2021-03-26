@@ -7,11 +7,11 @@
  * Converters are commonly used as {@linkcode kv.typedKv} arguments.
  * Another use case is {@linkcode crypto.wrapKey} to convert
  * PEM-encoded keys to `ArrayBuffer`.
- * 
+ *
  * Example:
  * ```
  * import * as ccfapp from 'ccf-app';
- * 
+ *
  * const val = 'my-string';
  * const buf = ccfapp.string.encode(val);  // ArrayBuffer
  * const val2 = ccfapp.string.decode(buf); // string, val == val2
@@ -204,65 +204,65 @@ class IdentityConverter implements DataConverter<ArrayBuffer> {
 
 /**
  * Converter for `boolean` values.
- * 
+ *
  * A `boolean` is represented as `uint8` where `true` is `1`
  * and `false` is `0`.
- * 
+ *
  * Example:
  * ```
  * const buf = ccfapp.bool.encode(true); // ArrayBuffer of size 1
  * const val = ccfapp.bool.decode(buf);  // boolean
- * ``` 
+ * ```
  */
 export const bool: DataConverter<boolean> = new BoolConverter();
 
 /**
  * Converter for `number` values, encoded as `int8`.
- * 
+ *
  * Example:
  * ```
  * const buf = ccfapp.int8.encode(-50); // ArrayBuffer of size 1
  * const val = ccfapp.int8.decode(buf); // number
- * ``` 
+ * ```
  */
 export const int8: DataConverter<number> = new Int8Converter();
 
 /**
  * Converter for `number` values, encoded as `uint8`.
- * 
+ *
  * Example:
  * ```
  * const buf = ccfapp.uint8.encode(255); // ArrayBuffer of size 1
  * const val = ccfapp.uint8.decode(buf); // number
- * ``` 
+ * ```
  */
 export const uint8: DataConverter<number> = new Uint8Converter();
 
 /**
  * Converter for `number` values, encoded as `int16`.
- * 
+ *
  * Example:
  * ```
  * const buf = ccfapp.int16.encode(-1000); // ArrayBuffer of size 2
  * const val = ccfapp.int16.decode(buf);   // number
- * ``` 
+ * ```
  */
 export const int16: DataConverter<number> = new Int16Converter();
 
 /**
  * Converter for `number` values, encoded as `uint16`.
- * 
+ *
  * Example:
  * ```
  * const buf = ccfapp.uint16.encode(50000); // ArrayBuffer of size 2
  * const val = ccfapp.uint16.decode(buf);   // number
- * ``` 
+ * ```
  */
 export const uint16: DataConverter<number> = new Uint16Converter();
 
 /**
  * Converter for `number` values, encoded as `int32`.
- * 
+ *
  * Example:
  * ```
  * const buf = ccfapp.int32.encode(-50000); // ArrayBuffer of size 4
@@ -273,18 +273,18 @@ export const int32: DataConverter<number> = new Int32Converter();
 
 /**
  * Converter for `number` values, encoded as `uint32`.
- * 
+ *
  * Example:
  * ```
  * const buf = ccfapp.uint32.encode(50000); // ArrayBuffer of size 4
  * const val = ccfapp.uint32.decode(buf);   // number
- * ``` 
+ * ```
  */
 export const uint32: DataConverter<number> = new Uint32Converter();
 
 /**
  * Converter for `bigint` values, encoded as `int64`.
- * 
+ *
  * Example:
  * ```
  * const n = 2n ** 53n + 1n; // larger than Number.MAX_SAFE_INTEGER
@@ -296,7 +296,7 @@ export const int64: DataConverter<bigint> = new Int64Converter();
 
 /**
  * Converter for `bigint` values, encoded as `uint64`.
- * 
+ *
  * Example:
  * ```
  * const n = 2n ** 53n + 1n; // larger than Number.MAX_SAFE_INTEGER
@@ -308,7 +308,7 @@ export const uint64: DataConverter<bigint> = new Uint64Converter();
 
 /**
  * Converter for `number` values, encoded as `float32`.
- * 
+ *
  * Example:
  * ```
  * const buf = ccfapp.float32.encode(3.141); // ArrayBuffer of size 4
@@ -319,7 +319,7 @@ export const float32: DataConverter<number> = new Float32Converter();
 
 /**
  * Converter for `number` values, encoded as `float64`.
- * 
+ *
  * Example:
  * ```
  * const buf = ccfapp.float64.encode(3.141); // ArrayBuffer of size 8
@@ -330,7 +330,7 @@ export const float64: DataConverter<number> = new Float64Converter();
 
 /**
  * Converter for `string` values, encoded as UTF-8.
- * 
+ *
  * Example:
  * ```
  * const buf = ccfapp.string.encode('my-string'); // ArrayBuffer
@@ -341,16 +341,16 @@ export const string: DataConverter<string> = new StringConverter();
 
 /**
  * Returns a converter for JSON-compatible objects or values.
- * 
+ *
  * {@linkcode DataConverter.encode | encode} first serializes the object
  * or value to JSON and then converts the resulting string to an `ArrayBuffer`.
  * JSON serialization uses `JSON.stringify()` without `replacer` or
  * `space` parameters.
- * 
+ *
  * {@linkcode DataConverter.decode | decode} converts the `ArrayBuffer`
  * to a string and parses it using `JSON.parse()` without `reviver`
  * parameter.
- * 
+ *
  * Example:
  * ```
  * interface Person {
@@ -362,8 +362,8 @@ export const string: DataConverter<string> = new StringConverter();
  * const buffer = conv.encode(person); // ArrayBuffer
  * const person2 = conv.decode(buffer); // Person
  * ```
- * 
- * @returns Returns a 
+ *
+ * @returns Returns a
  */
 export const json: <T extends JsonCompatible<T>>() => DataConverter<
   JsonCompatible<T>
@@ -371,13 +371,13 @@ export const json: <T extends JsonCompatible<T>>() => DataConverter<
 
 /**
  * Returns a converter for [TypedArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray) objects.
- * 
+ *
  * Note that a `TypedArray` is a view into an underlying `ArrayBuffer`.
  * This view allows to cover a subset of the `ArrayBuffer`, for example
  * when using `TypedArray.prototype.subarray()`.
  * For views which are subsets, a roundtrip from `TypedArray` to `ArrayBuffer`
  * and back will yield a `TypedArray` that is not a subset anymore.
- * 
+ *
  * Example:
  * ```
  * const arr = new Uint8Array([42]);
@@ -385,7 +385,7 @@ export const json: <T extends JsonCompatible<T>>() => DataConverter<
  * const buffer = conv.encode(arr); // ArrayBuffer of size arr.byteLength
  * const arr2 = conv.decode(buffer); // Uint8Array
  * ```
- * 
+ *
  * @param clazz The TypedArray class, for example `Uint8Array`.
  */
 export const typedArray: <T extends TypedArray>(
@@ -398,7 +398,7 @@ export const typedArray: <T extends TypedArray>(
  * Identity converter.
  * {@linkcode DataConverter.encode | encode} / {@linkcode DataConverter.decode | decode}
  * return the input `ArrayBuffer` unchanged. No copy is made.
- * 
+ *
  * This converter can be used with {@linkcode kv.typedKv} when the key or value
  * type is `ArrayBuffer`, in which case no conversion is applied.
  */
