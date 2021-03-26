@@ -353,7 +353,6 @@ class Node:
     def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
         return self.remote.get_committed_snapshots(pre_condition_func)
 
-
     def identity(self, name=None):
         if name is not None:
             return ccf.clients.Identity(
