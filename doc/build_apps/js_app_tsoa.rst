@@ -76,6 +76,29 @@ It contains these files:
     This in turn may improve load time and/or memory consumption, for example if not all endpoints
     share the same npm package dependencies.
 
+Dependencies
+------------
+
+The sample uses several runtime and development packages (see ``package.json``).
+One of them is the :typedoc:package:`ccf-app` package.
+This package is referenced locally using ``file:``.
+You should replace this with a reference to a published version (adjust the version number accordingly):
+
+.. code-block:: json
+
+    "ccf-app": "https://github.com/microsoft/CCF/releases/download/ccf-0.19.3/ccf-app-0.19.3.tgz",
+
+Now you can continue with installing all dependencies:
+
+.. code-block:: bash
+
+    $ npm install
+
+.. note::
+    
+    Currently, :typedoc:package:`ccf-app` is not published on npm.
+    This may change in the future.
+
 Controllers
 -----------
 
