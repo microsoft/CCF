@@ -691,7 +691,7 @@ namespace ccf
       auto& sig_value = sig.value();
       if (term)
       {
-        *term = sig_value.term;
+        *term = sig_value.view;
       }
 
       if (signature)

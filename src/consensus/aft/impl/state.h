@@ -48,7 +48,7 @@ namespace aft
         }
       }
 
-      for (int64_t i = views.size(); i < view; ++i)
+      for (ccf::View i = views.size(); i < view; ++i)
       {
         views.push_back(idx);
       }
