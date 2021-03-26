@@ -455,7 +455,7 @@ namespace ccf
       set_scripts(scripts, tables.gov_scripts, false);
     }
 
-    void trust_node_code_id(CodeDigest& node_code_id)
+    void trust_node_code_id(const CodeDigest& node_code_id)
     {
       auto codeid = tx.rw(tables.node_code_ids);
       codeid->put(node_code_id, CodeStatus::ALLOWED_TO_JOIN);
