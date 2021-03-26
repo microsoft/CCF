@@ -119,8 +119,8 @@ namespace nobuiltins
         .install();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
-        kv::Consensus::View view;
-        kv::Consensus::SeqNo seqno;
+        ccf::View view;
+        ccf::SeqNo seqno;
         const auto result = get_last_committed_txid_v1(view, seqno);
 
         if (result == ccf::ApiResult::OK)
