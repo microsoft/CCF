@@ -307,6 +307,7 @@ def setup(app):
     import pathlib
 
     srcdir = pathlib.Path(app.srcdir)
+    outdir = pathlib.Path(app.outdir)
 
     # doxygen
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
@@ -315,7 +316,7 @@ def setup(app):
 
     # typedoc (CCF 0.19.4 onwards)
     js_pkg_dir = srcdir / ".." / "js" / "ccf-app"
-    js_docs_dir = srcdir / "html" / "js" / "ccf-app"
+    js_docs_dir = outdir / "js" / "ccf-app"
     if js_pkg_dir.exists():
         # make versions.json from sphinx-multiversion available
         if app.config.smv_metadata_path:
