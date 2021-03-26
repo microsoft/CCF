@@ -35,13 +35,13 @@ export function authentication(
       throw new Error("unexpected policy");
     }
 
-    if (caller.key_issuer === "https://demo") {
+    if (caller.jwt.key_issuer === "https://demo") {
       // no further validation
     } else if (
-      caller.key_issuer === "https://login.microsoftonline.com/common/v2.0"
+      caller.jwt.key_issuer === "https://login.microsoftonline.com/common/v2.0"
     ) {
       // Microsoft identity platform access tokens
-      const msClaims = caller.payload as MSAccessTokenClaims;
+      const msClaims = caller.jwt.payload as MSAccessTokenClaims;
       if (msClaims.ver !== "1.0") {
         throw new UnauthorizedError(
           "unsupported access token version, must be 1.0"
@@ -56,10 +56,10 @@ export function authentication(
         );
       }
     } else {
-      throw new Error(`BUG: unknown key issuer: ${caller.key_issuer}`);
+      throw new Error(`BUG: unknown key issuer: ${caller.jwt.key_issuer}`);
     }
 
-    caller.userId = caller.payload.sub;
+    caller.userId = caller.jwt.payload.sub;
   } else {
     throw new Error(`BUG: unknown securityName: ${securityName}`);
   }

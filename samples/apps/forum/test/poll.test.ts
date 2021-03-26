@@ -80,7 +80,7 @@ class FakeAuth {
       issuer: this.issuer,
     });
     return {
-      authorization: `Bearer ${token}'`,
+      authorization: `Bearer ${token}`,
     };
   }
 }

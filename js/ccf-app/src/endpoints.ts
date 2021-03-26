@@ -117,24 +117,26 @@ export interface MemberSignatureAuthnIdentity
 export interface JwtAuthnIdentity extends AuthnIdentityCommon {
   policy: "jwt";
 
-  /**
-   * The issuer of the key that was used to validate the JWT signature.
-   *
-   * Note that the key issuer is not necessarily the same as the "iss"
-   * claim in the JWT payload. Rather, it is the issuer used in the
-   * ``set_jwt_issuer`` proposal.
-   */
-  key_issuer: string;
+  jwt: {
+    /**
+     * The issuer of the key that was used to validate the JWT signature.
+     *
+     * Note that the key issuer is not necessarily the same as the "iss"
+     * claim in the JWT payload. Rather, it is the issuer used in the
+     * ``set_jwt_issuer`` proposal.
+     */
+    key_issuer: string;
 
-  /**
-   * The parsed JWT header.
-   */
-  header: any;
+    /**
+     * The parsed JWT header.
+     */
+    header: any;
 
-  /**
-   * The parsed JWT payload.
-   */
-  payload: any;
+    /**
+     * The parsed JWT payload.
+     */
+    payload: any;
+  };
 }
 
 /**
