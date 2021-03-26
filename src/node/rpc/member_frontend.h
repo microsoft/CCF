@@ -2335,6 +2335,82 @@ namespace ccf
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .install();
 
+      auto withdraw_js = [this](
+                           endpoints::EndpointContext& ctx, nlohmann::json&&) {
+        const auto& caller_identity =
+          ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>();
+        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
+        }
+
+        ProposalId proposal_id;
+        std::string error;
+        if (!get_proposal_id_from_path(
+              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+        }
+
+        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
+          "public:ccf.gov.proposals_info.js");
+        auto pi_ = pi->get(proposal_id);
+
+        if (!pi_)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ProposalNotFound,
+            fmt::format("Proposal {} does not exist.", proposal_id));
+        }
+
+        if (caller_identity.member_id != pi_->proposer_id)
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            fmt::format(
+              "Proposal {} can only be withdrawn by proposer {}, not caller "
+              "{}.",
+              proposal_id,
+              pi_->proposer_id,
+              caller_identity.member_id));
+        }
+
+        if (pi_->state != ProposalState::OPEN)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ProposalNotOpen,
+            fmt::format(
+              "Proposal {} is currently in state {} - only {} proposals can be "
+              "withdrawn.",
+              proposal_id,
+              pi_->state,
+              ProposalState::OPEN));
+        }
+
+        pi_->state = ProposalState::WITHDRAWN;
+        pi->put(proposal_id, pi_.value());
+
+        record_voting_history(
+          ctx.tx, caller_identity.member_id, caller_identity.signed_request);
+
+        return make_success(pi_.value());
+      };
+
+      make_endpoint(
+        "proposals.js/{proposal_id}/withdraw",
+        HTTP_POST,
+        json_adapter(withdraw_js),
+        member_cert_or_sig)
+        .set_auto_schema<void, jsgov::ProposalInfo>()
+        .install();
+
       auto get_proposal_actions_js =
         [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
           const auto& caller_identity =
@@ -2418,6 +2494,19 @@ namespace ccf
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ProposalNotFound,
             fmt::format("Could not find proposal {}.", proposal_id));
+        }
+
+        if (pi_.value().state != ProposalState::OPEN)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ProposalNotOpen,
+            fmt::format(
+              "Proposal {} is currently in state {} - only {} proposals can "
+              "receive votes.",
+              proposal_id,
+              pi_.value().state,
+              ProposalState::OPEN));
         }
 
         auto pm =

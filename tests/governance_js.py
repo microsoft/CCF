@@ -93,6 +93,51 @@ def test_proposal_storage(network, args):
     return network
 
 
+@reqs.description("Test proposal withdrawal")
+def test_proposal_withdrawal(network, args):
+    node = network.find_random_node()
+
+    with node.client(None, "member0") as c:
+        for prop in (valid_set_recovery_threshold, valid_set_recovery_threshold_twice):
+            r = c.post("/gov/proposals.js/42/withdraw")
+            assert r.status_code == 400, r.body.text()
+
+            r = c.post("/gov/proposals.js", prop)
+            assert r.status_code == 200, r.body.text()
+            proposal_id = r.body.json()["proposal_id"]
+
+            with node.client(None, "member1") as oc:
+                r = oc.post(f"/gov/proposals.js/{proposal_id}/withdraw")
+                assert r.status_code == 403, r.body.text()
+
+            r = c.get(f"/gov/proposals.js/{proposal_id}")
+            assert r.status_code == 200, r.body.text()
+            expected = {
+                "proposer_id": network.consortium.get_member_by_local_id(
+                    "member0"
+                ).service_id,
+                "state": "Open",
+                "ballots": [],
+            }
+            assert r.body.json() == expected, r.body.json()
+
+            r = c.post(f"/gov/proposals.js/{proposal_id}/withdraw")
+            assert r.status_code == 200, r.body.text()
+            expected = {
+                "proposer_id": network.consortium.get_member_by_local_id(
+                    "member0"
+                ).service_id,
+                "state": "Withdrawn",
+                "ballots": [],
+            }
+            assert r.body.json() == expected, r.body.json()
+
+            r = c.post(f"/gov/proposals.js/{proposal_id}/withdraw")
+            assert r.status_code == 400, r.body.text()
+
+    return network
+
+
 @reqs.description("Test ballot storage and validation")
 def test_ballot_storage(network, args):
     node = network.find_random_node()
@@ -133,6 +178,7 @@ def run(args):
         network.start_and_join(args)
         network = test_proposal_validation(network, args)
         network = test_proposal_storage(network, args)
+        network = test_proposal_withdrawal(network, args)
         network = test_ballot_storage(network, args)
 
 
