@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/tx_id.h"
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
 #include "node/history.h"
@@ -40,12 +41,12 @@ namespace ccf::historical
     /// Receipt for ledger entry at transaction_id
     TxReceiptPtr receipt = nullptr;
     /// View and Sequence Number for the State
-    kv::TxID transaction_id;
+    ccf::TxID transaction_id;
 
     State(
       const StorePtr& store_,
       const TxReceiptPtr& receipt_,
-      const kv::TxID& transaction_id_) :
+      const ccf::TxID& transaction_id_) :
       store(store_),
       receipt(receipt_),
       transaction_id(transaction_id_)

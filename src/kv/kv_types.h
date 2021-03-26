@@ -45,7 +45,7 @@ namespace kv
   // writer(s) changes. Term and Version combined give a unique identifier for
   // all accepted kv modifications. Terms are handled by Consensus via the
   // TermHistory
-  using Term = int64_t;
+  using Term = uint64_t;
   using NodeId = ccf::NodeId;
 
   struct TxID
@@ -248,7 +248,7 @@ namespace kv
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
-    virtual std::pair<kv::TxID, crypto::Sha256Hash>
+    virtual std::pair<ccf::TxID, crypto::Sha256Hash>
     get_replicated_state_txid_and_root() = 0;
     virtual std::vector<uint8_t> get_receipt(Version v) = 0;
     virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;

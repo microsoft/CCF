@@ -256,12 +256,12 @@ public:
 
 class TestPendingTx : public kv::PendingTx
 {
-  kv::TxID txid;
+  ccf::TxID txid;
   kv::Store& store;
   MapT& other_table;
 
 public:
-  TestPendingTx(kv::TxID txid_, kv::Store& store_, MapT& other_table_) :
+  TestPendingTx(ccf::TxID txid_, kv::Store& store_, MapT& other_table_) :
     txid(txid_),
     store(store_),
     other_table(other_table_)

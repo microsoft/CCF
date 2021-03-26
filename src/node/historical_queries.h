@@ -89,7 +89,7 @@ namespace ccf::historical
       StorePtr store = nullptr;
       bool is_signature = false;
       TxReceiptPtr receipt = nullptr;
-      kv::TxID transaction_id;
+      ccf::TxID transaction_id;
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
 

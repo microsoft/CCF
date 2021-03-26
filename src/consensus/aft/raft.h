@@ -1871,7 +1871,7 @@ namespace aft
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
 
-    void try_send_sig_ack(kv::TxID tx_id, kv::TxHistory::Result r)
+    void try_send_sig_ack(ccf::TxID tx_id, kv::TxHistory::Result r)
     {
       switch (r)
       {
@@ -1936,7 +1936,7 @@ namespace aft
       try_send_reply_and_nonce({r.term, r.idx}, result);
     }
 
-    void try_send_reply_and_nonce(kv::TxID tx_id, kv::TxHistory::Result r)
+    void try_send_reply_and_nonce(ccf::TxID tx_id, kv::TxHistory::Result r)
     {
       switch (r)
       {
@@ -1953,7 +1953,7 @@ namespace aft
             progress_tracker != nullptr, "progress_tracker is not set");
           nonce = progress_tracker->get_node_nonce(tx_id);
           NonceRevealMsg r = {
-            {bft_nonce_reveal}, tx_id.term, tx_id.version, nonce};
+            {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce};
 
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {

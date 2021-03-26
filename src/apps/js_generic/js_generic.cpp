@@ -311,7 +311,7 @@ namespace ccfapp
       const ccf::RESTVerb& verb,
       EndpointContext& args,
       kv::Tx& target_tx,
-      const std::optional<kv::TxID>& transaction_id,
+      const std::optional<ccf::TxID>& transaction_id,
       ccf::historical::TxReceiptPtr receipt)
     {
       const auto local_method = method.substr(method.find_first_not_of('/'));

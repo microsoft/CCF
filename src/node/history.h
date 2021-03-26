@@ -88,13 +88,13 @@ namespace ccf
 
   class NullTxHistoryPendingTx : public kv::PendingTx
   {
-    kv::TxID txid;
+    ccf::TxID txid;
     kv::Store& store;
     NodeId id;
 
   public:
     NullTxHistoryPendingTx(
-      kv::TxID txid_, kv::Store& store_, const NodeId& id_) :
+      ccf::TxID txid_, kv::Store& store_, const NodeId& id_) :
       txid(txid_),
       store(store_),
       id(id_)
@@ -102,12 +102,12 @@ namespace ccf
 
     kv::PendingTxInfo call() override
     {
-      auto sig = store.create_reserved_tx(txid.version);
+      auto sig = store.create_reserved_tx(txid.seqno);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
-      PrimarySignature sig_value(id, txid.version);
+      PrimarySignature sig_value(id, txid.seqno);
       signatures->put(0, sig_value);
       serialised_tree->put(0, {});
       return sig.commit_reserved();
@@ -191,8 +191,8 @@ namespace ccf
       return crypto::Sha256Hash(std::to_string(version));
     }
 
-    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
-      override
+    std::pair<ccf::TxID, crypto::Sha256Hash>
+    get_replicated_state_txid_and_root() override
     {
       return {{term, version}, crypto::Sha256Hash(std::to_string(version))};
     }
@@ -278,7 +278,7 @@ namespace ccf
   template <class T>
   class MerkleTreeHistoryPendingTx : public kv::PendingTx
   {
-    kv::TxID txid;
+    ccf::TxID txid;
     kv::Consensus::SignableTxIndices commit_txid;
     kv::Store& store;
     kv::TxHistory& history;
@@ -287,7 +287,7 @@ namespace ccf
 
   public:
     MerkleTreeHistoryPendingTx(
-      kv::TxID txid_,
+      ccf::TxID txid_,
       kv::Consensus::SignableTxIndices commit_txid_,
       kv::Store& store_,
       kv::TxHistory& history_,
@@ -640,8 +640,8 @@ namespace ccf
       return replicated_state_tree.get_root();
     }
 
-    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
-      override
+    std::pair<ccf::TxID, crypto::Sha256Hash>
+    get_replicated_state_txid_and_root() override
     {
       std::lock_guard<SpinLock> guard(state_lock);
       return {
