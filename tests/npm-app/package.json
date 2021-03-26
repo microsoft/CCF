@@ -1,12 +1,11 @@
 {
   "private": true,
   "scripts": {
-    "build": "del-cli -f dist/ && rollup --config && cp app.json dist/",
-    "demo": "npm run build && http-server -o demo/index.html"
+    "build": "del-cli -f dist/ && rollup --config && cp app.json dist/"
   },
   "type": "module",
   "dependencies": {
-    "ccf-app": "file:../../js",
+    "ccf-app": "file:../../js/ccf-app",
     "js-base64": "^3.5.2",
     "jsrsasign": "^10.0.4",
     "jsrsasign-util": "^1.0.2",

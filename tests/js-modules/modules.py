@@ -222,7 +222,7 @@ def test_npm_app(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info("Building ccf-app npm package (dependency)")
-    ccf_pkg_dir = os.path.join(PARENT_DIR, "..", "js")
+    ccf_pkg_dir = os.path.join(PARENT_DIR, "..", "js", "ccf-app")
     subprocess.run(["npm", "install"], cwd=ccf_pkg_dir, check=True)
 
     LOG.info("Building npm app")
