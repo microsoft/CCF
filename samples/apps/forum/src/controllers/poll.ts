@@ -119,7 +119,7 @@ export class PollController extends Controller {
     @Body() body: CreatePollRequest,
     @Request() request: ccfapp.Request
   ): void {
-    const user: User = request.caller;
+    const user = <User>request.caller;
 
     if (this.kvPolls.has(topic)) {
       throw new ForbiddenError("Poll with given topic exists already");
@@ -142,7 +142,7 @@ export class PollController extends Controller {
     @Body() body: CreatePollsRequest,
     @Request() request: ccfapp.Request
   ): void {
-    const user: User = request.caller;
+    const user = <User>request.caller;
 
     for (let [topic, poll] of Object.entries(body.polls)) {
       if (this.kvPolls.has(topic)) {
@@ -172,7 +172,7 @@ export class PollController extends Controller {
     @Body() body: SubmitOpinionRequest,
     @Request() request: ccfapp.Request
   ): void {
-    const user: User = request.caller;
+    const user = <User>request.caller;
 
     const poll = this.kvPolls.get(topic);
     if (poll === undefined) {
@@ -196,7 +196,7 @@ export class PollController extends Controller {
     @Body() body: SubmitOpinionsRequest,
     @Request() request: ccfapp.Request
   ): void {
-    const user: User = request.caller;
+    const user = <User>request.caller;
 
     for (const [topic, opinion] of Object.entries(body.opinions)) {
       const poll = this.kvPolls.get(topic);
@@ -225,7 +225,7 @@ export class PollController extends Controller {
     @Path() topic: string,
     @Request() request: ccfapp.Request
   ): GetPollResponse {
-    const user: User = request.caller;
+    const user = <User>request.caller;
 
     if (!this.kvPolls.has(topic)) {
       throw new NotFoundError("Poll does not exist");
@@ -238,7 +238,7 @@ export class PollController extends Controller {
   @SuccessResponse(200, "Poll data")
   @Get()
   public getPolls(@Request() request: ccfapp.Request): GetPollsResponse {
-    const user: User = request.caller;
+    const user = <User>request.caller;
 
     let response: GetPollsResponse = { polls: {} };
 

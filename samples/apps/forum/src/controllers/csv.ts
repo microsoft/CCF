@@ -48,7 +48,7 @@ export class CSVController extends Controller {
   @SuccessResponse(200, "Opinions of authenticated user in CSV format")
   @Get()
   public getOpinionsAsCSV(@Request() request: ccfapp.Request): any {
-    const user: User = request.caller;
+    const user = <User>request.caller;
 
     const rows = [];
     this.kvPolls.forEach((poll, topic) => {
@@ -71,7 +71,7 @@ export class CSVController extends Controller {
   )
   @Post()
   public submitOpinionsFromCSV(@Request() request: ccfapp.Request): void {
-    const user: User = request.caller;
+    const user = <User>request.caller;
 
     const rows = parse<any>(request.body.text(), { header: true }).data;
 
