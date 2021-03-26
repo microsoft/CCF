@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.13)
 
 project(logging LANGUAGES C CXX)
-find_package(ccf REQUIRED HINTS /tmp/ccf)
+find_package(ccf REQUIRED)
 
 add_ccf_app(logging SRCS logging.cpp)
 
