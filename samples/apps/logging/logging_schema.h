@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "ccf/receipt.h"
 #include "ds/json.h"
 
 namespace loggingapp
@@ -40,7 +41,7 @@ namespace loggingapp
     struct Out
     {
       std::string msg;
-      ccf::GetReceipt::Out receipt;
+      ccf::Receipt receipt;
     };
   };
 

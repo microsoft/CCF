@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/historical_queries_interface.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/spin_lock.h"
-#include "historical_queries_interface.h"
 #include "kv/store.h"
 #include "node/encryptor.h"
 #include "node/history.h"
@@ -257,12 +257,9 @@ namespace ccf::historical
                     return UpdateTrustedResult::Invalidated;
                   }
 
-                  auto receipt = tree.get_receipt(seqno);
+                  auto proof = tree.get_proof(seqno);
                   details->receipt = std::make_shared<TxReceipt>(
-                    sig->sig,
-                    receipt.get_root(),
-                    receipt.get_path(),
-                    sig->node);
+                    sig->sig, proof.get_root(), proof.get_path(), sig->node);
                   details->transaction_id = {sig->view, seqno};
                   details->current_stage = RequestStage::Trusted;
                 }
@@ -294,12 +291,9 @@ namespace ccf::historical
                     return UpdateTrustedResult::Invalidated;
                   }
 
-                  auto receipt = tree.get_receipt(new_seqno);
+                  auto proof = tree.get_proof(new_seqno);
                   details->receipt = std::make_shared<TxReceipt>(
-                    sig->sig,
-                    receipt.get_root(),
-                    receipt.get_path(),
-                    sig->node);
+                    sig->sig, proof.get_root(), proof.get_path(), sig->node);
                   details->transaction_id = {sig->view, new_seqno};
                   new_details->current_stage = RequestStage::Trusted;
                 }
@@ -327,9 +321,9 @@ namespace ccf::historical
                   return UpdateTrustedResult::Invalidated;
                 }
 
-                auto receipt = tree.get_receipt(new_seqno);
+                auto proof = tree.get_proof(new_seqno);
                 details->receipt = std::make_shared<TxReceipt>(
-                  sig->sig, receipt.get_root(), receipt.get_path(), sig->node);
+                  sig->sig, proof.get_root(), proof.get_path(), sig->node);
                 details->transaction_id = {sig->view, new_seqno};
                 new_details->current_stage = RequestStage::Trusted;
               }

@@ -235,111 +235,119 @@ namespace ccf
 
     void recv_message(const uint8_t* data, size_t size)
     {
-      serialized::skip(data, size, sizeof(NodeMsgType));
-
-      NodeId from = serialized::read<NodeId::Value>(data, size);
-      auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
-
-      switch (forwarded_msg)
+      try
       {
-        case ForwardedMsg::forwarded_cmd:
+        serialized::skip(data, size, sizeof(NodeMsgType));
+
+        NodeId from = serialized::read<NodeId::Value>(data, size);
+        auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
+
+        switch (forwarded_msg)
         {
-          if (rpc_map)
+          case ForwardedMsg::forwarded_cmd:
           {
-            auto ctx = recv_forwarded_command(from, data, size);
-            if (ctx == nullptr)
+            if (rpc_map)
             {
-              LOG_FAIL_FMT("Failed to receive forwarded command");
+              auto ctx = recv_forwarded_command(from, data, size);
+              if (ctx == nullptr)
+              {
+                LOG_FAIL_FMT("Failed to receive forwarded command");
+                return;
+              }
+
+              const auto actor_opt = http::extract_actor(*ctx);
+              if (!actor_opt.has_value())
+              {
+                LOG_FAIL_FMT("Failed to extract actor from forwarded context.");
+                LOG_DEBUG_FMT(
+                  "Failed to extract actor from forwarded context. Method is "
+                  "'{}'",
+                  ctx->get_method());
+              }
+
+              const auto& actor_s = actor_opt.value();
+              auto actor = rpc_map->resolve(actor_s);
+              auto handler = rpc_map->find(actor);
+              if (actor == ccf::ActorsType::unknown || !handler.has_value())
+              {
+                LOG_FAIL_FMT(
+                  "Failed to process forwarded command: unknown actor");
+                LOG_DEBUG_FMT(
+                  "Failed to process forwarded command: unknown actor {}",
+                  actor_s);
+                return;
+              }
+
+              auto fwd_handler =
+                dynamic_cast<ForwardedRpcHandler*>(handler.value().get());
+              if (!fwd_handler)
+              {
+                LOG_FAIL_FMT(
+                  "Failed to process forwarded command: handler is not a "
+                  "ForwardedRpcHandler");
+                return;
+              }
+
+              if (!send_forwarded_response(
+                    ctx->session->client_session_id,
+                    from,
+                    fwd_handler->process_forwarded(ctx)))
+              {
+                LOG_FAIL_FMT("Could not send forwarded response to {}", from);
+              }
+              else
+              {
+                LOG_DEBUG_FMT("Sending forwarded response to {}", from);
+              }
+            }
+            break;
+          }
+
+          case ForwardedMsg::forwarded_response:
+          {
+            auto rep = recv_forwarded_response(from, data, size);
+            if (!rep.has_value())
+            {
               return;
             }
 
-            const auto actor_opt = http::extract_actor(*ctx);
-            if (!actor_opt.has_value())
-            {
-              LOG_FAIL_FMT("Failed to extract actor from forwarded context.");
-              LOG_DEBUG_FMT(
-                "Failed to extract actor from forwarded context. Method is "
-                "'{}'",
-                ctx->get_method());
-            }
+            LOG_DEBUG_FMT(
+              "Sending forwarded response to RPC endpoint {}", rep->first);
 
-            const auto& actor_s = actor_opt.value();
-            auto actor = rpc_map->resolve(actor_s);
-            auto handler = rpc_map->find(actor);
-            if (actor == ccf::ActorsType::unknown || !handler.has_value())
+            if (!rpcresponder->reply_async(rep->first, std::move(rep->second)))
             {
-              LOG_FAIL_FMT(
-                "Failed to process forwarded command: unknown actor");
-              LOG_DEBUG_FMT(
-                "Failed to process forwarded command: unknown actor {}",
-                actor_s);
               return;
             }
 
-            auto fwd_handler =
-              dynamic_cast<ForwardedRpcHandler*>(handler.value().get());
-            if (!fwd_handler)
+            break;
+          }
+
+          case ForwardedMsg::request_hash:
+          {
+            auto hash = recv_request_hash(from, data, size);
+            if (!hash.has_value())
             {
-              LOG_FAIL_FMT(
-                "Failed to process forwarded command: handler is not a "
-                "ForwardedRpcHandler");
               return;
             }
 
-            if (!send_forwarded_response(
-                  ctx->session->client_session_id,
-                  from,
-                  fwd_handler->process_forwarded(ctx)))
-            {
-              LOG_FAIL_FMT("Could not send forwarded response to {}", from);
-            }
-            else
-            {
-              LOG_DEBUG_FMT("Sending forwarded response to {}", from);
-            }
+            request_tracker->insert(
+              hash->hash,
+              threading::ThreadMessaging::thread_messaging
+                .get_current_time_offset());
+            break;
           }
-          break;
-        }
 
-        case ForwardedMsg::forwarded_response:
-        {
-          auto rep = recv_forwarded_response(from, data, size);
-          if (!rep.has_value())
+          default:
           {
-            return;
+            LOG_FAIL_FMT("Unknown frontend msg type: {}", forwarded_msg);
+            break;
           }
-
-          LOG_DEBUG_FMT(
-            "Sending forwarded response to RPC endpoint {}", rep->first);
-
-          if (!rpcresponder->reply_async(rep->first, std::move(rep->second)))
-          {
-            return;
-          }
-
-          break;
         }
-
-        case ForwardedMsg::request_hash:
-        {
-          auto hash = recv_request_hash(from, data, size);
-          if (!hash.has_value())
-          {
-            return;
-          }
-
-          request_tracker->insert(
-            hash->hash,
-            threading::ThreadMessaging::thread_messaging
-              .get_current_time_offset());
-          break;
-        }
-
-        default:
-        {
-          LOG_FAIL_FMT("Unknown frontend msg type: {}", forwarded_msg);
-          break;
-        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_EXC(e.what());
+        return;
       }
     }
   };

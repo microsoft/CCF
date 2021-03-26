@@ -32,7 +32,7 @@ def wait_for_commit(
     end_time = time.time() + timeout
     while time.time() < end_time:
         logs = []
-        r = client.get(f"/node/tx?view={view}&seqno={seqno}", log_capture=logs)
+        r = client.get(f"/node/tx?transaction_id={view}.{seqno}", log_capture=logs)
         assert (
             r.status_code == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status_code}"

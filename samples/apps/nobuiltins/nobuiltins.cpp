@@ -1,7 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/app_interface.h"
+#include "ccf/base_endpoint_registry.h"
+#include "ccf/common_auth_policies.h"
 #include "ds/json.h"
-#include "enclave/app_interface.h"
+#include "enclave/node_context.h"
+#include "node/network_tables.h"
+#include "node/rpc/frontend.h"
+#include "node/rpc/json_handler.h"
 
 #include <charconv>
 
@@ -36,7 +42,7 @@ namespace nobuiltins
     NoBuiltinsRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::BaseEndpointRegistry("app", context)
     {
-      auto node_summary = [this](ccf::EndpointContext& ctx) {
+      auto node_summary = [this](auto& ctx) {
         ccf::ApiResult result;
 
         NodeSummary summary;
@@ -84,10 +90,10 @@ namespace nobuiltins
         .set_auto_schema<void, NodeSummary>()
         .install();
 
-      auto openapi = [this](kv::Tx& tx, nlohmann::json&&) {
+      auto openapi = [this](auto& ctx, nlohmann::json&&) {
         nlohmann::json document;
         const auto result = generate_openapi_document_v1(
-          tx,
+          ctx.tx,
           openapi_info.title,
           "A CCF sample demonstrating a minimal app, with no default endpoints",
           "0.0.1",
@@ -113,11 +119,15 @@ namespace nobuiltins
         .install();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
-        ccf::GetCommit::Out out;
-        const auto result = get_last_committed_txid_v1(out.view, out.seqno);
+        kv::Consensus::View view;
+        kv::Consensus::SeqNo seqno;
+        const auto result = get_last_committed_txid_v1(view, seqno);
 
         if (result == ccf::ApiResult::OK)
         {
+          ccf::GetCommit::Out out;
+          out.transaction_id.view = view;
+          out.transaction_id.seqno = seqno;
           return ccf::make_success(out);
         }
         else
@@ -205,7 +215,7 @@ namespace nobuiltins
     }
   };
 
-  class NoBuiltinsFrontend : public ccf::UserRpcFrontend
+  class NoBuiltinsFrontend : public ccf::RpcFrontend
   {
   private:
     NoBuiltinsRegistry nbr;
@@ -213,7 +223,7 @@ namespace nobuiltins
   public:
     NoBuiltinsFrontend(
       ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context) :
-      ccf::UserRpcFrontend(*network.tables, nbr),
+      ccf::RpcFrontend(*network.tables, nbr),
       nbr(context)
     {}
   };
@@ -221,7 +231,7 @@ namespace nobuiltins
 
 namespace ccfapp
 {
-  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
+  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
     ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
   {
     return std::make_shared<nobuiltins::NoBuiltinsFrontend>(nwt, context);

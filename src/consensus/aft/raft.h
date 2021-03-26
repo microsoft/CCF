@@ -674,9 +674,9 @@ namespace aft
           }
         }
       }
-      catch (const std::logic_error& err)
+      catch (const std::exception& e)
       {
-        LOG_FAIL_EXC(err.what());
+        LOG_FAIL_EXC(e.what());
         return;
       }
 

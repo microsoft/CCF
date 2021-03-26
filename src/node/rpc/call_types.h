@@ -1,9 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
+#include "ccf/receipt.h"
+#include "ccf/tx_id.h"
 #include "ds/json_schema.h"
 #include "kv/kv_types.h"
-#include "metrics.h"
 #include "node/code_id.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
@@ -20,8 +22,7 @@ namespace ccf
   {
     struct Out
     {
-      ccf::View view;
-      ccf::SeqNo seqno;
+      ccf::TxID transaction_id;
     };
   };
 
@@ -29,8 +30,7 @@ namespace ccf
   {
     struct Out
     {
-      ccf::View view;
-      ccf::SeqNo seqno;
+      ccf::TxID transaction_id;
       TxStatus status;
     };
   };
@@ -118,45 +118,6 @@ namespace ccf
     struct Out
     {
       std::vector<Entry> metrics;
-    };
-  };
-
-  struct GetReceipt
-  {
-    struct Element
-    {
-      std::optional<std::string> left = std::nullopt;
-      std::optional<std::string> right = std::nullopt;
-    };
-
-    struct Out
-    {
-      std::string signature;
-      std::string root;
-      std::vector<Element> proof = {};
-      std::string leaf;
-      ccf::NodeId node_id;
-
-      void from_receipt(const historical::TxReceiptPtr& r)
-      {
-        signature = tls::b64_from_raw(r->signature);
-        root = r->root.to_string();
-        for (const auto& node : *r->path)
-        {
-          Element n;
-          if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
-          {
-            n.left = node.hash.to_string();
-          }
-          else
-          {
-            n.right = node.hash.to_string();
-          }
-          proof.emplace_back(std::move(n));
-        }
-        leaf = r->path->leaf().to_string();
-        node_id = r->node_id;
-      }
     };
   };
 

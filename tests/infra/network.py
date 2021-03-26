@@ -11,6 +11,7 @@ import infra.proc
 import infra.node
 import infra.consortium
 from ccf.tx_status import TxStatus
+from ccf.tx_id import TxID
 import random
 from dataclasses import dataclass
 from math import ceil
@@ -393,7 +394,7 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
-        self.consortium.activate(primary)
+        self.consortium.activate(self.find_random_node())
 
         if args.js_app_script:
             LOG.error(
@@ -403,21 +404,23 @@ class Network:
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()
             self.consortium.set_js_app(
-                remote_node=primary, app_script_path=args.js_app_script
+                remote_node=self.find_random_node(), app_script_path=args.js_app_script
             )
 
         if args.js_app_bundle:
             self.consortium.deploy_js_app(
-                remote_node=primary, app_bundle_path=args.js_app_bundle
+                remote_node=self.find_random_node(), app_bundle_path=args.js_app_bundle
             )
 
         for path in args.jwt_issuer:
-            self.consortium.set_jwt_issuer(remote_node=primary, json_path=path)
+            self.consortium.set_jwt_issuer(
+                remote_node=self.find_random_node(), json_path=path
+            )
 
-        self.consortium.add_users(primary, initial_users)
+        self.consortium.add_users(self.find_random_node(), initial_users)
         LOG.info(f"Initial set of users added: {len(initial_users)}")
 
-        self.consortium.open_network(remote_node=primary)
+        self.consortium.transition_service_to_open(remote_node=self.find_random_node())
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
@@ -468,11 +471,14 @@ class Network:
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         """
-        primary, _ = self.find_primary()
-        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
-        self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
-        self.consortium.accept_recovery(primary)
-        self.consortium.recover_with_shares(primary)
+        self.consortium.check_for_service(
+            self.find_random_node(), status=ServiceStatus.OPENING
+        )
+        self.consortium.wait_for_all_nodes_to_be_trusted(
+            self.find_random_node(), self.nodes
+        )
+        self.consortium.transition_service_to_open(self.find_random_node())
+        self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
             self.wait_for_state(
@@ -482,7 +488,7 @@ class Network:
             )
             self._wait_for_app_open(node)
 
-        self.consortium.check_for_service(primary, ServiceStatus.OPEN)
+        self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -627,7 +633,9 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
-                    primary, new_node.node_id, timeout=ceil(args.join_timer * 2 / 1000)
+                    primary,
+                    new_node.node_id,
+                    timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node
             # was added as pending. Only wait for the join timer for the
@@ -767,6 +775,9 @@ class Network:
         else:
             return self.find_any_backup()
 
+    def find_random_node(self):
+        return random.choice(self.get_joined_nodes())
+
     def find_nodes(self, timeout=3):
         primary, _ = self.find_primary(timeout=timeout)
         backups = self.find_backups(primary=primary, timeout=timeout)
@@ -788,22 +799,20 @@ class Network:
             with primary.client() as c:
                 resp = c.get("/node/commit")
                 body = resp.body.json()
-                seqno = body["seqno"]
-                view = body["view"]
-                if seqno != 0:
+                tx_id = TxID.from_str(body["transaction_id"])
+                if tx_id.valid():
                     break
             time.sleep(0.1)
         assert (
-            seqno != 0
-        ), f"Primary {primary.node_id} has not made any progress yet (view: {view}, seqno: {seqno})"
+            tx_id.valid()
+        ), f"Primary {primary.node_id} has not made any progress yet ({tx_id})"
 
         caught_up_nodes = []
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    c.get("/node/commit")
-                    resp = c.get(f"/node/local_tx?view={view}&seqno={seqno}")
+                    resp = c.get(f"/node/local_tx?transaction_id={tx_id}")
                     if resp.status_code != 200:
                         # Node may not have joined the network yet, try again
                         break
@@ -812,7 +821,7 @@ class Network:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:
                         raise RuntimeError(
-                            f"Node {node.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
+                            f"Node {node.node_id} reports transaction ID {tx_id} is invalid and will never be committed"
                         )
                     else:
                         pass
@@ -837,7 +846,7 @@ class Network:
                     r = c.get("/node/commit")
                     assert r.status_code == http.HTTPStatus.OK.value
                     body = r.body.json()
-                    commits.append(f"{body['view']}.{body['seqno']}")
+                    commits.append(body["transaction_id"])
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)
@@ -877,8 +886,8 @@ class Network:
         while time.time() < end_time:
             with node.client() as c:
                 r = c.get("/node/commit")
-                current_commit_seqno = r.body.json()["seqno"]
-                if current_commit_seqno >= seqno:
+                current_tx = TxID.from_str(r.body.json()["transaction_id"])
+                if current_tx.seqno >= seqno:
                     with node.client(
                         self.consortium.get_any_active_member().local_id
                     ) as nc:

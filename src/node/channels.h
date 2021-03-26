@@ -2,12 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/entity_id.h"
+#include "crypto/hash_provider.h"
 #include "crypto/key_pair.h"
 #include "crypto/symmetric_key.h"
+#include "crypto/verifier.h"
 #include "ds/logger.h"
+#include "ds/serialized.h"
 #include "ds/spin_lock.h"
 #include "entities.h"
-#include "node/entity_id.h"
 #include "node_types.h"
 #include "tls/key_exchange.h"
 
@@ -46,7 +49,9 @@ namespace ccf
 
   enum ChannelStatus
   {
-    INITIATED = 0,
+    INACTIVE = 0,
+    INITIATED,
+    WAITING_FOR_FINAL,
     ESTABLISHED
   };
 
@@ -68,7 +73,11 @@ namespace ccf
     };
 
     NodeId self;
-    crypto::KeyPairPtr network_kp;
+    const crypto::Pem& network_cert;
+    crypto::KeyPairPtr node_kp;
+    const crypto::Pem& node_cert;
+    crypto::VerifierPtr peer_cv;
+    crypto::Pem peer_cert;
 
     // Notifies the host to create a new outgoing connection
     ringbuffer::WriterPtr to_host;
@@ -78,8 +87,11 @@ namespace ccf
     bool outgoing;
 
     // Used for key exchange
-    tls::KeyExchangeContext ctx;
-    ChannelStatus status = INITIATED;
+    tls::KeyExchangeContext kex_ctx;
+    ChannelStatus status = INACTIVE;
+    static constexpr size_t salt_len = 32;
+    static constexpr size_t shared_key_size = 32;
+    std::vector<uint8_t> hkdf_salt;
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> key;
@@ -155,29 +167,22 @@ namespace ccf
       return ret;
     }
 
-    void try_establish_channel()
-    {
-      to_host->write(
-        node_outbound,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        ChannelMsg::key_exchange,
-        get_signed_public());
-
-      LOG_DEBUG_FMT("node channel with {} initiated", peer_id);
-    }
-
   public:
+    static constexpr size_t protocol_version = 1;
+
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      crypto::KeyPairPtr network_kp_,
+      const crypto::Pem& network_cert_,
+      crypto::KeyPairPtr node_kp_,
+      const crypto::Pem& node_cert_,
       const NodeId& self_,
       const NodeId& peer_id_,
       const std::string& peer_hostname_,
       const std::string& peer_service_) :
       self(self_),
-      network_kp(network_kp_),
+      network_cert(network_cert_),
+      node_kp(node_kp_),
+      node_cert(node_cert_),
       to_host(writer_factory.create_writer_to_outside()),
       peer_id(peer_id_),
       peer_hostname(peer_hostname_),
@@ -186,19 +191,28 @@ namespace ccf
     {
       RINGBUFFER_WRITE_MESSAGE(
         ccf::add_node, to_host, peer_id.value(), peer_hostname, peer_service);
+      auto e = crypto::create_entropy();
+      hkdf_salt = e->random(salt_len);
     }
 
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      crypto::KeyPairPtr network_kp_,
+      const crypto::Pem& network_cert_,
+      crypto::KeyPairPtr node_kp_,
+      const crypto::Pem& node_cert_,
       const NodeId& self_,
       const NodeId& peer_id_) :
       self(self_),
-      network_kp(network_kp_),
+      network_cert(network_cert_),
+      node_kp(node_kp_),
+      node_cert(node_cert_),
       to_host(writer_factory.create_writer_to_outside()),
       peer_id(peer_id_),
       outgoing(false)
-    {}
+    {
+      auto e = crypto::create_entropy();
+      hkdf_salt = e->random(salt_len);
+    }
 
     ~Channel()
     {
@@ -246,93 +260,367 @@ namespace ccf
       outgoing = false;
     }
 
-    std::vector<uint8_t> get_signed_public()
+    std::vector<uint8_t> sign_key_share(
+      const std::vector<uint8_t>& ks,
+      bool with_salt = false,
+      const std::vector<uint8_t>* extra = nullptr)
     {
-      const auto own_public = ctx.get_own_public();
-      auto signature = network_kp->sign(own_public);
+      std::vector<uint8_t> t = ks;
 
-      // Serialise channel public and network signature and length-prefix both
-      auto space = own_public.size() + signature.size() + 2 * sizeof(size_t);
-      std::vector<uint8_t> serialised_signed_public(space);
-      auto data_ = serialised_signed_public.data();
-      serialized::write(data_, space, own_public.size());
-      serialized::write(data_, space, own_public.data(), own_public.size());
+      if (extra)
+      {
+        t.insert(t.end(), extra->begin(), extra->end());
+      }
+
+      auto signature = node_kp->sign(t);
+
+      // Serialise channel key share, signature, and certificate and
+      // length-prefix them
+      auto space =
+        ks.size() + signature.size() + node_cert.size() + 4 * sizeof(size_t);
+      if (with_salt)
+      {
+        space += hkdf_salt.size() + sizeof(size_t);
+      }
+      std::vector<uint8_t> serialised_signed_key_share(space);
+      auto data_ = serialised_signed_key_share.data();
+      serialized::write(data_, space, protocol_version);
+      serialized::write(data_, space, ks.size());
+      serialized::write(data_, space, ks.data(), ks.size());
       serialized::write(data_, space, signature.size());
       serialized::write(data_, space, signature.data(), signature.size());
+      serialized::write(data_, space, node_cert.size());
+      serialized::write(data_, space, node_cert.data(), node_cert.size());
+      if (with_salt)
+      {
+        serialized::write(data_, space, hkdf_salt.size());
+        serialized::write(data_, space, hkdf_salt.data(), hkdf_salt.size());
+      }
 
-      return serialised_signed_public;
+      return serialised_signed_key_share;
     }
 
-    bool load_peer_signed_public(
-      bool complete, const uint8_t* data, size_t size)
+    std::vector<uint8_t> get_signed_key_share(bool with_salt)
     {
-      if (status == ESTABLISHED)
+      return sign_key_share(kex_ctx.get_own_key_share(), with_salt);
+    }
+
+    CBuffer extract_buffer(const uint8_t*& data, size_t& size) const
+    {
+      if (size == 0)
       {
-        return false;
+        return {};
       }
 
-      auto network_pubk = crypto::make_public_key(network_kp->public_key_pem());
+      auto sz = serialized::read<size_t>(data, size);
+      CBuffer r(data, sz);
 
-      auto peer_public_size = serialized::read<size_t>(data, size);
-      auto peer_public_start = data;
-
-      if (peer_public_size > size)
-      {
-        LOG_FAIL_FMT(
-          "Peer public key header wants {} bytes, but only {} remain",
-          peer_public_size,
-          size);
-        return false;
-      }
-
-      data += peer_public_size;
-      size -= peer_public_size;
-
-      auto signature_size = serialized::read<size_t>(data, size);
-      auto signature_start = data;
-
-      if (signature_size > size)
+      if (r.n > size)
       {
         LOG_FAIL_FMT(
-          "Signature header wants {} bytes, but only {} remain",
-          signature_size,
-          size);
-        return false;
+          "Buffer header wants {} bytes, but only {} remain", r.n, size);
+        r.n = 0;
       }
-
-      if (signature_size < size)
+      else
       {
-        LOG_FAIL_FMT(
-          "Expected signature to use all remaining {} bytes, but only uses "
-          "{}",
-          size,
-          signature_size);
-        return false;
+        data += r.n;
+        size -= r.n;
       }
 
-      if (!network_pubk->verify(
-            peer_public_start,
-            peer_public_size,
-            signature_start,
-            signature_size))
+      return r;
+    }
+
+    bool verify_peer_certificate(CBuffer pc)
+    {
+      if (pc.n != 0)
       {
-        LOG_FAIL_FMT(
-          "node channel peer signature verification failed {}", peer_id);
-        return false;
+        peer_cert = crypto::Pem(pc);
+        peer_cv = crypto::make_verifier(peer_cert);
+
+        if (!peer_cv->verify_certificate({&network_cert}))
+        {
+          LOG_FAIL_FMT("Peer certificate verification failed");
+          reset();
+          return false;
+        }
+
+        LOG_TRACE_FMT(
+          "New peer certificate: {}\n{}",
+          peer_cv->serial_number(),
+          peer_cert.str());
       }
-
-      ctx.load_peer_public(peer_public_start, peer_public_size);
-
-      establish(complete);
 
       return true;
     }
 
-    void establish(bool complete)
+    bool verify_peer_signature(CBuffer msg, CBuffer sig)
     {
-      auto shared_secret = ctx.compute_shared_secret();
-      key = crypto::make_key_aes_gcm(shared_secret);
-      ctx.free_ctx();
+      LOG_TRACE_FMT(
+        "Verifying peer signature with peer certificate serial {}",
+        peer_cv ? peer_cv->serial_number() : "no peer_cv!");
+
+      if (!peer_cv || !peer_cv->verify(msg, sig))
+      {
+        LOG_FAIL_FMT(
+          "Node channel peer signature verification failed for {} with "
+          "certificate serial {}",
+          peer_id,
+          peer_cv->serial_number());
+        return false;
+      }
+
+      return true;
+    }
+
+    // Protocol overview:
+    //
+    // initiate()
+    // > key_exchange_init message
+    // consume_initiator_key_share() [by responder]
+    // < key_exchange_response message
+    // consume_responder_key_share() [by initiator]
+    // > key_exchange_final message
+    // check_peer_key_share_signature() [by responder]
+    // both reach status == ESTABLISHED
+
+    bool consume_responder_key_share(const std::vector<uint8_t>& data)
+    {
+      return consume_responder_key_share(data.data(), data.size());
+    }
+
+    bool consume_responder_key_share(const uint8_t* data, size_t size)
+    {
+      LOG_TRACE_FMT("status == {}", status);
+
+      if (status != INITIATED && status != ESTABLISHED)
+      {
+        return false;
+      }
+
+      size_t peer_version = serialized::read<size_t>(data, size);
+      CBuffer ks = extract_buffer(data, size);
+      CBuffer sig = extract_buffer(data, size);
+      CBuffer pc = extract_buffer(data, size);
+
+      LOG_TRACE_FMT(
+        "From responder {}: version={} ks={} sig={} pc={}",
+        peer_id,
+        peer_version,
+        ds::to_hex(ks),
+        ds::to_hex(sig),
+        ds::to_hex(pc));
+
+      if (size != 0)
+      {
+        LOG_FAIL_FMT("{} exccess bytes remaining", size);
+        return false;
+      }
+
+      if (peer_version != protocol_version)
+      {
+        LOG_FAIL_FMT(
+          "Protocol version mismatch (node={}, peer={})",
+          protocol_version,
+          peer_version);
+        return false;
+      }
+
+      if (ks.n == 0 || sig.n == 0)
+      {
+        return false;
+      }
+
+      if (!verify_peer_certificate(pc))
+      {
+        return false;
+      }
+
+      // We are the initiator and expect a signature over both key shares
+      std::vector<uint8_t> t = {ks.p, ks.p + ks.n};
+      auto oks = kex_ctx.get_own_key_share();
+      t.insert(t.end(), oks.begin(), oks.end());
+
+      if (!verify_peer_signature(t, sig))
+      {
+        return false;
+      }
+
+      kex_ctx.load_peer_key_share(ks);
+
+      // Sign the peer's key share
+      auto signature = node_kp->sign(ks);
+
+      // Serialise signature with length-prefix
+      auto space = signature.size() + 1 * sizeof(size_t);
+      std::vector<uint8_t> serialised_signature(space);
+      auto data_ = serialised_signature.data();
+      serialized::write(data_, space, signature.size());
+      serialized::write(data_, space, signature.data(), signature.size());
+
+      to_host->write(
+        node_outbound,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        ChannelMsg::key_exchange_final,
+        serialised_signature);
+
+      LOG_TRACE_FMT(
+        "key_exchange_final -> {}: ks={} serialised_signed_key_share={}",
+        peer_id,
+        ds::to_hex(ks),
+        ds::to_hex(serialised_signature));
+
+      establish(true);
+
+      return true;
+    }
+
+    bool consume_initiator_key_share(
+      const std::vector<uint8_t>& data, bool priority = false)
+    {
+      return consume_initiator_key_share(data.data(), data.size(), priority);
+    }
+
+    bool consume_initiator_key_share(
+      const uint8_t* data, size_t size, bool priority = false)
+    {
+      LOG_TRACE_FMT("status == {}", status);
+
+      if (status == INITIATED)
+      {
+        // Both nodes tried to initiate the channel, the one with priority wins.
+        if (!priority)
+          return true;
+      }
+      else if (status == WAITING_FOR_FINAL)
+      {
+        return false;
+      }
+
+      size_t peer_version = serialized::read<size_t>(data, size);
+      CBuffer ks = extract_buffer(data, size);
+      CBuffer sig = extract_buffer(data, size);
+      CBuffer pc = extract_buffer(data, size);
+      CBuffer salt = extract_buffer(data, size);
+
+      LOG_TRACE_FMT(
+        "From initiator {}: version={} ks={} sig={} pc={} salt={}",
+        peer_id,
+        peer_version,
+        ds::to_hex(ks),
+        ds::to_hex(sig),
+        ds::to_hex(pc),
+        ds::to_hex(salt));
+
+      if (size != 0)
+      {
+        LOG_FAIL_FMT("{} exccess bytes remaining", size);
+        return false;
+      }
+
+      hkdf_salt = {salt.p, salt.p + salt.n};
+
+      if (peer_version != protocol_version)
+      {
+        LOG_FAIL_FMT(
+          "Protocol version mismatch (node={}, peer={})",
+          protocol_version,
+          peer_version);
+        return false;
+      }
+
+      if (ks.n == 0 || sig.n == 0)
+      {
+        return false;
+      }
+
+      if (!verify_peer_certificate(pc) || !verify_peer_signature(ks, sig))
+      {
+        return false;
+      }
+
+      if (status == ESTABLISHED)
+      {
+        // key_ctx does not hold a key share; we need a new one.
+        kex_ctx.reset();
+      }
+
+      kex_ctx.load_peer_key_share(ks);
+      status = WAITING_FOR_FINAL;
+
+      // We are the responder and we return a signature over both public key
+      // shares back to the initiator
+
+      auto oks = kex_ctx.get_own_key_share();
+      std::vector<uint8_t> pks = {ks.p, ks.p + ks.n};
+      auto serialised_signed_share = sign_key_share(oks, false, &pks);
+
+      to_host->write(
+        node_outbound,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        ChannelMsg::key_exchange_response,
+        serialised_signed_share);
+
+      LOG_TRACE_FMT(
+        "key_exchange_response -> {}: oks={} serialised_signed_share={}",
+        peer_id,
+        ds::to_hex(oks),
+        ds::to_hex(serialised_signed_share));
+
+      return true;
+    }
+
+    bool check_peer_key_share_signature(const std::vector<uint8_t>& data)
+    {
+      return check_peer_key_share_signature(data.data(), data.size());
+    }
+
+    bool check_peer_key_share_signature(const uint8_t* data, size_t size)
+    {
+      LOG_TRACE_FMT("status == {}", status);
+
+      if (status != WAITING_FOR_FINAL)
+      {
+        return false;
+      }
+
+      auto oks = kex_ctx.get_own_key_share();
+
+      CBuffer sig = extract_buffer(data, size);
+
+      if (!verify_peer_signature(oks, sig))
+        return false;
+
+      establish(false);
+
+      return true;
+    }
+
+    void establish(bool initiator)
+    {
+      auto shared_secret = kex_ctx.compute_shared_secret();
+      std::string label;
+      if (initiator)
+      {
+        label = self.value() + peer_id.value();
+      }
+      else
+      {
+        label = peer_id.value() + self.value();
+      }
+      std::vector<uint8_t> info = {label.data(), label.data() + label.size()};
+      auto key_bytes = crypto::hkdf(
+        crypto::MDType::SHA256,
+        shared_key_size,
+        shared_secret,
+        hkdf_salt,
+        info);
+      key = crypto::make_key_aes_gcm(key_bytes);
+      kex_ctx.free_ctx();
+
       status = ESTABLISHED;
 
       if (outgoing_msg.has_value())
@@ -344,25 +632,41 @@ namespace ccf
         outgoing_msg.reset();
       }
 
-      LOG_INFO_FMT("node channel with {} is now established", peer_id);
+      auto node_cv = make_verifier(node_cert);
+      LOG_INFO_FMT("Node channel with {} is now established.", peer_id);
 
-      if (!complete)
-      {
-        to_host->write(
-          node_outbound,
-          peer_id.value(),
-          NodeMsgType::channel_msg,
-          self.value(),
-          ChannelMsg::key_exchange_response,
-          get_signed_public());
-      }
+      LOG_TRACE_FMT(
+        "Node certificate serial numbers: node={} peer={}",
+        node_cv->serial_number(),
+        peer_cv->serial_number());
+    }
+
+    void initiate()
+    {
+      if (status == WAITING_FOR_FINAL || status == ESTABLISHED)
+        return;
+
+      LOG_INFO_FMT("Initiating node channel with {}.", peer_id);
+
+      status = INITIATED;
+
+      to_host->write(
+        node_outbound,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        ChannelMsg::key_exchange_init,
+        get_signed_key_share(true));
+
+      auto sn = make_verifier(node_cert)->serial_number();
+      LOG_TRACE_FMT("key_exchange_init -> {} node serial: {}", peer_id, sn);
     }
 
     bool send(NodeMsgType type, CBuffer aad, CBuffer plain = nullb)
     {
       if (status != ESTABLISHED)
       {
-        try_establish_channel();
+        initiate();
         outgoing_msg = OutgoingMsg(type, aad, plain);
         return false;
       }
@@ -385,6 +689,8 @@ namespace ccf
         gcm_hdr,
         cipher);
 
+      LOG_TRACE_FMT("-> {}: encrypted msg", peer_id);
+
       return true;
     }
 
@@ -395,7 +701,7 @@ namespace ccf
       if (status != ESTABLISHED)
       {
         LOG_FAIL_FMT(
-          "node channel with {} cannot receive authenticated message: not "
+          "Node channel with {} cannot receive authenticated message: not "
           "yet established",
           peer_id);
         return false;
@@ -449,7 +755,7 @@ namespace ccf
       if (status != ESTABLISHED)
       {
         LOG_FAIL_FMT(
-          "node channel with {} cannot receive encrypted message: not yet "
+          "Node channel with {} cannot receive encrypted message: not yet "
           "established",
           peer_id);
         return std::nullopt;
@@ -465,6 +771,35 @@ namespace ccf
 
       return plain;
     }
+
+    void reset()
+    {
+      LOG_INFO_FMT("Resetting channel with {}", peer_id);
+
+      status = INACTIVE;
+
+      kex_ctx.reset();
+      key.reset();
+      peer_cert = {};
+      peer_cv.reset();
+
+      auto e = crypto::create_entropy();
+      hkdf_salt = e->random(salt_len);
+    }
+
+    void restart()
+    {
+      LOG_TRACE_FMT("Restarting node channel with {}", peer_id);
+
+      to_host->write(
+        node_outbound,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        ChannelMsg::key_exchange_restart);
+
+      LOG_TRACE_FMT("key_exchange_restart -> {}", peer_id);
+    }
   };
 
   class ChannelManager
@@ -472,17 +807,23 @@ namespace ccf
   private:
     std::unordered_map<NodeId, std::shared_ptr<Channel>> channels;
     ringbuffer::AbstractWriterFactory& writer_factory;
-    crypto::KeyPairPtr network_kp;
+    const crypto::Pem& network_cert;
+    crypto::KeyPairPtr node_kp;
+    const crypto::Pem& node_cert;
     NodeId self;
     SpinLock lock;
 
   public:
     ChannelManager(
       ringbuffer::AbstractWriterFactory& writer_factory_,
-      const crypto::Pem& network_pkey,
+      const crypto::Pem& network_cert_,
+      crypto::KeyPairPtr node_kp_,
+      const crypto::Pem& node_cert_,
       const NodeId& self_) :
       writer_factory(writer_factory_),
-      network_kp(crypto::make_key_pair(network_pkey)),
+      network_cert(network_cert_),
+      node_kp(node_kp_),
+      node_cert(node_cert_),
       self(self_)
     {}
 
@@ -501,7 +842,14 @@ namespace ccf
           hostname,
           service);
         auto channel = std::make_shared<Channel>(
-          writer_factory, network_kp, self, peer_id, hostname, service);
+          writer_factory,
+          network_cert,
+          node_kp,
+          node_cert,
+          self,
+          peer_id,
+          hostname,
+          service);
         channels.emplace_hint(search, peer_id, std::move(channel));
       }
       else if (!search->second->is_outgoing())
@@ -511,6 +859,14 @@ namespace ccf
         LOG_DEBUG_FMT("Setting existing channel to {} as outgoing", peer_id);
         search->second->set_outgoing(hostname, service);
         return;
+      }
+    }
+
+    void restart()
+    {
+      for (auto c : channels)
+      {
+        c.second->restart();
       }
     }
 
@@ -559,7 +915,8 @@ namespace ccf
       // Creating temporary channel that is not outgoing (at least for now)
       channels.try_emplace(
         peer_id,
-        std::make_shared<Channel>(writer_factory, network_kp, self, peer_id));
+        std::make_shared<Channel>(
+          writer_factory, network_cert, node_kp, node_cert, self, peer_id));
       return channels.at(peer_id);
     }
   };

@@ -3,9 +3,11 @@
 #pragma once
 
 #include "ccf/tx_id.h"
+#include "ccf/receipt.h"
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
 #include "node/history.h"
+#include "tls/base64.h"
 
 #include <chrono>
 #include <memory>
@@ -29,6 +31,27 @@ namespace ccf::historical
       path(p_),
       node_id(n_)
     {}
+
+    void describe(ccf::Receipt& r)
+    {
+      r.signature = tls::b64_from_raw(signature);
+      r.root = root.to_string();
+      for (const auto& node : *path)
+      {
+        ccf::Receipt::Element n;
+        if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
+        {
+          n.left = node.hash.to_string();
+        }
+        else
+        {
+          n.right = node.hash.to_string();
+        }
+        r.proof.emplace_back(std::move(n));
+      }
+      r.leaf = path->leaf().to_string();
+      r.node_id = node_id;
+    }
   };
 
   using TxReceiptPtr = std::shared_ptr<TxReceipt>;

@@ -7,6 +7,7 @@
 #  include "code_id.h"
 #  include "enclave/oe_shim.h"
 #  include "entities.h"
+#  include "http/http_status.h"
 #  include "network_tables.h"
 #  include "node/rpc/node_interface.h"
 #  include "quote_info.h"

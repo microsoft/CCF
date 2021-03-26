@@ -20,6 +20,7 @@ import hashlib
 import ccf.clients
 from ccf.log_capture import flush_info
 import ccf.receipt
+from ccf.tx_id import TxID
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
@@ -324,38 +325,70 @@ def test_multi_auth(network, args):
 @reqs.supports_methods("custom_auth")
 def test_custom_auth(network, args):
     if args.package == "liblogging":
-        primary, _ = network.find_primary()
+        primary, other = network.find_primary_and_any_backup()
 
-        with primary.client("user0") as c:
-            LOG.info("Request without custom headers is refused")
-            r = c.get("/app/custom_auth")
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+        for node in (primary, other):
+            with node.client() as c:
+                LOG.info("Request without custom headers is refused")
+                r = c.get("/app/custom_auth")
+                assert (
+                    r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+                ), r.status_code
 
-            name_header = "x-custom-auth-name"
-            age_header = "x-custom-auth-age"
+                name_header = "x-custom-auth-name"
+                age_header = "x-custom-auth-age"
 
-            LOG.info("Requests with partial headers are refused")
-            r = c.get("/app/custom_auth", headers={name_header: "Bob"})
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
-            r = c.get("/app/custom_auth", headers={age_header: "42"})
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+                LOG.info("Requests with partial headers are refused")
+                r = c.get("/app/custom_auth", headers={name_header: "Bob"})
+                assert (
+                    r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+                ), r.status_code
+                r = c.get("/app/custom_auth", headers={age_header: "42"})
+                assert (
+                    r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+                ), r.status_code
 
-            LOG.info("Requests with unacceptable header contents are refused")
-            r = c.get("/app/custom_auth", headers={name_header: "", age_header: "42"})
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
-            r = c.get(
-                "/app/custom_auth", headers={name_header: "Bob", age_header: "12"}
-            )
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED.value, r.status_code
+                LOG.info("Requests with unacceptable header contents are refused")
+                r = c.get(
+                    "/app/custom_auth", headers={name_header: "", age_header: "42"}
+                )
+                assert (
+                    r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+                ), r.status_code
+                r = c.get(
+                    "/app/custom_auth", headers={name_header: "Bob", age_header: "12"}
+                )
+                assert (
+                    r.status_code == http.HTTPStatus.UNAUTHORIZED.value
+                ), r.status_code
 
-            LOG.info("Request which meets all requirements is accepted")
-            r = c.get(
-                "/app/custom_auth", headers={name_header: "Alice", age_header: "42"}
-            )
-            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-            response = r.body.json()
-            assert response["name"] == "Alice", response
-            assert response["age"] == 42, response
+                LOG.info("Request which meets all requirements is accepted")
+                r = c.get(
+                    "/app/custom_auth", headers={name_header: "Alice", age_header: "42"}
+                )
+                assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+                response = r.body.json()
+                assert response["name"] == "Alice", response
+                assert response["age"] == 42, response
+
+    return network
+
+
+@reqs.description("Call an endpoint with a custom auth policy which throws")
+@reqs.supports_methods("custom_auth")
+def test_custom_auth_safety(network, args):
+    if args.package == "liblogging":
+        primary, other = network.find_primary_and_any_backup()
+
+        for node in (primary, other):
+            with node.client() as c:
+                r = c.get(
+                    "/app/custom_auth",
+                    headers={"x-custom-auth-explode": "Boom goes the dynamite"},
+                )
+                assert (
+                    r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+                ), r.status_code
 
     return network
 
@@ -666,15 +699,14 @@ def test_view_history(network, args):
             r = c.get("/node/commit")
             check(c)
 
-            commit_view = r.body.json()["view"]
-            commit_seqno = r.body.json()["seqno"]
+            commit_tx_id = TxID.from_str(r.body.json()["transaction_id"])
 
             # Retrieve status for all possible Tx IDs
             seqno_to_views = {}
-            for seqno in range(1, commit_seqno + 1):
+            for seqno in range(1, commit_tx_id.seqno + 1):
                 views = []
-                for view in range(1, commit_view + 1):
-                    r = c.get(f"/node/tx?view={view}&seqno={seqno}", log_capture=[])
+                for view in range(1, commit_tx_id.view + 1):
+                    r = c.get(f"/node/tx?transaction_id={view}.{seqno}", log_capture=[])
                     check(r)
                     status = TxStatus(r.body.json()["status"])
                     if status == TxStatus.Committed:
@@ -787,7 +819,7 @@ def test_tx_statuses(network, args):
 
             done = False
             for view, seqno in SentTxs.get_all_tx_ids():
-                r = c.get(f"/node/tx?view={view}&seqno={seqno}")
+                r = c.get(f"/node/tx?transaction_id={view}.{seqno}")
                 check(r)
                 status = TxStatus(r.body.json()["status"])
                 SentTxs.update_status(view, seqno, status)
@@ -1047,6 +1079,7 @@ def run(args):
         network = test_anonymous_caller(network, args)
         network = test_multi_auth(network, args)
         network = test_custom_auth(network, args)
+        network = test_custom_auth_safety(network, args)
         network = test_raw_text(network, args)
         network = test_historical_query(network, args)
         network = test_historical_query_range(network, args)

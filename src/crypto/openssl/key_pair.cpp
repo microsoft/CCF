@@ -4,6 +4,7 @@
 #include "key_pair.h"
 
 #include "crypto/curve.h"
+#include "crypto/openssl/public_key.h"
 #include "hash.h"
 #include "openssl_wrappers.h"
 
@@ -44,10 +45,17 @@ namespace crypto
     std::vector<std::pair<std::string, std::string>> r;
 
     char* name_cpy = strdup(name.c_str());
+    if (!name_cpy)
+      throw std::runtime_error("out of memory");
     char* p = std::strtok(name_cpy, ",");
     while (p)
     {
       char* eq = strchr(p, '=');
+      if (!eq)
+      {
+        free(name_cpy);
+        throw std::runtime_error("illegal name");
+      }
       *eq = '\0';
       r.push_back(std::make_pair(p, eq + 1));
       p = std::strtok(NULL, ",");
@@ -73,7 +81,7 @@ namespace crypto
 
   KeyPair_OpenSSL::KeyPair_OpenSSL(const Pem& pem, CBuffer pw)
   {
-    Unique_BIO mem(pem.data(), -1);
+    Unique_BIO mem(pem);
     key = PEM_read_bio_PrivateKey(mem, NULL, NULL, (void*)pw.p);
     if (!key)
       throw std::runtime_error("could not parse PEM");
@@ -105,6 +113,16 @@ namespace crypto
     const std::vector<uint8_t>& contents, const std::vector<uint8_t>& signature)
   {
     return PublicKey_OpenSSL::verify(contents, signature);
+  }
+
+  bool KeyPair_OpenSSL::verify(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size)
+  {
+    return PublicKey_OpenSSL::verify(
+      contents, contents_size, signature, signature_size);
   }
 
   std::vector<uint8_t> KeyPair_OpenSSL::sign(CBuffer d, MDType md_type) const
@@ -198,7 +216,7 @@ namespace crypto
     bool ca) const
   {
     X509* icrt = NULL;
-    Unique_BIO mem(signing_request.data(), -1);
+    Unique_BIO mem(signing_request);
     Unique_X509_REQ csr(mem);
     Unique_X509 crt;
 
@@ -219,7 +237,7 @@ namespace crypto
     // Add issuer name
     if (!issuer_cert.empty())
     {
-      Unique_BIO imem(issuer_cert.data(), -1);
+      Unique_BIO imem(issuer_cert);
       OpenSSL::CHECKNULL(icrt = PEM_read_bio_X509(imem, NULL, NULL, NULL));
       OpenSSL::CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
     }
