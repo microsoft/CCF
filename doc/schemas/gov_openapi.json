@@ -1,6 +1,38 @@
 {
   "components": {
     "schemas": {
+      "Action": {
+        "properties": {
+          "args": {
+            "$ref": "#/components/schemas/json"
+          },
+          "name": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "name",
+          "args"
+        ],
+        "type": "object"
+      },
+      "Action_array": {
+        "items": {
+          "$ref": "#/components/schemas/Action"
+        },
+        "type": "array"
+      },
+      "Ballot": {
+        "properties": {
+          "ballot": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "ballot"
+        ],
+        "type": "object"
+      },
       "CodeStatus": {
         "enum": [
           "AllowedToJoin"
@@ -59,24 +91,6 @@
         "format": "hex",
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
-      },
-      "EntityId_to_Script": {
-        "items": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/EntityId"
-              },
-              {
-                "$ref": "#/components/schemas/Script"
-              }
-            ]
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
-        },
-        "type": "array"
       },
       "GetCode__Out": {
         "properties": {
@@ -164,28 +178,12 @@
       },
       "Proposal": {
         "properties": {
-          "parameter": {
-            "$ref": "#/components/schemas/json"
-          },
-          "proposer": {
-            "$ref": "#/components/schemas/EntityId"
-          },
-          "script": {
-            "$ref": "#/components/schemas/Script"
-          },
-          "state": {
-            "$ref": "#/components/schemas/ProposalState"
-          },
-          "votes": {
-            "$ref": "#/components/schemas/EntityId_to_Script"
+          "actions": {
+            "$ref": "#/components/schemas/Action_array"
           }
         },
         "required": [
-          "script",
-          "parameter",
-          "proposer",
-          "state",
-          "votes"
+          "actions"
         ],
         "type": "object"
       },
@@ -541,8 +539,25 @@
     },
     "/proposals.js": {
       "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Proposal"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema"
+        },
         "responses": {
           "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalInfo"
+                }
+              }
+            },
             "description": "Default response description"
           }
         },
@@ -584,7 +599,38 @@
         }
       ]
     },
-    "/proposals.js/{proposal_id}/votes": {
+    "/proposals.js/{proposal_id}/actions": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proposal"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "proposal_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/proposals.js/{proposal_id}/ballots": {
       "parameters": [
         {
           "in": "path",
@@ -596,6 +642,16 @@
         }
       ],
       "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Ballot"
+              }
+            }
+          },
+          "description": "Auto-generated request body schema"
+        },
         "responses": {
           "200": {
             "content": {
@@ -615,14 +671,14 @@
         ]
       }
     },
-    "/proposals.js/{proposal_id}/votes/{member_id}": {
+    "/proposals.js/{proposal_id}/ballots/{member_id}": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "$ref": "#/components/schemas/Ballot"
                 }
               }
             },
