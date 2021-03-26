@@ -394,7 +394,7 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
-        self.consortium.activate(primary)
+        self.consortium.activate(self.find_random_node())
 
         if args.js_app_script:
             LOG.error(
@@ -404,21 +404,23 @@ class Network:
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()
             self.consortium.set_js_app(
-                remote_node=primary, app_script_path=args.js_app_script
+                remote_node=self.find_random_node(), app_script_path=args.js_app_script
             )
 
         if args.js_app_bundle:
             self.consortium.deploy_js_app(
-                remote_node=primary, app_bundle_path=args.js_app_bundle
+                remote_node=self.find_random_node(), app_bundle_path=args.js_app_bundle
             )
 
         for path in args.jwt_issuer:
-            self.consortium.set_jwt_issuer(remote_node=primary, json_path=path)
+            self.consortium.set_jwt_issuer(
+                remote_node=self.find_random_node(), json_path=path
+            )
 
-        self.consortium.add_users(primary, initial_users)
+        self.consortium.add_users(self.find_random_node(), initial_users)
         LOG.info(f"Initial set of users added: {len(initial_users)}")
 
-        self.consortium.transition_service_to_open(remote_node=primary)
+        self.consortium.transition_service_to_open(remote_node=self.find_random_node())
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
@@ -469,11 +471,14 @@ class Network:
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         """
-        primary, _ = self.find_primary()
-        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
-        self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
-        self.consortium.transition_service_to_open(primary)
-        self.consortium.recover_with_shares(primary)
+        self.consortium.check_for_service(
+            self.find_random_node(), status=ServiceStatus.OPENING
+        )
+        self.consortium.wait_for_all_nodes_to_be_trusted(
+            self.find_random_node(), self.nodes
+        )
+        self.consortium.transition_service_to_open(self.find_random_node())
+        self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
             self.wait_for_state(
@@ -483,7 +488,7 @@ class Network:
             )
             self._wait_for_app_open(node)
 
-        self.consortium.check_for_service(primary, ServiceStatus.OPEN)
+        self.consortium.check_for_service(self.find_random_node(), ServiceStatus.OPEN)
         LOG.success("***** Recovered network is now open *****")
 
     def ignore_errors_on_shutdown(self):
@@ -628,7 +633,9 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
-                    primary, new_node.node_id, timeout=ceil(args.join_timer * 2 / 1000)
+                    primary,
+                    new_node.node_id,
+                    timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node
             # was added as pending. Only wait for the join timer for the
@@ -767,6 +774,9 @@ class Network:
             return self.find_primary()[0]
         else:
             return self.find_any_backup()
+
+    def find_random_node(self):
+        return random.choice(self.get_joined_nodes())
 
     def find_nodes(self, timeout=3):
         primary, _ = self.find_primary(timeout=timeout)
