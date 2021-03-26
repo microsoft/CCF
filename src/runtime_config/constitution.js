@@ -21,6 +21,28 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "always_accept_noop",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args, tx) {
+        return true;
+      }
+    ),
+  ],
+  [
+    "always_reject_noop",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args, tx) {
+        return true;
+      }
+    ),
+  ],
 ]);
 
 function validate(input) {
@@ -42,9 +64,15 @@ function validate(input) {
 }
 
 function resolve(proposal, votes) {
-  if (votes.length == 0) {
-    return "Open";
-  } else {
-    return "Accepted";
+  let actions = JSON.parse(proposal)["actions"];
+  if (actions.length == 1) {
+    if (actions[0].name == "always_accept_noop") {
+      return "Accepted";
+    }
+    if (actions[0].name == "always_reject_noop") {
+      return "Rejected";
+    }
   }
+
+  return "Open";
 }
