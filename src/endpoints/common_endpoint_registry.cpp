@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+
+#include "ccf/common_auth_policies.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ds/nonstd.h"
 #include "enclave/node_context.h"
