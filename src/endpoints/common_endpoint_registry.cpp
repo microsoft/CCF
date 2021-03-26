@@ -65,8 +65,8 @@ namespace ccf
     BaseEndpointRegistry::init_handlers();
 
     auto get_commit = [this](auto&, nlohmann::json&&) {
-      kv::View view;
-      kv::SeqNo seqno;
+      ccf::View view;
+      ccf::SeqNo seqno;
       const auto result = get_last_committed_txid_v1(view, seqno);
 
       if (result == ccf::ApiResult::OK)
@@ -86,7 +86,8 @@ namespace ccf
     };
     make_command_endpoint(
       "commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
-      .set_execute_outside_consensus(ccf::endpoints::ExecuteOutsideLocally)
+      .set_execute_outside_consensus(
+        ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .set_auto_schema<void, GetCommit::Out>()
       .install();
 
@@ -148,7 +149,8 @@ namespace ccf
       no_auth_required)
       .set_auto_schema<void, GetTxStatus::Out>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
-      .set_execute_outside_consensus(ccf::endpoints::ExecuteOutsideLocally)
+      .set_execute_outside_consensus(
+        ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .install();
 
     auto get_code = [](auto& args, nlohmann::json&&) {
@@ -217,11 +219,12 @@ namespace ccf
       json_command_adapter(endpoint_metrics_fn),
       no_auth_required)
       .set_auto_schema<void, EndpointMetrics::Out>()
-      .set_execute_outside_consensus(ccf::endpoints::ExecuteOutsideLocally)
+      .set_execute_outside_consensus(
+        ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .install();
 
     auto is_tx_committed =
-      [this](kv::View view, kv::SeqNo seqno, std::string& error_reason) {
+      [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
         if (consensus == nullptr)
         {
           error_reason = "Node is not fully configured";
@@ -268,7 +271,8 @@ namespace ccf
         is_tx_committed,
         txid_from_query_string),
       no_auth_required)
-      .set_execute_outside_consensus(ccf::endpoints::ExecuteOutsideLocally)
+      .set_execute_outside_consensus(
+        ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .set_auto_schema<void, ccf::Receipt>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .install();

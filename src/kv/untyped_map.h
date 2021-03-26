@@ -216,7 +216,7 @@ namespace kv::untyped
               max_conflict_version =
                 std::max(max_conflict_version, static_cast<kv::Version>(abs(search->version)));
               max_conflict_version =
-                std::max(max_conflict_version, static_cast<kv::Version>(abs(search->read_version)));
+                std::max(max_conflict_version, search->read_version);
             }
             else
             {
@@ -258,7 +258,7 @@ namespace kv::untyped
               continue;
             }
             state =
-              state.put(it->first, VersionV{search->version, v, search->value});
+              state.put(it->first, VersionV{search->version, v_, search->value});
           }
           if (change_set.writes.empty())
           {
@@ -280,7 +280,7 @@ namespace kv::untyped
           {
             // Write the new value with the global version.
             changes = true;
-            state = state.put(it->first, VersionV{v, v, it->second.value()});
+            state = state.put(it->first, VersionV{v, v_, it->second.value()});
           }
           else
           {
@@ -290,7 +290,7 @@ namespace kv::untyped
             if (search.has_value())
             {
               changes = true;
-              state = state.put(it->first, VersionV{-v, -v, {}});
+              state = state.put(it->first, VersionV{-v, v_, {}});
             }
           }
         }

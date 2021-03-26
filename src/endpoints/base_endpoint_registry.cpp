@@ -15,9 +15,7 @@ namespace ccf
   {}
 
   ApiResult BaseEndpointRegistry::get_status_for_txid_v1(
-    kv::View view,
-    kv::SeqNo seqno,
-    ccf::TxStatus& tx_status)
+    ccf::View view, ccf::SeqNo seqno, ccf::TxStatus& tx_status)
   {
     try
     {
@@ -45,7 +43,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_last_committed_txid_v1(
-    kv::View& view, kv::SeqNo& seqno)
+    ccf::View& view, ccf::SeqNo& seqno)
   {
     if (consensus != nullptr)
     {
@@ -115,7 +113,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_view_for_seqno_v1(
-    kv::SeqNo seqno, kv::View& view)
+    ccf::SeqNo seqno, ccf::View& view)
   {
     try
     {
