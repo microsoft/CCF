@@ -21,7 +21,8 @@ namespace fmt
     template <typename FormatContext>
     auto format(const std::vector<uint8_t>& v, FormatContext& ctx)
     {
-      return format_to(ctx.out(), "<vec[{}]: {:02x}>", v.size(), fmt::join(v, " "));
+      return format_to(
+        ctx.out(), "<vec[{}]: {:02x}>", v.size(), fmt::join(v, " "));
     }
   };
 
