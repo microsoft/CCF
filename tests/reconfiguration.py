@@ -205,15 +205,14 @@ def run(args):
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)
         test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+        latest_node_log = network.get_joined_nodes()[-1].remote.log_path()
+        with open(latest_node_log, "r+") as log:
+            assert any(
+                "No snapshot found: Node will replay all historical transactions" in l
+                for l in log.readlines()
+            ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
+
         test_node_filter(network, args)
-        errors, _ = network.get_joined_nodes()[-1].stop()
-        if not any(
-            "No snapshot found: Node will request all historical transactions" in s
-            for s in errors
-        ):
-            raise ValueError(
-                "New node shouldn't join from snapshot if snapshot cannot be verified"
-            )
 
 
 if __name__ == "__main__":

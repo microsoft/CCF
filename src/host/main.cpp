@@ -774,8 +774,8 @@ int main(int argc, char** argv)
       }
       else
       {
-        LOG_FAIL_FMT(
-          "No snapshot found: Node will request all historical transactions");
+        LOG_INFO_FMT(
+          "No snapshot found: Node will replay all historical transactions");
       }
     }
 
