@@ -360,7 +360,7 @@ namespace ccf
 #ifdef GET_QUOTE
           auto code_id =
             EnclaveAttestationProvider::get_code_id(node_quote_info);
-          q.mrenclave = ds::to_hex(code_id);
+          q.mrenclave = ds::to_hex(code_id.data);
 #endif
 
           return make_success(q);
@@ -406,7 +406,7 @@ namespace ccf
 #ifdef GET_QUOTE
             auto code_id =
               EnclaveAttestationProvider::get_code_id(node_info.quote_info);
-            q.mrenclave = ds::to_hex(code_id);
+            q.mrenclave = ds::to_hex(code_id.data);
 #endif
             quotes.emplace_back(q);
           }

@@ -131,7 +131,9 @@ namespace ccf
         if (claim_name == OE_CLAIM_UNIQUE_ID)
         {
           std::copy(
-            claim.value, claim.value + claim.value_size, unique_id.begin());
+            claim.value,
+            claim.value + claim.value_size,
+            unique_id.data.begin());
           unique_id_found = true;
         }
         else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
