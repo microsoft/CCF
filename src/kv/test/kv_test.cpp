@@ -1471,28 +1471,39 @@ TEST_CASE("Conflict resolution")
   REQUIRE_THROWS(tx2.commit());
 }
 
+std::string rand_string(size_t i)
+{
+  return fmt::format("{}: {}", i, rand());
+}
+
 TEST_CASE("Primary can create correct execution order")
 {
   struct TxInfo
   {
-    uint32_t id;
+    std::string id;
+    kv::Version primary_committed_version;
     kv::Version replicated_max_conflict_version;
   };
   std::vector<TxInfo> txs;
 
+  MapTypes::StringString map("public:map");
+
   // Execute on primary
   {
     kv::Store kv_store_primary;
-    MapTypes::StringString map("public:map");
 
+    // Each transaction reads and writes independent keys - there is no
+    // dependency between transactions
     for (uint32_t i = 0; i < 5; ++i)
     {
-      TxInfo info = {i, kv::NoVersion};
+      TxInfo info;
+      info.id = rand_string(i);
       auto tx = kv_store_primary.create_tx();
       auto handle = tx.rw(map);
-      handle->get(std::to_string(info.id));
-      handle->put(std::to_string(info.id), std::to_string(info.id));
+      REQUIRE(!handle->has(info.id));
+      handle->put(info.id, info.id);
       REQUIRE(tx.commit(true) == kv::CommitResult::SUCCESS);
+      info.primary_committed_version = tx.commit_version();
       info.replicated_max_conflict_version = tx.get_max_conflict_version();
       txs.push_back(info);
     }
@@ -1501,23 +1512,24 @@ TEST_CASE("Primary can create correct execution order")
   // Execute on backup
   {
     kv::Store kv_store_backup;
-    MapTypes::NumNum map("public:map");
+    kv::Version map_creation_version;
 
     // create the map on the backup
     {
       TxInfo& info = txs[0];
       auto tx = kv_store_backup.create_tx();
       auto handle = tx.rw(map);
-      handle->get(info.id);
+      REQUIRE(!handle->has(info.id));
       handle->put(info.id, info.id);
       auto version_resolver = [&](bool) {
         kv_store_backup.next_version();
-        return std::make_tuple(info.id, kv::NoVersion);
+        return std::make_tuple(info.primary_committed_version, kv::NoVersion);
       };
       REQUIRE(
         tx.commit(
           true, version_resolver, info.replicated_max_conflict_version) ==
         kv::CommitResult::SUCCESS);
+      map_creation_version = tx.commit_version();
     }
 
     // Verify that transactions can be execute in a random (reverse order) as
@@ -1527,11 +1539,12 @@ TEST_CASE("Primary can create correct execution order")
       TxInfo& info = txs[i];
       auto tx = kv_store_backup.create_tx();
       auto handle = tx.rw(map);
-      handle->get(info.id);
+      REQUIRE(!handle->has(info.id));
       handle->put(info.id, info.id);
       auto version_resolver = [&](bool) {
         kv_store_backup.next_version();
-        return std::make_tuple(info.id, 0);
+        return std::make_tuple(
+          info.primary_committed_version, map_creation_version);
       };
       REQUIRE(
         tx.commit(
@@ -1547,7 +1560,7 @@ TEST_CASE("Primary can create correct execution order")
       auto handle = tx.rw(map);
       auto ret_value = handle->get(info.id);
       REQUIRE(ret_value.has_value());
-      size_t value = ret_value.value();
+      const auto value = ret_value.value();
       REQUIRE(value == info.id);
     }
   }
@@ -1557,24 +1570,34 @@ TEST_CASE("Backup can detect byzantine execution order")
 {
   struct TxInfo
   {
-    uint32_t id;
+    std::string id;
+    std::string value;
+    kv::Version primary_committed_version;
     kv::Version replicated_max_conflict_version;
   };
   std::vector<TxInfo> txs;
+  MapTypes::StringString map("public:map");
+
+  const auto key = rand_string(0);
 
   // Execute on primary
   {
     kv::Store kv_store_primary;
-    MapTypes::StringString map("public:map");
 
+    // Each transaction reads the same key, and tries to write (at the same key)
+    // a value derived from the previous value
     for (uint32_t i = 0; i < 5; ++i)
     {
-      TxInfo info = {i, 0};
+      TxInfo info;
+      info.id = key;
       auto tx = kv_store_primary.create_tx();
       auto handle = tx.rw(map);
-      handle->get("key");
-      handle->put("key", std::to_string(info.id));
+      const auto prev_value = handle->get(info.id);
+      info.value = fmt::format("{} | {}", info.id, prev_value.value_or("NONE"));
+      handle->put(info.id, info.value);
       REQUIRE(tx.commit(true) == kv::CommitResult::SUCCESS);
+      info.primary_committed_version = tx.commit_version();
+      info.replicated_max_conflict_version = tx.get_max_conflict_version();
       txs.push_back(info);
     }
   }
@@ -1582,36 +1605,38 @@ TEST_CASE("Backup can detect byzantine execution order")
   // Execute on backup
   {
     kv::Store kv_store_backup;
-    MapTypes::StringString map("public:map");
+    kv::Version map_creation_version;
 
     // Run the transaction that creates the map
     {
       TxInfo& info = txs[0];
       auto tx = kv_store_backup.create_tx();
       auto handle = tx.rw(map);
-      handle->get("key");
-      handle->put("key", std::to_string(info.id));
+      handle->get(info.id);
+      handle->put(info.id, info.value);
       auto version_resolver = [&](bool) {
         kv_store_backup.next_version();
-        return std::make_tuple(info.id, kv::NoVersion);
+        return std::make_tuple(info.primary_committed_version, kv::NoVersion);
       };
       REQUIRE(
         tx.commit(
           true, version_resolver, info.replicated_max_conflict_version) ==
         kv::CommitResult::SUCCESS);
+      map_creation_version = tx.commit_version();
     }
 
-    // Run the transaction the final transaction so any transaction with a
-    // version before this one will result a linearlizability exception
+    // Run the final transaction, out-of-order, so any transaction with a
+    // version before this one will result a linearizability exception
     {
       TxInfo& info = txs[4];
       auto tx = kv_store_backup.create_tx();
       auto handle = tx.rw(map);
-      handle->get("key");
-      handle->put("key", std::to_string(info.id));
+      handle->get(info.id);
+      handle->put(info.id, info.value);
       auto version_resolver = [&](bool) {
         kv_store_backup.next_version();
-        return std::make_tuple(info.id, kv::NoVersion);
+        return std::make_tuple(
+          info.primary_committed_version, map_creation_version);
       };
       REQUIRE(
         tx.commit(
@@ -1625,10 +1650,12 @@ TEST_CASE("Backup can detect byzantine execution order")
       TxInfo& info = txs[i];
       auto tx = kv_store_backup.create_tx();
       auto handle = tx.rw(map);
-      handle->put("key", std::to_string(info.id));
+      handle->get(info.id);
+      handle->put(info.id, info.value);
       auto version_resolver = [&](bool) {
         kv_store_backup.next_version();
-        return std::make_tuple(info.id, kv::NoVersion);
+        return std::make_tuple(
+          info.primary_committed_version, map_creation_version);
       };
       REQUIRE(
         tx.commit(
