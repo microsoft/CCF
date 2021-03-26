@@ -19,9 +19,9 @@ namespace fmt
     }
 
     template <typename FormatContext>
-    auto format(const std::vector<uint8_t>& p, FormatContext& ctx)
+    auto format(const std::vector<uint8_t>& v, FormatContext& ctx)
     {
-      return format_to(ctx.out(), "{:02x}", fmt::join(p, ""));
+      return format_to(ctx.out(), "<vec[{}]: {:02x}>", v.size(), fmt::join(v, " "));
     }
   };
 
@@ -35,9 +35,9 @@ namespace fmt
     }
 
     template <typename FormatContext>
-    auto format(const std::array<uint8_t, N>& p, FormatContext& ctx)
+    auto format(const std::array<uint8_t, N>& a, FormatContext& ctx)
     {
-      return format_to(ctx.out(), "{:02x}", fmt::join(p, ""));
+      return format_to(ctx.out(), "<arr[{}]: {:02x}>", N, fmt::join(a, " "));
     }
   };
 }
