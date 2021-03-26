@@ -138,6 +138,13 @@ class PublicDomain:
         """
         return self._tables
 
+    def get_seqno(self) -> int:
+        """
+        Returns the sequence number of the transaction at which the transaction
+        was recorded in the ledger.
+        """
+        return self._version
+
 
 def _byte_read_safe(file, num_of_bytes):
     ret = file.read(num_of_bytes)
