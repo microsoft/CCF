@@ -27,7 +27,7 @@ function validate(input) {
   let proposal = JSON.parse(input);
   let errors = [];
   let position = 0;
-  for (const action of proposal) {
+  for (const action of proposal["actions"]) {
     const definition = actions.get(action.name);
     if (definition) {
       if (!definition.validate(action.args)) {
