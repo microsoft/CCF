@@ -693,7 +693,9 @@ namespace ccf
       key_exchange_in_progress = true;
 
       if (status != ESTABLISHED)
+      {
         status = INITIATED;
+      }
       else
       {
         // Restart with new key exchange
