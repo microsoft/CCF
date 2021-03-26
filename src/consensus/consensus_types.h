@@ -34,8 +34,8 @@ namespace consensus
 
   struct AppendEntriesIndex
   {
-    ccf::Index idx;
-    ccf::Index prev_idx;
+    ccf::SeqNo idx;
+    ccf::SeqNo prev_idx;
   };
 #pragma pack(pop)
 }

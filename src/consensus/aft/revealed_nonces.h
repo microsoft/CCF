@@ -35,8 +35,6 @@ namespace aft
     ccf::TxID tx_id;
     std::vector<RevealedNonce> nonces;
 
-    MSGPACK_DEFINE(tx_id, nonces);
-
     RevealedNonces() = default;
 
     RevealedNonces(ccf::TxID tx_id_) : tx_id(tx_id_) {}

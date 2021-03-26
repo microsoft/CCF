@@ -103,7 +103,7 @@ public:
     forced = true;
   }
 
-  std::pair<ccf::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
+  std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
     override
   {
     if (forced)

@@ -88,13 +88,13 @@ namespace ccf
 
   class NullTxHistoryPendingTx : public kv::PendingTx
   {
-    ccf::TxID txid;
+    kv::TxID txid;
     kv::Store& store;
     NodeId id;
 
   public:
     NullTxHistoryPendingTx(
-      ccf::TxID txid_, kv::Store& store_, const NodeId& id_) :
+      kv::TxID txid_, kv::Store& store_, const NodeId& id_) :
       txid(txid_),
       store(store_),
       id(id_)
@@ -102,12 +102,12 @@ namespace ccf
 
     kv::PendingTxInfo call() override
     {
-      auto sig = store.create_reserved_tx(txid.seqno);
+      auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
-      PrimarySignature sig_value(id, txid.seqno);
+      PrimarySignature sig_value(id, txid.version);
       signatures->put(0, sig_value);
       serialised_tree->put(0, {});
       return sig.commit_reserved();
@@ -191,7 +191,7 @@ namespace ccf
       return crypto::Sha256Hash(std::to_string(version));
     }
 
-    std::pair<ccf::TxID, crypto::Sha256Hash>
+    std::pair<kv::TxID, crypto::Sha256Hash>
     get_replicated_state_txid_and_root() override
     {
       return {{term, version}, crypto::Sha256Hash(std::to_string(version))};
@@ -278,7 +278,7 @@ namespace ccf
   template <class T>
   class MerkleTreeHistoryPendingTx : public kv::PendingTx
   {
-    ccf::TxID txid;
+    kv::TxID txid;
     kv::Consensus::SignableTxIndices commit_txid;
     kv::Store& store;
     kv::TxHistory& history;
@@ -287,7 +287,7 @@ namespace ccf
 
   public:
     MerkleTreeHistoryPendingTx(
-      ccf::TxID txid_,
+      kv::TxID txid_,
       kv::Consensus::SignableTxIndices commit_txid_,
       kv::Store& store_,
       kv::TxHistory& history_,
@@ -640,7 +640,7 @@ namespace ccf
       return replicated_state_tree.get_root();
     }
 
-    std::pair<ccf::TxID, crypto::Sha256Hash>
+    std::pair<kv::TxID, crypto::Sha256Hash>
     get_replicated_state_txid_and_root() override
     {
       std::lock_guard<SpinLock> guard(state_lock);
@@ -691,7 +691,7 @@ namespace ccf
       auto& sig_value = sig.value();
       if (term)
       {
-        *term = sig_value.view;
+        *term = sig_value.term;
       }
 
       if (signature)

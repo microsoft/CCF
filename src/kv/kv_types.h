@@ -8,7 +8,7 @@
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
 #include "serialiser_declare.h"
-#include "tx_id.h"
+#include "ccf/tx_id.h"
 
 #include <array>
 #include <chrono>
@@ -31,12 +31,14 @@ namespace aft
 
 namespace kv
 {
-  // Version indexes modifications to the local kv store. Negative values
-  // indicate deletion
-  using Version = int64_t;
-  static const Version NoVersion = std::numeric_limits<Version>::min();
+  // Version indexes modifications to the local kv store.
+  using Version = uint64_t;
+  static constexpr Version NoVersion = 0u;
 
-  static bool is_deleted(Version version)
+  // DeletableVersion describes the version of an individual key within each table, which may be negative to indicate a deletion
+  using DeletableVersion = int64_t;  
+
+  static bool is_deleted(DeletableVersion version)
   {
     return version < 0;
   }
@@ -248,7 +250,7 @@ namespace kv
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
-    virtual std::pair<ccf::TxID, crypto::Sha256Hash>
+    virtual std::pair<kv::TxID, crypto::Sha256Hash>
     get_replicated_state_txid_and_root() = 0;
     virtual std::vector<uint8_t> get_proof(Version v) = 0;
     virtual bool verify_proof(const std::vector<uint8_t>& proof) = 0;

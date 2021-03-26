@@ -66,7 +66,10 @@ namespace kv
 
     bool committed = false;
     bool success = false;
-    Version read_version = NoVersion;
+    // TODO: NoVersion is a valid version to read from (for the first
+    // transaction), so we need an additional value to track when the
+    // read_version is unset
+    std::optional<Version> read_version = std::nullopt;
     Version version = NoVersion;
     Version max_conflict_version = NoVersion;
     Term term = 0;
@@ -117,7 +120,7 @@ namespace kv
         throw CompactedVersionConflict(fmt::format(
           "Unable to retrieve state over map {} at {}",
           map_name,
-          read_version));
+          read_version.value()));
       }
 
       auto typed_handle = get_or_insert_handle<THandle>(*change_set, map_name);
@@ -136,7 +139,7 @@ namespace kv
         return handle;
       }
 
-      if (read_version == NoVersion)
+      if (!read_version.has_value())
       {
         // Grab opacity version that all Maps should be queried at.
         auto txid = store->current_txid();
@@ -144,7 +147,7 @@ namespace kv
         read_version = txid.version;
       }
 
-      auto abstract_map = store->get_map(read_version, map_name);
+      auto abstract_map = store->get_map(read_version.value(), map_name);
       if (abstract_map == nullptr)
       {
         // Store doesn't know this map yet - create it dynamically
@@ -178,7 +181,7 @@ namespace kv
           fmt::format("Map {} has unexpected type", map_name));
       }
 
-      auto change_set = untyped_map->create_change_set(read_version);
+      auto change_set = untyped_map->create_change_set(read_version.value());
       return check_and_store_change_set<THandle>(
         std::move(change_set), map_name, abstract_map);
     }
@@ -229,7 +232,7 @@ namespace kv
 
     Version get_read_version()
     {
-      return read_version;
+      return read_version.value_or(NoVersion);
     }
 
     Version get_max_conflict_version()
@@ -244,7 +247,7 @@ namespace kv
 
     void set_read_version_and_term(Version v, Term t)
     {
-      if (read_version == NoVersion)
+      if (!read_version.has_value())
       {
         read_version = v;
         term = t;
@@ -494,7 +497,7 @@ namespace kv
       created_maps.clear();
       committed = false;
       success = false;
-      read_version = NoVersion;
+      read_version = std::nullopt;
       version = NoVersion;
       term = 0;
       root_at_read_version = std::nullopt;

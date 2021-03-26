@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ds/json.h"
-#include "tx_id.h"
+#include "ccf/tx_id.h"
 
 namespace ccf
 {

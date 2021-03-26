@@ -70,9 +70,7 @@ namespace ccf
       uint32_t sig_size,
       uint8_t* sig) = 0;
     virtual void sign_view_change_request(
-      ViewChangeRequest& view_change,
-      ccf::View view,
-      ccf::SeqNo seqno) = 0;
+      ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno) = 0;
     virtual bool verify_view_change_request(
       ViewChangeRequest& view_change,
       const NodeId& from,
@@ -148,12 +146,12 @@ namespace ccf
       {
         LOG_FAIL_FMT(
           "Failed to write nonces, view:{}, seqno:{}",
-          nonces.tx_id.term,
-          nonces.tx_id.version);
+          nonces.tx_id.view,
+          nonces.tx_id.seqno);
         throw ccf_logic_error(fmt::format(
           "Failed to write nonces, view:{}, seqno:{}",
-          nonces.tx_id.term,
-          nonces.tx_id.version));
+          nonces.tx_id.view,
+          nonces.tx_id.seqno));
       }
     }
 
@@ -192,9 +190,7 @@ namespace ccf
     }
 
     void sign_view_change_request(
-      ViewChangeRequest& view_change,
-      ccf::View view,
-      ccf::SeqNo seqno) override
+      ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno) override
     {
       crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
       view_change.signature = kp.sign_hash(h.h.data(), h.h.size());
@@ -290,9 +286,7 @@ namespace ccf
     NewViewsMap new_views;
 
     crypto::Sha256Hash hash_view_change(
-      const ViewChangeRequest& v,
-      ccf::View view,
-      ccf::SeqNo seqno) const
+      const ViewChangeRequest& v, ccf::View view, ccf::SeqNo seqno) const
     {
       auto ch = crypto::make_incremental_sha256();
 
