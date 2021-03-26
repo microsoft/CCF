@@ -3,12 +3,12 @@
 #pragma once
 
 #include "ccf/entity_id.h"
+#include "ccf/tx_id.h"
 #include "crypto/hash.h"
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
 #include "serialiser_declare.h"
-#include "ccf/tx_id.h"
 
 #include <array>
 #include <chrono>
@@ -35,8 +35,9 @@ namespace kv
   using Version = uint64_t;
   static constexpr Version NoVersion = 0u;
 
-  // DeletableVersion describes the version of an individual key within each table, which may be negative to indicate a deletion
-  using DeletableVersion = int64_t;  
+  // DeletableVersion describes the version of an individual key within each
+  // table, which may be negative to indicate a deletion
+  using DeletableVersion = int64_t;
 
   static bool is_deleted(DeletableVersion version)
   {
@@ -54,6 +55,19 @@ namespace kv
   {
     Term term = 0;
     Version version = 0;
+
+    TxID() = default;
+    TxID(Term t, Version v) : term(t), version(v) {}
+
+    // Would like to remove these duplicate types, but for now we just do free
+    // conversion
+    TxID(const ccf::TxID& other) : term(other.view), version(other.seqno) {}
+
+    operator ccf::TxID() const
+    {
+      return {term, version};
+    }
+
     MSGPACK_DEFINE(term, version);
   };
   DECLARE_JSON_TYPE(TxID);
