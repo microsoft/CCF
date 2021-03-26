@@ -89,7 +89,7 @@ namespace crypto
     auto value = j.get<std::string>();
     try
     {
-      ds::from_hex(value, hash.h.begin(), hash.h.end());
+      ds::from_hex(value, hash.h);
     }
     catch (const std::logic_error& e)
     {
