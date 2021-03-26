@@ -22,7 +22,8 @@ namespace ccf
     virtual void create_channel(
       const NodeId& peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service) = 0;
+      const std::string& peer_service,
+      size_t message_limit = Channel::default_message_limit) = 0;
 
     virtual void destroy_channel(const NodeId& peer_id) = 0;
 
@@ -166,14 +167,15 @@ namespace ccf
     void create_channel(
       const NodeId& peer_id,
       const std::string& hostname,
-      const std::string& service) override
+      const std::string& service,
+      size_t message_limit = Channel::default_message_limit) override
     {
       if (peer_id == self.value())
       {
         return;
       }
 
-      channels->create_channel(peer_id, hostname, service);
+      channels->create_channel(peer_id, hostname, service, message_limit);
     }
 
     void destroy_channel(const NodeId& peer_id) override

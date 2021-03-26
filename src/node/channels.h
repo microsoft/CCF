@@ -23,13 +23,6 @@ namespace ccf
   using SeqNo = uint64_t;
   using GcmHdr = crypto::GcmHeader<sizeof(SeqNo)>;
 
-#ifndef NDEBUG
-  static constexpr size_t message_limit = 2048;
-#else
-  // 2**24.5 as per RFC8446 Section 5.5
-  static constexpr size_t message_limit = 23726566;
-#endif
-
   struct RecvNonce
   {
     uint8_t tid;
@@ -64,6 +57,17 @@ namespace ccf
 
   class Channel
   {
+  public:
+#ifndef NDEBUG
+    // In debug mode, we use a small message limit to ensure that key rotation
+    // is triggered during CI and test runs where we usually wouldn't see enough
+    // messages.
+    static constexpr size_t default_message_limit = 2048;
+#else
+    // 2**24.5 as per RFC8446 Section 5.5
+    static constexpr size_t default_message_limit = 23726566;
+#endif
+
   private:
     struct OutgoingMsg
     {
@@ -100,6 +104,7 @@ namespace ccf
     static constexpr size_t shared_key_size = 32;
     std::vector<uint8_t> hkdf_salt;
     bool key_exchange_in_progress = false;
+    size_t message_limit = default_message_limit;
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> key;
@@ -209,7 +214,8 @@ namespace ccf
       const NodeId& self_,
       const NodeId& peer_id_,
       const std::string& peer_hostname_,
-      const std::string& peer_service_) :
+      const std::string& peer_service_,
+      size_t message_limit_ = default_message_limit) :
       self(self_),
       network_cert(network_cert_),
       node_kp(node_kp_),
@@ -218,7 +224,8 @@ namespace ccf
       peer_id(peer_id_),
       peer_hostname(peer_hostname_),
       peer_service(peer_service_),
-      outgoing(true)
+      outgoing(true),
+      message_limit(message_limit_)
     {
       RINGBUFFER_WRITE_MESSAGE(
         ccf::add_node, to_host, peer_id.value(), peer_hostname, peer_service);
@@ -232,14 +239,16 @@ namespace ccf
       crypto::KeyPairPtr node_kp_,
       const crypto::Pem& node_cert_,
       const NodeId& self_,
-      const NodeId& peer_id_) :
+      const NodeId& peer_id_,
+      size_t message_limit_ = default_message_limit) :
       self(self_),
       network_cert(network_cert_),
       node_kp(node_kp_),
       node_cert(node_cert_),
       to_host(writer_factory.create_writer_to_outside()),
       peer_id(peer_id_),
-      outgoing(false)
+      outgoing(false),
+      message_limit(message_limit_)
     {
       auto e = crypto::create_entropy();
       hkdf_salt = e->random(salt_len);
@@ -518,8 +527,6 @@ namespace ccf
     {
       LOG_TRACE_FMT("status == {}", status);
 
-      key_exchange_in_progress = true;
-
       if (status == INITIATED || status == ESTABLISHED)
       {
         // Both nodes tried to initiate the channel, the one with priority wins.
@@ -530,6 +537,8 @@ namespace ccf
       {
         return false;
       }
+
+      key_exchange_in_progress = true;
 
       size_t peer_version = serialized::read<size_t>(data, size);
       CBuffer ks = extract_buffer(data, size);
@@ -736,6 +745,10 @@ namespace ccf
 
       assert(key || next_key);
 
+      // During key rollover, we keep this->key to decrypt messages from the
+      // peer until it has rolled over too (recognized when we received a
+      // message with the nonce/seqno reset to 1). Until that happens, we need
+      // to keep both and send messages encrypted with this->next_key.
       std::vector<uint8_t> cipher(plain.n);
       (next_key ? next_key : key)
         ->encrypt(gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
@@ -880,7 +893,8 @@ namespace ccf
     void create_channel(
       const NodeId& peer_id,
       const std::string& hostname,
-      const std::string& service)
+      const std::string& service,
+      size_t message_limit = Channel::default_message_limit)
     {
       std::lock_guard<SpinLock> guard(lock);
       auto search = channels.find(peer_id);
@@ -899,7 +913,8 @@ namespace ccf
           self,
           peer_id,
           hostname,
-          service);
+          service,
+          message_limit);
         channels.emplace_hint(search, peer_id, std::move(channel));
       }
       else if (!search->second->is_outgoing())
