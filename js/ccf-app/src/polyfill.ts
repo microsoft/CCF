@@ -136,7 +136,7 @@ class CCFPolyfill implements CCF {
         Buffer.concat([cipher.update(new Uint8Array(key)), cipher.final()])
       );
     } else if (parameters.name === "RSA-OAEP-AES-KWP") {
-      const randomAesKey = this.generateAesKey(256);
+      const randomAesKey = this.generateAesKey(parameters.aesKeySize);
       const wrap1 = this.wrapKey(randomAesKey, wrappingKey, {
         name: "RSA-OAEP",
         label: parameters.label,

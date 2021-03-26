@@ -1,6 +1,12 @@
 import { assert } from "chai";
 import "../src/polyfill";
-import { ccf } from "../src/global";
+import {
+  AesKwpParams,
+  ccf,
+  RsaOaepAesKwpParams,
+  RsaOaepParams,
+} from "../src/global";
+import { unwrapKey } from "./crypto";
 
 beforeEach(function () {
   // clear KV before each test
@@ -41,27 +47,49 @@ describe("polyfill", function () {
     it("performs RSA-OAEP wrapping correctly", function () {
       const key = ccf.generateAesKey(128);
       const wrappingKey = ccf.generateRsaKeyPair(2048);
-      const wrapped = ccf.wrapKey(key, ccf.strToBuf(wrappingKey.privateKey), {
+      const wrapAlgo: RsaOaepParams = {
         name: "RSA-OAEP",
-      });
-      assert.isAbove(wrapped.byteLength, 0);
+      };
+      const wrapped = ccf.wrapKey(
+        key,
+        ccf.strToBuf(wrappingKey.publicKey),
+        wrapAlgo
+      );
+      const unwrapped = unwrapKey(
+        wrapped,
+        ccf.strToBuf(wrappingKey.privateKey),
+        wrapAlgo
+      );
+      assert.deepEqual(unwrapped, key);
     });
     it("performs AES-KWP wrapping correctly", function () {
       const key = ccf.generateAesKey(128);
       const wrappingKey = ccf.generateAesKey(256);
-      const wrapped = ccf.wrapKey(key, wrappingKey, {
+      const wrapAlgo: AesKwpParams = {
         name: "AES-KWP",
-      });
-      assert.isAbove(wrapped.byteLength, 0);
+      };
+      const wrapped = ccf.wrapKey(key, wrappingKey, wrapAlgo);
+      const unwrapped = unwrapKey(wrapped, wrappingKey, wrapAlgo);
+      assert.deepEqual(unwrapped, key);
     });
     it("performs RSA-OAEP-AES-KWP wrapping correctly", function () {
       const key = ccf.generateAesKey(128);
       const wrappingKey = ccf.generateRsaKeyPair(2048);
-      const wrapped = ccf.wrapKey(key, ccf.strToBuf(wrappingKey.privateKey), {
+      const wrapAlgo: RsaOaepAesKwpParams = {
         name: "RSA-OAEP-AES-KWP",
         aesKeySize: 256,
-      });
-      assert.isAbove(wrapped.byteLength, 0);
+      };
+      const wrapped = ccf.wrapKey(
+        key,
+        ccf.strToBuf(wrappingKey.publicKey),
+        wrapAlgo
+      );
+      const unwrapped = unwrapKey(
+        wrapped,
+        ccf.strToBuf(wrappingKey.privateKey),
+        wrapAlgo
+      );
+      assert.deepEqual(unwrapped, key);
     });
   });
   describe("kv", function () {

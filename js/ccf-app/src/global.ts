@@ -117,7 +117,7 @@ export interface HistoricalState {
  * The `key` argument of {@link CCF.wrapKey} can be of
  * arbitrary content up to the maximum size supported
  * by the wrapping algorithm.
- * The `wrappingKey` argument must be a PEM-encoded RSA private key.
+ * The `wrappingKey` argument must be a PEM-encoded RSA public key.
  */
 export interface RsaOaepParams {
   name: "RSA-OAEP";
@@ -145,7 +145,7 @@ export interface AesKwpParams {
  *
  * The `key` argument of {@link CCF.wrapKey} can be of
  * arbitrary content.
- * The `wrappingKey` argument must be a PEM-encoded RSA private key.
+ * The `wrappingKey` argument must be a PEM-encoded RSA public key.
  */
 export interface RsaOaepAesKwpParams {
   name: "RSA-OAEP-AES-KWP";
