@@ -2570,7 +2570,7 @@ namespace ccf
         return make_success(pi_.value());
       };
       make_endpoint(
-        "proposals.js/{proposal_id}/votes",
+        "proposals.js/{proposal_id}/ballots",
         HTTP_POST,
         json_adapter(vote_js),
         member_sig_only)
@@ -2632,7 +2632,7 @@ namespace ccf
           return make_success(vote_it->second);
         };
       make_read_only_endpoint(
-        "proposals.js/{proposal_id}/votes/{member_id}",
+        "proposals.js/{proposal_id}/ballots/{member_id}",
         HTTP_GET,
         json_read_only_adapter(get_vote_js),
         member_cert_or_sig)

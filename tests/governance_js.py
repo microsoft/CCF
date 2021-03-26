@@ -95,30 +95,33 @@ def test_proposal_storage(network, args):
 
 @reqs.description("Test ballot storage and validation")
 def test_ballot_storage(network, args):
-    primary, _ = network.find_nodes()
-    valid_set_recovery_threshold = [action("set_recovery_threshold", threshold=5)]
+    node = network.find_random_node()
 
-    with primary.client(None, "member0") as c:
+    with node.client(None, "member0") as c:
         r = c.post("/gov/proposals.js", valid_set_recovery_threshold)
         assert r.status_code == 200, r.body.text()
-        pid = r.body.json()["proposal_id"]
+        proposal_id = r.body.json()["proposal_id"]
 
-        r = c.post(f"/gov/proposals.js/{pid}/votes", {})
+        r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", {})
         assert r.status_code == 400, r.body.text()
 
-        vote = {"ballot": "function vote (proposal, proposer_id) { return true }"}
-        r = c.post(f"/gov/proposals.js/{pid}/votes", vote)
+        ballot = {"ballot": "function vote (proposal, proposer_id) { return true }"}
+        r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
 
         member_id = network.consortium.get_member_by_local_id("member0").service_id
-        r = c.get(f"/gov/proposals.js/{pid}/votes/{member_id}")
+        r = c.get(f"/gov/proposals.js/{proposal_id}/ballots/{member_id}")
         assert r.status_code == 200, r.body.text()
-        assert r.body.text() == f'"{vote["ballot"]}"'
+        assert r.body.text() == f'"{ballot["ballot"]}"'
 
-    with primary.client(None, "member1") as c:
-        vote = {"ballot": "function vote (proposal, proposer_id) { return false }"}
-        r = c.post(f"/gov/proposals.js/{pid}/votes", vote)
+    with node.client(None, "member1") as c:
+        ballot = {"ballot": "function vote (proposal, proposer_id) { return false }"}
+        r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
+        member_id = network.consortium.get_member_by_local_id("member1").service_id
+        r = c.get(f"/gov/proposals.js/{proposal_id}/ballots/{member_id}")
+        assert r.status_code == 200, r.body.text()
+        assert r.body.text() == f'"{ballot["ballot"]}"'
 
     return network
 
@@ -130,7 +133,7 @@ def run(args):
         network.start_and_join(args)
         network = test_proposal_validation(network, args)
         network = test_proposal_storage(network, args)
-        # network = test_ballot_storage(network, args)
+        network = test_ballot_storage(network, args)
 
 
 if __name__ == "__main__":
