@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/hex.h"
 #include "ds/nonstd.h"
 #include "serialised_entry.h"
 
