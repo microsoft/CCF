@@ -47,7 +47,7 @@ configure_file(
 )
 configure_file(${CCF_DIR}/python/setup.py.in ${CCF_DIR}/python/setup.py @ONLY)
 
-if(${ENABLE_BFT})
+if(ENABLE_BFT)
   set(CONSENSUSES cft bft)
 else()
   set(CONSENSUSES cft)
