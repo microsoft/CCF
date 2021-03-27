@@ -1171,8 +1171,7 @@ namespace ccf
       for (const auto& [mid, mb] : pi_->ballots)
       {
         std::string mbs = fmt::format(
-          "{}\n export default (proposal, proposer_id, tx) => vote(proposal, "
-          "proposer_id, tx);",
+          "{}\n export default (proposal, proposer_id) => vote(proposal, proposer_id);",
           mb);
 
         js::Runtime rt;
@@ -1220,13 +1219,13 @@ namespace ccf
         for (auto& [mid, vote]: votes)
         {
           auto v = JS_NewObject(context);
-          auto member_id = JS_NewStringLen(mid.data(), mid.size());
-          JS_SetPropertyStr(context, v, "member_id", member_id);
-          auto vote_status = JS_NewBool(vote);
-          JS_SetPropertyStr(context, v, "vote", vote_status);
-          JS_SetPropertyUint32(context, vs, index++, v);
+          auto member_id = JS_NewStringLen(context, mid.data(), mid.size());
+          JS_DefinePropertyValueStr(context, v, "member_id", member_id, JS_PROP_C_W_E);
+          auto vote_status = JS_NewBool(context, vote);
+          JS_DefinePropertyValueStr(context, v, "vote", vote_status, JS_PROP_C_W_E);
+          JS_DefinePropertyValueUint32(context, vs, index++, v, JS_PROP_C_W_E);
         }
-        argv[1] = prop;
+        argv[1] = vs;
 
         auto val =
           context(JS_Call(context, resolve_func, JS_UNDEFINED, 2, argv));
@@ -1257,6 +1256,10 @@ namespace ccf
             pi_.value().state = ProposalState::REJECTED;
           }
           else if (status == "Failed")
+          {
+            pi_.value().state = ProposalState::FAILED;
+          }
+          else
           {
             pi_.value().state = ProposalState::FAILED;
           }
