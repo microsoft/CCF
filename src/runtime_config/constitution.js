@@ -94,10 +94,18 @@ function resolve(proposal, votes) {
     if (actions[0].name === "always_reject_noop") {
       return "Rejected";
     }
-    if (actions[0].name === "always_accept_with_one_vote" && votes.length === 1 && votes[0].vote === true) {
+    if (
+      actions[0].name === "always_accept_with_one_vote" &&
+      votes.length === 1 &&
+      votes[0].vote === true
+    ) {
       return "Accepted";
     }
-    if (actions[0].name === "always_reject_with_one_vote" && votes.length === 1 && votes[0].vote === false) {
+    if (
+      actions[0].name === "always_reject_with_one_vote" &&
+      votes.length === 1 &&
+      votes[0].vote === false
+    ) {
       return "Rejected";
     }
   }

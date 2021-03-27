@@ -212,7 +212,9 @@ def test_vote_proposals(network, args):
             assert r.body.json()["state"] == "Open", r.body.json()
             proposal_id = r.body.json()["proposal_id"]
 
-            ballot = {"ballot": f"function vote (proposal, proposer_id) {{ return {direction} }}"}
+            ballot = {
+                "ballot": f"function vote (proposal, proposer_id) {{ return {direction} }}"
+            }
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == state

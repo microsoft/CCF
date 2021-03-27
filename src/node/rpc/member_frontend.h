@@ -1171,7 +1171,8 @@ namespace ccf
       for (const auto& [mid, mb] : pi_->ballots)
       {
         std::string mbs = fmt::format(
-          "{}\n export default (proposal, proposer_id) => vote(proposal, proposer_id);",
+          "{}\n export default (proposal, proposer_id) => vote(proposal, "
+          "proposer_id);",
           mb);
 
         js::Runtime rt;
@@ -1215,14 +1216,16 @@ namespace ccf
         argv[0] = prop;
 
         auto vs = JS_NewArray(context);
-        size_t index=0;
-        for (auto& [mid, vote]: votes)
+        size_t index = 0;
+        for (auto& [mid, vote] : votes)
         {
           auto v = JS_NewObject(context);
           auto member_id = JS_NewStringLen(context, mid.data(), mid.size());
-          JS_DefinePropertyValueStr(context, v, "member_id", member_id, JS_PROP_C_W_E);
+          JS_DefinePropertyValueStr(
+            context, v, "member_id", member_id, JS_PROP_C_W_E);
           auto vote_status = JS_NewBool(context, vote);
-          JS_DefinePropertyValueStr(context, v, "vote", vote_status, JS_PROP_C_W_E);
+          JS_DefinePropertyValueStr(
+            context, v, "vote", vote_status, JS_PROP_C_W_E);
           JS_DefinePropertyValueUint32(context, vs, index++, v, JS_PROP_C_W_E);
         }
         argv[1] = vs;
