@@ -216,6 +216,21 @@
         ],
         "type": "string"
       },
+      "ProposalSubmitted": {
+        "properties": {
+          "proposal_id": {
+            "$ref": "#/components/schemas/string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProposalState"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "state"
+        ],
+        "type": "object"
+      },
       "Propose__In": {
         "properties": {
           "parameter": {
@@ -657,7 +672,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProposalInfo"
+                  "$ref": "#/components/schemas/ProposalSubmitted"
                 }
               }
             },
