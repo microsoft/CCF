@@ -1211,15 +1211,29 @@ namespace ccf
         js::populate_global_ccf(&tx, std::nullopt, nullptr, context);
         auto resolve_func =
           context.function(mbs, fmt::format("resolve {}", proposal_id));
-        JSValue argv[1];
+        JSValue argv[2];
         auto prop = JS_NewStringLen(context, proposal.c_str(), proposal.size());
         argv[0] = prop;
 
+        auto vs = JS_NewArray(context);
+        size_t index=0;
+        for (auto& [mid, vote]: votes)
+        {
+          auto v = JS_NewObject(context);
+          auto member_id = JS_NewStringLen(mid.data(), mid.size());
+          JS_SetPropertyStr(context, v, "member_id", member_id);
+          auto vote_status = JS_NewBool(vote);
+          JS_SetPropertyStr(context, v, "vote", vote_status);
+          JS_SetPropertyUint32(context, vs, index++, v);
+        }
+        argv[1] = prop;
+
         auto val =
-          context(JS_Call(context, resolve_func, JS_UNDEFINED, 1, argv));
+          context(JS_Call(context, resolve_func, JS_UNDEFINED, 2, argv));
 
         JS_FreeValue(context, resolve_func);
         JS_FreeValue(context, prop);
+        JS_FreeValue(context, vs);
 
         if (JS_IsString(val))
         {
