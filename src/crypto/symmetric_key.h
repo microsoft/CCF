@@ -91,7 +91,7 @@ namespace crypto
       return serial_hdr;
     }
 
-    void apply(const std::vector<uint8_t>& serial_hdr)
+    void deserialise(const std::vector<uint8_t>& serial_hdr)
     {
       auto data_ = serial_hdr.data();
       auto size = serial_hdr.size();
