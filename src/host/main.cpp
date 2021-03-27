@@ -774,14 +774,25 @@ int main(int argc, char** argv)
       }
       else
       {
-        LOG_FAIL_FMT(
-          "No snapshot found: Node will request all historical transactions");
+        LOG_INFO_FMT(
+          "No snapshot found: Node will replay all historical transactions");
       }
     }
 
     if (start_type == StartType::Unknown)
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
+    }
+
+    if (consensus == ConsensusType::BFT)
+    {
+#ifdef ENABLE_BFT
+      LOG_INFO_FMT(
+        "Selected consensus BFT is experimental in {}", ccf::ccf_version);
+#else
+      LOG_FAIL_FMT(
+        "Selected consensus BFT is not supported in {}", ccf::ccf_version);
+#endif
     }
 
     enclave.create_node(

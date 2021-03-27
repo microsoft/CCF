@@ -50,6 +50,11 @@ option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
 
+option(ENABLE_BFT "Enable experimental BFT consensus at compile time" ON)
+if(ENABLE_BFT)
+  add_compile_definitions(ENABLE_BFT)
+endif()
+
 option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
        OFF
 )
