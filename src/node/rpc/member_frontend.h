@@ -1202,18 +1202,24 @@ namespace ccf
 
       {
         std::string mbs = fmt::format(
-          "{}\n export default (proposal, votes) => resolve(proposal, votes);",
+          "{}\n export default (proposal, proposer_id, votes) => "
+          "resolve(proposal, proposer_id, votes);",
           constitution);
 
         js::Runtime rt;
         js::Context context(rt);
+        js::populate_global_console(context);
         rt.add_ccf_classdefs();
         js::populate_global_ccf(&tx, std::nullopt, nullptr, context);
         auto resolve_func =
           context.function(mbs, fmt::format("resolve {}", proposal_id));
-        JSValue argv[2];
+        JSValue argv[3];
         auto prop = JS_NewStringLen(context, proposal.c_str(), proposal.size());
         argv[0] = prop;
+
+        auto prop_id = JS_NewStringLen(
+          context, pi_->proposer_id.data(), pi_->proposer_id.size());
+        argv[1] = prop_id;
 
         auto vs = JS_NewArray(context);
         size_t index = 0;
@@ -1228,13 +1234,14 @@ namespace ccf
             context, v, "vote", vote_status, JS_PROP_C_W_E);
           JS_DefinePropertyValueUint32(context, vs, index++, v, JS_PROP_C_W_E);
         }
-        argv[1] = vs;
+        argv[2] = vs;
 
         auto val =
-          context(JS_Call(context, resolve_func, JS_UNDEFINED, 2, argv));
+          context(JS_Call(context, resolve_func, JS_UNDEFINED, 3, argv));
 
         JS_FreeValue(context, resolve_func);
         JS_FreeValue(context, prop);
+        JS_FreeValue(context, prop_id);
         JS_FreeValue(context, vs);
 
         if (JS_IsString(val))

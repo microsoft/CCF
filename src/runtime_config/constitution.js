@@ -65,6 +65,50 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "always_accept_if_voted_by_operator",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args, tx) {
+        return true;
+      }
+    ),
+  ],
+  [
+    "always_accept_if_proposed_by_operator",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args, tx) {
+        return true;
+      }
+    ),
+  ],
+  [
+    "always_accept_with_two_votes",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args, tx) {
+        return true;
+      }
+    ),
+  ],
+  [
+    "always_reject_with_two_votes",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args, tx) {
+        return true;
+      }
+    ),
+  ],
 ]);
 
 function validate(input) {
@@ -85,7 +129,7 @@ function validate(input) {
   return { valid: errors.length === 0, description: errors.join(", ") };
 }
 
-function resolve(proposal, votes) {
+function resolve(proposal, proposer_id, votes) {
   let actions = JSON.parse(proposal)["actions"];
   if (actions.length === 1) {
     if (actions[0].name === "always_accept_noop") {
@@ -105,6 +149,40 @@ function resolve(proposal, votes) {
       actions[0].name === "always_reject_with_one_vote" &&
       votes.length === 1 &&
       votes[0].vote === false
+    ) {
+      return "Rejected";
+    }
+    if (actions[0].name === "always_accept_if_voted_by_operator") {
+      for (const vote of votes) {
+        const mi = ccf.kv["public:ccf.gov.members.info"].get(
+          ccf.strToBuf(vote.member_id)
+        );
+        if (mi && ccf.bufToJsonCompatible(mi).member_data.is_operator) {
+          return "Accepted";
+        }
+      }
+    }
+    if (actions[0].name === "always_accept_if_proposed_by_operator") {
+      const mi = ccf.kv["public:ccf.gov.members.info"].get(
+        ccf.strToBuf(proposer_id)
+      );
+      if (mi && ccf.bufToJsonCompatible(mi).member_data.is_operator) {
+        return "Accepted";
+      }
+    }
+    if (
+      actions[0].name === "always_accept_with_two_votes" &&
+      votes.length === 2 &&
+      votes[0].vote === true &&
+      votes[1].vote === true
+    ) {
+      return "Accepted";
+    }
+    if (
+      actions[0].name === "always_reject_with_two_votes" &&
+      votes.length === 2 &&
+      votes[0].vote === false &&
+      votes[1].vote === false
     ) {
       return "Rejected";
     }

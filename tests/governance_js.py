@@ -32,6 +32,14 @@ always_accept_noop = proposal(action("always_accept_noop"))
 always_reject_noop = proposal(action("always_reject_noop"))
 always_accept_with_one_vote = proposal(action("always_accept_with_one_vote"))
 always_reject_with_one_vote = proposal(action("always_reject_with_one_vote"))
+always_accept_if_voted_by_operator = proposal(
+    action("always_accept_if_voted_by_operator")
+)
+always_accept_if_proposed_by_operator = proposal(
+    action("always_accept_if_proposed_by_operator")
+)
+always_accept_with_two_votes = proposal(action("always_accept_with_two_votes"))
+always_reject_with_two_votes = proposal(action("always_reject_with_two_votes"))
 
 
 @reqs.description("Test proposal validation")
@@ -226,7 +234,7 @@ def test_vote_proposals(network, args):
             }
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
-            assert r.body.json()["state"] == state
+            assert r.body.json()["state"] == state, r.body.json()
 
             r = c.post("/gov/proposals.js", prop)
             assert r.status_code == 200, r.body.text()
@@ -239,7 +247,49 @@ def test_vote_proposals(network, args):
             }
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
-            assert r.body.json()["state"] == state
+            assert r.body.json()["state"] == state, r.body.json()
+
+    with node.client(None, "member0") as c:
+        r = c.post("/gov/proposals.js", always_accept_if_voted_by_operator)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Open", r.body.json()
+        proposal_id = r.body.json()["proposal_id"]
+
+        ballot = {"ballot": "function vote (proposal, proposer_id) {{ return true }}"}
+        r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
+
+    with node.client(None, "member0") as c:
+        r = c.post("/gov/proposals.js", always_accept_if_proposed_by_operator)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
+        proposal_id = r.body.json()["proposal_id"]
+
+    with node.client(None, "member0") as c:
+        for prop, state, direction in [
+            (always_accept_with_two_votes, "Accepted", "true"),
+            (always_reject_with_two_votes, "Rejected", "false"),
+        ]:
+            r = c.post("/gov/proposals.js", prop)
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == "Open", r.body.json()
+            proposal_id = r.body.json()["proposal_id"]
+
+            ballot = {
+                "ballot": f"function vote (proposal, proposer_id) {{ return {direction} }}"
+            }
+            r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == "Open", r.body.json()
+
+            with node.client(None, "member1") as oc:
+                ballot = {
+                    "ballot": f"function vote (proposal, proposer_id) {{ return {direction} }}"
+                }
+                r = oc.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
+                assert r.status_code == 200, r.body.text()
+                assert r.body.json()["state"] == state, r.body.json()
 
     return network
 
