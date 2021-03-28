@@ -199,6 +199,15 @@ def test_pure_proposals(network, args):
     return network
 
 
+def opposite(js_bool):
+    if js_bool == "true":
+        return "false"
+    elif js_bool == "false":
+        return "true"
+    else:
+        raise ValueError(f"{js_bool} is not a JavaScript boolean")
+
+
 @reqs.description("Test vote proposals")
 def test_vote_proposals(network, args):
     node = network.find_random_node()
@@ -214,6 +223,19 @@ def test_vote_proposals(network, args):
 
             ballot = {
                 "ballot": f"function vote (proposal, proposer_id) {{ return {direction} }}"
+            }
+            r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == state
+
+            r = c.post("/gov/proposals.js", prop)
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == "Open", r.body.json()
+            proposal_id = r.body.json()["proposal_id"]
+
+            member_id = network.consortium.get_member_by_local_id("member0").service_id
+            ballot = {
+                "ballot": f'function vote (proposal, proposer_id) {{ if (proposer_id == "{member_id}") {{ return {direction} }} else {{ return {opposite(direction) } }} }}'
             }
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
