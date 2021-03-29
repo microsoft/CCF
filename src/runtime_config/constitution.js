@@ -98,8 +98,9 @@ const actions = new Map([
         return typeof args.user_id === "string";
       },
       function (args) {
-        ccf.kv["public:ccf.gov.users.certs"].delete(args.user_id);
-        ccf.kv["public:ccf.gov.users.info"].delete(args.user_id);
+        const user_id = ccf.strToBuf(args.user_id);
+        ccf.kv["public:ccf.gov.users.certs"].delete(user_id);
+        ccf.kv["public:ccf.gov.users.info"].delete(user_id);
       }
     ),
   ],

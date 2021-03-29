@@ -204,6 +204,9 @@ namespace js
     const auto [security_domain, access_category] =
       kv::parse_map_name(property_name);
 
+    auto tx_ctx_ptr =
+      static_cast<TxContext*>(JS_GetOpaque(this_val, kv_class_id));
+
     auto read_only = false;
     switch (access_category)
     {
@@ -223,11 +226,12 @@ namespace js
       }
       case kv::AccessCategory::GOVERNANCE:
       {
-        read_only = true;
+        read_only = tx_ctx_ptr->access != TxAccess::GOV_RW;
         break;
       }
       case kv::AccessCategory::APPLICATION:
       {
+        read_only = tx_ctx_ptr->access != TxAccess::APP;
         break;
       }
       default:
@@ -237,7 +241,6 @@ namespace js
       }
     }
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(this_val, kv_class_id));
     auto handle = tx_ctx_ptr->tx->rw<KVMap>(property_name);
 
     // This follows the interface of Map:
@@ -582,7 +585,10 @@ namespace js
     auto global_obj = JS_GetGlobalObject(ctx);
 
     JS_SetPropertyStr(
-      ctx, global_obj, "ccf", create_ccf_obj(txctx, transaction_id, receipt, ctx));
+      ctx,
+      global_obj,
+      "ccf",
+      create_ccf_obj(txctx, transaction_id, receipt, ctx));
 
     JS_FreeValue(ctx, global_obj);
   }

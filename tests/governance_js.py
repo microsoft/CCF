@@ -312,6 +312,10 @@ def test_apply(network, args):
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Accepted", r.body.json()
 
+    with node.client(network.users[-1].local_id) as c:
+        r = c.get("/app/log/private")
+        assert r.status_code == 401, r.body.text()
+
 
 def run(args):
     with infra.network.network(
