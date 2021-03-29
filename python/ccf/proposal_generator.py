@@ -174,7 +174,7 @@ def build_proposal(
             for name, body in args.items():
                 vote_lines.append(f"  if (!('{name}' in args)) {{ return false }}")
                 vote_lines.append(f"  let expected = {json.dumps(body)}")
-                vote_lines.append(f"  if (args.{name} !== expected) {{ return false }}")
+                vote_lines.append(f"  if (args['{name}'] !== expected) {{ return false }}")
 
         vote_lines.append("  return true")
         vote_lines.append("}")
