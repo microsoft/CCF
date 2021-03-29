@@ -342,13 +342,13 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # network = test_proposal_validation(network, args)
-        # network = test_proposal_storage(network, args)
-        # network = test_proposal_withdrawal(network, args)
-        # network = test_ballot_storage(network, args)
-        # network = test_pure_proposals(network, args)
-        # network = test_proposals_with_votes(network, args)
-        # network = test_operator_proposals_and_votes(network, args)
+        network = test_proposal_validation(network, args)
+        network = test_proposal_storage(network, args)
+        network = test_proposal_withdrawal(network, args)
+        network = test_ballot_storage(network, args)
+        network = test_pure_proposals(network, args)
+        network = test_proposals_with_votes(network, args)
+        network = test_operator_proposals_and_votes(network, args)
         network = test_actions(network, args)
 
 
