@@ -53,7 +53,7 @@ export function resolve(proposal, proposerId, votes) {
     const actions = JSON.parse(proposal)["actions"];
 
     // Count member votes.
-    const memberVoteCount = votes.filter(v => v.vote && !isOperator(v.member_id));
+    const memberVoteCount = votes.filter(v => v.vote && !isOperator(v.member_id)).length;
 
     // Count active members, excluding operators.
     let activeMemberCount = 0;
