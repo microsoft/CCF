@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+import * as ccfapp from "@microsoft/ccf-app";
+
 import {
   SuccessResponse,
   Request,
@@ -23,8 +25,7 @@ import {
   UnauthorizedError,
 } from "../error_handler";
 import { User } from "../authentication";
-import * as CCF from "../ccf/builtin";
-import { kv } from "../models/poll";
+import { PollMap, getPollMap } from "../models/poll";
 
 // GET  /csv return all opinions of authenticated user as CSV
 // POST /csv submits opinions for authenticated user from CSV
@@ -37,17 +38,17 @@ import { kv } from "../models/poll";
   "Schema validation error"
 )
 export class CSVController extends Controller {
-  private kvPolls: kv.PollMap;
+  private kvPolls: PollMap;
 
   constructor() {
     super();
-    this.kvPolls = kv.getPollMap();
+    this.kvPolls = getPollMap();
   }
 
   @SuccessResponse(200, "Opinions of authenticated user in CSV format")
   @Get()
-  public getOpinionsAsCSV(@Request() request: CCF.Request): any {
-    const user: User = request.caller;
+  public getOpinionsAsCSV(@Request() request: ccfapp.Request): any {
+    const user = <User>request.caller;
 
     const rows = [];
     this.kvPolls.forEach((poll, topic) => {
@@ -69,8 +70,8 @@ export class CSVController extends Controller {
     "Opinions were not recorded because either an opinion data type did not match the poll type or a poll with the given topic was not found"
   )
   @Post()
-  public submitOpinionsFromCSV(@Request() request: CCF.Request): void {
-    const user: User = request.caller;
+  public submitOpinionsFromCSV(@Request() request: ccfapp.Request): void {
+    const user = <User>request.caller;
 
     const rows = parse<any>(request.body.text(), { header: true }).data;
 
