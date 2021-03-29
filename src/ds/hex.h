@@ -3,7 +3,8 @@
 #pragma once
 
 #include "ds/buffer.h"
-#include "ds/logger.h"
+
+#define FMT_HEADER_ONLY
 
 #include <fmt/format.h>
 #include <string>

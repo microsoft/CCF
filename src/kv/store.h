@@ -14,6 +14,7 @@
 #include "snapshot.h"
 #include "tx.h"
 
+#define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
 namespace kv

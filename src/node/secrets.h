@@ -4,7 +4,6 @@
 #include "entities.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace ccf
@@ -20,8 +19,6 @@ namespace ccf
 
     // Version at which the previous secret is stored at
     std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
-
-    MSGPACK_DEFINE(version, encrypted_secret, previous_secret_stored_version);
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EncryptedLedgerSecret)
@@ -37,8 +34,6 @@ namespace ccf
     std::vector<uint8_t> primary_public_encryption_key = {};
 
     SecretsForNodes secrets_for_nodes = {};
-
-    MSGPACK_DEFINE(primary_public_encryption_key, secrets_for_nodes)
   };
   DECLARE_JSON_TYPE(EncryptedLedgerSecretsNodesInfo)
   DECLARE_JSON_REQUIRED_FIELDS(

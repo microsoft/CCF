@@ -8,8 +8,6 @@
 #include "entities.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
-
 namespace ccf
 {
   struct CodeDigest
@@ -45,11 +43,6 @@ namespace ccf
   };
   DECLARE_JSON_ENUM(
     CodeStatus, {{CodeStatus::ALLOWED_TO_JOIN, "AllowedToJoin"}});
-}
 
-MSGPACK_ADD_ENUM(ccf::CodeStatus);
-
-namespace ccf
-{
   using CodeIDs = ServiceMap<CodeDigest, CodeStatus>;
 }

@@ -2,9 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/hex.h"
+
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-#include <msgpack/msgpack.hpp>
 #include <sstream>
 
 namespace fmt
