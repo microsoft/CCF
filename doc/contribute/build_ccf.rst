@@ -46,7 +46,7 @@ The most common build switches include:
 
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **BUILD_SMALLBANK**: Boolean. Build SmallBank performance benchmark. Default to OFF.
-* **CLIENT_MBEDTLS_PREFIX**: Path. Prefix to mbedtls install to be used by test clients. Default to ``/usr/local``.
+* **CLIENT_MBEDTLS_PREFIX**: Path. Prefix to mbedTLS install to be used by test clients. Default to ``/usr/local``.
 * **NO_STRICT_TLS_CIPHERSUITES**: Boolean. Relax the list of accepted TLS ciphersuites. Default to OFF.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
 * **COMPILE_TARGETS**: String. List of target compilation platforms. Defaults to ``sgx;virtual``, which builds both "virtual" enclaves and actual SGX enclaves.
@@ -72,5 +72,3 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
         $ TEST_ENCLAVE=virtual ./tests.sh [-VV]
 
     Tests that require enclave attestation will be skipped.
-
-
