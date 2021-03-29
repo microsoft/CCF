@@ -158,7 +158,7 @@ namespace aft
     snmalloc::DLList<Request, std::nullptr_t, true>
       hashes_without_requests_list;
 
-    ccf::SeqNo seqno_last_signature = -1;
+    ccf::SeqNo seqno_last_signature = ccf::SEQNO_UNKNOWN;
     std::chrono::milliseconds time_last_signature =
       std::chrono::milliseconds(0);
     mutable SpinLock lock;

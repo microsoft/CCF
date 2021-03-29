@@ -20,6 +20,9 @@ namespace ccf
   // leader is assigned in each View.
   using View = uint64_t;
 
+  // No transactions occur in View 0.
+  constexpr View VIEW_UNKNOWN = 0;
+
   // Each transaction is assigned a unique incrementing SeqNo, maintained across
   // View transitions. This matches the order in which transactions are
   // applied, where a higher SeqNo means that a transaction executed later.
@@ -29,8 +32,8 @@ namespace ccf
   // ephemeral.
   using SeqNo = uint64_t;
 
-  // No transactions occur in View 0.
-  constexpr View VIEW_UNKNOWN = 0;
+  // No transaction is assigned seqno 0.
+  constexpr SeqNo SEQNO_UNKNOWN = 0;
 
   // The combination of View and SeqNo produce a unique TxID for transaction
   // executed by CCF.

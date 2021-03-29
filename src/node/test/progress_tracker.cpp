@@ -308,7 +308,7 @@ TEST_CASE("Request tracker")
     aft::RequestTracker t;
 
     auto r = t.get_seqno_time_last_request();
-    REQUIRE(std::get<0>(r) == -1);
+    REQUIRE(std::get<0>(r) == ccf::SEQNO_UNKNOWN);
     REQUIRE(std::get<1>(r) == std::chrono::milliseconds(0));
 
     t.insert_signed_request(2, std::chrono::milliseconds(2));
