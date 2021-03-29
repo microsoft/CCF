@@ -168,7 +168,7 @@ def build_proposal(
         )
 
         if args is not None:
-            vote_lines.append("  if (!'args' in action) { return false }")
+            vote_lines.append("  if (!('args' in action)) { return false }")
             vote_lines.append("  let args = action.args")
 
             for name, body in args.items():
