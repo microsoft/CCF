@@ -44,7 +44,8 @@ namespace ccf
     DECLARE_JSON_REQUIRED_FIELDS(
       ProposalInfoDetails, proposal_id, proposer_id, state, ballots);
 
-    using ProposalMap = kv::RawCopySerialisedMap<ProposalId, std::string>;
+    using ProposalMap =
+      kv::RawCopySerialisedMap<ProposalId, std::vector<uint8_t>>;
     using ProposalInfoMap = ServiceMap<ProposalId, ProposalInfo>;
 
     struct Action

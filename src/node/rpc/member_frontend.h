@@ -1160,7 +1160,7 @@ namespace ccf
     ccf::jsgov::ProposalInfoSummary resolve_proposal(
       kv::Tx& tx,
       const ProposalId& proposal_id,
-      const std::string& proposal,
+      const std::vector<uint8_t>& proposal,
       const std::string& constitution)
     {
       auto pi =
@@ -1183,7 +1183,8 @@ namespace ccf
           mbs, fmt::format("ballot from {} for {}", mid, proposal_id));
 
         JSValue argv[2];
-        auto prop = JS_NewStringLen(context, proposal.c_str(), proposal.size());
+        auto prop = JS_NewStringLen(
+          context, (const char*)proposal.data(), proposal.size());
         argv[0] = prop;
         auto pid = JS_NewStringLen(
           context, pi_->proposer_id.data(), pi_->proposer_id.size());
@@ -1214,7 +1215,8 @@ namespace ccf
         auto resolve_func =
           context.function(mbs, fmt::format("resolve {}", proposal_id));
         JSValue argv[3];
-        auto prop = JS_NewStringLen(context, proposal.c_str(), proposal.size());
+        auto prop = JS_NewStringLen(
+          context, (const char*)proposal.data(), proposal.size());
         argv[0] = prop;
 
         auto prop_id = JS_NewStringLen(
@@ -2261,160 +2263,169 @@ namespace ccf
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wc99-extensions"
 
-      auto post_proposals_js =
-        [this](endpoints::EndpointContext& ctx, nlohmann::json&& params) {
-          (void)params;
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              ccf::errors::AuthorizationFailed,
-              "Member is not active.");
-          }
+      auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
+        const auto& caller_identity =
+          ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
+        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
+          return;
+        }
 
-          if (!consensus)
+        if (!consensus)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No consensus available.");
+          return;
+        }
+
+        ProposalId proposal_id;
+        if (consensus->type() == ConsensusType::CFT)
+        {
+          auto root_at_read = ctx.tx.get_root_at_read_version();
+          if (!root_at_read.has_value())
           {
-            return make_error(
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
-              "No consensus available.");
+              "Proposal failed to bind to state.");
+            return;
           }
 
-          ProposalId proposal_id;
-          if (consensus->type() == ConsensusType::CFT)
-          {
-            auto root_at_read = ctx.tx.get_root_at_read_version();
-            if (!root_at_read.has_value())
-            {
-              return make_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Proposal failed to bind to state.");
-            }
+          // caller_identity.request_digest is set when getting the
+          // MemberSignatureAuthnIdentity identity. The proposal id is a
+          // digest of the root of the state tree at the read version and the
+          // request digest.
+          std::vector<uint8_t> acc(
+            root_at_read.value().h.begin(), root_at_read.value().h.end());
+          acc.insert(
+            acc.end(),
+            caller_identity.request_digest.begin(),
+            caller_identity.request_digest.end());
+          const crypto::Sha256Hash proposal_digest(acc);
+          proposal_id = proposal_digest.hex_str();
+        }
+        else
+        {
+          proposal_id = fmt::format(
+            "{:02x}", fmt::join(caller_identity.request_digest, ""));
+        }
 
-            // caller_identity.request_digest is set when getting the
-            // MemberSignatureAuthnIdentity identity. The proposal id is a
-            // digest of the root of the state tree at the read version and the
-            // request digest.
-            std::vector<uint8_t> acc(
-              root_at_read.value().h.begin(), root_at_read.value().h.end());
-            acc.insert(
-              acc.end(),
-              caller_identity.request_digest.begin(),
-              caller_identity.request_digest.end());
-            const crypto::Sha256Hash proposal_digest(acc);
-            proposal_id = proposal_digest.hex_str();
-          }
-          else
-          {
-            proposal_id = fmt::format(
-              "{:02x}", fmt::join(caller_identity.request_digest, ""));
-          }
+        js::Runtime rt;
+        js::Context context(rt);
+        auto constitution = ctx.tx.ro(network.constitution)->get(0);
+        if (!constitution.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No constitution is set - proposals cannot be evaluated");
+          return;
+        }
 
-          js::Runtime rt;
-          js::Context context(rt);
-          auto constitution = ctx.tx.ro(network.constitution)->get(0);
-          if (!constitution.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "No constitution is set - proposals cannot be evaluated");
-          }
+        auto validate_script = fmt::format(
+          "{}\n export default (input) => validate(input);",
+          constitution.value());
 
-          auto validate_script = fmt::format(
-            "{}\n export default (input) => validate(input);",
-            constitution.value());
+        auto validate_func = context.function(
+          validate_script, "public:ccf.gov.constitution[0].validate");
 
-          auto validate_func = context.function(
-            validate_script, "public:ccf.gov.constitution[0].validate");
+        auto body =
+          reinterpret_cast<const char*>(ctx.rpc_ctx->get_request_body().data());
+        auto body_len = ctx.rpc_ctx->get_request_body().size();
 
-          auto body = reinterpret_cast<const char*>(
-            ctx.rpc_ctx->get_request_body().data());
-          auto body_len = ctx.rpc_ctx->get_request_body().size();
+        auto proposal = JS_NewStringLen(context, body, body_len);
+        JSValueConst* argv = (JSValueConst*)&proposal;
 
-          auto proposal = JS_NewStringLen(context, body, body_len);
-          JSValueConst* argv = (JSValueConst*)&proposal;
+        auto val =
+          context(JS_Call(context, validate_func, JS_UNDEFINED, 1, argv));
 
-          auto val =
-            context(JS_Call(context, validate_func, JS_UNDEFINED, 1, argv));
+        JS_FreeValue(context, proposal);
+        JS_FreeValue(context, validate_func);
 
-          JS_FreeValue(context, proposal);
-          JS_FreeValue(context, validate_func);
+        if (JS_IsException(val))
+        {
+          js::js_dump_error(context);
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Failed to execute validation");
+          return;
+        }
 
-          if (JS_IsException(val))
-          {
-            js::js_dump_error(context);
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Failed to execute validation");
-          }
+        if (!JS_IsObject(val))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Validation failed to return an object");
+          return;
+        }
 
-          if (!JS_IsObject(val))
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Validation failed to return an object");
-          }
+        std::string description;
+        auto desc = context(JS_GetPropertyStr(context, val, "description"));
+        if (JS_IsString(desc))
+        {
+          auto cstr = JS_ToCString(context, desc);
+          description = std::string(cstr);
+          JS_FreeCString(context, cstr);
+        }
 
-          std::string description;
-          auto desc = context(JS_GetPropertyStr(context, val, "description"));
-          if (JS_IsString(desc))
-          {
-            auto cstr = JS_ToCString(context, desc);
-            description = std::string(cstr);
-            JS_FreeCString(context, cstr);
-          }
+        auto valid = context(JS_GetPropertyStr(context, val, "valid"));
+        if (!JS_ToBool(context, valid))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ProposalFailedToValidate,
+            fmt::format("Proposal failed to validate: {}", description));
+          return;
+        }
 
-          auto valid = context(JS_GetPropertyStr(context, val, "valid"));
-          if (!JS_ToBool(context, valid))
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::ProposalFailedToValidate,
-              fmt::format("Proposal failed to validate: {}", description));
-          }
+        auto pm =
+          ctx.tx.rw<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+        // Introduce a read dependency, so that if identical proposal
+        // creations are in-flight and reading at the same version, all except
+        // the first conflict and are re-executed. If we ever produce a
+        // proposal ID which already exists, we must have a hash collision.
+        if (pm->has(proposal_id))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Proposal ID collision.");
+          return;
+        }
+        pm->put(proposal_id, ctx.rpc_ctx->get_request_body());
 
-          auto pm =
-            ctx.tx.rw<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
-          // Introduce a read dependency, so that if identical proposal
-          // creations are in-flight and reading at the same version, all except
-          // the first conflict and are re-executed. If we ever produce a
-          // proposal ID which already exists, we must have a hash collision.
-          if (pm->has(proposal_id))
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Proposal ID collision.");
-          }
-          std::string proposal_string(body, body_len);
-          pm->put(proposal_id, proposal_string);
+        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
+          "public:ccf.gov.proposals_info.js");
+        pi->put(
+          proposal_id,
+          {caller_identity.member_id, ccf::ProposalState::OPEN, {}});
 
-          auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
-            "public:ccf.gov.proposals_info.js");
-          pi->put(
-            proposal_id,
-            {caller_identity.member_id, ccf::ProposalState::OPEN, {}});
+        record_voting_history(
+          ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
-          record_voting_history(
-            ctx.tx, caller_identity.member_id, caller_identity.signed_request);
+        auto rv = resolve_proposal(
+          ctx.tx,
+          proposal_id,
+          ctx.rpc_ctx->get_request_body(),
+          constitution.value());
+        pi->put(proposal_id, {caller_identity.member_id, rv.state, {}});
 
-          auto rv = resolve_proposal(
-            ctx.tx, proposal_id, proposal_string, constitution.value());
-          pi->put(proposal_id, {caller_identity.member_id, rv.state, {}});
-          return make_success(rv);
-        };
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
+      };
 
       make_endpoint(
-        "proposals.js",
-        HTTP_POST,
-        json_adapter(post_proposals_js),
-        member_sig_only)
+        "proposals.js", HTTP_POST, post_proposals_js, member_sig_only)
         .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfo>()
         .install();
 
