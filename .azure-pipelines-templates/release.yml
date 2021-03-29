@@ -40,3 +40,12 @@ jobs:
           twine upload -u __token__ -p $(pypi_token) $(Build.ArtifactStagingDirectory)/**/*.whl
         workingDirectory: python
         displayName: PyPi https://pypi.org/project/ccf/
+
+      - script: |
+          echo "@microsoft:registry=//registry.npmjs.org/" > .npmrc.json
+          echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" >> .npmrc.json
+          npm publish $(Build.ArtifactStagingDirectory)/**/microsoft-ccf-app*.tgz --access public
+        env:
+          NPM_TOKEN: $(npm_token)
+        workingDirectory: js/ccf-app
+        displayName: NPM https://www.npmjs.com/package/@microsoft/ccf-app

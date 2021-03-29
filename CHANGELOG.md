@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.19.4]
 
+### Added
+
+- `ccf-app` npm package to help with developing JavaScript and TypeScript CCF apps. See [docs](https://microsoft.github.io/CCF/main/build_apps/js_app.html) for further details (#2331).
+
 ### Changed
 
 - Retired members are now deleted from the store, instead of being marked as `Retired` (#1401).

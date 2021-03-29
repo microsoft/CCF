@@ -1,5 +1,4 @@
-import { ccf, Request, Response } from "../ccf/builtin";
-import * as ccfUtil from "../ccf/util";
+import * as ccfapp from "@microsoft/ccf-app";
 
 interface LogItem {
   msg: string;
@@ -9,13 +8,9 @@ interface LogEntry extends LogItem {
   id: number;
 }
 
-const logMap = new ccfUtil.TypedKvMap(
-  ccf.kv.log,
-  ccfUtil.uint32,
-  ccfUtil.json<LogItem>()
-);
+const logMap = ccfapp.typedKv("log", ccfapp.uint32, ccfapp.json<LogItem>());
 
-export function getLogItem(request: Request): Response<LogItem> {
+export function getLogItem(request: ccfapp.Request): ccfapp.Response<LogItem> {
   const id = parseInt(request.query.split("=")[1]);
   if (!logMap.has(id)) {
     return {
@@ -27,15 +22,17 @@ export function getLogItem(request: Request): Response<LogItem> {
   };
 }
 
-export function setLogItem(request: Request<LogItem>): Response {
+export function setLogItem(request: ccfapp.Request<LogItem>): ccfapp.Response {
   const id = parseInt(request.query.split("=")[1]);
   logMap.set(id, request.body.json());
   return {};
 }
 
-export function getAllLogItems(request: Request): Response<Array<LogEntry>> {
+export function getAllLogItems(
+  request: ccfapp.Request
+): ccfapp.Response<Array<LogEntry>> {
   let items: Array<LogEntry> = [];
-  logMap.forEach(function (item, id, table) {
+  logMap.forEach(function (item, id) {
     items.push({ id: id, msg: item.msg });
   });
   return {

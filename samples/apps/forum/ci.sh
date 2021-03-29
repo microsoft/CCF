@@ -6,6 +6,11 @@ set -ex
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+CCF_APP_PKG_DIR="$SCRIPT_DIR/../../../js/ccf-app"
+pushd "$CCF_APP_PKG_DIR"
+npm install
+popd
+
 pushd "$SCRIPT_DIR"
 npm install
 unbuffer npm test
