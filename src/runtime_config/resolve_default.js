@@ -1,10 +1,5 @@
 export function resolve(proposal, proposerId, votes) {
-    let memberVoteCount = 0;
-    for (const vote of votes) {
-        if (vote.vote) {
-            memberVoteCount++;
-        }
-    }
+    const memberVoteCount = votes.filter(v => v.vote).length;
 
     let activeMemberCount = 0;
     ccf.kv["public:ccf.gov.members.info"].forEach(v => {

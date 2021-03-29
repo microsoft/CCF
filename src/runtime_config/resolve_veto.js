@@ -1,14 +1,11 @@
 export function resolve(proposal, proposerId, votes) {
-    let memberVoteCount = 0;
-    for (const vote of votes) {
-        if (vote.vote) {
-            memberVoteCount++;
-        } else {
-            // Every member has the ability to veto a proposal.
-            // If they vote against it, it is rejected.
-            return "Rejected";
-        }
+    // Every member has the ability to veto a proposal.
+    // If they vote against it, it is rejected.
+    if (votes.some(v => !v.vote)) {
+        return "Rejected";
     }
+    
+    const memberVoteCount = votes.length;
 
     let activeMemberCount = 0;
     ccf.kv["public:ccf.gov.members.info"].forEach(v => {
