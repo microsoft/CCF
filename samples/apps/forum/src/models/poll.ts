@@ -1,32 +1,25 @@
-import { ccf } from "../ccf/builtin";
-import * as ccfUtil from "../ccf/util";
+import * as ccfapp from "@microsoft/ccf-app";
 
-export namespace kv {
-  type User = string;
+type User = string;
 
-  interface PollBase<T> {
-    creator: string;
-    type: string;
-    opinions: Record<User, T>;
-  }
+interface PollBase<T> {
+  creator: string;
+  type: string;
+  opinions: Record<User, T>;
+}
 
-  interface StringPoll extends PollBase<string> {
-    type: "string";
-  }
+interface StringPoll extends PollBase<string> {
+  type: "string";
+}
 
-  interface NumericPoll extends PollBase<number> {
-    type: "number";
-  }
+interface NumericPoll extends PollBase<number> {
+  type: "number";
+}
 
-  export type Poll = StringPoll | NumericPoll;
+export type Poll = StringPoll | NumericPoll;
 
-  export type PollMap = ccfUtil.TypedKvMap<string, Poll>;
+export type PollMap = ccfapp.TypedKvMap<string, Poll>;
 
-  export function getPollMap(): PollMap {
-    return new ccfUtil.TypedKvMap(
-      ccf.kv.polls,
-      ccfUtil.string,
-      ccfUtil.json<kv.Poll>()
-    );
-  }
+export function getPollMap(): PollMap {
+  return ccfapp.typedKv("polls", ccfapp.string, ccfapp.json<Poll>());
 }
