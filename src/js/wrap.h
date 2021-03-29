@@ -22,7 +22,7 @@ namespace js
   extern JSClassDef kv_map_handle_class_def;
   extern JSClassDef body_class_def;
 
-  enum TxAccess
+  enum class TxAccess
   {
     APP,
     GOV_RO,
@@ -32,7 +32,7 @@ namespace js
   struct TxContext
   {
     kv::Tx* tx = nullptr;
-    TxAccess access = APP;
+    TxAccess access = js::TxAccess::APP;
   };
 
 #pragma clang diagnostic push
