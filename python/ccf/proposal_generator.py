@@ -153,7 +153,17 @@ def build_proposal(
         proposal = {"actions": actions}
 
         vote_lines = []
-        vote_lines.append("function vote (proposal, proposer_id) {")
+        vote_lines.append("function vote (raw_proposal, proposer_id) {")
+        vote_lines.append("  let proposal = JSON.parse(input)")
+        vote_lines.append("  if (!'actions' in proposal) { return false }")
+        vote_lines.append("  let actions = proposal['actions']")
+        vote_lines.append("  if (actions.length !== 1) { return false }")
+
+        for name, body in args.items():
+            vote_lines.append(f"  if (!'{name}' in args) {{ return false }}")
+            vote_lines.append(f"  let expected = {json.dumps(body)}")
+            vote_lines.append(f"  if (args.{name} !== expected) {{ return false }}")
+
         vote_lines.append("  return true")
         vote_lines.append("}")
         vote_text = "\n".join(vote_lines)
