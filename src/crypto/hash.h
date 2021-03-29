@@ -15,6 +15,11 @@ namespace crypto
    */
   std::vector<uint8_t> SHA256(const std::vector<uint8_t>& data);
 
+  /** Compute the SHA256 hash of @p data
+   * @param data The data to compute the hash of
+   */
+  std::vector<uint8_t> SHA256(const uint8_t* data, size_t len);
+
   /** Create a default hash provider */
   std::shared_ptr<HashProvider> make_hash_provider();
 
