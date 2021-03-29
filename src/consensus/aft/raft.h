@@ -1883,7 +1883,7 @@ namespace aft
         case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
         {
           SignaturesReceivedAck r = {
-            {bft_signature_received_ack}, tx_id.seqno, tx_id.view};
+            {bft_signature_received_ack}, tx_id.view, tx_id.seqno};
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
             auto to = it->first;
