@@ -1157,7 +1157,7 @@ namespace ccf
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wc99-extensions"
 
-    ccf::jsgov::ProposalSubmitted resolve_proposal(
+    ccf::jsgov::ProposalInfoSummary resolve_proposal(
       kv::Tx& tx,
       const ProposalId& proposal_id,
       const std::string& proposal,
@@ -1275,12 +1275,25 @@ namespace ccf
           }
         }
 
-        return jsgov::ProposalSubmitted{proposal_id, pi_.value().state};
+        /* Apply actions
+        if (pi_.value().state != ProposalState::OPEN)
+        {
+          // Record votes and errors
+          if (pi_.value().state == ProposalState::ACCEPTED)
+          {
+            // Apply actions here
+          }
+        }
+        */
+
+        return jsgov::ProposalInfoSummary{proposal_id,
+                                          pi_->proposer_id,
+                                          pi_.value().state,
+                                          pi_.value().ballots.size()};
       }
     }
 
 #  pragma clang diagnostic pop
-
 #endif
 
     bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
@@ -2700,7 +2713,7 @@ namespace ccf
         HTTP_POST,
         json_adapter(vote_js),
         member_sig_only)
-        .set_auto_schema<jsgov::Ballot, jsgov::ProposalSubmitted>()
+        .set_auto_schema<jsgov::Ballot, jsgov::ProposalInfoSummary>()
         .install();
 
       auto get_vote_js =

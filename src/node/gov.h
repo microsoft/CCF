@@ -22,20 +22,30 @@ namespace ccf
     DECLARE_JSON_TYPE(ProposalInfo);
     DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposer_id, state, ballots);
 
-    struct ProposalSubmitted
+    struct ProposalInfoSummary
     {
       ProposalId proposal_id;
+      ccf::MemberId proposer_id;
       ccf::ProposalState state;
+      size_t ballot_count;
     };
-    DECLARE_JSON_TYPE(ProposalSubmitted);
-    DECLARE_JSON_REQUIRED_FIELDS(ProposalSubmitted, proposal_id, state);
+    DECLARE_JSON_TYPE(ProposalInfoSummary);
+    DECLARE_JSON_REQUIRED_FIELDS(
+      ProposalInfoSummary, proposal_id, proposer_id, state, ballot_count);
+
+    struct ProposalInfoDetails
+    {
+      ProposalId proposal_id;
+      ccf::MemberId proposer_id;
+      ccf::ProposalState state;
+      std::unordered_map<ccf::MemberId, std::string> ballots = {};
+    };
+    DECLARE_JSON_TYPE(ProposalInfoDetails);
+    DECLARE_JSON_REQUIRED_FIELDS(
+      ProposalInfoDetails, proposal_id, proposer_id, state, ballots);
 
     using ProposalMap = kv::RawCopySerialisedMap<ProposalId, std::string>;
-    using ProposalInfoMap = kv::MapSerialisedWith<
-      ProposalId,
-      ProposalInfo,
-      kv::serialisers::BlitSerialiser,
-      kv::serialisers::JsonSerialiser>;
+    using ProposalInfoMap = ServiceMap<ProposalId, ProposalInfo>;
 
     struct Action
     {

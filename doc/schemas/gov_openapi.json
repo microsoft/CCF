@@ -206,6 +206,29 @@
         ],
         "type": "object"
       },
+      "ProposalInfoSummary": {
+        "properties": {
+          "ballot_count": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "proposal_id": {
+            "$ref": "#/components/schemas/string"
+          },
+          "proposer_id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProposalState"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "proposer_id",
+          "state",
+          "ballot_count"
+        ],
+        "type": "object"
+      },
       "ProposalState": {
         "enum": [
           "Open",
@@ -215,21 +238,6 @@
           "Failed"
         ],
         "type": "string"
-      },
-      "ProposalSubmitted": {
-        "properties": {
-          "proposal_id": {
-            "$ref": "#/components/schemas/string"
-          },
-          "state": {
-            "$ref": "#/components/schemas/ProposalState"
-          }
-        },
-        "required": [
-          "proposal_id",
-          "state"
-        ],
-        "type": "object"
       },
       "Propose__In": {
         "properties": {
@@ -672,7 +680,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProposalSubmitted"
+                  "$ref": "#/components/schemas/ProposalInfoSummary"
                 }
               }
             },

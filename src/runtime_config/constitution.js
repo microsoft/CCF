@@ -130,7 +130,7 @@ function validate(input) {
 }
 
 function resolve(proposal, proposer_id, votes) {
-  let actions = JSON.parse(proposal)["actions"];
+  const actions = JSON.parse(proposal)["actions"];
   if (actions.length === 1) {
     if (actions[0].name === "always_accept_noop") {
       return "Accepted";
@@ -189,4 +189,12 @@ function resolve(proposal, proposer_id, votes) {
   }
 
   return "Open";
+}
+
+function apply(proposal) {
+  const proposed_actions = JSON.parse(proposal)["actions"];
+  for (proposed_action of proposed_actions) {
+    const definition = actions.get(proposed_action.name);
+    definition.apply(proposed_action.args);
+  }
 }

@@ -169,7 +169,7 @@ def test_ballot_storage(network, args):
         member_id = network.consortium.get_member_by_local_id("member0").service_id
         r = c.get(f"/gov/proposals.js/{proposal_id}/ballots/{member_id}")
         assert r.status_code == 200, r.body.text()
-        assert r.body.json() == ballot
+        assert r.body.json() == ballot, r.body.json()
 
     with node.client(None, "member1") as c:
         ballot = {"ballot": "function vote (proposal, proposer_id) { return false }"}
@@ -275,6 +275,7 @@ def test_proposals_with_votes(network, args):
                 assert r.body.json()["state"] == state, r.body.json()
 
     return network
+
 
 @reqs.description("Test operator proposals and votes")
 def test_operator_proposals_and_votes(network, args):
