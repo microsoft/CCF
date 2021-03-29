@@ -163,7 +163,9 @@ def build_proposal(
         vote_lines.append("  if (actions.length !== 1) { return false }")
         vote_lines.append("  let action = actions[0]")
         vote_lines.append("  if (!'name' in action) { return false }")
-        vote_lines.append(f"  if (action.name !== '{proposed_call}') {{ return false }}")
+        vote_lines.append(
+            f"  if (action.name !== '{proposed_call}') {{ return false }}"
+        )
 
         if args is not None:
             vote_lines.append("  if (!'args' in action) { return false }")
