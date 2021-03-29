@@ -18,7 +18,7 @@ import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
 
 
-GENERATE_JS_PROPOSALS=False
+GENERATE_JS_PROPOSALS=os.getenv("JS_GOVERNANCE")
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
@@ -524,7 +524,6 @@ if __name__ == "__main__":
         "the script. When not inlined, the parameters are passed separately and could "
         "be replaced in the resulting object",
     )
-    parser.add_argument("--js", action="store_true", help="TODO")
     parser.add_argument("-v", "--verbose", action="store_true")
 
     # Auto-generate CLI args based on the inspected signatures of generator functions
@@ -567,9 +566,6 @@ if __name__ == "__main__":
         format="<level>[{time:YYYY-MM-DD HH:mm:ss.SSS}] {level} | {message}</level>",
         level="TRACE" if args.verbose else "INFO",
     )
-
-    if args.js:
-        GENERATE_JS_PROPOSALS = True
 
     proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.param_names},
