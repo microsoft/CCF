@@ -10,6 +10,7 @@
 #include "kv/untyped_map_handle.h"
 
 #include <functional>
+#include <list>
 #include <optional>
 #include <unordered_set>
 

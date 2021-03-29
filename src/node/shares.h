@@ -6,7 +6,6 @@
 #include "service_map.h"
 
 #include <map>
-#include <msgpack/msgpack.hpp>
 #include <optional>
 #include <vector>
 
@@ -26,11 +25,6 @@ namespace ccf
 
     // Version at which the previous ledger secret was written to the store
     std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
-
-    MSGPACK_DEFINE(
-      wrapped_latest_ledger_secret,
-      encrypted_shares,
-      previous_secret_stored_version);
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoverySharesInfo)
@@ -73,8 +67,6 @@ namespace ccf
     {
       return !(*this == other);
     }
-
-    MSGPACK_DEFINE(encrypted_data, version, previous_secret_stored_version)
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(PreviousLedgerSecretInfo)
@@ -99,8 +91,6 @@ namespace ccf
     // shares are only written at a later version, once the previous ledger
     // secrets have been restored.
     std::optional<kv::Version> next_version = std::nullopt;
-
-    MSGPACK_DEFINE(previous_ledger_secret, next_version)
   };
 
   // Note: Both fields are never empty at the same time

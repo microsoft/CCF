@@ -30,8 +30,7 @@ The following table describes the structure of a serialised KV Store transaction
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | **Repeating [0..n]**                     | With ``n`` the number of maps in the transaction                        |
 +          +-----+------------------------------------+-------------------------------------------------------------------------+
-|          |     | | ``KOT_MAP_START_INDICATOR``      | | Indicates the start of a new serialised :cpp:type:`kv::Map`           |
-|          |     | | char[]                           | | Name of the serialised :cpp:type:`kv::Map`                            |
+|          |     | std::string                        | Name of the serialised :cpp:type:`kv::Map`                              |
 |          +-----+------------------------------------+-------------------------------------------------------------------------+
 |          |     | | :cpp:type:`kv::Version`          | | Read version                                                          |
 |          +-----+------------------------------------+-------------------------------------------------------------------------+

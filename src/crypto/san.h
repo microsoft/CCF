@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <msgpack/msgpack.hpp>
+#include "ds/json.h"
+
 #include <string>
 
 namespace crypto
@@ -11,7 +12,7 @@ namespace crypto
   {
     std::string san;
     bool is_ip;
-
-    MSGPACK_DEFINE(san, is_ip);
   };
+  DECLARE_JSON_TYPE(SubjectAltName);
+  DECLARE_JSON_REQUIRED_FIELDS(SubjectAltName, san, is_ip);
 }

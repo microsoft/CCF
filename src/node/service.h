@@ -6,8 +6,6 @@
 #include "entities.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
-
 namespace ccf
 {
   enum class ServiceStatus
@@ -24,18 +22,11 @@ namespace ccf
      {ServiceStatus::OPEN, "Open"},
      {ServiceStatus::WAITING_FOR_RECOVERY_SHARES, "WaitingForRecoveryShares"},
      {ServiceStatus::CLOSED, "Closed"}});
-}
 
-MSGPACK_ADD_ENUM(ccf::ServiceStatus);
-
-namespace ccf
-{
   struct ServiceInfo
   {
     crypto::Pem cert;
     ServiceStatus status;
-
-    MSGPACK_DEFINE(cert, status);
   };
   DECLARE_JSON_TYPE(ServiceInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);

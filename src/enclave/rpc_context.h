@@ -74,8 +74,6 @@ namespace ccf
     {
       return !(*this == o);
     }
-
-    MSGPACK_DEFINE(verb);
   };
 
   // Custom to_json and from_json specializations which encode RESTVerb in a
