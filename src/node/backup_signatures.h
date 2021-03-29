@@ -5,7 +5,6 @@
 #include "node_signature.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
@@ -17,8 +16,6 @@ namespace ccf
     kv::Consensus::SeqNo seqno = 0;
     crypto::Sha256Hash root;
     std::vector<NodeSignature> signatures;
-
-    MSGPACK_DEFINE(view, seqno, root, signatures);
 
     BackupSignatures() = default;
 
@@ -32,7 +29,7 @@ namespace ccf
     {}
   };
   DECLARE_JSON_TYPE(BackupSignatures);
-  DECLARE_JSON_REQUIRED_FIELDS(BackupSignatures, view, seqno, root, signatures)
+  DECLARE_JSON_REQUIRED_FIELDS(BackupSignatures, view, seqno, root, signatures);
 
   // Always recorded at key 0
   using BackupSignaturesMap = ServiceMap<size_t, BackupSignatures>;

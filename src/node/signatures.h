@@ -5,7 +5,6 @@
 #include "node_signature.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
@@ -18,14 +17,6 @@ namespace ccf
     kv::Consensus::SeqNo commit_seqno = 0;
     kv::Consensus::View commit_view = 0;
     crypto::Sha256Hash root;
-
-    MSGPACK_DEFINE(
-      MSGPACK_BASE(NodeSignature),
-      seqno,
-      view,
-      commit_seqno,
-      commit_view,
-      root);
 
     PrimarySignature() {}
 

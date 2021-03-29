@@ -3,12 +3,10 @@
 #pragma once
 
 #include "ds/json.h"
-#include "ds/msgpack_adaptor_nlohmann.h"
 #include "entities.h"
 #include "script.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <unordered_map>
 #include <vector>
 
@@ -86,8 +84,6 @@ namespace ccf
       return script == o.script && parameter == o.parameter &&
         proposer == o.proposer && state == o.state && votes == o.votes;
     }
-
-    MSGPACK_DEFINE(script, parameter, proposer, state, votes);
   };
   DECLARE_JSON_TYPE(Proposal)
   DECLARE_JSON_REQUIRED_FIELDS(

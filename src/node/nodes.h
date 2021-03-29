@@ -9,7 +9,6 @@
 #include "quote_info.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
@@ -28,8 +27,6 @@ namespace ccf
      {NodeStatus::RETIRED, "Retired"}});
 }
 
-MSGPACK_ADD_ENUM(ccf::NodeStatus);
-
 namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
@@ -42,14 +39,6 @@ namespace ccf
     // Set to the seqno of the latest ledger secret at the time the node is
     // trusted
     std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
-
-    MSGPACK_DEFINE(
-      MSGPACK_BASE(NodeInfoNetwork),
-      cert,
-      quote_info,
-      encryption_pub_key,
-      status,
-      ledger_secret_seqno);
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(

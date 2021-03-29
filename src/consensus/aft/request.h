@@ -6,7 +6,6 @@
 #include "kv/map.h"
 #include "node/entities.h"
 
-#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace aft
@@ -17,8 +16,6 @@ namespace aft
     std::vector<uint8_t> caller_cert;
     std::vector<uint8_t> raw;
     uint8_t frame_format = enclave::FrameFormat::http;
-
-    MSGPACK_DEFINE(rid, caller_cert, raw, frame_format);
 
     size_t serialised_size() const
     {
