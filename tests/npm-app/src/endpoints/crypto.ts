@@ -1,13 +1,16 @@
 import * as rs from "jsrsasign";
 import { Base64 } from "js-base64";
 
-import { ccf, Request, Response } from "../ccf/builtin";
+import * as ccfapp from "@microsoft/ccf-app";
+import * as ccfcrypto from "@microsoft/ccf-app/crypto";
 
 interface CryptoResponse {
   available: boolean;
 }
 
-export function crypto(request: Request): Response<CryptoResponse> {
+export function crypto(
+  request: ccfapp.Request
+): ccfapp.Response<CryptoResponse> {
   // Most functionality of jsrsasign requires keys.
   // Generating a key here is too slow, so we'll just check if the
   // JS API got exported correctly.
@@ -20,9 +23,9 @@ interface GenerateAesKeyRequest {
 }
 
 export function generateAesKey(
-  request: Request<GenerateAesKeyRequest>
-): Response<ArrayBuffer> {
-  return { body: ccf.generateAesKey(request.body.json().size) };
+  request: ccfapp.Request<GenerateAesKeyRequest>
+): ccfapp.Response<ArrayBuffer> {
+  return { body: ccfcrypto.generateAesKey(request.body.json().size) };
 }
 
 interface GenerateRsaKeyPairRequest {
@@ -30,35 +33,38 @@ interface GenerateRsaKeyPairRequest {
   exponent?: number;
 }
 
-export interface CryptoKeyPair {
+export interface GenerateRsaKeyPairResponse {
   privateKey: string;
   publicKey: string;
 }
 
 export function generateRsaKeyPair(
-  request: Request<GenerateRsaKeyPairRequest>
-): Response<CryptoKeyPair> {
+  request: ccfapp.Request<GenerateRsaKeyPairRequest>
+): ccfapp.Response<GenerateRsaKeyPairResponse> {
   const req = request.body.json();
   const res = req.exponent
-    ? ccf.generateRsaKeyPair(req.size, req.exponent)
-    : ccf.generateRsaKeyPair(req.size);
+    ? ccfcrypto.generateRsaKeyPair(req.size, req.exponent)
+    : ccfcrypto.generateRsaKeyPair(req.size);
   return { body: res };
 }
 
 type Base64 = string;
 
-interface WrapAlgoParams {
-  name: string;
-}
-
-interface RsaOaepParams extends WrapAlgoParams {
+interface RsaOaepParams {
+  name: "RSA-OAEP";
   label?: Base64;
 }
 
-interface RsaOaepAesKwpParams extends WrapAlgoParams {
+interface RsaOaepAesKwpParams {
+  name: "RSA-OAEP-AES-KWP";
   aesKeySize: number; // in bits
   label?: Base64;
 }
+
+type WrapAlgoParams =
+  | RsaOaepParams
+  | RsaOaepAesKwpParams
+  | ccfcrypto.AesKwpParams;
 
 interface WrapKeyRequest {
   key: Base64; // typically an AES key
@@ -67,36 +73,31 @@ interface WrapKeyRequest {
 }
 
 export function wrapKey(
-  request: Request<WrapKeyRequest>
-): Response<ArrayBuffer> {
+  request: ccfapp.Request<WrapKeyRequest>
+): ccfapp.Response<ArrayBuffer> {
   const r = request.body.json();
   const key = b64ToBuf(r.key);
   const wrappingKey = b64ToBuf(r.wrappingKey);
+  let wrappedKey: ArrayBuffer;
   if (r.wrapAlgo.name == "RSA-OAEP") {
-    const p = r.wrapAlgo as RsaOaepParams;
-    const l = p.label ? b64ToBuf(p.label) : undefined;
-    const new_p = { name: p.name, label: l };
-    const wrappedKey = ccf.wrapKey(key, wrappingKey, new_p);
-    return { body: wrappedKey };
+    const label = r.wrapAlgo.label ? b64ToBuf(r.wrapAlgo.label) : undefined;
+    wrappedKey = ccfcrypto.wrapKey(key, wrappingKey, {
+      name: r.wrapAlgo.name,
+      label: label,
+    });
   } else if (r.wrapAlgo.name == "RSA-OAEP-AES-KWP") {
-    const p = r.wrapAlgo as RsaOaepAesKwpParams;
-    const l = p.label ? b64ToBuf(p.label) : undefined;
-    const new_p = { name: p.name, aesKeySize: p.aesKeySize, label: l };
-    const wrappedKey = ccf.wrapKey(key, wrappingKey, new_p);
-    return { body: wrappedKey };
+    const label = r.wrapAlgo.label ? b64ToBuf(r.wrapAlgo.label) : undefined;
+    wrappedKey = ccfcrypto.wrapKey(key, wrappingKey, {
+      name: r.wrapAlgo.name,
+      aesKeySize: r.wrapAlgo.aesKeySize,
+      label: label,
+    });
   } else {
-    const wrappedKey = ccf.wrapKey(key, wrappingKey, r.wrapAlgo);
-    return { body: wrappedKey };
+    wrappedKey = ccfcrypto.wrapKey(key, wrappingKey, r.wrapAlgo);
   }
+  return { body: wrappedKey };
 }
 
 function b64ToBuf(b64: string): ArrayBuffer {
   return Base64.toUint8Array(b64).buffer;
-}
-
-function publicPemToDer(pem: string): ArrayBuffer {
-  const pemHeader = "-----BEGIN PUBLIC KEY-----";
-  const pemFooter = "-----END PUBLIC KEY-----";
-  const pemContents = pem.substring(pemHeader.length, pem.indexOf(pemFooter));
-  return b64ToBuf(pemContents);
 }

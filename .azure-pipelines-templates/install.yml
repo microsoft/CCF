@@ -22,6 +22,16 @@ steps:
     displayName: Build wheel
 
   - script: |
+      CCF_VERSION=$(<../build/VERSION)
+      npm version $CCF_VERSION
+      npm pack
+      PKG=`ls *.tgz`
+      cp $PKG $(Build.ArtifactStagingDirectory)
+      echo "##vso[task.setvariable variable=npmtgz]$PKG"
+    workingDirectory: js
+    displayName: Build npm package
+
+  - script: |
       sudo apt -y install ./$(pkgname)
       cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {} release"
     workingDirectory: build
@@ -42,3 +52,9 @@ steps:
       path: $(Build.ArtifactStagingDirectory)/$(wheel)
       artifact: $(wheel)
       displayName: "Publish CCF Wheel"
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      path: $(Build.ArtifactStagingDirectory)/$(npmtgz)
+      artifact: $(npmtgz)
+      displayName: "Publish CCF NPM Package"
