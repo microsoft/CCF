@@ -13,8 +13,8 @@
 
 extern "C"
 {
-#include "../../3rdparty/lua/lauxlib.h"
-#include "../../3rdparty/lua/lua.h"
+#include "lua/lauxlib.h"
+#include "lua/lua.h"
 }
 
 namespace ccf

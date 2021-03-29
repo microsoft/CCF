@@ -13,35 +13,6 @@ namespace kv
   using SerialisedKey = kv::serialisers::SerialisedEntry;
   using SerialisedValue = kv::serialisers::SerialisedEntry;
 
-  enum class KvOperationType : uint32_t
-  {
-    KOT_NOT_SUPPORTED = 0,
-    KOT_SET_VERSION = (1 << 0),
-    KOT_MAP_START_INDICATOR = (1 << 1),
-    KOT_ENTRY_VERSION = (1 << 2),
-    KOT_READ = (1 << 3),
-    KOT_WRITE_VERSION = (1 << 4),
-    KOT_WRITE = (1 << 5),
-    KOT_REMOVE_VERSION = (1 << 6),
-    KOT_REMOVE = (1 << 7),
-  };
-
-  typedef std::underlying_type<KvOperationType>::type KotBase;
-
-  inline KvOperationType operator&(
-    const KvOperationType& a, const KvOperationType& b)
-  {
-    return static_cast<KvOperationType>(
-      static_cast<KotBase>(a) & static_cast<KotBase>(b));
-  }
-
-  inline KvOperationType operator|(
-    const KvOperationType& a, const KvOperationType& b)
-  {
-    return static_cast<KvOperationType>(
-      static_cast<KotBase>(a) | static_cast<KotBase>(b));
-  }
-
   template <typename W>
   class GenericSerialiseWrapper
   {
@@ -59,15 +30,9 @@ namespace kv
     SecurityDomain current_domain;
 
     template <typename T>
-    void serialise_internal(T&& t)
+    void serialise_internal(const T& t)
     {
-      current_writer->append(std::forward<T>(t));
-    }
-
-    template <typename T>
-    void serialise_internal_pre_serialised(const T& raw)
-    {
-      current_writer->template append_pre_serialised<T>(raw);
+      current_writer->append(t);
     }
 
     void set_current_domain(SecurityDomain domain)
@@ -113,15 +78,16 @@ namespace kv
       }
 
       if (domain != current_domain)
+      {
         set_current_domain(domain);
+      }
 
-      serialise_internal(KvOperationType::KOT_MAP_START_INDICATOR);
       serialise_internal(name);
     }
 
     void serialise_raw(const std::vector<uint8_t>& raw)
     {
-      serialise_internal_pre_serialised(raw);
+      serialise_internal(raw);
     }
 
     void serialise_view_history(const std::vector<Version>& view_history)
@@ -142,34 +108,19 @@ namespace kv
 
     void serialise_read(const SerialisedKey& k, const Version& version)
     {
-      serialise_internal_pre_serialised(k);
+      serialise_internal(k);
       serialise_internal(version);
     }
 
     void serialise_write(const SerialisedKey& k, const SerialisedValue& v)
     {
-      serialise_internal_pre_serialised(k);
-      serialise_internal_pre_serialised(v);
-    }
-
-    void serialise_write_version(
-      const SerialisedKey& k, const SerialisedValue& v, const Version& version)
-    {
-      serialise_internal(KvOperationType::KOT_WRITE_VERSION);
-      serialise_internal_pre_serialised(k);
-      serialise_internal_pre_serialised(v);
-      serialise_internal(version);
-    }
-
-    void serialise_remove_version(const SerialisedKey& k)
-    {
-      serialise_internal(KvOperationType::KOT_REMOVE_VERSION);
-      serialise_internal_pre_serialised(k);
+      serialise_internal(k);
+      serialise_internal(v);
     }
 
     void serialise_remove(const SerialisedKey& k)
     {
-      serialise_internal_pre_serialised(k);
+      serialise_internal(k);
     }
 
     std::vector<uint8_t> get_raw_data()
@@ -253,50 +204,11 @@ namespace kv
     R private_reader;
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
-    KvOperationType unhandled_op;
     bool is_snapshot;
     Version version;
     Version max_conflict_version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
-
-    bool try_read_op(KvOperationType type)
-    {
-      return try_read_op(type, *current_reader);
-    }
-
-    bool try_read_op(KvOperationType type, R& reader)
-    {
-      return try_read_op_flag(type, reader) == type;
-    }
-
-    KvOperationType try_read_op_flag(KvOperationType type)
-    {
-      return try_read_op_flag(type, *current_reader);
-    }
-
-    KvOperationType try_read_op_flag(KvOperationType type, R& reader)
-    {
-      if (unhandled_op != KvOperationType::KOT_NOT_SUPPORTED)
-      {
-        auto curr_type = (type & unhandled_op);
-        if (curr_type != KvOperationType::KOT_NOT_SUPPORTED)
-        {
-          // clear cached op header
-          unhandled_op = KvOperationType::KOT_NOT_SUPPORTED;
-        }
-        return curr_type;
-      }
-
-      auto next_op = reader.template read_next<KvOperationType>();
-      if ((type & next_op) == next_op)
-      {
-        return next_op;
-      }
-
-      unhandled_op = next_op;
-      return KvOperationType::KOT_NOT_SUPPORTED;
-    }
 
     // Should only be called once, once the GCM header and length of public
     // domain have been read
@@ -311,7 +223,6 @@ namespace kv
     GenericDeserialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       std::optional<SecurityDomain> domain_restriction = std::nullopt) :
-      unhandled_op(KvOperationType::KOT_NOT_SUPPORTED),
       crypto_util(e),
       domain_restriction(domain_restriction)
     {}
@@ -376,18 +287,16 @@ namespace kv
       if (current_reader->is_eos())
       {
         if (current_reader == &public_reader && !private_reader.is_eos())
+        {
           current_reader = &private_reader;
+        }
         else
-          return {};
+        {
+          return std::nullopt;
+        }
       }
 
-      if (!try_read_op(KvOperationType::KOT_MAP_START_INDICATOR))
-      {
-        return {};
-      }
-
-      return std::optional<std::string>{
-        current_reader->template read_next<std::string>()};
+      return current_reader->template read_next<std::string>();
     }
 
     Version deserialise_entry_version()
@@ -402,9 +311,8 @@ namespace kv
 
     std::tuple<SerialisedKey, Version> deserialise_read()
     {
-      return {
-        current_reader->template read_next_pre_serialised<SerialisedKey>(),
-        current_reader->template read_next<Version>()};
+      return {current_reader->template read_next<SerialisedKey>(),
+              current_reader->template read_next<Version>()};
     }
 
     uint64_t deserialise_write_header()
@@ -414,15 +322,13 @@ namespace kv
 
     std::tuple<SerialisedKey, SerialisedValue> deserialise_write()
     {
-      return {
-        current_reader->template read_next_pre_serialised<SerialisedKey>(),
-        current_reader->template read_next_pre_serialised<SerialisedValue>()};
+      return {current_reader->template read_next<SerialisedKey>(),
+              current_reader->template read_next<SerialisedValue>()};
     }
 
     std::vector<uint8_t> deserialise_raw()
     {
-      return current_reader
-        ->template read_next_pre_serialised<std::vector<uint8_t>>();
+      return current_reader->template read_next<std::vector<uint8_t>>();
     }
 
     std::vector<Version> deserialise_view_history()
@@ -437,7 +343,7 @@ namespace kv
 
     SerialisedKey deserialise_remove()
     {
-      return current_reader->template read_next_pre_serialised<SerialisedKey>();
+      return current_reader->template read_next<SerialisedKey>();
     }
 
     bool end()

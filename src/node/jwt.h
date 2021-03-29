@@ -5,7 +5,6 @@
 #include "entities.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <optional>
 
 namespace ccf
@@ -20,8 +19,6 @@ namespace ccf
     {
       return rhs.sgx_claims != sgx_claims;
     }
-
-    MSGPACK_DEFINE(sgx_claims);
   };
 
   DECLARE_JSON_TYPE(JwtIssuerKeyPolicy);
@@ -43,8 +40,6 @@ namespace ccf
     std::optional<JwtIssuerKeyPolicy> key_policy;
     std::optional<std::string> ca_cert_bundle_name;
     bool auto_refresh = false;
-
-    MSGPACK_DEFINE(key_filter, key_policy, ca_cert_bundle_name, auto_refresh);
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuerMetadata);
@@ -60,5 +55,3 @@ namespace ccf
   using JwtPublicSigningKeyIssuer =
     kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;
 }
-
-MSGPACK_ADD_ENUM(ccf::JwtIssuerKeyFilter);

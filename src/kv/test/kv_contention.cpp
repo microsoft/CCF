@@ -8,6 +8,8 @@
 #include <atomic>
 #include <chrono>
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
+#include "ds/msgpack_adaptor_nlohmann.h"
+
 #include <doctest/doctest.h>
 #include <string>
 #include <thread>

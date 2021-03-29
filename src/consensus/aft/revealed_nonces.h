@@ -6,7 +6,6 @@
 #include "crypto/hash.h"
 #include "kv/map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
@@ -17,8 +16,6 @@ namespace aft
   {
     ccf::NodeId node_id;
     Nonce nonce;
-
-    MSGPACK_DEFINE(node_id, nonce);
 
     RevealedNonce(const ccf::NodeId& node_id_, Nonce nonce_) :
       node_id(node_id_),

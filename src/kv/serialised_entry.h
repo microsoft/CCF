@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <msgpack/msgpack.hpp>
 #include <nlohmann/json.hpp>
 #include <small_vector/SmallVector.h>
 

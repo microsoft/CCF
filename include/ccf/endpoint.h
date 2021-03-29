@@ -19,8 +19,6 @@ namespace ccf::endpoints
   {
     URI uri_path;
     RESTVerb verb = HTTP_POST;
-
-    MSGPACK_DEFINE(uri_path, verb);
   };
 
   DECLARE_JSON_TYPE(EndpointKey);
@@ -81,14 +79,6 @@ namespace ccf::endpoints
 
     nlohmann::json openapi;
     bool openapi_hidden = false;
-
-    MSGPACK_DEFINE(
-      forwarding_required,
-      execute_outside_consensus,
-      authn_policies,
-      openapi,
-      openapi_hidden,
-      mode);
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndpointProperties);
@@ -398,7 +388,3 @@ namespace kv::serialisers
     }
   };
 }
-
-MSGPACK_ADD_ENUM(ccf::endpoints::ForwardingRequired);
-MSGPACK_ADD_ENUM(ccf::endpoints::ExecuteOutsideConsensus);
-MSGPACK_ADD_ENUM(ccf::endpoints::Mode);

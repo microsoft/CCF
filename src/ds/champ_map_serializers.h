@@ -5,10 +5,6 @@
 #include "ccf_assert.h"
 #include "serialized.h"
 
-#include <msgpack/msgpack.hpp>
-#include <nlohmann/json.hpp>
-#include <small_vector/SmallVector.h>
-
 namespace champ
 {
   using Version = uint64_t;

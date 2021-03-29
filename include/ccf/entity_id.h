@@ -5,7 +5,6 @@
 #include "ds/json.h"
 #include "ds/serialized.h"
 
-#include <msgpack/msgpack.hpp>
 #include <string>
 
 namespace ccf
@@ -84,8 +83,6 @@ namespace ccf
     {
       return id.size();
     }
-
-    MSGPACK_DEFINE(id);
   };
 
   inline void to_json(nlohmann::json& j, const EntityId& entity_id)

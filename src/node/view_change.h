@@ -5,7 +5,6 @@
 #include "node_signature.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
@@ -60,7 +59,6 @@ namespace ccf
 
       return v;
     }
-    MSGPACK_DEFINE(signatures, signature);
   };
   DECLARE_JSON_TYPE(ViewChangeRequest);
   DECLARE_JSON_REQUIRED_FIELDS(ViewChangeRequest, signatures, signature);
@@ -78,8 +76,6 @@ namespace ccf
       view(view_),
       seqno(seqno_)
     {}
-
-    MSGPACK_DEFINE(view, seqno, signature, view_change_messages);
   };
   DECLARE_JSON_TYPE(ViewChangeConfirmation);
   DECLARE_JSON_REQUIRED_FIELDS(

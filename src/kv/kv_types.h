@@ -15,6 +15,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -67,8 +68,6 @@ namespace kv
     {
       return {term, version};
     }
-
-    MSGPACK_DEFINE(term, version);
   };
   DECLARE_JSON_TYPE(TxID);
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
