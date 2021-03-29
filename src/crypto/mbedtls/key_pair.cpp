@@ -15,6 +15,7 @@
 #include <mbedtls/asn1write.h>
 #include <mbedtls/bignum.h>
 #include <mbedtls/error.h>
+#include <mbedtls/md.h>
 #include <mbedtls/oid.h>
 #include <mbedtls/pem.h>
 #include <mbedtls/pk.h>
@@ -167,6 +168,46 @@ namespace crypto
     return sig;
   }
 
+  static int ecdsa_sign_nondet(
+    mbedtls_pk_context* ctx,
+    const uint8_t* hash,
+    size_t hash_size,
+    uint8_t* sig,
+    size_t* sig_size)
+  {
+    EntropyPtr entropy = create_entropy();
+    mbedtls_ecdsa_context* ecdsa_ctx = (mbedtls_ecdsa_context*)ctx->pk_ctx;
+
+    mbedtls_mpi sr, ss;
+    mbedtls_mpi_init(&sr);
+    mbedtls_mpi_init(&ss);
+
+    int r = mbedtls_ecdsa_sign(
+      &ecdsa_ctx->grp,
+      &sr,
+      &ss,
+      &ecdsa_ctx->d,
+      hash,
+      hash_size,
+      entropy->get_rng(),
+      entropy->get_data());
+
+    unsigned char buf[MBEDTLS_ECDSA_MAX_LEN];
+    unsigned char* p = buf + sizeof(buf);
+    size_t len = 0;
+    len += mbedtls_asn1_write_mpi(&p, buf, &ss);
+    len += mbedtls_asn1_write_mpi(&p, buf, &sr);
+    len += mbedtls_asn1_write_len(&p, buf, len);
+    len += mbedtls_asn1_write_tag(
+      &p, buf, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
+    memcpy(sig, p, len);
+    *sig_size = len;
+
+    mbedtls_mpi_free(&sr);
+    mbedtls_mpi_free(&ss);
+    return 0;
+  }
+
   int KeyPair_mbedTLS::sign_hash(
     const uint8_t* hash, size_t hash_size, size_t* sig_size, uint8_t* sig) const
   {
@@ -174,7 +215,8 @@ namespace crypto
 
     const auto mmdt = get_md_type(get_md_for_ec(get_curve_id()));
 
-    int r = mbedtls_pk_sign(
+#ifdef DETERMINISTIC_ECDSA
+    return mbedtls_pk_sign(
       ctx.get(),
       mmdt,
       hash,
@@ -183,8 +225,9 @@ namespace crypto
       sig_size,
       entropy->get_rng(),
       entropy->get_data());
-
-    return r;
+#else
+    return ecdsa_sign_nondet(ctx.get(), hash, hash_size, sig, sig_size);
+#endif
   }
 
   Pem KeyPair_mbedTLS::create_csr(const std::string& name) const
