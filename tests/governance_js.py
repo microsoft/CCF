@@ -333,9 +333,5 @@ if __name__ == "__main__":
 
     args.package = "liblogging"
     args.nodes = ["local://localhost"]
-<<<<<<< HEAD
     args.initial_user_count = 2
-=======
-    args.initial_user_count = 1
->>>>>>> main
     run(args)
