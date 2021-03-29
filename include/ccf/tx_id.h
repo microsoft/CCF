@@ -35,7 +35,7 @@ namespace ccf
   // No transaction is assigned seqno 0.
   constexpr SeqNo SEQNO_UNKNOWN = 0;
 
-  // The combination of View and SeqNo produce a unique TxID for transaction
+  // The combination of View and SeqNo produce a unique TxID for each transaction
   // executed by CCF.
   struct TxID
   {

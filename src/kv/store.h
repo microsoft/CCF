@@ -125,12 +125,15 @@ namespace kv
 
     Version next_version_internal()
     {
-      // Get the next global version. If the version becomes negative, wrap to
-      // 0.
+      // Get the next global version
       ++version;
 
-      if (version < 0)
+      // If the version becomes too large to represent in a DeletableVersion, wrap to 0
+      if (version > std::numeric_limits<DeletableVersion>::max())
+      {
+        LOG_FAIL_FMT("KV version too large - wrapping to 0");
         version = 0;
+      }
 
       return version;
     }
