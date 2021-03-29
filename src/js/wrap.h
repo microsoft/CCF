@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "kv/kv_types.h"
 #include "kv/tx.h"
+#include "node/rpc/node_interface.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -16,11 +17,13 @@ namespace js
   extern JSClassID kv_class_id;
   extern JSClassID kv_map_handle_class_id;
   extern JSClassID body_class_id;
+  extern JSClassID node_class_id;
 
   extern JSClassDef kv_class_def;
   extern JSClassExoticMethods kv_exotic_methods;
   extern JSClassDef kv_map_handle_class_def;
   extern JSClassDef body_class_def;
+  extern JSClassDef node_class_def;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
@@ -32,6 +35,7 @@ namespace js
     kv::Tx* tx,
     const std::optional<kv::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
+    ccf::AbstractNodeState* node_state,
     JSContext* ctx);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);

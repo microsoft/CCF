@@ -7,6 +7,8 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 
+from loguru import logger as LOG
+
 
 def action(name, **args):
     return {"name": name, "args": args}
@@ -300,18 +302,54 @@ def test_operator_proposals_and_votes(network, args):
     return network
 
 
+@reqs.description("Test actions")
+def test_actions(network, args):
+    node = network.find_random_node()
+
+    with node.client(None, "member0") as c:
+        valid_set_member_data = proposal(
+            action(
+                "set_member_data",
+                member_id=f"{network.consortium.get_member_by_local_id('member0').service_id}",
+                member_data={"is_admin": True},
+            )
+        )
+
+        r = c.post("/gov/proposals.js", valid_set_member_data)
+        assert r.status_code == 200, r.body.text()
+        # proposal_id = r.body.json()["proposal_id"]
+
+        # ballot = {"ballot": "function vote (proposal, proposer_id) {{ return true }}"}
+        # r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
+        # assert r.status_code == 200, r.body.text()
+        # assert r.body.json()["state"] == "Accepted", r.body.json()
+
+        valid_rekey_ledger = proposal(action("rekey_ledger"))
+        r = c.post("/gov/proposals.js", valid_rekey_ledger)
+        assert r.status_code == 200, r.body.text()
+        # proposal_id = r.body.json()["proposal_id"]
+
+        # ballot = {"ballot": "function vote (proposal, proposer_id) {{ return true }}"}
+        # r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
+        # assert r.status_code == 200, r.body.text()
+        # assert r.body.json()["state"] == "Accepted", r.body.json()
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_proposal_validation(network, args)
-        network = test_proposal_storage(network, args)
-        network = test_proposal_withdrawal(network, args)
-        network = test_ballot_storage(network, args)
-        network = test_pure_proposals(network, args)
-        network = test_proposals_with_votes(network, args)
-        network = test_operator_proposals_and_votes(network, args)
+        # network = test_proposal_validation(network, args)
+        # network = test_proposal_storage(network, args)
+        # network = test_proposal_withdrawal(network, args)
+        # network = test_ballot_storage(network, args)
+        # network = test_pure_proposals(network, args)
+        # network = test_proposals_with_votes(network, args)
+        # network = test_operator_proposals_and_votes(network, args)
+        network = test_actions(network, args)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,45 @@ class Action {
 
 const actions = new Map([
   [
+    "set_member_data",
+    new Action(
+      function (args) {
+        // TODO: Check that member id is a valid entity id
+        return (
+          typeof args.member_id == "string" &&
+          typeof args.member_data == "object"
+        );
+      },
+
+      function (args) {
+        let member_id = ccf.strToBuf(args.member_id);
+        let members_info = ccf.kv["public:ccf.gov.members.info"];
+        let member_info = members_info.get(member_id);
+        if (member_info === undefined) {
+          console.log("Member " + args.member_id + " does not exist");
+          return false;
+        }
+        let mi = ccf.bufToJsonCompatible(member_info);
+        mi.member_data = args.member_data;
+        members_info.set(member_id, ccf.jsonCompatibleToBuf(mi));
+        return true;
+      }
+    ),
+  ],
+  [
+    "rekey_ledger",
+    new Action(
+      function (args) {
+        return true; // TODO: Check that args is null?
+      },
+
+      function (args) {
+        ccf.node.rekeyLedger();
+        return true;
+      }
+    ),
+  ],
+  [
     "set_recovery_threshold",
     new Action(
       function (args) {
@@ -130,8 +169,8 @@ function validate(input) {
 }
 
 function resolve(proposal, proposer_id, votes) {
-  const actions = JSON.parse(proposal)["actions"];
-  if (actions.length === 1) {
+  const actions_ = JSON.parse(proposal)["actions"];
+  if (actions_.length === 1) {
     if (actions[0].name === "always_accept_noop") {
       return "Accepted";
     }
@@ -185,6 +224,22 @@ function resolve(proposal, proposer_id, votes) {
       votes[1].vote === false
     ) {
       return "Rejected";
+    }
+    if (actions_[0].name == "set_member_data") {
+      try {
+        actions.get("set_member_data").apply(actions_[0].args);
+      } catch (err) {
+        console.log("Error: " + err.message);
+      }
+      return "Accepted";
+    }
+    if (actions_[0].name == "rekey_ledger") {
+      try {
+        actions.get("rekey_ledger").apply(actions_[0].args);
+      } catch (err) {
+        console.log("Error: " + err.message);
+      }
+      return "Accepted";
     }
   }
 

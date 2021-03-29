@@ -1178,7 +1178,7 @@ namespace ccf
         js::Runtime rt;
         js::Context context(rt);
         rt.add_ccf_classdefs();
-        js::populate_global_ccf(&tx, std::nullopt, nullptr, context);
+        js::populate_global_ccf(&tx, std::nullopt, nullptr, nullptr, context);
         auto ballot_func = context.function(
           mbs, fmt::format("ballot from {} for {}", mid, proposal_id));
 
@@ -1208,49 +1208,51 @@ namespace ccf
           constitution);
 
         js::Runtime rt;
-        js::Context context(rt);
-        js::populate_global_console(context);
+        js::Context js_context(rt);
+        js::populate_global_console(js_context);
         rt.add_ccf_classdefs();
-        js::populate_global_ccf(&tx, std::nullopt, nullptr, context);
+        js::populate_global_ccf(
+          &tx, std::nullopt, nullptr, &context.get_node_state(), js_context);
         auto resolve_func =
-          context.function(mbs, fmt::format("resolve {}", proposal_id));
+          js_context.function(mbs, fmt::format("resolve {}", proposal_id));
         JSValue argv[3];
         auto prop = JS_NewStringLen(
-          context, (const char*)proposal.data(), proposal.size());
+          js_context, (const char*)proposal.data(), proposal.size());
         argv[0] = prop;
 
         auto prop_id = JS_NewStringLen(
-          context, pi_->proposer_id.data(), pi_->proposer_id.size());
+          js_context, pi_->proposer_id.data(), pi_->proposer_id.size());
         argv[1] = prop_id;
 
-        auto vs = JS_NewArray(context);
+        auto vs = JS_NewArray(js_context);
         size_t index = 0;
         for (auto& [mid, vote] : votes)
         {
-          auto v = JS_NewObject(context);
-          auto member_id = JS_NewStringLen(context, mid.data(), mid.size());
+          auto v = JS_NewObject(js_context);
+          auto member_id = JS_NewStringLen(js_context, mid.data(), mid.size());
           JS_DefinePropertyValueStr(
-            context, v, "member_id", member_id, JS_PROP_C_W_E);
-          auto vote_status = JS_NewBool(context, vote);
+            js_context, v, "member_id", member_id, JS_PROP_C_W_E);
+          auto vote_status = JS_NewBool(js_context, vote);
           JS_DefinePropertyValueStr(
-            context, v, "vote", vote_status, JS_PROP_C_W_E);
-          JS_DefinePropertyValueUint32(context, vs, index++, v, JS_PROP_C_W_E);
+            js_context, v, "vote", vote_status, JS_PROP_C_W_E);
+          JS_DefinePropertyValueUint32(
+            js_context, vs, index++, v, JS_PROP_C_W_E);
         }
         argv[2] = vs;
 
         auto val =
-          context(JS_Call(context, resolve_func, JS_UNDEFINED, 3, argv));
+          js_context(JS_Call(js_context, resolve_func, JS_UNDEFINED, 3, argv));
 
-        JS_FreeValue(context, resolve_func);
-        JS_FreeValue(context, prop);
-        JS_FreeValue(context, prop_id);
-        JS_FreeValue(context, vs);
+        JS_FreeValue(js_context, resolve_func);
+        JS_FreeValue(js_context, prop);
+        JS_FreeValue(js_context, prop_id);
+        JS_FreeValue(js_context, vs);
 
         if (JS_IsString(val))
         {
-          auto s = JS_ToCString(context, val);
+          auto s = JS_ToCString(js_context, val);
           std::string status(s);
-          JS_FreeCString(context, s);
+          JS_FreeCString(js_context, s);
           if (status == "Open")
           {
             pi_.value().state = ProposalState::OPEN;
