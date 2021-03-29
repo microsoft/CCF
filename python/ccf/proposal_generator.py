@@ -148,7 +148,16 @@ def build_proposal(
     LOG.trace(f"Generating {proposed_call} proposal")
 
     if GENERATE_JS_PROPOSALS:
-        raise ValueError("TODO!")
+        action = {"name": proposed_call, "args": args}
+        actions = [action]
+        proposal = {"actions": actions}
+
+        vote_lines = []
+        vote_lines.append("function vote (proposal, proposer_id) {")
+        vote_lines.append("  return true")
+        vote_lines.append("}")
+        vote_text = "\n".join(vote_lines)
+        vote = {"ballot": vote_text}
 
     else:
         proposal_script_lines = []
