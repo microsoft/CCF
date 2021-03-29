@@ -18,6 +18,9 @@ import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
 
 
+GENERATE_JS_PROPOSALS=False
+
+
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
     with open(output_path, "w") as f:
         json.dump(obj, f, **dump_args)
@@ -144,35 +147,39 @@ def build_proposal(
 ):
     LOG.trace(f"Generating {proposed_call} proposal")
 
-    proposal_script_lines = []
-    if args is None:
-        proposal_script_lines.append(f'return Calls:call("{proposed_call}")')
+    if GENERATE_JS_PROPOSALS:
+        raise ValueError("TODO!")
+
     else:
-        if inline_args:
-            add_arg_construction(proposal_script_lines, args)
+        proposal_script_lines = []
+        if args is None:
+            proposal_script_lines.append(f'return Calls:call("{proposed_call}")')
         else:
-            proposal_script_lines.append("tables, args = ...")
-        proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
+            if inline_args:
+                add_arg_construction(proposal_script_lines, args)
+            else:
+                proposal_script_lines.append("tables, args = ...")
+            proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
 
-    proposal_script_text = ";\n".join(proposal_script_lines)
-    proposal = {
-        "script": {"text": proposal_script_text},
-    }
-    if args is not None and not inline_args:
-        proposal["parameter"] = args
+        proposal_script_text = ";\n".join(proposal_script_lines)
+        proposal = {
+            "script": {"text": proposal_script_text},
+        }
+        if args is not None and not inline_args:
+            proposal["parameter"] = args
 
-    vote_lines = [
-        "tables, calls = ...",
-        "if not #calls == 1 then return false end",
-        "call = calls[1]",
-        f'if not call.func == "{proposed_call}" then return false end',
-    ]
-    if args is not None:
-        vote_lines.append("args = call.args")
-        add_arg_checks(vote_lines, args)
-    vote_lines.append("return true")
-    vote_text = ";\n".join(vote_lines)
-    vote = {"ballot": {"text": vote_text}}
+        vote_lines = [
+            "tables, calls = ...",
+            "if not #calls == 1 then return false end",
+            "call = calls[1]",
+            f'if not call.func == "{proposed_call}" then return false end',
+        ]
+        if args is not None:
+            vote_lines.append("args = call.args")
+            add_arg_checks(vote_lines, args)
+        vote_lines.append("return true")
+        vote_text = ";\n".join(vote_lines)
+        vote = {"ballot": {"text": vote_text}}
 
     LOG.trace(f"Made {proposed_call} proposal:\n{json.dumps(proposal, indent=2)}")
     LOG.trace(f"Accompanying vote:\n{json.dumps(vote, indent=2)}")
@@ -498,6 +505,7 @@ if __name__ == "__main__":
         "the script. When not inlined, the parameters are passed separately and could "
         "be replaced in the resulting object",
     )
+    parser.add_argument("--js", action="store_true", help="TODO")
     parser.add_argument("-v", "--verbose", action="store_true")
 
     # Auto-generate CLI args based on the inspected signatures of generator functions
@@ -540,6 +548,9 @@ if __name__ == "__main__":
         format="<level>[{time:YYYY-MM-DD HH:mm:ss.SSS}] {level} | {message}</level>",
         level="TRACE" if args.verbose else "INFO",
     )
+
+    if args.js:
+        GENERATE_JS_PROPOSALS = True
 
     proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.param_names},
