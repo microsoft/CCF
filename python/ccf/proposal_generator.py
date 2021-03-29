@@ -18,7 +18,7 @@ import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
 
 
-GENERATE_JS_PROPOSALS=os.getenv("JS_GOVERNANCE")
+GENERATE_JS_PROPOSALS = os.getenv("JS_GOVERNANCE")
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
@@ -158,11 +158,18 @@ def build_proposal(
         vote_lines.append("  if (!'actions' in proposal) { return false }")
         vote_lines.append("  let actions = proposal['actions']")
         vote_lines.append("  if (actions.length !== 1) { return false }")
+        vote_lines.append("  let action = actions[0]")
+        vote_lines.append("  if (!'name' in action) { return false }")
+        vote_lines.append(f"  if (action.name !== '{proposed_call}') {{ return false }}")
 
-        for name, body in args.items():
-            vote_lines.append(f"  if (!'{name}' in args) {{ return false }}")
-            vote_lines.append(f"  let expected = {json.dumps(body)}")
-            vote_lines.append(f"  if (args.{name} !== expected) {{ return false }}")
+        if args is not None:
+            vote_lines.append("  if (!'args' in action) { return false }")
+            vote_lines.append("  let args = action.args")
+
+            for name, body in args.items():
+                vote_lines.append(f"  if (!'{name}' in args) {{ return false }}")
+                vote_lines.append(f"  let expected = {json.dumps(body)}")
+                vote_lines.append(f"  if (args.{name} !== expected) {{ return false }}")
 
         vote_lines.append("  return true")
         vote_lines.append("}")

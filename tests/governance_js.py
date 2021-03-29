@@ -300,6 +300,7 @@ def test_operator_proposals_and_votes(network, args):
 
     return network
 
+
 @reqs.description("Test proposal generator")
 def test_proposal_generator(network, args):
     restore_js_proposals = prop_gen.GENERATE_JS_PROPOSALS
@@ -307,7 +308,9 @@ def test_proposal_generator(network, args):
 
     node = network.find_random_node()
     with node.client(None, "member0") as c:
-        proposal, ballot = prop_gen.build_proposal("set_recovery_threshold", {"threshold": 5})
+        proposal, ballot = prop_gen.build_proposal(
+            "set_recovery_threshold", {"threshold": 5}
+        )
         r = c.post("/gov/proposals.js", proposal)
         assert r.status_code == 200, r.body.text()
         proposal_id = r.body.json()["proposal_id"]
@@ -317,6 +320,7 @@ def test_proposal_generator(network, args):
 
     prop_gen.GENERATE_JS_PROPOSALS = restore_js_proposals
     return network
+
 
 def run(args):
     with infra.network.network(
