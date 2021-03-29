@@ -1178,7 +1178,8 @@ namespace ccf
         js::Runtime rt;
         js::Context context(rt);
         rt.add_ccf_classdefs();
-        js::populate_global_ccf(&tx, std::nullopt, nullptr, context);
+        js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
+        js::populate_global_ccf(&txctx, std::nullopt, nullptr, context);
         auto ballot_func = context.function(
           mbs, fmt::format("ballot from {} for {}", mid, proposal_id));
 
@@ -1211,7 +1212,8 @@ namespace ccf
         js::Context context(rt);
         js::populate_global_console(context);
         rt.add_ccf_classdefs();
-        js::populate_global_ccf(&tx, std::nullopt, nullptr, context);
+        js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
+        js::populate_global_ccf(&txctx, std::nullopt, nullptr, context);
         auto resolve_func =
           context.function(mbs, fmt::format("resolve {}", proposal_id));
         JSValue argv[3];
@@ -1289,7 +1291,8 @@ namespace ccf
             js::Runtime rt;
             js::Context context(rt);
             rt.add_ccf_classdefs();
-            js::populate_global_ccf(&tx, std::nullopt, nullptr, context);
+            js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
+            js::populate_global_ccf(&txctx, std::nullopt, nullptr, context);
             auto apply_func = context.function(
               apply_script, fmt::format("apply for {}", proposal_id));
 

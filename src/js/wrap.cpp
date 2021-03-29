@@ -237,8 +237,8 @@ namespace js
       }
     }
 
-    auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, kv_class_id));
-    auto handle = tx_ptr->rw<KVMap>(property_name);
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(this_val, kv_class_id));
+    auto handle = tx_ctx_ptr->tx->rw<KVMap>(property_name);
 
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
@@ -479,7 +479,7 @@ namespace js
   }
 
   JSValue create_ccf_obj(
-    kv::Tx* tx,
+    TxContext* txctx,
     const std::optional<kv::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     JSContext* ctx)
@@ -515,10 +515,10 @@ namespace js
     JS_SetPropertyStr(
       ctx, ccf, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
 
-    if (tx != nullptr)
+    if (txctx != nullptr)
     {
       auto kv = JS_NewObjectClass(ctx, kv_class_id);
-      JS_SetOpaque(kv, tx);
+      JS_SetOpaque(kv, txctx);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
     }
 
@@ -574,7 +574,7 @@ namespace js
   }
 
   void populate_global_ccf(
-    kv::Tx* tx,
+    TxContext* txctx,
     const std::optional<kv::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     JSContext* ctx)
@@ -582,7 +582,7 @@ namespace js
     auto global_obj = JS_GetGlobalObject(ctx);
 
     JS_SetPropertyStr(
-      ctx, global_obj, "ccf", create_ccf_obj(tx, transaction_id, receipt, ctx));
+      ctx, global_obj, "ccf", create_ccf_obj(txctx, transaction_id, receipt, ctx));
 
     JS_FreeValue(ctx, global_obj);
   }
