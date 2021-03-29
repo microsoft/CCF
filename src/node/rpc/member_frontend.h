@@ -1277,16 +1277,35 @@ namespace ccf
           }
         }
 
-        /* Apply actions
         if (pi_.value().state != ProposalState::OPEN)
         {
           // Record votes and errors
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
-            // Apply actions here
+            std::string apply_script = fmt::format(
+              "{}\n export default (proposal) => apply(proposal);",
+              constitution);
+
+            js::Runtime rt;
+            js::Context context(rt);
+            rt.add_ccf_classdefs();
+            js::populate_global_ccf(&tx, std::nullopt, nullptr, context);
+            auto apply_func = context.function(
+              apply_script, fmt::format("apply for {}", proposal_id));
+
+            auto prop = JS_NewStringLen(
+              context, (const char*)proposal.data(), proposal.size());
+            auto val =
+              context(JS_Call(context, apply_func, JS_UNDEFINED, 1, &prop));
+            JS_FreeValue(context, apply_func);
+            JS_FreeValue(context, prop);
+            if (JS_IsException(val))
+            {
+              js::js_dump_error(context);
+              pi_.value().state = ProposalState::FAILED;
+            }
           }
         }
-        */
 
         return jsgov::ProposalInfoSummary{proposal_id,
                                           pi_->proposer_id,
