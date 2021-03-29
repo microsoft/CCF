@@ -106,7 +106,7 @@ namespace kv
       bool historical_hint = false) override
     {
       S hdr;
-      hdr.apply(serialised_header);
+      hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
       auto key =
