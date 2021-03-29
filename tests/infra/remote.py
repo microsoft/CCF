@@ -832,6 +832,9 @@ class CCFRemote(object):
         )
         return os.path.join(self.common_dir, self.snapshot_dir_name)
 
+    def log_path(self):
+        return self.remote.out
+
     def ledger_path(self):
         return os.path.join(self.remote.root, self.ledger_dir_name)
 

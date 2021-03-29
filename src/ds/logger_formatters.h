@@ -20,14 +20,15 @@ namespace fmt
     }
 
     template <typename FormatContext>
-    auto format(const std::vector<uint8_t>& p, FormatContext& ctx)
+    auto format(const std::vector<uint8_t>& v, FormatContext& ctx)
     {
-      return format_to(ctx.out(), ds::to_hex(p));
+      return format_to(
+        ctx.out(), "<vec[{}]: {:02x}>", v.size(), fmt::join(v, " "));
     }
   };
 
-  template <>
-  struct formatter<std::array<uint8_t, 32>>
+  template <size_t N>
+  struct formatter<std::array<uint8_t, N>>
   {
     template <typename ParseContext>
     constexpr auto parse(ParseContext& ctx)
@@ -36,9 +37,9 @@ namespace fmt
     }
 
     template <typename FormatContext>
-    auto format(const std::array<uint8_t, 32>& p, FormatContext& ctx)
+    auto format(const std::array<uint8_t, N>& a, FormatContext& ctx)
     {
-      return format_to(ctx.out(), ds::to_hex(p));
+      return format_to(ctx.out(), "<arr[{}]: {:02x}>", N, fmt::join(a, " "));
     }
   };
 }

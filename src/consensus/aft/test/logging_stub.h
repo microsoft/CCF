@@ -84,10 +84,9 @@ namespace aft
     void create_channel(
       const ccf::NodeId& peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service) override
+      const std::string& peer_service,
+      size_t message_limit = ccf::Channel::default_message_limit) override
     {}
-
-    void restart() override {}
 
     void destroy_channel(const ccf::NodeId& peer_id) override {}
 

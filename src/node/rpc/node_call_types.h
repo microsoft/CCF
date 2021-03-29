@@ -54,7 +54,7 @@ namespace ccf
       crypto::Pem network_cert;
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
-      std::vector<uint8_t> code_digest;
+      CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
       ServiceConfiguration configuration;
     };
