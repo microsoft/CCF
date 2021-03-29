@@ -536,7 +536,6 @@ namespace ccfapp
       network(network),
       context(context)
     {
-      js::register_class_ids();
       metrics_tracker.install_endpoint(*this);
     }
 
