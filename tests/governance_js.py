@@ -217,7 +217,7 @@ def opposite(js_bool):
 
 
 @reqs.description("Test vote proposals")
-def test_vote_proposals(network, args):
+def test_proposals_with_votes(network, args):
     node = network.find_random_node()
     with node.client(None, "member0") as c:
         for prop, state, direction in [
@@ -250,23 +250,6 @@ def test_vote_proposals(network, args):
             assert r.body.json()["state"] == state, r.body.json()
 
     with node.client(None, "member0") as c:
-        r = c.post("/gov/proposals.js", always_accept_if_voted_by_operator)
-        assert r.status_code == 200, r.body.text()
-        assert r.body.json()["state"] == "Open", r.body.json()
-        proposal_id = r.body.json()["proposal_id"]
-
-        ballot = {"ballot": "function vote (proposal, proposer_id) {{ return true }}"}
-        r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
-        assert r.status_code == 200, r.body.text()
-        assert r.body.json()["state"] == "Accepted", r.body.json()
-
-    with node.client(None, "member0") as c:
-        r = c.post("/gov/proposals.js", always_accept_if_proposed_by_operator)
-        assert r.status_code == 200, r.body.text()
-        assert r.body.json()["state"] == "Accepted", r.body.json()
-        proposal_id = r.body.json()["proposal_id"]
-
-    with node.client(None, "member0") as c:
         for prop, state, direction in [
             (always_accept_with_two_votes, "Accepted", "true"),
             (always_reject_with_two_votes, "Rejected", "false"),
@@ -293,6 +276,28 @@ def test_vote_proposals(network, args):
 
     return network
 
+@reqs.description("Test operator proposals and votes")
+def test_operator_proposals_and_votes(network, args):
+    node = network.find_random_node()
+    with node.client(None, "member0") as c:
+        r = c.post("/gov/proposals.js", always_accept_if_voted_by_operator)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Open", r.body.json()
+        proposal_id = r.body.json()["proposal_id"]
+
+        ballot = {"ballot": "function vote (proposal, proposer_id) {{ return true }}"}
+        r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
+
+    with node.client(None, "member0") as c:
+        r = c.post("/gov/proposals.js", always_accept_if_proposed_by_operator)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
+        proposal_id = r.body.json()["proposal_id"]
+
+    return network
+
 
 def run(args):
     with infra.network.network(
@@ -304,7 +309,8 @@ def run(args):
         network = test_proposal_withdrawal(network, args)
         network = test_ballot_storage(network, args)
         network = test_pure_proposals(network, args)
-        network = test_vote_proposals(network, args)
+        network = test_proposals_with_votes(network, args)
+        network = test_operator_proposals_and_votes(network, args)
 
 
 if __name__ == "__main__":
