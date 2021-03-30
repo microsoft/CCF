@@ -1206,6 +1206,8 @@ namespace ccf
           }
         }
 
+        std::optional<std::string> failure_reason = std::nullopt;
+
         if (pi_.value().state != ProposalState::OPEN)
         {
           // Record votes and errors
@@ -1233,8 +1235,27 @@ namespace ccf
             JS_FreeValue(js_context, prop);
             if (JS_IsException(val))
             {
-              js::js_dump_error(js_context);
               pi_.value().state = ProposalState::FAILED;
+
+              JSValue exception_val = JS_GetException(js_context);
+              const char* str;
+              if (
+                !JS_IsError(js_context, exception_val) &&
+                JS_IsObject(exception_val))
+              {
+                JSValue rval =
+                  JS_JSONStringify(js_context, exception_val, JS_NULL, JS_NULL);
+                str = JS_ToCString(js_context, rval);
+                JS_FreeValue(js_context, rval);
+              }
+              else
+              {
+                str = JS_ToCString(js_context, exception_val);
+              }
+              failure_reason = fmt::format("Failed to apply: {}", str);
+              LOG_INFO_FMT("SET FAILURE REASON {}", failure_reason.value());
+              JS_FreeCString(js_context, str);
+              JS_FreeValue(js_context, exception_val);
             }
           }
         }
@@ -1242,7 +1263,8 @@ namespace ccf
         return jsgov::ProposalInfoSummary{proposal_id,
                                           pi_->proposer_id,
                                           pi_.value().state,
-                                          pi_.value().ballots.size()};
+                                          pi_.value().ballots.size(),
+                                          failure_reason};
       }
     }
 
@@ -2667,6 +2689,7 @@ namespace ccf
         auto rv = resolve_proposal(
           ctx.tx, proposal_id, p.value(), constitution.value());
         pi_.value().state = rv.state;
+        pi_.value().failure_reason = rv.failure_reason;
         pi->put(proposal_id, pi_.value());
         return make_success(rv);
       };

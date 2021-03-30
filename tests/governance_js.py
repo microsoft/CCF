@@ -388,6 +388,17 @@ def test_apply(network, args):
         r = c.get("/app/log/private")
         assert r.status_code == 401, r.body.text()
 
+    with node.client(None, "member0") as c:
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("always_throw_in_apply")),
+        )
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Failed", r.body.json()
+        assert (
+            r.body.json()["failure_reason"] == "Failed to apply: Error: Error message"
+        ), r.body.json()
+
     return network
 
 

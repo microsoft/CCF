@@ -190,6 +190,17 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "always_throw_in_apply",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args) {
+        throw new Error("Error message");
+      }
+    ),
+  ],
 ]);
 
 export function validate(input) {
@@ -217,6 +228,8 @@ export function resolve(proposal, proposer_id, votes) {
       return "Accepted";
     } else if (actions[0].name === "always_reject_noop") {
       return "Rejected";
+    } else if (actions[0].name === "always_throw_in_apply") {
+      return "Accepted";
     } else if (
       actions[0].name === "always_accept_with_one_vote" &&
       votes.length === 1 &&
