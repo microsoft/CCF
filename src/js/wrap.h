@@ -179,6 +179,10 @@ namespace js
     };
 
     JSValue function(const std::string& code, const std::string& path);
+    JSValue function(
+      const std::string& code,
+      const std::string& func,
+      const std::string& path);
   };
 
 #pragma clang diagnostic pop
