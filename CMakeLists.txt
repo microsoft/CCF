@@ -60,6 +60,10 @@ option(ZAP_TEST
        "ZAP fuzz test using https://www.zaproxy.org/docs/docker/api-scan/" OFF
 )
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
+option(ENABLE_JS_GOV "Enable JS Governance" ON)
+if(ENABLE_JS_GOV)
+  add_definitions(-DENABLE_JS_GOV)
+endif()
 option(BUILD_TPCC "Build TPPC sample app and clients" ON)
 
 # Build common library for CCF enclaves
@@ -488,6 +492,15 @@ if(BUILD_TESTS)
   )
   add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
   add_picobench(digest_bench SRCS src/crypto/test/digest_bench.cpp)
+
+  if(ENABLE_JS_GOV)
+    add_e2e_test(
+      NAME governance_js_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
+      CONSENSUS cft
+      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+    )
+  endif()
 
   # Storing signed governance operations
   add_e2e_test(

@@ -348,10 +348,11 @@ namespace ccfapp
         rt, nullptr, js_module_loader, &js_module_loader_arg);
 
       js::Context ctx(rt);
+      js::TxContext txctx{&target_tx, js::TxAccess::APP};
 
       js::register_request_body_class(ctx);
       js::populate_global_console(ctx);
-      js::populate_global_ccf(&target_tx, transaction_id, receipt, ctx);
+      js::populate_global_ccf(&txctx, transaction_id, receipt, ctx);
 
       // Compile module
       if (!handler_script.value().text.has_value())
@@ -534,7 +535,6 @@ namespace ccfapp
       network(network),
       context(context)
     {
-      js::register_class_ids();
       metrics_tracker.install_endpoint(*this);
     }
 
