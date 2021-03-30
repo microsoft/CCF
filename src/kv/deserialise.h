@@ -4,10 +4,10 @@
 
 #include "apply_changes.h"
 #include "consensus/aft/request.h"
+#include "kv/committable_tx.h"
 #include "kv_types.h"
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
-#include "kv/committable_tx.h"
 
 #include <vector>
 

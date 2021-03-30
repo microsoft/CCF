@@ -45,7 +45,8 @@ namespace ccf
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     crypto::Pem* service_identity = nullptr;
 
-    using PreExec = std::function<void(kv::CommittableTx& tx, enclave::RpcContext& ctx)>;
+    using PreExec =
+      std::function<void(kv::CommittableTx& tx, enclave::RpcContext& ctx)>;
 
     void update_consensus()
     {
@@ -341,7 +342,8 @@ namespace ccf
 
             case kv::CommitResult::FAIL_CONFLICT:
             {
-              // TODO: Rather than calling .reset() (and remembering to clear everything correctly in that), can we simply create a new tx?
+              // TODO: Rather than calling .reset() (and remembering to clear
+              // everything correctly in that), can we simply create a new tx?
               tx = tables.create_tx();
               break;
             }
@@ -363,8 +365,9 @@ namespace ccf
           // compaction. Reset and retry
           LOG_DEBUG_FMT(
             "Transaction execution conflicted with compaction: {}", e.what());
-          
-          // TODO: Rather than calling .reset() (and remembering to clear everything correctly in that), can we simply create a new tx?
+
+          // TODO: Rather than calling .reset() (and remembering to clear
+          // everything correctly in that), can we simply create a new tx?
           tx = tables.create_tx();
           continue;
         }
@@ -484,7 +487,8 @@ namespace ccf
       return is_open_;
     }
 
-    void set_root_on_proposals(const enclave::RpcContext& ctx, kv::CommittableTx& tx)
+    void set_root_on_proposals(
+      const enclave::RpcContext& ctx, kv::CommittableTx& tx)
     {
       if (
         ctx.get_request_path() == "/gov/proposals"

@@ -5,6 +5,7 @@
 #include "apply_changes.h"
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
+#include "kv/committable_tx.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
@@ -12,7 +13,6 @@
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
 #include "snapshot.h"
-#include "kv/committable_tx.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

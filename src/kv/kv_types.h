@@ -391,9 +391,7 @@ namespace kv
     ConsensusHookPtrs hooks;
 
   public:
-    MovePendingTx(
-      std::vector<uint8_t>&& data_,
-      ConsensusHookPtrs&& hooks_) :
+    MovePendingTx(std::vector<uint8_t>&& data_, ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
       hooks(std::move(hooks_))
     {}
@@ -401,9 +399,7 @@ namespace kv
     PendingTxInfo call() override
     {
       return PendingTxInfo(
-        CommitResult::SUCCESS,
-        std::move(data),
-        std::move(hooks));
+        CommitResult::SUCCESS, std::move(data), std::move(hooks));
     }
   };
 
