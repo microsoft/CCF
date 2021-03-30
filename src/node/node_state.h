@@ -1294,17 +1294,6 @@ namespace ccf
       }
     }
 
-    // TODO: Delete
-    bool accept_recovery(kv::Tx& tx) override
-    {
-      std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::partOfPublicNetwork);
-
-      GenesisGenerator g(network, tx);
-      share_manager.clear_submitted_recovery_shares(tx);
-      return g.service_wait_for_shares();
-    }
-
     void initiate_private_recovery(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);

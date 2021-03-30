@@ -25,7 +25,6 @@ namespace ccf
   public:
     virtual ~AbstractNodeState() {}
     virtual void transition_service_to_open(kv::Tx& tx) = 0;
-    virtual bool accept_recovery(kv::Tx& tx) = 0; // TODO: Delete
     virtual bool rekey_ledger(kv::Tx& tx) = 0;
     virtual bool is_part_of_public_network() const = 0;
     virtual bool is_primary() const = 0;

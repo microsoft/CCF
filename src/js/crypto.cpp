@@ -137,8 +137,6 @@ namespace js
     auto id = crypto::Sha256Hash(der).hex_str();
 
     return JS_NewString(ctx, id.c_str());
-
-    // return JS_NewArrayBufferCopy(ctx, der.data(), der.size());
   }
 
   static JSValue js_wrap_key(

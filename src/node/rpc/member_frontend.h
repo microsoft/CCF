@@ -884,73 +884,8 @@ namespace ccf
         {"transition_service_to_open",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           auto service = tx.ro<Service>(Tables::SERVICE)->get(0);
-           if (!service.has_value())
-           {
-             throw std::logic_error(
-               "Service information cannot be found in current state");
-           }
-
-           // Idempotence: if the service is already open or waiting for
-           // recovery shares, the proposal should succeed
-           if (
-             service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES ||
-             service->status == ServiceStatus::OPEN)
-           {
-             return true;
-           }
-
-           if (context.get_node_state().is_part_of_public_network())
-           {
-             // If the node is in public mode, start accepting member recovery
-             // shares
-             const auto accept_recovery =
-               context.get_node_state().accept_recovery(tx);
-             if (!accept_recovery)
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: Failed to accept recovery", proposal_id);
-             }
-             return accept_recovery;
-           }
-           else if (context.get_node_state().is_part_of_network())
-           {
-             // Otherwise, if the node is part of the network. Open the network
-             // straight away. We first check that a sufficient number of
-             // recovery members have become active. If so, recovery shares are
-             // allocated to each recovery member.
-             try
-             {
-               share_manager.issue_recovery_shares(tx);
-             }
-             catch (const std::logic_error& e)
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: Failed to issuing recovery shares failed when "
-                 "transitioning the service to open network: {}",
-                 proposal_id,
-                 e.what());
-               return false;
-             }
-
-             GenesisGenerator g(this->network, tx);
-             const auto network_opened = g.open_service();
-             if (!network_opened)
-             {
-               LOG_FAIL_FMT("Proposal {}: Failed to open service", proposal_id);
-             }
-             else
-             {
-               context.get_node_state().open_user_frontend();
-             }
-             return network_opened;
-           }
-
-           LOG_FAIL_FMT(
-             "Proposal {}: Service is not in expected state to transition to "
-             "open",
-             proposal_id);
-           return false;
+           context.get_node_state().transition_service_to_open(tx);
+           return true;
          }},
         {"rekey_ledger",
          [this](
