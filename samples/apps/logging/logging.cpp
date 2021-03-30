@@ -667,13 +667,11 @@ namespace loggingapp
         }
       };
 
-      auto is_tx_committed = [this](
-                               kv::Consensus::View view,
-                               kv::Consensus::SeqNo seqno,
-                               std::string& error_reason) {
-        return ccf::historical::is_tx_committed(
-          consensus, view, seqno, error_reason);
-      };
+      auto is_tx_committed =
+        [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+          return ccf::historical::is_tx_committed(
+            consensus, view, seqno, error_reason);
+        };
       make_endpoint(
         "log/private/historical",
         HTTP_GET,

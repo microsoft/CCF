@@ -31,7 +31,7 @@ namespace kv::test
       consensus_type(consensus_type_)
     {}
 
-    bool replicate(const BatchVector& entries, View view) override
+    bool replicate(const BatchVector& entries, ccf::View view) override
     {
       for (const auto& entry : entries)
       {
@@ -79,7 +79,7 @@ namespace kv::test
       replica.clear();
     }
 
-    std::pair<View, SeqNo> get_committed_txid() override
+    std::pair<ccf::View, ccf::SeqNo> get_committed_txid() override
     {
       return {2, 0};
     }
@@ -94,7 +94,7 @@ namespace kv::test
       return r;
     }
 
-    SeqNo get_committed_seqno() override
+    ccf::SeqNo get_committed_seqno() override
     {
       return 0;
     }
@@ -119,23 +119,23 @@ namespace kv::test
       return PrimaryNodeId;
     }
 
-    View get_view(SeqNo seqno) override
+    ccf::View get_view(ccf::SeqNo seqno) override
     {
       return 2;
     }
 
-    View get_view() override
+    ccf::View get_view() override
     {
       return 2;
     }
 
-    std::vector<SeqNo> get_view_history(SeqNo seqno) override
+    std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo seqno) override
     {
       return view_history.get_history_until(seqno);
     }
 
     void initialise_view_history(
-      const std::vector<SeqNo>& view_history_) override
+      const std::vector<ccf::SeqNo>& view_history_) override
     {
       view_history.initialise(view_history_);
     }
@@ -143,7 +143,7 @@ namespace kv::test
     void recv_message(const NodeId& from, OArray&& oa) override {}
 
     void add_configuration(
-      SeqNo seqno, const Configuration::Nodes& conf) override
+      ccf::SeqNo seqno, const Configuration::Nodes& conf) override
     {}
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
@@ -184,7 +184,7 @@ namespace kv::test
       return false;
     }
 
-    bool replicate(const BatchVector& entries, View view) override
+    bool replicate(const BatchVector& entries, ccf::View view) override
     {
       return false;
     }
