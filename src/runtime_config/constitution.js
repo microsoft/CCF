@@ -5,6 +5,14 @@ class Action {
   }
 }
 
+function toHexString(byteArray) {
+  console.log("To hex: " + byteArray.byteLength);
+  return Array.from(byteArray, function (byte) {
+    console.log("Byte: " + byte);
+    // return ("0" + (byte & 0xff).toString(16)).slice(-2);
+  }).join("");
+}
+
 const actions = new Map([
   [
     "set_member_data",
@@ -53,7 +61,41 @@ const actions = new Map([
       },
 
       function (args) {
-        ccf.node.rekeyLedger();
+        ccf.node.transitionServiceToOpen();
+        return true;
+      }
+    ),
+  ],
+  [
+    "set_user",
+    new Action(
+      function (args) {
+        return true; // Check that args is null?
+      },
+
+      function (args) {
+        let user_id = ccf.pemToId(args.cert);
+        let raw_user_id = ccf.strToBuf(user_id);
+
+        if (ccf.kv["ccf.gov.users.certs"].get(raw_user_id) != undefined) {
+          console.log(`User cert for ${user_id} already exists`);
+          return true; // Idempotent
+        }
+
+        ccf.kv["ccf.gov.users.certs"].set(raw_user_id, ccf.strToBuf(args.cert));
+
+        if (args.user_data != null) {
+          if (ccf.kv["ccf.gov.users.info"].get(raw_user_id) != undefined) {
+            console.log(`User info for ${user_id} already exists`);
+            return false; // Internal error
+          }
+
+          ccf.kv["ccf.gov.users.info"].set(
+            raw_user_id,
+            ccf.jsonCompatibleToBuf(args.user_data)
+          );
+        }
+
         return true;
       }
     ),
@@ -238,7 +280,9 @@ function resolve(proposal, proposer_id, votes) {
     }
     if (
       actions[0].name === "rekey_ledger" ||
-      actions[0].name === "set_member_data"
+      actions[0].name === "set_member_data" ||
+      actions[0].name === "transition_service_to_open" ||
+      actions[0].name === "set_user"
     ) {
       return "Accepted";
     }

@@ -161,6 +161,7 @@ namespace ccf
       }
 
       auto s = signatures->get(0);
+      // TODO: Do no write to ack table
       if (!s)
       {
         member_acks->put(id, MemberAck());
@@ -390,6 +391,7 @@ namespace ccf
       return active_service->status;
     }
 
+    // TODO: Delete
     bool service_wait_for_shares()
     {
       auto service = tx.rw(tables.service);

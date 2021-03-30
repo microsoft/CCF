@@ -1293,6 +1293,7 @@ namespace ccf
 
             js::Runtime rt;
             js::Context js_context(rt);
+            js::populate_global_console(js_context);
             rt.add_ccf_classdefs();
             js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
             js::populate_global_ccf(

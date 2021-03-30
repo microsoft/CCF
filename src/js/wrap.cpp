@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "js/wrap.h"
+#ifndef HERE
+#  include "js/wrap.h"
+#endif
 
 #include "ccf/tx_id.h"
 #include "ds/logger.h"
@@ -374,6 +376,42 @@ namespace js
     return JS_UNDEFINED;
   }
 
+  JSValue js_node_transition_service_to_open(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    if (argc != 0)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments but expected none", argc);
+    }
+
+    auto node = static_cast<ccf::AbstractNodeState*>(
+      JS_GetOpaque(this_val, node_class_id));
+
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(
+        ctx, "No transaction available to open service");
+    }
+
+    JS_FreeValue(ctx, kv);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+
+    node->transition_service_to_open(*tx_ctx_ptr->tx);
+
+    return JS_UNDEFINED;
+  }
+
   // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
   // with a synchronous interface.
   static const JSCFunctionListEntry js_body_proto_funcs[] = {
@@ -566,6 +604,8 @@ namespace js
       ctx, ccf, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
     JS_SetPropertyStr(
       ctx, ccf, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
+    JS_SetPropertyStr(
+      ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
 
     if (txctx != nullptr)
     {
@@ -638,6 +678,15 @@ namespace js
         node,
         "rekeyLedger",
         JS_NewCFunction(ctx, js_node_rekey_ledger, "rekeyLedger", 0));
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "transitionServiceToOpen",
+        JS_NewCFunction(
+          ctx,
+          js_node_transition_service_to_open,
+          "transitionServiceToOpen",
+          0));
     }
 
     return ccf;
