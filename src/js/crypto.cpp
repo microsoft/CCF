@@ -78,6 +78,43 @@ namespace js
     return r;
   }
 
+  static JSValue js_digest(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 2)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 2", argc);
+
+    void* auto_free_ptr = JS_GetContextOpaque(ctx);
+    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+
+    auto digest_algo_name_cstr = auto_free(JS_ToCString(ctx, argv[0]));
+    if (!digest_algo_name_cstr)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    if (std::string(digest_algo_name_cstr) != "SHA-256")
+    {
+      JS_ThrowRangeError(
+        ctx, "unsupported digest algorithm, supported: SHA-256");
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    size_t data_size;
+    uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[1]);
+    if (!data)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    auto h = crypto::SHA256(data, data_size);
+    return JS_NewArrayBufferCopy(ctx, h.data(), h.size());
+  }
+
   static JSValue js_wrap_key(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {

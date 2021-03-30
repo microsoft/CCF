@@ -22,6 +22,15 @@ namespace crypto
     return r;
   }
 
+  std::vector<uint8_t> SHA256(const uint8_t* data, size_t len)
+  {
+    CBuffer buf(data, len);
+    size_t hash_size = EVP_MD_size(OpenSSL::get_md_type(MDType::SHA256));
+    std::vector<uint8_t> r(hash_size);
+    openssl_sha256(buf, r.data());
+    return r;
+  }
+
   std::shared_ptr<HashProvider> make_hash_provider()
   {
     return std::make_shared<OpenSSLHashProvider>();

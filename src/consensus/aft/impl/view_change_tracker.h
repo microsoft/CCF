@@ -15,14 +15,14 @@ namespace aft
   {
     struct ViewChange
     {
-      ViewChange(kv::Consensus::View view_, kv::Consensus::SeqNo seqno_) :
+      ViewChange(ccf::View view_, ccf::SeqNo seqno_) :
         view(view_),
         seqno(seqno_),
         new_view_sent(false)
       {}
 
-      kv::Consensus::View view;
-      kv::Consensus::SeqNo seqno;
+      ccf::View view;
+      ccf::SeqNo seqno;
       bool new_view_sent;
 
       std::map<ccf::NodeId, ccf::ViewChangeRequest> received_view_changes;
@@ -55,12 +55,12 @@ namespace aft
         (time_previous_view_change_increment != std::chrono::milliseconds(0));
     }
 
-    kv::Consensus::View get_target_view() const
+    ccf::View get_target_view() const
     {
       return last_view_change_sent;
     }
 
-    void set_current_view_change(kv::Consensus::View view)
+    void set_current_view_change(ccf::View view)
     {
       view_changes.clear();
       last_view_change_sent = view;
@@ -75,8 +75,8 @@ namespace aft
     ResultAddView add_request_view_change(
       ccf::ViewChangeRequest& v,
       const ccf::NodeId& from,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
+      ccf::View view,
+      ccf::SeqNo seqno,
       uint32_t node_count)
     {
       auto it = view_changes.find(view);
@@ -101,16 +101,14 @@ namespace aft
       return ResultAddView::OK;
     }
 
-    kv::Consensus::SeqNo write_view_change_confirmation_append_entry(
-      kv::Consensus::View view)
+    ccf::SeqNo write_view_change_confirmation_append_entry(ccf::View view)
     {
       ccf::ViewChangeConfirmation nv =
         create_view_change_confirmation_msg(view);
       return store->write_view_change_confirmation(nv);
     }
 
-    std::vector<uint8_t> get_serialized_view_change_confirmation(
-      kv::Consensus::View view)
+    std::vector<uint8_t> get_serialized_view_change_confirmation(ccf::View view)
     {
       ccf::ViewChangeConfirmation nv =
         create_view_change_confirmation_msg(view);
@@ -121,7 +119,7 @@ namespace aft
     }
 
     bool add_unknown_primary_evidence(
-      CBuffer data, kv::Consensus::View view, uint32_t node_count)
+      CBuffer data, ccf::View view, uint32_t node_count)
     {
       nlohmann::json j = nlohmann::json::parse(data.p);
       auto vc = j.get<ccf::ViewChangeConfirmation>();
@@ -150,12 +148,12 @@ namespace aft
       return true;
     }
 
-    bool check_evidence(kv::Consensus::View view) const
+    bool check_evidence(ccf::View view) const
     {
       return last_valid_view == view;
     }
 
-    void clear(bool is_primary, kv::Consensus::View view)
+    void clear(bool is_primary, ccf::View view)
     {
       for (auto it = view_changes.begin(); it != view_changes.end();)
       {
@@ -174,15 +172,15 @@ namespace aft
 
   private:
     std::shared_ptr<ccf::ProgressTrackerStore> store;
-    std::map<kv::Consensus::View, ViewChange> view_changes;
+    std::map<ccf::View, ViewChange> view_changes;
     std::chrono::milliseconds time_previous_view_change_increment =
       std::chrono::milliseconds(0);
-    kv::Consensus::View last_view_change_sent = 0;
-    kv::Consensus::View last_valid_view = aft::starting_view_change;
+    ccf::View last_view_change_sent = 0;
+    ccf::View last_valid_view = aft::starting_view_change;
     const std::chrono::milliseconds time_between_attempts;
 
     ccf::ViewChangeConfirmation create_view_change_confirmation_msg(
-      kv::Consensus::View view)
+      ccf::View view)
     {
       auto it = view_changes.find(view);
       if (it == view_changes.end())

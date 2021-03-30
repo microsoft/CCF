@@ -22,6 +22,19 @@ namespace js
   extern JSClassDef kv_map_handle_class_def;
   extern JSClassDef body_class_def;
 
+  enum class TxAccess
+  {
+    APP,
+    GOV_RO,
+    GOV_RW
+  };
+
+  struct TxContext
+  {
+    kv::Tx* tx = nullptr;
+    TxAccess access = js::TxAccess::APP;
+  };
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
@@ -29,8 +42,8 @@ namespace js
   void register_request_body_class(JSContext* ctx);
   void populate_global_console(JSContext* ctx);
   void populate_global_ccf(
-    kv::Tx* tx,
-    const std::optional<kv::TxID>& transaction_id,
+    TxContext* txctx,
+    const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     JSContext* ctx);
 

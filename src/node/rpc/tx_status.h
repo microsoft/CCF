@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/tx_id.h"
 #include "ds/json.h"
 
 namespace ccf
@@ -64,14 +65,12 @@ namespace ccf
      {TxStatus::Committed, tx_status_to_str(TxStatus::Committed)},
      {TxStatus::Invalid, tx_status_to_str(TxStatus::Invalid)}});
 
-  constexpr int64_t VIEW_UNKNOWN = std::numeric_limits<int64_t>::min();
-
-  inline TxStatus evaluate_tx_status(
-    int64_t target_view,
-    int64_t target_seqno,
-    int64_t local_view,
-    int64_t committed_view,
-    int64_t committed_seqno)
+  [[maybe_unused]] static TxStatus evaluate_tx_status(
+    View target_view,
+    SeqNo target_seqno,
+    View local_view,
+    View committed_view,
+    SeqNo committed_seqno)
   {
     const bool is_committed = committed_seqno >= target_seqno;
     const bool views_match = local_view == target_view;

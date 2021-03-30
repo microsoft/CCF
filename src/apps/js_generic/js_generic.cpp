@@ -284,13 +284,11 @@ namespace ccfapp
         info.has_value() &&
         info.value().mode == ccf::endpoints::Mode::Historical)
       {
-        auto is_tx_committed = [this](
-                                 kv::Consensus::View view,
-                                 kv::Consensus::SeqNo seqno,
-                                 std::string& error_reason) {
-          return ccf::historical::is_tx_committed(
-            consensus, view, seqno, error_reason);
-        };
+        auto is_tx_committed =
+          [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+            return ccf::historical::is_tx_committed(
+              consensus, view, seqno, error_reason);
+          };
 
         ccf::historical::adapter(
           [this, &method, &verb](
@@ -315,7 +313,7 @@ namespace ccfapp
       const ccf::RESTVerb& verb,
       ccf::endpoints::EndpointContext& args,
       kv::Tx& target_tx,
-      const std::optional<kv::TxID>& transaction_id,
+      const std::optional<ccf::TxID>& transaction_id,
       ccf::historical::TxReceiptPtr receipt)
     {
       const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -350,10 +348,11 @@ namespace ccfapp
         rt, nullptr, js_module_loader, &js_module_loader_arg);
 
       js::Context ctx(rt);
+      js::TxContext txctx{&target_tx, js::TxAccess::APP};
 
       js::register_request_body_class(ctx);
       js::populate_global_console(ctx);
-      js::populate_global_ccf(&target_tx, transaction_id, receipt, ctx);
+      js::populate_global_ccf(&txctx, transaction_id, receipt, ctx);
 
       // Compile module
       if (!handler_script.value().text.has_value())

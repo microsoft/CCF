@@ -6,6 +6,7 @@ import infra.proc
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
+import ccf.proposal_generator as prop_gen
 
 
 def action(name, **args):
@@ -300,6 +301,44 @@ def test_operator_proposals_and_votes(network, args):
     return network
 
 
+@reqs.description("Test proposal generator")
+def test_proposal_generator(network, args):
+    restore_js_proposals = prop_gen.GENERATE_JS_PROPOSALS
+    prop_gen.GENERATE_JS_PROPOSALS = True
+
+    node = network.find_random_node()
+    with node.client(None, "member0") as c:
+        proposal, ballot = prop_gen.build_proposal(
+            "set_recovery_threshold", {"threshold": 5}
+        )
+        r = c.post("/gov/proposals.js", proposal)
+        assert r.status_code == 200, r.body.text()
+        proposal_id = r.body.json()["proposal_id"]
+
+        r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
+        assert r.status_code == 200, r.body.text()
+
+    prop_gen.GENERATE_JS_PROPOSALS = restore_js_proposals
+    return network
+
+
+@reqs.description("Test apply")
+def test_apply(network, args):
+    node = network.find_random_node()
+    user_to_remove = network.users[-1].service_id
+    with node.client(None, "member0") as c:
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("remove_user", user_id=user_to_remove)),
+        )
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
+
+    with node.client(network.users[-1].local_id) as c:
+        r = c.get("/app/log/private")
+        assert r.status_code == 401, r.body.text()
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -312,6 +351,8 @@ def run(args):
         network = test_pure_proposals(network, args)
         network = test_proposals_with_votes(network, args)
         network = test_operator_proposals_and_votes(network, args)
+        network = test_proposal_generator(network, args)
+        network = test_apply(network, args)
 
 
 if __name__ == "__main__":
@@ -319,5 +360,5 @@ if __name__ == "__main__":
 
     args.package = "liblogging"
     args.nodes = ["local://localhost"]
-    args.initial_user_count = 1
+    args.initial_user_count = 2
     run(args)
