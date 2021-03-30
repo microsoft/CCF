@@ -1109,7 +1109,7 @@ namespace ccf
           throw std::logic_error("Service could not be opened");
         }
 
-        if (tx.commit()) != kv::CommitResult::SUCCESS)
+        if (tx.commit() != kv::CommitResult::SUCCESS)
         {
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");

@@ -764,7 +764,7 @@ ProposalInfo test_raw_writes(
   std::vector<crypto::Pem> member_certs;
   auto frontend = init_frontend(
     network, gen, context, share_manager, n_members, member_certs);
-  DOCTEST_REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  DOCTEST_REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   frontend.open();
 
   // propose

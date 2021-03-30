@@ -2,26 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// The transaction engine supports producing a transaction dependencies. This is
-// materialized by providing a sequence number after which the current
-// transaction must be run and required that transaction execution is started in
-// the total order.  The current use case for dependency tracking is to enable
-// parallel execution of transactions on the backup, and as such dependencies
-// are tracked when running with the BFT consensus protocol. The backup will
-// also calculate the dependencies to ensure there is no linearizability
-// violation created by a malicious primary sending an incorrect transaction
-// dependency order.
-//
-// Dependency tracking follows the following pseudocode
-//
-// OnTxCommit:
-//   MaxSeenReadVersion = NoVersion
-//   foreach Accessed Key-Value pair:
-//     MaxSeenReadVersion = max(MaxSeenReadVersion, pair.last_read_version)
-//     pair.last_read_version = pair.seqno
-//
-//   TxSerialize(pairs, MaxSeenReadVersion)
-
 #include "apply_changes.h"
 #include "ds/ccf_assert.h"
 #include "ds/ccf_deprecated.h"
@@ -341,6 +321,26 @@ namespace kv
     bool success = false;
 
     Version version = NoVersion;
+
+    // The transaction engine supports producing a transaction's dependencies.
+    // This is materialized by providing a sequence number after which the
+    // current transaction must be run and required that transaction execution
+    // is started in the total order.  The current use case for dependency
+    // tracking is to enable parallel execution of transactions on the backup,
+    // and as such dependencies are tracked when running with the BFT consensus
+    // protocol. The backup will also calculate the dependencies to ensure there
+    // is no linearizability violation created by a malicious primary sending an
+    // incorrect transaction dependency order.
+    //
+    // Dependency tracking follows the following pseudocode
+    //
+    // OnTxCommit:
+    //   MaxSeenReadVersion = NoVersion
+    //   foreach Accessed Key-Value pair:
+    //     MaxSeenReadVersion = max(MaxSeenReadVersion, pair.last_read_version)
+    //     pair.last_read_version = pair.seqno
+    //
+    //   TxSerialize(pairs, MaxSeenReadVersion)
     Version max_conflict_version = NoVersion;
 
     kv::TxHistory::RequestID req_id;
