@@ -564,6 +564,8 @@ namespace js
       JS_NewCFunction(ctx, js_generate_rsa_key_pair, "generateRsaKeyPair", 1));
     JS_SetPropertyStr(
       ctx, ccf, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
+    JS_SetPropertyStr(
+      ctx, ccf, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
 
     if (txctx != nullptr)
     {
