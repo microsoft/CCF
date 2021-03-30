@@ -192,7 +192,7 @@ const actions = new Map([
   ],
 ]);
 
-function validate(input) {
+export function validate(input) {
   let proposal = JSON.parse(input);
   let errors = [];
   let position = 0;
@@ -210,7 +210,7 @@ function validate(input) {
   return { valid: errors.length === 0, description: errors.join(", ") };
 }
 
-function resolve(proposal, proposer_id, votes) {
+export function resolve(proposal, proposer_id, votes) {
   const actions = JSON.parse(proposal)["actions"];
   if (actions.length === 1) {
     if (actions[0].name === "always_accept_noop") {
@@ -287,7 +287,7 @@ function resolve(proposal, proposer_id, votes) {
   return "Open";
 }
 
-function apply(proposal) {
+export function apply(proposal) {
   const proposed_actions = JSON.parse(proposal)["actions"];
   for (const proposed_action of proposed_actions) {
     const definition = actions.get(proposed_action.name);

@@ -493,6 +493,12 @@ namespace js
 
   JSValue Context::function(const std::string& code, const std::string& path)
   {
+    return function(code, "default", path);
+  }
+
+  JSValue Context::function(
+    const std::string& code, const std::string& func, const std::string& path)
+  {
     JSValue module = JS_Eval(
       ctx,
       code.c_str(),
@@ -518,21 +524,29 @@ namespace js
     // Get exported function from module
     assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
     auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
-    if (JS_GetModuleExportEntriesCount(module_def) != 1)
+    auto export_count = JS_GetModuleExportEntriesCount(module_def);
+    for (auto i = 0; i < export_count; i++)
     {
-      throw std::runtime_error(
-        "Endpoint module exports more than one function");
+      auto export_name_atom = JS_GetModuleExportEntryName(ctx, module_def, i);
+      auto export_name_cstr = JS_AtomToCString(ctx, export_name_atom);
+      std::string export_name{export_name_cstr};
+      JS_FreeCString(ctx, export_name_cstr);
+      JS_FreeAtom(ctx, export_name_atom);
+      if (export_name == func)
+      {
+        auto export_func = JS_GetModuleExportEntry(ctx, module_def, i);
+        if (!JS_IsFunction(ctx, export_func))
+        {
+          JS_FreeValue(ctx, export_func);
+          throw std::runtime_error(fmt::format(
+            "Export '{}' of module '{}' is not a function", func, path));
+        }
+        return export_func;
+      }
     }
 
-    auto export_func = JS_GetModuleExportEntry(ctx, module_def, 0);
-    if (!JS_IsFunction(ctx, export_func))
-    {
-      JS_FreeValue(ctx, export_func);
-      throw std::runtime_error(
-        "Endpoint module exports something that is not a function");
-    }
-
-    return export_func;
+    throw std::runtime_error(
+      fmt::format("Failed to find export '{}' in module '{}'", func, path));
   }
 
   void register_request_body_class(JSContext* ctx)

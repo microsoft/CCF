@@ -1104,11 +1104,6 @@ namespace ccf
       std::vector<std::pair<MemberId, bool>> votes;
       for (const auto& [mid, mb] : pi_->ballots)
       {
-        std::string mbs = fmt::format(
-          "{}\n export default (proposal, proposer_id) => vote(proposal, "
-          "proposer_id);",
-          mb);
-
         js::Runtime rt;
         js::Context context(rt);
         rt.add_ccf_classdefs();
@@ -1116,7 +1111,7 @@ namespace ccf
         js::populate_global_ccf(
           &txctx, std::nullopt, nullptr, nullptr, context);
         auto ballot_func = context.function(
-          mbs, fmt::format("ballot from {} for {}", mid, proposal_id));
+          mb, "vote", fmt::format("ballot from {} for {}", mid, proposal_id));
 
         JSValue argv[2];
         auto prop = JS_NewStringLen(
@@ -1138,11 +1133,6 @@ namespace ccf
       }
 
       {
-        std::string mbs = fmt::format(
-          "{}\n export default (proposal, proposer_id, votes) => "
-          "resolve(proposal, proposer_id, votes);",
-          constitution);
-
         js::Runtime rt;
         js::Context js_context(rt);
         js::populate_global_console(js_context);
@@ -1150,8 +1140,8 @@ namespace ccf
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_ccf(
           &txctx, std::nullopt, nullptr, nullptr, js_context);
-        auto resolve_func =
-          js_context.function(mbs, fmt::format("resolve {}", proposal_id));
+        auto resolve_func = js_context.function(
+          constitution, "resolve", fmt::format("resolve {}", proposal_id));
         JSValue argv[3];
         auto prop = JS_NewStringLen(
           js_context, (const char*)proposal.data(), proposal.size());
@@ -1221,10 +1211,6 @@ namespace ccf
           // Record votes and errors
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
-            std::string apply_script = fmt::format(
-              "{}\n export default (proposal) => apply(proposal);",
-              constitution);
-
             js::Runtime rt;
             js::Context js_context(rt);
             js::populate_global_console(js_context);
@@ -1237,7 +1223,7 @@ namespace ccf
               &context.get_node_state(),
               js_context);
             auto apply_func = js_context.function(
-              apply_script, fmt::format("apply for {}", proposal_id));
+              constitution, "apply", fmt::format("apply for {}", proposal_id));
 
             auto prop = JS_NewStringLen(
               js_context, (const char*)proposal.data(), proposal.size());
@@ -2293,12 +2279,12 @@ namespace ccf
           return;
         }
 
-        auto validate_script = fmt::format(
-          "{}\n export default (input) => validate(input);",
-          constitution.value());
+        auto validate_script = constitution.value();
 
         auto validate_func = context.function(
-          validate_script, "public:ccf.gov.constitution[0].validate");
+          validate_script,
+          "validate",
+          "public:ccf.gov.constitution[0].validate");
 
         auto body =
           reinterpret_cast<const char*>(ctx.rpc_ctx->get_request_body().data());
