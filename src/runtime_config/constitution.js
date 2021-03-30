@@ -5,14 +5,6 @@ class Action {
   }
 }
 
-function toHexString(byteArray) {
-  console.log("To hex: " + byteArray.byteLength);
-  return Array.from(byteArray, function (byte) {
-    console.log("Byte: " + byte);
-    // return ("0" + (byte & 0xff).toString(16)).slice(-2);
-  }).join("");
-}
-
 const actions = new Map([
   [
     "set_member_data",

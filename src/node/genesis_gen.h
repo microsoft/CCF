@@ -161,7 +161,6 @@ namespace ccf
       }
 
       auto s = signatures->get(0);
-      // TODO: Do no write to ack table
       if (!s)
       {
         member_acks->put(id, MemberAck());
