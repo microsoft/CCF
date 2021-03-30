@@ -321,7 +321,6 @@ def test_proposal_generator(network, args):
     prop_gen.GENERATE_JS_PROPOSALS = restore_js_proposals
     return network
 
-
 @reqs.description("Test apply")
 def test_apply(network, args):
     node = network.find_random_node()
