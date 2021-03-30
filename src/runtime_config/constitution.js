@@ -10,7 +10,7 @@ const actions = new Map([
     "set_member_data",
     new Action(
       function (args) {
-        // TODO: Check that member id is a valid entity id
+        // Check that member id is a valid entity id?
         return (
           typeof args.member_id == "string" &&
           typeof args.member_data == "object"
@@ -36,7 +36,7 @@ const actions = new Map([
     "rekey_ledger",
     new Action(
       function (args) {
-        return true; // TODO: Check that args is null?
+        return true; // Check that args is null?
       },
 
       function (args) {
