@@ -148,7 +148,7 @@ DOCTEST_TEST_CASE("Compaction conflict")
   auto tx = network.tables->create_tx();
   tx.rw(network.values)->put(42, 42);
   DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
-  auto cv = tx.get_version();
+  auto cv = tx.commit_version();
   network.tables->compact(cv);
 
   ShareManager share_manager(network);

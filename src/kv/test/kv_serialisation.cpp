@@ -539,7 +539,7 @@ TEST_CASE_TEMPLATE(
     handle->put(k1, v1);
     handle->put(k2, v2);
 
-    auto [success, reqid, data, hooks] = tx.commit_reserved();
+    auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
@@ -641,7 +641,7 @@ TEST_CASE(
     data_handle_d->put(46, 46);
     data_handle_d_p->put(47, 47);
 
-    auto [success, reqid, data, hooks] = tx.commit_reserved();
+    auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
     REQUIRE(
       store.deserialize(data, ConsensusType::CFT)->apply() ==

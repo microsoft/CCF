@@ -15,7 +15,7 @@
 // Dependency tracking follows the following pseudocode
 //
 // OnTxCommit:
-//   MaxSeenReadVersion = -1
+//   MaxSeenReadVersion = NoVersion
 //   foreach Accessed Key-Value pair:
 //     MaxSeenReadVersion = max(MaxSeenReadVersion, pair.last_read_version)
 //     pair.last_read_version = pair.seqno
@@ -49,7 +49,7 @@ namespace kv
 
   // Manages a collection of MapHandles. Derived implementations should call
   // get_handle_by_name to retrieve handles over their desired maps.
-  class BaseTx : public AbstractChangeContainer
+  class BaseTx
   {
   protected:
     AbstractStore* store;
@@ -64,15 +64,8 @@ namespace kv
     using PossibleHandles = std::list<std::unique_ptr<AbstractMapHandle>>;
     std::map<std::string, PossibleHandles> all_handles;
 
-    bool committed = false;
-    bool success = false;
     Version read_version = NoVersion;
-    Version version = NoVersion;
-    Version max_conflict_version = NoVersion;
     Term term = 0;
-    std::optional<crypto::Sha256Hash> root_at_read_version = std::nullopt;
-
-    kv::TxHistory::RequestID req_id;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
 
@@ -184,6 +177,7 @@ namespace kv
     }
 
   public:
+    // TODO: Hide this, so we don't call it by accident
     BaseTx(AbstractStore* _store, bool known_null = false) : store(_store)
     {
       // For testing purposes, caller may opt-in to creation of an unsafe Tx by
@@ -198,307 +192,22 @@ namespace kv
       }
     }
 
+    // To avoid accidental copies and promote use of pass-by-reference, this is
+    // non-copyable
     BaseTx(const BaseTx& that) = delete;
 
-    void set_change_list(OrderedChanges&& change_list_, Term term_) override
-    {
-      // if all_changes is not empty then any coinciding keys will not be
-      // overwritten
-      all_changes.merge(change_list_);
-      term = term_;
-    }
+    // To support reset/reconstruction, it is move-assignable
+    BaseTx& operator=(BaseTx&&) = default;
 
-    void set_req_id(const kv::TxHistory::RequestID& req_id_)
-    {
-      req_id = req_id_;
-    }
-
-    const kv::TxHistory::RequestID& get_req_id()
-    {
-      return req_id;
-    }
-
-    /** Version for the transaction set
-     *
-     * @return Committed version, or `kv::NoVersion` otherwise
-     */
-    Version get_version()
-    {
-      return version;
-    }
-
-    Version get_read_version()
-    {
-      return read_version;
-    }
-
-    Version get_max_conflict_version()
-    {
-      return max_conflict_version;
-    }
-
-    Version get_term()
-    {
-      return term;
-    }
-
-    void set_read_version_and_term(Version v, Term t)
-    {
-      if (read_version == NoVersion)
-      {
-        read_version = v;
-        term = t;
-      }
-      else
-      {
-        throw std::logic_error("Read version already set");
-      }
-    }
-
-    void set_root_at_read_version(const crypto::Sha256Hash& r)
-    {
-      root_at_read_version = r;
-    }
-
-    std::optional<crypto::Sha256Hash> get_root_at_read_version()
-    {
-      return root_at_read_version;
-    }
-
-    /** Commit transaction
-     *
-     * A transaction can either succeed and replicate
-     * (`kv::CommitResult::SUCCESS`), fail because of a conflict with other
-     * transactions
-     * (`kv::CommitResult::FAIL_CONFLICT`), or succeed locally, but fail to
-     * replicate (`kv::CommitResult::FAIL_NO_REPLICATE`).
-     *
-     * Transactions that fail are rolled back, no matter the reason.
-     *
-     * @return transaction outcome
-     */
-    CommitResult commit(
-      bool track_read_versions = false,
-      std::function<std::tuple<Version, Version>(bool has_new_map)>
-        version_resolver = nullptr,
-      kv::Version replicated_max_conflict_version = kv::NoVersion)
-    {
-      if (committed)
-        throw std::logic_error("Transaction already committed");
-
-      if (all_changes.empty())
-      {
-        committed = true;
-        success = true;
-        return CommitResult::SUCCESS;
-      }
-
-      // If this transaction creates any maps, ensure that commit gets a
-      // consistent snapshot of the existing maps
-      if (!created_maps.empty())
-        this->store->lock();
-
-      kv::ConsensusHookPtrs hooks;
-
-      std::optional<Version> new_maps_conflict_version = std::nullopt;
-
-      auto c = apply_changes(
-        all_changes,
-        version_resolver == nullptr ?
-          [&](bool has_new_map) { return store->next_version(has_new_map); } :
-          version_resolver,
-        hooks,
-        created_maps,
-        new_maps_conflict_version,
-        track_read_versions);
-
-      if (!created_maps.empty())
-        this->store->unlock();
-
-      success = c.has_value();
-
-      if (!success)
-      {
-        // Conflicting handles (and contained writes) and all version tracking
-        // are discarded. They must be reconstructed at updated, non-conflicting
-        // versions
-        reset();
-
-        LOG_TRACE_FMT("Could not commit transaction due to conflict");
-        return CommitResult::FAIL_CONFLICT;
-      }
-      else
-      {
-        committed = true;
-        std::tie(version, max_conflict_version) = c.value();
-
-        if (track_read_versions)
-        {
-          // This is executed on the backup and deals with the case
-          // that for any set of transactions there may be several valid
-          // serializations that do not violate the linearizability guarantees
-          // of the total order. This check validates that this tx does not read
-          // a key at a higher version than it's version (i.e. does not break
-          // linearizability). After ensuring linearizability is maintained
-          // max_conflict_version is set to the same value as the one specified
-          // so that when it is inserted into the Merkle tree the same root will
-          // exist on the primary and backup.
-          if (
-            version > max_conflict_version &&
-            version > replicated_max_conflict_version &&
-            replicated_max_conflict_version != kv::NoVersion)
-          {
-            max_conflict_version = replicated_max_conflict_version;
-          }
-
-          // Check if a linearizability violation occurred
-          if (max_conflict_version > version && version != 0)
-          {
-            LOG_INFO_FMT(
-              "Detected linearizability violation - version:{}, "
-              "max_conflict_version:{}, replicated_max_conflict_version:{}",
-              version,
-              max_conflict_version,
-              replicated_max_conflict_version);
-            return CommitResult::FAIL_CONFLICT;
-          }
-        }
-
-        // From here, we have received a unique commit version and made
-        // modifications to our local kv. If we fail in any way, we cannot
-        // recover.
-        try
-        {
-          auto data = serialise();
-
-          if (data.empty())
-          {
-            return CommitResult::SUCCESS;
-          }
-
-          return store->commit(
-            {term, version},
-            std::make_unique<MovePendingTx>(
-              std::move(data), std::move(req_id), std::move(hooks)),
-            false);
-        }
-        catch (const std::exception& e)
-        {
-          committed = false;
-
-          LOG_FAIL_FMT("Error during serialisation");
-          LOG_DEBUG_FMT("Error during serialisation: {}", e.what());
-
-          // Discard original exception type, throw as now fatal
-          // KvSerialiserException
-          throw KvSerialiserException(e.what());
-        }
-      }
-    }
-
-    /** Commit version if committed
-     *
-     * @return Commit version
-     */
-    Version commit_version()
-    {
-      if (!committed)
-        throw std::logic_error("Transaction not yet committed");
-
-      if (!success)
-        throw std::logic_error("Transaction aborted");
-
-      return version;
-    }
-
-    /** Commit term if committed
-     *
-     * @return Commit term
-     */
-    Version commit_term()
-    {
-      if (!committed)
-        throw std::logic_error("Transaction not yet committed");
-
-      if (!success)
-        throw std::logic_error("Transaction aborted");
-
-      return term;
-    }
-
-    std::vector<uint8_t> serialise(bool include_reads = false)
-    {
-      if (!committed)
-        throw std::logic_error("Transaction not yet committed");
-
-      if (!success)
-        throw std::logic_error("Transaction aborted");
-
-      // If no transactions made changes, return a zero length vector.
-      const bool any_changes =
-        std::any_of(all_changes.begin(), all_changes.end(), [](const auto& it) {
-          return it.second.changeset->has_writes();
-        });
-
-      if (!any_changes)
-      {
-        return {};
-      }
-
-      // Retrieve encryptor.
-      auto map = all_changes.begin()->second.map;
-      auto e = map->get_store()->get_encryptor();
-
-      if (max_conflict_version == NoVersion)
-      {
-        max_conflict_version = version - 1;
-      }
-
-      KvStoreSerialiser replicated_serialiser(
-        e, {term, version}, max_conflict_version);
-
-      // Process in security domain order
-      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
-      {
-        for (const auto& it : all_changes)
-        {
-          const auto& map = it.second.map;
-          const auto& changeset = it.second.changeset;
-          if (
-            map->get_security_domain() == domain && map->is_replicated() &&
-            changeset->has_writes())
-          {
-            map->serialise_changes(
-              changeset.get(), replicated_serialiser, include_reads);
-          }
-        }
-      }
-
-      // Return serialised Tx.
-      return replicated_serialiser.get_raw_data();
-    }
-
-    // Used by frontend for reserved transactions
-    BaseTx(Version reserved) :
-      committed(false),
-      success(false),
-      read_version(reserved - 1),
-      version(reserved)
-    {}
-
-    // Used to clear the Tx to its initial state, to retry after a conflict
-    void reset()
-    {
-      all_changes.clear();
-      all_handles.clear();
-      created_maps.clear();
-      committed = false;
-      success = false;
-      read_version = NoVersion;
-      version = NoVersion;
-      term = 0;
-      root_at_read_version = std::nullopt;
-    }
+    // // Used to clear the Tx to its initial state, to retry after a conflict
+    // virtual void reset()
+    // {
+    //   all_changes.clear();
+    //   all_handles.clear();
+    //   created_maps.clear();
+    //   read_version = NoVersion;
+    //   term = 0;
+    // }
   };
 
   /** Used to create read-only handles for accessing a Map.
@@ -628,17 +337,259 @@ namespace kv
     }
   };
 
+  class CommittableTx : public Tx, public AbstractChangeContainer
+  {
+  protected:
+    bool committed = false;
+    bool success = false;
+
+    Version version = NoVersion;
+    Version max_conflict_version = NoVersion;
+
+    kv::TxHistory::RequestID req_id;
+
+    std::vector<uint8_t> serialise(bool include_reads = false)
+    {
+      if (!committed)
+        throw std::logic_error("Transaction not yet committed");
+
+      if (!success)
+        throw std::logic_error("Transaction aborted");
+
+      // If no transactions made changes, return a zero length vector.
+      const bool any_changes =
+        std::any_of(all_changes.begin(), all_changes.end(), [](const auto& it) {
+          return it.second.changeset->has_writes();
+        });
+
+      if (!any_changes)
+      {
+        return {};
+      }
+
+      // Retrieve encryptor.
+      auto map = all_changes.begin()->second.map;
+      auto e = map->get_store()->get_encryptor();
+
+      if (max_conflict_version == NoVersion)
+      {
+        max_conflict_version = version - 1;
+      }
+
+      KvStoreSerialiser replicated_serialiser(
+        e, {term, version}, max_conflict_version);
+
+      // Process in security domain order
+      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
+      {
+        for (const auto& it : all_changes)
+        {
+          const auto& map = it.second.map;
+          const auto& changeset = it.second.changeset;
+          if (
+            map->get_security_domain() == domain && map->is_replicated() &&
+            changeset->has_writes())
+          {
+            map->serialise_changes(
+              changeset.get(), replicated_serialiser, include_reads);
+          }
+        }
+      }
+
+      // Return serialised Tx.
+      return replicated_serialiser.get_raw_data();
+    }
+
+  public:
+    CommittableTx(AbstractStore* _store) : Tx(_store) {}
+
+    /** Commit this transaction to the local KV and submit it to consensus for
+     * replication
+     *
+     * A transaction can either succeed and replicate
+     * (`kv::CommitResult::SUCCESS`), fail because of a conflict with other
+     * transactions (`kv::CommitResult::FAIL_CONFLICT`), or succeed locally, but
+     * fail to replicate (`kv::CommitResult::FAIL_NO_REPLICATE`).
+     *
+     * Transactions that fail are rolled back, no matter the reason.
+     *
+     * @return transaction outcome
+     */
+    CommitResult commit(
+      bool track_read_versions = false,
+      std::function<std::tuple<Version, Version>(bool has_new_map)>
+        version_resolver = nullptr,
+      kv::Version replicated_max_conflict_version = kv::NoVersion)
+    {
+      if (committed)
+        throw std::logic_error("Transaction already committed");
+
+      if (all_changes.empty())
+      {
+        committed = true;
+        success = true;
+        return CommitResult::SUCCESS;
+      }
+
+      // If this transaction creates any maps, ensure that commit gets a
+      // consistent snapshot of the existing maps
+      if (!created_maps.empty())
+        this->store->lock();
+
+      kv::ConsensusHookPtrs hooks;
+
+      std::optional<Version> new_maps_conflict_version = std::nullopt;
+
+      auto c = apply_changes(
+        all_changes,
+        version_resolver == nullptr ?
+          [&](bool has_new_map) { return store->next_version(has_new_map); } :
+          version_resolver,
+        hooks,
+        created_maps,
+        new_maps_conflict_version,
+        track_read_versions);
+
+      if (!created_maps.empty())
+        this->store->unlock();
+
+      success = c.has_value();
+
+      if (!success)
+      {
+        // This Tx is now in a dead state. Caller should create a new Tx and try
+        // again.
+        LOG_TRACE_FMT("Could not commit transaction due to conflict");
+        return CommitResult::FAIL_CONFLICT;
+      }
+      else
+      {
+        committed = true;
+        std::tie(version, max_conflict_version) = c.value();
+
+        if (track_read_versions)
+        {
+          // This is executed on the backup and deals with the case
+          // that for any set of transactions there may be several valid
+          // serializations that do not violate the linearizability guarantees
+          // of the total order. This check validates that this tx does not read
+          // a key at a higher version than it's version (i.e. does not break
+          // linearizability). After ensuring linearizability is maintained
+          // max_conflict_version is set to the same value as the one specified
+          // so that when it is inserted into the Merkle tree the same root will
+          // exist on the primary and backup.
+          if (
+            version > max_conflict_version &&
+            version > replicated_max_conflict_version &&
+            replicated_max_conflict_version != kv::NoVersion)
+          {
+            max_conflict_version = replicated_max_conflict_version;
+          }
+
+          // Check if a linearizability violation occurred
+          if (max_conflict_version > version && version != 0)
+          {
+            LOG_INFO_FMT(
+              "Detected linearizability violation - version:{}, "
+              "max_conflict_version:{}, replicated_max_conflict_version:{}",
+              version,
+              max_conflict_version,
+              replicated_max_conflict_version);
+            return CommitResult::FAIL_CONFLICT;
+          }
+        }
+
+        // From here, we have received a unique commit version and made
+        // modifications to our local kv. If we fail in any way, we cannot
+        // recover.
+        try
+        {
+          auto data = serialise();
+
+          if (data.empty())
+          {
+            return CommitResult::SUCCESS;
+          }
+
+          return store->commit(
+            {term, version},
+            std::make_unique<MovePendingTx>(std::move(data), std::move(hooks)),
+            false);
+        }
+        catch (const std::exception& e)
+        {
+          committed = false;
+
+          LOG_FAIL_FMT("Error during serialisation");
+          LOG_DEBUG_FMT("Error during serialisation: {}", e.what());
+
+          // Discard original exception type, throw as now fatal
+          // KvSerialiserException
+          throw KvSerialiserException(e.what());
+        }
+      }
+    }
+
+    /** Get version at which this transaction was committed.
+     *
+     * Throws if this is not successfully committed - should only be called if
+     * an earlier call to commit() returned CommitResult::SUCCESS
+     *
+     * @return Commit version
+     */
+    Version commit_version()
+    {
+      if (!committed)
+        throw std::logic_error("Transaction not yet committed");
+
+      if (!success)
+        throw std::logic_error("Transaction aborted");
+
+      return version;
+    }
+
+    /** Version for the transaction set
+     *
+     * @return Committed version, or `kv::NoVersion` otherwise
+     */
+    Version get_version()
+    {
+      return version;
+    }
+
+    Version get_read_version()
+    {
+      return read_version;
+    }
+
+    Version get_max_conflict_version()
+    {
+      return max_conflict_version;
+    }
+
+    Version get_term()
+    {
+      return term;
+    }
+
+    void set_change_list(OrderedChanges&& change_list_, Term term_) override
+    {
+      // if all_changes is not empty then any coinciding keys will not be
+      // overwritten
+      all_changes.merge(change_list_);
+      term = term_;
+    }
+  };
+
   // Used by frontend for reserved transactions. These are constructed with a
   // pre-reserved Version, and _must succeed_ to fulfil this version. Otherwise
   // they create a hole in the transaction order, and no future transactions can
   // complete.
-  class ReservedTx : public Tx
+  class ReservedTx : public CommittableTx
   {
   public:
-    ReservedTx(AbstractStore* _store, Version reserved) : Tx(_store)
+    ReservedTx(AbstractStore* _store, Version reserved) : CommittableTx(_store)
     {
-      committed = false;
-      success = false;
       read_version = reserved - 1;
       version = reserved;
     }
@@ -665,7 +616,7 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       committed = true;
-      return {CommitResult::SUCCESS, {0, 0}, serialise(), std::move(hooks)};
+      return {CommitResult::SUCCESS, serialise(), std::move(hooks)};
     }
   };
 }
