@@ -19,8 +19,8 @@ namespace nobuiltins
     std::vector<uint8_t> quote;
     std::vector<uint8_t> endorsements;
 
-    kv::Consensus::View committed_view;
-    kv::Consensus::SeqNo committed_seqno;
+    ccf::View committed_view;
+    ccf::SeqNo committed_seqno;
   };
 
   DECLARE_JSON_TYPE(NodeSummary)
@@ -119,8 +119,8 @@ namespace nobuiltins
         .install();
 
       auto get_commit = [this](auto&, nlohmann::json&&) {
-        kv::Consensus::View view;
-        kv::Consensus::SeqNo seqno;
+        ccf::View view;
+        ccf::SeqNo seqno;
         const auto result = get_last_committed_txid_v1(view, seqno);
 
         if (result == ccf::ApiResult::OK)
@@ -159,7 +159,7 @@ namespace nobuiltins
             nonstd::split_1(query_param, "=");
           if (query_key == "seqno")
           {
-            kv::SeqNo seqno;
+            ccf::SeqNo seqno;
             const auto qv_begin = query_value.data();
             const auto qv_end = qv_begin + query_value.size();
             const auto [p, ec] = std::from_chars(qv_begin, qv_end, seqno);
@@ -173,7 +173,7 @@ namespace nobuiltins
                   query_value));
             }
 
-            kv::Consensus::View view;
+            ccf::View view;
             const auto result = get_view_for_seqno_v1(seqno, view);
             if (result == ccf::ApiResult::OK)
             {
