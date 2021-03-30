@@ -55,9 +55,7 @@ const actions = new Map([
           args.threshold < 255
         );
       },
-      function (args, tx) {
-        return true;
-      }
+      function (args) {}
     ),
   ],
   [
@@ -66,9 +64,7 @@ const actions = new Map([
       function (args) {
         return true;
       },
-      function (args, tx) {
-        return true;
-      }
+      function (args) {}
     ),
   ],
   [
@@ -77,9 +73,7 @@ const actions = new Map([
       function (args) {
         return true;
       },
-      function (args, tx) {
-        return true;
-      }
+      function (args) {}
     ),
   ],
   [
@@ -88,9 +82,7 @@ const actions = new Map([
       function (args) {
         return true;
       },
-      function (args, tx) {
-        return true;
-      }
+      function (args) {}
     ),
   ],
   [
@@ -99,9 +91,7 @@ const actions = new Map([
       function (args) {
         return true;
       },
-      function (args, tx) {
-        return true;
-      }
+      function (args) {}
     ),
   ],
   [
@@ -110,9 +100,7 @@ const actions = new Map([
       function (args) {
         return true;
       },
-      function (args, tx) {
-        return true;
-      }
+      function (args) {}
     ),
   ],
   [
@@ -121,9 +109,7 @@ const actions = new Map([
       function (args) {
         return true;
       },
-      function (args, tx) {
-        return true;
-      }
+      function (args) {}
     ),
   ],
   [
@@ -132,9 +118,7 @@ const actions = new Map([
       function (args) {
         return true;
       },
-      function (args, tx) {
-        return true;
-      }
+      function (args) {}
     ),
   ],
   [
@@ -143,8 +127,19 @@ const actions = new Map([
       function (args) {
         return true;
       },
-      function (args, tx) {
-        return true;
+      function (args) {}
+    ),
+  ],
+  [
+    "remove_user",
+    new Action(
+      function (args) {
+        return typeof args.user_id === "string";
+      },
+      function (args) {
+        const user_id = ccf.strToBuf(args.user_id);
+        ccf.kv["public:ccf.gov.users.certs"].delete(user_id);
+        ccf.kv["public:ccf.gov.users.info"].delete(user_id);
       }
     ),
   ],
@@ -169,8 +164,8 @@ function validate(input) {
 }
 
 function resolve(proposal, proposer_id, votes) {
-  const actions_ = JSON.parse(proposal)["actions"];
-  if (actions_.length === 1) {
+  const actions = JSON.parse(proposal)["actions"];
+  if (actions.length === 1) {
     if (actions[0].name === "always_accept_noop") {
       return "Accepted";
     }
@@ -201,7 +196,10 @@ function resolve(proposal, proposer_id, votes) {
         }
       }
     }
-    if (actions[0].name === "always_accept_if_proposed_by_operator") {
+    if (
+      actions[0].name === "always_accept_if_proposed_by_operator" ||
+      actions[0].name === "remove_user"
+    ) {
       const mi = ccf.kv["public:ccf.gov.members.info"].get(
         ccf.strToBuf(proposer_id)
       );
@@ -225,20 +223,10 @@ function resolve(proposal, proposer_id, votes) {
     ) {
       return "Rejected";
     }
-    if (actions_[0].name == "set_member_data") {
-      try {
-        actions.get("set_member_data").apply(actions_[0].args);
-      } catch (err) {
-        console.log("Error: " + err.message);
-      }
-      return "Accepted";
-    }
-    if (actions_[0].name == "rekey_ledger") {
-      try {
-        actions.get("rekey_ledger").apply(actions_[0].args);
-      } catch (err) {
-        console.log("Error: " + err.message);
-      }
+    if (
+      actions[0].name === "rekey_ledger" ||
+      actions[0].name === "set_member_data"
+    ) {
       return "Accepted";
     }
   }
@@ -248,7 +236,7 @@ function resolve(proposal, proposer_id, votes) {
 
 function apply(proposal) {
   const proposed_actions = JSON.parse(proposal)["actions"];
-  for (proposed_action of proposed_actions) {
+  for (const proposed_action of proposed_actions) {
     const definition = actions.get(proposed_action.name);
     definition.apply(proposed_action.args);
   }

@@ -317,24 +317,29 @@ def test_actions(network, args):
 
         r = c.post("/gov/proposals.js", valid_set_member_data)
         assert r.status_code == 200, r.body.text()
-        # proposal_id = r.body.json()["proposal_id"]
-
-        # ballot = {"ballot": "function vote (proposal, proposer_id) {{ return true }}"}
-        # r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
-        # assert r.status_code == 200, r.body.text()
-        # assert r.body.json()["state"] == "Accepted", r.body.json()
 
         valid_rekey_ledger = proposal(action("rekey_ledger"))
         r = c.post("/gov/proposals.js", valid_rekey_ledger)
         assert r.status_code == 200, r.body.text()
-        # proposal_id = r.body.json()["proposal_id"]
-
-        # ballot = {"ballot": "function vote (proposal, proposer_id) {{ return true }}"}
-        # r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
-        # assert r.status_code == 200, r.body.text()
-        # assert r.body.json()["state"] == "Accepted", r.body.json()
 
     return network
+
+
+@reqs.description("Test apply")
+def test_apply(network, args):
+    node = network.find_random_node()
+    user_to_remove = network.users[-1].service_id
+    with node.client(None, "member0") as c:
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("remove_user", user_id=user_to_remove)),
+        )
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
+
+    with node.client(network.users[-1].local_id) as c:
+        r = c.get("/app/log/private")
+        assert r.status_code == 401, r.body.text()
 
 
 def run(args):
@@ -349,6 +354,7 @@ def run(args):
         network = test_pure_proposals(network, args)
         network = test_proposals_with_votes(network, args)
         network = test_operator_proposals_and_votes(network, args)
+        network = test_apply(network, args)
         network = test_actions(network, args)
 
 
@@ -357,5 +363,5 @@ if __name__ == "__main__":
 
     args.package = "liblogging"
     args.nodes = ["local://localhost"]
-    args.initial_user_count = 1
+    args.initial_user_count = 2
     run(args)

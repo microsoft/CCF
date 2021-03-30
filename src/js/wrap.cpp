@@ -203,44 +203,47 @@ namespace js
     JS_FreeCString(ctx, property_name_c);
     LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
 
-    // const auto [security_domain, access_category] =
-    //   kv::parse_map_name(property_name);
+    const auto [security_domain, access_category] =
+      kv::parse_map_name(property_name);
+
+    auto tx_ctx_ptr =
+      static_cast<TxContext*>(JS_GetOpaque(this_val, kv_class_id));
 
     auto read_only = false;
-    // switch (access_category)
-    // {
-    //   case kv::AccessCategory::INTERNAL:
-    //   {
-    //     if (security_domain == kv::SecurityDomain::PUBLIC)
-    //     {
-    //       read_only = true;
-    //     }
-    //     else
-    //     {
-    //       throw std::runtime_error(fmt::format(
-    //         "JS application cannot access private internal CCF table '{}'",
-    //         property_name));
-    //     }
-    //     break;
-    //   }
-    //   case kv::AccessCategory::GOVERNANCE:
-    //   {
-    //     read_only = true;
-    //     break;
-    //   }
-    //   case kv::AccessCategory::APPLICATION:
-    //   {
-    //     break;
-    //   }
-    //   default:
-    //   {
-    //     throw std::logic_error(fmt::format(
-    //       "Unhandled AccessCategory for table '{}'", property_name));
-    //   }
-    // }
+    switch (access_category)
+    {
+      case kv::AccessCategory::INTERNAL:
+      {
+        if (security_domain == kv::SecurityDomain::PUBLIC)
+        {
+          read_only = true;
+        }
+        else
+        {
+          throw std::runtime_error(fmt::format(
+            "JS application cannot access private internal CCF table '{}'",
+            property_name));
+        }
+        break;
+      }
+      case kv::AccessCategory::GOVERNANCE:
+      {
+        read_only = tx_ctx_ptr->access != TxAccess::GOV_RW;
+        break;
+      }
+      case kv::AccessCategory::APPLICATION:
+      {
+        read_only = tx_ctx_ptr->access != TxAccess::APP;
+        break;
+      }
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unhandled AccessCategory for table '{}'", property_name));
+      }
+    }
 
-    auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(this_val, kv_class_id));
-    auto handle = tx_ptr->rw<KVMap>(property_name);
+    auto handle = tx_ctx_ptr->tx->rw<KVMap>(property_name);
 
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
@@ -349,13 +352,15 @@ namespace js
     auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
     auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
 
-    auto tx_ptr = static_cast<kv::Tx*>(JS_GetOpaque(kv, kv_class_id));
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    // TODO: Check that tx isn't  nullptr!
 
     JS_FreeValue(ctx, kv);
     JS_FreeValue(ctx, ccf);
     JS_FreeValue(ctx, global_obj);
 
-    bool result = node->rekey_ledger(*tx_ptr);
+    bool result = node->rekey_ledger(*tx_ctx_ptr->tx);
 
     if (!result)
     {
@@ -519,7 +524,7 @@ namespace js
   }
 
   JSValue create_ccf_obj(
-    kv::Tx* tx,
+    TxContext* txctx,
     const std::optional<kv::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
@@ -556,10 +561,10 @@ namespace js
     JS_SetPropertyStr(
       ctx, ccf, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
 
-    if (tx != nullptr)
+    if (txctx != nullptr)
     {
       auto kv = JS_NewObjectClass(ctx, kv_class_id);
-      JS_SetOpaque(kv, tx);
+      JS_SetOpaque(kv, txctx);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
     }
 
@@ -614,7 +619,7 @@ namespace js
     // Node state
     if (node_state != nullptr)
     {
-      if (tx == nullptr)
+      if (txctx == nullptr)
       {
         throw std::logic_error("Tx should be set to set node context");
       }
@@ -626,14 +631,14 @@ namespace js
         ctx,
         node,
         "rekeyLedger",
-        JS_NewCFunction(ctx, js_rekey_ledger, "rekeyLedger", 0));
+        JS_NewCFunction(ctx, js_node_rekey_ledger, "rekeyLedger", 0));
     }
 
     return ccf;
   }
 
   void populate_global_ccf(
-    kv::Tx* tx,
+    TxContext* txctx,
     const std::optional<kv::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
@@ -645,7 +650,7 @@ namespace js
       ctx,
       global_obj,
       "ccf",
-      create_ccf_obj(tx, transaction_id, receipt, node_state, ctx));
+      create_ccf_obj(txctx, transaction_id, receipt, node_state, ctx));
 
     JS_FreeValue(ctx, global_obj);
   }
