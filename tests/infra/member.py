@@ -146,7 +146,8 @@ class Member:
     def vote(self, remote_node, proposal, ballot):
         with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post(
-                f"{PROPOSAL_ENDPOINT}/{proposal.proposal_id}/votes", body=ballot
+                f"{PROPOSAL_ENDPOINT}/{proposal.proposal_id}/{'ballots' if os.getenv('JS_GOVERNANCE') else 'votes'}",
+                body=ballot,
             )
 
         return r
