@@ -342,8 +342,6 @@ namespace ccf
 
             case kv::CommitResult::FAIL_CONFLICT:
             {
-              // TODO: Rather than calling .reset() (and remembering to clear
-              // everything correctly in that), can we simply create a new tx?
               tx = tables.create_tx();
               break;
             }
@@ -366,8 +364,6 @@ namespace ccf
           LOG_DEBUG_FMT(
             "Transaction execution conflicted with compaction: {}", e.what());
 
-          // TODO: Rather than calling .reset() (and remembering to clear
-          // everything correctly in that), can we simply create a new tx?
           tx = tables.create_tx();
           continue;
         }

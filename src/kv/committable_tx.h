@@ -71,9 +71,8 @@ namespace kv
         max_conflict_version = version - 1;
       }
 
-      // TODO: Cast is unnecessary after merge!
       KvStoreSerialiser replicated_serialiser(
-        e, {static_cast<kv::Term>(view), version}, max_conflict_version);
+        e, {view, version}, max_conflict_version);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -207,9 +206,8 @@ namespace kv
             return CommitResult::SUCCESS;
           }
 
-          // TODO: Cast is unnecessary after merge!
           return store->commit(
-            {static_cast<kv::Term>(view), version},
+            {view, version},
             std::make_unique<MovePendingTx>(std::move(data), std::move(hooks)),
             false);
         }

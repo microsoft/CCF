@@ -62,7 +62,6 @@ namespace kv
     using PossibleHandles = std::list<std::unique_ptr<AbstractMapHandle>>;
     std::map<std::string, PossibleHandles> all_handles;
 
-    // TODO: After merge, set correct defaults
     // In most places we use NoVersion to indicate an invalid version. In this
     // case, NoVersion is a valid value - it is the version that the first
     // transaction in the service will read from, before anything has been
@@ -71,7 +70,7 @@ namespace kv
     // and it is NoVersion", and we get that by wrapping this in a
     // std::optional with nullopt representing "not yet fetched".
     std::optional<Version> read_version = std::nullopt;
-    ccf::View view = 0;
+    ccf::View view = ccf::VIEW_UNKNOWN;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
 
@@ -194,20 +193,7 @@ namespace kv
     }
 
   public:
-    // TODO: Hide this, so we don't call it by accident
-    BaseTx(AbstractStore* _store, bool known_null = false) : store(_store)
-    {
-      // For testing purposes, caller may opt-in to creation of an unsafe Tx by
-      // passing (nullptr, true). Many operations on this Tx, including
-      // commit(), will try to dereference this pointer, so the caller must not
-      // call these.
-      if (!known_null)
-      {
-        CCF_ASSERT(
-          store != nullptr,
-          "Transactions must be created with reference to real Store");
-      }
-    }
+    BaseTx(AbstractStore* _store) : store(_store) {}
 
     // To avoid accidental copies and promote use of pass-by-reference, this is
     // non-copyable
