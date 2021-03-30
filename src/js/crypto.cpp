@@ -115,6 +115,30 @@ namespace js
     return JS_NewArrayBufferCopy(ctx, h.data(), h.size());
   }
 
+  static JSValue js_pem_to_id(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    void* auto_free_ptr = JS_GetContextOpaque(ctx);
+    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+
+    auto pem_cstr = auto_free(JS_ToCString(ctx, argv[0]));
+    if (!pem_cstr)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    auto pem = crypto::Pem(pem_cstr);
+    auto der = crypto::make_verifier(pem)->cert_der();
+    auto id = crypto::Sha256Hash(der).hex_str();
+
+    return JS_NewString(ctx, id.c_str());
+  }
+
   static JSValue js_wrap_key(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {

@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-
 #include "js/wrap.h"
 
 #include "ccf/tx_id.h"
@@ -9,6 +8,7 @@
 #include "js/crypto.cpp"
 #include "kv/untyped_map.h"
 #include "node/rpc/call_types.h"
+#include "node/rpc/node_interface.h"
 #include "tls/base64.h"
 
 #include <memory>
@@ -25,11 +25,13 @@ namespace js
   JSClassID kv_class_id = 0;
   JSClassID kv_map_handle_class_id = 0;
   JSClassID body_class_id = 0;
+  JSClassID node_class_id = 0;
 
   JSClassDef kv_class_def = {};
   JSClassExoticMethods kv_exotic_methods = {};
   JSClassDef kv_map_handle_class_def = {};
   JSClassDef body_class_def = {};
+  JSClassDef node_class_def = {};
 
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -331,6 +333,83 @@ namespace js
     return body_;
   }
 
+  JSValue js_node_rekey_ledger(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    if (argc != 0)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments but expected none", argc);
+    }
+
+    auto node = static_cast<ccf::AbstractNodeState*>(
+      JS_GetOpaque(this_val, node_class_id));
+
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(
+        ctx, "No transaction available to rekey ledger");
+    }
+
+    JS_FreeValue(ctx, kv);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+
+    bool result = node->rekey_ledger(*tx_ctx_ptr->tx);
+
+    if (!result)
+    {
+      return JS_ThrowInternalError(ctx, "Could not rekey ledger");
+    }
+
+    return JS_UNDEFINED;
+  }
+
+  JSValue js_node_transition_service_to_open(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    if (argc != 0)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments but expected none", argc);
+    }
+
+    auto node = static_cast<ccf::AbstractNodeState*>(
+      JS_GetOpaque(this_val, node_class_id));
+
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(
+        ctx, "No transaction available to open service");
+    }
+
+    JS_FreeValue(ctx, kv);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+
+    node->transition_service_to_open(*tx_ctx_ptr->tx);
+
+    return JS_UNDEFINED;
+  }
+
   // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
   // with a synchronous interface.
   static const JSCFunctionListEntry js_body_proto_funcs[] = {
@@ -352,6 +431,9 @@ namespace js
 
     JS_NewClassID(&body_class_id);
     body_class_def.class_name = "Body";
+
+    JS_NewClassID(&node_class_id);
+    node_class_def.class_name = "Node";
   }
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -411,6 +493,12 @@ namespace js
 
   JSValue Context::function(const std::string& code, const std::string& path)
   {
+    return function(code, "default", path);
+  }
+
+  JSValue Context::function(
+    const std::string& code, const std::string& func, const std::string& path)
+  {
     JSValue module = JS_Eval(
       ctx,
       code.c_str(),
@@ -436,21 +524,29 @@ namespace js
     // Get exported function from module
     assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
     auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
-    if (JS_GetModuleExportEntriesCount(module_def) != 1)
+    auto export_count = JS_GetModuleExportEntriesCount(module_def);
+    for (auto i = 0; i < export_count; i++)
     {
-      throw std::runtime_error(
-        "Endpoint module exports more than one function");
+      auto export_name_atom = JS_GetModuleExportEntryName(ctx, module_def, i);
+      auto export_name_cstr = JS_AtomToCString(ctx, export_name_atom);
+      std::string export_name{export_name_cstr};
+      JS_FreeCString(ctx, export_name_cstr);
+      JS_FreeAtom(ctx, export_name_atom);
+      if (export_name == func)
+      {
+        auto export_func = JS_GetModuleExportEntry(ctx, module_def, i);
+        if (!JS_IsFunction(ctx, export_func))
+        {
+          JS_FreeValue(ctx, export_func);
+          throw std::runtime_error(fmt::format(
+            "Export '{}' of module '{}' is not a function", func, path));
+        }
+        return export_func;
+      }
     }
 
-    auto export_func = JS_GetModuleExportEntry(ctx, module_def, 0);
-    if (!JS_IsFunction(ctx, export_func))
-    {
-      JS_FreeValue(ctx, export_func);
-      throw std::runtime_error(
-        "Endpoint module exports something that is not a function");
-    }
-
-    return export_func;
+    throw std::runtime_error(
+      fmt::format("Failed to find export '{}' in module '{}'", func, path));
   }
 
   void register_request_body_class(JSContext* ctx)
@@ -485,6 +581,7 @@ namespace js
     TxContext* txctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
+    ccf::AbstractNodeState* node_state,
     JSContext* ctx)
   {
     auto ccf = JS_NewObject(ctx);
@@ -519,6 +616,8 @@ namespace js
       ctx, ccf, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
     JS_SetPropertyStr(
       ctx, ccf, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
+    JS_SetPropertyStr(
+      ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
 
     if (txctx != nullptr)
     {
@@ -579,6 +678,33 @@ namespace js
       JS_SetPropertyStr(ctx, ccf, "historicalState", state);
     }
 
+    // Node state
+    if (node_state != nullptr)
+    {
+      if (txctx == nullptr)
+      {
+        throw std::logic_error("Tx should be set to set node context");
+      }
+
+      auto node = JS_NewObjectClass(ctx, node_class_id);
+      JS_SetOpaque(node, node_state);
+      JS_SetPropertyStr(ctx, ccf, "node", node);
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "rekeyLedger",
+        JS_NewCFunction(ctx, js_node_rekey_ledger, "rekeyLedger", 0));
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "transitionServiceToOpen",
+        JS_NewCFunction(
+          ctx,
+          js_node_transition_service_to_open,
+          "transitionServiceToOpen",
+          0));
+    }
+
     return ccf;
   }
 
@@ -586,6 +712,7 @@ namespace js
     TxContext* txctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
+    ccf::AbstractNodeState* node_state,
     JSContext* ctx)
   {
     auto global_obj = JS_GetGlobalObject(ctx);
@@ -594,7 +721,7 @@ namespace js
       ctx,
       global_obj,
       "ccf",
-      create_ccf_obj(txctx, transaction_id, receipt, ctx));
+      create_ccf_obj(txctx, transaction_id, receipt, node_state, ctx));
 
     JS_FreeValue(ctx, global_obj);
   }
@@ -628,6 +755,16 @@ namespace js
       {
         throw std::logic_error(
           "Failed to register JS class definition for Body");
+      }
+    }
+
+    // Register class for node
+    {
+      auto ret = JS_NewClass(rt, node_class_id, &node_class_def);
+      if (ret != 0)
+      {
+        throw std::logic_error(
+          "Failed to register JS class definition for node");
       }
     }
   }

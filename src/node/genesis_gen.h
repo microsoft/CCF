@@ -390,30 +390,6 @@ namespace ccf
       return active_service->status;
     }
 
-    bool service_wait_for_shares()
-    {
-      auto service = tx.rw(tables.service);
-      auto active_service = service->get(0);
-      if (!active_service.has_value())
-      {
-        LOG_FAIL_FMT("Failed to get active service");
-        return false;
-      }
-
-      if (active_service->status != ServiceStatus::OPENING)
-      {
-        LOG_FAIL_FMT(
-          "Could not wait for shares on current service: status is not "
-          "OPENING");
-        return false;
-      }
-
-      active_service->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
-      service->put(0, active_service.value());
-
-      return true;
-    }
-
     void trust_node(
       const NodeId& node_id, kv::Version latest_ledger_secret_seqno)
     {
