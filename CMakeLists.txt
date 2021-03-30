@@ -501,10 +501,10 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
     )
     set_property(
-        TEST governance_js_test
-        APPEND
-        PROPERTY ENVIRONMENT "JS_GOVERNANCE=ON"
-      )
+      TEST governance_js_test
+      APPEND
+      PROPERTY ENVIRONMENT "JS_GOVERNANCE=ON"
+    )
   endif()
 
   # Storing signed governance operations
