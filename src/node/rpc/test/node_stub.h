@@ -15,9 +15,9 @@ namespace ccf
     bool is_public = false;
 
   public:
-    bool accept_recovery(kv::Tx& tx) override
+    void transition_service_to_open(kv::Tx& tx) override
     {
-      return true;
+      return;
     }
 
     bool rekey_ledger(kv::Tx& tx) override
