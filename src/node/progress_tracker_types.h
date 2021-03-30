@@ -70,15 +70,13 @@ namespace ccf
       uint32_t sig_size,
       uint8_t* sig) = 0;
     virtual void sign_view_change_request(
-      ViewChangeRequest& view_change,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno) = 0;
+      ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno) = 0;
     virtual bool verify_view_change_request(
       ViewChangeRequest& view_change,
       const NodeId& from,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno) = 0;
-    virtual kv::Consensus::SeqNo write_view_change_confirmation(
+      ccf::View view,
+      ccf::SeqNo seqno) = 0;
+    virtual ccf::SeqNo write_view_change_confirmation(
       ViewChangeConfirmation& new_view) = 0;
     virtual bool verify_view_change_request_confirmation(
       ViewChangeConfirmation& new_view, const NodeId& from) = 0;
@@ -148,12 +146,12 @@ namespace ccf
       {
         LOG_FAIL_FMT(
           "Failed to write nonces, view:{}, seqno:{}",
-          nonces.tx_id.term,
-          nonces.tx_id.version);
+          nonces.tx_id.view,
+          nonces.tx_id.seqno);
         throw ccf_logic_error(fmt::format(
           "Failed to write nonces, view:{}, seqno:{}",
-          nonces.tx_id.term,
-          nonces.tx_id.version));
+          nonces.tx_id.view,
+          nonces.tx_id.seqno));
       }
     }
 
@@ -192,9 +190,7 @@ namespace ccf
     }
 
     void sign_view_change_request(
-      ViewChangeRequest& view_change,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno) override
+      ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno) override
     {
       crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
       view_change.signature = kp.sign_hash(h.h.data(), h.h.size());
@@ -203,8 +199,8 @@ namespace ccf
     bool verify_view_change_request(
       ViewChangeRequest& view_change,
       const NodeId& from,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno) override
+      ccf::View view,
+      ccf::SeqNo seqno) override
     {
       crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
 
@@ -240,7 +236,7 @@ namespace ccf
         h.h, new_view.signature, crypto::MDType::SHA256);
     }
 
-    kv::Consensus::SeqNo write_view_change_confirmation(
+    ccf::SeqNo write_view_change_confirmation(
       ViewChangeConfirmation& new_view) override
     {
       kv::Tx tx(&store);
@@ -290,9 +286,7 @@ namespace ccf
     NewViewsMap new_views;
 
     crypto::Sha256Hash hash_view_change(
-      const ViewChangeRequest& v,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno) const
+      const ViewChangeRequest& v, ccf::View view, ccf::SeqNo seqno) const
     {
       auto ch = crypto::make_incremental_sha256();
 

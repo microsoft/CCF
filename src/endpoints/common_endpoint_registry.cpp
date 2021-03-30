@@ -65,8 +65,8 @@ namespace ccf
     BaseEndpointRegistry::init_handlers();
 
     auto get_commit = [this](auto&, nlohmann::json&&) {
-      kv::Consensus::View view;
-      kv::Consensus::SeqNo seqno;
+      ccf::View view;
+      ccf::SeqNo seqno;
       const auto result = get_last_committed_txid_v1(view, seqno);
 
       if (result == ccf::ApiResult::OK)
@@ -223,35 +223,33 @@ namespace ccf
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .install();
 
-    auto is_tx_committed = [this](
-                             kv::Consensus::View view,
-                             kv::Consensus::SeqNo seqno,
-                             std::string& error_reason) {
-      if (consensus == nullptr)
-      {
-        error_reason = "Node is not fully configured";
-        return false;
-      }
+    auto is_tx_committed =
+      [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+        if (consensus == nullptr)
+        {
+          error_reason = "Node is not fully configured";
+          return false;
+        }
 
-      const auto tx_view = consensus->get_view(seqno);
-      const auto committed_seqno = consensus->get_committed_seqno();
-      const auto committed_view = consensus->get_view(committed_seqno);
+        const auto tx_view = consensus->get_view(seqno);
+        const auto committed_seqno = consensus->get_committed_seqno();
+        const auto committed_view = consensus->get_view(committed_seqno);
 
-      const auto tx_status = ccf::evaluate_tx_status(
-        view, seqno, tx_view, committed_view, committed_seqno);
-      if (tx_status != ccf::TxStatus::Committed)
-      {
-        error_reason = fmt::format(
-          "Only committed transactions can be queried. Transaction {}.{} is "
-          "{}",
-          view,
-          seqno,
-          ccf::tx_status_to_str(tx_status));
-        return false;
-      }
+        const auto tx_status = ccf::evaluate_tx_status(
+          view, seqno, tx_view, committed_view, committed_seqno);
+        if (tx_status != ccf::TxStatus::Committed)
+        {
+          error_reason = fmt::format(
+            "Only committed transactions can be queried. Transaction {}.{} is "
+            "{}",
+            view,
+            seqno,
+            ccf::tx_status_to_str(tx_status));
+          return false;
+        }
 
-      return true;
-    };
+        return true;
+      };
 
     auto get_receipt =
       [](auto& args, ccf::historical::StatePtr historical_state) {

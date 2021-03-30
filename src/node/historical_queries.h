@@ -56,11 +56,11 @@ namespace ccf::historical
 
     struct LedgerSecretRecoveryInfo
     {
-      kv::SeqNo target_seqno = 0;
+      ccf::SeqNo target_seqno = 0;
       LedgerSecretPtr last_ledger_secret;
 
       LedgerSecretRecoveryInfo(
-        kv::SeqNo target_seqno_, LedgerSecretPtr last_ledger_secret_) :
+        ccf::SeqNo target_seqno_, LedgerSecretPtr last_ledger_secret_) :
         target_seqno(target_seqno_),
         last_ledger_secret(last_ledger_secret_)
       {}
@@ -89,21 +89,22 @@ namespace ccf::historical
       StorePtr store = nullptr;
       bool is_signature = false;
       TxReceiptPtr receipt = nullptr;
-      kv::TxID transaction_id;
+      ccf::TxID transaction_id;
     };
     using StoreDetailsPtr = std::shared_ptr<StoreDetails>;
 
     struct Request
     {
-      kv::SeqNo first_requested_seqno = 0;
-      kv::SeqNo last_requested_seqno = 0;
+      ccf::SeqNo first_requested_seqno = 0;
+      ccf::SeqNo last_requested_seqno = 0;
       std::vector<StoreDetailsPtr> requested_stores;
       std::chrono::milliseconds time_to_expiry;
 
       // Entries from outside the requested range (such as the next signature)
       // may be needed to trust this range. They are stored here, distinct from
       // user-requested stores.
-      std::optional<std::pair<kv::SeqNo, StoreDetailsPtr>> supporting_signature;
+      std::optional<std::pair<ccf::SeqNo, StoreDetailsPtr>>
+        supporting_signature;
 
       // Only set when recovering ledger secrets
       std::unique_ptr<LedgerSecretRecoveryInfo> ledger_secret_recovery_info =
@@ -111,7 +112,7 @@ namespace ccf::historical
 
       Request() {}
 
-      StoreDetailsPtr get_store_details(kv::SeqNo seqno) const
+      StoreDetailsPtr get_store_details(ccf::SeqNo seqno) const
       {
         if (seqno >= first_requested_seqno && seqno <= last_requested_seqno)
         {
@@ -143,8 +144,8 @@ namespace ccf::historical
       // adjust to:
       //  0  1  2  3  4  5  6
       // we need to shift _and_ start fetching 0, 1, and 6.
-      std::set<kv::SeqNo> adjust_range(
-        kv::SeqNo start_seqno, size_t num_following_indices)
+      std::set<ccf::SeqNo> adjust_range(
+        ccf::SeqNo start_seqno, size_t num_following_indices)
       {
         if (
           start_seqno == first_requested_seqno &&
@@ -154,10 +155,10 @@ namespace ccf::historical
           return {};
         }
 
-        std::set<kv::SeqNo> ret;
+        std::set<ccf::SeqNo> ret;
         std::vector<StoreDetailsPtr> new_stores(num_following_indices + 1);
         for (auto seqno = start_seqno; seqno <=
-             static_cast<kv::SeqNo>(start_seqno + num_following_indices);
+             static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
              ++seqno)
         {
           auto existing_details = get_store_details(seqno);
@@ -216,7 +217,7 @@ namespace ccf::historical
         Invalidated,
       };
 
-      UpdateTrustedResult update_trusted(kv::SeqNo new_seqno)
+      UpdateTrustedResult update_trusted(ccf::SeqNo new_seqno)
       {
         auto new_details = get_store_details(new_seqno);
         if (new_details->is_signature)
@@ -355,11 +356,11 @@ namespace ccf::historical
     // Track all things currently requested by external callers
     std::map<RequestHandle, Request> requests;
 
-    std::set<kv::SeqNo> pending_fetches;
+    std::set<ccf::SeqNo> pending_fetches;
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
-    void fetch_entry_at(kv::SeqNo seqno)
+    void fetch_entry_at(ccf::SeqNo seqno)
     {
       const auto ib = pending_fetches.insert(seqno);
       if (ib.second)
@@ -386,7 +387,7 @@ namespace ccf::historical
 
     // Returns true if this is a valid signature that passes our verification
     // checks
-    bool verify_signature(const StorePtr& sig_store, kv::SeqNo sig_seqno)
+    bool verify_signature(const StorePtr& sig_store, ccf::SeqNo sig_seqno)
     {
       const auto sig = get_signature(sig_store);
       if (!sig.has_value())
@@ -432,7 +433,7 @@ namespace ccf::historical
     }
 
     std::unique_ptr<LedgerSecretRecoveryInfo> fetch_supporting_secret_if_needed(
-      kv::SeqNo seqno)
+      ccf::SeqNo seqno)
     {
       auto [earliest_ledger_secret_seqno, earliest_ledger_secret] =
         get_earliest_known_ledger_secret();
@@ -467,7 +468,7 @@ namespace ccf::historical
     void process_deserialised_store(
       const StorePtr& store,
       const crypto::Sha256Hash& entry_digest,
-      kv::SeqNo seqno,
+      ccf::SeqNo seqno,
       bool is_signature)
     {
       auto request_it = requests.begin();
@@ -607,7 +608,7 @@ namespace ccf::historical
 
     std::vector<StatePtr> get_store_range_internal(
       RequestHandle handle,
-      kv::SeqNo start_seqno,
+      ccf::SeqNo start_seqno,
       size_t num_following_indices,
       ExpiryDuration seconds_until_expiry)
     {
@@ -662,8 +663,8 @@ namespace ccf::historical
 
       std::vector<StatePtr> trusted_states;
 
-      for (kv::SeqNo seqno = start_seqno;
-           seqno <= static_cast<kv::SeqNo>(start_seqno + num_following_indices);
+      for (ccf::SeqNo seqno = start_seqno; seqno <=
+           static_cast<ccf::SeqNo>(start_seqno + num_following_indices);
            ++seqno)
       {
         auto target_details = request.get_store_details(seqno);
@@ -690,7 +691,7 @@ namespace ccf::historical
 
     // Used when we received an invalid entry, to drop any requests which were
     // asking for it
-    void delete_all_interested_requests(kv::SeqNo seqno)
+    void delete_all_interested_requests(ccf::SeqNo seqno)
     {
       auto request_it = requests.begin();
       while (request_it != requests.end())
@@ -721,7 +722,7 @@ namespace ccf::historical
 
     StorePtr get_store_at(
       RequestHandle handle,
-      kv::SeqNo seqno,
+      ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) override
     {
       auto range = get_store_range(handle, seqno, seqno, seconds_until_expiry);
@@ -733,12 +734,12 @@ namespace ccf::historical
       return range[0];
     }
 
-    StorePtr get_store_at(RequestHandle handle, kv::SeqNo seqno) override
+    StorePtr get_store_at(RequestHandle handle, ccf::SeqNo seqno) override
     {
       return get_store_at(handle, seqno, default_expiry_duration);
     }
 
-    StatePtr get_state_at(RequestHandle handle, kv::SeqNo seqno) override
+    StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) override
     {
       auto range =
         get_store_range_internal(handle, seqno, 1, default_expiry_duration);
@@ -753,8 +754,8 @@ namespace ccf::historical
 
     std::vector<StorePtr> get_store_range(
       RequestHandle handle,
-      kv::SeqNo start_seqno,
-      kv::SeqNo end_seqno,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno,
       ExpiryDuration seconds_until_expiry) override
     {
       if (end_seqno < start_seqno)
@@ -777,7 +778,9 @@ namespace ccf::historical
     }
 
     std::vector<StorePtr> get_store_range(
-      RequestHandle handle, kv::SeqNo start_seqno, kv::SeqNo end_seqno) override
+      RequestHandle handle,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno) override
     {
       return get_store_range(
         handle, start_seqno, end_seqno, default_expiry_duration);
@@ -795,7 +798,7 @@ namespace ccf::historical
       return erased_count > 0;
     }
 
-    bool handle_ledger_entry(kv::SeqNo seqno, const LedgerEntry& data)
+    bool handle_ledger_entry(ccf::SeqNo seqno, const LedgerEntry& data)
     {
       std::lock_guard<SpinLock> guard(requests_lock);
       const auto it = pending_fetches.find(seqno);
@@ -883,7 +886,7 @@ namespace ccf::historical
       return true;
     }
 
-    void handle_no_entry(kv::SeqNo seqno)
+    void handle_no_entry(ccf::SeqNo seqno)
     {
       std::lock_guard<SpinLock> guard(requests_lock);
 

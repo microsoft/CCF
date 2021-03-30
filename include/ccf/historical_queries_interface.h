@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/receipt.h"
+#include "ccf/tx_id.h"
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
 #include "node/history.h"
@@ -63,12 +64,12 @@ namespace ccf::historical
     /// Receipt for ledger entry at transaction_id
     TxReceiptPtr receipt = nullptr;
     /// View and Sequence Number for the State
-    kv::TxID transaction_id;
+    ccf::TxID transaction_id;
 
     State(
       const StorePtr& store_,
       const TxReceiptPtr& receipt_,
-      const kv::TxID& transaction_id_) :
+      const ccf::TxID& transaction_id_) :
       store(store_),
       receipt(receipt_),
       transaction_id(transaction_id_)
@@ -119,18 +120,18 @@ namespace ccf::historical
      */
     virtual StorePtr get_store_at(
       RequestHandle handle,
-      kv::SeqNo seqno,
+      ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) = 0;
 
     /** Same as @c get_store_at but uses default expiry value.
      * @see get_store_at
      */
-    virtual StorePtr get_store_at(RequestHandle handle, kv::SeqNo seqno) = 0;
+    virtual StorePtr get_store_at(RequestHandle handle, ccf::SeqNo seqno) = 0;
 
     /** Retrieve a full state at a given seqno, including the Store, the TxID
      * assigned by consensus, and an offline-verifiable receipt for the Tx.
      */
-    virtual StatePtr get_state_at(RequestHandle handle, kv::SeqNo seqno) = 0;
+    virtual StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) = 0;
 
     /** Retrieve a range of Stores containing the state written at the given
      * indices.
@@ -152,15 +153,15 @@ namespace ccf::historical
      */
     virtual std::vector<StorePtr> get_store_range(
       RequestHandle handle,
-      kv::SeqNo start_seqno,
-      kv::SeqNo end_seqno,
+      ccf::SeqNo start_seqno,
+      ccf::SeqNo end_seqno,
       ExpiryDuration seconds_until_expiry) = 0;
 
     /** Same as @c get_store_range but uses default expiry value.
      * @see get_store_range
      */
     virtual std::vector<StorePtr> get_store_range(
-      RequestHandle handle, kv::SeqNo start_seqno, kv::SeqNo end_seqno) = 0;
+      RequestHandle handle, ccf::SeqNo start_seqno, ccf::SeqNo end_seqno) = 0;
 
     /** Drop state for the given handle.
      *

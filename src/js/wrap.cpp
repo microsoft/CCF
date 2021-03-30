@@ -497,7 +497,7 @@ namespace js
 
   JSValue create_ccf_obj(
     TxContext* txctx,
-    const std::optional<kv::TxID>& transaction_id,
+    const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     JSContext* ctx)
   {
@@ -544,13 +544,17 @@ namespace js
     // Historical queries
     if (receipt != nullptr)
     {
+      CCF_ASSERT(
+        transaction_id.has_value(),
+        "Expected receipt and transaction_id to both be passed");
+
       auto state = JS_NewObject(ctx);
 
-      ccf::TxID tx_id;
-      tx_id.seqno = static_cast<ccf::SeqNo>(transaction_id.value().version);
-      tx_id.view = static_cast<ccf::View>(transaction_id.value().term);
       JS_SetPropertyStr(
-        ctx, state, "transactionId", JS_NewString(ctx, tx_id.to_str().c_str()));
+        ctx,
+        state,
+        "transactionId",
+        JS_NewString(ctx, transaction_id->to_str().c_str()));
 
       ccf::Receipt receipt_out;
       receipt->describe(receipt_out);
@@ -594,7 +598,7 @@ namespace js
 
   void populate_global_ccf(
     TxContext* txctx,
-    const std::optional<kv::TxID>& transaction_id,
+    const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     JSContext* ctx)
   {
