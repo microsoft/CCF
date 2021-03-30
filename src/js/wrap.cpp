@@ -522,8 +522,8 @@ namespace js
     JS_SetPropertyStr(
       ctx,
       ccf,
-      "isValidPem",
-      JS_NewCFunction(ctx, js_is_valid_pem, "isValidPem", 1));
+      "isValidX509Chain",
+      JS_NewCFunction(ctx, js_is_valid_pem, "isValidX509Chain", 1));
 
     if (txctx != nullptr)
     {
