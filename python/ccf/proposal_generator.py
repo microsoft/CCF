@@ -11,11 +11,14 @@ import sys
 import shutil
 import tempfile
 from pathlib import PurePosixPath
-from typing import Union, Optional, Any, List
+from typing import Union, Optional, Any, List, Dict
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
+
+
+GENERATE_JS_PROPOSALS = os.getenv("JS_GOVERNANCE")
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
@@ -144,35 +147,72 @@ def build_proposal(
 ):
     LOG.trace(f"Generating {proposed_call} proposal")
 
-    proposal_script_lines = []
-    if args is None:
-        proposal_script_lines.append(f'return Calls:call("{proposed_call}")')
+    proposal: Dict[str, Any] = {}
+    vote: Dict[str, Any] = {}
+
+    if GENERATE_JS_PROPOSALS:
+        action = {"name": proposed_call, "args": args}
+        actions = [action]
+        proposal = {"actions": actions}
+
+        vote_lines = []
+        vote_lines.append("export function vote (raw_proposal, proposer_id) {")
+        vote_lines.append("  let proposal = JSON.parse(raw_proposal)")
+        vote_lines.append("  if (!('actions' in proposal)) { return false }")
+        vote_lines.append("  let actions = proposal['actions']")
+        vote_lines.append("  if (actions.length !== 1) { return false }")
+        vote_lines.append("  let action = actions[0]")
+        vote_lines.append("  if (!('name' in action)) { return false }")
+        vote_lines.append(
+            f"  if (action.name !== '{proposed_call}') {{ return false }}"
+        )
+
+        if args is not None:
+            vote_lines.append("  if (!('args' in action)) { return false }")
+            vote_lines.append("  let args = action.args")
+
+            for name, body in args.items():
+                vote_lines.append(f"  if (!('{name}' in args)) {{ return false }}")
+                vote_lines.append(f"  let expected = {json.dumps(body)}")
+                vote_lines.append(
+                    f"  if (args['{name}'] !== expected) {{ return false }}"
+                )
+
+        vote_lines.append("  return true")
+        vote_lines.append("}")
+        vote_text = "\n".join(vote_lines)
+        vote = {"ballot": vote_text}
+
     else:
-        if inline_args:
-            add_arg_construction(proposal_script_lines, args)
+        proposal_script_lines = []
+        if args is None:
+            proposal_script_lines.append(f'return Calls:call("{proposed_call}")')
         else:
-            proposal_script_lines.append("tables, args = ...")
-        proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
+            if inline_args:
+                add_arg_construction(proposal_script_lines, args)
+            else:
+                proposal_script_lines.append("tables, args = ...")
+            proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
 
-    proposal_script_text = ";\n".join(proposal_script_lines)
-    proposal = {
-        "script": {"text": proposal_script_text},
-    }
-    if args is not None and not inline_args:
-        proposal["parameter"] = args
+        proposal_script_text = ";\n".join(proposal_script_lines)
+        proposal = {
+            "script": {"text": proposal_script_text},
+        }
+        if args is not None and not inline_args:
+            proposal["parameter"] = args
 
-    vote_lines = [
-        "tables, calls = ...",
-        "if not #calls == 1 then return false end",
-        "call = calls[1]",
-        f'if not call.func == "{proposed_call}" then return false end',
-    ]
-    if args is not None:
-        vote_lines.append("args = call.args")
-        add_arg_checks(vote_lines, args)
-    vote_lines.append("return true")
-    vote_text = ";\n".join(vote_lines)
-    vote = {"ballot": {"text": vote_text}}
+        vote_lines = [
+            "tables, calls = ...",
+            "if not #calls == 1 then return false end",
+            "call = calls[1]",
+            f'if not call.func == "{proposed_call}" then return false end',
+        ]
+        if args is not None:
+            vote_lines.append("args = call.args")
+            add_arg_checks(vote_lines, args)
+        vote_lines.append("return true")
+        vote_text = ";\n".join(vote_lines)
+        vote = {"ballot": {"text": vote_text}}
 
     LOG.trace(f"Made {proposed_call} proposal:\n{json.dumps(proposal, indent=2)}")
     LOG.trace(f"Accompanying vote:\n{json.dumps(vote, indent=2)}")
@@ -272,11 +312,11 @@ def set_member_data(member_id: str, member_data: Any, **kwargs):
 
 
 @cli_proposal
-def new_user(user_cert_path: str, user_data: Any = None, **kwargs):
+def set_user(user_cert_path: str, user_data: Any = None, **kwargs):
     user_info = {"cert": open(user_cert_path).read()}
     if user_data is not None:
         user_info["user_data"] = user_data
-    return build_proposal("new_user", user_info, **kwargs)
+    return build_proposal("set_user", user_info, **kwargs)
 
 
 @cli_proposal

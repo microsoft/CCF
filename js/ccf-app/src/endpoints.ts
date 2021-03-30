@@ -125,7 +125,7 @@ export interface JwtAuthnIdentity extends AuthnIdentityCommon {
      * claim in the JWT payload. Rather, it is the issuer used in the
      * ``set_jwt_issuer`` proposal.
      */
-    key_issuer: string;
+    keyIssuer: string;
 
     /**
      * The parsed JWT header.

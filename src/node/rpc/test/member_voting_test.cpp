@@ -1046,7 +1046,7 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
 
   Script proposal(R"xxx(
     tables, user_cert = ...
-      return Calls:call("new_user", user_cert)
+      return Calls:call("set_user", user_cert)
     )xxx");
 
   const auto propose = create_signed_request(
@@ -1105,7 +1105,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
 
     Script proposal(R"xxx(
         tables, user_cert = ...
-        return Calls:call("new_user", {cert = user_cert})
+        return Calls:call("set_user", {cert = user_cert})
       )xxx");
 
     const auto user_cert = kp->self_sign("CN=new user");
@@ -1835,9 +1835,12 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   DOCTEST_INFO("Change service state to waiting for recovery shares");
   {
     auto tx = network.tables->create_tx();
-    GenesisGenerator g(network, tx);
-    DOCTEST_REQUIRE(g.service_wait_for_shares());
-    g.finalize();
+
+    auto service = tx.rw(network.service);
+    auto active_service = service->get(0);
+    active_service->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
+    service->put(0, active_service.value());
+    DOCTEST_REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   DOCTEST_INFO(

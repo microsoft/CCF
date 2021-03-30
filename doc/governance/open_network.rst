@@ -17,7 +17,7 @@ Then, the certificates of trusted users should be registered in CCF via the memb
     {
         "parameter": [<cert of proposed new user>],
         "script": {
-            "text": "tables, user_cert = ...; return Calls:call(\"new_user\", user_cert)"
+            "text": "tables, user_cert = ...; return Calls:call(\"set_user\", user_cert)"
     }
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json -H "content-type: application/json"
@@ -48,7 +48,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
     $ cat vote_conditional.json
     {
         "ballot": {
-            "text": "tables, calls = ...; return (#calls == 1 and calls[1].func == \"new_user\")"
+            "text": "tables, calls = ...; return (#calls == 1 and calls[1].func == \"set_user\")"
         }
     }
 
@@ -81,7 +81,7 @@ For example, the ``/log/private/admin_only`` endpoint in the C++ logging sample 
     :language: cpp
     :start-after: SNIPPET_START: user_data_check
     :end-before: SNIPPET_END: user_data_check
-    :dedent: 12
+    :dedent:
 
 Members configure this permission with ``set_user_data`` proposals:
 

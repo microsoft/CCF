@@ -1232,14 +1232,66 @@ namespace ccf
         recovery_v);
     }
 
-    bool accept_recovery(kv::Tx& tx) override
+    void transition_service_to_open(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::partOfPublicNetwork);
 
-      GenesisGenerator g(network, tx);
-      share_manager.clear_submitted_recovery_shares(tx);
-      return g.service_wait_for_shares();
+      auto service = tx.rw<Service>(Tables::SERVICE);
+      auto service_info = service->get(0);
+      if (!service_info.has_value())
+      {
+        throw std::logic_error(
+          "Service information cannot be found to transition service to open");
+      }
+
+      // Idempotence: if the service is already open or waiting for recovery
+      // shares, this function should succeed with no effect
+      if (
+        service_info->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES ||
+        service_info->status == ServiceStatus::OPEN)
+      {
+        LOG_DEBUG_FMT(
+          "Service in state {} is already open", service_info->status);
+        return;
+      }
+
+      if (is_part_of_public_network())
+      {
+        // If the node is in public mode, start accepting member recovery
+        // shares
+        share_manager.clear_submitted_recovery_shares(tx);
+        service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
+        service->put(0, service_info.value());
+        return;
+      }
+      else if (is_part_of_network())
+      {
+        // Otherwise, if the node is part of the network. Open the network
+        // straight away. Recovery shares are allocated to each recovery member.
+        try
+        {
+          share_manager.issue_recovery_shares(tx);
+        }
+        catch (const std::logic_error& e)
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to issuing recovery shares failed when "
+            "transitioning the service to open: {}",
+            e.what()));
+        }
+
+        GenesisGenerator g(network, tx);
+        if (g.open_service())
+        {
+          open_user_frontend();
+        }
+        return;
+      }
+      else
+      {
+        throw std::logic_error(
+          fmt::format("Node in state {} cannot open service", sm.value()));
+      }
     }
 
     void initiate_private_recovery(kv::Tx& tx) override

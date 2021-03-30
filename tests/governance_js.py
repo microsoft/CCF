@@ -7,6 +7,9 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import os
+import ccf.proposal_generator as prop_gen
+
+from loguru import logger as LOG
 
 
 def action(name, **args):
@@ -181,7 +184,9 @@ def test_ballot_storage(network, args):
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", {})
         assert r.status_code == 400, r.body.text()
 
-        ballot = {"ballot": "function vote (proposal, proposer_id) { return true }"}
+        ballot = {
+            "ballot": "export function vote (proposal, proposer_id) { return true }"
+        }
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
 
@@ -191,7 +196,9 @@ def test_ballot_storage(network, args):
         assert r.body.json() == ballot, r.body.json()
 
     with node.client(None, "member1") as c:
-        ballot = {"ballot": "function vote (proposal, proposer_id) { return false }"}
+        ballot = {
+            "ballot": "export function vote (proposal, proposer_id) { return false }"
+        }
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
         member_id = network.consortium.get_member_by_local_id("member1").service_id
@@ -216,7 +223,9 @@ def test_pure_proposals(network, args):
             assert r.body.json()["state"] == state, r.body.json()
             proposal_id = r.body.json()["proposal_id"]
 
-            ballot = {"ballot": "function vote (proposal, proposer_id) { return true }"}
+            ballot = {
+                "ballot": "export function vote (proposal, proposer_id) { return true }"
+            }
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 400, r.body.text()
 
@@ -249,7 +258,7 @@ def test_proposals_with_votes(network, args):
             proposal_id = r.body.json()["proposal_id"]
 
             ballot = {
-                "ballot": f"function vote (proposal, proposer_id) {{ return {direction} }}"
+                "ballot": f"export function vote (proposal, proposer_id) {{ return {direction} }}"
             }
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
@@ -262,7 +271,7 @@ def test_proposals_with_votes(network, args):
 
             member_id = network.consortium.get_member_by_local_id("member0").service_id
             ballot = {
-                "ballot": f'function vote (proposal, proposer_id) {{ if (proposer_id == "{member_id}") {{ return {direction} }} else {{ return {opposite(direction) } }} }}'
+                "ballot": f'export function vote (proposal, proposer_id) {{ if (proposer_id == "{member_id}") {{ return {direction} }} else {{ return {opposite(direction) } }} }}'
             }
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
@@ -279,7 +288,7 @@ def test_proposals_with_votes(network, args):
             proposal_id = r.body.json()["proposal_id"]
 
             ballot = {
-                "ballot": f"function vote (proposal, proposer_id) {{ return {direction} }}"
+                "ballot": f"export function vote (proposal, proposer_id) {{ return {direction} }}"
             }
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
@@ -287,7 +296,7 @@ def test_proposals_with_votes(network, args):
 
             with node.client(None, "member1") as oc:
                 ballot = {
-                    "ballot": f"function vote (proposal, proposer_id) {{ return {direction} }}"
+                    "ballot": f"export function vote (proposal, proposer_id) {{ return {direction} }}"
                 }
                 r = oc.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
                 assert r.status_code == 200, r.body.text()
@@ -305,7 +314,9 @@ def test_operator_proposals_and_votes(network, args):
         assert r.body.json()["state"] == "Open", r.body.json()
         proposal_id = r.body.json()["proposal_id"]
 
-        ballot = {"ballot": "function vote (proposal, proposer_id) {{ return true }}"}
+        ballot = {
+            "ballot": "export function vote (proposal, proposer_id) { return true }"
+        }
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Accepted", r.body.json()
@@ -316,6 +327,65 @@ def test_operator_proposals_and_votes(network, args):
         assert r.body.json()["state"] == "Accepted", r.body.json()
         proposal_id = r.body.json()["proposal_id"]
 
+    return network
+
+
+@reqs.description("Test actions")
+def test_actions(network, args):
+    node = network.find_random_node()
+
+    with node.client(None, "member0") as c:
+        valid_set_member_data = proposal(
+            action(
+                "set_member_data",
+                member_id=f"{network.consortium.get_member_by_local_id('member0').service_id}",
+                member_data={"is_admin": True},
+            )
+        )
+
+        r = c.post("/gov/proposals.js", valid_set_member_data)
+        assert r.status_code == 200, r.body.text()
+
+        valid_rekey_ledger = proposal(action("rekey_ledger"))
+        r = c.post("/gov/proposals.js", valid_rekey_ledger)
+        assert r.status_code == 200, r.body.text()
+
+        valid_service_open = proposal(action("transition_service_to_open"))
+        r = c.post("/gov/proposals.js", valid_service_open)
+        assert r.status_code == 200, r.body.text()
+
+        new_user_local_id = "js_user"
+        new_user = network.create_user(new_user_local_id, args.participants_curve)
+        LOG.info(f"Adding new user {new_user.service_id}")
+        with open(
+            os.path.join(network.common_dir, f"{new_user_local_id}_cert.pem"), "r"
+        ) as cert:
+            valid_new_user = proposal(
+                action("set_user", cert=cert.read(), user_data={"is_admin": True})
+            )
+        r = c.post("/gov/proposals.js", valid_new_user)
+        assert r.status_code == 200, r.body.text()
+    return network
+
+
+@reqs.description("Test proposal generator")
+def test_proposal_generator(network, args):
+    restore_js_proposals = prop_gen.GENERATE_JS_PROPOSALS
+    prop_gen.GENERATE_JS_PROPOSALS = True
+
+    node = network.find_random_node()
+    with node.client(None, "member0") as c:
+        proposal, ballot = prop_gen.build_proposal(
+            "set_recovery_threshold", {"threshold": 5}
+        )
+        r = c.post("/gov/proposals.js", proposal)
+        assert r.status_code == 200, r.body.text()
+        proposal_id = r.body.json()["proposal_id"]
+
+        r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
+        assert r.status_code == 200, r.body.text()
+
+    prop_gen.GENERATE_JS_PROPOSALS = restore_js_proposals
     return network
 
 
@@ -335,6 +405,8 @@ def test_apply(network, args):
         r = c.get("/app/log/private")
         assert r.status_code == 401, r.body.text()
 
+    return network
+
 
 def run(args):
     with infra.network.network(
@@ -348,7 +420,9 @@ def run(args):
         network = test_pure_proposals(network, args)
         network = test_proposals_with_votes(network, args)
         network = test_operator_proposals_and_votes(network, args)
+        network = test_proposal_generator(network, args)
         network = test_apply(network, args)
+        network = test_actions(network, args)
 
 
 if __name__ == "__main__":

@@ -19,10 +19,10 @@ python -m ccf.proposal_generator new_member bob_cert.pem bob_enc_pubk.pem
 python -m ccf.proposal_generator new_member bob_cert.pem bob_enc_pubk.pem '"Arbitrary data"'
 python -m ccf.proposal_generator new_member bob_cert.pem bob_enc_pubk.pem '{"Interesting": {"nested": ["da", "ta"]}}'
 
-python -m ccf.proposal_generator new_user --help
-python -m ccf.proposal_generator new_user alice_cert.pem
-python -m ccf.proposal_generator new_user alice_cert.pem '"ADMIN"'
-python -m ccf.proposal_generator new_user alice_cert.pem '{"type": "ADMIN", "friendlyName": "Alice"}'
+python -m ccf.proposal_generator set_user --help
+python -m ccf.proposal_generator set_user alice_cert.pem
+python -m ccf.proposal_generator set_user alice_cert.pem '"ADMIN"'
+python -m ccf.proposal_generator set_user alice_cert.pem '{"type": "ADMIN", "friendlyName": "Alice"}'
 
 python -m ccf.proposal_generator transition_service_to_open --help
 python -m ccf.proposal_generator transition_service_to_open
