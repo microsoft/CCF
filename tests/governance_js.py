@@ -7,8 +7,6 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 
-from loguru import logger as LOG
-
 
 def action(name, **args):
     return {"name": name, "args": args}
