@@ -1170,18 +1170,13 @@ namespace ccf
       std::vector<std::pair<MemberId, bool>> votes;
       for (const auto& [mid, mb] : pi_->ballots)
       {
-        std::string mbs = fmt::format(
-          "{}\n export default (proposal, proposer_id) => vote(proposal, "
-          "proposer_id);",
-          mb);
-
         js::Runtime rt;
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_ccf(&txctx, std::nullopt, nullptr, context);
         auto ballot_func = context.function(
-          mbs, fmt::format("ballot from {} for {}", mid, proposal_id));
+          mb, "vote", fmt::format("ballot from {} for {}", mid, proposal_id));
 
         JSValue argv[2];
         auto prop = JS_NewStringLen(
