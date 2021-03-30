@@ -328,7 +328,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      kv::TxID tx_id;
+      ccf::TxID tx_id;
       auto success = ApplyResult::PASS;
 
       auto r = progress_tracker->receive_backup_signatures(
@@ -350,8 +350,8 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      term = tx_id.term;
-      version = tx_id.version;
+      term = tx_id.view;
+      version = tx_id.seqno;
 
       history->append(data);
       return success;

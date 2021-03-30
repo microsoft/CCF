@@ -444,7 +444,10 @@ if(BUILD_TESTS)
 
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
-    target_link_libraries(merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} crypto)
+    target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
+    target_link_libraries(
+      merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX} crypto
+    )
 
     # Raft driver and scenario test
     add_executable(
