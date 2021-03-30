@@ -882,8 +882,7 @@ namespace ccf
              proposal_id);
          }},
         {"transition_service_to_open",
-         [this](
-           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json&) {
            context.get_node_state().transition_service_to_open(tx);
            return true;
          }},
