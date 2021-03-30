@@ -63,7 +63,14 @@ namespace kv
     std::map<std::string, PossibleHandles> all_handles;
 
     // TODO: After merge, set correct defaults
-    ccf::SeqNo read_version = 0;
+    // In most places we use NoVersion to indicate an invalid version. In this
+    // case, NoVersion is a valid value - it is the version that the first
+    // transaction in the service will read from, before anything has been
+    // applied to the KV. So we need an additional special value to distinguish
+    // "haven't yet fetched a read_version" from "have fetched a read_version,
+    // and it is NoVersion", and we get that by wrapping this in a
+    // std::optional with nullopt representing "not yet fetched".
+    std::optional<Version> read_version = std::nullopt;
     ccf::View view = 0;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
@@ -111,7 +118,7 @@ namespace kv
         throw CompactedVersionConflict(fmt::format(
           "Unable to retrieve state over map {} at {}",
           map_name,
-          read_version));
+          read_version.value()));
       }
 
       auto typed_handle = get_or_insert_handle<THandle>(*change_set, map_name);
@@ -123,7 +130,7 @@ namespace kv
     // types here!
     auto get_map_and_change_set_by_name(const std::string& map_name)
     {
-      if (read_version == 0) // TODO!
+      if (!read_version.has_value())
       {
         // Grab opacity version that all Maps should be queried at.
         auto txid = store->current_txid();
@@ -131,7 +138,7 @@ namespace kv
         read_version = txid.version;
       }
 
-      auto abstract_map = store->get_map(read_version, map_name);
+      auto abstract_map = store->get_map(read_version.value(), map_name);
       if (abstract_map == nullptr)
       {
         // Store doesn't know this map yet - create it dynamically
@@ -166,7 +173,7 @@ namespace kv
       }
 
       return std::make_pair(
-        abstract_map, untyped_map->create_change_set(read_version));
+        abstract_map, untyped_map->create_change_set(read_version.value()));
     }
 
     template <class THandle>

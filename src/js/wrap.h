@@ -43,7 +43,7 @@ namespace js
   void populate_global_console(JSContext* ctx);
   void populate_global_ccf(
     TxContext* txctx,
-    const std::optional<kv::TxID>& transaction_id,
+    const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     JSContext* ctx);
 

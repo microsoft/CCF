@@ -54,7 +54,7 @@ namespace ccf
     struct Out
     {
       ServiceStatus service_status;
-      std::optional<kv::Consensus::View> current_view;
+      std::optional<ccf::View> current_view;
       std::optional<NodeId> primary_id;
     };
   };

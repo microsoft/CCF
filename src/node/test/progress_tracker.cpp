@@ -36,18 +36,15 @@ public:
     override);
   MAKE_MOCK3(
     sign_view_change_request,
-    void(
-      ccf::ViewChangeRequest& view_change,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno),
+    void(ccf::ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno),
     override);
   MAKE_MOCK4(
     verify_view_change_request,
     bool(
       ccf::ViewChangeRequest& view_change,
       const kv::NodeId& from,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno),
+      ccf::View view,
+      ccf::SeqNo seqno),
     override);
   MAKE_MOCK2(
     verify_view_change_request_confirmation,
@@ -55,15 +52,15 @@ public:
     override);
   MAKE_MOCK1(
     write_view_change_confirmation,
-    kv::Consensus::SeqNo(ccf::ViewChangeConfirmation& new_view),
+    ccf::SeqNo(ccf::ViewChangeConfirmation& new_view),
     override);
 };
 
 void ordered_execution(
   kv::NodeId my_node_id, std::unique_ptr<ccf::ProgressTracker>& pt)
 {
-  kv::Consensus::View view = 0;
-  kv::Consensus::SeqNo seqno = 42;
+  ccf::View view = 0;
+  ccf::SeqNo seqno = 42;
   uint32_t node_count = 4;
   uint32_t node_count_quorum =
     2; // Takes into account that counting starts at 0
@@ -311,7 +308,7 @@ TEST_CASE("Request tracker")
     aft::RequestTracker t;
 
     auto r = t.get_seqno_time_last_request();
-    REQUIRE(std::get<0>(r) == -1);
+    REQUIRE(std::get<0>(r) == ccf::SEQNO_UNKNOWN);
     REQUIRE(std::get<1>(r) == std::chrono::milliseconds(0));
 
     t.insert_signed_request(2, std::chrono::milliseconds(2));
@@ -329,8 +326,8 @@ TEST_CASE("Request tracker")
 TEST_CASE("Record primary signature")
 {
   kv::NodeId my_node_id = kv::test::PrimaryNodeId;
-  kv::Consensus::View view = 0;
-  kv::Consensus::SeqNo seqno = 42;
+  ccf::View view = 0;
+  ccf::SeqNo seqno = 42;
   crypto::Sha256Hash root;
   ccf::Nonce nonce;
   std::vector<uint8_t> primary_sig;
@@ -357,8 +354,8 @@ TEST_CASE("View Changes")
   StoreMock& store_mock = *store.get();
   ccf::ProgressTracker pt(std::move(store), my_node_id);
 
-  kv::Consensus::View view = 0;
-  kv::Consensus::SeqNo seqno = 42;
+  ccf::View view = 0;
+  ccf::SeqNo seqno = 42;
   uint32_t node_count = 4;
   uint32_t node_count_quorum =
     2; // Takes into account that counting starts at 0
@@ -423,7 +420,7 @@ TEST_CASE("View Changes")
 
   INFO("Update latest prepared");
   {
-    kv::Consensus::SeqNo new_seqno = 84;
+    ccf::SeqNo new_seqno = 84;
 
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
@@ -476,7 +473,7 @@ TEST_CASE("View Changes")
 
   INFO("Update older prepared");
   {
-    kv::Consensus::SeqNo new_seqno = 21;
+    ccf::SeqNo new_seqno = 21;
 
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
@@ -587,8 +584,8 @@ TEST_CASE("view-change-tracker timeout tests")
 TEST_CASE("view-change-tracker statemachine tests")
 {
   ccf::ViewChangeRequest v;
-  kv::Consensus::View view = 3;
-  kv::Consensus::SeqNo seqno = 1;
+  ccf::View view = 3;
+  ccf::SeqNo seqno = 1;
   uint32_t node_count = 4;
 
   INFO("Can trigger view change");
@@ -699,8 +696,8 @@ TEST_CASE("Sending evidence out of band")
   using trompeloeil::_;
 
   ccf::ViewChangeRequest v;
-  kv::Consensus::View view = 3;
-  kv::Consensus::SeqNo seqno = 1;
+  ccf::View view = 3;
+  ccf::SeqNo seqno = 1;
   constexpr uint32_t node_count = 4;
 
   INFO("Can trigger view change");

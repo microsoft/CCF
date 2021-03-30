@@ -9,7 +9,7 @@
 namespace ccf::historical
 {
   using CheckAvailability = std::function<bool(
-    kv::Consensus::View view, kv::SeqNo seqno, std::string& error_reason)>;
+    ccf::View view, ccf::SeqNo seqno, std::string& error_reason)>;
 
   using HandleHistoricalQuery =
     std::function<void(ccf::endpoints::EndpointContext& args, StatePtr state)>;
@@ -52,8 +52,8 @@ namespace ccf::historical
 
   static inline bool is_tx_committed(
     kv::Consensus* consensus,
-    kv::Consensus::View view,
-    kv::Consensus::SeqNo seqno,
+    ccf::View view,
+    ccf::SeqNo seqno,
     std::string& error_reason)
   {
     if (consensus == nullptr)

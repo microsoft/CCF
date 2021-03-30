@@ -274,7 +274,7 @@ namespace kv
 
     Version get_read_version()
     {
-      return read_version;
+      return read_version.value_or(NoVersion);
     }
 
     Version get_max_conflict_version()
@@ -307,8 +307,7 @@ namespace kv
 
     void set_read_version_and_term(Version v, Term t)
     {
-      // TODO: Fix post merge
-      if (read_version == 0)
+      if (!read_version.has_value())
       {
         read_version = v;
         view = t;
