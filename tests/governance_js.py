@@ -6,6 +6,7 @@ import infra.proc
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
+import ccf.proposal_generator as prop_gen
 
 
 def action(name, **args):
@@ -319,7 +320,27 @@ def test_actions(network, args):
         valid_rekey_ledger = proposal(action("rekey_ledger"))
         r = c.post("/gov/proposals.js", valid_rekey_ledger)
         assert r.status_code == 200, r.body.text()
+    return network
 
+
+@reqs.description("Test proposal generator")
+def test_proposal_generator(network, args):
+    restore_js_proposals = prop_gen.GENERATE_JS_PROPOSALS
+    prop_gen.GENERATE_JS_PROPOSALS = True
+
+    node = network.find_random_node()
+    with node.client(None, "member0") as c:
+        proposal, ballot = prop_gen.build_proposal(
+            "set_recovery_threshold", {"threshold": 5}
+        )
+        r = c.post("/gov/proposals.js", proposal)
+        assert r.status_code == 200, r.body.text()
+        proposal_id = r.body.json()["proposal_id"]
+
+        r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
+        assert r.status_code == 200, r.body.text()
+
+    prop_gen.GENERATE_JS_PROPOSALS = restore_js_proposals
     return network
 
 
@@ -354,6 +375,7 @@ def run(args):
         network = test_pure_proposals(network, args)
         network = test_proposals_with_votes(network, args)
         network = test_operator_proposals_and_votes(network, args)
+        network = test_proposal_generator(network, args)
         network = test_apply(network, args)
         network = test_actions(network, args)
 
