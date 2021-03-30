@@ -629,7 +629,7 @@ namespace ccf
            members->put(parsed.member_id, member_info.value());
            return true;
          }},
-        {"new_user",
+        {"set_user",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto user_info = args.get<NewUser>();
 

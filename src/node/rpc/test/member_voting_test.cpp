@@ -1046,7 +1046,7 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
 
   Script proposal(R"xxx(
     tables, user_cert = ...
-      return Calls:call("new_user", user_cert)
+      return Calls:call("set_user", user_cert)
     )xxx");
 
   const auto propose = create_signed_request(
@@ -1105,7 +1105,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
 
     Script proposal(R"xxx(
         tables, user_cert = ...
-        return Calls:call("new_user", {cert = user_cert})
+        return Calls:call("set_user", {cert = user_cert})
       )xxx");
 
     const auto user_cert = kp->self_sign("CN=new user");
