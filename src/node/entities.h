@@ -12,7 +12,6 @@
 
 namespace ccf
 {
-  using Index = int64_t;
   using Node2NodeMsg = uint64_t;
 
   using Cert = std::vector<uint8_t>;

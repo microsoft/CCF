@@ -88,14 +88,11 @@ namespace ccf
      * @see ccf::TxStatus
      */
     ApiResult get_status_for_txid_v1(
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
-      ccf::TxStatus& tx_status);
+      ccf::View view, ccf::SeqNo seqno, ccf::TxStatus& tx_status);
 
     /** Get the ID of latest transaction known to be committed.
      */
-    ApiResult get_last_committed_txid_v1(
-      kv::Consensus::View& view, kv::Consensus::SeqNo& seqno);
+    ApiResult get_last_committed_txid_v1(ccf::View& view, ccf::SeqNo& seqno);
 
     /** Generate an OpenAPI document describing the currently installed
      * endpoints.
@@ -120,7 +117,7 @@ namespace ccf
 
     /** Get the view associated with a given seqno, to construct a valid TxID
      */
-    ApiResult get_view_for_seqno_v1(kv::SeqNo seqno, kv::Consensus::View& view);
+    ApiResult get_view_for_seqno_v1(ccf::SeqNo seqno, ccf::View& view);
 
     /** Get the user data associated with a given user id
      */
