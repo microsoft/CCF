@@ -312,11 +312,11 @@ def set_member_data(member_id: str, member_data: Any, **kwargs):
 
 
 @cli_proposal
-def new_user(user_cert_path: str, user_data: Any = None, **kwargs):
+def set_user(user_cert_path: str, user_data: Any = None, **kwargs):
     user_info = {"cert": open(user_cert_path).read()}
     if user_data is not None:
         user_info["user_data"] = user_data
-    return build_proposal("new_user", user_info, **kwargs)
+    return build_proposal("set_user", user_info, **kwargs)
 
 
 @cli_proposal
