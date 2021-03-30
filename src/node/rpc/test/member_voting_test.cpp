@@ -15,7 +15,7 @@ DOCTEST_TEST_CASE("Member query/read")
   MemberRpcFrontend frontend(network, context, share_manager);
   frontend.open();
   const auto member_id = gen.add_member(member_cert);
-  gen.finalize();
+  gen_tx.commit();
 
   const enclave::SessionContext member_session(
     enclave::InvalidSessionId, member_cert.raw());
@@ -108,7 +108,7 @@ DOCTEST_TEST_CASE("Member query/read")
     auto gen_tx = network.tables->create_tx();
     GenesisGenerator gen(network, gen_tx);
     gen.remove_member(member_id);
-    gen.finalize();
+    gen_tx.commit();
 
     auto tx = network.tables->create_tx();
     tx.rw(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
@@ -140,7 +140,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.finalize();
+  gen_tx.commit();
 
   ShareManager share_manager(network);
   StubNodeContext context;
@@ -243,7 +243,7 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.finalize();
+  gen_tx.commit();
 
   ShareManager share_manager(network);
   StubNodeContext context;
@@ -346,7 +346,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.open_service();
-  gen.finalize();
+  gen_tx.commit();
   MemberRpcFrontend frontend(network, context, share_manager);
   frontend.open();
 
@@ -575,7 +575,7 @@ DOCTEST_TEST_CASE("Accept node")
   gen.add_node(node_id, ni);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.finalize();
+  gen_tx.commit();
   MemberRpcFrontend frontend(network, context, share_manager);
   frontend.open();
 
@@ -753,6 +753,7 @@ DOCTEST_TEST_CASE("Accept node")
 ProposalInfo test_raw_writes(
   NetworkState& network,
   GenesisGenerator& gen,
+  kv::CommittableTx& tx,
   StubNodeContext& context,
   ShareManager& share_manager,
   Propose::In proposal,
@@ -763,6 +764,7 @@ ProposalInfo test_raw_writes(
   std::vector<crypto::Pem> member_certs;
   auto frontend = init_frontend(
     network, gen, context, share_manager, n_members, member_certs);
+  DOCTEST_REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   frontend.open();
 
   // propose
@@ -851,6 +853,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
       const auto proposal_info = test_raw_writes(
         network,
         gen,
+        gen_tx,
         context,
         share_manager,
         {R"xxx(
@@ -905,6 +908,7 @@ recovery_threshold, consensus = "CFT"}) return Calls:call("raw_puts", p) )xxx"s,
           const auto proposal_info = test_raw_writes(
             network,
             gen,
+            gen_tx,
             context,
             share_manager,
             {sensitive_put},
@@ -938,7 +942,7 @@ DOCTEST_TEST_CASE("Remove proposal")
   gen.activate_member(gen.add_member(cert));
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.finalize();
+  gen_tx.commit();
   MemberRpcFrontend frontend(network, context, share_manager);
   frontend.open();
   ProposalId proposal_id;
@@ -1040,7 +1044,7 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
   gen.activate_member(voter_b);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_veto_script_file));
-  gen.finalize();
+  gen_tx.commit();
   MemberRpcFrontend frontend(network, context, share_manager);
   frontend.open();
 
@@ -1093,7 +1097,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
   gen.activate_member(gen.add_member(member_cert));
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.finalize();
+  gen_tx.commit();
   MemberRpcFrontend frontend(network, context, share_manager);
   frontend.open();
 
@@ -1205,7 +1209,7 @@ DOCTEST_TEST_CASE(
   set_whitelists(gen);
   gen.set_gov_scripts(
     lua::Interpreter().invoke<json>(operator_gov_script_file));
-  gen.finalize();
+  gen_tx.commit();
 
   ShareManager share_manager(network);
   StubNodeContext context;
@@ -1344,7 +1348,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
   set_whitelists(gen);
   gen.set_gov_scripts(
     lua::Interpreter().invoke<json>(operator_gov_script_file));
-  gen.finalize();
+  gen_tx.commit();
 
   ShareManager share_manager(network);
   StubNodeContext context;
@@ -1532,7 +1536,7 @@ DOCTEST_TEST_CASE(
   set_whitelists(gen);
   gen.set_gov_scripts(
     lua::Interpreter().invoke<json>(operator_gov_script_file));
-  gen.finalize();
+  gen_tx.commit();
 
   ShareManager share_manager(network);
   StubNodeContext context;
@@ -1657,7 +1661,7 @@ DOCTEST_TEST_CASE("User data")
   DOCTEST_SUBCASE("No initial user data")
   {
     user_id = gen.add_user({user_cert});
-    gen.finalize();
+    gen_tx.commit();
 
     read_user_info =
       create_request(read_params(user_id, Tables::USER_INFO), "read");
@@ -1674,7 +1678,7 @@ DOCTEST_TEST_CASE("User data")
   {
     const auto user_data_string = "BOB";
     user_id = gen.add_user({user_cert, user_data_string});
-    gen.finalize();
+    gen_tx.commit();
 
     read_user_info =
       create_request(read_params(user_id, Tables::USER_INFO), "read");
@@ -1799,7 +1803,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     }
     gen.init_configuration({recovery_threshold});
     share_manager.issue_recovery_shares(gen_tx);
-    gen.finalize();
+    gen_tx.commit();
     frontend.open();
   }
 
@@ -1834,10 +1838,10 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
   DOCTEST_INFO("Change service state to waiting for recovery shares");
   {
-    auto tx = network.tables->create_tx();
-    GenesisGenerator g(network, tx);
-    DOCTEST_REQUIRE(g.service_wait_for_shares());
-    g.finalize();
+    auto gen_tx = network.tables->create_tx();
+    GenesisGenerator gen(network, gen_tx);
+    DOCTEST_REQUIRE(gen.service_wait_for_shares());
+    gen_tx.commit();
   }
 
   DOCTEST_INFO(
@@ -1951,7 +1955,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
       auto cert = get_cert(i, kp);
       members[gen.add_member({cert, dummy_enc_pubk})] = cert;
     }
-    gen.finalize();
+    gen_tx.commit();
   }
 
   DOCTEST_INFO("Activate members until reaching limit");
@@ -1979,7 +1983,7 @@ DOCTEST_TEST_CASE("Number of active members with recovery shares limits")
     GenesisGenerator gen(network, gen_tx);
     auto cert = get_cert(members.size(), kp);
     gen.add_member(cert); // No public encryption key added
-    gen.finalize();
+    gen_tx.commit();
     auto resp = activate(frontend, kp, cert);
 
     DOCTEST_CHECK(resp.status == HTTP_STATUS_NO_CONTENT);
@@ -2020,7 +2024,7 @@ DOCTEST_TEST_CASE("Open network sequence")
       members[id] = {cert, {}};
     }
     gen.init_configuration({recovery_threshold});
-    gen.finalize();
+    gen_tx.commit();
     frontend.open();
   }
 
@@ -2041,7 +2045,7 @@ DOCTEST_TEST_CASE("Open network sequence")
       gen.activate_member(m.first);
     }
     DOCTEST_REQUIRE_FALSE(gen.open_service());
-    gen.finalize();
+    gen_tx.commit();
   }
 
   DOCTEST_INFO("Reduce recovery threshold");

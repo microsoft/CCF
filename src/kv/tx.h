@@ -69,6 +69,8 @@ namespace kv
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
 
+    std::optional<crypto::Sha256Hash> root_at_read_version = std::nullopt;
+
     template <typename THandle>
     THandle* get_or_insert_handle(
       untyped::ChangeSet& change_set, const std::string& name)
@@ -199,15 +201,10 @@ namespace kv
     // To support reset/reconstruction, it is move-assignable
     BaseTx& operator=(BaseTx&&) = default;
 
-    // // Used to clear the Tx to its initial state, to retry after a conflict
-    // virtual void reset()
-    // {
-    //   all_changes.clear();
-    //   all_handles.clear();
-    //   created_maps.clear();
-    //   read_version = NoVersion;
-    //   term = 0;
-    // }
+    std::optional<crypto::Sha256Hash> get_root_at_read_version()
+    {
+      return root_at_read_version;
+    }
   };
 
   /** Used to create read-only handles for accessing a Map.
@@ -548,6 +545,24 @@ namespace kv
       return version;
     }
 
+    /** Get term in which this transaction was committed.
+     *
+     * Throws if this is not successfully committed - should only be called if
+     * an earlier call to commit() returned CommitResult::SUCCESS
+     *
+     * @return Commit term
+     */
+    Version commit_term()
+    {
+      if (!committed)
+        throw std::logic_error("Transaction not yet committed");
+
+      if (!success)
+        throw std::logic_error("Transaction aborted");
+
+      return term;
+    }
+
     /** Version for the transaction set
      *
      * @return Committed version, or `kv::NoVersion` otherwise
@@ -578,6 +593,34 @@ namespace kv
       // overwritten
       all_changes.merge(change_list_);
       term = term_;
+    }
+
+    void set_req_id(const kv::TxHistory::RequestID& req_id_)
+    {
+      req_id = req_id_;
+    }
+
+    const kv::TxHistory::RequestID& get_req_id()
+    {
+      return req_id;
+    }
+
+    void set_read_version_and_term(Version v, Term t)
+    {
+      if (read_version == NoVersion)
+      {
+        read_version = v;
+        term = t;
+      }
+      else
+      {
+        throw std::logic_error("Read version already set");
+      }
+    }
+
+    void set_root_at_read_version(const crypto::Sha256Hash& r)
+    {
+      root_at_read_version = r;
     }
   };
 

@@ -59,11 +59,6 @@ namespace ccf
       }
     }
 
-    auto finalize()
-    {
-      return tx.commit();
-    }
-
     void retire_active_nodes()
     {
       auto nodes = tx.rw(tables.nodes);

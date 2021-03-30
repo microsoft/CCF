@@ -11,7 +11,7 @@
 
 namespace kv
 {
-  class Tx;
+  class CommittableTx;
 }
 
 namespace enclave
@@ -47,7 +47,7 @@ namespace enclave
       kv::Consensus::SeqNo max_conflict_version) = 0;
     virtual ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
-      kv::Tx& tx,
+      kv::CommittableTx& tx,
       kv::Consensus::SeqNo prescribed_commit_version = kv::NoVersion,
       kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) = 0;
   };
