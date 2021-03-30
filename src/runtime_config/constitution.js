@@ -46,6 +46,19 @@ const actions = new Map([
     ),
   ],
   [
+    "transition_service_to_open",
+    new Action(
+      function (args) {
+        return true; // Check that args is null?
+      },
+
+      function (args) {
+        ccf.node.rekeyLedger();
+        return true;
+      }
+    ),
+  ],
+  [
     "set_recovery_threshold",
     new Action(
       function (args) {

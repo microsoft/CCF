@@ -354,7 +354,11 @@ namespace js
 
     auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
 
-    // TODO: Check that tx isn't  nullptr!
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(
+        ctx, "No transaction available to rekey ledger");
+    }
 
     JS_FreeValue(ctx, kv);
     JS_FreeValue(ctx, ccf);

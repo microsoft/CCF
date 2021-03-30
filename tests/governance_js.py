@@ -341,6 +341,8 @@ def test_apply(network, args):
         r = c.get("/app/log/private")
         assert r.status_code == 401, r.body.text()
 
+    return network
+
 
 def run(args):
     with infra.network.network(
