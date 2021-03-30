@@ -16,7 +16,7 @@ namespace ws
     size_t code,
     const std::vector<uint8_t>& body,
     kv::Version seqno = kv::NoVersion,
-    kv::Consensus::View view = ccf::VIEW_UNKNOWN)
+    ccf::View view = ccf::VIEW_UNKNOWN)
   {
     return make_out_frame(code, seqno, view, body);
   };

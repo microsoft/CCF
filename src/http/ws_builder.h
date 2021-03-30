@@ -65,7 +65,7 @@ namespace ws
   static std::vector<uint8_t> make_out_frame(
     size_t code,
     kv::Version seqno,
-    kv::Consensus::View view,
+    ccf::View view,
     const std::vector<uint8_t>& body)
   {
     size_t out_frame_size = ws::OUT_CCF_HEADER_SIZE + body.size();

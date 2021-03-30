@@ -20,13 +20,13 @@
 
 namespace ccf
 {
-  using SeqNo = uint64_t;
-  using GcmHdr = crypto::GcmHeader<sizeof(SeqNo)>;
+  using SendNonce = uint64_t;
+  using GcmHdr = crypto::GcmHeader<sizeof(SendNonce)>;
 
   struct RecvNonce
   {
     uint8_t tid;
-    uint64_t nonce : (sizeof(uint64_t) - sizeof(uint8_t)) * CHAR_BIT;
+    uint64_t nonce : (sizeof(SendNonce) - sizeof(tid)) * CHAR_BIT;
 
     RecvNonce(uint64_t nonce_, uint8_t tid_) : tid(tid_), nonce(nonce_) {}
     RecvNonce(const uint64_t header)
@@ -40,7 +40,7 @@ namespace ccf
     }
   };
   static_assert(
-    sizeof(RecvNonce) == sizeof(SeqNo), "RecvNonce is the wrong size");
+    sizeof(RecvNonce) == sizeof(SendNonce), "RecvNonce is the wrong size");
 
   static inline RecvNonce get_nonce(const GcmHdr& header)
   {
@@ -111,7 +111,7 @@ namespace ccf
     std::unique_ptr<crypto::KeyAesGcm> next_key;
 
     // Incremented for each tagged/encrypted message
-    std::atomic<SeqNo> send_nonce{1};
+    std::atomic<SendNonce> send_nonce{1};
 
     // Used to buffer at most one message sent on the channel before it is
     // established
@@ -121,8 +121,8 @@ namespace ccf
     // Set to the latest successfully received nonce.
     struct ChannelSeqno
     {
-      SeqNo main_thread_seqno;
-      SeqNo tid_seqno;
+      SendNonce main_thread_seqno;
+      SendNonce tid_seqno;
     };
     std::array<ChannelSeqno, threading::ThreadMessaging::max_num_threads>
       local_recv_nonce = {{}};
@@ -147,7 +147,7 @@ namespace ccf
         current_tid == threading::ThreadMessaging::main_thread ||
         current_tid % threading::ThreadMessaging::thread_count == tid);
 
-      SeqNo* local_nonce;
+      SendNonce* local_nonce;
       if (current_tid == threading::ThreadMessaging::main_thread)
       {
         local_nonce = &local_recv_nonce[tid].main_thread_seqno;
