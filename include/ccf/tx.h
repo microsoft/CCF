@@ -5,8 +5,6 @@
 #include "ccf/tx_id.h"
 #include "crypto/hash.h"
 #include "ds/ccf_assert.h"
-
-// TODO: These includes are unfortunate...
 #include "kv/kv_types.h"
 #include "kv/untyped_map.h"
 
@@ -125,8 +123,6 @@ namespace kv
       return typed_handle;
     }
 
-    // TODO: This could move to .cpp implementation, and then we could hide more
-    // types here!
     auto get_map_and_change_set_by_name(const std::string& map_name)
     {
       if (!read_version.has_value())
