@@ -67,6 +67,13 @@ namespace kv
     bool committed = false;
     bool success = false;
 
+    // In most places we use NoVersion to indicate an invalid version. In this
+    // case, NoVersion is a valid value - it is the version that the first
+    // transaction in the service will read from, before anything has been
+    // applied to the KV. So we need an additional special value to distinguish
+    // "haven't yet fetched a read_version" from "have fetched a read_version,
+    // and it is NoVersion", and we get that by wrapping this in a
+    // std::optional with nullopt representing "not yet fetched".
     std::optional<Version> read_version = std::nullopt;
     Version version = NoVersion;
     Version max_conflict_version = NoVersion;
