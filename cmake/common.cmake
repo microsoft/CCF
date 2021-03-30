@@ -382,6 +382,7 @@ set(WORKER_THREADS
 
 set(CCF_NETWORK_TEST_DEFAULT_GOV ${CCF_DIR}/src/runtime_config/gov.lua)
 set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
+    --constitution ${CCF_DIR}/src/runtime_config/actions.js --constitution
     ${CCF_DIR}/src/runtime_config/constitution.js
 )
 set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
@@ -446,7 +447,7 @@ function(add_e2e_test)
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --constitution
+        ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT}
         ${PARSED_ARGS_CONSTITUTION} --consensus ${PARSED_ARGS_CONSENSUS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}

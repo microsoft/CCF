@@ -110,8 +110,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--constitution",
-        help="Path to constitution script",
-        type=absolute_path_to_existing_file,
+        help="One or more paths to constitution script fragments",
+        action="append",
+        default=[]
     )
     parser.add_argument("-j", "--js-app-script", help="Path to js app script")
     parser.add_argument("--js-app-bundle", help="Path to js app bundle")
