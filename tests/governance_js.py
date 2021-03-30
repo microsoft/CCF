@@ -322,6 +322,23 @@ def test_proposal_generator(network, args):
     return network
 
 
+@reqs.description("Test apply")
+def test_apply(network, args):
+    node = network.find_random_node()
+    user_to_remove = network.users[-1].service_id
+    with node.client(None, "member0") as c:
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("remove_user", user_id=user_to_remove)),
+        )
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
+
+    with node.client(network.users[-1].local_id) as c:
+        r = c.get("/app/log/private")
+        assert r.status_code == 401, r.body.text()
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -335,6 +352,7 @@ def run(args):
         network = test_proposals_with_votes(network, args)
         network = test_operator_proposals_and_votes(network, args)
         network = test_proposal_generator(network, args)
+        network = test_apply(network, args)
 
 
 if __name__ == "__main__":
@@ -342,5 +360,5 @@ if __name__ == "__main__":
 
     args.package = "liblogging"
     args.nodes = ["local://localhost"]
-    args.initial_user_count = 1
+    args.initial_user_count = 2
     run(args)
