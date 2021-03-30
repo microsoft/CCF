@@ -249,7 +249,8 @@ class Consortium:
                     break
 
                 response = member.vote(remote_node, proposal, ballot)
-                assert response.status_code == http.HTTPStatus.OK.value
+                if response.status_code != http.HTTPStatus.OK.value:
+                    raise infra.proposal.ProposalNotAccepted(proposal)
                 proposal.state = infra.proposal.ProposalState(
                     response.body.json()["state"]
                 )
