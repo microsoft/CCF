@@ -1,5 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
+#include "ccf/tx.h"
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
 #include "consensus/aft/request.h"

@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "ccf/tx.h"
 #include "code_id.h"
 #include "crypto/hash.h"
 #include "crypto/verifier.h"
 #include "entities.h"
-#include "kv/tx.h"
 #include "ledger_secrets.h"
 #include "lua_interp/lua_interp.h"
 #include "lua_interp/lua_util.h"

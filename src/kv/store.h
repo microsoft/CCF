@@ -12,7 +12,7 @@
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
 #include "snapshot.h"
-#include "tx.h"
+#include "kv/committable_tx.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>

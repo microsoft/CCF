@@ -32,7 +32,6 @@
 #include "impl/state.h"
 #include "impl/view_change_tracker.h"
 #include "kv/kv_types.h"
-#include "kv/tx.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/progress_tracker.h"

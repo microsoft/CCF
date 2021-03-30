@@ -3,7 +3,7 @@
 #pragma once
 
 #include "enclave/rpc_context.h"
-#include "kv/tx.h"
+#include "ccf/tx.h"
 
 #include <memory>
 

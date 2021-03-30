@@ -7,6 +7,7 @@
 #include "consensus/aft/revealed_nonces.h"
 #include "crypto/hash.h"
 #include "crypto/verifier.h"
+#include "kv/committable_tx.h"
 #include "node_signature.h"
 #include "tls/tls.h"
 #include "view_change.h"

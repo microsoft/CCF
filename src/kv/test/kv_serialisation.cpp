@@ -6,7 +6,6 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "kv/tx.h"
 
 #include <doctest/doctest.h>
 #undef FAIL

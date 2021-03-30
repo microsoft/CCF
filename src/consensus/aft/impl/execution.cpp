@@ -7,7 +7,6 @@
 #include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
 #include "http/http_rpc_context.h"
-#include "kv/tx.h"
 #include "request_message.h"
 
 namespace aft

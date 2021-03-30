@@ -7,7 +7,6 @@
 #include "ds/ccf_exception.h"
 #include "entities.h"
 #include "kv/kv_types.h"
-#include "kv/tx.h"
 #include "nodes.h"
 #include "progress_tracker_types.h"
 #include "view_change.h"

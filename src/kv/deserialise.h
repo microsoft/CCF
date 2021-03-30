@@ -7,7 +7,7 @@
 #include "kv_types.h"
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
-#include "tx.h"
+#include "kv/committable_tx.h"
 
 #include <vector>
 
