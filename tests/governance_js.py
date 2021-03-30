@@ -8,7 +8,6 @@ import infra.e2e_args
 import suite.test_requirements as reqs
 import os
 import ccf.proposal_generator as prop_gen
-
 from loguru import logger as LOG
 
 
