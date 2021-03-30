@@ -30,7 +30,7 @@ const actions = new Map([
         let members_info = ccf.kv["public:ccf.gov.members.info"];
         let member_info = members_info.get(member_id);
         if (member_info === undefined) {
-          console.log(`Member ${args.member_id} does not exist");
+          console.log(`Member ${args.member_id} does not exist`);
           return false;
         }
         let mi = ccf.bufToJsonCompatible(member_info);
