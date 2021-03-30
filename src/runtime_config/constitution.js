@@ -69,7 +69,7 @@ const actions = new Map([
         let user_id = ccf.pemToId(args.cert);
         let raw_user_id = ccf.strToBuf(user_id);
 
-        if (ccf.kv["ccf.gov.users.certs"].get(raw_user_id) != undefined) {
+        if (ccf.kv["ccf.gov.users.certs"].has(raw_user_id)) {
           console.log(`User cert for ${user_id} already exists`);
           return true; // Idempotent
         }
@@ -77,7 +77,7 @@ const actions = new Map([
         ccf.kv["ccf.gov.users.certs"].set(raw_user_id, ccf.strToBuf(args.cert));
 
         if (args.user_data != null) {
-          if (ccf.kv["ccf.gov.users.info"].get(raw_user_id) != undefined) {
+          if (ccf.kv["ccf.gov.users.info"].has(raw_user_id)) {
             console.log(`User info for ${user_id} already exists`);
             return false; // Internal error
           }
