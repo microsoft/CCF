@@ -88,7 +88,7 @@ The business transaction endpoints defined by our application are available unde
     :language: cpp
     :start-after: SNIPPET_START: install_record
     :end-before: SNIPPET_END: install_record
-    :dedent: 6
+    :dedent:
 
 This is available at the ``/app/log/private`` path:
 

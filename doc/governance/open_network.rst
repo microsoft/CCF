@@ -81,7 +81,7 @@ For example, the ``/log/private/admin_only`` endpoint in the C++ logging sample 
     :language: cpp
     :start-after: SNIPPET_START: user_data_check
     :end-before: SNIPPET_END: user_data_check
-    :dedent: 12
+    :dedent:
 
 Members configure this permission with ``set_user_data`` proposals:
 
