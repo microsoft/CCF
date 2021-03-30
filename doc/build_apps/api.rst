@@ -65,6 +65,12 @@ Supporting Types
 .. doxygenenum:: ccf::TxStatus
    :project: CCF
 
+.. doxygentypedef:: ccf::View
+   :project: CCF
+   
+.. doxygentypedef:: ccf::SeqNo
+   :project: CCF
+   
 .. doxygenenum:: ccf::ApiResult
    :project: CCF
 
