@@ -138,7 +138,7 @@ TEST_CASE("Add a node to an opening service")
   }
 
   gen.create_service({});
-  gen_tx.commit();
+  REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
   INFO("Add first node which should be trusted straight away");
@@ -236,7 +236,7 @@ TEST_CASE("Add a node to an open service")
   gen.activate_member(gen.add_member(
     {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
   REQUIRE(gen.open_service());
-  gen_tx.commit();
+  REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
 
   // Node certificate
   crypto::KeyPairPtr kp = crypto::make_key_pair();

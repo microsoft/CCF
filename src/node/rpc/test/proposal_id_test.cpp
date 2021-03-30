@@ -20,7 +20,7 @@ DOCTEST_TEST_CASE("Unique proposal ids")
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen_tx.commit();
+  DOCTEST_REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
 
   ShareManager share_manager(network);
   StubNodeContext context;
@@ -142,7 +142,7 @@ DOCTEST_TEST_CASE("Compaction conflict")
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen_tx.commit();
+  DOCTEST_REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
 
   // Stub transaction, at which we can compact
   auto tx = network.tables->create_tx();
