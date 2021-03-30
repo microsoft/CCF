@@ -127,8 +127,9 @@ namespace kv::untyped
               auto search = state.get(it->first);
               if (search.has_value())
               {
-                max_conflict_version =
-                  std::max(max_conflict_version, search->version);
+                max_conflict_version = std::max(
+                  max_conflict_version,
+                  static_cast<kv::Version>(abs(search->version)));
               }
               else
               {
@@ -195,8 +196,9 @@ namespace kv::untyped
           {
             if (search.has_value() && max_conflict_version != kv::NoVersion)
             {
-              max_conflict_version =
-                std::max(max_conflict_version, search->version);
+              max_conflict_version = std::max(
+                max_conflict_version,
+                static_cast<kv::Version>(abs(search->version)));
             }
             else
             {
@@ -214,8 +216,9 @@ namespace kv::untyped
             auto search = current->state.get(it->first);
             if (search.has_value() && max_conflict_version != kv::NoVersion)
             {
-              max_conflict_version =
-                std::max(max_conflict_version, search->version);
+              max_conflict_version = std::max(
+                max_conflict_version,
+                static_cast<kv::Version>(abs(search->version)));
               max_conflict_version =
                 std::max(max_conflict_version, search->read_version);
             }
@@ -233,7 +236,7 @@ namespace kv::untyped
         return true;
       }
 
-      void commit(Version v, bool track_read_versions) override
+      void commit(Version v_, bool track_read_versions) override
       {
         if (change_set.writes.empty() && !track_read_versions)
         {
@@ -243,6 +246,8 @@ namespace kv::untyped
 
         auto& roll = map.get_roll();
         auto state = roll.commits->get_tail()->state;
+
+        DeletableVersion v = static_cast<DeletableVersion>(v_);
 
         // To track conflicts the read version of all keys that are read or
         // written within a transaction must be updated.
@@ -256,8 +261,8 @@ namespace kv::untyped
             {
               continue;
             }
-            state =
-              state.put(it->first, VersionV{search->version, v, search->value});
+            state = state.put(
+              it->first, VersionV{search->version, v_, search->value});
           }
           if (change_set.writes.empty())
           {
@@ -279,7 +284,7 @@ namespace kv::untyped
           {
             // Write the new value with the global version.
             changes = true;
-            state = state.put(it->first, VersionV{v, v, it->second.value()});
+            state = state.put(it->first, VersionV{v, v_, it->second.value()});
           }
           else
           {
@@ -289,7 +294,7 @@ namespace kv::untyped
             if (search.has_value())
             {
               changes = true;
-              state = state.put(it->first, VersionV{-v, -v, {}});
+              state = state.put(it->first, VersionV{-v, v_, {}});
             }
           }
         }

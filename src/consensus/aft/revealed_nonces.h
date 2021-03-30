@@ -29,12 +29,12 @@ namespace aft
 
   struct RevealedNonces
   {
-    kv::TxID tx_id;
+    ccf::TxID tx_id;
     std::vector<RevealedNonce> nonces;
 
     RevealedNonces() = default;
 
-    RevealedNonces(kv::TxID tx_id_) : tx_id(tx_id_) {}
+    RevealedNonces(ccf::TxID tx_id_) : tx_id(tx_id_) {}
   };
   DECLARE_JSON_TYPE(RevealedNonces);
   DECLARE_JSON_REQUIRED_FIELDS(RevealedNonces, tx_id, nonces)
