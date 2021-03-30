@@ -330,7 +330,7 @@ namespace js
     return body_;
   }
 
-  JSValue js_rekey_ledger(
+  JSValue js_node_rekey_ledger(
     JSContext* ctx,
     JSValueConst this_val,
     int argc,
