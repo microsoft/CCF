@@ -1178,7 +1178,8 @@ namespace ccf
         js::Runtime rt;
         js::Context context(rt);
         rt.add_ccf_classdefs();
-        js::populate_global_ccf(&tx, std::nullopt, nullptr, context);
+        js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
+        js::populate_global_ccf(&txctx, std::nullopt, nullptr, context);
         auto ballot_func = context.function(
           mbs, fmt::format("ballot from {} for {}", mid, proposal_id));
 
@@ -1211,7 +1212,8 @@ namespace ccf
         js::Context context(rt);
         js::populate_global_console(context);
         rt.add_ccf_classdefs();
-        js::populate_global_ccf(&tx, std::nullopt, nullptr, context);
+        js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
+        js::populate_global_ccf(&txctx, std::nullopt, nullptr, context);
         auto resolve_func =
           context.function(mbs, fmt::format("resolve {}", proposal_id));
         JSValue argv[3];
@@ -1277,16 +1279,36 @@ namespace ccf
           }
         }
 
-        /* Apply actions
         if (pi_.value().state != ProposalState::OPEN)
         {
           // Record votes and errors
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
-            // Apply actions here
+            std::string apply_script = fmt::format(
+              "{}\n export default (proposal) => apply(proposal);",
+              constitution);
+
+            js::Runtime rt;
+            js::Context context(rt);
+            rt.add_ccf_classdefs();
+            js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
+            js::populate_global_ccf(&txctx, std::nullopt, nullptr, context);
+            auto apply_func = context.function(
+              apply_script, fmt::format("apply for {}", proposal_id));
+
+            auto prop = JS_NewStringLen(
+              context, (const char*)proposal.data(), proposal.size());
+            auto val =
+              context(JS_Call(context, apply_func, JS_UNDEFINED, 1, &prop));
+            JS_FreeValue(context, apply_func);
+            JS_FreeValue(context, prop);
+            if (JS_IsException(val))
+            {
+              js::js_dump_error(context);
+              pi_.value().state = ProposalState::FAILED;
+            }
           }
         }
-        */
 
         return jsgov::ProposalInfoSummary{proposal_id,
                                           pi_->proposer_id,
