@@ -684,7 +684,7 @@ class CCFRemote(object):
             cmd += [
                 "start",
                 "--network-cert-file=networkcert.pem",
-                f"--gov-script={os.path.basename(gov_script)}"
+                f"--gov-script={os.path.basename(gov_script)}",
             ]
             data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
             for fragment in constitution:
