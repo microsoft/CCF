@@ -6,6 +6,7 @@ import infra.proc
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
+import os
 
 
 def action(name, **args):
@@ -67,6 +68,24 @@ def test_proposal_validation(network, args):
             r.status_code == 400
             and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
         ), r.body.text()
+
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("valid_pem", pem="That's not a PEM")),
+        )
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), r.body.text()
+
+        with open(os.path.join(network.common_dir, "networkcert.pem"), "r") as cert:
+            valid_pem = cert.read()
+
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("valid_pem", pem=valid_pem)),
+        )
+        assert r.status_code == 200
 
     return network
 

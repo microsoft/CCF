@@ -2338,8 +2338,6 @@ namespace ccf
             "{:02x}", fmt::join(caller_identity.request_digest, ""));
         }
 
-        js::Runtime rt;
-        js::Context context(rt);
         auto constitution = ctx.tx.ro(network.constitution)->get(0);
         if (!constitution.has_value())
         {
@@ -2353,6 +2351,11 @@ namespace ccf
         auto validate_script = fmt::format(
           "{}\n export default (input) => validate(input);",
           constitution.value());
+
+        js::Runtime rt;
+        js::Context context(rt);
+        rt.add_ccf_classdefs();
+        js::populate_global_ccf(nullptr, std::nullopt, nullptr, context);
 
         auto validate_func = context.function(
           validate_script, "public:ccf.gov.constitution[0].validate");

@@ -104,6 +104,15 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "valid_pem",
+    new Action(
+      function (args) {
+        return ccf.isValidPem(args.pem);
+      },
+      function (args) {}
+    ),
+  ],
 ]);
 
 function validate(input) {
