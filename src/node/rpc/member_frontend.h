@@ -629,7 +629,7 @@ namespace ccf
            members->put(parsed.member_id, member_info.value());
            return true;
          }},
-        {"new_user",
+        {"set_user",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto user_info = args.get<NewUser>();
 
@@ -882,75 +882,9 @@ namespace ccf
              proposal_id);
          }},
         {"transition_service_to_open",
-         [this](
-           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           auto service = tx.ro<Service>(Tables::SERVICE)->get(0);
-           if (!service.has_value())
-           {
-             throw std::logic_error(
-               "Service information cannot be found in current state");
-           }
-
-           // Idempotence: if the service is already open or waiting for
-           // recovery shares, the proposal should succeed
-           if (
-             service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES ||
-             service->status == ServiceStatus::OPEN)
-           {
-             return true;
-           }
-
-           if (context.get_node_state().is_part_of_public_network())
-           {
-             // If the node is in public mode, start accepting member recovery
-             // shares
-             const auto accept_recovery =
-               context.get_node_state().accept_recovery(tx);
-             if (!accept_recovery)
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: Failed to accept recovery", proposal_id);
-             }
-             return accept_recovery;
-           }
-           else if (context.get_node_state().is_part_of_network())
-           {
-             // Otherwise, if the node is part of the network. Open the network
-             // straight away. We first check that a sufficient number of
-             // recovery members have become active. If so, recovery shares are
-             // allocated to each recovery member.
-             try
-             {
-               share_manager.issue_recovery_shares(tx);
-             }
-             catch (const std::logic_error& e)
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: Failed to issuing recovery shares failed when "
-                 "transitioning the service to open network: {}",
-                 proposal_id,
-                 e.what());
-               return false;
-             }
-
-             GenesisGenerator g(this->network, tx);
-             const auto network_opened = g.open_service();
-             if (!network_opened)
-             {
-               LOG_FAIL_FMT("Proposal {}: Failed to open service", proposal_id);
-             }
-             else
-             {
-               context.get_node_state().open_user_frontend();
-             }
-             return network_opened;
-           }
-
-           LOG_FAIL_FMT(
-             "Proposal {}: Service is not in expected state to transition to "
-             "open",
-             proposal_id);
-           return false;
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json&) {
+           context.get_node_state().transition_service_to_open(tx);
+           return true;
          }},
         {"rekey_ledger",
          [this](
@@ -1170,18 +1104,14 @@ namespace ccf
       std::vector<std::pair<MemberId, bool>> votes;
       for (const auto& [mid, mb] : pi_->ballots)
       {
-        std::string mbs = fmt::format(
-          "{}\n export default (proposal, proposer_id) => vote(proposal, "
-          "proposer_id);",
-          mb);
-
         js::Runtime rt;
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
-        js::populate_global_ccf(&txctx, std::nullopt, nullptr, context);
+        js::populate_global_ccf(
+          &txctx, std::nullopt, nullptr, nullptr, context);
         auto ballot_func = context.function(
-          mbs, fmt::format("ballot from {} for {}", mid, proposal_id));
+          mb, "vote", fmt::format("ballot from {} for {}", mid, proposal_id));
 
         JSValue argv[2];
         auto prop = JS_NewStringLen(
@@ -1203,56 +1133,53 @@ namespace ccf
       }
 
       {
-        std::string mbs = fmt::format(
-          "{}\n export default (proposal, proposer_id, votes) => "
-          "resolve(proposal, proposer_id, votes);",
-          constitution);
-
         js::Runtime rt;
-        js::Context context(rt);
-        js::populate_global_console(context);
+        js::Context js_context(rt);
+        js::populate_global_console(js_context);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
-        js::populate_global_ccf(&txctx, std::nullopt, nullptr, context);
-        auto resolve_func =
-          context.function(mbs, fmt::format("resolve {}", proposal_id));
+        js::populate_global_ccf(
+          &txctx, std::nullopt, nullptr, nullptr, js_context);
+        auto resolve_func = js_context.function(
+          constitution, "resolve", fmt::format("resolve {}", proposal_id));
         JSValue argv[3];
         auto prop = JS_NewStringLen(
-          context, (const char*)proposal.data(), proposal.size());
+          js_context, (const char*)proposal.data(), proposal.size());
         argv[0] = prop;
 
         auto prop_id = JS_NewStringLen(
-          context, pi_->proposer_id.data(), pi_->proposer_id.size());
+          js_context, pi_->proposer_id.data(), pi_->proposer_id.size());
         argv[1] = prop_id;
 
-        auto vs = JS_NewArray(context);
+        auto vs = JS_NewArray(js_context);
         size_t index = 0;
         for (auto& [mid, vote] : votes)
         {
-          auto v = JS_NewObject(context);
-          auto member_id = JS_NewStringLen(context, mid.data(), mid.size());
+          auto v = JS_NewObject(js_context);
+          auto member_id = JS_NewStringLen(js_context, mid.data(), mid.size());
           JS_DefinePropertyValueStr(
-            context, v, "member_id", member_id, JS_PROP_C_W_E);
-          auto vote_status = JS_NewBool(context, vote);
+            js_context, v, "member_id", member_id, JS_PROP_C_W_E);
+          auto vote_status = JS_NewBool(js_context, vote);
           JS_DefinePropertyValueStr(
-            context, v, "vote", vote_status, JS_PROP_C_W_E);
-          JS_DefinePropertyValueUint32(context, vs, index++, v, JS_PROP_C_W_E);
+            js_context, v, "vote", vote_status, JS_PROP_C_W_E);
+          JS_DefinePropertyValueUint32(
+            js_context, vs, index++, v, JS_PROP_C_W_E);
         }
         argv[2] = vs;
 
         auto val =
-          context(JS_Call(context, resolve_func, JS_UNDEFINED, 3, argv));
+          js_context(JS_Call(js_context, resolve_func, JS_UNDEFINED, 3, argv));
 
-        JS_FreeValue(context, resolve_func);
-        JS_FreeValue(context, prop);
-        JS_FreeValue(context, prop_id);
-        JS_FreeValue(context, vs);
+        JS_FreeValue(js_context, resolve_func);
+        JS_FreeValue(js_context, prop);
+        JS_FreeValue(js_context, prop_id);
+        JS_FreeValue(js_context, vs);
 
         if (JS_IsString(val))
         {
-          auto s = JS_ToCString(context, val);
+          auto s = JS_ToCString(js_context, val);
           std::string status(s);
-          JS_FreeCString(context, s);
+          JS_FreeCString(js_context, s);
           if (status == "Open")
           {
             pi_.value().state = ProposalState::OPEN;
@@ -1284,27 +1211,29 @@ namespace ccf
           // Record votes and errors
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
-            std::string apply_script = fmt::format(
-              "{}\n export default (proposal) => apply(proposal);",
-              constitution);
-
             js::Runtime rt;
-            js::Context context(rt);
+            js::Context js_context(rt);
+            js::populate_global_console(js_context);
             rt.add_ccf_classdefs();
             js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
-            js::populate_global_ccf(&txctx, std::nullopt, nullptr, context);
-            auto apply_func = context.function(
-              apply_script, fmt::format("apply for {}", proposal_id));
+            js::populate_global_ccf(
+              &txctx,
+              std::nullopt,
+              nullptr,
+              &context.get_node_state(),
+              js_context);
+            auto apply_func = js_context.function(
+              constitution, "apply", fmt::format("apply for {}", proposal_id));
 
             auto prop = JS_NewStringLen(
-              context, (const char*)proposal.data(), proposal.size());
-            auto val =
-              context(JS_Call(context, apply_func, JS_UNDEFINED, 1, &prop));
-            JS_FreeValue(context, apply_func);
-            JS_FreeValue(context, prop);
+              js_context, (const char*)proposal.data(), proposal.size());
+            auto val = js_context(
+              JS_Call(js_context, apply_func, JS_UNDEFINED, 1, &prop));
+            JS_FreeValue(js_context, apply_func);
+            JS_FreeValue(js_context, prop);
             if (JS_IsException(val))
             {
-              js::js_dump_error(context);
+              js::js_dump_error(js_context);
               pi_.value().state = ProposalState::FAILED;
             }
           }
@@ -2350,12 +2279,12 @@ namespace ccf
           return;
         }
 
-        auto validate_script = fmt::format(
-          "{}\n export default (input) => validate(input);",
-          constitution.value());
+        auto validate_script = constitution.value();
 
         auto validate_func = context.function(
-          validate_script, "public:ccf.gov.constitution[0].validate");
+          validate_script,
+          "validate",
+          "public:ccf.gov.constitution[0].validate");
 
         auto body =
           reinterpret_cast<const char*>(ctx.rpc_ctx->get_request_body().data());

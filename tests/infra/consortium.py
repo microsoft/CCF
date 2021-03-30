@@ -249,7 +249,8 @@ class Consortium:
                     break
 
                 response = member.vote(remote_node, proposal, ballot)
-                assert response.status_code == http.HTTPStatus.OK.value
+                if response.status_code != http.HTTPStatus.OK.value:
+                    raise infra.proposal.ProposalNotAccepted(proposal)
                 proposal.state = infra.proposal.ProposalState(
                     response.body.json()["state"]
                 )
@@ -360,7 +361,7 @@ class Consortium:
 
     def add_user(self, remote_node, user_id, user_data=None):
         proposal, careful_vote = self.make_proposal(
-            "new_user",
+            "set_user",
             self.user_cert_path(user_id),
             user_data,
         )
