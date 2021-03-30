@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - There is now a distinction between public and private headers. The public headers under `include/ccf` are those we expect apps to use, and others are implementation details which may change/be deprecated/be hidden in future. Most apps should now be including `"ccf/app_interface.h"` and `"ccf/common_endpoint_registry.h"`.
 - Various endpoint-related types have moved under the `ccf::endpoints` namespace. Apps will need to rename these types where they are not using `auto`, for instance to `ccf::endpoints::EndpointContext` and `ccf::endpoints::ForwardingRequired`.
 - Ledger entry frames are no longer serialised with `msgpack` (#2343).
+- In JavaScript apps, the field `caller.jwt.key_issuer` in the `Request` object has been renamed `caller.jwt.keyIssuer` (#2362).
 
 ## [0.19.3]
 

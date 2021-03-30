@@ -114,7 +114,7 @@ namespace ccfapp
         JS_SetPropertyStr(
           ctx,
           jwt,
-          "key_issuer",
+          "keyIssuer",
           JS_NewStringLen(
             ctx, jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
         JS_SetPropertyStr(

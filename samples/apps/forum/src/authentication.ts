@@ -35,10 +35,10 @@ export function authentication(
       throw new Error("unexpected policy");
     }
 
-    if (caller.jwt.key_issuer === "https://demo") {
+    if (caller.jwt.keyIssuer === "https://demo") {
       // no further validation
     } else if (
-      caller.jwt.key_issuer === "https://login.microsoftonline.com/common/v2.0"
+      caller.jwt.keyIssuer === "https://login.microsoftonline.com/common/v2.0"
     ) {
       // Microsoft identity platform access tokens
       const msClaims = caller.jwt.payload as MSAccessTokenClaims;
@@ -56,7 +56,7 @@ export function authentication(
         );
       }
     } else {
-      throw new Error(`BUG: unknown key issuer: ${caller.jwt.key_issuer}`);
+      throw new Error(`BUG: unknown key issuer: ${caller.jwt.keyIssuer}`);
     }
 
     caller.userId = caller.jwt.payload.sub;
