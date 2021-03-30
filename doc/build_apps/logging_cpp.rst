@@ -89,7 +89,7 @@ This general signature also allows a handler to see additional caller context. A
     :end-before: SNIPPET_END: log_record_prefix_cert
     :dedent: 6
 
-This uses mbedtls to parse the caller's TLS certificate, and prefixes the logged message with the ``Subject`` field extracted from this certificate.
+This uses mbedTLS to parse the caller's TLS certificate, and prefixes the logged message with the ``Subject`` field extracted from this certificate.
 
 If a handler makes no writes to the KV, it may be installed as read-only:
 

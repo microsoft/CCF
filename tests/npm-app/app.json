@@ -2,7 +2,7 @@
   "endpoints": {
     "/jwt": {
       "get": {
-        "js_module": "src/endpoints/jwt.js",
+        "js_module": "endpoints/jwt.js",
         "js_function": "jwt",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -52,7 +52,7 @@
     },
     "/crypto": {
       "get": {
-        "js_module": "src/endpoints/crypto.js",
+        "js_module": "endpoints/crypto.js",
         "js_function": "crypto",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -85,7 +85,7 @@
     },
     "/generateAesKey": {
       "post": {
-        "js_module": "src/endpoints/crypto.js",
+        "js_module": "endpoints/crypto.js",
         "js_function": "generateAesKey",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -120,7 +120,7 @@
     },
     "/generateRsaKeyPair": {
       "post": {
-        "js_module": "src/endpoints/crypto.js",
+        "js_module": "endpoints/crypto.js",
         "js_function": "generateRsaKeyPair",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -172,7 +172,7 @@
     },
     "/wrapKey": {
       "post": {
-        "js_module": "src/endpoints/crypto.js",
+        "js_module": "endpoints/crypto.js",
         "js_function": "wrapKey",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -213,7 +213,7 @@
     },
     "/partition": {
       "post": {
-        "js_module": "src/endpoints/partition.js",
+        "js_module": "endpoints/partition.js",
         "js_function": "partition",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -252,7 +252,7 @@
     },
     "/proto": {
       "post": {
-        "js_module": "src/endpoints/proto.js",
+        "js_module": "endpoints/proto.js",
         "js_function": "proto",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -278,7 +278,7 @@
     },
     "/log": {
       "get": {
-        "js_module": "src/endpoints/log.js",
+        "js_module": "endpoints/log.js",
         "js_function": "getLogItem",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -308,7 +308,7 @@
         }
       },
       "post": {
-        "js_module": "src/endpoints/log.js",
+        "js_module": "endpoints/log.js",
         "js_function": "setLogItem",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
@@ -345,7 +345,7 @@
     },
     "/log/all": {
       "get": {
-        "js_module": "src/endpoints/log.js",
+        "js_module": "endpoints/log.js",
         "js_function": "getAllLogItems",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",

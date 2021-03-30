@@ -1,0 +1,61 @@
+<style>
+/* We are not interested in type hierarchies. */
+.tsd-hierarchy {
+    display: none;
+}
+</style>
+
+{{#if (versions)}}
+{{#with (versions)}}
+    <script>
+        function onVersionChange() {
+            const v = document.getElementById("versions").value;
+            const thisURL = window.location.toString();
+            const targetURL = thisURL.replace("{{currentVersion}}", v);
+            window.location.href = targetURL;
+        }
+
+        window.addEventListener("DOMContentLoaded",function(){
+            const versionsEl = document.getElementById("versions-container");
+            const navEl = document.querySelector("nav.tsd-navigation.primary>ul");
+            navEl.prepend(versionsEl);
+
+            const selectedVersion = "{{currentVersion}}";
+            let sel = document.getElementById("versions");
+            if (sel != null) {
+                let opts = sel.options;
+                for (var opt, j = 0; opt = opts[j]; j++) {
+                    if (opt.text == selectedVersion) {
+                        sel.selectedIndex = j;
+                        break;
+                    }
+                }
+            }
+        }, false);
+    </script>
+
+    <li id="versions-container" style="padding-left: 5px;padding-bottom: 10px;padding-top: 10px;">
+	Versions<br>
+        <select name="versions" id="versions" class="custom-select custom-select-sm" style="width:50%" onchange="onVersionChange()">
+        {{#each branches}}
+            <option value="{{ this.name }}">{{ this.name }} </option>
+        {{/each}}
+        {{#each tags}}
+            <option value="{{ this.name }}">{{ this.name }} </option>
+        {{/each}}
+        </select>
+    </li>
+{{/with}}
+{{/if}}
+
+<script>
+window.addEventListener("DOMContentLoaded",function(){
+    const backToCcfEl = document.getElementById("link-ccf-docs");
+    const titleEl = document.querySelector('.tsd-page-title>.container');
+    titleEl.prepend(backToCcfEl);
+});
+</script>
+
+<h4 id="link-ccf-docs">
+    <a href="{{relativeURL "../../build_apps"}}">⮨ CCF Documentation</a>
+</h4>

@@ -8,6 +8,7 @@ export default {
     dir: "dist/src",
     format: "es",
     preserveModules: true,
+    preserveModulesRoot: "build",
   },
   plugins: [nodeResolve(), typescript(), commonjs()],
 };
