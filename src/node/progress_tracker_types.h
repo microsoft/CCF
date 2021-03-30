@@ -112,8 +112,8 @@ namespace ccf
 
     std::optional<BackupSignatures> get_backup_signatures() override
     {
-      kv::CommittableTx tx(&store);
-      auto sigs_tv = tx.rw(backup_signatures);
+      kv::ReadOnlyTx tx(&store);
+      auto sigs_tv = tx.ro(backup_signatures);
       auto sigs = sigs_tv->get(0);
       if (!sigs.has_value())
       {
@@ -125,8 +125,8 @@ namespace ccf
 
     std::optional<ViewChangeConfirmation> get_new_view() override
     {
-      kv::CommittableTx tx(&store);
-      auto new_views_tv = tx.rw(new_views);
+      kv::ReadOnlyTx tx(&store);
+      auto new_views_tv = tx.ro(new_views);
       auto new_view = new_views_tv->get(0);
       if (!new_view.has_value())
       {
@@ -158,8 +158,8 @@ namespace ccf
 
     std::optional<aft::RevealedNonces> get_nonces() override
     {
-      kv::CommittableTx tx(&store);
-      auto nonces_tv = tx.rw(revealed_nonces);
+      kv::ReadOnlyTx tx(&store);
+      auto nonces_tv = tx.ro(revealed_nonces);
       auto nonces = nonces_tv->get(0);
       if (!nonces.has_value())
       {
@@ -175,8 +175,8 @@ namespace ccf
       uint32_t sig_size,
       uint8_t* sig) override
     {
-      kv::CommittableTx tx(&store);
-      auto ni_tv = tx.rw(nodes);
+      kv::ReadOnlyTx tx(&store);
+      auto ni_tv = tx.ro(nodes);
 
       auto ni = ni_tv->get(node_id);
       if (!ni.has_value())
@@ -205,8 +205,8 @@ namespace ccf
     {
       crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
 
-      kv::CommittableTx tx(&store);
-      auto ni_tv = tx.rw(nodes);
+      kv::ReadOnlyTx tx(&store);
+      auto ni_tv = tx.ro(nodes);
 
       auto ni = ni_tv->get(from);
       if (!ni.has_value())
@@ -222,8 +222,8 @@ namespace ccf
     bool verify_view_change_request_confirmation(
       ViewChangeConfirmation& new_view, const NodeId& from) override
     {
-      kv::CommittableTx tx(&store);
-      auto ni_tv = tx.rw(nodes);
+      kv::ReadOnlyTx tx(&store);
+      auto ni_tv = tx.ro(nodes);
 
       auto ni = ni_tv->get(from);
       if (!ni.has_value())
