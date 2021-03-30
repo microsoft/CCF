@@ -7,7 +7,7 @@
 
 namespace ccf
 {
-  /** Lists the possible return codes from the versioned APIs in @see
+  /** Lists the possible return codes from the versioned APIs in @c
    * ccf::BaseEndpointRegistry
    */
   enum class ApiResult
