@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Various endpoint-related types have moved under the `ccf::endpoints` namespace. Apps will need to rename these types where they are not using `auto`, for instance to `ccf::endpoints::EndpointContext` and `ccf::endpoints::ForwardingRequired`.
 - Ledger entry frames are no longer serialised with `msgpack` (#2343).
 - In JavaScript apps, the field `caller.jwt.key_issuer` in the `Request` object has been renamed `caller.jwt.keyIssuer` (#2362).
+- The proposals `set_module`, `remove_module` and `set_js_app` have been removed and `deploy_js_app` renamed to `set_js_app` (#2391).
 
 ## [0.19.3]
 

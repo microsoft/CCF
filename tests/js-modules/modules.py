@@ -24,17 +24,6 @@ THIS_DIR = os.path.dirname(__file__)
 PARENT_DIR = os.path.normpath(os.path.join(THIS_DIR, os.path.pardir))
 
 
-def make_module_set_proposal(module_path, file_path, network):
-    primary, _ = network.find_nodes()
-    proposal_body, careful_vote = ccf.proposal_generator.set_module(
-        module_path, file_path
-    )
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    network.consortium.vote_using_majority(primary, proposal, careful_vote)
-
-
 def validate_openapi(client):
     api_response = client.get("/app/api")
     assert api_response.status_code == http.HTTPStatus.OK, api_response.status_code
@@ -49,42 +38,13 @@ def validate_openapi(client):
         raise e
 
 
-@reqs.description("Test module set and remove")
-def test_module_set_and_remove(network, args):
-    primary, _ = network.find_nodes()
-
-    LOG.info("Member makes a module set proposal")
-    bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
-    module_file_path = os.path.join(bundle_dir, "src", "foo.js")
-    module_path = "/anything/you/want/when/setting/manually/dot/js.js"
-    make_module_set_proposal(module_path, module_file_path, network)
-    module_content = open(module_file_path, "r").read()
-
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.post("/gov/read", {"table": "public:gov.modules", "key": module_path})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body.json() == module_content, r.body
-
-    LOG.info("Member makes a module remove proposal")
-    proposal_body, careful_vote = ccf.proposal_generator.remove_module(module_path)
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    network.consortium.vote_using_majority(primary, proposal, careful_vote)
-
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.post("/gov/read", {"table": "public:gov.modules", "key": module_path})
-        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
-    return network
-
-
 @reqs.description("Test module import")
 def test_module_import(network, args):
     primary, _ = network.find_nodes()
 
     # Update JS app, deploying modules _and_ app script that imports module
     bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
-    network.consortium.deploy_js_app(primary, bundle_dir)
+    network.consortium.set_js_app(primary, bundle_dir)
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
@@ -106,7 +66,7 @@ def test_app_bundle(network, args):
         bundle_path = shutil.make_archive(
             os.path.join(tmp_dir, "bundle"), "zip", bundle_dir
         )
-        network.consortium.deploy_js_app(primary, bundle_path)
+        network.consortium.set_js_app(primary, bundle_path)
 
     LOG.info("Verifying that modules and endpoints were added")
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
@@ -154,7 +114,7 @@ def test_dynamic_endpoints(network, args):
     bundle_dir = os.path.join(PARENT_DIR, "js-app-bundle")
 
     LOG.info("Deploying initial js app bundle archive")
-    network.consortium.deploy_js_app(primary, bundle_dir)
+    network.consortium.set_js_app(primary, bundle_dir)
 
     valid_body = {"op": "sub", "left": 82, "right": 40}
     expected_response = {"result": 42}
@@ -195,7 +155,7 @@ def test_dynamic_endpoints(network, args):
         ]
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
-        network.consortium.deploy_js_app(primary, modified_bundle_dir)
+        network.consortium.set_js_app(primary, modified_bundle_dir)
 
     LOG.info("Checking modified endpoint is accessible without auth")
     with primary.client() as c:
@@ -232,7 +192,7 @@ def test_npm_app(network, args):
 
     LOG.info("Deploying npm app")
     bundle_dir = os.path.join(app_dir, "dist")
-    network.consortium.deploy_js_app(primary, bundle_dir)
+    network.consortium.set_js_app(primary, bundle_dir)
 
     LOG.info("Calling npm app endpoints")
     with primary.client("user0") as c:
@@ -411,7 +371,6 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_module_set_and_remove(network, args)
         network = test_module_import(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)

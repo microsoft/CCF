@@ -397,18 +397,8 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_js_app(self, remote_node, app_script_path):
-        LOG.error(
-            "set_js_app proposal type is deprecated - update to use deploy_js_app instead"
-        )
-        proposal_body, careful_vote = self.make_proposal("set_js_app", app_script_path)
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
-        return self.vote_using_majority(remote_node, proposal, careful_vote)
-
-    def deploy_js_app(self, remote_node, app_bundle_path):
-        proposal_body, careful_vote = self.make_proposal(
-            "deploy_js_app", app_bundle_path
-        )
+    def set_js_app(self, remote_node, app_bundle_path):
+        proposal_body, careful_vote = self.make_proposal("set_js_app", app_bundle_path)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         # Large apps take a long time to process - wait longer than normal for commit
         return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=10)

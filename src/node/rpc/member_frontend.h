@@ -167,7 +167,7 @@ namespace ccf
       }
     }
 
-    bool deploy_js_app(kv::Tx& tx, const JsBundle& bundle)
+    bool set_js_app(kv::Tx& tx, const JsBundle& bundle)
     {
       std::string module_prefix = "/";
       remove_modules(tx, module_prefix);
@@ -334,35 +334,16 @@ namespace ccf
       std::string,
       std::function<bool(const ProposalId&, kv::Tx&, const nlohmann::json&)>>
       hardcoded_funcs = {
-        // set the js application script
+        // deploy the js application bundle
         {"set_js_app",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const std::string app = args;
-           set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
-           return true;
-         }},
-        // deploy the js application bundle
-        {"deploy_js_app",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<DeployJsApp>();
-           return deploy_js_app(tx, parsed.bundle);
+           return set_js_app(tx, parsed.bundle);
          }},
         // undeploy/remove the js application
         {"remove_js_app",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json&) {
            return remove_js_app(tx);
-         }},
-        // add/update a module
-        {"set_module",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto parsed = args.get<SetModule>();
-           return set_module(tx, parsed.name, parsed.module);
-         }},
-        // remove a module
-        {"remove_module",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto name = args.get<std::string>();
-           return remove_module(tx, name);
          }},
         // add a new member
         {"new_member",
