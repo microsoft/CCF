@@ -617,6 +617,11 @@ namespace js
     JS_SetPropertyStr(
       ctx, ccf, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
     JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "isValidX509Chain",
+      JS_NewCFunction(ctx, js_is_valid_pem, "isValidX509Chain", 1));
+    JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
 
     if (txctx != nullptr)

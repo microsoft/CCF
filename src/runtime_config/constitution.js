@@ -201,6 +201,15 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "valid_pem",
+    new Action(
+      function (args) {
+        return ccf.isValidX509Chain(args.pem);
+      },
+      function (args) {}
+    ),
+  ],
 ]);
 
 export function validate(input) {
