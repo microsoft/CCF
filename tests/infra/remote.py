@@ -685,12 +685,13 @@ class CCFRemote(object):
                 "start",
                 "--network-cert-file=networkcert.pem",
                 f"--gov-script={os.path.basename(gov_script)}",
-                f"--constitution={os.path.basename(constitution)}",
             ]
             data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
-            data_files += [
-                os.path.join(os.path.basename(self.common_dir), constitution)
-            ]
+            for fragment in constitution:
+                cmd.append(f"--constitution={os.path.basename(fragment)}")
+                data_files += [
+                    os.path.join(os.path.basename(self.common_dir), fragment)
+                ]
             if members_info is None:
                 raise ValueError(
                     "Starting node should be given at least one member info"

@@ -372,17 +372,14 @@ namespace kv
   struct PendingTxInfo
   {
     CommitResult success;
-    TxHistory::RequestID reqid;
     std::vector<uint8_t> data;
     std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
       CommitResult success_,
-      TxHistory::RequestID reqid_,
       std::vector<uint8_t>&& data_,
       std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
-      reqid(std::move(reqid_)),
       data(std::move(data_)),
       hooks(std::move(hooks_))
     {}
@@ -399,26 +396,18 @@ namespace kv
   {
   private:
     std::vector<uint8_t> data;
-    TxHistory::RequestID req_id;
     ConsensusHookPtrs hooks;
 
   public:
-    MovePendingTx(
-      std::vector<uint8_t>&& data_,
-      TxHistory::RequestID&& req_id_,
-      ConsensusHookPtrs&& hooks_) :
+    MovePendingTx(std::vector<uint8_t>&& data_, ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
-      req_id(std::move(req_id_)),
       hooks(std::move(hooks_))
     {}
 
     PendingTxInfo call() override
     {
       return PendingTxInfo(
-        CommitResult::SUCCESS,
-        std::move(req_id),
-        std::move(data),
-        std::move(hooks));
+        CommitResult::SUCCESS, std::move(data), std::move(hooks));
     }
   };
 

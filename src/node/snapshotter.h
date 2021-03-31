@@ -10,7 +10,6 @@
 #include "ds/thread_messaging.h"
 #include "entities.h"
 #include "kv/kv_types.h"
-#include "kv/tx.h"
 #include "node/network_state.h"
 #include "node/snapshot_evidence.h"
 

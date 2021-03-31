@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/tx.h"
 #include "kv_types.h"
 #include "untyped_map_handle.h"
 
@@ -10,19 +11,6 @@
 
 namespace kv
 {
-  struct MapChanges
-  {
-    // Shared ownership over source map
-    std::shared_ptr<AbstractMap> map;
-
-    // Owning pointer of ChangeSet over that map
-    std::unique_ptr<untyped::ChangeSet> changeset;
-  };
-
-  // When a collection of Maps are locked, the locks must be acquired in a
-  // stable order to avoid deadlocks. This ordered map will claim in name-order
-  using OrderedChanges = std::map<std::string, MapChanges>;
-
   // All collections of Map must be ordered so that we lock their contained
   // maps in a stable order. The order here is by map name
   using MapCollection = std::map<std::string, std::shared_ptr<AbstractMap>>;

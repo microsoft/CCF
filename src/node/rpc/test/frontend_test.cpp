@@ -1,5 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
+#include "ccf/tx.h"
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
 #include "ccf/json_handler.h"
@@ -495,7 +498,7 @@ void prepare_callers(NetworkState& network)
   user_id = g.add_user({user_caller});
   member_id = g.add_member(member_caller);
   invalid_member_id = g.add_member(invalid_caller);
-  CHECK(g.finalize() == kv::CommitResult::SUCCESS);
+  CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 }
 
 void add_callers_bft_store()
@@ -511,7 +514,7 @@ void add_callers_bft_store()
   g.init_values();
   g.create_service({});
   user_id = g.add_user({user_caller});
-  CHECK(g.finalize() == kv::CommitResult::SUCCESS);
+  CHECK(gen_tx.commit() == kv::CommitResult::SUCCESS);
 }
 
 TEST_CASE("process_bft")
