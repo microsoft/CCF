@@ -39,6 +39,12 @@ function checkType(value, type, field) {
     if (!Number.isInteger(value)) {
       throw new Error(`${field} must be an integer`);
     }
+  } else if (type === "jsonCompatible") {
+    try {
+      ccf.jsonCompatibleToBuf(value);
+    } catch (e) {
+      throw new Error(`${field} must be serialisable to JSON`);
+    }
   } else if (typeof value !== type) {
     throw new Error(`${field} must be of type ${type} but is ${typeof value}`);
   }
@@ -144,30 +150,72 @@ const actions = new Map([
     "set_user",
     new Action(
       function (args) {
-        // Check that args is null?
+        checkX509CertChain(args.cert, "cert");
+        checkType(args.user_data, "jsonCompatible?", "user_data");
       },
-
       function (args) {
         let user_id = ccf.pemToId(args.cert);
         let raw_user_id = ccf.strToBuf(user_id);
 
-        if (ccf.kv["ccf.gov.users.certs"].has(raw_user_id)) {
-          return; // Idempotent
-        }
-
         ccf.kv["ccf.gov.users.certs"].set(raw_user_id, ccf.strToBuf(args.cert));
 
-        if (args.user_data != null) {
-          if (ccf.kv["ccf.gov.users.info"].has(raw_user_id)) {
-            throw new Error(`User info for ${user_id} already exists`);
-            // Internal error
-          }
-
+        if (args.user_data !== null && args.user_data !== undefined) {
           ccf.kv["ccf.gov.users.info"].set(
             raw_user_id,
             ccf.jsonCompatibleToBuf(args.user_data)
           );
         }
+      }
+    ),
+  ],
+  [
+    "remove_user",
+    new Action(
+      function (args) {
+        checkType(args.user_id, "string", "user_id");
+      },
+      function (args) {
+        const user_id = ccf.strToBuf(args.user_id);
+        ccf.kv["public:ccf.gov.users.certs"].delete(user_id);
+        ccf.kv["public:ccf.gov.users.info"].delete(user_id);
+      }
+    ),
+  ],
+  [
+    "set_member",
+    new Action(
+      function (args) {
+        checkX509CertChain(args.cert, "cert");
+        checkType(args.user_data, "jsonCompatible?", "member_data");
+      },
+      function (args) {
+        let member_id = ccf.pemToId(args.cert);
+        let raw_member_id = ccf.strToBuf(member_id);
+
+        ccf.kv["ccf.gov.members.certs"].set(
+          raw_member_id,
+          ccf.strToBuf(args.cert)
+        );
+
+        if (args.member_data !== null && args.member_data !== undefined) {
+          ccf.kv["ccf.gov.members.info"].set(
+            raw_member_id,
+            ccf.jsonCompatibleToBuf(args.member_data)
+          );
+        }
+      }
+    ),
+  ],
+  [
+    "remove_member",
+    new Action(
+      function (args) {
+        checkType(args.member_id, "string", "member_id");
+      },
+      function (args) {
+        const member_id = ccf.strToBuf(args.member_id);
+        ccf.kv["public:ccf.gov.members.certs"].delete(member_id);
+        ccf.kv["public:ccf.gov.members.info"].delete(member_id);
       }
     ),
   ],
@@ -235,19 +283,6 @@ const actions = new Map([
     new Action(
       function (args) {},
       function (args) {}
-    ),
-  ],
-  [
-    "remove_user",
-    new Action(
-      function (args) {
-        checkType(args.user_id, "string", "user_id");
-      },
-      function (args) {
-        const user_id = ccf.strToBuf(args.user_id);
-        ccf.kv["public:ccf.gov.users.certs"].delete(user_id);
-        ccf.kv["public:ccf.gov.users.info"].delete(user_id);
-      }
     ),
   ],
   [
