@@ -3,7 +3,7 @@
 #include "apps/smallbank/smallbank_serializer.h"
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
-#include "node/rpc/user_frontend.h"
+#include "ccf/user_frontend.h"
 
 #include <charconv>
 
