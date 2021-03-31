@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "ccf/app_interface.h"
+#include "ccf/user_frontend.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -16,7 +17,6 @@
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/serdes.h"
-#include "node/rpc/user_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 

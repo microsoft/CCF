@@ -4,8 +4,8 @@
 
 #include "ccf/common_endpoint_registry.h"
 #include "enclave/node_context.h"
-#include "frontend.h"
 #include "node/network_tables.h"
+#include "node/rpc/frontend.h"
 
 namespace ccf
 {
