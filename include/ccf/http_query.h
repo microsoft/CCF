@@ -4,7 +4,9 @@
 
 #include "ds/nonstd.h"
 
+#define FMT_HEADER_ONLY
 #include <charconv>
+#include <fmt/format.h>
 #include <map>
 #include <optional>
 #include <string_view>
