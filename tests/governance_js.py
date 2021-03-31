@@ -355,27 +355,30 @@ def test_actions(network, args):
     # network.consortium.add_user(node, new_user.local_id, user_data)
 
     # Set recovery threshold
-    try:
-        network.consortium.set_recovery_threshold(node, recovery_threshold=0)
-        assert False, "Recovery threshold cannot be set to zero"
-    except infra.proposal.ProposalNotCreated:
-        pass
+    # try:
+    #     network.consortium.set_recovery_threshold(node, recovery_threshold=0)
+    #     assert False, "Recovery threshold cannot be set to zero"
+    # except infra.proposal.ProposalNotCreated:
+    #     pass
 
-    try:
-        network.consortium.set_recovery_threshold(
-            node,
-            recovery_threshold=len(network.consortium.get_active_recovery_members())
-            + 1,
-        )
-        assert (
-            False
-        ), "Recovery threshold cannot be greater than the number of active recovery members"
-    except infra.proposal.ProposalNotAccepted:
-        pass
+    # try:
+    #     network.consortium.set_recovery_threshold(
+    #         node,
+    #         recovery_threshold=len(network.consortium.get_active_recovery_members())
+    #         + 1,
+    #     )
+    #     assert (
+    #         False
+    #     ), "Recovery threshold cannot be greater than the number of active recovery members"
+    # except infra.proposal.ProposalNotAccepted:
+    #     pass
 
-    network.consortium.set_recovery_threshold(
-        node, recovery_threshold=network.consortium.recovery_threshold - 1
-    )
+    # network.consortium.set_recovery_threshold(
+    #     node, recovery_threshold=network.consortium.recovery_threshold - 1
+    # )
+
+    # Refresh recovery shares
+    network.consortium.trigger_recovery_shares_refresh(node)
 
 
 @reqs.description("Test proposal generator")

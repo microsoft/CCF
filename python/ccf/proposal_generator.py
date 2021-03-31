@@ -444,8 +444,8 @@ def rekey_ledger(**kwargs):
 
 
 @cli_proposal
-def update_recovery_shares(**kwargs):
-    return build_proposal("update_recovery_shares", **kwargs)
+def trigger_recovery_shares_refresh(**kwargs):
+    return build_proposal("trigger_recovery_shares_refresh", **kwargs)
 
 
 @cli_proposal

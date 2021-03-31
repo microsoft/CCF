@@ -157,11 +157,22 @@ const actions = new Map([
         }
 
         config.recovery_threshold = args.recovery_threshold;
-        console.log(typeof config);
         ccf.kv["public:ccf.gov.service.config"].set(
           getUniqueKvKey(),
           ccf.jsonCompatibleToBuf(config)
         );
+      }
+    ),
+  ],
+  [
+    "trigger_recovery_shares_refresh",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args) {
+        ccf.node.triggerRecoverySharesRefresh();
+        return true;
       }
     ),
   ],

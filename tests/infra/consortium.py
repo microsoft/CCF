@@ -353,8 +353,10 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def update_recovery_shares(self, remote_node):
-        proposal_body, careful_vote = self.make_proposal("update_recovery_shares")
+    def trigger_recovery_shares_refresh(self, remote_node):
+        proposal_body, careful_vote = self.make_proposal(
+            "trigger_recovery_shares_refresh"
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 

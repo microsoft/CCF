@@ -57,7 +57,7 @@ def test_remove_member(network, args, member_to_remove=None, recovery_member=Tru
 @reqs.description("Issue new recovery shares (without re-key)")
 def test_update_recovery_shares(network, args):
     primary, _ = network.find_primary()
-    network.consortium.update_recovery_shares(primary)
+    network.consortium.trigger_recovery_shares_refresh(primary)
     return network
 
 

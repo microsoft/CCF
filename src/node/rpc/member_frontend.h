@@ -897,7 +897,7 @@ namespace ccf
            }
            return ledger_rekeyed;
          }},
-        {"update_recovery_shares",
+        {"trigger_recovery_shares_refresh",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            try
