@@ -371,7 +371,6 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_module_set_and_remove(network, args)
         network = test_module_import(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)

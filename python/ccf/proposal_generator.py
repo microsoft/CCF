@@ -10,7 +10,6 @@ import os
 import sys
 import shutil
 import tempfile
-from pathlib import PurePosixPath
 from typing import Union, Optional, Any, List, Dict
 
 from cryptography import x509
