@@ -7,7 +7,6 @@ import infra.proc
 import suite.test_requirements as reqs
 import os
 import subprocess
-import sys
 import reconfiguration
 
 from loguru import logger as LOG
