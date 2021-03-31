@@ -260,6 +260,17 @@ const actions = new Map([
     ),
   ],
   [
+    "always_throw_in_apply",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args) {
+        throw new Error("Error message");
+      }
+    ),
+  ],
+  [
     "set_ca_cert_bundle",
     new Action(
       function (args) {
@@ -273,6 +284,17 @@ const actions = new Map([
         const nameBuf = ccf.strToBuf(name);
         const bundleBuf = ccf.jsonCompatibleToBuf(bundle);
         ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].set(nameBuf, bundleBuf);
+      }
+    ),
+  ],
+  [
+    "always_throw_in_resolve",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args) {
+        return true;
       }
     ),
   ],

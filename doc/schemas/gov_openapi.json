@@ -211,6 +211,12 @@
           "ballot_count": {
             "$ref": "#/components/schemas/uint64"
           },
+          "failure_reason": {
+            "$ref": "#/components/schemas/string"
+          },
+          "failure_trace": {
+            "$ref": "#/components/schemas/string"
+          },
           "proposal_id": {
             "$ref": "#/components/schemas/string"
           },
