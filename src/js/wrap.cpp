@@ -617,7 +617,8 @@ namespace js
     JS_FreeValue(ctx, exception_val);
   }
 
-  JSValue Context::function(const std::string& code, const std::string& path)
+  JSValue Context::default_function(
+    const std::string& code, const std::string& path)
   {
     return function(code, "default", path);
   }

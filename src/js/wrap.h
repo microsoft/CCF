@@ -182,7 +182,7 @@ namespace js
       return JSWrappedCString(ctx, cstr);
     };
 
-    JSValue function(const std::string& code, const std::string& path);
+    JSValue default_function(const std::string& code, const std::string& path);
     JSValue function(
       const std::string& code,
       const std::string& func,
