@@ -6,7 +6,9 @@ import infra.proc
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
+import os
 import ccf.proposal_generator as prop_gen
+from loguru import logger as LOG
 
 
 def action(name, **args):
@@ -68,6 +70,24 @@ def test_proposal_validation(network, args):
             r.status_code == 400
             and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
         ), r.body.text()
+
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("valid_pem", pem="That's not a PEM")),
+        )
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), r.body.text()
+
+        with open(os.path.join(network.common_dir, "networkcert.pem"), "r") as cert:
+            valid_pem = cert.read()
+
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("valid_pem", pem=valid_pem)),
+        )
+        assert r.status_code == 200
 
     return network
 
@@ -309,6 +329,44 @@ def test_operator_proposals_and_votes(network, args):
     return network
 
 
+@reqs.description("Test actions")
+def test_actions(network, args):
+    node = network.find_random_node()
+
+    with node.client(None, "member0") as c:
+        valid_set_member_data = proposal(
+            action(
+                "set_member_data",
+                member_id=f"{network.consortium.get_member_by_local_id('member0').service_id}",
+                member_data={"is_admin": True},
+            )
+        )
+
+        r = c.post("/gov/proposals.js", valid_set_member_data)
+        assert r.status_code == 200, r.body.text()
+
+        valid_rekey_ledger = proposal(action("rekey_ledger"))
+        r = c.post("/gov/proposals.js", valid_rekey_ledger)
+        assert r.status_code == 200, r.body.text()
+
+        valid_service_open = proposal(action("transition_service_to_open"))
+        r = c.post("/gov/proposals.js", valid_service_open)
+        assert r.status_code == 200, r.body.text()
+
+        new_user_local_id = "js_user"
+        new_user = network.create_user(new_user_local_id, args.participants_curve)
+        LOG.info(f"Adding new user {new_user.service_id}")
+        with open(
+            os.path.join(network.common_dir, f"{new_user_local_id}_cert.pem"), "r"
+        ) as cert:
+            valid_new_user = proposal(
+                action("set_user", cert=cert.read(), user_data={"is_admin": True})
+            )
+        r = c.post("/gov/proposals.js", valid_new_user)
+        assert r.status_code == 200, r.body.text()
+    return network
+
+
 @reqs.description("Test proposal generator")
 def test_proposal_generator(network, args):
     restore_js_proposals = prop_gen.GENERATE_JS_PROPOSALS
@@ -346,6 +404,8 @@ def test_apply(network, args):
         r = c.get("/app/log/private")
         assert r.status_code == 401, r.body.text()
 
+    return network
+
 
 def run(args):
     with infra.network.network(
@@ -361,6 +421,7 @@ def run(args):
         network = test_operator_proposals_and_votes(network, args)
         network = test_proposal_generator(network, args)
         network = test_apply(network, args)
+        network = test_actions(network, args)
 
 
 if __name__ == "__main__":
