@@ -6,6 +6,7 @@
 
 #include <charconv>
 #include <cstdint>
+#define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <optional>

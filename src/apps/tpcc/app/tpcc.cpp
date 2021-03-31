@@ -3,7 +3,7 @@
 #include "../tpcc_serializer.h"
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
-#include "node/rpc/user_frontend.h"
+#include "ccf/user_frontend.h"
 #include "tpcc_setup.h"
 #include "tpcc_tables.h"
 #include "tpcc_transactions.h"
