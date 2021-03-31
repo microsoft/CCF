@@ -308,73 +308,91 @@ def test_operator_proposals_and_votes(network, args):
 def test_actions(network, args):
     node = network.find_random_node()
 
-    # # Set member data
-    # network.consortium.set_member_data(
-    #     node,
-    #     network.consortium.get_member_by_local_id("member0").service_id,
-    #     member_data={"is_admin": True},
-    # )
+    # Rekey ledger
+    network.consortium.rekey_ledger(node)
 
-    # # Rekey ledger
-    # network.consortium.rekey_ledger(node)
+    # Add new user twice (with and without user data)
+    new_user_local_id = "js_user"
+    new_user = network.create_user(new_user_local_id, args.participants_curve)
+    LOG.info(f"Adding new user {new_user.service_id}")
 
-    # # Add new user twice (with and without user data)
-    # new_user_local_id = "js_user"
-    # new_user = network.create_user(new_user_local_id, args.participants_curve)
-    # LOG.info(f"Adding new user {new_user.service_id}")
+    user_data = None
+    network.consortium.add_user(node, new_user.local_id, user_data)
 
-    # user_data = None
-    # network.consortium.add_user(node, new_user.local_id, user_data)
+    user_data = {"foo": "bar"}
+    network.consortium.add_user(node, new_user.local_id, user_data)
 
-    # user_data = {"foo": "bar"}
-    # network.consortium.add_user(node, new_user.local_id, user_data)
+    with node.client(new_user.local_id) as c:
+        r = c.post("/app/log/private", {"id": 0, "msg": "JS"})
+        assert r.status_code == 200, r.body.text()
 
-    # # Set recovery threshold
-    # try:
-    #     network.consortium.set_recovery_threshold(node, recovery_threshold=0)
-    #     assert False, "Recovery threshold cannot be set to zero"
-    # except infra.proposal.ProposalNotCreated as e:
-    #     assert (
-    #         e.response.status_code == 400
-    #         and e.response.body.json()["error"]["code"] == "ProposalFailedToValidate"
-    #     ), e.response.body.text()
+    # Set user data
+    network.consortium.set_user_data(
+        node, new_user.service_id, user_data={"user": "data"}
+    )
+    network.consortium.set_user_data(node, new_user.service_id, user_data=None)
 
-    # try:
-    #     network.consortium.set_recovery_threshold(node, recovery_threshold=256)
-    #     assert False, "Recovery threshold cannot be set to > 255"
-    # except infra.proposal.ProposalNotCreated as e:
-    #     assert (
-    #         e.response.status_code == 400
-    #         and e.response.body.json()["error"]["code"] == "ProposalFailedToValidate"
-    #     ), e.response.body.text()
+    # TODO: Fail!
+    # Remove user
+    # network.consortium.remove_user(node, new_user.service_id)
 
-    # try:
-    #     network.consortium.set_recovery_threshold(node, recovery_threshold=None)
-    #     assert False, "Recovery threshold value must be passed as proposal argument"
-    # except infra.proposal.ProposalNotCreated as e:
-    #     assert (
-    #         e.response.status_code == 400
-    #         and e.response.body.json()["error"]["code"] == "ProposalFailedToValidate"
-    #     ), e.response.body.text()
+    # with node.client(new_user.local_id) as c:
+    #     r = c.get("/app/log/private")
+    #     assert r.status_code == 401, r.body.text()
 
-    # try:
-    #     network.consortium.set_recovery_threshold(
-    #         node,
-    #         recovery_threshold=len(network.consortium.get_active_recovery_members())
-    #         + 1,
-    #     )
-    #     assert (
-    #         False
-    #     ), "Recovery threshold cannot be greater than the number of active recovery members"
-    # except infra.proposal.ProposalNotAccepted:
-    #     pass
+    # Set member data
+    network.consortium.set_member_data(
+        node,
+        network.consortium.get_member_by_local_id("member0").service_id,
+        member_data={"is_admin": True},
+    )
 
-    # network.consortium.set_recovery_threshold(
-    #     node, recovery_threshold=network.consortium.recovery_threshold - 1
-    # )
+    # Set recovery threshold
+    try:
+        network.consortium.set_recovery_threshold(node, recovery_threshold=0)
+        assert False, "Recovery threshold cannot be set to zero"
+    except infra.proposal.ProposalNotCreated as e:
+        assert (
+            e.response.status_code == 400
+            and e.response.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), e.response.body.text()
 
-    # # Refresh recovery shares
-    # network.consortium.trigger_recovery_shares_refresh(node)
+    try:
+        network.consortium.set_recovery_threshold(node, recovery_threshold=256)
+        assert False, "Recovery threshold cannot be set to > 255"
+    except infra.proposal.ProposalNotCreated as e:
+        assert (
+            e.response.status_code == 400
+            and e.response.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), e.response.body.text()
+
+    try:
+        network.consortium.set_recovery_threshold(node, recovery_threshold=None)
+        assert False, "Recovery threshold value must be passed as proposal argument"
+    except infra.proposal.ProposalNotCreated as e:
+        assert (
+            e.response.status_code == 400
+            and e.response.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), e.response.body.text()
+
+    try:
+        network.consortium.set_recovery_threshold(
+            node,
+            recovery_threshold=len(network.consortium.get_active_recovery_members())
+            + 1,
+        )
+        assert (
+            False
+        ), "Recovery threshold cannot be greater than the number of active recovery members"
+    except infra.proposal.ProposalNotAccepted:
+        pass
+
+    network.consortium.set_recovery_threshold(
+        node, recovery_threshold=network.consortium.recovery_threshold - 1
+    )
+
+    # Refresh recovery shares
+    network.consortium.trigger_recovery_shares_refresh(node)
 
     # Set member
     new_member = network.consortium.generate_and_add_new_member(
@@ -412,25 +430,6 @@ def test_proposal_generator(network, args):
     return network
 
 
-@reqs.description("Test apply")
-def test_apply(network, args):
-    node = network.find_random_node()
-    user_to_remove = network.users[-1].service_id
-    with node.client(None, "member0") as c:
-        r = c.post(
-            "/gov/proposals.js",
-            proposal(action("remove_user", user_id=user_to_remove)),
-        )
-        assert r.status_code == 200, r.body.text()
-        assert r.body.json()["state"] == "Accepted", r.body.json()
-
-    with node.client(network.users[-1].local_id) as c:
-        r = c.get("/app/log/private")
-        assert r.status_code == 401, r.body.text()
-
-    return network
-
-
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -444,7 +443,6 @@ def run(args):
         # network = test_proposals_with_votes(network, args)
         # network = test_operator_proposals_and_votes(network, args)
         # network = test_proposal_generator(network, args)
-        # network = test_apply(network, args)
         network = test_actions(network, args)
 
 

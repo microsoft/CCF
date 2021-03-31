@@ -97,11 +97,8 @@ const actions = new Map([
         );
 
         if (args.user_data == null) {
-          console.log("Delete");
           ccf.kv["public:ccf.gov.users.info"].delete(rawUserId);
         } else {
-          console.log("Add");
-          console.log(typeof args.user_data);
           ccf.kv["public:ccf.gov.users.info"].set(
             rawUserId,
             ccf.jsonCompatibleToBuf(args.user_data)
@@ -208,7 +205,6 @@ const actions = new Map([
         let member_info = {};
         member_info.member_data = args.member_data;
         member_info.status = "Accepted";
-        console.log("Adding member id: " + memberId);
         ccf.kv["public:ccf.gov.members.info"].set(
           rawMemberId,
           ccf.jsonCompatibleToBuf(member_info)
@@ -221,10 +217,9 @@ const actions = new Map([
     "remove_member",
     new Action(
       function (args) {
-        return true; // Check that args.member_id is well formed
+        return typeof args.member_id === "string"; // Check that args.member_id is well formed
       },
       function (args) {
-        console.log("Removing member " + args.member_id);
         const rawMemberId = ccf.strToBuf(args.member_id);
         const rawMemberInfo = ccf.kv["public:ccf.gov.members.info"].get(
           rawMemberId
@@ -270,6 +265,13 @@ const actions = new Map([
         ccf.kv["public:ccf.gov.members.certs"].delete(rawMemberId);
         ccf.kv["public:ccf.gov.members.acks"].delete(rawMemberId);
         ccf.kv["public:ccf.gov.history"].delete(rawMemberId);
+
+        if (isActiveMember && isRecoveryMember) {
+          // A retired recovery member should not have access to the private
+          // ledger going forward so rekey ledger, issuing new share to
+          // remaining active recovery members
+          ccf.node.rekeyLedger();
+        }
       }
     ),
   ],
@@ -349,12 +351,39 @@ const actions = new Map([
     "remove_user",
     new Action(
       function (args) {
-        return typeof args.userId === "string";
+        return typeof args.user_id === "string";
       },
       function (args) {
-        const userId = ccf.strToBuf(args.userId);
+        const userId = ccf.strToBuf(args.user_id);
         ccf.kv["public:ccf.gov.users.certs"].delete(userId);
         ccf.kv["public:ccf.gov.users.info"].delete(userId);
+      }
+    ),
+  ],
+  [
+    "set_user_data",
+    new Action(
+      function (args) {
+        return (
+          typeof args.user_id === "string" && typeof args.user_data === "object"
+        );
+      },
+      function (args) {
+        const userId = ccf.strToBuf(args.user_id);
+
+        const rawUserInfo = ccf.kv["public:ccf.gov.users.info"].get(userId);
+        if (rawUserInfo === undefined) {
+          return; // Idempotent if proposal deletes user data
+        }
+
+        if (args.user_data == null) {
+          ccf.kv["public:ccf.gov.users.info"].delete(userId);
+        } else {
+          ccf.kv["public:ccf.gov.users.info"].set(
+            userId,
+            ccf.jsonCompatibleToBuf(args.user_data)
+          );
+        }
       }
     ),
   ],
@@ -451,11 +480,6 @@ export function resolve(proposal, proposer_id, votes) {
           activeMemberCount++;
         }
       });
-
-      console.log("Active members: " + activeMemberCount);
-      console.log("Threshold: " + Math.floor(activeMemberCount / 2));
-      console.log("Votes: " + memberVoteCount);
-      console.log("Votes length: " + votes.length);
 
       // A majority of members can accept a proposal.
       if (memberVoteCount > Math.floor(activeMemberCount / 2)) {

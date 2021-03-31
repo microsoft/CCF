@@ -267,7 +267,8 @@ def set_user(user_cert_path: str, user_data: Any = None, **kwargs):
 
 @cli_proposal
 def remove_user(user_id: str, **kwargs):
-    return build_proposal("remove_user", user_id, **kwargs)
+    proposal_args = {"user_id": user_id}
+    return build_proposal("remove_user", proposal_args, **kwargs)
 
 
 @cli_proposal
