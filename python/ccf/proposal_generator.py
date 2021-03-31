@@ -247,7 +247,8 @@ def set_member(
 
 @cli_proposal
 def remove_member(member_id: str, **kwargs):
-    return build_proposal("remove_member", member_id, **kwargs)
+    proposal_args = {"member_id": member_id}
+    return build_proposal("remove_member", proposal_args, **kwargs)
 
 
 @cli_proposal

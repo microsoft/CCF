@@ -122,8 +122,6 @@ class Consortium:
             member.authenticate_session = flag
 
     def make_proposal(self, proposal_name, *args, **kwargs):
-        LOG.error(args)
-        LOG.error(kwargs)
         func = getattr(ccf.proposal_generator, proposal_name)
         proposal, vote = func(*args, **kwargs)
 

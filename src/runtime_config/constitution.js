@@ -187,8 +187,7 @@ const actions = new Map([
 
       function (args) {
         const memberId = ccf.pemToId(args.cert);
-        console.log(memberId);
-        let rawMemberId = ccf.strToBuf(memberId);
+        const rawMemberId = ccf.strToBuf(memberId);
 
         ccf.kv["public:ccf.gov.members.certs"].set(
           rawMemberId,
@@ -209,11 +208,68 @@ const actions = new Map([
         let member_info = {};
         member_info.member_data = args.member_data;
         member_info.status = "Accepted";
+        console.log("Adding member id: " + memberId);
         ccf.kv["public:ccf.gov.members.info"].set(
           rawMemberId,
           ccf.jsonCompatibleToBuf(member_info)
         );
         return true;
+      }
+    ),
+  ],
+  [
+    "remove_member",
+    new Action(
+      function (args) {
+        return true; // Check that args.member_id is well formed
+      },
+      function (args) {
+        console.log("Removing member " + args.member_id);
+        const rawMemberId = ccf.strToBuf(args.member_id);
+        const rawMemberInfo = ccf.kv["public:ccf.gov.members.info"].get(
+          rawMemberId
+        );
+        if (rawMemberInfo === undefined) {
+          return; // Idempotent
+        }
+
+        const memberInfo = ccf.bufToJsonCompatible(rawMemberInfo);
+        const isActiveMember = memberInfo.status == "Active";
+
+        const isRecoveryMember = ccf.kv[
+          "public:ccf.gov.members.encryption_public_keys"
+        ].has(rawMemberId)
+          ? true
+          : false;
+
+        // If the member is an active recovery member, check that there
+        // would still be a sufficient number of recovery members left
+        // to recover the service
+        if (isActiveMember && isRecoveryMember) {
+          const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+            getUniqueKvKey()
+          );
+          if (rawConfig === undefined) {
+            throw new Error("Service configuration could not be found");
+          }
+
+          const config = ccf.bufToJsonCompatible(rawConfig);
+          const activeRecoveryMembersCountAfter =
+            getActiveRecoveryMembersCount() - 1;
+          if (activeRecoveryMembersCountAfter < config.recovery_threshold) {
+            throw new Error(
+              `Number of active recovery members (${activeRecoveryMembersCountAfter}) would be less than recovery threshold (${config.recovery_threshold})`
+            );
+          }
+        }
+
+        ccf.kv["public:ccf.gov.members.info"].delete(rawMemberId);
+        ccf.kv["public:ccf.gov.members.encryption_public_keys"].delete(
+          rawMemberId
+        );
+        ccf.kv["public:ccf.gov.members.certs"].delete(rawMemberId);
+        ccf.kv["public:ccf.gov.members.acks"].delete(rawMemberId);
+        ccf.kv["public:ccf.gov.history"].delete(rawMemberId);
       }
     ),
   ],
