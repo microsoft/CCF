@@ -491,11 +491,13 @@ namespace js
     JS_FreeValue(ctx, exception_val);
   }
 
-  std::string js_error_message(JSContext* ctx)
+  std::pair<std::string, std::optional<std::string>> js_error_message(
+    JSContext* ctx)
   {
     JSValue exception_val = JS_GetException(ctx);
     const char* str;
-    if (!JS_IsError(ctx, exception_val) && JS_IsObject(exception_val))
+    bool is_error = JS_IsError(ctx, exception_val);
+    if (!is_error && JS_IsObject(exception_val))
     {
       JSValue rval = JS_JSONStringify(ctx, exception_val, JS_NULL, JS_NULL);
       str = JS_ToCString(ctx, rval);
@@ -507,8 +509,21 @@ namespace js
     }
     std::string message(str);
     JS_FreeCString(ctx, str);
+
+    std::optional<std::string> trace = std::nullopt;
+    if (is_error)
+    {
+      auto val = JS_GetPropertyStr(ctx, exception_val, "stack");
+      if (!JS_IsUndefined(val))
+      {
+        auto stack = JS_ToCString(ctx, val);
+        trace = stack;
+        JS_FreeCString(ctx, stack);
+      }
+      JS_FreeValue(ctx, val);
+    }
     JS_FreeValue(ctx, exception_val);
-    return message;
+    return {message, trace};
   }
 
   JSValue Context::function(const std::string& code, const std::string& path)

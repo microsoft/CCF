@@ -1111,7 +1111,10 @@ namespace ccf
         js::populate_global_ccf(
           &txctx, std::nullopt, nullptr, nullptr, context);
         auto ballot_func = context.function(
-          mb, "vote", fmt::format("ballot from {} for {}", mid, proposal_id));
+          mb,
+          "vote",
+          fmt::format(
+            "public:ccf.gov.proposal_info[{}].ballots[{}]", proposal_id, mid));
 
         JSValue argv[2];
         auto prop = JS_NewStringLen(
@@ -1141,7 +1144,9 @@ namespace ccf
         js::populate_global_ccf(
           &txctx, std::nullopt, nullptr, nullptr, js_context);
         auto resolve_func = js_context.function(
-          constitution, "resolve", fmt::format("resolve {}", proposal_id));
+          constitution,
+          "resolve",
+          fmt::format("public:ccf.gov.constitution[0]", proposal_id));
         JSValue argv[3];
         auto prop = JS_NewStringLen(
           js_context, (const char*)proposal.data(), proposal.size());
@@ -1176,12 +1181,14 @@ namespace ccf
         JS_FreeValue(js_context, vs);
 
         std::optional<std::string> failure_reason = std::nullopt;
+        std::optional<std::string> failure_trace = std::nullopt;
 
         if (JS_IsException(val))
         {
           pi_.value().state = ProposalState::FAILED;
-          failure_reason = fmt::format(
-            "Failed to resolve(): {}", js::js_error_message(js_context));
+          auto [reason, trace] = js::js_error_message(js_context);
+          failure_reason = fmt::format("Failed to resolve(): {}", reason);
+          failure_trace = trace;
         }
         else if (JS_IsString(val))
         {
@@ -1238,7 +1245,9 @@ namespace ccf
               &context.get_node_state(),
               js_context);
             auto apply_func = js_context.function(
-              constitution, "apply", fmt::format("apply for {}", proposal_id));
+              constitution,
+              "apply",
+              fmt::format("public:ccf.gov.constitution[0]", proposal_id));
 
             auto prop = JS_NewStringLen(
               js_context, (const char*)proposal.data(), proposal.size());
@@ -1249,8 +1258,9 @@ namespace ccf
             if (JS_IsException(val))
             {
               pi_.value().state = ProposalState::FAILED;
-              failure_reason = fmt::format(
-                "Failed to apply(): {}", js::js_error_message(js_context));
+              auto [reason, trace] = js::js_error_message(js_context);
+              failure_reason = fmt::format("Failed to apply(): {}", reason);
+              failure_trace = trace;
             }
           }
         }
@@ -1259,7 +1269,8 @@ namespace ccf
                                           pi_->proposer_id,
                                           pi_.value().state,
                                           pi_.value().ballots.size(),
-                                          failure_reason};
+                                          failure_reason,
+                                          failure_trace};
       }
     }
 
@@ -2303,9 +2314,7 @@ namespace ccf
           nullptr, std::nullopt, nullptr, nullptr, context);
 
         auto validate_func = context.function(
-          validate_script,
-          "validate",
-          "public:ccf.gov.constitution[0].validate");
+          validate_script, "validate", "public:ccf.gov.constitution[0]");
 
         auto body =
           reinterpret_cast<const char*>(ctx.rpc_ctx->get_request_body().data());
@@ -2388,7 +2397,13 @@ namespace ccf
           proposal_id,
           ctx.rpc_ctx->get_request_body(),
           constitution.value());
-        pi->put(proposal_id, {caller_identity.member_id, rv.state, {}});
+        pi->put(
+          proposal_id,
+          {caller_identity.member_id,
+           rv.state,
+           {},
+           rv.failure_reason,
+           rv.failure_trace});
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
@@ -2689,6 +2704,7 @@ namespace ccf
           ctx.tx, proposal_id, p.value(), constitution.value());
         pi_.value().state = rv.state;
         pi_.value().failure_reason = rv.failure_reason;
+        pi_.value().failure_trace = rv.failure_trace;
         pi->put(proposal_id, pi_.value());
         return make_success(rv);
       };

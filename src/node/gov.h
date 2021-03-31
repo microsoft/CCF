@@ -19,10 +19,11 @@ namespace ccf
       ccf::ProposalState state;
       std::unordered_map<ccf::MemberId, std::string> ballots = {};
       std::optional<std::string> failure_reason = std::nullopt;
+      std::optional<std::string> failure_trace = std::nullopt;
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalInfo);
     DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposer_id, state, ballots);
-    DECLARE_JSON_OPTIONAL_FIELDS(ProposalInfo, failure_reason);
+    DECLARE_JSON_OPTIONAL_FIELDS(ProposalInfo, failure_reason, failure_trace);
 
     struct ProposalInfoSummary
     {
@@ -31,11 +32,13 @@ namespace ccf
       ccf::ProposalState state;
       size_t ballot_count;
       std::optional<std::string> failure_reason = std::nullopt;
+      std::optional<std::string> failure_trace = std::nullopt;
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalInfoSummary);
     DECLARE_JSON_REQUIRED_FIELDS(
       ProposalInfoSummary, proposal_id, proposer_id, state, ballot_count);
-    DECLARE_JSON_OPTIONAL_FIELDS(ProposalInfoSummary, failure_reason);
+    DECLARE_JSON_OPTIONAL_FIELDS(
+      ProposalInfoSummary, failure_reason, failure_trace);
 
     struct ProposalInfoDetails
     {
