@@ -4,7 +4,6 @@
 
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
-#include "kv/tx.h"
 #include "node/jwt.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/serdes.h"

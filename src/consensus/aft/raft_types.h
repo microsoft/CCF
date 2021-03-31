@@ -44,7 +44,6 @@ namespace aft
       ConsensusType consensus_type,
       bool public_only = false) = 0;
     virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
-    virtual kv::Tx create_tx() = 0;
   };
 
   template <typename T>
@@ -91,16 +90,6 @@ namespace aft
         return p->get_progress_tracker();
       }
       return nullptr;
-    }
-
-    kv::Tx create_tx() override
-    {
-      auto p = x.lock();
-      if (p)
-      {
-        return p->create_tx();
-      }
-      throw std::logic_error("Can't create a tx without a store");
     }
 
     std::unique_ptr<kv::AbstractExecutionWrapper> apply(

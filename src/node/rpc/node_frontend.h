@@ -4,13 +4,13 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/http_query.h"
+#include "ccf/json_handler.h"
 #include "crypto/hash.h"
 #include "frontend.h"
-#include "http/http_query.h"
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
-#include "node/rpc/json_handler.h"
 #include "node_interface.h"
 
 namespace ccf
