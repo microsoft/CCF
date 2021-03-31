@@ -25,6 +25,8 @@ export function resolve(proposal, proposer_id, votes) {
       return "Rejected";
     } else if (actions[0].name === "always_throw_in_apply") {
       return "Accepted";
+    } else if (actions[0].name === "always_throw_in_apply") {
+      throw Error("Resolve message");
     } else if (
       actions[0].name === "always_accept_with_one_vote" &&
       votes.length === 1 &&

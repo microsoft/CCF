@@ -210,4 +210,15 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "always_throw_in_resolve",
+    new Action(
+      function (args) {
+        return true;
+      },
+      function (args) {
+        return true;
+      }
+    ),
+  ],
 ]);
