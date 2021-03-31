@@ -267,7 +267,7 @@ const actions = new Map([
       },
       function (args) {
         throw new Error("Error message");
-      },
+      }
     ),
   ],
   [
