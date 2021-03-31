@@ -397,19 +397,8 @@ class Network:
 
         self.consortium.activate(self.find_random_node())
 
-        if args.js_app_script:
-            LOG.error(
-                "--js-app-script is deprecated - update to --js-app-bundle instead"
-            )
-            infra.proc.ccall(
-                "cp", args.js_app_script, args.binary_dir
-            ).check_returncode()
-            self.consortium.set_js_app(
-                remote_node=self.find_random_node(), app_script_path=args.js_app_script
-            )
-
         if args.js_app_bundle:
-            self.consortium.deploy_js_app(
+            self.consortium.set_js_app(
                 remote_node=self.find_random_node(), app_bundle_path=args.js_app_bundle
             )
 
