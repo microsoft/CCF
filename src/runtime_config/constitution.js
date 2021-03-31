@@ -5,8 +5,12 @@ export function validate(input) {
   for (const action of proposal["actions"]) {
     const definition = actions.get(action.name);
     if (definition) {
-      if (!definition.validate(action.args)) {
-        errors.push(`${action.name} at position ${position} failed validation`);
+      try {
+        definition.validate(action.args);
+      } catch (e) {
+        errors.push(
+          `${action.name} at position ${position} failed validation: ${e}\n${e.stack}`
+        );
       }
     } else {
       errors.push(`${action.name}: no such action`);
