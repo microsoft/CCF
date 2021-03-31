@@ -2648,16 +2648,11 @@ namespace ccf
         }
         // Validate vote
 
-        std::string ballot_script = fmt::format(
-          "{}\n export default (proposal, proposer_id, tx) => vote(proposal, "
-          "proposer_id, tx);",
-          params["ballot"]);
-
         {
           js::Runtime rt;
           js::Context context(rt);
           auto ballot_func =
-            context.function(ballot_script, "body[\"ballot\"]");
+            context.function(params["ballot"], "vote", "body[\"ballot\"]");
           JS_FreeValue(context, ballot_func);
         }
 

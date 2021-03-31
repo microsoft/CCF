@@ -362,7 +362,7 @@ namespace ccfapp
       std::string code = handler_script.value().text.value();
       const std::string path = "/__endpoint__.js";
 
-      auto export_func = ctx.function(code, path);
+      auto export_func = ctx.default_function(code, path);
 
       // Call exported function
       auto request = create_request_obj(args, ctx);
