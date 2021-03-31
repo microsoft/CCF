@@ -1006,7 +1006,7 @@ namespace ccf
       g.trust_node_code_id(node_code_id);
 #endif
 
-      if (g.finalize() != kv::CommitResult::SUCCESS)
+      if (tx.commit() != kv::CommitResult::SUCCESS)
       {
         throw std::logic_error(
           "Could not commit transaction when starting recovered public "
@@ -1109,7 +1109,7 @@ namespace ccf
           throw std::logic_error("Service could not be opened");
         }
 
-        if (g.finalize() != kv::CommitResult::SUCCESS)
+        if (tx.commit() != kv::CommitResult::SUCCESS)
         {
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
