@@ -5,7 +5,7 @@
 #include "apps/utils/metrics.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/endpoint_registry.h"
-#include "node/rpc/json_handler.h"
+#include "ccf/json_handler.h"
 
 namespace metrics
 {
