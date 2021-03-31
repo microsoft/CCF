@@ -10,7 +10,6 @@ import os
 import sys
 import shutil
 import tempfile
-from pathlib import PurePosixPath
 from typing import Union, Optional, Any, List, Dict
 
 from cryptography import x509
@@ -157,28 +156,28 @@ def build_proposal(
 
         vote_lines = []
         vote_lines.append("export function vote (raw_proposal, proposer_id) {")
-        vote_lines.append("  let proposal = JSON.parse(raw_proposal)")
-        vote_lines.append("  if (!('actions' in proposal)) { return false }")
-        vote_lines.append("  let actions = proposal['actions']")
-        vote_lines.append("  if (actions.length !== 1) { return false }")
-        vote_lines.append("  let action = actions[0]")
-        vote_lines.append("  if (!('name' in action)) { return false }")
+        vote_lines.append("  let proposal = JSON.parse(raw_proposal);")
+        vote_lines.append("  if (!('actions' in proposal)) { return false; };")
+        vote_lines.append("  let actions = proposal['actions'];")
+        vote_lines.append("  if (actions.length !== 1) { return false; };")
+        vote_lines.append("  let action = actions[0];")
+        vote_lines.append("  if (!('name' in action)) { return false; };")
         vote_lines.append(
-            f"  if (action.name !== '{proposed_call}') {{ return false }}"
+            f"  if (action.name !== '{proposed_call}') {{ return false; }};"
         )
 
         if args is not None:
-            vote_lines.append("  if (!('args' in action)) { return false }")
-            vote_lines.append("  let args = action.args")
+            vote_lines.append("  if (!('args' in action)) { return false; };")
+            vote_lines.append("  let args = action.args;")
 
             for name, body in args.items():
-                vote_lines.append(f"  if (!('{name}' in args)) {{ return false }}")
-                vote_lines.append(f"  var expected = {json.dumps(body)}")
+                vote_lines.append(f"  if (!('{name}' in args)) {{ return false; }};")
+                vote_lines.append(f"  var expected = {json.dumps(body)};")
                 vote_lines.append(
-                    f"  if (args['{name}'] !== expected) {{ return false }}"
+                    f"  if (JSON.stringify(args['{name}']) !== JSON.stringify(expected)) {{ return false; }};"
                 )
 
-        vote_lines.append("  return true")
+        vote_lines.append("  return true;")
         vote_lines.append("}")
         vote_text = "\n".join(vote_lines)
         vote = {"ballot": vote_text}
@@ -331,17 +330,7 @@ def set_user_data(user_id: str, user_data: Any, **kwargs):
 
 
 @cli_proposal
-def set_js_app(app_script_path: str, **kwargs):
-    LOG.error(
-        "set_js_app proposal type is deprecated - update to use deploy_js_app instead"
-    )
-    with open(app_script_path) as f:
-        app_script = f.read()
-    return build_proposal("set_js_app", app_script, **kwargs)
-
-
-@cli_proposal
-def deploy_js_app(bundle_path: str, **kwargs):
+def set_js_app(bundle_path: str, **kwargs):
     # read modules
     if os.path.isfile(bundle_path):
         tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
@@ -369,33 +358,12 @@ def deploy_js_app(bundle_path: str, **kwargs):
         "bundle": {"metadata": metadata, "modules": modules},
     }
 
-    return build_proposal("deploy_js_app", proposal_args, **kwargs)
+    return build_proposal("set_js_app", proposal_args, **kwargs)
 
 
 @cli_proposal
 def remove_js_app(**kwargs):
     return build_proposal("remove_js_app", **kwargs)
-
-
-@cli_proposal
-def set_module(module_name: str, module_path: str, **kwargs):
-    module_name_ = PurePosixPath(module_name)
-    if not module_name_.is_absolute():
-        raise ValueError("module name must be an absolute path")
-    if any(folder in [".", ".."] for folder in module_name_.parents):
-        raise ValueError("module name must not contain . or .. components")
-    if module_name_.suffix == ".js":
-        with open(module_path) as f:
-            js = f.read()
-        proposal_args = {"name": module_name, "module": js}
-    else:
-        raise ValueError("module name must end with .js")
-    return build_proposal("set_module", proposal_args, **kwargs)
-
-
-@cli_proposal
-def remove_module(module_name: str, **kwargs):
-    return build_proposal("remove_module", module_name, **kwargs)
 
 
 def read_modules(modules_path: str) -> List[dict]:

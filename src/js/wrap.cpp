@@ -652,7 +652,9 @@ namespace js
     return {message, trace};
   }
 
-  JSValue Context::function(const std::string& code, const std::string& path)
+  JSValue Context::default_function(
+    const std::string& code, const std::string& path)
+
   {
     return function(code, "default", path);
   }
