@@ -4,7 +4,6 @@
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
-#include "kv/tx.h"
 
 #include <doctest/doctest.h>
 #undef FAIL
