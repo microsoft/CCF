@@ -672,21 +672,19 @@ if(BUILD_TESTS)
                     ${CMAKE_BINARY_DIR}/samples/apps/nobuiltins/libnobuiltins
   )
 
-  if(QUOTES_ENABLED)
-    add_e2e_test(
-      NAME reconfiguration_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS cft
-    )
+  add_e2e_test(
+    NAME reconfiguration_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+    CONSENSUS cft
+  )
 
-    add_e2e_test(
-      NAME code_update_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      CONSENSUS cft
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-    )
-  endif()
+  add_e2e_test(
+    NAME code_update_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
 
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/smallbank/smallbank.cmake)
