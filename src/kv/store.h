@@ -5,6 +5,7 @@
 #include "apply_changes.h"
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
+#include "kv/committable_tx.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
@@ -12,7 +13,6 @@
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
 #include "snapshot.h"
-#include "tx.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -845,7 +845,7 @@ namespace kv
             get_history(),
             std::move(data),
             public_only,
-            std::make_unique<Tx>(this, v),
+            std::make_unique<CommittableTx>(this),
             v,
             max_conflict_version,
             std::move(changes),
@@ -971,7 +971,7 @@ namespace kv
             break;
 
           auto& [pending_tx_, committable_] = search->second;
-          auto [success_, reqid, data_, hooks_] = pending_tx_->call();
+          auto [success_, data_, hooks_] = pending_tx_->call();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
           auto hooks_shared =
@@ -1227,9 +1227,9 @@ namespace kv
       return ReadOnlyTx(this);
     }
 
-    Tx create_tx()
+    CommittableTx create_tx()
     {
-      return Tx(this);
+      return CommittableTx(this);
     }
 
     ReservedTx create_reserved_tx(Version v)

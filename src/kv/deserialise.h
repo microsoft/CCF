@@ -4,10 +4,10 @@
 
 #include "apply_changes.h"
 #include "consensus/aft/request.h"
+#include "kv/committable_tx.h"
 #include "kv_types.h"
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
-#include "tx.h"
 
 #include <vector>
 
@@ -461,7 +461,7 @@ namespace kv
   {
   private:
     uint64_t max_conflict_version;
-    std::unique_ptr<Tx> tx;
+    std::unique_ptr<CommittableTx> tx;
 
   public:
     TxBFTExec(
@@ -469,7 +469,7 @@ namespace kv
       std::shared_ptr<TxHistory> history_,
       const std::vector<uint8_t>& data_,
       bool public_only_,
-      std::unique_ptr<Tx> tx_,
+      std::unique_ptr<CommittableTx> tx_,
       kv::Version v_,
       kv::Version max_conflict_version_,
       OrderedChanges&& changes_,

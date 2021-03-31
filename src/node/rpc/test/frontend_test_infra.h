@@ -235,7 +235,6 @@ auto init_frontend(
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.finalize();
 
   return MemberRpcFrontend(network, context, share_manager);
 }

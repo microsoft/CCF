@@ -3,7 +3,6 @@
 #include "ds/logger.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
-#include "kv/tx.h"
 
 #include <atomic>
 #include <chrono>
