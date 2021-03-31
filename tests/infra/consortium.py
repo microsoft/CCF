@@ -122,6 +122,8 @@ class Consortium:
             member.authenticate_session = flag
 
     def make_proposal(self, proposal_name, *args, **kwargs):
+        LOG.error(args)
+        LOG.error(kwargs)
         func = getattr(ccf.proposal_generator, proposal_name)
         proposal, vote = func(*args, **kwargs)
 
@@ -388,10 +390,10 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_member_data(self, remote_node, service_id, member_data):
+    def set_member_data(self, remote_node, member_service_id, member_data):
         proposal, careful_vote = self.make_proposal(
             "set_member_data",
-            service_id,
+            member_service_id,
             member_data,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal)

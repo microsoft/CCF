@@ -333,38 +333,49 @@ def test_operator_proposals_and_votes(network, args):
 def test_actions(network, args):
     node = network.find_random_node()
 
-    with node.client(None, "member0") as c:
-        valid_set_member_data = proposal(
-            action(
-                "set_member_data",
-                member_id=f"{network.consortium.get_member_by_local_id('member0').service_id}",
-                member_data={"is_admin": True},
-            )
+    # Set member data
+    # network.consortium.set_member_data(
+    #     node,
+    #     network.consortium.get_member_by_local_id("member0").service_id,
+    #     member_data={"is_admin": True},
+    # )
+
+    # # Rekey ledger
+    # network.consortium.rekey_ledger(node)
+
+    # # Add new user twice (with and without user data)
+    # new_user_local_id = "js_user"
+    # new_user = network.create_user(new_user_local_id, args.participants_curve)
+    # LOG.info(f"Adding new user {new_user.service_id}")
+
+    # user_data = None
+    # network.consortium.add_user(node, new_user.local_id, user_data)
+
+    # user_data = {"foo": "bar"}
+    # network.consortium.add_user(node, new_user.local_id, user_data)
+
+    # Set recovery threshold
+    try:
+        network.consortium.set_recovery_threshold(node, recovery_threshold=0)
+        assert False, "Recovery threshold cannot be set to zero"
+    except infra.proposal.ProposalNotCreated:
+        pass
+
+    try:
+        network.consortium.set_recovery_threshold(
+            node,
+            recovery_threshold=len(network.consortium.get_active_recovery_members())
+            + 1,
         )
+        assert (
+            False
+        ), "Recovery threshold cannot be greater than the number of active recovery members"
+    except infra.proposal.ProposalNotAccepted:
+        pass
 
-        r = c.post("/gov/proposals.js", valid_set_member_data)
-        assert r.status_code == 200, r.body.text()
-
-        valid_rekey_ledger = proposal(action("rekey_ledger"))
-        r = c.post("/gov/proposals.js", valid_rekey_ledger)
-        assert r.status_code == 200, r.body.text()
-
-        valid_service_open = proposal(action("transition_service_to_open"))
-        r = c.post("/gov/proposals.js", valid_service_open)
-        assert r.status_code == 200, r.body.text()
-
-        new_user_local_id = "js_user"
-        new_user = network.create_user(new_user_local_id, args.participants_curve)
-        LOG.info(f"Adding new user {new_user.service_id}")
-        with open(
-            os.path.join(network.common_dir, f"{new_user_local_id}_cert.pem"), "r"
-        ) as cert:
-            valid_new_user = proposal(
-                action("set_user", cert=cert.read(), user_data={"is_admin": True})
-            )
-        r = c.post("/gov/proposals.js", valid_new_user)
-        assert r.status_code == 200, r.body.text()
-    return network
+    network.consortium.set_recovery_threshold(
+        node, recovery_threshold=network.consortium.recovery_threshold - 1
+    )
 
 
 @reqs.description("Test proposal generator")
@@ -412,15 +423,15 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_proposal_validation(network, args)
-        network = test_proposal_storage(network, args)
-        network = test_proposal_withdrawal(network, args)
-        network = test_ballot_storage(network, args)
-        network = test_pure_proposals(network, args)
-        network = test_proposals_with_votes(network, args)
-        network = test_operator_proposals_and_votes(network, args)
-        network = test_proposal_generator(network, args)
-        network = test_apply(network, args)
+        # network = test_proposal_validation(network, args)
+        # network = test_proposal_storage(network, args)
+        # network = test_proposal_withdrawal(network, args)
+        # network = test_ballot_storage(network, args)
+        # network = test_pure_proposals(network, args)
+        # network = test_proposals_with_votes(network, args)
+        # network = test_operator_proposals_and_votes(network, args)
+        # network = test_proposal_generator(network, args)
+        # network = test_apply(network, args)
         network = test_actions(network, args)
 
 

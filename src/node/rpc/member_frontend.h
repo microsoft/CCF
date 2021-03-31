@@ -1108,6 +1108,7 @@ namespace ccf
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
+        js::populate_global_console(context);
         js::populate_global_ccf(
           &txctx, std::nullopt, nullptr, nullptr, context);
         auto ballot_func = context.function(
