@@ -161,6 +161,8 @@ const actions = new Map([
           getUniqueKvKey(),
           ccf.jsonCompatibleToBuf(config)
         );
+
+        ccf.node.triggerRecoverySharesRefresh();
       }
     ),
   ],
@@ -168,10 +170,49 @@ const actions = new Map([
     "trigger_recovery_shares_refresh",
     new Action(
       function (args) {
-        return true;
+        return true; // TODO: Check that it is null
       },
       function (args) {
         ccf.node.triggerRecoverySharesRefresh();
+        return true;
+      }
+    ),
+  ],
+  [
+    "set_member",
+    new Action(
+      function (args) {
+        return true; // TODO: Check that cert is well formed, and member data too, if it exists
+      },
+
+      function (args) {
+        const memberId = ccf.pemToId(args.cert);
+        console.log(memberId);
+        let rawMemberId = ccf.strToBuf(memberId);
+
+        ccf.kv["public:ccf.gov.members.certs"].set(
+          rawMemberId,
+          ccf.strToBuf(args.cert)
+        );
+
+        if (args.encryption_pub_key == null) {
+          ccf.kv["public:ccf.gov.members.encryption_public_keys"].delete(
+            rawMemberId
+          );
+        } else {
+          ccf.kv["public:ccf.gov.members.encryption_public_keys"].set(
+            rawMemberId,
+            ccf.strToBuf(args.encryption_pub_key)
+          );
+        }
+
+        let member_info = {};
+        member_info.member_data = args.member_data;
+        member_info.status = "Accepted";
+        ccf.kv["public:ccf.gov.members.info"].set(
+          rawMemberId,
+          ccf.jsonCompatibleToBuf(member_info)
+        );
         return true;
       }
     ),

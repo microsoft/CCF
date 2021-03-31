@@ -23,7 +23,7 @@ Assuming the CCF Python package has been installed in the current Python environ
 
     python -m ccf.proposal_generator
     usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE] [-vo VOTE_OUTPUT_FILE] [-pp] [-i] [-v]
-                             {deploy_js_app,new_member,new_node_code,set_user,rekey_ledger,remove_ca_cert_bundle,remove_js_app,remove_jwt_issuer,remove_member,remove_module,remove_user,retire_node,retire_node_code,set_ca_cert_bundle,set_js_app,set_jwt_issuer,set_jwt_public_signing_keys,set_member_data,set_module,set_recovery_threshold,set_user_data,transition_service_to_open,trust_node,trigger_recovery_shares_refresh}
+                             {deploy_js_app,set_member,new_node_code,set_user,rekey_ledger,remove_ca_cert_bundle,remove_js_app,remove_jwt_issuer,remove_member,remove_module,remove_user,retire_node,retire_node_code,set_ca_cert_bundle,set_js_app,set_jwt_issuer,set_jwt_public_signing_keys,set_member_data,set_module,set_recovery_threshold,set_user_data,transition_service_to_open,trust_node,trigger_recovery_shares_refresh}
 
 Additional detail is available from the ``--help`` option. You can also find the script in a checkout of CCF:
 
@@ -98,7 +98,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
 
 .. code-block:: bash
 
-    $ cat new_member.json
+    $ cat set_member.json
     {
       "parameter": {
         "cert": "-----BEGIN CERTIFICATE-----\nMIIBdzCCARygAwIBAgIURwD6S1/rcb2TbHhQLnTNh/7WyYYwCgYIKoZIzj0EAwIw\nEjEQMA4GA1UEAwwHbWVtYmVyNDAeFw0yMDEwMjkxNjI2NTNaFw0yMTEwMjkxNjI2\nNTNaMBIxEDAOBgNVBAMMB21lbWJlcjQwVjAQBgcqhkjOPQIBBgUrgQQACgNCAARG\nwqj2ZD7vA+h4KoTdh3if3tVO/yks+xtLU1tXAFsbeWSQfDxK3nnA65uX6n/25A20\nJcAQMDHYH2NdLOLra9lxo1MwUTAdBgNVHQ4EFgQUQQDC71N60r/a9c+EGXrzr5l6\nIDQwHwYDVR0jBBgwFoAUQQDC71N60r/a9c+EGXrzr5l6IDQwDwYDVR0TAQH/BAUw\nAwEB/zAKBggqhkjOPQQDAgNJADBGAiEAkvP0AuAU7y0b3z4rhvoOkCBKoH4G3vh/\nPJpLFdWcEu4CIQCSnEYpDaDTP2zoWTheqchZ+/BdTzM2j2s9ILpvSVYMxg==\n-----END CERTIFICATE-----\n",
@@ -106,7 +106,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
         "member_data": null
       },
       "script": {
-        "text": "\n    tables, args = ...\n    return Calls:call(\"new_member\", args)\n    "
+        "text": "\n    tables, args = ...\n    return Calls:call(\"set_member\", args)\n    "
       }
     }
 

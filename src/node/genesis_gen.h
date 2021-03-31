@@ -160,6 +160,7 @@ namespace ccf
           id, member_pub_info.encryption_pub_key.value());
       }
 
+      // TODO: Do not do this if there are no signatures!
       auto s = signatures->get(0);
       if (!s)
       {

@@ -167,7 +167,7 @@ class Consortium:
         )
 
         proposal_body, careful_vote = self.make_proposal(
-            "new_member",
+            "set_member",
             os.path.join(self.common_dir, f"{new_member_local_id}_cert.pem"),
             os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
             if recovery_member

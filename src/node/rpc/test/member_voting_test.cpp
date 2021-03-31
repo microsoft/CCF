@@ -160,7 +160,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
       tables, member_info = ...
-      return Calls:call("new_member", member_info)
+      return Calls:call("set_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
@@ -262,7 +262,7 @@ DOCTEST_TEST_CASE("Reject duplicate vote")
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
       tables, member_info = ...
-      return Calls:call("new_member", member_info)
+      return Calls:call("set_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
@@ -375,7 +375,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
       tables, member_info = ...
-      return Calls:call("new_member", member_info)
+      return Calls:call("set_member", member_info)
     )xxx");
     proposal.parameter["cert"] = cert_pem;
     proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
@@ -1226,7 +1226,7 @@ DOCTEST_TEST_CASE(
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
       tables, member_info = ...
-      return Calls:call("new_member", member_info)
+      return Calls:call("set_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
@@ -1402,7 +1402,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
       local tables, member_info = ...
-      return Calls:call("new_member", member_info)
+      return Calls:call("set_member", member_info)
     )xxx");
 
     proposal.parameter["cert"] = new_operator_cert;
@@ -1456,7 +1456,7 @@ DOCTEST_TEST_CASE("Passing operator change" * doctest::test_suite("operator"))
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
       local tables, member_info = ...
-      return Calls:call("new_member", member_info)
+      return Calls:call("set_member", member_info)
     )xxx");
 
     proposal.parameter["cert"] = new_member_cert;

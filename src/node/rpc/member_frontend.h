@@ -574,7 +574,7 @@ namespace ccf
            return remove_module(tx, name);
          }},
         // add a new member
-        {"new_member",
+        {"set_member",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<NewMember>();
            GenesisGenerator g(this->network, tx);

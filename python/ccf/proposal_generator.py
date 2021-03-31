@@ -228,78 +228,21 @@ def cli_proposal(func):
 
 
 @cli_proposal
-def new_member(
+def set_member(
     member_cert_path: str,
     member_enc_pubk_path: str = None,
     member_data: Any = None,
     **kwargs,
 ):
-    LOG.debug("Generating new_member proposal")
+    LOG.debug("Generating set_member proposal")
 
-    # Read certs
-    member_cert = open(member_cert_path).read()
-
-    encryption_pub_key = None
+    member_info = {"cert": open(member_cert_path).read()}
     if member_enc_pubk_path is not None:
-        encryption_pub_key = open(member_enc_pubk_path).read()
+        member_info["encryption_pub_key"] = open(member_enc_pubk_path).read()
+    if member_data is not None:
+        member_info["member_data"] = member_data
 
-    # Script which proposes adding a new member
-    proposal_script_text = """
-    tables, args = ...
-    return Calls:call("new_member", args)
-    """
-
-    # Proposal object (request body for POST /gov/proposals) containing this member's info as parameter
-    proposal = {
-        "parameter": {
-            "cert": member_cert,
-            "encryption_pub_key": encryption_pub_key,
-            "member_data": member_data,
-        },
-        "script": {"text": proposal_script_text},
-    }
-
-    # Sample vote script which checks the expected member is being added, and no other actions are being taken
-
-    verify_encryption_pubk_text = (
-        f"""
-        expected_enc_pub_key = [====[{encryption_pub_key}]====]
-        if not call.args.encryption_pub_key == expected_enc_pub_key then
-        return false
-        end
-        """
-        if encryption_pub_key is not None
-        else ""
-    )
-
-    verifying_vote_text = f"""
-    tables, calls = ...
-    if #calls ~= 1 then
-    return false
-    end
-
-    call = calls[1]
-    if call.func ~= "new_member" then
-    return false
-    end
-
-    expected_cert = [====[{member_cert}]====]
-    if not call.args.cert == expected_cert then
-    return false
-    end
-
-    {verify_encryption_pubk_text}
-
-    return true
-    """
-
-    # Vote object (request body for POST /gov/proposals/{proposal_id}/votes)
-    verifying_vote = {"ballot": {"text": verifying_vote_text}}
-
-    LOG.trace(f"Made new member proposal:\n{json.dumps(proposal, indent=2)}")
-    LOG.trace(f"Accompanying vote:\n{json.dumps(verifying_vote, indent=2)}")
-
-    return proposal, verifying_vote
+    return build_proposal("set_member", member_info, **kwargs)
 
 
 @cli_proposal
