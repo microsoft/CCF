@@ -9,8 +9,8 @@
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
-#include "http/http_query.h"
-#include "node/rpc/user_frontend.h"
+#include "ccf/http_query.h"
+#include "ccf/user_frontend.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY

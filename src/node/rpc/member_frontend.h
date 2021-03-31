@@ -3,6 +3,7 @@
 #pragma once
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/json_handler.h"
 #include "crypto/key_pair.h"
 #include "ds/nonstd.h"
 #include "frontend.h"
@@ -15,7 +16,6 @@
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
-#include "node/rpc/json_handler.h"
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"

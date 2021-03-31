@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/http_query.h"
 #include "crypto/key_pair.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
-#include "http/http_query.h"
 #include "http/http_sig.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
