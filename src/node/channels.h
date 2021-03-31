@@ -162,7 +162,7 @@ namespace ccf
         peer_id,
         (const uint64_t)recv_nonce.nonce);
 
-      if (recv_nonce.nonce == 1 && next_key)
+      if ((recv_nonce.nonce == 1 || !key) && next_key)
       {
         LOG_TRACE_FMT("Changing to next channel key");
         key.swap(next_key);
