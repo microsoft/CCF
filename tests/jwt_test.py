@@ -68,7 +68,7 @@ def test_jwt_without_key_policy(network, args):
             network.consortium.set_jwt_public_signing_keys(
                 primary, issuer, jwks_fp.name
             )
-        except infra.proposal.ProposalNotAccepted:
+        except (infra.proposal.ProposalNotAccepted, infra.proposal.ProposalNotCreated):
             pass
         else:
             assert False, "Proposal should not have been created"
