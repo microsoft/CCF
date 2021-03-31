@@ -483,7 +483,7 @@ namespace js
     }
     catch (std::exception& exc)
     {
-      return JS_ThrowInternalError(ctx, "Unexpected error: %s", exc.what());
+      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
     }
     return JS_UNDEFINED;
   }
@@ -531,7 +531,7 @@ namespace js
     }
     catch (std::exception& exc)
     {
-      return JS_ThrowInternalError(ctx, "Unexpected error: %s", exc.what());
+      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
     }
     return JS_UNDEFINED;
   }
