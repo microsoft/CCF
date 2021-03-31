@@ -1175,7 +1175,15 @@ namespace ccf
         JS_FreeValue(js_context, prop_id);
         JS_FreeValue(js_context, vs);
 
-        if (JS_IsString(val))
+        std::optional<std::string> failure_reason = std::nullopt;
+
+        if (JS_IsException(val))
+        {
+          pi_.value().state = ProposalState::FAILED;
+          failure_reason = fmt::format(
+            "Failed to resolve(): {}", js::js_error_message(js_context));
+        }
+        else if (JS_IsString(val))
         {
           auto s = JS_ToCString(js_context, val);
           std::string status(s);
@@ -1203,10 +1211,15 @@ namespace ccf
           else
           {
             pi_.value().state = ProposalState::FAILED;
+            failure_reason = fmt::format(
+              "resolve() returned invalid status value: \"{}\"", status);
           }
         }
-
-        std::optional<std::string> failure_reason = std::nullopt;
+        else
+        {
+          pi_.value().state = ProposalState::FAILED;
+          failure_reason = "resolve() returned invalid status value";
+        }
 
         if (pi_.value().state != ProposalState::OPEN)
         {
@@ -1236,26 +1249,8 @@ namespace ccf
             if (JS_IsException(val))
             {
               pi_.value().state = ProposalState::FAILED;
-
-              JSValue exception_val = JS_GetException(js_context);
-              const char* str;
-              if (
-                !JS_IsError(js_context, exception_val) &&
-                JS_IsObject(exception_val))
-              {
-                JSValue rval =
-                  JS_JSONStringify(js_context, exception_val, JS_NULL, JS_NULL);
-                str = JS_ToCString(js_context, rval);
-                JS_FreeValue(js_context, rval);
-              }
-              else
-              {
-                str = JS_ToCString(js_context, exception_val);
-              }
-              failure_reason = fmt::format("Failed to apply: {}", str);
-              LOG_INFO_FMT("SET FAILURE REASON {}", failure_reason.value());
-              JS_FreeCString(js_context, str);
-              JS_FreeValue(js_context, exception_val);
+              failure_reason = fmt::format(
+                "Failed to apply(): {}", js::js_error_message(js_context));
             }
           }
         }

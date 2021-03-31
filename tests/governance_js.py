@@ -412,7 +412,7 @@ def test_apply(network, args):
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Failed", r.body.json()
         assert (
-            r.body.json()["failure_reason"] == "Failed to apply: Error: Error message"
+            r.body.json()["failure_reason"] == "Failed to apply(): Error: Error message"
         ), r.body.json()
 
     return network
