@@ -325,7 +325,10 @@ namespace kv
   // Used by frontend for reserved transactions. These are constructed with a
   // pre-reserved Version, and _must succeed_ to fulfil this version. Otherwise
   // they create a hole in the transaction order, and no future transactions can
-  // complete.
+  // complete. These transactions are used internally by CCF for the sole
+  // purpose of recording node signatures and are safe in this particular
+  // situation because they never perform any reads and therefore can
+  // never conflict.
   class ReservedTx : public CommittableTx
   {
   public:
