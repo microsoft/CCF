@@ -4,12 +4,12 @@
 
 #include "ccf/endpoint.h"
 #include "ccf/endpoint_context.h"
+#include "ccf/tx.h"
 #include "ds/ccf_deprecated.h"
 #include "ds/json_schema.h"
 #include "ds/openapi.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
-#include "kv/tx.h"
 #include "node/certs.h"
 #include "node/rpc/serialization.h"
 

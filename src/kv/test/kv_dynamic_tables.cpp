@@ -243,8 +243,6 @@ TEST_CASE("Read only handles" * doctest::test_suite("dynamic"))
 
     REQUIRE(!a->get("foo").has_value());
     REQUIRE(!b->get("foo").has_value());
-
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   {
@@ -330,6 +328,8 @@ TEST_CASE("Mixed map dependencies" * doctest::test_suite("dynamic"))
 
     REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(tx2.commit() == kv::CommitResult::FAIL_CONFLICT);
+
+    tx2 = kv_store.create_tx();
 
     {
       auto tx3 = kv_store.create_tx();

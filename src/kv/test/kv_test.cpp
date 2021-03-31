@@ -1095,7 +1095,7 @@ TEST_CASE("Deserialising from other Store")
   auto handle2 = tx1.rw(private_map);
   handle1->put(42, "aardvark");
   handle2->put(14, "alligator");
-  auto [success, reqid, data, hooks] = tx1.commit_reserved();
+  auto [success, data, hooks] = tx1.commit_reserved();
   REQUIRE(success == kv::CommitResult::SUCCESS);
 
   kv::Store clone;
@@ -1127,7 +1127,7 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_version());
     auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
-    auto [success, reqid, data, hooks] = tx.commit_reserved();
+    auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1142,7 +1142,7 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     tree_handle->put(0, {});
-    auto [success, reqid, data, hooks] = tx.commit_reserved();
+    auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1158,7 +1158,7 @@ TEST_CASE("Deserialise return status")
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
     sig_handle->put(0, sigv);
     data_handle->put(43, 43);
-    auto [success, reqid, data, hooks] = tx.commit_reserved();
+    auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
     REQUIRE(
@@ -1450,7 +1450,8 @@ TEST_CASE("Conflict resolution")
   auto handle3 = tx3.rw(map);
   REQUIRE(handle3->has("foo"));
 
-  // First transaction is rerun with same object, producing different result
+  // First transaction is rerun on new object, producing different result
+  tx1 = kv_store.create_tx();
   try_write(tx1, "buzz");
 
   // Expected results are committed

@@ -4,7 +4,6 @@
 
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
-#include "kv/tx.h"
 #include "node/encryptor.h"
 
 #include <msgpack/msgpack.hpp>
