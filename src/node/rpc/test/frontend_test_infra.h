@@ -4,6 +4,7 @@
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #define DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
 #include "ccf/app_interface.h"
+#include "ccf/user_frontend.h"
 #include "crypto/rsa_key_pair.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -14,7 +15,6 @@
 #include "node/history.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/serdes.h"
-#include "node/rpc/user_frontend.h"
 #include "node_stub.h"
 #include "runtime_config/default_whitelists.h"
 
