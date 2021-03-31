@@ -157,28 +157,28 @@ def build_proposal(
 
         vote_lines = []
         vote_lines.append("export function vote (raw_proposal, proposer_id) {")
-        vote_lines.append("  let proposal = JSON.parse(raw_proposal)")
-        vote_lines.append("  if (!('actions' in proposal)) { return false }")
-        vote_lines.append("  let actions = proposal['actions']")
-        vote_lines.append("  if (actions.length !== 1) { return false }")
-        vote_lines.append("  let action = actions[0]")
-        vote_lines.append("  if (!('name' in action)) { return false }")
+        vote_lines.append("  let proposal = JSON.parse(raw_proposal);")
+        vote_lines.append("  if (!('actions' in proposal)) { return false; };")
+        vote_lines.append("  let actions = proposal['actions'];")
+        vote_lines.append("  if (actions.length !== 1) { return false; };")
+        vote_lines.append("  let action = actions[0];")
+        vote_lines.append("  if (!('name' in action)) { return false; };")
         vote_lines.append(
-            f"  if (action.name !== '{proposed_call}') {{ return false }}"
+            f"  if (action.name !== '{proposed_call}') {{ return false; }};"
         )
 
         if args is not None:
-            vote_lines.append("  if (!('args' in action)) { return false }")
-            vote_lines.append("  let args = action.args")
+            vote_lines.append("  if (!('args' in action)) { return false; };")
+            vote_lines.append("  let args = action.args;")
 
             for name, body in args.items():
-                vote_lines.append(f"  if (!('{name}' in args)) {{ return false }}")
-                vote_lines.append(f"  var expected = {json.dumps(body)}")
+                vote_lines.append(f"  if (!('{name}' in args)) {{ return false; }};")
+                vote_lines.append(f"  var expected = {json.dumps(body)};")
                 vote_lines.append(
-                    f"  if (args['{name}'] !== expected) {{ return false }}"
+                    f"  if (JSON.stringify(args['{name}']) !== JSON.stringify(expected)) {{ return false; }};"
                 )
 
-        vote_lines.append("  return true")
+        vote_lines.append("  return true;")
         vote_lines.append("}")
         vote_text = "\n".join(vote_lines)
         vote = {"ballot": vote_text}
