@@ -437,7 +437,7 @@ const actions = new Map([
         const nodeInfo = ccf.bufToJsonCompatible(node);
         if (nodeInfo.status === "Pending") {
           nodeInfo.status = "Trusted";
-          nodeInfo.ledger_secret_seqno = ccf.network.latestLedgerSecretSeqno();
+          nodeInfo.ledger_secret_seqno = ccf.network.getLatestLedgerSecretSeqno();
           ccf.kv["public:ccf.gov.nodes.info"].set(
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(nodeInfo)

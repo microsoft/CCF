@@ -956,11 +956,11 @@ namespace js
       JS_SetPropertyStr(
         ctx,
         network,
-        "latestLedgerSecretSeqno",
+        "getLatestLedgerSecretSeqno",
         JS_NewCFunction(
           ctx,
           js_network_latest_ledger_secret_seqno,
-          "latestLedgerSecretSeqno",
+          "getLatestLedgerSecretSeqno",
           0));
     }
 
