@@ -541,10 +541,10 @@ const actions = new Map([
     "remove_ca_cert_bundle",
     new Action(
       function (args) {
-        checkType(args, "string", "args");
+        checkType(args.name, "string", "name");
       },
       function (args) {
-        const name = args;
+        const name = args.name;
         const nameBuf = ccf.strToBuf(name);
         ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].delete(nameBuf);
       }

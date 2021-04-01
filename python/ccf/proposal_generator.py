@@ -391,7 +391,8 @@ def set_ca_cert_bundle(cert_bundle_name, cert_bundle_path, skip_checks=False, **
 
 @cli_proposal
 def remove_ca_cert_bundle(cert_bundle_name, **kwargs):
-    return build_proposal("remove_ca_cert_bundle", cert_bundle_name, **kwargs)
+    args = {"name": cert_bundle_name} if GENERATE_JS_PROPOSALS else cert_bundle_name
+    return build_proposal("remove_ca_cert_bundle", args, **kwargs)
 
 
 @cli_proposal
