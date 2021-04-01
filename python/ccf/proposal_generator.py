@@ -227,7 +227,7 @@ def cli_proposal(func):
 
 
 @cli_proposal
-def set_member(
+def new_member(
     member_cert_path: str,
     member_enc_pubk_path: str = None,
     member_data: Any = None,
@@ -239,7 +239,10 @@ def set_member(
     if member_data is not None:
         member_info["member_data"] = member_data
 
-    return build_proposal("set_member", member_info, **kwargs)
+    if GENERATE_JS_PROPOSALS:
+        return build_proposal("set_member", member_info, **kwargs)
+    else:
+        return build_proposal("new_member", member_info, **kwargs)
 
 
 @cli_proposal
@@ -350,13 +353,19 @@ def transition_service_to_open(**kwargs):
 
 
 @cli_proposal
-def trigger_ledger_rekey(**kwargs):
-    return build_proposal("trigger_ledger_rekey", **kwargs)
+def rekey_ledger(**kwargs):
+    if GENERATE_JS_PROPOSALS:
+        return build_proposal("trigger_ledger_rekey", **kwargs)
+    else:
+        return build_proposal("rekey_ledger", **kwargs)
 
 
 @cli_proposal
-def trigger_recovery_shares_refresh(**kwargs):
-    return build_proposal("trigger_recovery_shares_refresh", **kwargs)
+def update_recovery_shares(**kwargs):
+    if GENERATE_JS_PROPOSALS:
+        return build_proposal("trigger_recovery_shares_refresh", **kwargs)
+    else:
+        return build_proposal("update_recovery_shares", **kwargs)
 
 
 @cli_proposal

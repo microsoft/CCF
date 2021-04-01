@@ -52,14 +52,14 @@ To limit the scope of key compromise, members of the consortium can refresh the 
 
 .. code-block:: bash
 
-    $ cat trigger_ledger_rekey.json
+    $ cat rekey_ledger.json
     {
         "script": {
-            "text": "return Calls:call(\"trigger_ledger_rekey\")"
+            "text": "return Calls:call(\"rekey_ledger\")"
         }
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @trigger_ledger_rekey.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @rekey_ledger.json -H "content-type: application/json"
     {
         "proposal_id": "2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e",
         "proposer_id": 1,

@@ -305,7 +305,7 @@ namespace ccf
            return remove_js_app(tx);
          }},
         // add a new member
-        {"set_member",
+        {"new_member",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<NewMember>();
            GenesisGenerator g(this->network, tx);
@@ -612,7 +612,7 @@ namespace ccf
            context.get_node_state().transition_service_to_open(tx);
            return true;
          }},
-        {"trigger_ledger_rekey",
+        {"rekey_ledger",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            const auto ledger_rekeyed =
@@ -623,7 +623,7 @@ namespace ccf
            }
            return ledger_rekeyed;
          }},
-        {"trigger_recovery_shares_refresh",
+        {"update_recovery_shares",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            try
