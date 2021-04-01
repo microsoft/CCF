@@ -836,7 +836,7 @@ namespace ccf
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_console(context);
         js::populate_global_ccf(
-          &txctx, std::nullopt, nullptr, nullptr, context);
+          &txctx, std::nullopt, nullptr, nullptr, nullptr, context);
         auto ballot_func = context.function(
           mb,
           "vote",
@@ -869,7 +869,7 @@ namespace ccf
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_ccf(
-          &txctx, std::nullopt, nullptr, nullptr, js_context);
+          &txctx, std::nullopt, nullptr, nullptr, nullptr, js_context);
         auto resolve_func = js_context.function(
           constitution,
           "resolve",
@@ -970,6 +970,7 @@ namespace ccf
               std::nullopt,
               nullptr,
               &context.get_node_state(),
+              &network,
               js_context);
             auto apply_func = js_context.function(
               constitution,
@@ -2038,7 +2039,7 @@ namespace ccf
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::populate_global_ccf(
-          nullptr, std::nullopt, nullptr, nullptr, context);
+          nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
 
         auto validate_func = context.function(
           validate_script, "validate", "public:ccf.gov.constitution[0]");
