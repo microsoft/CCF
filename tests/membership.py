@@ -294,7 +294,9 @@ def recovery_shares_scenario(args):
 
 
 def run(args):
-    if os.getenv("JS_GOVERNANCE"):
+    if not os.getenv("JS_GOVERNANCE"):
+        # Still fails with QuickJS assert because some objects are not
+        # cleaned up correctly when an assertion occurs in some JS_CALLs
         service_startups(args)
     recovery_shares_scenario(args)
 

@@ -53,10 +53,7 @@ export function resolve(proposal, proposer_id, votes) {
         }
         return "Accepted";
       }
-    } else if (
-      actions[0].name === "always_accept_if_proposed_by_operator" ||
-      actions[0].name === "remove_user"
-    ) {
+    } else if (actions[0].name === "always_accept_if_proposed_by_operator") {
       const mi = ccf.kv["public:ccf.gov.members.info"].get(
         ccf.strToBuf(proposer_id)
       );
