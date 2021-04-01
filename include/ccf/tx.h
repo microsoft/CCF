@@ -82,7 +82,7 @@ namespace kv
       if (it == all_handles.end())
       {
         PossibleHandles handles;
-        auto typed_handle = new THandle(change_set);
+        auto typed_handle = new THandle(change_set, name);
         handles.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_handle));
         all_handles[name] = std::move(handles);
         return typed_handle;
@@ -98,7 +98,7 @@ namespace kv
             return typed_handle;
           }
         }
-        auto typed_handle = new THandle(change_set);
+        auto typed_handle = new THandle(change_set, name);
         handles.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_handle));
         return typed_handle;
       }

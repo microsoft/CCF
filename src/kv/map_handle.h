@@ -206,10 +206,10 @@ namespace kv
     using WriteableBase = WriteableMapHandle<K, V, KSerialiser, VSerialiser>;
 
   public:
-    MapHandle(kv::untyped::ChangeSet& changes) :
+    MapHandle(kv::untyped::ChangeSet& changes, const std::string& map_name) :
       ReadableBase(untyped_handle),
       WriteableBase(untyped_handle),
-      untyped_handle(changes)
+      untyped_handle(changes, map_name)
     {}
   };
 }

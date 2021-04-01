@@ -63,7 +63,14 @@ endif()
 
 function(add_warning_checks name)
   target_compile_options(
-    ${name} PRIVATE -Wall -Wextra -Werror -Wundef -Wpedantic
+    ${name}
+    PRIVATE -Wall
+            -Wextra
+            -Werror
+            -Wundef
+            -Wpedantic
+            -Wno-unused
+            -Wno-unused-parameter
   )
 endfunction()
 

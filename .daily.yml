@@ -21,11 +21,11 @@ schedules:
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci:oe0.14.0
+      image: ccfciteam/ccf-ci:oe0.15.0-rc1
       options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache
 
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.14.0
+      image: ccfciteam/ccf-ci:oe0.15.0-rc1
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
