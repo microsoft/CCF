@@ -1029,7 +1029,7 @@ namespace js
       }
     }
 
-    // Register class for node
+    // Register class for network
     {
       auto ret = JS_NewClass(rt, network_class_id, &network_class_def);
       if (ret != 0)
