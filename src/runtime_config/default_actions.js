@@ -97,32 +97,9 @@ function checkX509CertChain(value, field) {
 
 const actions = new Map([
   [
-    "set_member_data",
-    new Action(
-      function (args) {
-        // Check that member id is a valid entity id?
-        checkType(args.member_id, "string", "member_id");
-        checkType(args.member_data, "object", "member_data");
-      },
-
-      function (args) {
-        let member_id = ccf.strToBuf(args.member_id);
-        let members_info = ccf.kv["public:ccf.gov.members.info"];
-        let member_info = members_info.get(member_id);
-        if (member_info === undefined) {
-          throw new Error(`Member ${args.member_id} does not exist`);
-        }
-        let mi = ccf.bufToJsonCompatible(member_info);
-        mi.member_data = args.member_data;
-        members_info.set(member_id, ccf.jsonCompatibleToBuf(mi));
-      }
-    ),
-  ],
-  [
-    "rekey_ledger",
+    "trigger_ledger_rekey",
     new Action(
       function (args) {},
-
       function (args) {
         ccf.node.rekeyLedger();
       }
@@ -131,10 +108,7 @@ const actions = new Map([
   [
     "transition_service_to_open",
     new Action(
-      function (args) {
-        // Check that args is null?
-      },
-
+      function (args) {},
       function (args) {
         ccf.node.transitionServiceToOpen();
       }
@@ -182,62 +156,6 @@ const actions = new Map([
     ),
   ],
   [
-    "always_accept_noop",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_reject_noop",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_accept_with_one_vote",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_reject_with_one_vote",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_accept_if_voted_by_operator",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_accept_if_proposed_by_operator",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_accept_with_two_votes",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_reject_with_two_votes",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
     "remove_user",
     new Action(
       function (args) {
@@ -251,22 +169,110 @@ const actions = new Map([
     ),
   ],
   [
-    "valid_pem",
+    "set_js_app",
     new Action(
       function (args) {
-        checkX509CertChain(args.pem, "pem");
+        const bundle = args.bundle;
+        checkType(bundle, "object", "bundle");
+
+        let prefix = "bundle.modules";
+        checkType(bundle.modules, "array", prefix);
+        for (const [i, module] of bundle.modules.entries()) {
+          checkType(module, "object", `${prefix}[${i}]`);
+          checkType(module.name, "string", `${prefix}[${i}].name`);
+          checkType(module.module, "string", `${prefix}[${i}].module`);
+        }
+
+        prefix = "bundle.metadata";
+        checkType(bundle.metadata, "object", prefix);
+        checkType(bundle.metadata.endpoints, "object", `${prefix}.endpoints`);
+        for (const [url, endpoint] of Object.entries(
+          bundle.metadata.endpoints
+        )) {
+          checkType(endpoint, "object", `${prefix}.endpoints["${url}"]`);
+          for (const [method, info] of Object.entries(endpoint)) {
+            const prefix2 = `${prefix}.endpoints["${url}"]["${method}"]`;
+            checkType(info, "object", prefix2);
+            checkType(info.js_module, "string", `${prefix2}.js_module`);
+            checkType(info.js_function, "string", `${prefix2}.js_function`);
+            checkEnum(
+              info.mode,
+              ["readwrite", "readonly", "historical"],
+              `${prefix2}.mode`
+            );
+            checkEnum(
+              info.forwarding_required,
+              ["sometimes", "always", "never"],
+              `${prefix2}.forwarding_required`
+            );
+            checkType(info.openapi, "object?", `${prefix2}.openapi`);
+            checkType(
+              info.openapi_hidden,
+              "boolean?",
+              `${prefix2}.openapi_hidden`
+            );
+            checkType(
+              info.authn_policies,
+              "array",
+              `${prefix2}.authn_policies`
+            );
+            for (const [i, policy] of info.authn_policies.entries()) {
+              checkType(policy, "string", `${prefix2}.authn_policies[${i}]`);
+            }
+            if (!bundle.modules.some((m) => m.name === info.js_module)) {
+              throw new Error(`module '${info.js_module}' not found in bundle`);
+            }
+          }
+        }
       },
-      function (args) {}
+      function (args) {
+        const modulesMap = ccf.kv["public:ccf.gov.modules"];
+        const endpointsMap = ccf.kv["public:ccf.gov.endpoints"];
+        // kv should expose .clear()
+        modulesMap.forEach((_, k) => {
+          modulesMap.delete(k);
+        });
+        endpointsMap.forEach((_, k) => {
+          endpointsMap.delete(k);
+        });
+
+        const bundle = args.bundle;
+        for (const module of bundle.modules) {
+          const path = "/" + module.name;
+          const pathBuf = ccf.strToBuf(path);
+          const moduleBuf = ccf.strToBuf(module.module);
+          modulesMap.set(pathBuf, moduleBuf);
+        }
+
+        for (const [url, endpoint] of Object.entries(
+          bundle.metadata.endpoints
+        )) {
+          for (const [method, info] of Object.entries(endpoint)) {
+            const key = `${method.toUpperCase()} ${url}`;
+            const keyBuf = ccf.strToBuf(key);
+
+            info.js_module = "/" + info.js_module;
+            const infoBuf = ccf.jsonCompatibleToBuf(info);
+            endpointsMap.set(keyBuf, infoBuf);
+          }
+        }
+      }
     ),
   ],
   [
-    "always_throw_in_apply",
+    "remove_js_app",
     new Action(
+      function (args) {},
       function (args) {
-        return true;
-      },
-      function (args) {
-        throw new Error("Error message");
+        const modulesMap = ccf.kv["public:ccf.gov.modules"];
+        const endpointsMap = ccf.kv["public:ccf.gov.endpoints"];
+        // kv should expose .clear()
+        modulesMap.forEach((_, k) => {
+          modulesMap.delete(k);
+        });
+        endpointsMap.forEach((_, k) => {
+          endpointsMap.delete(k);
+        });
       }
     ),
   ],
@@ -275,7 +281,6 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.name, "string", "name");
-        // rename function to ..CertBundle?
         checkX509CertChain(args.cert_bundle, "cert_bundle");
       },
       function (args) {
@@ -284,17 +289,6 @@ const actions = new Map([
         const nameBuf = ccf.strToBuf(name);
         const bundleBuf = ccf.jsonCompatibleToBuf(bundle);
         ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].set(nameBuf, bundleBuf);
-      }
-    ),
-  ],
-  [
-    "always_throw_in_resolve",
-    new Action(
-      function (args) {
-        return true;
-      },
-      function (args) {
-        return true;
       }
     ),
   ],

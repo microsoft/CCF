@@ -499,10 +499,16 @@ if(BUILD_TESTS)
   endif()
 
   if(ENABLE_JS_GOV)
+    set(CONSTITUTION_ARGS
+        --constitution ${CCF_DIR}/src/runtime_config/default_actions.js
+        --constitution ${CCF_DIR}/src/runtime_config/test_actions.js
+        --constitution ${CCF_DIR}/src/runtime_config/constitution.js
+    )
     add_e2e_test(
       NAME governance_js_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
       CONSENSUS cft
+      CONSTITUTION ${CONSTITUTION_ARGS}
       ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
     )
     set_property(

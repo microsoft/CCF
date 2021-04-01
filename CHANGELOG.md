@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- A new `read_ledger.py` Python command line utility was added to parse and display the content of a ledger directory.
 - `ccf-app` npm package to help with developing JavaScript and TypeScript CCF apps. See [docs](https://microsoft.github.io/CCF/main/build_apps/js_app.html) for further details (#2331).
 
 ### Changed
