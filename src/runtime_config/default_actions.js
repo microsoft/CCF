@@ -97,32 +97,9 @@ function checkX509CertChain(value, field) {
 
 const actions = new Map([
   [
-    "set_member_data",
-    new Action(
-      function (args) {
-        // Check that member id is a valid entity id?
-        checkType(args.member_id, "string", "member_id");
-        checkType(args.member_data, "object", "member_data");
-      },
-
-      function (args) {
-        let member_id = ccf.strToBuf(args.member_id);
-        let members_info = ccf.kv["public:ccf.gov.members.info"];
-        let member_info = members_info.get(member_id);
-        if (member_info === undefined) {
-          throw new Error(`Member ${args.member_id} does not exist`);
-        }
-        let mi = ccf.bufToJsonCompatible(member_info);
-        mi.member_data = args.member_data;
-        members_info.set(member_id, ccf.jsonCompatibleToBuf(mi));
-      }
-    ),
-  ],
-  [
-    "rekey_ledger",
+    "trigger_ledger_rekey",
     new Action(
       function (args) {},
-
       function (args) {
         ccf.node.rekeyLedger();
       }
@@ -131,10 +108,7 @@ const actions = new Map([
   [
     "transition_service_to_open",
     new Action(
-      function (args) {
-        // Check that args is null?
-      },
-
+      function (args) {},
       function (args) {
         ccf.node.transitionServiceToOpen();
       }
@@ -182,62 +156,6 @@ const actions = new Map([
     ),
   ],
   [
-    "always_accept_noop",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_reject_noop",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_accept_with_one_vote",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_reject_with_one_vote",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_accept_if_voted_by_operator",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_accept_if_proposed_by_operator",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_accept_with_two_votes",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
-    "always_reject_with_two_votes",
-    new Action(
-      function (args) {},
-      function (args) {}
-    ),
-  ],
-  [
     "remove_user",
     new Action(
       function (args) {
@@ -247,26 +165,6 @@ const actions = new Map([
         const user_id = ccf.strToBuf(args.user_id);
         ccf.kv["public:ccf.gov.users.certs"].delete(user_id);
         ccf.kv["public:ccf.gov.users.info"].delete(user_id);
-      }
-    ),
-  ],
-  [
-    "valid_pem",
-    new Action(
-      function (args) {
-        checkX509CertChain(args.pem, "pem");
-      },
-      function (args) {}
-    ),
-  ],
-  [
-    "always_throw_in_apply",
-    new Action(
-      function (args) {
-        return true;
-      },
-      function (args) {
-        throw new Error("Error message");
       }
     ),
   ],
@@ -383,7 +281,6 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.name, "string", "name");
-        // rename function to ..CertBundle?
         checkX509CertChain(args.cert_bundle, "cert_bundle");
       },
       function (args) {
@@ -392,17 +289,6 @@ const actions = new Map([
         const nameBuf = ccf.strToBuf(name);
         const bundleBuf = ccf.jsonCompatibleToBuf(bundle);
         ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].set(nameBuf, bundleBuf);
-      }
-    ),
-  ],
-  [
-    "always_throw_in_resolve",
-    new Action(
-      function (args) {
-        return true;
-      },
-      function (args) {
-        return true;
       }
     ),
   ],

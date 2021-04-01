@@ -345,7 +345,7 @@ def test_actions(network, args):
         r = c.post("/gov/proposals.js", valid_set_member_data)
         assert r.status_code == 200, r.body.text()
 
-        valid_rekey_ledger = proposal(action("rekey_ledger"))
+        valid_rekey_ledger = proposal(action("trigger_ledger_rekey"))
         r = c.post("/gov/proposals.js", valid_rekey_ledger)
         assert r.status_code == 200, r.body.text()
 
