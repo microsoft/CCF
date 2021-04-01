@@ -382,8 +382,8 @@ set(WORKER_THREADS
 
 set(CCF_NETWORK_TEST_DEFAULT_GOV ${CCF_DIR}/src/runtime_config/gov.lua)
 set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
-    --constitution ${CCF_DIR}/src/runtime_config/actions.js --constitution
-    ${CCF_DIR}/src/runtime_config/constitution.js
+    --constitution ${CCF_DIR}/src/runtime_config/default_actions.js
+    --constitution ${CCF_DIR}/src/runtime_config/constitution.js
 )
 set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
@@ -430,8 +430,8 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;CONSTITUTION;LABEL;CURL_CLIENT;CONSENSUS;"
-    "ADDITIONAL_ARGS;CONFIGURATIONS"
+    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
+    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
   if(NOT PARSED_ARGS_GOV_SCRIPT)
