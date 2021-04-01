@@ -125,19 +125,22 @@ const actions = new Map([
         let user_id = ccf.pemToId(args.cert);
         let raw_user_id = ccf.strToBuf(user_id);
 
-        if (ccf.kv["ccf.gov.users.certs"].has(raw_user_id)) {
+        if (ccf.kv["public:ccf.gov.users.certs"].has(raw_user_id)) {
           return; // Idempotent
         }
 
-        ccf.kv["ccf.gov.users.certs"].set(raw_user_id, ccf.strToBuf(args.cert));
+        ccf.kv["public:ccf.gov.users.certs"].set(
+          raw_user_id,
+          ccf.strToBuf(args.cert)
+        );
 
         if (args.user_data != null) {
-          if (ccf.kv["ccf.gov.users.info"].has(raw_user_id)) {
+          if (ccf.kv["public:ccf.gov.users.info"].has(raw_user_id)) {
             throw new Error(`User info for ${user_id} already exists`);
             // Internal error
           }
 
-          ccf.kv["ccf.gov.users.info"].set(
+          ccf.kv["public:ccf.gov.users.info"].set(
             raw_user_id,
             ccf.jsonCompatibleToBuf(args.user_data)
           );
@@ -317,15 +320,18 @@ const actions = new Map([
         checkType(args.node_id, "string", "node_id");
       },
       function (args) {
-        const node = ccf.kv["public:ccf.gov.nodes.info"].get(ccf.strToBuf(args.node_id));
-        if (node !== undefined)
-        {
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node !== undefined) {
           let node_obj = ccf.bufToJsonCompatible(node);
-          if (node_obj.status === "Pending")
-          {
+          if (node_obj.status === "Pending") {
             node_obj.status = "Trusted";
             node_obj.ledger_secret_seqno = ccf.network.latestLedgerSecretSeqno();
-            ccf.kv["public:ccf.gov.nodes"].set(ccf.strToBuf(args.node_id), ccf.jsonCompatibleToBuf(node_obj));
+            ccf.kv["public:ccf.gov.nodes.info"].set(
+              ccf.strToBuf(args.node_id),
+              ccf.jsonCompatibleToBuf(node_obj)
+            );
           }
         }
       }
@@ -338,12 +344,16 @@ const actions = new Map([
         checkType(args.node_id, "string", "node_id");
       },
       function (args) {
-        const node = ccf.kv["public:ccf.gov.nodes.info"].get(ccf.strToBuf(args.node_id));
-        if (node !== undefined)
-        {
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node !== undefined) {
           const node_obj = ccf.bufToJsonCompatible(node);
           node_obj.status = "Retired";
-          ccf.kv["public:ccf.gov.nodes"].set(ccf.strToBuf(args.node_id), ccf.jsonCompatibleToBuf(node_obj));
+          ccf.kv["public:ccf.gov.nodes.info"].set(
+            ccf.strToBuf(args.node_id),
+            ccf.jsonCompatibleToBuf(node_obj)
+          );
         }
       }
     ),

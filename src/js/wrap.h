@@ -6,8 +6,8 @@
 #include "ccf/tx.h"
 #include "ds/logger.h"
 #include "kv/kv_types.h"
-#include "node/rpc/node_interface.h"
 #include "node/network_state.h"
+#include "node/rpc/node_interface.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>

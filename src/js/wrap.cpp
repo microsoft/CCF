@@ -394,8 +394,7 @@ namespace js
 
     if (node == nullptr)
     {
-      return JS_ThrowInternalError(
-        ctx, "Node state is not set");
+      return JS_ThrowInternalError(ctx, "Node state is not set");
     }
 
     auto global_obj = JS_GetGlobalObject(ctx);
@@ -423,8 +422,7 @@ namespace js
     JSContext* ctx,
     JSValueConst this_val,
     int argc,
-    [[maybe_unused]] JSValueConst* argv
-  )
+    [[maybe_unused]] JSValueConst* argv)
   {
     if (argc != 0)
     {
@@ -432,13 +430,12 @@ namespace js
         ctx, "Passed %d arguments but expected none", argc);
     }
 
-    auto network = static_cast<ccf::NetworkState*>(
-      JS_GetOpaque(this_val, network_class_id));
+    auto network =
+      static_cast<ccf::NetworkState*>(JS_GetOpaque(this_val, network_class_id));
 
     if (network == nullptr)
     {
-      return JS_ThrowInternalError(
-        ctx, "Network state is not set");
+      return JS_ThrowInternalError(ctx, "Network state is not set");
     }
 
     auto global_obj = JS_GetGlobalObject(ctx);
@@ -457,7 +454,8 @@ namespace js
     JS_FreeValue(ctx, ccf);
     JS_FreeValue(ctx, global_obj);
 
-    return JS_NewInt64(ctx, network->ledger_secrets->get_latest(*tx_ctx_ptr->tx).first);
+    return JS_NewInt64(
+      ctx, network->ledger_secrets->get_latest(*tx_ctx_ptr->tx).first);
   }
 
   JSValue js_gov_set_jwt_public_signing_keys(
@@ -959,7 +957,11 @@ namespace js
         ctx,
         network,
         "latestLedgerSecretSeqno",
-        JS_NewCFunction(ctx, js_network_latest_ledger_secret_seqno, "latestLedgerSecretSeqno", 0));
+        JS_NewCFunction(
+          ctx,
+          js_network_latest_ledger_secret_seqno,
+          "latestLedgerSecretSeqno",
+          0));
     }
 
     return ccf;
@@ -979,7 +981,8 @@ namespace js
       ctx,
       global_obj,
       "ccf",
-      create_ccf_obj(txctx, transaction_id, receipt, node_state, network_state, ctx));
+      create_ccf_obj(
+        txctx, transaction_id, receipt, node_state, network_state, ctx));
 
     JS_FreeValue(ctx, global_obj);
   }
