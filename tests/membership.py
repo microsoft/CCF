@@ -294,7 +294,8 @@ def recovery_shares_scenario(args):
 
 
 def run(args):
-    # service_startups(args)
+    if os.getenv("JS_GOVERNANCE"):
+        service_startups(args)
     recovery_shares_scenario(args)
 
 
