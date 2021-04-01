@@ -8,19 +8,25 @@ import json
 from loguru import logger as LOG
 
 
-def print_key(key, is_removed=False):
-    if key == bytearray(8):
-        key = "0"
+def print_key(k, is_removed=False):
+    if k == bytearray(8):
+        k = "0"
     else:
-        key = f"{key.decode()}"
-    logger = LOG.error if is_removed else LOG.info
-    logger(f"{key}:")
+        k = f"{k.decode()}"
+
+    if is_removed:
+        LOG.error(f"Removed {k}")
+    else:
+        LOG.info(f"{k}:")
 
 
 if __name__ == "__main__":
 
-    config = {"handlers": [{"sink": sys.stdout, "format": "<level>{message}</level>"}]}
-    LOG.configure(**config)
+    LOG.remove()
+    LOG.add(
+        sys.stdout,
+        format="<level>{message}</level>",
+    )
 
     if len(sys.argv) < 2:
         LOG.error("First argument should be CCF ledger directory")
@@ -38,7 +44,7 @@ if __name__ == "__main__":
             )
 
             for table_name, records in public_tables.items():
-                LOG.warning(f"table: {table_name}")
+                LOG.warning(f'table "{table_name}":')
                 for key, value in records.items():
                     if value is not None:
                         try:
