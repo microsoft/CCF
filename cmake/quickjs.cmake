@@ -30,7 +30,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   target_compile_options(
     quickjs.enclave
     PUBLIC -nostdinc -DCONFIG_VERSION="${QUICKJS_VERSION}" -DEMSCRIPTEN
-           -DCONFIG_STACK_CHECK
+           -DCONFIG_STACK_CHECK -DCONFIG_BIGNUM
     PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
   )
   target_link_libraries(quickjs.enclave PUBLIC ${OE_TARGET_LIBC})
@@ -51,7 +51,7 @@ endif()
 add_library(quickjs.host STATIC ${QUICKJS_SRC})
 target_compile_options(
   quickjs.host
-  PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}"
+  PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DCONFIG_BIGNUM
   PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
 )
 add_san(quickjs.host)
