@@ -431,16 +431,17 @@ const actions = new Map([
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
           ccf.strToBuf(args.node_id)
         );
-        if (node !== undefined) {
-          const nodeInfo = ccf.bufToJsonCompatible(node);
-          if (nodeInfo.status === "Pending") {
-            nodeInfo.status = "Trusted";
-            nodeInfo.ledger_secret_seqno = ccf.network.latestLedgerSecretSeqno();
-            ccf.kv["public:ccf.gov.nodes.info"].set(
-              ccf.strToBuf(args.node_id),
-              ccf.jsonCompatibleToBuf(nodeInfo)
-            );
-          }
+        if (node === undefined) {
+          throw new Error(`No such node: ${args.node_id}`);
+        }
+        const nodeInfo = ccf.bufToJsonCompatible(node);
+        if (nodeInfo.status === "Pending") {
+          nodeInfo.status = "Trusted";
+          nodeInfo.ledger_secret_seqno = ccf.network.latestLedgerSecretSeqno();
+          ccf.kv["public:ccf.gov.nodes.info"].set(
+            ccf.strToBuf(args.node_id),
+            ccf.jsonCompatibleToBuf(nodeInfo)
+          );
         }
       }
     ),
