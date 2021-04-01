@@ -70,11 +70,11 @@ function checkLength(value, min, max, field) {
 
 function checkNone(args) {
   if (args !== null && args !== undefined) {
-    throw new Error(`Proposal does not accept any argument, found \"${args}\"`);
+    throw new Error(`Proposal does not accept any argument, found "${args}"`);
   }
 }
 
-function getUniqueKvKey() {
+function getSingletonKvKey() {
   // When a KV map only contains one value, this is the key at which
   // the value is recorded
   return new ArrayBuffer(8);
@@ -83,13 +83,13 @@ function getUniqueKvKey() {
 function getActiveRecoveryMembersCount() {
   let activeRecoveryMembersCount = 0;
   ccf.kv["public:ccf.gov.members.encryption_public_keys"].forEach((_, k) => {
-    let member_info = ccf.kv["public:ccf.gov.members.info"].get(k);
-    if (member_info === undefined) {
+    let rawMemberInfo = ccf.kv["public:ccf.gov.members.info"].get(k);
+    if (rawMemberInfo === undefined) {
       throw new Error(`Recovery member ${ccf.bufToStr(k)} has no information`);
     }
 
-    const info = ccf.bufToJsonCompatible(member_info);
-    if (info.status === "Active") {
+    const memberInfo = ccf.bufToJsonCompatible(rawMemberInfo);
+    if (memberInfo.status === "Active") {
       activeRecoveryMembersCount++;
     }
   });
@@ -162,7 +162,7 @@ const actions = new Map([
         );
 
         const rawSignature = ccf.kv["public:ccf.internal.signatures"].get(
-          getUniqueKvKey()
+          getSingletonKvKey()
         );
         if (rawSignature === undefined) {
           ccf.kv["public:ccf.gov.members.acks"].set(rawMemberId);
@@ -207,7 +207,7 @@ const actions = new Map([
         // to recover the service
         if (isActiveMember && isRecoveryMember) {
           const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
-            getUniqueKvKey()
+            getSingletonKvKey()
           );
           if (rawConfig === undefined) {
             throw new Error("Service configuration could not be found");
@@ -334,7 +334,7 @@ const actions = new Map([
       },
       function (args) {
         const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
-          getUniqueKvKey()
+          getSingletonKvKey()
         );
         if (rawConfig === undefined) {
           throw new Error("Service configuration could not be found");
@@ -347,7 +347,7 @@ const actions = new Map([
         }
 
         const rawService = ccf.kv["public:ccf.gov.service.info"].get(
-          getUniqueKvKey()
+          getSingletonKvKey()
         );
         if (rawService === undefined) {
           throw new Error("Service information could not be found");
@@ -370,7 +370,7 @@ const actions = new Map([
 
         config.recovery_threshold = args.recovery_threshold;
         ccf.kv["public:ccf.gov.service.config"].set(
-          getUniqueKvKey(),
+          getSingletonKvKey(),
           ccf.jsonCompatibleToBuf(config)
         );
 

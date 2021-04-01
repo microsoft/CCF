@@ -233,8 +233,6 @@ def set_member(
     member_data: Any = None,
     **kwargs,
 ):
-    LOG.debug("Generating set_member proposal")
-
     member_info = {"cert": open(member_cert_path).read()}
     if member_enc_pubk_path is not None:
         member_info["encryption_pub_key"] = open(member_enc_pubk_path).read()
