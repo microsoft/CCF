@@ -2186,9 +2186,15 @@ namespace ccf
 
       auto get_proposal_js =
         [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is unknown.");
+          }
+          if (!check_member_active(ctx.tx, member_id.value()))
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,
@@ -2481,9 +2487,15 @@ namespace ccf
 
       auto get_vote_js =
         [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is unknown.");
+          }
+          if (!check_member_active(ctx.tx, member_id.value()))
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,
