@@ -38,6 +38,7 @@ if __name__ == "__main__":
             )
 
             for table_name, records in public_tables.items():
+                LOG.warning(f"table: {table_name}")
                 for key, value in records.items():
                     if value is not None:
                         try:
@@ -45,7 +46,6 @@ if __name__ == "__main__":
                         except (json.decoder.JSONDecodeError, UnicodeDecodeError):
                             pass
                         finally:
-                            LOG.warning(f"table: {table_name}")
                             print_key(key)
                             LOG.info(value)
                     else:
