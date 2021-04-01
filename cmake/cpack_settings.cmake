@@ -11,7 +11,7 @@ set(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
 # CPack variables for Debian packages
 set(CPACK_DEBIAN_PACKAGE_DEPENDS
-    "open-enclave (>=0.14.0), libuv1 (>= 1.18.0), libc++1-8, libc++abi1-8"
+    "open-enclave (>=0.15.0), libuv1 (>= 1.18.0), libc++1-8, libc++abi1-8"
 )
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
