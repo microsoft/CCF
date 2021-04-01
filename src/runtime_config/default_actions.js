@@ -268,7 +268,6 @@ const actions = new Map([
         checkX509CertChain(args.cert, "cert");
         checkType(args.user_data, "object?", "user_data");
       },
-
       function (args) {
         let userId = ccf.pemToId(args.cert);
         let rawUserId = ccf.strToBuf(userId);
@@ -660,6 +659,52 @@ const actions = new Map([
           return;
         }
         ccf.removeJwtPublicSigningKeys(args.issuer);
+      }
+    ),
+  ],
+  [
+    "transition_node_to_trusted",
+    new Action(
+      function (args) {
+        checkType(args.node_id, "string", "node_id");
+      },
+      function (args) {
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node === undefined) {
+          throw new Error(`No such node: ${args.node_id}`);
+        }
+        const nodeInfo = ccf.bufToJsonCompatible(node);
+        if (nodeInfo.status === "Pending") {
+          nodeInfo.status = "Trusted";
+          nodeInfo.ledger_secret_seqno = ccf.network.getLatestLedgerSecretSeqno();
+          ccf.kv["public:ccf.gov.nodes.info"].set(
+            ccf.strToBuf(args.node_id),
+            ccf.jsonCompatibleToBuf(nodeInfo)
+          );
+        }
+      }
+    ),
+  ],
+  [
+    "remove_node",
+    new Action(
+      function (args) {
+        checkType(args.node_id, "string", "node_id");
+      },
+      function (args) {
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node !== undefined) {
+          const node_obj = ccf.bufToJsonCompatible(node);
+          node_obj.status = "Retired";
+          ccf.kv["public:ccf.gov.nodes.info"].set(
+            ccf.strToBuf(args.node_id),
+            ccf.jsonCompatibleToBuf(node_obj)
+          );
+        }
       }
     ),
   ],

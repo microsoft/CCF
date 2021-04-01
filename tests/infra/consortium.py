@@ -302,9 +302,14 @@ class Consortium:
 
     def retire_node(self, remote_node, node_to_retire):
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
-        proposal_body, careful_vote = self.make_proposal(
-            "retire_node", node_to_retire.node_id
-        )
+        if os.getenv("JS_GOVERNANCE"):
+            proposal_body, careful_vote = self.make_proposal(
+                "remove_node", node_to_retire.node_id
+            )
+        else:
+            proposal_body, careful_vote = self.make_proposal(
+                "retire_node", node_to_retire.node_id
+            )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
@@ -322,7 +327,12 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        proposal_body, careful_vote = self.make_proposal("trust_node", node_id)
+        if os.getenv("JS_GOVERNANCE"):
+            proposal_body, careful_vote = self.make_proposal(
+                "transition_node_to_trusted", node_id
+            )
+        else:
+            proposal_body, careful_vote = self.make_proposal("trust_node", node_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node,
