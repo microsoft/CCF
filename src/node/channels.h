@@ -262,6 +262,8 @@ namespace ccf
 
     ~Channel()
     {
+      LOG_INFO_FMT("Channel with {} is now destroyed.", peer_id);
+
       if (outgoing)
       {
         RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id.value());
@@ -784,7 +786,7 @@ namespace ccf
       // the non-authenticated plaintext payload
       if (status != ESTABLISHED)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "Node channel with {} cannot receive authenticated message: not yet "
           "established, status={}",
           peer_id,
@@ -810,7 +812,7 @@ namespace ccf
 
       if (status != ESTABLISHED)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "node channel with {} cannot receive authenticated with payload "
           "message: not yet established, status={}",
           peer_id,
@@ -840,7 +842,7 @@ namespace ccf
       // Receive encrypted message, returning the decrypted payload
       if (status != ESTABLISHED)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "Node channel with {} cannot receive encrypted message: not yet "
           "established",
           peer_id);
@@ -860,8 +862,9 @@ namespace ccf
 
     void reset()
     {
-      LOG_TRACE_FMT("Resetting channel with {}", peer_id);
+      LOG_INFO_FMT("Resetting channel with {}", peer_id);
 
+      reset_outgoing();
       status = INACTIVE;
       kex_ctx.reset();
       peer_cert = {};
@@ -938,7 +941,7 @@ namespace ccf
       }
       else if (!search->second)
       {
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Re-creating new outbound channel to {} ({}:{})",
           peer_id,
           hostname,
@@ -968,13 +971,16 @@ namespace ccf
         return;
       }
 
-      search->second = nullptr;
+      search->second->reset();
     }
 
     void destroy_all_channels()
     {
       std::lock_guard<SpinLock> guard(lock);
-      channels.clear();
+      for (auto& c : channels)
+      {
+        c.second->reset();
+      }
     }
 
     void close_all_outgoing()

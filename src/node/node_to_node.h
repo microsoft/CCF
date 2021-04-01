@@ -229,6 +229,7 @@ namespace ccf
       const std::vector<uint8_t>& data) override
     {
       auto n2n_channel = channels->get(to);
+      assert(n2n_channel);
       return n2n_channel ? n2n_channel->send(type, cb, data) : true;
     }
 
