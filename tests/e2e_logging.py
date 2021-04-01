@@ -646,12 +646,6 @@ def test_user_data_ACL(network, args):
 
         # Give isAdmin permissions to a single user
         network.consortium.set_user_data(primary, user.service_id, user_data={"isAdmin": True})
-        # proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
-        #     user.service_id,
-        #     {"isAdmin": True},
-        # )
-        # proposal = proposing_member.propose(primary, proposal_body)
-        # network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
         # Confirm that user can now use this endpoint
         with primary.client(user.local_id) as c:
@@ -659,12 +653,6 @@ def test_user_data_ACL(network, args):
             assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
         # Remove permission
-        # proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
-        #     user.service_id,
-        #     {"isAdmin": False},
-        # )
-        # proposal = proposing_member.propose(primary, proposal_body)
-        # network.consortium.vote_using_majority(primary, proposal, careful_vote)
         network.consortium.set_user_data(primary, user.service_id, user_data={"isAdmin": False})
 
         # Confirm that user is now forbidden on this endpoint

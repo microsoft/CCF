@@ -202,18 +202,15 @@ const actions = new Map([
       function (args) {
         const userId = ccf.strToBuf(args.user_id);
 
-        const rawUserInfo = ccf.kv["public:ccf.gov.users.info"].get(userId);
-        if (rawUserInfo === undefined) {
-          return; // Idempotent if proposal deletes user data
-        }
-
-        if (args.user_data == null) {
-          ccf.kv["public:ccf.gov.users.info"].delete(userId);
-        } else {
+        if (args.user_data !== null && args.user_data !== undefined) {
+          let userInfo = {};
+          userInfo.user_data = args.user_data;
           ccf.kv["public:ccf.gov.users.info"].set(
             userId,
-            ccf.jsonCompatibleToBuf(args.user_data)
+            ccf.jsonCompatibleToBuf(userInfo)
           );
+        } else {
+          ccf.kv["public:ccf.gov.users.info"].delete(userId);
         }
       }
     ),
