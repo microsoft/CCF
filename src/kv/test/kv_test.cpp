@@ -35,7 +35,6 @@ TEST_CASE("Map name parsing")
 
   REQUIRE(parse("foo") == mp(SD::PRIVATE, AC::APPLICATION));
   REQUIRE(parse("public:foo") == mp(SD::PUBLIC, AC::APPLICATION));
-  REQUIRE(parse("ccf.gov.foo") == mp(SD::PRIVATE, AC::GOVERNANCE));
   REQUIRE(parse("public:ccf.gov.foo") == mp(SD::PUBLIC, AC::GOVERNANCE));
   REQUIRE(parse("ccf.internal.foo") == mp(SD::PRIVATE, AC::INTERNAL));
   REQUIRE(parse("public:ccf.internal.foo") == mp(SD::PUBLIC, AC::INTERNAL));
