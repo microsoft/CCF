@@ -68,6 +68,12 @@ function checkLength(value, min, max, field) {
   }
 }
 
+function checkNone(args) {
+  if (args !== null && args !== undefined) {
+    throw new Error(`Proposal does not accept any argument, found \"${args}\"`);
+  }
+}
+
 function getUniqueKvKey() {
   // When a KV map only contains one value, this is the key at which
   // the value is recorded
@@ -124,7 +130,6 @@ const actions = new Map([
     "set_member_data",
     new Action(
       function (args) {
-        // Check that member id is a valid entity id?
         checkType(args.member_id, "string", "member_id");
         checkType(args.member_data, "object", "member_data");
       },
@@ -145,7 +150,9 @@ const actions = new Map([
   [
     "rekey_ledger",
     new Action(
-      function (args) {},
+      function (args) {
+        checkNone(args);
+      },
 
       function (args) {
         ccf.node.rekeyLedger();
@@ -156,7 +163,7 @@ const actions = new Map([
     "transition_service_to_open",
     new Action(
       function (args) {
-        // Check that args is null?
+        checkNone(args);
       },
 
       function (args) {
@@ -168,7 +175,8 @@ const actions = new Map([
     "set_user",
     new Action(
       function (args) {
-        // Check that args is null?
+        checkX509CertChain(args.cert, "cert");
+        checkType(args.user_data, "object?", "user_data");
       },
 
       function (args) {
@@ -192,12 +200,11 @@ const actions = new Map([
     ),
   ],
   [
-    "set_user_data",
+    "set_user_data", // TODO: Remove
     new Action(
       function (args) {
-        return (
-          typeof args.user_id === "string" && typeof args.user_data === "object"
-        );
+        checkType(args.user_id, "string", "user_id");
+        checkType(args.user_data, "object?", "user_data");
       },
       function (args) {
         const userId = ccf.strToBuf(args.user_id);
@@ -272,11 +279,10 @@ const actions = new Map([
     "trigger_recovery_shares_refresh",
     new Action(
       function (args) {
-        return true; // TODO: Check that it is null
+        checkNone(args);
       },
       function (args) {
         ccf.node.triggerRecoverySharesRefresh();
-        return true;
       }
     ),
   ],
@@ -284,7 +290,9 @@ const actions = new Map([
     "set_member",
     new Action(
       function (args) {
-        return true; // TODO: Check that cert is well formed, and member data too, if it exists
+        checkX509CertChain(args.cert, "cert");
+        checkType(args.member_data, "object?", "member_data");
+        // Also check that public encryption key is well formed, if it exists
       },
 
       function (args) {
@@ -336,7 +344,7 @@ const actions = new Map([
     "remove_member",
     new Action(
       function (args) {
-        return typeof args.member_id === "string"; // Check that args.member_id is well formed
+        checkType(args.member_id, "string", "member_id");
       },
       function (args) {
         const rawMemberId = ccf.strToBuf(args.member_id);
