@@ -686,7 +686,12 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME reconfiguration_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-    CONSENSUS cft
+    CONSENSUS cft PROPERTY ENVIRONMENT "JS_GOVERNANCE=ON"
+  )
+  set_property(
+    TEST reconfiguration_test
+    APPEND
+    PROPERTY ENVIRONMENT "JS_GOVERNANCE=ON"
   )
 
   add_e2e_test(
