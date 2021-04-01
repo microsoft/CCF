@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import http
 import re
+import os
 
 import infra.e2e_args
 import infra.network
@@ -124,17 +125,17 @@ def test_governance(network, args):
     network.consortium.transition_service_to_open(node)
 
     LOG.info("Unknown proposal is rejected on completion")
-    unkwown_proposal = {"script": {"text": 'return Calls:call("unknown_proposal")'}}
-    accept_vote = {"ballot": {"text": "return true"}}
 
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, unkwown_proposal
-    )
-    try:
-        network.consortium.vote_using_majority(primary, proposal, accept_vote)
-        assert False, "Unknown proposal should fail on completion"
-    except infra.proposal.ProposalNotAccepted:
-        pass
+    if os.getenv("JS_GOVERNANCE"):
+        unkwown_proposal = {"actions": [{"name": "unknown_action"}]}
+
+        try:
+            proposal = network.consortium.get_any_active_member().propose(
+                primary, unkwown_proposal
+            )
+            assert False, "Unknown proposal should fail on validation"
+        except infra.proposal.ProposalNotCreated as e:
+            pass
 
     LOG.info("Proposal to add a new member (with different curve)")
     (
@@ -147,13 +148,20 @@ def test_governance(network, args):
     )
 
     LOG.info("Check proposal has been recorded in open state")
-    proposals = network.consortium.get_proposals(primary)
-    proposal_entry = next(
-        (p for p in proposals if p.proposal_id == new_member_proposal.proposal_id),
-        None,
-    )
-    assert proposal_entry
-    assert proposal_entry.state == ProposalState.OPEN
+    if os.getenv("JS_GOVERNANCE"):
+        with primary.client(network.consortium.get_any_active_member().local_id) as c:
+            r = c.get(f"/gov/proposals.js/{new_member_proposal.proposal_id}")
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == infra.proposal.ProposalState.OPEN.value
+
+    else:
+        proposals = network.consortium.get_proposals(primary)
+        proposal_entry = next(
+            (p for p in proposals if p.proposal_id == new_member_proposal.proposal_id),
+            None,
+        )
+        assert proposal_entry
+        assert proposal_entry.state == ProposalState.OPEN
 
     LOG.info("Rest of consortium accept the proposal")
     network.consortium.vote_using_majority(node, new_member_proposal, careful_vote)
@@ -224,13 +232,21 @@ def test_governance(network, args):
     assert response.status_code == http.HTTPStatus.OK.value
     assert proposal.state == infra.proposal.ProposalState.WITHDRAWN
 
-    proposals = network.consortium.get_proposals(primary)
-    proposal_entry = next(
-        (p for p in proposals if p.proposal_id == proposal.proposal_id),
-        None,
-    )
-    assert proposal_entry
-    assert proposal_entry.state == ProposalState.WITHDRAWN
+    if os.getenv("JS_GOVERNANCE"):
+        with primary.client(network.consortium.get_any_active_member().local_id) as c:
+            r = c.get(f"/gov/proposals.js/{proposal.proposal_id}")
+            assert r.status_code == 200, r.body.text()
+            assert (
+                r.body.json()["state"] == infra.proposal.ProposalState.WITHDRAWN.value
+            )
+    else:
+        proposals = network.consortium.get_proposals(primary)
+        proposal_entry = next(
+            (p for p in proposals if p.proposal_id == proposal.proposal_id),
+            None,
+        )
+        assert proposal_entry
+        assert proposal_entry.state == ProposalState.WITHDRAWN
 
     LOG.debug("Further withdraw proposals fail")
     response = new_member.withdraw(node, proposal)

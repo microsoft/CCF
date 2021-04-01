@@ -26,6 +26,7 @@ namespace ccf
     virtual ~AbstractNodeState() {}
     virtual void transition_service_to_open(kv::Tx& tx) = 0;
     virtual bool rekey_ledger(kv::Tx& tx) = 0;
+    virtual void trigger_recovery_shares_refresh(kv::Tx& tx) = 0;
     virtual bool is_part_of_public_network() const = 0;
     virtual bool is_primary() const = 0;
     virtual bool is_reading_public_ledger() const = 0;

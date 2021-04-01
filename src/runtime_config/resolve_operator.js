@@ -32,7 +32,7 @@ function canOperatorPass(action) {
     return true;
   }
   // Additionally, operators can add or retire other operators.
-  if (action.name === "new_member") {
+  if (action.name === "set_member") {
     const memberData = action.args["member_data"];
     if (memberData && memberData.is_operator) {
       return true;
