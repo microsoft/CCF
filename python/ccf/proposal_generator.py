@@ -246,8 +246,8 @@ def set_member(
 
 @cli_proposal
 def remove_member(member_id: str, **kwargs):
-    proposal_args = {"member_id": member_id}
-    return build_proposal("remove_member", proposal_args, **kwargs)
+    args = {"member_id": member_id} if GENERATE_JS_PROPOSALS else member_id
+    return build_proposal("remove_member", args, **kwargs)
 
 
 @cli_proposal
@@ -266,8 +266,8 @@ def set_user(user_cert_path: str, user_data: Any = None, **kwargs):
 
 @cli_proposal
 def remove_user(user_id: str, **kwargs):
-    proposal_args = {"user_id": user_id}
-    return build_proposal("remove_user", proposal_args, **kwargs)
+    args = {"user_id": user_id} if GENERATE_JS_PROPOSALS else user_id
+    return build_proposal("remove_user", args, **kwargs)
 
 
 @cli_proposal
@@ -363,7 +363,9 @@ def trigger_recovery_shares_refresh(**kwargs):
 
 @cli_proposal
 def set_recovery_threshold(threshold: int, **kwargs):
-    proposal_args = {"recovery_threshold": threshold}
+    proposal_args = (
+        {"recovery_threshold": threshold} if GENERATE_JS_PROPOSALS else threshold
+    )
     return build_proposal("set_recovery_threshold", proposal_args, **kwargs)
 
 

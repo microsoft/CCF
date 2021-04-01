@@ -229,8 +229,12 @@ def recovery_shares_scenario(args):
         try:
             test_set_recovery_threshold(network, args, recovery_threshold=0)
             assert False, "Setting recovery threshold to 0 should not be possible"
-        except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.FAILED
+        except infra.proposal.ProposalNotCreated as e:
+            assert (
+                e.response.status_code == 400
+                and e.response.body.json()["error"]["code"]
+                == "ProposalFailedToValidate"
+            ), e.response.body.text()
 
         LOG.info(
             "Set recovery threshold to more that number of active recovery members is impossible"
@@ -248,6 +252,26 @@ def recovery_shares_scenario(args):
         except infra.proposal.ProposalNotAccepted as e:
             assert e.proposal.state == infra.proposal.ProposalState.FAILED
 
+        try:
+            test_set_recovery_threshold(network, args, recovery_threshold=256)
+            assert False, "Recovery threshold cannot be set to > 255"
+        except infra.proposal.ProposalNotCreated as e:
+            assert (
+                e.response.status_code == 400
+                and e.response.body.json()["error"]["code"]
+                == "ProposalFailedToValidate"
+            ), e.response.body.text()
+
+        try:
+            network.consortium.set_recovery_threshold(primary, recovery_threshold=None)
+            assert False, "Recovery threshold value must be passed as proposal argument"
+        except infra.proposal.ProposalNotCreated as e:
+            assert (
+                e.response.status_code == 400
+                and e.response.body.json()["error"]["code"]
+                == "ProposalFailedToValidate"
+            ), e.response.body.text()
+
         LOG.info(
             "Setting recovery threshold to current threshold does not update shares"
         )
@@ -261,7 +285,7 @@ def recovery_shares_scenario(args):
 
 
 def run(args):
-    service_startups(args)
+    # service_startups(args)
     recovery_shares_scenario(args)
 
 
