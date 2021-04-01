@@ -70,7 +70,7 @@ def test_app_bundle(network, args):
 
     LOG.info("Verifying that modules and endpoints were added")
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.post("/gov/read", {"table": "public:gov.modules", "key": "/math.js"})
+        r = c.post("/gov/read", {"table": "public:ccf.gov.modules", "key": "/math.js"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
     with primary.client("user0") as c:
@@ -101,7 +101,7 @@ def test_app_bundle(network, args):
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.post("/gov/read", {"table": "public:gov.modules", "key": "/math.js"})
+        r = c.post("/gov/read", {"table": "public:ccf.gov.modules", "key": "/math.js"})
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     return network

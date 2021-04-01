@@ -94,11 +94,6 @@ namespace ccf
     Nodes nodes;
 
     //
-    // JS application table
-    //
-    Scripts app_scripts;
-
-    //
     // Internal CCF tables
     //
     Service service;
@@ -147,7 +142,6 @@ namespace ccf
       user_info(Tables::USER_INFO),
       service_principals(Tables::SERVICE_PRINCIPALS),
       nodes(Tables::NODES),
-      app_scripts(Tables::APP_SCRIPTS),
       service(Tables::SERVICE),
       values(Tables::VALUES),
       secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
@@ -188,7 +182,6 @@ namespace ccf
         std::ref(service_principals),
         std::ref(nodes),
         std::ref(service),
-        std::ref(app_scripts),
         std::ref(values),
         std::ref(signatures));
     }
