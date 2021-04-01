@@ -68,6 +68,34 @@ function checkLength(value, min, max, field) {
   }
 }
 
+function checkNone(args) {
+  if (args !== null && args !== undefined) {
+    throw new Error(`Proposal does not accept any argument, found "${args}"`);
+  }
+}
+
+function getSingletonKvKey() {
+  // When a KV map only contains one value, this is the key at which
+  // the value is recorded
+  return new ArrayBuffer(8);
+}
+
+function getActiveRecoveryMembersCount() {
+  let activeRecoveryMembersCount = 0;
+  ccf.kv["public:ccf.gov.members.encryption_public_keys"].forEach((_, k) => {
+    let rawMemberInfo = ccf.kv["public:ccf.gov.members.info"].get(k);
+    if (rawMemberInfo === undefined) {
+      throw new Error(`Recovery member ${ccf.bufToStr(k)} has no information`);
+    }
+
+    const memberInfo = ccf.bufToJsonCompatible(rawMemberInfo);
+    if (memberInfo.status === "Active") {
+      activeRecoveryMembersCount++;
+    }
+  });
+  return activeRecoveryMembersCount;
+}
+
 function checkJwks(value, field) {
   checkType(value, "object", field);
   checkType(value.keys, "array", `${field}.keys`);
@@ -97,20 +125,139 @@ function checkX509CertChain(value, field) {
 
 const actions = new Map([
   [
-    "trigger_ledger_rekey",
+    "set_member",
     new Action(
-      function (args) {},
       function (args) {
-        ccf.node.rekeyLedger();
+        checkX509CertChain(args.cert, "cert");
+        checkType(args.member_data, "object?", "member_data");
+        // Also check that public encryption key is well formed, if it exists
+      },
+
+      function (args) {
+        const memberId = ccf.pemToId(args.cert);
+        const rawMemberId = ccf.strToBuf(memberId);
+
+        ccf.kv["public:ccf.gov.members.certs"].set(
+          rawMemberId,
+          ccf.strToBuf(args.cert)
+        );
+
+        if (args.encryption_pub_key == null) {
+          ccf.kv["public:ccf.gov.members.encryption_public_keys"].delete(
+            rawMemberId
+          );
+        } else {
+          ccf.kv["public:ccf.gov.members.encryption_public_keys"].set(
+            rawMemberId,
+            ccf.strToBuf(args.encryption_pub_key)
+          );
+        }
+
+        let member_info = {};
+        member_info.member_data = args.member_data;
+        member_info.status = "Accepted";
+        ccf.kv["public:ccf.gov.members.info"].set(
+          rawMemberId,
+          ccf.jsonCompatibleToBuf(member_info)
+        );
+
+        const rawSignature = ccf.kv["public:ccf.internal.signatures"].get(
+          getSingletonKvKey()
+        );
+        if (rawSignature === undefined) {
+          ccf.kv["public:ccf.gov.members.acks"].set(rawMemberId);
+        } else {
+          const signature = ccf.bufToJsonCompatible(rawSignature);
+          const ack = {};
+          ack.state_digest = signature.root;
+          ccf.kv["public:ccf.gov.members.acks"].set(
+            rawMemberId,
+            ccf.jsonCompatibleToBuf(ack)
+          );
+        }
       }
     ),
   ],
   [
-    "transition_service_to_open",
+    "remove_member",
     new Action(
-      function (args) {},
       function (args) {
-        ccf.node.transitionServiceToOpen();
+        checkType(args.member_id, "string", "member_id");
+      },
+      function (args) {
+        const rawMemberId = ccf.strToBuf(args.member_id);
+        const rawMemberInfo = ccf.kv["public:ccf.gov.members.info"].get(
+          rawMemberId
+        );
+        if (rawMemberInfo === undefined) {
+          return; // Idempotent
+        }
+
+        const memberInfo = ccf.bufToJsonCompatible(rawMemberInfo);
+        const isActiveMember = memberInfo.status == "Active";
+
+        const isRecoveryMember = ccf.kv[
+          "public:ccf.gov.members.encryption_public_keys"
+        ].has(rawMemberId)
+          ? true
+          : false;
+
+        // If the member is an active recovery member, check that there
+        // would still be a sufficient number of recovery members left
+        // to recover the service
+        if (isActiveMember && isRecoveryMember) {
+          const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+            getSingletonKvKey()
+          );
+          if (rawConfig === undefined) {
+            throw new Error("Service configuration could not be found");
+          }
+
+          const config = ccf.bufToJsonCompatible(rawConfig);
+          const activeRecoveryMembersCountAfter =
+            getActiveRecoveryMembersCount() - 1;
+          if (activeRecoveryMembersCountAfter < config.recovery_threshold) {
+            throw new Error(
+              `Number of active recovery members (${activeRecoveryMembersCountAfter}) would be less than recovery threshold (${config.recovery_threshold})`
+            );
+          }
+        }
+
+        ccf.kv["public:ccf.gov.members.info"].delete(rawMemberId);
+        ccf.kv["public:ccf.gov.members.encryption_public_keys"].delete(
+          rawMemberId
+        );
+        ccf.kv["public:ccf.gov.members.certs"].delete(rawMemberId);
+        ccf.kv["public:ccf.gov.members.acks"].delete(rawMemberId);
+        ccf.kv["public:ccf.gov.history"].delete(rawMemberId);
+
+        if (isActiveMember && isRecoveryMember) {
+          // A retired recovery member should not have access to the private
+          // ledger going forward so rekey the ledger, issuing new shares to
+          // remaining active recovery members
+          ccf.node.rekeyLedger();
+        }
+      }
+    ),
+  ],
+  [
+    "set_member_data",
+    new Action(
+      function (args) {
+        checkType(args.member_id, "string", "member_id");
+        checkType(args.member_data, "object", "member_data");
+      },
+
+      function (args) {
+        let member_id = ccf.strToBuf(args.member_id);
+        let members_info = ccf.kv["public:ccf.gov.members.info"];
+        let member_info = members_info.get(member_id);
+        if (member_info === undefined) {
+          throw new Error(`Member ${args.member_id} does not exist`);
+        }
+        let mi = ccf.bufToJsonCompatible(member_info);
+        mi.member_data = args.member_data;
+        members_info.set(member_id, ccf.jsonCompatibleToBuf(mi));
       }
     ),
   ],
@@ -118,44 +265,27 @@ const actions = new Map([
     "set_user",
     new Action(
       function (args) {
-        // Check that args is null?
+        checkX509CertChain(args.cert, "cert");
+        checkType(args.user_data, "object?", "user_data");
       },
-
       function (args) {
-        let user_id = ccf.pemToId(args.cert);
-        let raw_user_id = ccf.strToBuf(user_id);
-
-        if (ccf.kv["public:ccf.gov.users.certs"].has(raw_user_id)) {
-          return; // Idempotent
-        }
+        let userId = ccf.pemToId(args.cert);
+        let rawUserId = ccf.strToBuf(userId);
 
         ccf.kv["public:ccf.gov.users.certs"].set(
-          raw_user_id,
+          rawUserId,
           ccf.strToBuf(args.cert)
         );
 
-        if (args.user_data != null) {
-          if (ccf.kv["public:ccf.gov.users.info"].has(raw_user_id)) {
-            throw new Error(`User info for ${user_id} already exists`);
-            // Internal error
-          }
-
+        if (args.user_data !== null && args.user_data !== undefined) {
           ccf.kv["public:ccf.gov.users.info"].set(
-            raw_user_id,
+            rawUserId,
             ccf.jsonCompatibleToBuf(args.user_data)
           );
+        } else {
+          ccf.kv["public:ccf.gov.users.info"].delete(rawUserId);
         }
       }
-    ),
-  ],
-  [
-    "set_recovery_threshold",
-    new Action(
-      function (args) {
-        checkType(args.threshold, "integer", "threshold");
-        checkBounds(args.threshold, 1, 254, "threshold");
-      },
-      function (args) {}
     ),
   ],
   [
@@ -168,6 +298,117 @@ const actions = new Map([
         const user_id = ccf.strToBuf(args.user_id);
         ccf.kv["public:ccf.gov.users.certs"].delete(user_id);
         ccf.kv["public:ccf.gov.users.info"].delete(user_id);
+      }
+    ),
+  ],
+  [
+    "set_user_data",
+    new Action(
+      function (args) {
+        checkType(args.user_id, "string", "user_id");
+        checkType(args.user_data, "object?", "user_data");
+      },
+      function (args) {
+        const userId = ccf.strToBuf(args.user_id);
+
+        if (args.user_data !== null && args.user_data !== undefined) {
+          let userInfo = {};
+          userInfo.user_data = args.user_data;
+          ccf.kv["public:ccf.gov.users.info"].set(
+            userId,
+            ccf.jsonCompatibleToBuf(userInfo)
+          );
+        } else {
+          ccf.kv["public:ccf.gov.users.info"].delete(userId);
+        }
+      }
+    ),
+  ],
+  [
+    "set_recovery_threshold",
+    new Action(
+      function (args) {
+        checkType(args.recovery_threshold, "integer", "threshold");
+        checkBounds(args.recovery_threshold, 1, 254, "threshold");
+      },
+      function (args) {
+        const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+          getSingletonKvKey()
+        );
+        if (rawConfig === undefined) {
+          throw new Error("Service configuration could not be found");
+        }
+
+        let config = ccf.bufToJsonCompatible(rawConfig);
+
+        if (args.recovery_threshold === config.recovery_threshold) {
+          return; // No effect
+        }
+
+        const rawService = ccf.kv["public:ccf.gov.service.info"].get(
+          getSingletonKvKey()
+        );
+        if (rawService === undefined) {
+          throw new Error("Service information could not be found");
+        }
+
+        const service = ccf.bufToJsonCompatible(rawService);
+
+        if (service.status === "WaitingForRecoveryShares") {
+          throw new Error(
+            `Cannot set recovery threshold if service is ${service.status}`
+          );
+        } else if (service.status === "Open") {
+          let activeRecoveryMembersCount = getActiveRecoveryMembersCount();
+          if (args.recovery_threshold > activeRecoveryMembersCount) {
+            throw new Error(
+              `Cannot set recovery threshold to ${args.recovery_threshold}: recovery threshold would be greater than the number of recovery members ${activeRecoveryMembersCount}`
+            );
+          }
+        }
+
+        config.recovery_threshold = args.recovery_threshold;
+        ccf.kv["public:ccf.gov.service.config"].set(
+          getSingletonKvKey(),
+          ccf.jsonCompatibleToBuf(config)
+        );
+
+        ccf.node.triggerRecoverySharesRefresh();
+      }
+    ),
+  ],
+  [
+    "trigger_recovery_shares_refresh",
+    new Action(
+      function (args) {
+        checkNone(args);
+      },
+      function (args) {
+        ccf.node.triggerRecoverySharesRefresh();
+      }
+    ),
+  ],
+  [
+    "trigger_ledger_rekey",
+    new Action(
+      function (args) {
+        checkNone(args);
+      },
+
+      function (args) {
+        ccf.node.rekeyLedger();
+      }
+    ),
+  ],
+  [
+    "transition_service_to_open",
+    new Action(
+      function (args) {
+        checkNone(args);
+      },
+
+      function (args) {
+        ccf.node.transitionServiceToOpen();
       }
     ),
   ],
@@ -299,10 +540,10 @@ const actions = new Map([
     "remove_ca_cert_bundle",
     new Action(
       function (args) {
-        checkType(args, "string", "args");
+        checkType(args.name, "string", "name");
       },
       function (args) {
-        const name = args;
+        const name = args.name;
         const nameBuf = ccf.strToBuf(name);
         ccf.kv["public:ccf.gov.tls.ca_cert_bundles"].delete(nameBuf);
       }

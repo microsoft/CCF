@@ -171,11 +171,13 @@ def build_proposal(
             vote_lines.append("  let args = action.args;")
 
             for name, body in args.items():
-                vote_lines.append(f"  if (!('{name}' in args)) {{ return false; }};")
-                vote_lines.append(f"  var expected = {json.dumps(body)};")
+                vote_lines.append("  {")
+                vote_lines.append(f"    if (!('{name}' in args)) {{ return false; }};")
+                vote_lines.append(f"    let expected = {json.dumps(body)};")
                 vote_lines.append(
-                    f"  if (JSON.stringify(args['{name}']) !== JSON.stringify(expected)) {{ return false; }};"
+                    f"    if (JSON.stringify(args['{name}']) !== JSON.stringify(expected)) {{ return false; }};"
                 )
+                vote_lines.append("  }")
 
         vote_lines.append("  return true;")
         vote_lines.append("}")
@@ -231,77 +233,22 @@ def new_member(
     member_data: Any = None,
     **kwargs,
 ):
-    LOG.debug("Generating new_member proposal")
-
-    # Read certs
-    member_cert = open(member_cert_path).read()
-
-    encryption_pub_key = None
+    member_info = {"cert": open(member_cert_path).read()}
     if member_enc_pubk_path is not None:
-        encryption_pub_key = open(member_enc_pubk_path).read()
+        member_info["encryption_pub_key"] = open(member_enc_pubk_path).read()
+    if member_data is not None:
+        member_info["member_data"] = member_data
 
-    # Script which proposes adding a new member
-    proposal_script_text = """
-    tables, args = ...
-    return Calls:call("new_member", args)
-    """
-
-    # Proposal object (request body for POST /gov/proposals) containing this member's info as parameter
-    proposal = {
-        "parameter": {
-            "cert": member_cert,
-            "encryption_pub_key": encryption_pub_key,
-            "member_data": member_data,
-        },
-        "script": {"text": proposal_script_text},
-    }
-
-    # Sample vote script which checks the expected member is being added, and no other actions are being taken
-
-    verify_encryption_pubk_text = (
-        f"""
-        expected_enc_pub_key = [====[{encryption_pub_key}]====]
-        if not call.args.encryption_pub_key == expected_enc_pub_key then
-        return false
-        end
-        """
-        if encryption_pub_key is not None
-        else ""
-    )
-
-    verifying_vote_text = f"""
-    tables, calls = ...
-    if #calls ~= 1 then
-    return false
-    end
-
-    call = calls[1]
-    if call.func ~= "new_member" then
-    return false
-    end
-
-    expected_cert = [====[{member_cert}]====]
-    if not call.args.cert == expected_cert then
-    return false
-    end
-
-    {verify_encryption_pubk_text}
-
-    return true
-    """
-
-    # Vote object (request body for POST /gov/proposals/{proposal_id}/votes)
-    verifying_vote = {"ballot": {"text": verifying_vote_text}}
-
-    LOG.trace(f"Made new member proposal:\n{json.dumps(proposal, indent=2)}")
-    LOG.trace(f"Accompanying vote:\n{json.dumps(verifying_vote, indent=2)}")
-
-    return proposal, verifying_vote
+    if GENERATE_JS_PROPOSALS:
+        return build_proposal("set_member", member_info, **kwargs)
+    else:
+        return build_proposal("new_member", member_info, **kwargs)
 
 
 @cli_proposal
 def remove_member(member_id: str, **kwargs):
-    return build_proposal("remove_member", member_id, **kwargs)
+    args = {"member_id": member_id} if GENERATE_JS_PROPOSALS else member_id
+    return build_proposal("remove_member", args, **kwargs)
 
 
 @cli_proposal
@@ -320,7 +267,8 @@ def set_user(user_cert_path: str, user_data: Any = None, **kwargs):
 
 @cli_proposal
 def remove_user(user_id: str, **kwargs):
-    return build_proposal("remove_user", user_id, **kwargs)
+    args = {"user_id": user_id} if GENERATE_JS_PROPOSALS else user_id
+    return build_proposal("remove_user", args, **kwargs)
 
 
 @cli_proposal
@@ -416,17 +364,26 @@ def transition_service_to_open(**kwargs):
 
 @cli_proposal
 def rekey_ledger(**kwargs):
-    return build_proposal("rekey_ledger", **kwargs)
+    if GENERATE_JS_PROPOSALS:
+        return build_proposal("trigger_ledger_rekey", **kwargs)
+    else:
+        return build_proposal("rekey_ledger", **kwargs)
 
 
 @cli_proposal
 def update_recovery_shares(**kwargs):
-    return build_proposal("update_recovery_shares", **kwargs)
+    if GENERATE_JS_PROPOSALS:
+        return build_proposal("trigger_recovery_shares_refresh", **kwargs)
+    else:
+        return build_proposal("update_recovery_shares", **kwargs)
 
 
 @cli_proposal
 def set_recovery_threshold(threshold: int, **kwargs):
-    return build_proposal("set_recovery_threshold", threshold, **kwargs)
+    proposal_args = (
+        {"recovery_threshold": threshold} if GENERATE_JS_PROPOSALS else threshold
+    )
+    return build_proposal("set_recovery_threshold", proposal_args, **kwargs)
 
 
 @cli_proposal
@@ -453,7 +410,8 @@ def set_ca_cert_bundle(cert_bundle_name, cert_bundle_path, skip_checks=False, **
 
 @cli_proposal
 def remove_ca_cert_bundle(cert_bundle_name, **kwargs):
-    return build_proposal("remove_ca_cert_bundle", cert_bundle_name, **kwargs)
+    args = {"name": cert_bundle_name} if GENERATE_JS_PROPOSALS else cert_bundle_name
+    return build_proposal("remove_ca_cert_bundle", args, **kwargs)
 
 
 @cli_proposal

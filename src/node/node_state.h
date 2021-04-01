@@ -1232,6 +1232,11 @@ namespace ccf
         recovery_v);
     }
 
+    void trigger_recovery_shares_refresh(kv::Tx& tx) override
+    {
+      share_manager.shuffle_recovery_shares(tx);
+    }
+
     void transition_service_to_open(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);

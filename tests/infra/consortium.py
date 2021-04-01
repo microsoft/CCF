@@ -356,12 +356,12 @@ class Consortium:
         self.vote_using_majority(remote_node, proposal, careful_vote)
         member_to_remove.set_retired()
 
-    def rekey_ledger(self, remote_node):
+    def trigger_ledger_rekey(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("rekey_ledger")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def update_recovery_shares(self, remote_node):
+    def trigger_recovery_shares_refresh(self, remote_node):
         proposal_body, careful_vote = self.make_proposal("update_recovery_shares")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -398,10 +398,10 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_member_data(self, remote_node, service_id, member_data):
+    def set_member_data(self, remote_node, member_service_id, member_data):
         proposal, careful_vote = self.make_proposal(
             "set_member_data",
-            service_id,
+            member_service_id,
             member_data,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal)

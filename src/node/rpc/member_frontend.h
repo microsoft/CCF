@@ -834,6 +834,7 @@ namespace ccf
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
+        js::populate_global_console(context);
         js::populate_global_ccf(
           &txctx, std::nullopt, nullptr, nullptr, nullptr, context);
         auto ballot_func = context.function(
@@ -2145,9 +2146,15 @@ namespace ccf
 
       auto get_proposal_js =
         [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is unknown.");
+          }
+          if (!check_member_active(ctx.tx, member_id.value()))
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,
@@ -2275,7 +2282,7 @@ namespace ccf
         "proposals.js/{proposal_id}/withdraw",
         HTTP_POST,
         json_adapter(withdraw_js),
-        member_cert_or_sig)
+        member_sig_only)
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .install();
 
@@ -2440,9 +2447,15 @@ namespace ccf
 
       auto get_vote_js =
         [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
-          const auto& caller_identity =
-            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
-          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          const auto member_id = get_caller_member_id(ctx);
+          if (!member_id.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is unknown.");
+          }
+          if (!check_member_active(ctx.tx, member_id.value()))
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,

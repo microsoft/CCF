@@ -33,6 +33,11 @@ namespace ccf
       return (sig == other.sig) && (req == other.req) && (md == other.md) &&
         (request_body == other.request_body) && (key_id == other.key_id);
     }
+
+    bool operator!=(const SignedReq& other) const
+    {
+      return !(*this == other);
+    }
   };
   DECLARE_JSON_TYPE(SignedReq)
   DECLARE_JSON_REQUIRED_FIELDS(SignedReq, sig, req, request_body, md, key_id)
