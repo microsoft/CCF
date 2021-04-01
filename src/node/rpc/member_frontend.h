@@ -70,16 +70,8 @@ namespace ccf
   DECLARE_JSON_TYPE(SetModule)
   DECLARE_JSON_REQUIRED_FIELDS(SetModule, name, module)
 
-  struct JsBundleEndpointMethod : public ccf::endpoints::EndpointProperties
-  {
-    std::string js_module;
-    std::string js_function;
-  };
-  DECLARE_JSON_TYPE_WITH_BASE(
-    JsBundleEndpointMethod, ccf::endpoints::EndpointProperties)
-  DECLARE_JSON_REQUIRED_FIELDS(JsBundleEndpointMethod, js_module, js_function)
-
-  using JsBundleEndpoint = std::map<std::string, JsBundleEndpointMethod>;
+  using JsBundleEndpoint =
+    std::map<std::string, ccf::endpoints::EndpointProperties>;
 
   struct JsBundleMetadata
   {
@@ -150,23 +142,6 @@ namespace ccf
       return *s;
     }
 
-    void set_js_scripts(kv::Tx& tx, std::map<std::string, std::string> scripts)
-    {
-      auto tx_scripts = tx.rw(network.app_scripts);
-
-      // First, remove all existing handlers
-      tx_scripts->foreach(
-        [&tx_scripts](const std::string& name, const Script&) {
-          tx_scripts->remove(name);
-          return true;
-        });
-
-      for (auto& rs : scripts)
-      {
-        tx_scripts->put(rs.first, {rs.second});
-      }
-    }
-
     bool set_js_app(kv::Tx& tx, const JsBundle& bundle)
     {
       std::string module_prefix = "/";
@@ -178,7 +153,6 @@ namespace ccf
       auto endpoints =
         tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
 
-      std::map<std::string, std::string> scripts;
       for (auto& [url, endpoint] : bundle.metadata.endpoints)
       {
         for (auto& [method, info] : endpoint)
@@ -198,26 +172,12 @@ namespace ccf
               info.js_module);
             return false;
           }
-
+          auto info_ = info;
+          info_.js_module = module_prefix + info_.js_module;
           auto verb = nlohmann::json(method).get<RESTVerb>();
-          endpoints->put(ccf::endpoints::EndpointKey{url, verb}, info);
-
-          // CCF currently requires each endpoint to have an inline JS module.
-          std::string method_uppercase = method;
-          nonstd::to_upper(method_uppercase);
-          std::string url_without_leading_slash = url.substr(1);
-          std::string key =
-            fmt::format("{} {}", method_uppercase, url_without_leading_slash);
-          std::string script = fmt::format(
-            "import {{ {} as f }} from '.{}{}'; export default (r) => f(r);",
-            info.js_function,
-            module_prefix,
-            info.js_module);
-          scripts.emplace(key, script);
+          endpoints->put(ccf::endpoints::EndpointKey{url, verb}, info_);
         }
       }
-
-      set_js_scripts(tx, scripts);
 
       return true;
     }
@@ -225,8 +185,7 @@ namespace ccf
     bool remove_js_app(kv::Tx& tx)
     {
       remove_modules(tx, "/");
-      set_js_scripts(tx, {});
-
+      remove_endpoints(tx);
       return true;
     }
 
