@@ -108,14 +108,14 @@ return {
 
   set_service_principal = [[
   tables, args = ...
-  table = tables["public:gov.service_principals"]
+  table = tables["public:ccf.gov.service_principals"]
   table:put(args.id, args.data)
   return true
   ]],
 
   remove_service_principal = [[
   tables, args = ...
-  table = tables["public:gov.service_principals"]
+  table = tables["public:ccf.gov.service_principals"]
   table:remove(args.id)
   return true
   ]],

@@ -414,6 +414,114 @@ const actions = new Map([
     ),
   ],
   [
+    "set_js_app",
+    new Action(
+      function (args) {
+        const bundle = args.bundle;
+        checkType(bundle, "object", "bundle");
+
+        let prefix = "bundle.modules";
+        checkType(bundle.modules, "array", prefix);
+        for (const [i, module] of bundle.modules.entries()) {
+          checkType(module, "object", `${prefix}[${i}]`);
+          checkType(module.name, "string", `${prefix}[${i}].name`);
+          checkType(module.module, "string", `${prefix}[${i}].module`);
+        }
+
+        prefix = "bundle.metadata";
+        checkType(bundle.metadata, "object", prefix);
+        checkType(bundle.metadata.endpoints, "object", `${prefix}.endpoints`);
+        for (const [url, endpoint] of Object.entries(
+          bundle.metadata.endpoints
+        )) {
+          checkType(endpoint, "object", `${prefix}.endpoints["${url}"]`);
+          for (const [method, info] of Object.entries(endpoint)) {
+            const prefix2 = `${prefix}.endpoints["${url}"]["${method}"]`;
+            checkType(info, "object", prefix2);
+            checkType(info.js_module, "string", `${prefix2}.js_module`);
+            checkType(info.js_function, "string", `${prefix2}.js_function`);
+            checkEnum(
+              info.mode,
+              ["readwrite", "readonly", "historical"],
+              `${prefix2}.mode`
+            );
+            checkEnum(
+              info.forwarding_required,
+              ["sometimes", "always", "never"],
+              `${prefix2}.forwarding_required`
+            );
+            checkType(info.openapi, "object?", `${prefix2}.openapi`);
+            checkType(
+              info.openapi_hidden,
+              "boolean?",
+              `${prefix2}.openapi_hidden`
+            );
+            checkType(
+              info.authn_policies,
+              "array",
+              `${prefix2}.authn_policies`
+            );
+            for (const [i, policy] of info.authn_policies.entries()) {
+              checkType(policy, "string", `${prefix2}.authn_policies[${i}]`);
+            }
+            if (!bundle.modules.some((m) => m.name === info.js_module)) {
+              throw new Error(`module '${info.js_module}' not found in bundle`);
+            }
+          }
+        }
+      },
+      function (args) {
+        const modulesMap = ccf.kv["public:ccf.gov.modules"];
+        const endpointsMap = ccf.kv["public:ccf.gov.endpoints"];
+        // kv should expose .clear()
+        modulesMap.forEach((_, k) => {
+          modulesMap.delete(k);
+        });
+        endpointsMap.forEach((_, k) => {
+          endpointsMap.delete(k);
+        });
+
+        const bundle = args.bundle;
+        for (const module of bundle.modules) {
+          const path = "/" + module.name;
+          const pathBuf = ccf.strToBuf(path);
+          const moduleBuf = ccf.strToBuf(module.module);
+          modulesMap.set(pathBuf, moduleBuf);
+        }
+
+        for (const [url, endpoint] of Object.entries(
+          bundle.metadata.endpoints
+        )) {
+          for (const [method, info] of Object.entries(endpoint)) {
+            const key = `${method.toUpperCase()} ${url}`;
+            const keyBuf = ccf.strToBuf(key);
+
+            info.js_module = "/" + info.js_module;
+            const infoBuf = ccf.jsonCompatibleToBuf(info);
+            endpointsMap.set(keyBuf, infoBuf);
+          }
+        }
+      }
+    ),
+  ],
+  [
+    "remove_js_app",
+    new Action(
+      function (args) {},
+      function (args) {
+        const modulesMap = ccf.kv["public:ccf.gov.modules"];
+        const endpointsMap = ccf.kv["public:ccf.gov.endpoints"];
+        // kv should expose .clear()
+        modulesMap.forEach((_, k) => {
+          modulesMap.delete(k);
+        });
+        endpointsMap.forEach((_, k) => {
+          endpointsMap.delete(k);
+        });
+      }
+    ),
+  ],
+  [
     "set_ca_cert_bundle",
     new Action(
       function (args) {
