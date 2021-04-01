@@ -2316,7 +2316,7 @@ namespace ccf
         "proposals.js/{proposal_id}/withdraw",
         HTTP_POST,
         json_adapter(withdraw_js),
-        member_cert_or_sig)
+        member_sig_only)
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .install();
 
