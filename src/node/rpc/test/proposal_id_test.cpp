@@ -36,7 +36,7 @@ DOCTEST_TEST_CASE("Unique proposal ids")
     do
     u = i ^ 0.5
     end
-    return Calls:call("set_member", member_info)
+    return Calls:call("new_member", member_info)
   )xxx");
   proposal.parameter["cert"] = proposed_member;
   proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
@@ -161,7 +161,7 @@ DOCTEST_TEST_CASE("Compaction conflict")
   Propose::In proposal;
   proposal.script = std::string(R"xxx(
     tables, member_info = ...
-    return Calls:call("set_member", member_info)
+    return Calls:call("new_member", member_info)
   )xxx");
   proposal.parameter["cert"] = proposed_member;
   proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;

@@ -53,7 +53,7 @@ return {
     end
 
     -- additionally, operators can add or retire other operators
-    if call.func == "set_member" then
+    if call.func == "new_member" then
       member_data = call.args.member_data
       if member_data and member_data.is_operator then
         return true
