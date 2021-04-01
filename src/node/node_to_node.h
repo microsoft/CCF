@@ -56,8 +56,7 @@ namespace ccf
 
       if (!recv_authenticated(from, asCb(t), data, size))
       {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message from node {}", from));
+        LOG_INFO_FMT("Dropping invalid authenticated message from {}", from);
       }
 
       return t;
@@ -74,9 +73,8 @@ namespace ccf
 
       if (!recv_authenticated_with_load(from, data, size))
       {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message with load from node {}",
-          from));
+        LOG_INFO_FMT(
+          "Dropping invalid authenticated message with load from {}", from);
       }
       serialized::skip(data, size, sizeof(T));
 
@@ -253,8 +251,7 @@ namespace ccf
       auto plain = n2n_channel->recv_encrypted(cb, data, size);
       if (!plain.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Invalid encrypted node2node message from node {}", from));
+        LOG_INFO_FMT("Dropping invalid encrypted message from {}", from);
       }
 
       return plain.value();

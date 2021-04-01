@@ -787,7 +787,7 @@ namespace ccf
       if (status != ESTABLISHED)
       {
         LOG_INFO_FMT(
-          "Node channel with {} cannot receive authenticated message: not yet "
+          "Node channel with {} cannot receive authenticated message: not "
           "established, status={}",
           peer_id,
           status);
@@ -814,7 +814,7 @@ namespace ccf
       {
         LOG_INFO_FMT(
           "node channel with {} cannot receive authenticated with payload "
-          "message: not yet established, status={}",
+          "message: not established, status={}",
           peer_id,
           status);
         return false;
@@ -843,7 +843,7 @@ namespace ccf
       if (status != ESTABLISHED)
       {
         LOG_INFO_FMT(
-          "Node channel with {} cannot receive encrypted message: not yet "
+          "Node channel with {} cannot receive encrypted message: not "
           "established",
           peer_id);
         return std::nullopt;
