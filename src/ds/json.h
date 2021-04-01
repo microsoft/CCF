@@ -694,6 +694,8 @@ namespace std
     add_schema_components_optional_fields(doc, j, t))
 
 #define DECLARE_JSON_REQUIRED_FIELDS(TYPE, ...) \
+  _Pragma("clang diagnostic push"); \
+  _Pragma("clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\""); \
   inline void to_json_required_fields( \
     nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
@@ -728,7 +730,8 @@ namespace std
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP1)(ADD_SCHEMA_COMPONENTS_REQUIRED, TYPE, ##__VA_ARGS__); \
-  }
+  } \
+  _Pragma("clang diagnostic pop");
 
 #define DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(TYPE, ...) \
   inline void to_json_required_fields(nlohmann::json& j, const TYPE& t) \
