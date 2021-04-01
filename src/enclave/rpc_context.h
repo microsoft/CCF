@@ -37,6 +37,18 @@ namespace ccf
     RESTVerb() : verb(std::numeric_limits<int>::min()) {}
     RESTVerb(const llhttp_method& hm) : verb(hm) {}
     RESTVerb(const ws::Verb& wv) : verb(wv) {}
+    RESTVerb(const std::string& s)
+    {
+#define HTTP_METHOD_GEN(NUM, NAME, STRING) \
+  if (s == #STRING) \
+  { \
+    verb = static_cast<llhttp_method>(NUM); \
+    return; \
+  }
+      HTTP_METHOD_MAP(HTTP_METHOD_GEN)
+#undef HTTP_METHOD_GEN
+      throw std::logic_error(fmt::format("unknown method {}", s));
+    }
 
     std::optional<llhttp_method> get_http_method() const
     {

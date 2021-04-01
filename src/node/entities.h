@@ -78,10 +78,10 @@ namespace ccf
     static constexpr auto WHITELISTS = "public:ccf.gov.whitelists";
 
     // JS applications, not service specific but writable by governance only
-    static constexpr auto APP_SCRIPTS = "public:gov.scripts";
-    static constexpr auto MODULES = "public:gov.modules";
-    static constexpr auto ENDPOINTS = "public:gov.endpoints";
-    static constexpr auto SERVICE_PRINCIPALS = "public:gov.service_principals";
+    static constexpr auto MODULES = "public:ccf.gov.modules";
+    static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
+    static constexpr auto SERVICE_PRINCIPALS =
+      "public:ccf.gov.service_principals";
 
     // TLS
     static constexpr auto CA_CERT_BUNDLE_PEMS =
