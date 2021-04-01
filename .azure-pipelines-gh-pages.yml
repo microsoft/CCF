@@ -17,6 +17,7 @@ jobs:
         fetchDepth: 10000
 
       - script: |
+          set -ex
           env
           git status
           git rev-parse HEAD
@@ -29,6 +30,7 @@ jobs:
           cmake_args: ""
 
       - script: |
+          set -ex
           python3.8 -m venv env
           source env/bin/activate
           pip install wheel
@@ -38,6 +40,7 @@ jobs:
         displayName: Sphinx
 
       - script: |
+          set -ex
           git init
           git config --local user.name "Azure Pipelines"
           git config --local user.email "azuredevops@microsoft.com"
@@ -56,6 +59,7 @@ jobs:
         displayName: "Get the deploy key"
 
       - script: |
+          set -ex
           mv $DOWNLOADSECUREFILE_SECUREFILEPATH deploy_key
           chmod 600 deploy_key
           mkdir ~/.ssh
