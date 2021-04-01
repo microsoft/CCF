@@ -94,7 +94,7 @@ namespace ccf
   struct MemberAck : public StateDigest
   {
     //! the signed request containing the last state digest
-    SignedReq signed_req = {};
+    std::optional<SignedReq> signed_req = std::nullopt;
 
     MemberAck() {}
 
@@ -105,7 +105,12 @@ namespace ccf
       signed_req(signed_req_)
     {}
   };
-  DECLARE_JSON_TYPE_WITH_BASE(MemberAck, StateDigest)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberAck, signed_req)
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(MemberAck, StateDigest)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+  DECLARE_JSON_REQUIRED_FIELDS(MemberAck)
+#pragma clang diagnostic pop
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberAck, signed_req)
   using MemberAcks = ServiceMap<MemberId, MemberAck>;
 }
