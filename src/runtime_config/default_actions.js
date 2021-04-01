@@ -432,13 +432,13 @@ const actions = new Map([
           ccf.strToBuf(args.node_id)
         );
         if (node !== undefined) {
-          let node_obj = ccf.bufToJsonCompatible(node);
-          if (node_obj.status === "Pending") {
-            node_obj.status = "Trusted";
-            node_obj.ledger_secret_seqno = ccf.network.latestLedgerSecretSeqno();
+          const nodeInfo = ccf.bufToJsonCompatible(node);
+          if (nodeInfo.status === "Pending") {
+            nodeInfo.status = "Trusted";
+            nodeInfo.ledger_secret_seqno = ccf.network.latestLedgerSecretSeqno();
             ccf.kv["public:ccf.gov.nodes.info"].set(
               ccf.strToBuf(args.node_id),
-              ccf.jsonCompatibleToBuf(node_obj)
+              ccf.jsonCompatibleToBuf(nodeInfo)
             );
           }
         }
