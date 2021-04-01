@@ -418,4 +418,29 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "add_node_code",
+    new Action(
+      function (args) {
+        checkType(args.code_id, "string", "code_id");
+      },
+      function (args) {
+        const codeId = ccf.strToBuf(args.code_id);
+        const ALLOWED = ccf.strToBuf("AllowedToJoin");
+        ccf.kv["public:ccf.gov.nodes.code_ids"].set(codeId, ALLOWED);
+      }
+    ),
+  ],
+  [
+    "remove_node_code",
+    new Action(
+      function (args) {
+        checkType(args.code_id, "string", "code_id");
+      },
+      function (args) {
+        const codeId = ccf.strToBuf(args.code_id);
+        ccf.kv["public:ccf.gov.nodes.code_ids"].remove(codeId);
+      }
+    ),
+  ],
 ]);
