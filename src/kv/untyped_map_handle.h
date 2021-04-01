@@ -92,14 +92,13 @@ namespace kv::untyped
     {
       auto value_p = read_key(key);
       auto found = value_p != nullptr;
-#ifdef VERBOSE_LOGGING
       LOG_TRACE_FMT(
         "KV[{}]::get({}) - {}found", map_name, key, found ? "" : "not ");
-#endif
       if (!found)
       {
         return std::nullopt;
       }
+
       return *value_p;
     }
 
@@ -154,27 +153,21 @@ namespace kv::untyped
     {
       auto versionv_p = read_key(key);
       auto found = versionv_p != nullptr;
-#ifdef VERBOSE_LOGGING
       LOG_TRACE_FMT(
         "KV[{}]::has({}) - {}found", map_name, key, found ? "" : "not ");
-#endif
       return found;
     }
 
     void put(const KeyType& key, const ValueType& value)
     {
-#ifdef VERBOSE_LOGGING
       LOG_TRACE_FMT("KV[{}]::put({}, {})", map_name, key, value);
-#endif
       // Record in the write set.
       tx_changes.writes[key] = value;
     }
 
     bool remove(const KeyType& key)
     {
-#ifdef VERBOSE_LOGGING
       LOG_TRACE_FMT("KV[{}]::remove({})", map_name, key);
-#endif
       auto write = tx_changes.writes.find(key);
       auto search = tx_changes.state.get(key).has_value();
 
