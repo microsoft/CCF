@@ -318,7 +318,7 @@ namespace asynchost
       decltype(reconnect_queue) local_queue;
       std::swap(reconnect_queue, local_queue);
 
-      for (const auto node : local_queue)
+      for (const auto& node : local_queue)
       {
         LOG_DEBUG_FMT("reconnecting node {}", node);
         auto s = outgoing.find(node);

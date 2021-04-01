@@ -18,8 +18,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NewUser, cert)
   DECLARE_JSON_OPTIONAL_FIELDS(NewUser, user_data)
 
-  using UserCerts = kv::RawCopySerialisedMap<UserId, crypto::Pem>;
-
   struct UserDetails
   {
     nlohmann::json user_data = nullptr;
@@ -27,5 +25,6 @@ namespace ccf
   DECLARE_JSON_TYPE(UserDetails)
   DECLARE_JSON_REQUIRED_FIELDS(UserDetails, user_data)
 
+  using UserCerts = kv::RawCopySerialisedMap<UserId, crypto::Pem>;
   using UserInfo = ServiceMap<UserId, UserDetails>;
 }
