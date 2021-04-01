@@ -653,7 +653,7 @@ namespace ccf
            context.get_node_state().transition_service_to_open(tx);
            return true;
          }},
-        {"rekey_ledger",
+        {"trigger_ledger_rekey",
          [this](
            const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
            const auto ledger_rekeyed =

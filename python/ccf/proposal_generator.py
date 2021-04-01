@@ -352,8 +352,8 @@ def transition_service_to_open(**kwargs):
 
 
 @cli_proposal
-def rekey_ledger(**kwargs):
-    return build_proposal("rekey_ledger", **kwargs)
+def trigger_ledger_rekey(**kwargs):
+    return build_proposal("trigger_ledger_rekey", **kwargs)
 
 
 @cli_proposal

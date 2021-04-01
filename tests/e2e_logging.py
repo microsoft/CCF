@@ -1039,7 +1039,7 @@ def test_liveness(network, args):
 @reqs.at_least_n_nodes(1)
 def test_rekey(network, args):
     primary, _ = network.find_primary()
-    network.consortium.rekey_ledger(primary)
+    network.consortium.trigger_ledger_rekey(primary)
     return network
 
 

@@ -23,7 +23,9 @@ def merge(*proposals):
     return {"actions": sum((prop["actions"] for prop in proposals), [])}
 
 
-valid_set_recovery_threshold = proposal(action("set_recovery_threshold", threshold=5))
+valid_set_recovery_threshold = proposal(
+    action("set_recovery_threshold", recovery_threshold=5)
+)
 valid_set_recovery_threshold_twice = merge(
     valid_set_recovery_threshold, valid_set_recovery_threshold
 )
@@ -289,7 +291,7 @@ def test_operator_proposals_and_votes(network, args):
         proposal_id = r.body.json()["proposal_id"]
 
         ballot = {
-            "ballot": "export function vote (proposal, proposer_id) { return true }"
+            "ballot": "export function vote (proposal, proposer_id) { return true; }"
         }
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
@@ -309,7 +311,7 @@ def test_actions(network, args):
     node = network.find_random_node()
 
     # Rekey ledger
-    network.consortium.rekey_ledger(node)
+    network.consortium.trigger_ledger_rekey(node)
 
     # Add new user twice (with and without user data)
     new_user_local_id = "js_user"
@@ -408,27 +410,6 @@ def test_actions(network, args):
     network.consortium.remove_member(node, new_member)
 
 
-@reqs.description("Test proposal generator")
-def test_proposal_generator(network, args):
-    restore_js_proposals = prop_gen.GENERATE_JS_PROPOSALS
-    prop_gen.GENERATE_JS_PROPOSALS = True
-
-    node = network.find_random_node()
-    with node.client(None, "member0") as c:
-        proposal, ballot = prop_gen.build_proposal(
-            "set_recovery_threshold", {"threshold": 5}
-        )
-        r = c.post("/gov/proposals.js", proposal)
-        assert r.status_code == 200, r.body.text()
-        proposal_id = r.body.json()["proposal_id"]
-
-        r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
-        assert r.status_code == 200, r.body.text()
-
-    prop_gen.GENERATE_JS_PROPOSALS = restore_js_proposals
-    return network
-
-
 @reqs.description("Test apply")
 def test_apply(network, args):
     node = network.find_random_node()
@@ -464,15 +445,14 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # network = test_proposal_validation(network, args)
-        # network = test_proposal_storage(network, args)
-        # network = test_proposal_withdrawal(network, args)
-        # network = test_ballot_storage(network, args)
-        # network = test_pure_proposals(network, args)
-        # network = test_proposals_with_votes(network, args)
-        # network = test_operator_proposals_and_votes(network, args)
-        # network = test_proposal_generator(network, args)
-        # network = test_apply(network, args)
+        network = test_proposal_validation(network, args)
+        network = test_proposal_storage(network, args)
+        network = test_proposal_withdrawal(network, args)
+        network = test_ballot_storage(network, args)
+        network = test_pure_proposals(network, args)
+        network = test_proposals_with_votes(network, args)
+        network = test_operator_proposals_and_votes(network, args)
+        network = test_apply(network, args)
         network = test_actions(network, args)
 
 

@@ -346,8 +346,8 @@ class Consortium:
         self.vote_using_majority(remote_node, proposal, careful_vote)
         member_to_remove.set_retired()
 
-    def rekey_ledger(self, remote_node):
-        proposal_body, careful_vote = self.make_proposal("rekey_ledger")
+    def trigger_ledger_rekey(self, remote_node):
+        proposal_body, careful_vote = self.make_proposal("trigger_ledger_rekey")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
