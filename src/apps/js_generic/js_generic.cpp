@@ -271,18 +271,10 @@ namespace ccfapp
     }
 
     void execute_request(
-      const std::string& method,
-      const ccf::RESTVerb& verb,
+      const ccf::endpoints::EndpointProperties& props,
       ccf::endpoints::EndpointContext& args)
     {
-      // Is this a historical endpoint?
-      auto endpoints =
-        args.tx.ro<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
-      auto info = endpoints->get(ccf::endpoints::EndpointKey{method, verb});
-
-      if (
-        info.has_value() &&
-        info.value().mode == ccf::endpoints::Mode::Historical)
+      if (props.mode == ccf::endpoints::Mode::Historical)
       {
         auto is_tx_committed =
           [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
@@ -291,53 +283,40 @@ namespace ccfapp
           };
 
         ccf::historical::adapter(
-          [this, &method, &verb](
+          [this, &props](
             ccf::endpoints::EndpointContext& args,
             ccf::historical::StatePtr state) {
             auto tx = state->store->create_tx();
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
-            do_execute_request(method, verb, args, tx, tx_id, receipt);
+            do_execute_request(props, args, tx, tx_id, receipt);
           },
           context.get_historical_state(),
           is_tx_committed)(args);
       }
       else
       {
-        do_execute_request(method, verb, args, args.tx, std::nullopt, nullptr);
+        do_execute_request(props, args, args.tx, std::nullopt, nullptr);
       }
     }
 
     void do_execute_request(
-      const std::string& method,
-      const ccf::RESTVerb& verb,
+      const ccf::endpoints::EndpointProperties& props,
       ccf::endpoints::EndpointContext& args,
       kv::Tx& target_tx,
       const std::optional<ccf::TxID>& transaction_id,
       ccf::historical::TxReceiptPtr receipt)
     {
-      const auto local_method = method.substr(method.find_first_not_of('/'));
+      const auto modules = args.tx.ro(this->network.modules);
 
-      const auto scripts = args.tx.ro(this->network.app_scripts);
-
-      // Try to find script for method
-      // - First try a script called "foo"
-      // - If that fails, try a script called "POST foo"
-      auto handler_script = scripts->get(local_method);
-      if (!handler_script)
+      auto handler_script = modules->get(props.js_module);
+      if (!handler_script.has_value())
       {
-        const auto verb_prefixed =
-          fmt::format("{} {}", verb.c_str(), local_method);
-        handler_script = scripts->get(verb_prefixed);
-        if (!handler_script)
-        {
-          args.rpc_ctx->set_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ResourceNotFound,
-            fmt::format(
-              "No handler script found for method '{}'.", verb_prefixed));
-          return;
-        }
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format("Endpoint module not found: {}.", props.js_module));
+        return;
       }
 
       js::Runtime rt;
@@ -356,14 +335,22 @@ namespace ccfapp
         &txctx, transaction_id, receipt, nullptr, nullptr, ctx);
 
       // Compile module
-      if (!handler_script.value().text.has_value())
-      {
-        throw std::runtime_error("Could not find script text");
-      }
-      std::string code = handler_script.value().text.value();
-      const std::string path = "/__endpoint__.js";
+      std::string code = handler_script.value();
+      const std::string path = props.js_module;
 
-      auto export_func = ctx.default_function(code, path);
+      JSValue export_func;
+      try
+      {
+        export_func = ctx.function(code, props.js_function, path);
+      }
+      catch (std::exception& exc)
+      {
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          exc.what());
+        return;
+      }
 
       // Call exported function
       auto request = create_request_obj(args, ctx);
@@ -644,8 +631,7 @@ namespace ccfapp
       auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        execute_request(
-          endpoint->dispatch.uri_path, endpoint->dispatch.verb, args);
+        execute_request(endpoint->properties, args);
         return;
       }
 
