@@ -32,6 +32,7 @@ namespace kv::untyped
 
   protected:
     ChangeSet& tx_changes;
+    std::string map_name;
 
     /** Get pointer to current value if this key exists, else nullptr if it does
      * not exist or has been deleted. If non-null, points to something owned by
@@ -82,16 +83,23 @@ namespace kv::untyped
     }
 
   public:
-    MapHandle(ChangeSet& cs) : tx_changes(cs) {}
+    MapHandle(ChangeSet& cs, const std::string& map_name) :
+      tx_changes(cs),
+      map_name(map_name)
+    {}
 
     std::optional<ValueType> get(const KeyType& key)
     {
       auto value_p = read_key(key);
-      if (value_p == nullptr)
+      auto found = value_p != nullptr;
+#ifdef VERBOSE_LOGGING
+      LOG_TRACE_FMT(
+        "KV[{}]::get({}) - {}found", map_name, key, found ? "" : "not ");
+#endif
+      if (!found)
       {
         return std::nullopt;
       }
-
       return *value_p;
     }
 
@@ -145,17 +153,28 @@ namespace kv::untyped
     bool has(const KeyType& key)
     {
       auto versionv_p = read_key(key);
-      return versionv_p != nullptr;
+      auto found = versionv_p != nullptr;
+#ifdef VERBOSE_LOGGING
+      LOG_TRACE_FMT(
+        "KV[{}]::has({}) - {}found", map_name, key, found ? "" : "not ");
+#endif
+      return found;
     }
 
     void put(const KeyType& key, const ValueType& value)
     {
+#ifdef VERBOSE_LOGGING
+      LOG_TRACE_FMT("KV[{}]::put({}, {})", map_name, key, value);
+#endif
       // Record in the write set.
       tx_changes.writes[key] = value;
     }
 
     bool remove(const KeyType& key)
     {
+#ifdef VERBOSE_LOGGING
+      LOG_TRACE_FMT("KV[{}]::remove({})", map_name, key);
+#endif
       auto write = tx_changes.writes.find(key);
       auto search = tx_changes.state.get(key).has_value();
 
