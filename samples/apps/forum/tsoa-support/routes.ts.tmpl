@@ -145,7 +145,7 @@ export function authenticateMiddleware(security: TsoaRoute.Security[], request: 
         {{#each controllers}}
         {
           "path": "{{path}}",
-          "js_module": "build/{{name}}Proxy.js",
+          "js_module": "{{name}}Proxy.js",
           "actions": [
               {{#each actions}}
               {

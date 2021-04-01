@@ -8,7 +8,6 @@
 #include <cstring>
 #include <exception>
 #include <memory>
-#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace crypto
@@ -94,8 +93,6 @@ namespace crypto
     {
       return {data(), data() + s.size()};
     }
-
-    MSGPACK_DEFINE(s);
   };
 
   inline void to_json(nlohmann::json& j, const Pem& p)

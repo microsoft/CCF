@@ -8,16 +8,12 @@
 #include "kv/kv_types.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
-
 namespace ccf
 {
   struct SnapshotHash
   {
     crypto::Sha256Hash hash;
     kv::Version version;
-
-    MSGPACK_DEFINE(hash, version);
   };
 
   DECLARE_JSON_TYPE(SnapshotHash)

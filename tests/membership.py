@@ -116,7 +116,10 @@ def service_startups(args):
         try:
             network.start_and_join(args)
             assert False, "Service cannot be opened with no recovery members"
-        except infra.proposal.ProposalNotAccepted:
+        except infra.proposal.ProposalNotAccepted as e:
+            assert (
+                e.proposal.state == infra.proposal.ProposalState.OPEN
+            ), e.proposal.state
             LOG.success(
                 "Service could not be opened with insufficient number of recovery mmebers"
             )

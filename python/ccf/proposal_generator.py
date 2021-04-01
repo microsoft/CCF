@@ -10,12 +10,14 @@ import os
 import sys
 import shutil
 import tempfile
-from pathlib import PurePosixPath
-from typing import Union, Optional, Any, List
+from typing import Union, Optional, Any, List, Dict
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
+
+
+GENERATE_JS_PROPOSALS = os.getenv("JS_GOVERNANCE")
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
@@ -144,35 +146,72 @@ def build_proposal(
 ):
     LOG.trace(f"Generating {proposed_call} proposal")
 
-    proposal_script_lines = []
-    if args is None:
-        proposal_script_lines.append(f'return Calls:call("{proposed_call}")')
+    proposal: Dict[str, Any] = {}
+    vote: Dict[str, Any] = {}
+
+    if GENERATE_JS_PROPOSALS:
+        action = {"name": proposed_call, "args": args}
+        actions = [action]
+        proposal = {"actions": actions}
+
+        vote_lines = []
+        vote_lines.append("export function vote (raw_proposal, proposer_id) {")
+        vote_lines.append("  let proposal = JSON.parse(raw_proposal);")
+        vote_lines.append("  if (!('actions' in proposal)) { return false; };")
+        vote_lines.append("  let actions = proposal['actions'];")
+        vote_lines.append("  if (actions.length !== 1) { return false; };")
+        vote_lines.append("  let action = actions[0];")
+        vote_lines.append("  if (!('name' in action)) { return false; };")
+        vote_lines.append(
+            f"  if (action.name !== '{proposed_call}') {{ return false; }};"
+        )
+
+        if args is not None:
+            vote_lines.append("  if (!('args' in action)) { return false; };")
+            vote_lines.append("  let args = action.args;")
+
+            for name, body in args.items():
+                vote_lines.append(f"  if (!('{name}' in args)) {{ return false; }};")
+                vote_lines.append(f"  var expected = {json.dumps(body)};")
+                vote_lines.append(
+                    f"  if (JSON.stringify(args['{name}']) !== JSON.stringify(expected)) {{ return false; }};"
+                )
+
+        vote_lines.append("  return true;")
+        vote_lines.append("}")
+        vote_text = "\n".join(vote_lines)
+        vote = {"ballot": vote_text}
+
     else:
-        if inline_args:
-            add_arg_construction(proposal_script_lines, args)
+        proposal_script_lines = []
+        if args is None:
+            proposal_script_lines.append(f'return Calls:call("{proposed_call}")')
         else:
-            proposal_script_lines.append("tables, args = ...")
-        proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
+            if inline_args:
+                add_arg_construction(proposal_script_lines, args)
+            else:
+                proposal_script_lines.append("tables, args = ...")
+            proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
 
-    proposal_script_text = ";\n".join(proposal_script_lines)
-    proposal = {
-        "script": {"text": proposal_script_text},
-    }
-    if args is not None and not inline_args:
-        proposal["parameter"] = args
+        proposal_script_text = ";\n".join(proposal_script_lines)
+        proposal = {
+            "script": {"text": proposal_script_text},
+        }
+        if args is not None and not inline_args:
+            proposal["parameter"] = args
 
-    vote_lines = [
-        "tables, calls = ...",
-        "if not #calls == 1 then return false end",
-        "call = calls[1]",
-        f'if not call.func == "{proposed_call}" then return false end',
-    ]
-    if args is not None:
-        vote_lines.append("args = call.args")
-        add_arg_checks(vote_lines, args)
-    vote_lines.append("return true")
-    vote_text = ";\n".join(vote_lines)
-    vote = {"ballot": {"text": vote_text}}
+        vote_lines = [
+            "tables, calls = ...",
+            "if not #calls == 1 then return false end",
+            "call = calls[1]",
+            f'if not call.func == "{proposed_call}" then return false end',
+        ]
+        if args is not None:
+            vote_lines.append("args = call.args")
+            add_arg_checks(vote_lines, args)
+        vote_lines.append("return true")
+        vote_text = ";\n".join(vote_lines)
+        vote = {"ballot": {"text": vote_text}}
 
     LOG.trace(f"Made {proposed_call} proposal:\n{json.dumps(proposal, indent=2)}")
     LOG.trace(f"Accompanying vote:\n{json.dumps(vote, indent=2)}")
@@ -272,11 +311,11 @@ def set_member_data(member_id: str, member_data: Any, **kwargs):
 
 
 @cli_proposal
-def new_user(user_cert_path: str, user_data: Any = None, **kwargs):
+def set_user(user_cert_path: str, user_data: Any = None, **kwargs):
     user_info = {"cert": open(user_cert_path).read()}
     if user_data is not None:
         user_info["user_data"] = user_data
-    return build_proposal("new_user", user_info, **kwargs)
+    return build_proposal("set_user", user_info, **kwargs)
 
 
 @cli_proposal
@@ -291,17 +330,7 @@ def set_user_data(user_id: str, user_data: Any, **kwargs):
 
 
 @cli_proposal
-def set_js_app(app_script_path: str, **kwargs):
-    LOG.error(
-        "set_js_app proposal type is deprecated - update to use deploy_js_app instead"
-    )
-    with open(app_script_path) as f:
-        app_script = f.read()
-    return build_proposal("set_js_app", app_script, **kwargs)
-
-
-@cli_proposal
-def deploy_js_app(bundle_path: str, **kwargs):
+def set_js_app(bundle_path: str, **kwargs):
     # read modules
     if os.path.isfile(bundle_path):
         tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
@@ -329,33 +358,12 @@ def deploy_js_app(bundle_path: str, **kwargs):
         "bundle": {"metadata": metadata, "modules": modules},
     }
 
-    return build_proposal("deploy_js_app", proposal_args, **kwargs)
+    return build_proposal("set_js_app", proposal_args, **kwargs)
 
 
 @cli_proposal
 def remove_js_app(**kwargs):
     return build_proposal("remove_js_app", **kwargs)
-
-
-@cli_proposal
-def set_module(module_name: str, module_path: str, **kwargs):
-    module_name_ = PurePosixPath(module_name)
-    if not module_name_.is_absolute():
-        raise ValueError("module name must be an absolute path")
-    if any(folder in [".", ".."] for folder in module_name_.parents):
-        raise ValueError("module name must not contain . or .. components")
-    if module_name_.suffix == ".js":
-        with open(module_path) as f:
-            js = f.read()
-        proposal_args = {"name": module_name, "module": js}
-    else:
-        raise ValueError("module name must end with .js")
-    return build_proposal("set_module", proposal_args, **kwargs)
-
-
-@cli_proposal
-def remove_module(module_name: str, **kwargs):
-    return build_proposal("remove_module", module_name, **kwargs)
 
 
 def read_modules(modules_path: str) -> List[dict]:

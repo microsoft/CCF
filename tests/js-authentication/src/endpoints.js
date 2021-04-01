@@ -38,7 +38,7 @@ export function multi_auth(request) {
   } else if (request.caller.policy === "jwt") {
     lines.push("JWT");
     lines.push(
-      `The caller is identified by a JWT issued by: ${request.caller.jwt.key_issuer}`
+      `The caller is identified by a JWT issued by: ${request.caller.jwt.keyIssuer}`
     );
     lines.push(
       `The JWT header is:\n${JSON.stringify(request.caller.jwt.header)}`

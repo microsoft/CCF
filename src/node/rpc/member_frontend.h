@@ -3,6 +3,7 @@
 #pragma once
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
+#include "ccf/json_handler.h"
 #include "crypto/key_pair.h"
 #include "ds/nonstd.h"
 #include "frontend.h"
@@ -15,7 +16,6 @@
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
-#include "node/rpc/json_handler.h"
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
@@ -26,33 +26,11 @@
 #include <initializer_list>
 #include <map>
 #include <memory>
-#include <openenclave/attestation/verifier.h>
 #include <set>
 #include <sstream>
-#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
-#  include <openenclave/enclave.h>
-#else
-#  include <openenclave/host_verify.h>
-#endif
 
 namespace ccf
 {
-  constexpr auto INVALID_PROPOSAL_ID = "INVALID";
-
-  static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
-    oe_claim_t* claims, size_t claims_length, void* arg)
-  {
-    auto claims_map = (std::map<std::string, std::vector<uint8_t>>*)arg;
-    for (size_t i = 0; i < claims_length; i++)
-    {
-      std::string claim_name(claims[i].name);
-      std::vector<uint8_t> claim_value(
-        claims[i].value, claims[i].value + claims[i].value_size);
-      claims_map->emplace(std::move(claim_name), std::move(claim_value));
-    }
-    return OE_OK;
-  }
-
   class MemberTsr : public lua::TxScriptRunner
   {
     void setup_environment(
@@ -125,32 +103,6 @@ namespace ccf
   DECLARE_JSON_TYPE(DeployJsApp)
   DECLARE_JSON_REQUIRED_FIELDS(DeployJsApp, bundle)
 
-  struct JsonWebKey
-  {
-    std::vector<std::string> x5c;
-    std::string kid;
-    std::string kty;
-
-    bool operator==(const JsonWebKey& rhs) const
-    {
-      return x5c == rhs.x5c && kid == rhs.kid && kty == rhs.kty;
-    }
-  };
-  DECLARE_JSON_TYPE(JsonWebKey)
-  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, x5c, kid, kty)
-
-  struct JsonWebKeySet
-  {
-    std::vector<JsonWebKey> keys;
-
-    bool operator!=(const JsonWebKeySet& rhs) const
-    {
-      return keys != rhs.keys;
-    }
-  };
-  DECLARE_JSON_TYPE(JsonWebKeySet)
-  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeySet, keys)
-
   struct SetJwtIssuer : public ccf::JwtIssuerMetadata
   {
     std::string issuer;
@@ -215,7 +167,7 @@ namespace ccf
       }
     }
 
-    bool deploy_js_app(kv::Tx& tx, const JsBundle& bundle)
+    bool set_js_app(kv::Tx& tx, const JsBundle& bundle)
     {
       std::string module_prefix = "/";
       remove_modules(tx, module_prefix);
@@ -327,167 +279,6 @@ namespace ccf
       return tx_modules->remove(name);
     }
 
-    void remove_jwt_keys(kv::Tx& tx, std::string issuer)
-    {
-      auto keys = tx.rw(this->network.jwt_public_signing_keys);
-      auto key_issuer = tx.rw(this->network.jwt_public_signing_key_issuer);
-
-      key_issuer->foreach(
-        [&issuer, &keys, &key_issuer](const auto& k, const auto& v) {
-          if (v == issuer)
-          {
-            keys->remove(k);
-            key_issuer->remove(k);
-          }
-          return true;
-        });
-    }
-
-    bool set_jwt_public_signing_keys(
-      kv::Tx& tx,
-      const ProposalId& proposal_id,
-      std::string issuer,
-      const JwtIssuerMetadata& issuer_metadata,
-      const JsonWebKeySet& jwks)
-    {
-      auto keys = tx.rw(this->network.jwt_public_signing_keys);
-      auto key_issuer = tx.rw(this->network.jwt_public_signing_key_issuer);
-
-      auto log_prefix = proposal_id == INVALID_PROPOSAL_ID ?
-        "JWT key auto-refresh" :
-        fmt::format("Proposal {}", proposal_id);
-
-      // add keys
-      if (jwks.keys.empty())
-      {
-        LOG_FAIL_FMT("{}: JWKS has no keys", log_prefix, proposal_id);
-        return false;
-      }
-      std::map<std::string, std::vector<uint8_t>> new_keys;
-      for (auto& jwk : jwks.keys)
-      {
-        if (keys->has(jwk.kid) && key_issuer->get(jwk.kid).value() != issuer)
-        {
-          LOG_FAIL_FMT(
-            "{}: key id {} already added for different issuer",
-            log_prefix,
-            jwk.kid);
-          return false;
-        }
-        if (jwk.x5c.empty())
-        {
-          LOG_FAIL_FMT("{}: JWKS is invalid (empty x5c)", log_prefix);
-          return false;
-        }
-
-        auto& der_base64 = jwk.x5c[0];
-        ccf::Cert der;
-        try
-        {
-          der = tls::raw_from_b64(der_base64);
-        }
-        catch (const std::invalid_argument& e)
-        {
-          LOG_FAIL_FMT(
-            "{}: Could not parse x5c of key id {}: {}",
-            log_prefix,
-            jwk.kid,
-            e.what());
-          return false;
-        }
-
-        std::map<std::string, std::vector<uint8_t>> claims;
-        bool has_key_policy_sgx_claims =
-          issuer_metadata.key_policy.has_value() &&
-          issuer_metadata.key_policy.value().sgx_claims.has_value() &&
-          !issuer_metadata.key_policy.value().sgx_claims.value().empty();
-        if (
-          issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX ||
-          has_key_policy_sgx_claims)
-        {
-          oe_verifier_initialize();
-          oe_verify_attestation_certificate_with_evidence(
-            der.data(),
-            der.size(),
-            oe_verify_attestation_certificate_with_evidence_cb,
-            &claims);
-        }
-
-        if (
-          issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX &&
-          claims.empty())
-        {
-          LOG_INFO_FMT(
-            "{}: Skipping JWT signing key with kid {} (not OE "
-            "attested)",
-            log_prefix,
-            jwk.kid);
-          continue;
-        }
-
-        if (has_key_policy_sgx_claims)
-        {
-          for (auto& [claim_name, expected_claim_val_hex] :
-               issuer_metadata.key_policy.value().sgx_claims.value())
-          {
-            if (claims.find(claim_name) == claims.end())
-            {
-              LOG_FAIL_FMT(
-                "{}: JWKS kid {} is missing the {} SGX claim",
-                log_prefix,
-                jwk.kid,
-                claim_name);
-              return false;
-            }
-            auto& actual_claim_val = claims[claim_name];
-            auto actual_claim_val_hex = ds::to_hex(actual_claim_val);
-            if (expected_claim_val_hex != actual_claim_val_hex)
-            {
-              LOG_FAIL_FMT(
-                "{}: JWKS kid {} has a mismatching {} SGX claim",
-                log_prefix,
-                jwk.kid,
-                claim_name);
-              return false;
-            }
-          }
-        }
-        else
-        {
-          try
-          {
-            crypto::check_is_cert(der);
-          }
-          catch (std::invalid_argument& exc)
-          {
-            LOG_FAIL_FMT(
-              "{}: JWKS kid {} has an invalid X.509 certificate: {}",
-              log_prefix,
-              jwk.kid,
-              exc.what());
-            return false;
-          }
-        }
-        LOG_INFO_FMT(
-          "{}: Storing JWT signing key with kid {}", log_prefix, jwk.kid);
-        new_keys.emplace(jwk.kid, der);
-      }
-      if (new_keys.empty())
-      {
-        LOG_FAIL_FMT("{}: no keys left after applying filter", log_prefix);
-        return false;
-      }
-
-      remove_jwt_keys(tx, issuer);
-      for (auto& [kid, der] : new_keys)
-      {
-        keys->put(kid, der);
-        key_issuer->put(kid, issuer);
-      }
-
-      return true;
-    }
-
     void remove_endpoints(kv::Tx& tx)
     {
       auto endpoints =
@@ -543,35 +334,16 @@ namespace ccf
       std::string,
       std::function<bool(const ProposalId&, kv::Tx&, const nlohmann::json&)>>
       hardcoded_funcs = {
-        // set the js application script
+        // deploy the js application bundle
         {"set_js_app",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const std::string app = args;
-           set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
-           return true;
-         }},
-        // deploy the js application bundle
-        {"deploy_js_app",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<DeployJsApp>();
-           return deploy_js_app(tx, parsed.bundle);
+           return set_js_app(tx, parsed.bundle);
          }},
         // undeploy/remove the js application
         {"remove_js_app",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json&) {
            return remove_js_app(tx);
-         }},
-        // add/update a module
-        {"set_module",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto parsed = args.get<SetModule>();
-           return set_module(tx, parsed.name, parsed.module);
-         }},
-        // remove a module
-        {"remove_module",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto name = args.get<std::string>();
-           return remove_module(tx, name);
          }},
         // add a new member
         {"new_member",
@@ -629,7 +401,7 @@ namespace ccf
            members->put(parsed.member_id, member_info.value());
            return true;
          }},
-        {"new_user",
+        {"set_user",
          [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto user_info = args.get<NewUser>();
 
@@ -770,22 +542,17 @@ namespace ccf
            return success;
          }},
         {"remove_jwt_issuer",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<RemoveJwtIssuer>();
            const auto issuer = parsed.issuer;
            auto issuers = tx.rw(this->network.jwt_issuers);
 
            if (!issuers->remove(issuer))
            {
-             LOG_FAIL_FMT(
-               "Proposal {}: {} is not a valid issuer", proposal_id, issuer);
-             return false;
+             return true;
            }
 
-           remove_jwt_keys(tx, issuer);
+           remove_jwt_public_signing_keys(tx, issuer);
 
            return true;
          }},
@@ -882,75 +649,9 @@ namespace ccf
              proposal_id);
          }},
         {"transition_service_to_open",
-         [this](
-           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           auto service = tx.ro<Service>(Tables::SERVICE)->get(0);
-           if (!service.has_value())
-           {
-             throw std::logic_error(
-               "Service information cannot be found in current state");
-           }
-
-           // Idempotence: if the service is already open or waiting for
-           // recovery shares, the proposal should succeed
-           if (
-             service->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES ||
-             service->status == ServiceStatus::OPEN)
-           {
-             return true;
-           }
-
-           if (context.get_node_state().is_part_of_public_network())
-           {
-             // If the node is in public mode, start accepting member recovery
-             // shares
-             const auto accept_recovery =
-               context.get_node_state().accept_recovery(tx);
-             if (!accept_recovery)
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: Failed to accept recovery", proposal_id);
-             }
-             return accept_recovery;
-           }
-           else if (context.get_node_state().is_part_of_network())
-           {
-             // Otherwise, if the node is part of the network. Open the network
-             // straight away. We first check that a sufficient number of
-             // recovery members have become active. If so, recovery shares are
-             // allocated to each recovery member.
-             try
-             {
-               share_manager.issue_recovery_shares(tx);
-             }
-             catch (const std::logic_error& e)
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: Failed to issuing recovery shares failed when "
-                 "transitioning the service to open network: {}",
-                 proposal_id,
-                 e.what());
-               return false;
-             }
-
-             GenesisGenerator g(this->network, tx);
-             const auto network_opened = g.open_service();
-             if (!network_opened)
-             {
-               LOG_FAIL_FMT("Proposal {}: Failed to open service", proposal_id);
-             }
-             else
-             {
-               context.get_node_state().open_user_frontend();
-             }
-             return network_opened;
-           }
-
-           LOG_FAIL_FMT(
-             "Proposal {}: Service is not in expected state to transition to "
-             "open",
-             proposal_id);
-           return false;
+         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json&) {
+           context.get_node_state().transition_service_to_open(tx);
+           return true;
          }},
         {"rekey_ledger",
          [this](
@@ -1151,6 +852,197 @@ namespace ccf
 
       return get_proposal_info(proposal_id, proposal);
     }
+
+#ifdef ENABLE_JS_GOV
+
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wc99-extensions"
+
+    ccf::jsgov::ProposalInfoSummary resolve_proposal(
+      kv::Tx& tx,
+      const ProposalId& proposal_id,
+      const std::vector<uint8_t>& proposal,
+      const std::string& constitution)
+    {
+      auto pi =
+        tx.rw<ccf::jsgov::ProposalInfoMap>("public:ccf.gov.proposals_info.js");
+      auto pi_ = pi->get(proposal_id);
+
+      std::vector<std::pair<MemberId, bool>> votes;
+      for (const auto& [mid, mb] : pi_->ballots)
+      {
+        js::Runtime rt;
+        js::Context context(rt);
+        rt.add_ccf_classdefs();
+        js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
+        js::populate_global_ccf(
+          &txctx, std::nullopt, nullptr, nullptr, context);
+        auto ballot_func = context.function(
+          mb,
+          "vote",
+          fmt::format(
+            "public:ccf.gov.proposal_info[{}].ballots[{}]", proposal_id, mid));
+
+        JSValue argv[2];
+        auto prop = JS_NewStringLen(
+          context, (const char*)proposal.data(), proposal.size());
+        argv[0] = prop;
+        auto pid = JS_NewStringLen(
+          context, pi_->proposer_id.data(), pi_->proposer_id.size());
+        argv[1] = pid;
+
+        auto val =
+          context(JS_Call(context, ballot_func, JS_UNDEFINED, 2, argv));
+        if (!JS_IsException(val))
+        {
+          votes.emplace_back(mid, JS_ToBool(context, val));
+        }
+        JS_FreeValue(context, ballot_func);
+        JS_FreeValue(context, prop);
+        JS_FreeValue(context, pid);
+      }
+
+      {
+        js::Runtime rt;
+        js::Context js_context(rt);
+        js::populate_global_console(js_context);
+        rt.add_ccf_classdefs();
+        js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
+        js::populate_global_ccf(
+          &txctx, std::nullopt, nullptr, nullptr, js_context);
+        auto resolve_func = js_context.function(
+          constitution,
+          "resolve",
+          fmt::format("public:ccf.gov.constitution[0]", proposal_id));
+        JSValue argv[3];
+        auto prop = JS_NewStringLen(
+          js_context, (const char*)proposal.data(), proposal.size());
+        argv[0] = prop;
+
+        auto prop_id = JS_NewStringLen(
+          js_context, pi_->proposer_id.data(), pi_->proposer_id.size());
+        argv[1] = prop_id;
+
+        auto vs = JS_NewArray(js_context);
+        size_t index = 0;
+        for (auto& [mid, vote] : votes)
+        {
+          auto v = JS_NewObject(js_context);
+          auto member_id = JS_NewStringLen(js_context, mid.data(), mid.size());
+          JS_DefinePropertyValueStr(
+            js_context, v, "member_id", member_id, JS_PROP_C_W_E);
+          auto vote_status = JS_NewBool(js_context, vote);
+          JS_DefinePropertyValueStr(
+            js_context, v, "vote", vote_status, JS_PROP_C_W_E);
+          JS_DefinePropertyValueUint32(
+            js_context, vs, index++, v, JS_PROP_C_W_E);
+        }
+        argv[2] = vs;
+
+        auto val =
+          js_context(JS_Call(js_context, resolve_func, JS_UNDEFINED, 3, argv));
+
+        JS_FreeValue(js_context, resolve_func);
+        JS_FreeValue(js_context, prop);
+        JS_FreeValue(js_context, prop_id);
+        JS_FreeValue(js_context, vs);
+
+        std::optional<std::string> failure_reason = std::nullopt;
+        std::optional<std::string> failure_trace = std::nullopt;
+
+        if (JS_IsException(val))
+        {
+          pi_.value().state = ProposalState::FAILED;
+          auto [reason, trace] = js::js_error_message(js_context);
+          failure_reason = fmt::format("Failed to resolve(): {}", reason);
+          failure_trace = trace;
+        }
+        else if (JS_IsString(val))
+        {
+          auto s = JS_ToCString(js_context, val);
+          std::string status(s);
+          JS_FreeCString(js_context, s);
+          if (status == "Open")
+          {
+            pi_.value().state = ProposalState::OPEN;
+          }
+          else if (status == "Accepted")
+          {
+            pi_.value().state = ProposalState::ACCEPTED;
+          }
+          else if (status == "Withdrawn")
+          {
+            pi_.value().state = ProposalState::FAILED;
+          }
+          else if (status == "Rejected")
+          {
+            pi_.value().state = ProposalState::REJECTED;
+          }
+          else if (status == "Failed")
+          {
+            pi_.value().state = ProposalState::FAILED;
+          }
+          else
+          {
+            pi_.value().state = ProposalState::FAILED;
+            failure_reason = fmt::format(
+              "resolve() returned invalid status value: \"{}\"", status);
+          }
+        }
+        else
+        {
+          pi_.value().state = ProposalState::FAILED;
+          failure_reason = "resolve() returned invalid status value";
+        }
+
+        if (pi_.value().state != ProposalState::OPEN)
+        {
+          // Record votes and errors
+          if (pi_.value().state == ProposalState::ACCEPTED)
+          {
+            js::Runtime rt;
+            js::Context js_context(rt);
+            js::populate_global_console(js_context);
+            rt.add_ccf_classdefs();
+            js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
+            js::populate_global_ccf(
+              &txctx,
+              std::nullopt,
+              nullptr,
+              &context.get_node_state(),
+              js_context);
+            auto apply_func = js_context.function(
+              constitution,
+              "apply",
+              fmt::format("public:ccf.gov.constitution[0]", proposal_id));
+
+            auto prop = JS_NewStringLen(
+              js_context, (const char*)proposal.data(), proposal.size());
+            auto val = js_context(
+              JS_Call(js_context, apply_func, JS_UNDEFINED, 1, &prop));
+            JS_FreeValue(js_context, apply_func);
+            JS_FreeValue(js_context, prop);
+            if (JS_IsException(val))
+            {
+              pi_.value().state = ProposalState::FAILED;
+              auto [reason, trace] = js::js_error_message(js_context);
+              failure_reason = fmt::format("Failed to apply(): {}", reason);
+              failure_trace = trace;
+            }
+          }
+        }
+
+        return jsgov::ProposalInfoSummary{proposal_id,
+                                          pi_->proposer_id,
+                                          pi_.value().state,
+                                          pi_.value().ballots.size(),
+                                          failure_reason,
+                                          failure_trace};
+      }
+    }
+
+#  pragma clang diagnostic pop
+#endif
 
     bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
     {
@@ -2084,7 +1976,7 @@ namespace ccf
 
         if (!set_jwt_public_signing_keys(
               ctx.tx,
-              INVALID_PROPOSAL_ID,
+              "<auto-refresh>",
               parsed.issuer,
               issuer_metadata,
               parsed.jwks))
@@ -2110,6 +2002,547 @@ namespace ccf
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
+
+      // JavaScript governance
+#ifdef ENABLE_JS_GOV
+
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wc99-extensions"
+
+      auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
+        const auto& caller_identity =
+          ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
+        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
+          return;
+        }
+
+        if (!consensus)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No consensus available.");
+          return;
+        }
+
+        ProposalId proposal_id;
+        if (consensus->type() == ConsensusType::CFT)
+        {
+          auto root_at_read = ctx.tx.get_root_at_read_version();
+          if (!root_at_read.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Proposal failed to bind to state.");
+            return;
+          }
+
+          // caller_identity.request_digest is set when getting the
+          // MemberSignatureAuthnIdentity identity. The proposal id is a
+          // digest of the root of the state tree at the read version and the
+          // request digest.
+          std::vector<uint8_t> acc(
+            root_at_read.value().h.begin(), root_at_read.value().h.end());
+          acc.insert(
+            acc.end(),
+            caller_identity.request_digest.begin(),
+            caller_identity.request_digest.end());
+          const crypto::Sha256Hash proposal_digest(acc);
+          proposal_id = proposal_digest.hex_str();
+        }
+        else
+        {
+          proposal_id = fmt::format(
+            "{:02x}", fmt::join(caller_identity.request_digest, ""));
+        }
+
+        auto constitution = ctx.tx.ro(network.constitution)->get(0);
+        if (!constitution.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No constitution is set - proposals cannot be evaluated");
+          return;
+        }
+
+        auto validate_script = constitution.value();
+
+        js::Runtime rt;
+        js::Context context(rt);
+        rt.add_ccf_classdefs();
+        js::populate_global_ccf(
+          nullptr, std::nullopt, nullptr, nullptr, context);
+
+        auto validate_func = context.function(
+          validate_script, "validate", "public:ccf.gov.constitution[0]");
+
+        auto body =
+          reinterpret_cast<const char*>(ctx.rpc_ctx->get_request_body().data());
+        auto body_len = ctx.rpc_ctx->get_request_body().size();
+
+        auto proposal = JS_NewStringLen(context, body, body_len);
+        JSValueConst* argv = (JSValueConst*)&proposal;
+
+        auto val =
+          context(JS_Call(context, validate_func, JS_UNDEFINED, 1, argv));
+
+        JS_FreeValue(context, proposal);
+        JS_FreeValue(context, validate_func);
+
+        if (JS_IsException(val))
+        {
+          js::js_dump_error(context);
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Failed to execute validation");
+          return;
+        }
+
+        if (!JS_IsObject(val))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Validation failed to return an object");
+          return;
+        }
+
+        std::string description;
+        auto desc = context(JS_GetPropertyStr(context, val, "description"));
+        if (JS_IsString(desc))
+        {
+          auto cstr = JS_ToCString(context, desc);
+          description = std::string(cstr);
+          JS_FreeCString(context, cstr);
+        }
+
+        auto valid = context(JS_GetPropertyStr(context, val, "valid"));
+        if (!JS_ToBool(context, valid))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ProposalFailedToValidate,
+            fmt::format("Proposal failed to validate: {}", description));
+          return;
+        }
+
+        auto pm =
+          ctx.tx.rw<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+        // Introduce a read dependency, so that if identical proposal
+        // creations are in-flight and reading at the same version, all except
+        // the first conflict and are re-executed. If we ever produce a
+        // proposal ID which already exists, we must have a hash collision.
+        if (pm->has(proposal_id))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Proposal ID collision.");
+          return;
+        }
+        pm->put(proposal_id, ctx.rpc_ctx->get_request_body());
+
+        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
+          "public:ccf.gov.proposals_info.js");
+        pi->put(
+          proposal_id,
+          {caller_identity.member_id, ccf::ProposalState::OPEN, {}});
+
+        record_voting_history(
+          ctx.tx, caller_identity.member_id, caller_identity.signed_request);
+
+        auto rv = resolve_proposal(
+          ctx.tx,
+          proposal_id,
+          ctx.rpc_ctx->get_request_body(),
+          constitution.value());
+        pi->put(
+          proposal_id,
+          {caller_identity.member_id,
+           rv.state,
+           {},
+           rv.failure_reason,
+           rv.failure_trace});
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
+      };
+
+      make_endpoint(
+        "proposals.js", HTTP_POST, post_proposals_js, member_sig_only)
+        .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfo>()
+        .install();
+
+      auto get_proposal_js =
+        [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          const auto& caller_identity =
+            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
+          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is not active.");
+          }
+
+          // Take expand=ballots, return eg. "ballots": 3 if not set
+          // or "ballots": list of ballots in full if passed
+
+          ProposalId proposal_id;
+          std::string error;
+          if (!get_proposal_id_from_path(
+                ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
+
+          auto pm =
+            ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+          auto p = pm->get(proposal_id);
+
+          if (!p)
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ProposalNotFound,
+              fmt::format("Proposal {} does not exist.", proposal_id));
+          }
+
+          auto pi = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(
+            "public:ccf.gov.proposals_info.js");
+          auto pi_ = pi->get(proposal_id);
+
+          if (!pi_)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "No proposal info associated with {} exists.", proposal_id));
+          }
+
+          return make_success(pi_.value());
+        };
+
+      make_read_only_endpoint(
+        "proposals.js/{proposal_id}",
+        HTTP_GET,
+        json_read_only_adapter(get_proposal_js),
+        member_cert_or_sig)
+        .set_auto_schema<void, jsgov::ProposalInfo>()
+        .install();
+
+      auto withdraw_js = [this](
+                           endpoints::EndpointContext& ctx, nlohmann::json&&) {
+        const auto& caller_identity =
+          ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>();
+        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
+        }
+
+        ProposalId proposal_id;
+        std::string error;
+        if (!get_proposal_id_from_path(
+              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+        }
+
+        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
+          "public:ccf.gov.proposals_info.js");
+        auto pi_ = pi->get(proposal_id);
+
+        if (!pi_)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ProposalNotFound,
+            fmt::format("Proposal {} does not exist.", proposal_id));
+        }
+
+        if (caller_identity.member_id != pi_->proposer_id)
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            fmt::format(
+              "Proposal {} can only be withdrawn by proposer {}, not caller "
+              "{}.",
+              proposal_id,
+              pi_->proposer_id,
+              caller_identity.member_id));
+        }
+
+        if (pi_->state != ProposalState::OPEN)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ProposalNotOpen,
+            fmt::format(
+              "Proposal {} is currently in state {} - only {} proposals can be "
+              "withdrawn.",
+              proposal_id,
+              pi_->state,
+              ProposalState::OPEN));
+        }
+
+        pi_->state = ProposalState::WITHDRAWN;
+        pi->put(proposal_id, pi_.value());
+
+        record_voting_history(
+          ctx.tx, caller_identity.member_id, caller_identity.signed_request);
+
+        return make_success(pi_.value());
+      };
+
+      make_endpoint(
+        "proposals.js/{proposal_id}/withdraw",
+        HTTP_POST,
+        json_adapter(withdraw_js),
+        member_cert_or_sig)
+        .set_auto_schema<void, jsgov::ProposalInfo>()
+        .install();
+
+      auto get_proposal_actions_js =
+        [this](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          const auto& caller_identity =
+            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
+          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is not active.");
+            return;
+          }
+
+          ProposalId proposal_id;
+          std::string error;
+          if (!get_proposal_id_from_path(
+                ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidResourceName,
+              std::move(error));
+            return;
+          }
+
+          auto pm =
+            ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+          auto p = pm->get(proposal_id);
+
+          if (!p)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ProposalNotFound,
+              fmt::format("Proposal {} does not exist.", proposal_id));
+            return;
+          }
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(std::move(p.value()));
+        };
+
+      make_read_only_endpoint(
+        "proposals.js/{proposal_id}/actions",
+        HTTP_GET,
+        get_proposal_actions_js,
+        member_cert_or_sig)
+        .set_auto_schema<void, jsgov::Proposal>()
+        .install();
+
+      auto vote_js = [this](
+                       endpoints::EndpointContext& ctx,
+                       nlohmann::json&& params) {
+        const auto& caller_identity =
+          ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
+        if (!check_member_active(ctx.tx, caller_identity.member_id))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Member is not active.");
+        }
+
+        ProposalId proposal_id;
+        std::string error;
+        if (!get_proposal_id_from_path(
+              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+        }
+
+        auto constitution = ctx.tx.ro(network.constitution)->get(0);
+        if (!constitution.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No constitution is set - proposals cannot be evaluated");
+        }
+
+        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
+          "public:ccf.gov.proposals_info.js");
+        auto pi_ = pi->get(proposal_id);
+        if (!pi_)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ProposalNotFound,
+            fmt::format("Could not find proposal {}.", proposal_id));
+        }
+
+        if (pi_.value().state != ProposalState::OPEN)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::ProposalNotOpen,
+            fmt::format(
+              "Proposal {} is currently in state {} - only {} proposals can "
+              "receive votes.",
+              proposal_id,
+              pi_.value().state,
+              ProposalState::OPEN));
+        }
+
+        auto pm =
+          ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+        auto p = pm->get(proposal_id);
+
+        if (!p)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ProposalNotFound,
+            fmt::format("Proposal {} does not exist.", proposal_id));
+        }
+
+        if (pi_->ballots.find(caller_identity.member_id) != pi_->ballots.end())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::VoteAlreadyExists,
+            "Vote already submitted.");
+        }
+        // Validate vote
+
+        {
+          js::Runtime rt;
+          js::Context context(rt);
+          auto ballot_func =
+            context.function(params["ballot"], "vote", "body[\"ballot\"]");
+          JS_FreeValue(context, ballot_func);
+        }
+
+        pi_->ballots[caller_identity.member_id] = params["ballot"];
+        pi->put(proposal_id, pi_.value());
+
+        // Do we still need to do this?
+        record_voting_history(
+          ctx.tx, caller_identity.member_id, caller_identity.signed_request);
+
+        auto rv = resolve_proposal(
+          ctx.tx, proposal_id, p.value(), constitution.value());
+        pi_.value().state = rv.state;
+        pi_.value().failure_reason = rv.failure_reason;
+        pi_.value().failure_trace = rv.failure_trace;
+        pi->put(proposal_id, pi_.value());
+        return make_success(rv);
+      };
+      make_endpoint(
+        "proposals.js/{proposal_id}/ballots",
+        HTTP_POST,
+        json_adapter(vote_js),
+        member_sig_only)
+        .set_auto_schema<jsgov::Ballot, jsgov::ProposalInfoSummary>()
+        .install();
+
+      auto get_vote_js =
+        [this](endpoints::ReadOnlyEndpointContext& ctx, nlohmann::json&&) {
+          const auto& caller_identity =
+            ctx.get_caller<ccf::MemberSignatureAuthnIdentity>();
+          if (!check_member_active(ctx.tx, caller_identity.member_id))
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Member is not active.");
+          }
+
+          std::string error;
+          ProposalId proposal_id;
+          if (!get_proposal_id_from_path(
+                ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
+
+          MemberId vote_member_id;
+          if (!get_member_id_from_path(
+                ctx.rpc_ctx->get_request_path_params(), vote_member_id, error))
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
+          }
+
+          auto pi = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(
+            "public:ccf.gov.proposals_info.js");
+          auto pi_ = pi->get(proposal_id);
+          if (!pi_)
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ProposalNotFound,
+              fmt::format("Proposal {} does not exist.", proposal_id));
+          }
+
+          const auto vote_it = pi_->ballots.find(vote_member_id);
+          if (vote_it == pi_->ballots.end())
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::VoteNotFound,
+              fmt::format(
+                "Member {} has not voted for proposal {}.",
+                vote_member_id,
+                proposal_id));
+          }
+
+          return make_success(jsgov::Ballot{vote_it->second});
+        };
+      make_read_only_endpoint(
+        "proposals.js/{proposal_id}/ballots/{member_id}",
+        HTTP_GET,
+        json_read_only_adapter(get_vote_js),
+        member_cert_or_sig)
+        .set_auto_schema<void, jsgov::Ballot>()
+        .install();
+
+#  pragma clang diagnostic pop
+
+#endif
     }
   };
 

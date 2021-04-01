@@ -110,10 +110,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--constitution",
-        help="Path to constitution script",
-        type=absolute_path_to_existing_file,
+        help="One or more paths to constitution script fragments",
+        action="append",
+        default=[],
     )
-    parser.add_argument("-j", "--js-app-script", help="Path to js app script")
     parser.add_argument("--js-app-bundle", help="Path to js app bundle")
     parser.add_argument(
         "--jwt-issuer",
@@ -286,8 +286,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         else:
             args.library_dir = args.binary_dir
 
-    # js_app_script is deprecated
-    if not args.package and (args.js_app_script or args.js_app_bundle):
+    if not args.package and args.js_app_bundle:
         args.package = "libjs_generic"
 
     if accept_unknown:

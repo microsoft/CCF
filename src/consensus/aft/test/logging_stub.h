@@ -301,11 +301,6 @@ namespace aft
     {
       return nullptr;
     }
-
-    kv::Tx create_tx()
-    {
-      return kv::Tx(nullptr, true);
-    }
   };
 
   class LoggingStubStoreSig : public LoggingStubStore

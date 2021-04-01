@@ -45,7 +45,8 @@ namespace ccf
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     crypto::Pem* service_identity = nullptr;
 
-    using PreExec = std::function<void(kv::Tx& tx, enclave::RpcContext& ctx)>;
+    using PreExec =
+      std::function<void(kv::CommittableTx& tx, enclave::RpcContext& ctx)>;
 
     void update_consensus()
     {
@@ -148,10 +149,10 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
-      kv::Tx& tx,
+      kv::CommittableTx& tx,
       const PreExec& pre_exec = {},
       kv::Version prescribed_commit_version = kv::NoVersion,
-      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion)
+      ccf::SeqNo max_conflict_version = kv::NoVersion)
     {
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
@@ -341,6 +342,7 @@ namespace ccf
 
             case kv::CommitResult::FAIL_CONFLICT:
             {
+              tx = tables.create_tx();
               break;
             }
 
@@ -361,7 +363,7 @@ namespace ccf
           // compaction. Reset and retry
           LOG_DEBUG_FMT(
             "Transaction execution conflicted with compaction: {}", e.what());
-          tx.reset();
+          tx = tables.create_tx();
           continue;
         }
         catch (RpcException& e)
@@ -480,9 +482,15 @@ namespace ccf
       return is_open_;
     }
 
-    void set_root_on_proposals(const enclave::RpcContext& ctx, kv::Tx& tx)
+    void set_root_on_proposals(
+      const enclave::RpcContext& ctx, kv::CommittableTx& tx)
     {
-      if (ctx.get_request_path() == "/gov/proposals")
+      if (
+        ctx.get_request_path() == "/gov/proposals"
+#ifdef ENABLE_JS_GOV
+        || ctx.get_request_path() == "/gov/proposals.js"
+#endif
+      )
       {
         update_history();
         if (history)
@@ -579,8 +587,8 @@ namespace ccf
 
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
-      kv::Consensus::SeqNo prescribed_commit_version,
-      kv::Consensus::SeqNo max_conflict_version) override
+      ccf::SeqNo prescribed_commit_version,
+      ccf::SeqNo max_conflict_version) override
     {
       auto tx = tables.create_tx();
       return process_bft(
@@ -596,9 +604,9 @@ namespace ccf
      */
     ProcessBftResp process_bft(
       std::shared_ptr<enclave::RpcContext> ctx,
-      kv::Tx& tx,
-      kv::Consensus::SeqNo prescribed_commit_version = kv::NoVersion,
-      kv::Consensus::SeqNo max_conflict_version = kv::NoVersion) override
+      kv::CommittableTx& tx,
+      ccf::SeqNo prescribed_commit_version = kv::NoVersion,
+      ccf::SeqNo max_conflict_version = kv::NoVersion) override
     {
       // Note: this can only happen if the primary is malicious,
       // and has executed a user transaction when the service wasn't
@@ -612,7 +620,7 @@ namespace ccf
 
       update_consensus();
 
-      PreExec fn = [](kv::Tx& tx, enclave::RpcContext& ctx) {
+      PreExec fn = [](kv::CommittableTx& tx, enclave::RpcContext& ctx) {
         auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
         aft_requests->put(
           0,

@@ -32,7 +32,6 @@
 #include "impl/state.h"
 #include "impl/view_change_tracker.h"
 #include "kv/kv_types.h"
-#include "kv/tx.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
@@ -281,7 +280,7 @@ namespace aft
       return replica_state == Follower;
     }
 
-    ccf::NodeId get_primary(kv::Consensus::View view)
+    ccf::NodeId get_primary(ccf::View view)
     {
       CCF_ASSERT_FMT(
         consensus_type == ConsensusType::BFT,
@@ -742,8 +741,8 @@ namespace aft
           // We have not seen a request executed within an expected period of
           // time. We should invoke a view-change.
           //
-          kv::Consensus::View new_view = view_change_tracker->get_target_view();
-          kv::Consensus::SeqNo seqno;
+          ccf::View new_view = view_change_tracker->get_target_view();
+          ccf::SeqNo seqno;
           std::unique_ptr<ccf::ViewChangeRequest> vc;
 
           auto progress_tracker = store->get_progress_tracker();
@@ -922,7 +921,7 @@ namespace aft
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
     }
 
-    void append_new_view(kv::Consensus::View view)
+    void append_new_view(ccf::View view)
     {
       state->current_view = view;
       become_leader();
@@ -936,7 +935,7 @@ namespace aft
     bool has_bft_timeout_occurred(std::chrono::milliseconds time)
     {
       auto oldest_entry = request_tracker->oldest_entry();
-      kv::Consensus::SeqNo last_sig_seqno;
+      ccf::SeqNo last_sig_seqno;
       std::chrono::milliseconds last_sig_time;
       std::tie(last_sig_seqno, last_sig_time) =
         request_tracker->get_seqno_time_last_request();
@@ -1871,7 +1870,7 @@ namespace aft
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
 
-    void try_send_sig_ack(kv::TxID tx_id, kv::TxHistory::Result r)
+    void try_send_sig_ack(ccf::TxID tx_id, kv::TxHistory::Result r)
     {
       switch (r)
       {
@@ -1883,7 +1882,7 @@ namespace aft
         case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
         {
           SignaturesReceivedAck r = {
-            {bft_signature_received_ack}, tx_id.term, tx_id.version};
+            {bft_signature_received_ack}, tx_id.view, tx_id.seqno};
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
             auto to = it->first;
@@ -1936,7 +1935,7 @@ namespace aft
       try_send_reply_and_nonce({r.term, r.idx}, result);
     }
 
-    void try_send_reply_and_nonce(kv::TxID tx_id, kv::TxHistory::Result r)
+    void try_send_reply_and_nonce(ccf::TxID tx_id, kv::TxHistory::Result r)
     {
       switch (r)
       {
@@ -1953,7 +1952,7 @@ namespace aft
             progress_tracker != nullptr, "progress_tracker is not set");
           nonce = progress_tracker->get_node_nonce(tx_id);
           NonceRevealMsg r = {
-            {bft_nonce_reveal}, tx_id.term, tx_id.version, nonce};
+            {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce};
 
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {

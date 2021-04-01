@@ -7,7 +7,6 @@
 #include "ds/hash.h"
 #include "node_signature.h"
 
-#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace ccf
@@ -21,8 +20,6 @@ namespace ccf
     MemberStatus,
     {{MemberStatus::ACCEPTED, "Accepted"}, {MemberStatus::ACTIVE, "Active"}});
 }
-
-MSGPACK_ADD_ENUM(ccf::MemberStatus);
 
 namespace ccf
 {
@@ -53,8 +50,6 @@ namespace ccf
       return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
         member_data == rhs.member_data;
     }
-
-    MSGPACK_DEFINE(cert, encryption_pub_key, member_data);
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember)
   DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert)
@@ -92,8 +87,6 @@ namespace ccf
 
     StateDigest(const crypto::Sha256Hash& root) : state_digest(root.hex_str())
     {}
-
-    MSGPACK_DEFINE(state_digest);
   };
   DECLARE_JSON_TYPE(StateDigest)
   DECLARE_JSON_REQUIRED_FIELDS(StateDigest, state_digest)
@@ -111,8 +104,6 @@ namespace ccf
       StateDigest(root),
       signed_req(signed_req_)
     {}
-
-    MSGPACK_DEFINE(MSGPACK_BASE(StateDigest), signed_req);
   };
   DECLARE_JSON_TYPE_WITH_BASE(MemberAck, StateDigest)
   DECLARE_JSON_REQUIRED_FIELDS(MemberAck, signed_req)

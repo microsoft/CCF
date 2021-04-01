@@ -7,7 +7,6 @@ import infra.proc
 import suite.test_requirements as reqs
 import os
 import subprocess
-import sys
 import reconfiguration
 
 from loguru import logger as LOG
@@ -90,37 +89,40 @@ def test_update_all_nodes(network, args):
 
     primary, _ = network.find_nodes()
 
-    first_code_id, new_code_id = [
-        get_code_id(args.oe_binary, infra.path.build_lib_path(pkg, args.enclave_type))
-        for pkg in [args.package, replacement_package]
-    ]
+    if args.enclave_type != "virtual":
+        first_code_id, new_code_id = [
+            get_code_id(
+                args.oe_binary, infra.path.build_lib_path(pkg, args.enclave_type)
+            )
+            for pkg in [args.package, replacement_package]
+        ]
 
-    LOG.info("Add new code id")
-    network.consortium.add_new_code(primary, new_code_id)
-    with primary.client() as uc:
-        r = uc.get("/node/code")
-        versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-        expected = sorted(
-            [
-                {"digest": first_code_id, "status": "AllowedToJoin"},
-                {"digest": new_code_id, "status": "AllowedToJoin"},
-            ],
-            key=lambda x: x["digest"],
-        )
-        assert versions == expected, versions
+        LOG.info("Add new code id")
+        network.consortium.add_new_code(primary, new_code_id)
+        with primary.client() as uc:
+            r = uc.get("/node/code")
+            versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
+            expected = sorted(
+                [
+                    {"digest": first_code_id, "status": "AllowedToJoin"},
+                    {"digest": new_code_id, "status": "AllowedToJoin"},
+                ],
+                key=lambda x: x["digest"],
+            )
+            assert versions == expected, versions
 
-    LOG.info("Remove old code id")
-    network.consortium.retire_code(primary, first_code_id)
-    with primary.client() as uc:
-        r = uc.get("/node/code")
-        versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-        expected = sorted(
-            [
-                {"digest": new_code_id, "status": "AllowedToJoin"},
-            ],
-            key=lambda x: x["digest"],
-        )
-        assert versions == expected, versions
+        LOG.info("Remove old code id")
+        network.consortium.retire_code(primary, first_code_id)
+        with primary.client() as uc:
+            r = uc.get("/node/code")
+            versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
+            expected = sorted(
+                [
+                    {"digest": new_code_id, "status": "AllowedToJoin"},
+                ],
+                key=lambda x: x["digest"],
+            )
+            assert versions == expected, versions
 
     old_nodes = network.nodes.copy()
 
@@ -163,9 +165,6 @@ def run(args):
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    if args.enclave_type == "virtual":
-        LOG.warning("Skipping code update test with virtual enclave")
-        sys.exit()
 
     args.package = "liblogging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)

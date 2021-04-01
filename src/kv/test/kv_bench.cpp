@@ -4,7 +4,6 @@
 
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
-#include "kv/tx.h"
 #include "node/encryptor.h"
 
 #include <msgpack/msgpack.hpp>
@@ -90,7 +89,7 @@ static void serialise(picobench::state& s)
 }
 
 template <kv::SecurityDomain SD>
-static void apply(picobench::state& s)
+static void deserialise(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
@@ -255,12 +254,12 @@ PICOBENCH(serialise<SD::PUBLIC>)
   .baseline();
 PICOBENCH(serialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
 
-PICOBENCH_SUITE("apply");
-PICOBENCH(apply<SD::PUBLIC>)
+PICOBENCH_SUITE("deserialise");
+PICOBENCH(deserialise<SD::PUBLIC>)
   .iterations(tx_count)
   .samples(sample_size)
   .baseline();
-PICOBENCH(apply<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
+PICOBENCH(deserialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
 
 const uint32_t snapshot_sample_size = 10;
 const std::vector<int> map_count = {20, 100};

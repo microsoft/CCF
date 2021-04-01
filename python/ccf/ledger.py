@@ -7,8 +7,6 @@ import os
 
 from typing import BinaryIO, NamedTuple, Optional
 
-# Default implementation has buggy interaction between read_bytes and tell, so use fallback
-import msgpack.fallback as msgpack  # type: ignore
 import json
 import base64
 
@@ -27,8 +25,6 @@ LEDGER_TRANSACTION_SIZE = 4
 LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
-UNPACK_ARGS = {"raw": True, "strict_map_key": False}
-
 # Public table names as defined in CCF
 # https://github.com/microsoft/CCF/blob/main/src/node/entities.h
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
@@ -45,6 +41,14 @@ def to_uint_64(buffer):
 
 def is_ledger_chunk_committed(file_name):
     return file_name.endswith(".committed")
+
+
+def unpack(stream, fmt):
+    size = struct.calcsize(fmt)
+    buf = stream.read(size)
+    if not buf:
+        raise EOFError  # Reached end of stream
+    return struct.unpack(fmt, buf)[0]
 
 
 class GcmHeader:
@@ -69,7 +73,6 @@ class PublicDomain:
 
     _buffer: io.BytesIO
     _buffer_size: int
-    _unpacker: msgpack.Unpacker
     _is_snapshot: bool
     _version: int
     _max_conflict_version: int
@@ -77,50 +80,57 @@ class PublicDomain:
 
     def __init__(self, buffer: io.BytesIO):
         self._buffer = buffer
-        self._buffer_size = buffer.getbuffer().nbytes
-        self._unpacker = msgpack.Unpacker(self._buffer, **UNPACK_ARGS)
-        self._is_snapshot = self._read_next()
-        self._version = self._read_next()
-        self._max_conflict_version = self._read_next()
+        self._buffer_size = self._buffer.getbuffer().nbytes
+        self._is_snapshot = self._read_is_snapshot()
+        self._version = self._read_version()
+        self._max_conflict_version = self._read_version()
         self._tables = {}
         self._read()
 
-    def _read_next(self):
-        return self._unpacker.unpack()
+    def _read_is_snapshot(self):
+        return unpack(self._buffer, "<?")
 
-    def _read_next_string(self):
-        return self._unpacker.unpack().decode()
+    def _read_version(self):
+        return unpack(self._buffer, "<q")
+
+    def _read_size(self):
+        return unpack(self._buffer, "<q")
+
+    def _read_string(self):
+        size = self._read_size()
+        return self._buffer.read(size).decode()
 
     def _read_next_entry(self):
-        size_bytes = self._unpacker.read_bytes(8)
-        (size,) = struct.unpack("<Q", size_bytes)
-        entry_bytes = bytes(self._unpacker.read_bytes(size))
-        return entry_bytes
+        size = self._read_size()
+        return self._buffer.read(size)
 
     def _read(self):
-        while self._buffer_size > self._unpacker.tell():
-            # map_start_indicator
-            self._read_next()
-            map_name = self._read_next_string()
-            LOG.trace(f"Reading map {map_name}")
+        while True:
+            try:
+                map_name = self._read_string()
+                LOG.trace(f"Reading map {map_name}")
+            except EOFError:
+                break
+
             records = {}
             self._tables[map_name] = records
 
             # read_version
-            self._read_next()
+            self._read_version()
 
             # read_count
-            read_count = self._read_next()
+            # Note: Read keys are not currently included in ledger transactions
+            read_count = self._read_size()
             assert read_count == 0, f"Unexpected read count: {read_count}"
 
-            write_count = self._read_next()
+            write_count = self._read_size()
             if write_count:
                 for _ in range(write_count):
                     k = self._read_next_entry()
                     val = self._read_next_entry()
                     records[k] = val
 
-            remove_count = self._read_next()
+            remove_count = self._read_size()
             if remove_count:
                 for _ in range(remove_count):
                     k = self._read_next_entry()

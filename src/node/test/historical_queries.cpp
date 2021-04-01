@@ -195,7 +195,7 @@ kv::Version rekey(
 }
 
 void validate_business_transaction(
-  ccf::historical::StorePtr store, kv::SeqNo seqno)
+  ccf::historical::StorePtr store, ccf::SeqNo seqno)
 {
   REQUIRE(store != nullptr);
 
@@ -227,14 +227,14 @@ void validate_business_transaction(
   });
 }
 
-std::map<kv::SeqNo, std::vector<uint8_t>> construct_host_ledger(
+std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
   std::shared_ptr<kv::Consensus> c)
 {
   auto consensus = dynamic_cast<kv::test::StubConsensus*>(c.get());
   REQUIRE(consensus != nullptr);
 
   INFO("Rebuild ledger as seen by host");
-  std::map<kv::SeqNo, std::vector<uint8_t>> ledger;
+  std::map<ccf::SeqNo, std::vector<uint8_t>> ledger;
 
   auto next_ledger_entry = consensus->pop_oldest_entry();
   while (next_ledger_entry.has_value())
@@ -296,8 +296,8 @@ TEST_CASE("StateCache point queries")
   {
     INFO("The host sees requests for these indices");
     REQUIRE(!stub_writer->writes.empty());
-    std::set<kv::SeqNo> expected{low_seqno, high_seqno, unsigned_seqno};
-    std::set<kv::SeqNo> actual;
+    std::set<ccf::SeqNo> expected{low_seqno, high_seqno, unsigned_seqno};
+    std::set<ccf::SeqNo> actual;
     for (const auto& write : stub_writer->writes)
     {
       const uint8_t* data = write.contents.data();

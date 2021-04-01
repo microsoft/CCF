@@ -3,9 +3,10 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
+#include "ccf/tx.h"
 #include "ds/logger.h"
 #include "kv/kv_types.h"
-#include "kv/tx.h"
+#include "node/rpc/node_interface.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -16,11 +17,26 @@ namespace js
   extern JSClassID kv_class_id;
   extern JSClassID kv_map_handle_class_id;
   extern JSClassID body_class_id;
+  extern JSClassID node_class_id;
 
   extern JSClassDef kv_class_def;
   extern JSClassExoticMethods kv_exotic_methods;
   extern JSClassDef kv_map_handle_class_def;
   extern JSClassDef body_class_def;
+  extern JSClassDef node_class_def;
+
+  enum class TxAccess
+  {
+    APP,
+    GOV_RO,
+    GOV_RW
+  };
+
+  struct TxContext
+  {
+    kv::Tx* tx = nullptr;
+    TxAccess access = js::TxAccess::APP;
+  };
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
@@ -29,13 +45,16 @@ namespace js
   void register_request_body_class(JSContext* ctx);
   void populate_global_console(JSContext* ctx);
   void populate_global_ccf(
-    kv::Tx* tx,
-    const std::optional<kv::TxID>& transaction_id,
+    TxContext* txctx,
+    const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
+    ccf::AbstractNodeState* node_state,
     JSContext* ctx);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
   void js_dump_error(JSContext* ctx);
+  std::pair<std::string, std::optional<std::string>> js_error_message(
+    JSContext* ctx);
 
   JSValue js_body_text(
     JSContext* ctx,
@@ -165,7 +184,11 @@ namespace js
       return JSWrappedCString(ctx, cstr);
     };
 
-    JSValue function(const std::string& code, const std::string& path);
+    JSValue default_function(const std::string& code, const std::string& path);
+    JSValue function(
+      const std::string& code,
+      const std::string& func,
+      const std::string& path);
   };
 
 #pragma clang diagnostic pop

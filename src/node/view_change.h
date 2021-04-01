@@ -5,7 +5,6 @@
 #include "node_signature.h"
 #include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
@@ -60,27 +59,23 @@ namespace ccf
 
       return v;
     }
-    MSGPACK_DEFINE(signatures, signature);
   };
   DECLARE_JSON_TYPE(ViewChangeRequest);
   DECLARE_JSON_REQUIRED_FIELDS(ViewChangeRequest, signatures, signature);
 
   struct ViewChangeConfirmation
   {
-    kv::Consensus::View view = 0;
-    kv::Consensus::SeqNo seqno = 0;
+    ccf::View view = 0;
+    ccf::SeqNo seqno = 0;
     std::vector<uint8_t> signature;
 
     std::map<NodeId, ViewChangeRequest> view_change_messages;
 
     ViewChangeConfirmation() = default;
-    ViewChangeConfirmation(
-      kv::Consensus::View view_, kv::Consensus::SeqNo seqno_) :
+    ViewChangeConfirmation(ccf::View view_, ccf::SeqNo seqno_) :
       view(view_),
       seqno(seqno_)
     {}
-
-    MSGPACK_DEFINE(view, seqno, signature, view_change_messages);
   };
   DECLARE_JSON_TYPE(ViewChangeConfirmation);
   DECLARE_JSON_REQUIRED_FIELDS(

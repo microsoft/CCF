@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "ccf/tx.h"
 #include "code_id.h"
 #include "crypto/hash.h"
 #include "crypto/verifier.h"
 #include "entities.h"
-#include "kv/tx.h"
 #include "ledger_secrets.h"
 #include "lua_interp/lua_interp.h"
 #include "lua_interp/lua_util.h"
@@ -57,11 +57,6 @@ namespace ccf
       {
         v->put(id_type, 0);
       }
-    }
-
-    auto finalize()
-    {
-      return tx.commit();
     }
 
     void retire_active_nodes()
@@ -388,30 +383,6 @@ namespace ccf
       }
 
       return active_service->status;
-    }
-
-    bool service_wait_for_shares()
-    {
-      auto service = tx.rw(tables.service);
-      auto active_service = service->get(0);
-      if (!active_service.has_value())
-      {
-        LOG_FAIL_FMT("Failed to get active service");
-        return false;
-      }
-
-      if (active_service->status != ServiceStatus::OPENING)
-      {
-        LOG_FAIL_FMT(
-          "Could not wait for shares on current service: status is not "
-          "OPENING");
-        return false;
-      }
-
-      active_service->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
-      service->put(0, active_service.value());
-
-      return true;
     }
 
     void trust_node(

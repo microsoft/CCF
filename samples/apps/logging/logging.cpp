@@ -9,8 +9,8 @@
 #include "apps/utils/metrics_tracker.h"
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
-#include "http/http_query.h"
-#include "node/rpc/user_frontend.h"
+#include "ccf/http_query.h"
+#include "ccf/user_frontend.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -667,13 +667,11 @@ namespace loggingapp
         }
       };
 
-      auto is_tx_committed = [this](
-                               kv::Consensus::View view,
-                               kv::Consensus::SeqNo seqno,
-                               std::string& error_reason) {
-        return ccf::historical::is_tx_committed(
-          consensus, view, seqno, error_reason);
-      };
+      auto is_tx_committed =
+        [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+          return ccf::historical::is_tx_committed(
+            consensus, view, seqno, error_reason);
+        };
       make_endpoint(
         "log/private/historical",
         HTTP_GET,

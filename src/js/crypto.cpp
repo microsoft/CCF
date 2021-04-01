@@ -3,6 +3,7 @@
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
+#include "tls/ca.h"
 
 #include <quickjs/quickjs.h>
 
@@ -76,6 +77,97 @@ namespace js
     JS_SetPropertyStr(
       ctx, r, "publicKey", JS_NewString(ctx, (char*)pub.data()));
     return r;
+  }
+
+  static JSValue js_digest(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 2)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 2", argc);
+
+    void* auto_free_ptr = JS_GetContextOpaque(ctx);
+    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+
+    auto digest_algo_name_cstr = auto_free(JS_ToCString(ctx, argv[0]));
+    if (!digest_algo_name_cstr)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    if (std::string(digest_algo_name_cstr) != "SHA-256")
+    {
+      JS_ThrowRangeError(
+        ctx, "unsupported digest algorithm, supported: SHA-256");
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    size_t data_size;
+    uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[1]);
+    if (!data)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    auto h = crypto::SHA256(data, data_size);
+    return JS_NewArrayBufferCopy(ctx, h.data(), h.size());
+  }
+
+  static JSValue js_is_valid_pem(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    void* auto_free_ptr = JS_GetContextOpaque(ctx);
+    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+
+    auto pem_cstr = auto_free(JS_ToCString(ctx, argv[0]));
+    if (!pem_cstr)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    try
+    {
+      std::string pem(pem_cstr);
+      tls::CA ca(pem);
+    }
+    catch (const std::logic_error& e)
+    {
+      return JS_FALSE;
+    }
+
+    return JS_TRUE;
+  }
+
+  static JSValue js_pem_to_id(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    void* auto_free_ptr = JS_GetContextOpaque(ctx);
+    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+
+    auto pem_cstr = auto_free(JS_ToCString(ctx, argv[0]));
+    if (!pem_cstr)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    auto pem = crypto::Pem(pem_cstr);
+    auto der = crypto::make_verifier(pem)->cert_der();
+    auto id = crypto::Sha256Hash(der).hex_str();
+
+    return JS_NewString(ctx, id.c_str());
   }
 
   static JSValue js_wrap_key(

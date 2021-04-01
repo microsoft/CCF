@@ -7,7 +7,6 @@
 #include "ds/ccf_exception.h"
 #include "entities.h"
 #include "kv/kv_types.h"
-#include "kv/tx.h"
 #include "nodes.h"
 #include "progress_tracker_types.h"
 #include "view_change.h"
@@ -30,7 +29,7 @@ namespace ccf
     std::shared_ptr<ProgressTrackerStore> store;
 
     kv::TxHistory::Result add_signature(
-      kv::TxID tx_id,
+      ccf::TxID tx_id,
       const NodeId& node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
@@ -50,7 +49,7 @@ namespace ccf
     }
 
     kv::TxHistory::Result record_primary(
-      kv::TxID tx_id,
+      ccf::TxID tx_id,
       NodeId node_id,
       crypto::Sha256Hash& root,
       std::vector<uint8_t>& sig,
@@ -69,12 +68,12 @@ namespace ccf
       LOG_TRACE_FMT(
         "record_primary node_id:{}, seqno:{}, hashed_nonce:{}, root:{}, sig:{}",
         node_id,
-        tx_id.version,
+        tx_id.seqno,
         hashed_nonce,
         root,
         sig);
 
-      auto it = certificates.find(tx_id.version);
+      auto it = certificates.find(tx_id.seqno);
       if (it == certificates.end())
       {
         CommitCert cert(root, my_nonce);
@@ -82,15 +81,15 @@ namespace ccf
         BftNodeSignature bft_node_sig(sig, node_id, hashed_nonce);
         bft_node_sig.is_primary = true;
         try_match_unmatched_nonces(
-          cert, bft_node_sig, tx_id.term, tx_id.version, node_id);
+          cert, bft_node_sig, tx_id.view, tx_id.seqno, node_id);
         cert.sigs.insert(
           std::pair<NodeId, BftNodeSignature>(node_id, bft_node_sig));
 
         certificates.insert(
-          std::pair<kv::Consensus::SeqNo, CommitCert>(tx_id.version, cert));
+          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, cert));
 
         LOG_TRACE_FMT(
-          "Adding new root for view:{}, seqno:{}", tx_id.term, tx_id.version);
+          "Adding new root for view:{}, seqno:{}", tx_id.view, tx_id.seqno);
         return kv::TxHistory::Result::OK;
       }
       else
@@ -102,7 +101,7 @@ namespace ccf
         BftNodeSignature bft_node_sig({}, node_id, hashed_nonce);
         bft_node_sig.is_primary = true;
         try_match_unmatched_nonces(
-          cert, bft_node_sig, tx_id.term, tx_id.version, node_id);
+          cert, bft_node_sig, tx_id.view, tx_id.seqno, node_id);
         cert.my_nonce = my_nonce;
         cert.have_primary_signature = true;
         for (auto& sig : cert.sigs)
@@ -121,14 +120,14 @@ namespace ccf
               "record_primary: Signature verification from {} FAILED, view:{}, "
               "seqno:{}",
               sig.first,
-              tx_id.term,
-              tx_id.version));
+              tx_id.view,
+              tx_id.seqno));
           }
           LOG_TRACE_FMT(
             "Signature verification from {} passed, view:{}, seqno:{}",
             sig.second.node,
-            tx_id.term,
-            tx_id.version);
+            tx_id.view,
+            tx_id.seqno);
         }
         cert.sigs.insert(
           std::pair<NodeId, BftNodeSignature>(node_id, bft_node_sig));
@@ -150,16 +149,16 @@ namespace ccf
     }
 
     kv::TxHistory::Result record_primary_signature(
-      kv::TxID tx_id, std::vector<uint8_t>& sig)
+      ccf::TxID tx_id, std::vector<uint8_t>& sig)
     {
       std::unique_lock<SpinLock> guard(lock);
-      auto it = certificates.find(tx_id.version);
+      auto it = certificates.find(tx_id.seqno);
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
           "Adding signature to primary that does not exist view:{}, seqno:{}",
-          tx_id.term,
-          tx_id.version);
+          tx_id.view,
+          tx_id.seqno);
         return kv::TxHistory::Result::FAIL;
       }
 
@@ -178,7 +177,7 @@ namespace ccf
     }
 
     kv::TxHistory::Result receive_backup_signatures(
-      kv::TxID& tx_id, uint32_t node_count, bool is_primary)
+      ccf::TxID& tx_id, uint32_t node_count, bool is_primary)
     {
       std::unique_lock<SpinLock> guard(lock);
       std::optional<ccf::BackupSignatures> sigs =
@@ -256,8 +255,8 @@ namespace ccf
         }
       }
 
-      tx_id.term = sigs_value.view;
-      tx_id.version = sigs_value.seqno;
+      tx_id.view = sigs_value.view;
+      tx_id.seqno = sigs_value.seqno;
 
       return success;
     }
@@ -269,14 +268,14 @@ namespace ccf
       CCF_ASSERT(nonces.has_value(), "nonces does not have a value");
       aft::RevealedNonces& nonces_value = nonces.value();
 
-      auto it = certificates.find(nonces_value.tx_id.version);
+      auto it = certificates.find(nonces_value.tx_id.seqno);
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
           "Primary send backup signatures before sending the primary "
           "signature view:{}, seqno:{}",
-          nonces_value.tx_id.term,
-          nonces_value.tx_id.version);
+          nonces_value.tx_id.view,
+          nonces_value.tx_id.seqno);
         return kv::TxHistory::Result::FAIL;
       }
 
@@ -290,8 +289,8 @@ namespace ccf
             "Node {} sent revealed nonce before sending a signature view:{}, "
             "seqno:{}",
             revealed_nonce.node_id,
-            nonces_value.tx_id.term,
-            nonces_value.tx_id.version);
+            nonces_value.tx_id.view,
+            nonces_value.tx_id.seqno);
           return kv::TxHistory::Result::FAIL;
         }
 
@@ -302,8 +301,8 @@ namespace ccf
           LOG_FAIL_FMT(
             "Hashed nonces does not match with nonce view:{}, seqno:{}, "
             "node_id:{}",
-            nonces_value.tx_id.term,
-            nonces_value.tx_id.version,
+            nonces_value.tx_id.view,
+            nonces_value.tx_id.seqno,
             revealed_nonce.node_id);
           return kv::TxHistory::Result::FAIL;
         }
@@ -315,31 +314,30 @@ namespace ccf
       }
 
       cert.nonces_committed_to_ledger = true;
-      try_update_watermark(cert, nonces_value.tx_id.version, true);
+      try_update_watermark(cert, nonces_value.tx_id.seqno, true);
       return kv::TxHistory::Result::OK;
     }
 
     kv::TxHistory::Result add_signature_ack(
-      kv::TxID tx_id, const NodeId& node_id, uint32_t node_count = 0)
+      ccf::TxID tx_id, const NodeId& node_id, uint32_t node_count = 0)
     {
       std::unique_lock<SpinLock> guard(lock);
-      auto it = certificates.find(tx_id.version);
+      auto it = certificates.find(tx_id.seqno);
       if (it == certificates.end())
       {
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
-        auto r =
-          certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
-            tx_id.version, CommitCert()));
+        auto r = certificates.insert(
+          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, CommitCert()));
         it = r.first;
       }
 
       LOG_TRACE_FMT(
         "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
         node_id,
-        tx_id.term,
-        tx_id.version);
+        tx_id.view,
+        tx_id.seqno);
 
       auto& cert = it->second;
       cert.sig_acks.insert(node_id);
@@ -352,7 +350,7 @@ namespace ccf
     }
 
     void add_nonce_reveal(
-      kv::TxID tx_id,
+      ccf::TxID tx_id,
       Nonce nonce,
       const NodeId& node_id,
       uint32_t node_count,
@@ -360,15 +358,14 @@ namespace ccf
     {
       std::unique_lock<SpinLock> guard(lock);
       bool did_add = false;
-      auto it = certificates.find(tx_id.version);
+      auto it = certificates.find(tx_id.seqno);
       if (it == certificates.end())
       {
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
-        auto r =
-          certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
-            tx_id.version, CommitCert()));
+        auto r = certificates.insert(
+          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, CommitCert()));
         it = r.first;
         did_add = true;
       }
@@ -385,8 +382,8 @@ namespace ccf
       LOG_TRACE_FMT(
         "add_nonce_reveal view:{}, seqno:{}, node_id:{}, sig.hashed_nonce:{}, "
         " received.nonce:{}, hash(received.nonce):{} did_add:{}",
-        tx_id.term,
-        tx_id.version,
+        tx_id.view,
+        tx_id.seqno,
         node_id,
         sig.hashed_nonce,
         nonce,
@@ -401,8 +398,8 @@ namespace ccf
           "Nonces do not match add_nonce_reveal view:{}, seqno:{}, node_id:{}, "
           "sig.hashed_nonce:{}, "
           " received.nonce:{}, hash(received.nonce):{} did_add:{}",
-          tx_id.term,
-          tx_id.version,
+          tx_id.view,
+          tx_id.seqno,
           node_id,
           sig.hashed_nonce,
           nonce,
@@ -411,8 +408,8 @@ namespace ccf
         throw ccf::ccf_logic_error(fmt::format(
           "nonces do not match verification from {} FAILED, view:{}, seqno:{}",
           node_id,
-          tx_id.term,
-          tx_id.version));
+          tx_id.view,
+          tx_id.seqno));
       }
       sig.nonce = nonce;
       cert.nonce_set.insert(node_id);
@@ -435,16 +432,16 @@ namespace ccf
         store->write_nonces(revealed_nonces);
       }
 
-      try_update_watermark(cert, tx_id.version, is_primary);
+      try_update_watermark(cert, tx_id.seqno, is_primary);
     }
 
-    crypto::Sha256Hash get_node_hashed_nonce(kv::TxID tx_id)
+    crypto::Sha256Hash get_node_hashed_nonce(ccf::TxID tx_id)
     {
       std::unique_lock<SpinLock> guard(lock);
       return get_node_hashed_nonce_internal(tx_id);
     }
 
-    void get_node_hashed_nonce(kv::TxID tx_id, crypto::Sha256Hash& hash)
+    void get_node_hashed_nonce(ccf::TxID tx_id, crypto::Sha256Hash& hash)
     {
       Nonce nonce = get_node_nonce(tx_id);
       hash_data(nonce, hash);
@@ -467,22 +464,22 @@ namespace ccf
       hash = crypto::Sha256Hash({data.h.data(), data.h.size()});
     }
 
-    kv::Consensus::SeqNo get_highest_committed_nonce()
+    ccf::SeqNo get_highest_committed_nonce()
     {
       return highest_commit_level;
     }
 
-    std::tuple<std::unique_ptr<ViewChangeRequest>, kv::Consensus::SeqNo>
-    get_view_change_message(kv::Consensus::View view)
+    std::tuple<std::unique_ptr<ViewChangeRequest>, ccf::SeqNo>
+    get_view_change_message(ccf::View view)
     {
       std::unique_lock<SpinLock> guard(lock);
-      auto it = certificates.find(highest_prepared_level.version);
+      auto it = certificates.find(highest_prepared_level.seqno);
       if (it == certificates.end())
       {
         throw ccf::ccf_logic_error(fmt::format(
           "Invalid prepared level, view:{}, seqno:{}",
-          highest_prepared_level.term,
-          highest_prepared_level.version));
+          highest_prepared_level.view,
+          highest_prepared_level.seqno));
       }
 
       auto& cert = it->second;
@@ -493,15 +490,15 @@ namespace ccf
         m->signatures.push_back(sig.second);
       }
 
-      store->sign_view_change_request(*m, view, highest_prepared_level.version);
-      return std::make_tuple(std::move(m), highest_prepared_level.version);
+      store->sign_view_change_request(*m, view, highest_prepared_level.seqno);
+      return std::make_tuple(std::move(m), highest_prepared_level.seqno);
     }
 
     bool apply_view_change_message(
       ViewChangeRequest& view_change,
       const NodeId& from,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno)
+      ccf::View view,
+      ccf::SeqNo seqno)
     {
       std::unique_lock<SpinLock> guard(lock);
       if (!store->verify_view_change_request(view_change, from, view, seqno))
@@ -559,25 +556,25 @@ namespace ccf
     bool apply_new_view(
       const NodeId& from,
       uint32_t node_count,
-      kv::Consensus::View& view_,
-      kv::Consensus::SeqNo& seqno_) const
+      ccf::View& view_,
+      ccf::SeqNo& seqno_) const
     {
       std::unique_lock<SpinLock> guard(lock);
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
-      kv::Consensus::View view = new_view->view;
-      kv::Consensus::SeqNo seqno = new_view->seqno;
+      ccf::View view = new_view->view;
+      ccf::SeqNo seqno = new_view->seqno;
 
       if (
-        seqno < highest_prepared_level.version ||
-        view < highest_prepared_level.term)
+        seqno < highest_prepared_level.seqno ||
+        view < highest_prepared_level.view)
       {
         LOG_FAIL_FMT(
           "Invalid view and seqno in the new view highest prepared from:{}, "
           "view:{},seqno:{}, new_view view:{}, seqno:{}",
           from,
-          highest_prepared_level.term,
-          highest_prepared_level.version,
+          highest_prepared_level.view,
+          highest_prepared_level.seqno,
           view,
           seqno);
         return false;
@@ -625,7 +622,7 @@ namespace ccf
       return true;
     }
 
-    Nonce get_node_nonce(kv::TxID tx_id)
+    Nonce get_node_nonce(ccf::TxID tx_id)
     {
       std::unique_lock<SpinLock> guard(lock);
       return get_node_nonce_(tx_id);
@@ -634,14 +631,14 @@ namespace ccf
   private:
     NodeId id;
     std::shared_ptr<crypto::Entropy> entropy;
-    kv::Consensus::SeqNo highest_commit_level = 0;
-    kv::TxID highest_prepared_level = {0, 0};
+    ccf::SeqNo highest_commit_level = 0;
+    ccf::TxID highest_prepared_level = {0, 0};
 
-    std::map<kv::Consensus::SeqNo, CommitCert> certificates;
+    std::map<ccf::SeqNo, CommitCert> certificates;
     mutable SpinLock lock;
 
     kv::TxHistory::Result add_signature_internal(
-      kv::TxID tx_id,
+      ccf::TxID tx_id,
       const NodeId& node_id,
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
@@ -652,17 +649,16 @@ namespace ccf
       LOG_TRACE_FMT(
         "add_signature node_id:{}, seqno:{}, hashed_nonce:{}",
         node_id,
-        tx_id.version,
+        tx_id.seqno,
         hashed_nonce);
-      auto it = certificates.find(tx_id.version);
+      auto it = certificates.find(tx_id.seqno);
       if (it == certificates.end())
       {
         // At this point the appropriate Merkle root is not known. The signature
         // will be recorded and verified when the primary sends the apporiate
         // Merkle root.
-        auto r =
-          certificates.insert(std::pair<kv::Consensus::SeqNo, CommitCert>(
-            tx_id.version, CommitCert()));
+        auto r = certificates.insert(
+          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, CommitCert()));
         it = r.first;
       }
       else
@@ -676,15 +672,15 @@ namespace ccf
             "add_signatures: Signature verification from {} FAILED, view:{}, "
             "seqno:{}",
             node_id,
-            tx_id.term,
-            tx_id.version));
+            tx_id.view,
+            tx_id.seqno));
           return kv::TxHistory::Result::FAIL;
         }
         LOG_TRACE_FMT(
           "Signature verification from {} passed, view:{}, seqno:{}",
           node_id,
-          tx_id.term,
-          tx_id.version);
+          tx_id.view,
+          tx_id.seqno);
       }
 
       auto& cert = it->second;
@@ -692,8 +688,8 @@ namespace ccf
       {
         LOG_TRACE_FMT(
           "Already wrote append entry view:{}, seqno:{}, ignoring",
-          tx_id.term,
-          tx_id.version);
+          tx_id.view,
+          tx_id.seqno);
         return kv::TxHistory::Result::OK;
       }
 
@@ -715,7 +711,7 @@ namespace ccf
 
       BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce);
       try_match_unmatched_nonces(
-        cert, bft_node_sig, tx_id.term, tx_id.version, node_id);
+        cert, bft_node_sig, tx_id.view, tx_id.seqno, node_id);
       cert.sigs.insert(
         std::pair<NodeId, BftNodeSignature>(node_id, std::move(bft_node_sig)));
 
@@ -723,7 +719,7 @@ namespace ccf
       {
         if (is_primary)
         {
-          ccf::BackupSignatures sig_value(tx_id.term, tx_id.version, cert.root);
+          ccf::BackupSignatures sig_value(tx_id.view, tx_id.seqno, cert.root);
 
           for (const auto& sig : cert.sigs)
           {
@@ -734,7 +730,7 @@ namespace ccf
             }
           }
 
-          LOG_TRACE_FMT("Adding signatures to ledger seqno:{}", tx_id.version);
+          LOG_TRACE_FMT("Adding signatures to ledger seqno:{}", tx_id.seqno);
           store->write_backup_signatures(sig_value);
           cert.wrote_sig_to_ledger = true;
         }
@@ -743,20 +739,20 @@ namespace ccf
       return kv::TxHistory::Result::OK;
     }
 
-    Nonce get_node_nonce_(kv::TxID tx_id)
+    Nonce get_node_nonce_(ccf::TxID tx_id)
     {
-      auto it = certificates.find(tx_id.version);
+      auto it = certificates.find(tx_id.seqno);
       if (it == certificates.end())
       {
         throw ccf::ccf_logic_error(fmt::format(
           "Attempting to access unknown nonce, view:{}, seqno:{}",
-          tx_id.term,
-          tx_id.version));
+          tx_id.view,
+          tx_id.seqno));
       }
       return it->second.my_nonce;
     }
 
-    crypto::Sha256Hash get_node_hashed_nonce_internal(kv::TxID tx_id)
+    crypto::Sha256Hash get_node_hashed_nonce_internal(ccf::TxID tx_id)
     {
       Nonce nonce = get_node_nonce_(tx_id);
       return hash_data(nonce);
@@ -765,8 +761,8 @@ namespace ccf
     void try_match_unmatched_nonces(
       CommitCert& cert,
       BftNodeSignature& bft_node_sig,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno,
+      ccf::View view,
+      ccf::SeqNo seqno,
       const NodeId& node_id)
     {
       auto it_unmatched_nonces = cert.unmatched_nonces.find(node_id);
@@ -813,19 +809,19 @@ namespace ccf
     }
 
     bool can_send_sig_ack(
-      CommitCert& cert, const kv::TxID& tx_id, uint32_t node_count)
+      CommitCert& cert, const ccf::TxID& tx_id, uint32_t node_count)
     {
       if (
         cert.sigs.size() >= get_message_threshold(node_count) &&
         !cert.ack_sent && cert.have_primary_signature)
       {
-        if (tx_id.version > highest_prepared_level.version)
+        if (tx_id.seqno > highest_prepared_level.seqno)
         {
           CCF_ASSERT_FMT(
-            tx_id.term >= highest_prepared_level.term,
+            tx_id.view >= highest_prepared_level.view,
             "Prepared terms are moving backwards new_term:{}, current_term:{}",
-            tx_id.term,
-            highest_prepared_level.term);
+            tx_id.view,
+            highest_prepared_level.view);
           highest_prepared_level = tx_id;
         }
 
@@ -848,9 +844,7 @@ namespace ccf
     }
 
     void try_update_watermark(
-      CommitCert& cert,
-      kv::Consensus::SeqNo seqno,
-      bool should_clear_old_entries)
+      CommitCert& cert, ccf::SeqNo seqno, bool should_clear_old_entries)
     {
       if (cert.nonces_committed_to_ledger && seqno > highest_commit_level)
       {

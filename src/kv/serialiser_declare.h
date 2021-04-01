@@ -21,10 +21,10 @@ namespace kv
   class JsonReader;
   using KvStoreDeserialiser = GenericDeserialiseWrapper<JsonReader>;
 #else
-  class MsgPackWriter;
-  using KvStoreSerialiser = GenericSerialiseWrapper<MsgPackWriter>;
+  class RawWriter;
+  using KvStoreSerialiser = GenericSerialiseWrapper<RawWriter>;
 
-  class MsgPackReader;
-  using KvStoreDeserialiser = GenericDeserialiseWrapper<MsgPackReader>;
+  class RawReader;
+  using KvStoreDeserialiser = GenericDeserialiseWrapper<RawReader>;
 #endif
 }

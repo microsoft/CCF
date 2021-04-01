@@ -364,16 +364,15 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile)
     ->required();
 
-  std::string constitution_path = "constitution.js";
+  std::vector<std::string> constitution_paths;
   start
     ->add_option(
       "--constitution",
-      constitution_path,
-      "Path to JS file that defines the contents of the "
+      constitution_paths,
+      "Path to one or more JS file that are concatenated to define the "
+      "contents of the "
       "public:ccf.gov.constitution table")
-    ->capture_default_str()
-    ->check(CLI::ExistingFile)
-    ->required();
+    ->type_size(-1);
 
   std::vector<cli::ParsedMemberInfo> members_info;
   cli::add_member_info_option(
@@ -721,7 +720,12 @@ int main(int argc, char** argv)
           files::slurp(m_info.cert_file), public_encryption_key_file, md);
       }
       ccf_config.genesis.gov_script = files::slurp_string(gov_script);
-      ccf_config.genesis.constitution = files::slurp_string(constitution_path);
+      ccf_config.genesis.constitution = "";
+      for (const auto& constitution_path : constitution_paths)
+      {
+        ccf_config.genesis.constitution +=
+          files::slurp_string(constitution_path);
+      }
       ccf_config.genesis.recovery_threshold = recovery_threshold.value();
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "

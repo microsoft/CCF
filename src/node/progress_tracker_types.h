@@ -7,6 +7,7 @@
 #include "consensus/aft/revealed_nonces.h"
 #include "crypto/hash.h"
 #include "crypto/verifier.h"
+#include "kv/committable_tx.h"
 #include "node_signature.h"
 #include "tls/tls.h"
 #include "view_change.h"
@@ -70,15 +71,13 @@ namespace ccf
       uint32_t sig_size,
       uint8_t* sig) = 0;
     virtual void sign_view_change_request(
-      ViewChangeRequest& view_change,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno) = 0;
+      ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno) = 0;
     virtual bool verify_view_change_request(
       ViewChangeRequest& view_change,
       const NodeId& from,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno) = 0;
-    virtual kv::Consensus::SeqNo write_view_change_confirmation(
+      ccf::View view,
+      ccf::SeqNo seqno) = 0;
+    virtual ccf::SeqNo write_view_change_confirmation(
       ViewChangeConfirmation& new_view) = 0;
     virtual bool verify_view_change_request_confirmation(
       ViewChangeConfirmation& new_view, const NodeId& from) = 0;
@@ -99,7 +98,7 @@ namespace ccf
 
     void write_backup_signatures(const BackupSignatures& sig_value) override
     {
-      kv::Tx tx(&store);
+      kv::CommittableTx tx(&store);
       auto backup_sig_view = tx.rw(backup_signatures);
 
       backup_sig_view->put(0, sig_value);
@@ -113,8 +112,8 @@ namespace ccf
 
     std::optional<BackupSignatures> get_backup_signatures() override
     {
-      kv::Tx tx(&store);
-      auto sigs_tv = tx.rw(backup_signatures);
+      kv::ReadOnlyTx tx(&store);
+      auto sigs_tv = tx.ro(backup_signatures);
       auto sigs = sigs_tv->get(0);
       if (!sigs.has_value())
       {
@@ -126,8 +125,8 @@ namespace ccf
 
     std::optional<ViewChangeConfirmation> get_new_view() override
     {
-      kv::Tx tx(&store);
-      auto new_views_tv = tx.rw(new_views);
+      kv::ReadOnlyTx tx(&store);
+      auto new_views_tv = tx.ro(new_views);
       auto new_view = new_views_tv->get(0);
       if (!new_view.has_value())
       {
@@ -139,7 +138,7 @@ namespace ccf
 
     void write_nonces(aft::RevealedNonces& nonces) override
     {
-      kv::Tx tx(&store);
+      kv::CommittableTx tx(&store);
       auto nonces_tv = tx.rw(revealed_nonces);
 
       nonces_tv->put(0, nonces);
@@ -148,19 +147,19 @@ namespace ccf
       {
         LOG_FAIL_FMT(
           "Failed to write nonces, view:{}, seqno:{}",
-          nonces.tx_id.term,
-          nonces.tx_id.version);
+          nonces.tx_id.view,
+          nonces.tx_id.seqno);
         throw ccf_logic_error(fmt::format(
           "Failed to write nonces, view:{}, seqno:{}",
-          nonces.tx_id.term,
-          nonces.tx_id.version));
+          nonces.tx_id.view,
+          nonces.tx_id.seqno));
       }
     }
 
     std::optional<aft::RevealedNonces> get_nonces() override
     {
-      kv::Tx tx(&store);
-      auto nonces_tv = tx.rw(revealed_nonces);
+      kv::ReadOnlyTx tx(&store);
+      auto nonces_tv = tx.ro(revealed_nonces);
       auto nonces = nonces_tv->get(0);
       if (!nonces.has_value())
       {
@@ -176,8 +175,8 @@ namespace ccf
       uint32_t sig_size,
       uint8_t* sig) override
     {
-      kv::Tx tx(&store);
-      auto ni_tv = tx.rw(nodes);
+      kv::ReadOnlyTx tx(&store);
+      auto ni_tv = tx.ro(nodes);
 
       auto ni = ni_tv->get(node_id);
       if (!ni.has_value())
@@ -192,9 +191,7 @@ namespace ccf
     }
 
     void sign_view_change_request(
-      ViewChangeRequest& view_change,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno) override
+      ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno) override
     {
       crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
       view_change.signature = kp.sign_hash(h.h.data(), h.h.size());
@@ -203,13 +200,13 @@ namespace ccf
     bool verify_view_change_request(
       ViewChangeRequest& view_change,
       const NodeId& from,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno) override
+      ccf::View view,
+      ccf::SeqNo seqno) override
     {
       crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
 
-      kv::Tx tx(&store);
-      auto ni_tv = tx.rw(nodes);
+      kv::ReadOnlyTx tx(&store);
+      auto ni_tv = tx.ro(nodes);
 
       auto ni = ni_tv->get(from);
       if (!ni.has_value())
@@ -225,8 +222,8 @@ namespace ccf
     bool verify_view_change_request_confirmation(
       ViewChangeConfirmation& new_view, const NodeId& from) override
     {
-      kv::Tx tx(&store);
-      auto ni_tv = tx.rw(nodes);
+      kv::ReadOnlyTx tx(&store);
+      auto ni_tv = tx.ro(nodes);
 
       auto ni = ni_tv->get(from);
       if (!ni.has_value())
@@ -240,10 +237,10 @@ namespace ccf
         h.h, new_view.signature, crypto::MDType::SHA256);
     }
 
-    kv::Consensus::SeqNo write_view_change_confirmation(
+    ccf::SeqNo write_view_change_confirmation(
       ViewChangeConfirmation& new_view) override
     {
-      kv::Tx tx(&store);
+      kv::CommittableTx tx(&store);
       auto new_views_tv = tx.rw(new_views);
 
       crypto::Sha256Hash h = hash_new_view(new_view);
@@ -290,9 +287,7 @@ namespace ccf
     NewViewsMap new_views;
 
     crypto::Sha256Hash hash_view_change(
-      const ViewChangeRequest& v,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno) const
+      const ViewChangeRequest& v, ccf::View view, ccf::SeqNo seqno) const
     {
       auto ch = crypto::make_incremental_sha256();
 

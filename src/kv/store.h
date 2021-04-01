@@ -5,6 +5,7 @@
 #include "apply_changes.h"
 #include "deserialise.h"
 #include "ds/ccf_exception.h"
+#include "kv/committable_tx.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
@@ -12,8 +13,8 @@
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
 #include "snapshot.h"
-#include "tx.h"
 
+#define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
 namespace kv
@@ -124,12 +125,16 @@ namespace kv
 
     Version next_version_internal()
     {
-      // Get the next global version. If the version becomes negative, wrap to
-      // 0.
+      // Get the next global version
       ++version;
 
-      if (version < 0)
+      // If the version becomes too large to represent in a DeletableVersion,
+      // wrap to 0
+      if (version > std::numeric_limits<DeletableVersion>::max())
+      {
+        LOG_FAIL_FMT("KV version too large - wrapping to 0");
         version = 0;
+      }
 
       return version;
     }
@@ -840,7 +845,7 @@ namespace kv
             get_history(),
             std::move(data),
             public_only,
-            std::make_unique<Tx>(this, v),
+            std::make_unique<CommittableTx>(this),
             v,
             max_conflict_version,
             std::move(changes),
@@ -935,7 +940,7 @@ namespace kv
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
       Version previous_rollback_count = 0;
-      kv::Consensus::View replication_view = 0;
+      ccf::View replication_view = 0;
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
@@ -966,7 +971,7 @@ namespace kv
             break;
 
           auto& [pending_tx_, committable_] = search->second;
-          auto [success_, reqid, data_, hooks_] = pending_tx_->call();
+          auto [success_, data_, hooks_] = pending_tx_->call();
           auto data_shared =
             std::make_shared<std::vector<uint8_t>>(std::move(data_));
           auto hooks_shared =
@@ -1222,9 +1227,9 @@ namespace kv
       return ReadOnlyTx(this);
     }
 
-    Tx create_tx()
+    CommittableTx create_tx()
     {
-      return Tx(this);
+      return CommittableTx(this);
     }
 
     ReservedTx create_reserved_tx(Version v)

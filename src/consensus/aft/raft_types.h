@@ -19,8 +19,8 @@
 
 namespace aft
 {
-  using Index = int64_t;
-  using Term = int64_t;
+  using Index = uint64_t;
+  using Term = uint64_t;
   using Node2NodeMsg = uint64_t;
   using Nonce = crypto::Sha256Hash;
 
@@ -44,7 +44,6 @@ namespace aft
       ConsensusType consensus_type,
       bool public_only = false) = 0;
     virtual std::shared_ptr<ccf::ProgressTracker> get_progress_tracker() = 0;
-    virtual kv::Tx create_tx() = 0;
   };
 
   template <typename T>
@@ -91,16 +90,6 @@ namespace aft
         return p->get_progress_tracker();
       }
       return nullptr;
-    }
-
-    kv::Tx create_tx() override
-    {
-      auto p = x.lock();
-      if (p)
-      {
-        return p->create_tx();
-      }
-      throw std::logic_error("Can't create a tx without a store");
     }
 
     std::unique_ptr<kv::AbstractExecutionWrapper> apply(
@@ -185,13 +174,13 @@ namespace aft
 
   struct RequestViewChangeMsg : RaftHeader
   {
-    kv::Consensus::View view = 0;
-    kv::Consensus::SeqNo seqno = 0;
+    ccf::View view = 0;
+    ccf::SeqNo seqno = 0;
   };
 
   struct ViewChangeEvidenceMsg : RaftHeader
   {
-    kv::Consensus::View view = 0;
+    ccf::View view = 0;
   };
 
   struct RequestVote : RaftHeader

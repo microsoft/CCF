@@ -38,6 +38,16 @@ namespace nonstd
   struct is_std_array<std::array<T, N>> : public std::true_type
   {};
 
+  /** Similar to is_specialization, but for detecting std::vector specifically
+   */
+  template <typename T>
+  struct is_std_vector : std::false_type
+  {};
+
+  template <typename T>
+  struct is_std_vector<std::vector<T>> : public std::true_type
+  {};
+
   /** dependent_false produces a static, compile-time false, dependent on a
    * specific type or value instantiation. This is useful for producing a
    * static_assert which will fail only when invalid paths are called, but

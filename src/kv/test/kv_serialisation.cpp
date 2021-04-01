@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
+#include "ds/msgpack_adaptor_nlohmann.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "kv/tx.h"
 
 #include <doctest/doctest.h>
 #undef FAIL
@@ -538,7 +538,7 @@ TEST_CASE_TEMPLATE(
     handle->put(k1, v1);
     handle->put(k2, v2);
 
-    auto [success, reqid, data, hooks] = tx.commit_reserved();
+    auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
@@ -640,7 +640,7 @@ TEST_CASE(
     data_handle_d->put(46, 46);
     data_handle_d_p->put(47, 47);
 
-    auto [success, reqid, data, hooks] = tx.commit_reserved();
+    auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
     REQUIRE(
       store.deserialize(data, ConsensusType::CFT)->apply() ==

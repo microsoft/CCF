@@ -7,7 +7,7 @@ A C++ application exposes itself to CCF by implementing:
     :language: cpp
     :start-after: SNIPPET_START: rpc_handler
     :end-before: SNIPPET_END: rpc_handler
-    :dedent: 2
+    :dedent:
 
 The Logging application simply has:
 
@@ -15,7 +15,7 @@ The Logging application simply has:
     :language: cpp
     :start-after: SNIPPET_START: rpc_handler
     :end-before: SNIPPET_END: rpc_handler
-    :dedent: 2
+    :dedent:
 
 .. note::
 
@@ -28,7 +28,7 @@ The Logging application simply has:
         :language: cpp
         :start-after: SNIPPET: table_definition
         :lines: 1
-        :dedent: 2
+        :dedent:
 
     Table creation happens in the app's constructor:
 
@@ -36,7 +36,7 @@ The Logging application simply has:
         :language: cpp
         :start-after: SNIPPET_START: constructor
         :end-before: SNIPPET_END: constructor
-        :dedent: 4
+        :dedent:
 
 RPC Handler
 -----------
@@ -47,7 +47,7 @@ The type returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:
     :language: cpp
     :start-after: SNIPPET: inherit_frontend
     :lines: 1
-    :dedent: 2
+    :dedent:
 
 The logging app defines :cpp:class:`ccfapp::LoggerHandlers`, which creates and installs handler functions or lambdas for several different HTTP endpoints. Each of these functions takes as input the details of the current request (such as the URI which was called, the query string, the request body), interacts with the KV tables using the given :cpp:class:`kv::Tx` object, and returns a result:
 
@@ -55,7 +55,7 @@ The logging app defines :cpp:class:`ccfapp::LoggerHandlers`, which creates and i
     :language: cpp
     :start-after: SNIPPET_START: record
     :end-before: SNIPPET_END: record
-    :dedent: 6
+    :dedent:
 
 This example uses the ``json_adapter`` wrapper function, which handles parsing of a JSON params object from the HTTP request body.
 
@@ -65,7 +65,7 @@ Each function is installed as the handler for a specific HTTP resource, defined 
     :language: cpp
     :start-after: SNIPPET_START: install_record
     :end-before: SNIPPET_END: install_record
-    :dedent: 6
+    :dedent:
 
 This example installs at ``"log/private", HTTP_POST``, so will be invoked for HTTP requests beginning ``POST /app/log/private``.
 
@@ -77,7 +77,7 @@ To process the raw body directly, a handler should use the general lambda signat
     :language: cpp
     :start-after: SNIPPET_START: log_record_text
     :end-before: SNIPPET_END: log_record_text
-    :dedent: 6
+    :dedent:
 
 Rather than parsing the request body as JSON and extracting the message from it, in this case `the entire body` is the message to be logged, and the ID to associate it with is passed as a request header. This requires some additional code in the handler, but provides complete control of the request and response formats.
 
@@ -87,9 +87,9 @@ This general signature also allows a handler to see additional caller context. A
     :language: cpp
     :start-after: SNIPPET_START: log_record_prefix_cert
     :end-before: SNIPPET_END: log_record_prefix_cert
-    :dedent: 6
+    :dedent:
 
-This uses mbedtls to parse the caller's TLS certificate, and prefixes the logged message with the ``Subject`` field extracted from this certificate.
+This uses mbedTLS to parse the caller's TLS certificate, and prefixes the logged message with the ``Subject`` field extracted from this certificate.
 
 If a handler makes no writes to the KV, it may be installed as read-only:
 
@@ -97,7 +97,7 @@ If a handler makes no writes to the KV, it may be installed as read-only:
     :language: cpp
     :start-after: SNIPPET_START: install_get
     :end-before: SNIPPET_END: install_get
-    :dedent: 6
+    :dedent:
 
 This offers some additional type safety (accidental `put`\s or `remove`\s will be caught at compile-time) and also enables performance scaling since read-only operations can be executed on any receiving node, whereas writes must always be executed on the primary node.
 
@@ -110,13 +110,13 @@ Instead of taking and returning `nlohmann::json` objects directly, the endpoint 
     :language: cpp
     :start-after: SNIPPET_START: macro_validation_macros
     :end-before: SNIPPET_END: macro_validation_macros
-    :dedent: 2
+    :dedent:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: macro_validation_record
     :end-before: SNIPPET_END: macro_validation_record
-    :dedent: 6
+    :dedent:
 
 This produces validation error messages with a low performance overhead, and ensures the schema and parsing logic stay in sync, but is only suitable for simple schema - an object with some required and some optional fields, each of a supported type.
 
@@ -133,7 +133,7 @@ Applications can extend this system by writing their own authentication policies
     :language: cpp
     :start-after: SNIPPET_START: custom_identity
     :end-before: SNIPPET_END: custom_identity
-    :dedent: 2
+    :dedent:
 
 Next it defines the policy itself. The core functionality is the implementation of the ``authenticate()`` method, which looks at each request and returns either a valid new identity if it accepts the request, or ``nullptr`` if it doesn't. In this demo case it is looking for a pair of headers and doing some validation of their values:
 
@@ -141,7 +141,7 @@ Next it defines the policy itself. The core functionality is the implementation 
     :language: cpp
     :start-after: SNIPPET_START: custom_auth_policy
     :end-before: SNIPPET_END: custom_auth_policy
-    :dedent: 2
+    :dedent:
 
 Note that ``authenticate()`` is also passed a ``ReadOnlyTx`` object, so more complex authentication decisions can depend on the current state of the KV. For instance the built-in TLS cert auth policies are looking up the currently known user/member certs stored in the KV, which will change over the life of the service.
 
@@ -151,7 +151,7 @@ The final piece is the definition of the endpoint itself, which uses an instance
     :language: cpp
     :start-after: SNIPPET_START: custom_auth_endpoint
     :end-before: SNIPPET_END: custom_auth_endpoint
-    :dedent: 6
+    :dedent:
 
 Default Endpoints
 ~~~~~~~~~~~~~~~~~
@@ -162,7 +162,7 @@ The logging app sample exposes several built-in endpoints which are provided by 
     :language: cpp
     :start-after: SNIPPET: registry_inheritance
     :lines: 1
-    :dedent: 2
+    :dedent:
 
 This app can then define its own endpoints from a blank slate. If it wants to provide similar functionality to the default endpoints, it does so using the APIs provided by :cpp:class:`ccf::BaseEndpointRegistry`. For instance to retrieve the hardware quote of the executing node:
 
@@ -170,7 +170,7 @@ This app can then define its own endpoints from a blank slate. If it wants to pr
     :language: cpp
     :start-after: SNIPPET_START: get_quote_api_v1
     :end-before: SNIPPET_END: get_quote_api_v1
-    :dedent: 10
+    :dedent:
 
 Historical Queries
 ~~~~~~~~~~~~~~~~~~
@@ -183,7 +183,7 @@ The handler passed to the adapter is very similar to a read-only endpoint defini
     :language: cpp
     :start-after: SNIPPET_START: get_historical
     :end-before: SNIPPET_END: get_historical
-    :dedent: 6
+    :dedent:
 
 Receipts
 ~~~~~~~~
@@ -194,4 +194,4 @@ Historical state always contains a receipt. Users wishing to implement a receipt
     :language: cpp
     :start-after: SNIPPET_START: get_historical_with_receipt
     :end-before: SNIPPET_END: get_historical_with_receipt
-    :dedent: 6
+    :dedent:
