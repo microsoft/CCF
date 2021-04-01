@@ -170,7 +170,7 @@ int main(int argc, char** argv)
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
-  for (int i = logger::TRACE; i < logger::MAX_LOG_LEVEL; i++)
+  for (int i = logger::MOST_VERBOSE; i < logger::MAX_LOG_LEVEL; i++)
   {
     level_map.emplace_back(
       logger::config::LevelNames[i], static_cast<logger::Level>(i));
