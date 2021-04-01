@@ -641,16 +641,12 @@ def test_user_data_ACL(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
 
-        proposing_member = network.consortium.get_any_active_member()
         user = network.users[0]
 
         # Give isAdmin permissions to a single user
-        proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
-            user.service_id,
-            {"isAdmin": True},
+        network.consortium.set_user_data(
+            primary, user.service_id, user_data={"isAdmin": True}
         )
-        proposal = proposing_member.propose(primary, proposal_body)
-        network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
         # Confirm that user can now use this endpoint
         with primary.client(user.local_id) as c:
@@ -658,12 +654,9 @@ def test_user_data_ACL(network, args):
             assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
         # Remove permission
-        proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
-            user.service_id,
-            {"isAdmin": False},
+        network.consortium.set_user_data(
+            primary, user.service_id, user_data={"isAdmin": False}
         )
-        proposal = proposing_member.propose(primary, proposal_body)
-        network.consortium.vote_using_majority(primary, proposal, careful_vote)
 
         # Confirm that user is now forbidden on this endpoint
         with primary.client(user.local_id) as c:
@@ -1049,7 +1042,7 @@ def test_liveness(network, args):
 @reqs.at_least_n_nodes(1)
 def test_rekey(network, args):
     primary, _ = network.find_primary()
-    network.consortium.rekey_ledger(primary)
+    network.consortium.trigger_ledger_rekey(primary)
     return network
 
 
