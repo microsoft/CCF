@@ -310,4 +310,36 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "transition_node_to_trusted",
+    new Action(
+      function (args) {
+        checkType(args.node_id, "string", "node_id");
+      },
+      function (args) {
+        let node = ccf.kv["public:ccf.gov.nodes"].get(ccf.strToBuf(args.node_id));
+        if (node !== undefined && node.status === "Pending")
+        {
+          node.status = "Trusted";
+          ccf.kv["public:ccf.gov.nodes"].put(node);
+        }
+      }
+    ),
+  ],
+  [
+    "remove_node",
+    new Action(
+      function (args) {
+        checkType(args.node_id, "string", "node_id");
+      },
+      function (args) {
+        let node = ccf.kv["public:ccf.gov.nodes"].get(ccf.strToBuf(args.node_id));
+        if (node !== undefined && node.status !== "Retired")
+        {
+          node.status = "Retired";
+          ccf.kv["public:ccf.gov.nodes"].put(node);
+        }
+      }
+    ),
+  ],
 ]);
