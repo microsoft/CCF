@@ -332,13 +332,12 @@ def test_actions(network, args):
     )
     network.consortium.set_user_data(node, new_user.service_id, user_data=None)
 
-    # TODO: Fail!
     # Remove user
-    # network.consortium.remove_user(node, new_user.service_id)
+    network.consortium.remove_user(node, new_user.service_id)
 
-    # with node.client(new_user.local_id) as c:
-    #     r = c.get("/app/log/private")
-    #     assert r.status_code == 401, r.body.text()
+    with node.client(new_user.local_id) as c:
+        r = c.get("/app/log/private")
+        assert r.status_code == 401, r.body.text()
 
     # Set member data
     network.consortium.set_member_data(
@@ -430,6 +429,36 @@ def test_proposal_generator(network, args):
     return network
 
 
+@reqs.description("Test apply")
+def test_apply(network, args):
+    node = network.find_random_node()
+
+    with node.client(None, "member0") as c:
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("always_throw_in_apply")),
+        )
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Failed", r.body.json()
+        assert (
+            r.body.json()["failure_reason"] == "Failed to apply(): Error: Error message"
+        ), r.body.json()
+
+    with node.client(None, "member0") as c:
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("always_throw_in_resolve")),
+        )
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Failed", r.body.json()
+        assert (
+            r.body.json()["failure_reason"]
+            == "Failed to resolve(): Error: Resolve message"
+        ), r.body.json()
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -443,6 +472,7 @@ def run(args):
         # network = test_proposals_with_votes(network, args)
         # network = test_operator_proposals_and_votes(network, args)
         # network = test_proposal_generator(network, args)
+        # network = test_apply(network, args)
         network = test_actions(network, args)
 
 

@@ -205,6 +205,8 @@ namespace ccf
       size_t size) override
     {
       auto n2n_channel = channels->get(to);
+      // Sending after a channel has been destroyed is a bug.
+      assert(n2n_channel);
       return n2n_channel->send(type, {data, size});
     }
 
@@ -215,7 +217,9 @@ namespace ccf
       size_t& size) override
     {
       auto n2n_channel = channels->get(from);
-      return n2n_channel->recv_authenticated(cb, data, size);
+      // Receiving after a channel has been destroyed is ok.
+      return n2n_channel ? n2n_channel->recv_authenticated(cb, data, size) :
+                           true;
     }
 
     bool send_encrypted(
@@ -225,20 +229,25 @@ namespace ccf
       const std::vector<uint8_t>& data) override
     {
       auto n2n_channel = channels->get(to);
-      return n2n_channel->send(type, cb, data);
+      return n2n_channel ? n2n_channel->send(type, cb, data) : true;
     }
 
     bool recv_authenticated_with_load(
       const NodeId& from, const uint8_t*& data, size_t& size) override
     {
       auto n2n_channel = channels->get(from);
-      return n2n_channel->recv_authenticated_with_load(data, size);
+      return n2n_channel ?
+        n2n_channel->recv_authenticated_with_load(data, size) :
+        true;
     }
 
     std::vector<uint8_t> recv_encrypted(
       const NodeId& from, CBuffer cb, const uint8_t* data, size_t size) override
     {
       auto n2n_channel = channels->get(from);
+
+      if (!n2n_channel)
+        return {};
 
       auto plain = n2n_channel->recv_encrypted(cb, data, size);
       if (!plain.has_value())

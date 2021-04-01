@@ -8,6 +8,7 @@
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
 #include "kv/untyped_map.h"
+#include "node/jwt.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/node_interface.h"
 #include "tls/base64.h"
@@ -411,6 +412,131 @@ namespace js
     return JS_UNDEFINED;
   }
 
+  JSValue js_gov_set_jwt_public_signing_keys(
+    JSContext* ctx,
+    [[maybe_unused]] JSValueConst this_val,
+    int argc,
+    JSValueConst* argv)
+  {
+    if (argc != 3)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 3", argc);
+    }
+
+    // yikes
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "No transaction available");
+    }
+
+    JS_FreeValue(ctx, kv);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+
+    auto& tx = *tx_ctx_ptr->tx;
+
+    auto issuer_cstr = JS_ToCString(ctx, argv[0]);
+    if (issuer_cstr == nullptr)
+    {
+      return JS_ThrowTypeError(ctx, "issuer argument is not a string");
+    }
+    std::string issuer(issuer_cstr);
+    JS_FreeCString(ctx, issuer_cstr);
+
+    JSValue metadata_val = JS_JSONStringify(ctx, argv[1], JS_NULL, JS_NULL);
+    if (JS_IsException(metadata_val))
+    {
+      return JS_ThrowTypeError(ctx, "metadata argument is not a JSON object");
+    }
+    auto metadata_cstr = JS_ToCString(ctx, metadata_val);
+    std::string metadata_json(metadata_cstr);
+    JS_FreeCString(ctx, metadata_cstr);
+    JS_FreeValue(ctx, metadata_val);
+
+    JSValue jwks_val = JS_JSONStringify(ctx, argv[2], JS_NULL, JS_NULL);
+    if (JS_IsException(jwks_val))
+    {
+      return JS_ThrowTypeError(ctx, "jwks argument is not a JSON object");
+    }
+    auto jwks_cstr = JS_ToCString(ctx, jwks_val);
+    std::string jwks_json(jwks_cstr);
+    JS_FreeCString(ctx, jwks_cstr);
+    JS_FreeValue(ctx, jwks_val);
+
+    try
+    {
+      auto metadata =
+        nlohmann::json::parse(metadata_json).get<ccf::JwtIssuerMetadata>();
+      auto jwks = nlohmann::json::parse(jwks_json).get<ccf::JsonWebKeySet>();
+      auto success =
+        ccf::set_jwt_public_signing_keys(tx, "<js>", issuer, metadata, jwks);
+      if (!success)
+      {
+        return JS_ThrowInternalError(
+          ctx, "set_jwt_public_signing_keys() failed");
+      }
+    }
+    catch (std::exception& exc)
+    {
+      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+    }
+    return JS_UNDEFINED;
+  }
+
+  JSValue js_gov_remove_jwt_public_signing_keys(
+    JSContext* ctx,
+    [[maybe_unused]] JSValueConst this_val,
+    int argc,
+    JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+    }
+
+    // yikes
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "No transaction available");
+    }
+
+    JS_FreeValue(ctx, kv);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+
+    auto& tx = *tx_ctx_ptr->tx;
+
+    auto issuer_cstr = JS_ToCString(ctx, argv[0]);
+    if (issuer_cstr == nullptr)
+    {
+      return JS_ThrowTypeError(ctx, "issuer argument is not a string");
+    }
+    std::string issuer(issuer_cstr);
+    JS_FreeCString(ctx, issuer_cstr);
+
+    try
+    {
+      ccf::remove_jwt_public_signing_keys(tx, issuer);
+    }
+    catch (std::exception& exc)
+    {
+      return JS_ThrowInternalError(ctx, "Error: %s", exc.what());
+    }
+    return JS_UNDEFINED;
+  }
+
   JSValue js_node_trigger_recovery_shares_refresh(
     JSContext* ctx,
     JSValueConst this_val,
@@ -425,7 +551,6 @@ namespace js
 
     auto node = static_cast<ccf::AbstractNodeState*>(
       JS_GetOpaque(this_val, node_class_id));
-
     auto global_obj = JS_GetGlobalObject(ctx);
     auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
     auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
@@ -528,7 +653,44 @@ namespace js
     JS_FreeValue(ctx, exception_val);
   }
 
-  JSValue Context::function(const std::string& code, const std::string& path)
+  std::pair<std::string, std::optional<std::string>> js_error_message(
+    JSContext* ctx)
+  {
+    JSValue exception_val = JS_GetException(ctx);
+    const char* str;
+    bool is_error = JS_IsError(ctx, exception_val);
+    if (!is_error && JS_IsObject(exception_val))
+    {
+      JSValue rval = JS_JSONStringify(ctx, exception_val, JS_NULL, JS_NULL);
+      str = JS_ToCString(ctx, rval);
+      JS_FreeValue(ctx, rval);
+    }
+    else
+    {
+      str = JS_ToCString(ctx, exception_val);
+    }
+    std::string message(str);
+    JS_FreeCString(ctx, str);
+
+    std::optional<std::string> trace = std::nullopt;
+    if (is_error)
+    {
+      auto val = JS_GetPropertyStr(ctx, exception_val, "stack");
+      if (!JS_IsUndefined(val))
+      {
+        auto stack = JS_ToCString(ctx, val);
+        trace = stack;
+        JS_FreeCString(ctx, stack);
+      }
+      JS_FreeValue(ctx, val);
+    }
+    JS_FreeValue(ctx, exception_val);
+    return {message, trace};
+  }
+
+  JSValue Context::default_function(
+    const std::string& code, const std::string& path)
+
   {
     return function(code, "default", path);
   }
@@ -666,6 +828,25 @@ namespace js
       auto kv = JS_NewObjectClass(ctx, kv_class_id);
       JS_SetOpaque(kv, txctx);
       JS_SetPropertyStr(ctx, ccf, "kv", kv);
+
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "setJwtPublicSigningKeys",
+        JS_NewCFunction(
+          ctx,
+          js_gov_set_jwt_public_signing_keys,
+          "setJwtPublicSigningKeys",
+          3));
+      JS_SetPropertyStr(
+        ctx,
+        ccf,
+        "removeJwtPublicSigningKeys",
+        JS_NewCFunction(
+          ctx,
+          js_gov_remove_jwt_public_signing_keys,
+          "removeJwtPublicSigningKeys",
+          1));
     }
 
     // Historical queries
@@ -821,5 +1002,4 @@ namespace js
   }
 
 #pragma clang diagnostic pop
-
 }

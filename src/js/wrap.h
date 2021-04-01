@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
+#include "ccf/tx.h"
 #include "ds/logger.h"
 #include "kv/kv_types.h"
-#include "kv/tx.h"
 #include "node/rpc/node_interface.h"
 
 #include <memory>
@@ -53,6 +53,8 @@ namespace js
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
   void js_dump_error(JSContext* ctx);
+  std::pair<std::string, std::optional<std::string>> js_error_message(
+    JSContext* ctx);
 
   JSValue js_body_text(
     JSContext* ctx,
@@ -182,7 +184,7 @@ namespace js
       return JSWrappedCString(ctx, cstr);
     };
 
-    JSValue function(const std::string& code, const std::string& path);
+    JSValue default_function(const std::string& code, const std::string& path);
     JSValue function(
       const std::string& code,
       const std::string& func,

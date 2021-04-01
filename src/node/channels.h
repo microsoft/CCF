@@ -7,6 +7,7 @@
 #include "crypto/key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
+#include "ds/hex.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/spin_lock.h"
@@ -107,8 +108,9 @@ namespace ccf
     size_t message_limit = default_message_limit;
 
     // Used for AES GCM authentication/encryption
-    std::unique_ptr<crypto::KeyAesGcm> key;
-    std::unique_ptr<crypto::KeyAesGcm> next_key;
+    std::unique_ptr<crypto::KeyAesGcm> recv_key;
+    std::unique_ptr<crypto::KeyAesGcm> next_recv_key;
+    std::unique_ptr<crypto::KeyAesGcm> send_key;
 
     // Incremented for each tagged/encrypted message
     std::atomic<SendNonce> send_nonce{1};
@@ -162,11 +164,15 @@ namespace ccf
         peer_id,
         (const uint64_t)recv_nonce.nonce);
 
-      if (recv_nonce.nonce == 1 && next_key)
+      // Note: We must assume that some messages are dropped, i.e. we may not
+      // see every nonce/sequence number, but they must be increasing, except
+      // during key rollover, when it is reset to 1 for the new key.
+
+      if ((recv_nonce.nonce == 1 || !recv_key) && next_recv_key)
       {
-        LOG_TRACE_FMT("Changing to next channel key");
-        key.swap(next_key);
-        next_key.reset();
+        LOG_TRACE_FMT("Changing to next channel receive key");
+        recv_key.swap(next_recv_key);
+        next_recv_key.reset();
       }
       else if (recv_nonce.nonce <= *local_nonce)
       {
@@ -182,7 +188,7 @@ namespace ccf
       }
 
       auto ret =
-        key->decrypt(header.get_iv(), header.tag, cipher, aad, plain.p);
+        recv_key->decrypt(header.get_iv(), header.tag, cipher, aad, plain.p);
       if (ret)
       {
         // Set local recv nonce to received nonce only if verification is
@@ -511,7 +517,7 @@ namespace ccf
         ds::to_hex(ks),
         ds::to_hex(serialised_signature));
 
-      establish(true);
+      establish();
 
       return true;
     }
@@ -638,32 +644,35 @@ namespace ccf
       if (!verify_peer_signature(oks, sig))
         return false;
 
-      establish(false);
+      establish();
 
       return true;
     }
 
-    void establish(bool initiator)
+    void establish()
     {
       auto shared_secret = kex_ctx.compute_shared_secret();
-      std::string label;
-      if (initiator)
-      {
-        label = self.value() + peer_id.value();
-      }
-      else
-      {
-        label = peer_id.value() + self.value();
-      }
-      std::vector<uint8_t> info = {label.data(), label.data() + label.size()};
+      std::string label_to = self.value() + peer_id.value();
+      std::string label_from = peer_id.value() + self.value();
+
+      std::vector<uint8_t> info = {label_from.data(),
+                                   label_from.data() + label_from.size()};
       auto key_bytes = crypto::hkdf(
         crypto::MDType::SHA256,
         shared_key_size,
         shared_secret,
         hkdf_salt,
         info);
+      next_recv_key = crypto::make_key_aes_gcm(key_bytes);
 
-      next_key = crypto::make_key_aes_gcm(key_bytes);
+      info = {label_to.data(), label_to.data() + label_to.size()};
+      key_bytes = crypto::hkdf(
+        crypto::MDType::SHA256,
+        shared_key_size,
+        shared_secret,
+        hkdf_salt,
+        info);
+      send_key = crypto::make_key_aes_gcm(key_bytes);
 
       kex_ctx.free_ctx();
       send_nonce = 1;
@@ -743,15 +752,16 @@ namespace ccf
       GcmHdr gcm_hdr;
       gcm_hdr.set_iv_seq(nonce.get_val());
 
-      assert(key || next_key);
+      assert(send_key);
 
-      // During key rollover, we keep this->key to decrypt messages from the
-      // peer until it has rolled over too (recognized when we received a
-      // message with the nonce/seqno reset to 1). Until that happens, we need
-      // to keep both and send messages encrypted with this->next_key.
+      // During key rollover, we keep recv_key to decrypt messages from the peer
+      // until it has rolled over too (recognized when we received a message
+      // with the nonce/seqno reset to 1). But, we can immediately start to send
+      // messages with the new send_key.
+
       std::vector<uint8_t> cipher(plain.n);
-      (next_key ? next_key : key)
-        ->encrypt(gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
+      send_key->encrypt(
+        gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
 
       to_host->write(
         node_outbound,
@@ -856,8 +866,9 @@ namespace ccf
       kex_ctx.reset();
       peer_cert = {};
       peer_cv.reset();
-      key.reset();
-      next_key.reset();
+      recv_key.reset();
+      next_recv_key.reset();
+      send_key.reset();
       outgoing_msg.reset();
 
       auto e = crypto::create_entropy();
@@ -917,13 +928,31 @@ namespace ccf
           message_limit);
         channels.emplace_hint(search, peer_id, std::move(channel));
       }
-      else if (!search->second->is_outgoing())
+      else if (search->second && !search->second->is_outgoing())
       {
         // Channel with peer already exists but is incoming. Create host
         // outgoing connection.
         LOG_DEBUG_FMT("Setting existing channel to {} as outgoing", peer_id);
         search->second->set_outgoing(hostname, service);
         return;
+      }
+      else if (!search->second)
+      {
+        LOG_DEBUG_FMT(
+          "Re-creating new outbound channel to {} ({}:{})",
+          peer_id,
+          hostname,
+          service);
+        search->second = std::make_shared<Channel>(
+          writer_factory,
+          network_cert,
+          node_kp,
+          node_cert,
+          self,
+          peer_id,
+          hostname,
+          service,
+          message_limit);
       }
     }
 
@@ -939,7 +968,7 @@ namespace ccf
         return;
       }
 
-      channels.erase(peer_id);
+      search->second = nullptr;
     }
 
     void destroy_all_channels()
@@ -953,7 +982,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       for (auto& c : channels)
       {
-        if (c.second->is_outgoing())
+        if (c.second && c.second->is_outgoing())
         {
           c.second->reset_outgoing();
         }
