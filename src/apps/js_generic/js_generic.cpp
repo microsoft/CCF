@@ -352,7 +352,7 @@ namespace ccfapp
 
       js::register_request_body_class(ctx);
       js::populate_global_console(ctx);
-      js::populate_global_ccf(&txctx, transaction_id, receipt, nullptr, ctx);
+      js::populate_global_ccf(&txctx, transaction_id, receipt, nullptr, nullptr, ctx);
 
       // Compile module
       if (!handler_script.value().text.has_value())

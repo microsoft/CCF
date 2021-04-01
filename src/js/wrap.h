@@ -7,6 +7,7 @@
 #include "ds/logger.h"
 #include "kv/kv_types.h"
 #include "node/rpc/node_interface.h"
+#include "node/network_state.h"
 
 #include <memory>
 #include <quickjs/quickjs-exports.h>
@@ -18,12 +19,14 @@ namespace js
   extern JSClassID kv_map_handle_class_id;
   extern JSClassID body_class_id;
   extern JSClassID node_class_id;
+  extern JSClassID network_class_id;
 
   extern JSClassDef kv_class_def;
   extern JSClassExoticMethods kv_exotic_methods;
   extern JSClassDef kv_map_handle_class_def;
   extern JSClassDef body_class_def;
   extern JSClassDef node_class_def;
+  extern JSClassDef network_class_def;
 
   enum class TxAccess
   {
@@ -49,6 +52,7 @@ namespace js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
+    ccf::NetworkState* network_state,
     JSContext* ctx);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
