@@ -171,13 +171,13 @@ def build_proposal(
             vote_lines.append("  let args = action.args;")
 
             for name, body in args.items():
-                vote_lines.append("{")
-                vote_lines.append(f"  if (!('{name}' in args)) {{ return false; }};")
-                vote_lines.append(f"  let expected = {json.dumps(body)};")
+                vote_lines.append("  {")
+                vote_lines.append(f"    if (!('{name}' in args)) {{ return false; }};")
+                vote_lines.append(f"    let expected = {json.dumps(body)};")
                 vote_lines.append(
-                    f"  if (JSON.stringify(args['{name}']) !== JSON.stringify(expected)) {{ return false; }};"
+                    f"    if (JSON.stringify(args['{name}']) !== JSON.stringify(expected)) {{ return false; }};"
                 )
-                vote_lines.append("}")
+                vote_lines.append("  }")
 
         vote_lines.append("  return true;")
         vote_lines.append("}")
