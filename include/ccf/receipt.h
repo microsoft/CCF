@@ -24,11 +24,7 @@ namespace ccf
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Receipt::Element)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
   DECLARE_JSON_REQUIRED_FIELDS(Receipt::Element);
-#pragma clang diagnostic pop
   DECLARE_JSON_OPTIONAL_FIELDS(Receipt::Element, left, right)
   DECLARE_JSON_TYPE(Receipt)
   DECLARE_JSON_REQUIRED_FIELDS(Receipt, signature, root, proof, leaf, node_id)

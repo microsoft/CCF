@@ -11,6 +11,7 @@ import http
 import base64
 import json
 from loguru import logger as LOG
+import os
 
 
 def count_governance_operations(ledger):
@@ -47,7 +48,10 @@ def count_governance_operations(ledger):
                     )
                     request_target_line = req.decode().splitlines()[0]
                     if "/gov/proposals" in request_target_line:
-                        if request_target_line.endswith("/votes"):
+                        vote_suffix = (
+                            "/ballots" if os.getenv("JS_GOVERNANCE") else "/votes"
+                        )
+                        if request_target_line.endswith(vote_suffix):
                             verified_votes += 1
                         elif request_target_line.endswith("/withdraw"):
                             verified_withdrawals += 1

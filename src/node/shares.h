@@ -95,11 +95,7 @@ namespace ccf
 
   // Note: Both fields are never empty at the same time
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EncryptedLedgerSecretInfo)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
   DECLARE_JSON_REQUIRED_FIELDS(EncryptedLedgerSecretInfo)
-#pragma clang diagnostic pop
   DECLARE_JSON_OPTIONAL_FIELDS(
     EncryptedLedgerSecretInfo, previous_ledger_secret, next_version)
 

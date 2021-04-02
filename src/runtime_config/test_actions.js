@@ -1,27 +1,4 @@
 actions.set(
-  "set_member_data",
-  new Action(
-    function (args) {
-      // Check that member id is a valid entity id?
-      checkType(args.member_id, "string", "member_id");
-      checkType(args.member_data, "object", "member_data");
-    },
-
-    function (args) {
-      let member_id = ccf.strToBuf(args.member_id);
-      let members_info = ccf.kv["public:ccf.gov.members.info"];
-      let member_info = members_info.get(member_id);
-      if (member_info === undefined) {
-        throw new Error(`Member ${args.member_id} does not exist`);
-      }
-      let mi = ccf.bufToJsonCompatible(member_info);
-      mi.member_data = args.member_data;
-      members_info.set(member_id, ccf.jsonCompatibleToBuf(mi));
-    }
-  )
-);
-
-actions.set(
   "always_accept_noop",
   new Action(
     function (args) {},

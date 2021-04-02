@@ -11,9 +11,6 @@
 #include <regex>
 #include <string>
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-
 namespace ds
 {
   /**
@@ -449,5 +446,3 @@ namespace ds
     }
   }
 }
-
-#pragma clang diagnostic pop
