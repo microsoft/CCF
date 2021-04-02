@@ -41,7 +41,7 @@ def test_cert_store(network, args):
             network.consortium.set_ca_cert_bundle(
                 primary, cert_name, f.name, skip_checks=True
             )
-        except infra.proposal.ProposalNotAccepted:
+        except (infra.proposal.ProposalNotAccepted, infra.proposal.ProposalNotCreated):
             pass
         else:
             assert False, "Proposal should not have been accepted"

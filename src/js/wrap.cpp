@@ -27,12 +27,14 @@ namespace js
   JSClassID kv_map_handle_class_id = 0;
   JSClassID body_class_id = 0;
   JSClassID node_class_id = 0;
+  JSClassID network_class_id = 0;
 
   JSClassDef kv_class_def = {};
   JSClassExoticMethods kv_exotic_methods = {};
   JSClassDef kv_map_handle_class_def = {};
   JSClassDef body_class_def = {};
   JSClassDef node_class_def = {};
+  JSClassDef network_class_def = {};
 
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -390,6 +392,11 @@ namespace js
     auto node = static_cast<ccf::AbstractNodeState*>(
       JS_GetOpaque(this_val, node_class_id));
 
+    if (node == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Node state is not set");
+    }
+
     auto global_obj = JS_GetGlobalObject(ctx);
     auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
     auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
@@ -409,6 +416,46 @@ namespace js
     node->transition_service_to_open(*tx_ctx_ptr->tx);
 
     return JS_UNDEFINED;
+  }
+
+  JSValue js_network_latest_ledger_secret_seqno(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    if (argc != 0)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments but expected none", argc);
+    }
+
+    auto network =
+      static_cast<ccf::NetworkState*>(JS_GetOpaque(this_val, network_class_id));
+
+    if (network == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Network state is not set");
+    }
+
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(
+        ctx, "No transaction available to fetch latest ledger secret seqno");
+    }
+
+    JS_FreeValue(ctx, kv);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+
+    return JS_NewInt64(
+      ctx, network->ledger_secrets->get_latest(*tx_ctx_ptr->tx).first);
   }
 
   JSValue js_gov_set_jwt_public_signing_keys(
@@ -536,6 +583,41 @@ namespace js
     return JS_UNDEFINED;
   }
 
+  JSValue js_node_trigger_recovery_shares_refresh(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    if (argc != 0)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments but expected none", argc);
+    }
+
+    auto node = static_cast<ccf::AbstractNodeState*>(
+      JS_GetOpaque(this_val, node_class_id));
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(
+        ctx, "No transaction available to open service");
+    }
+
+    JS_FreeValue(ctx, kv);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+
+    node->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
+
+    return JS_UNDEFINED;
+  }
+
   // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
   // with a synchronous interface.
   static const JSCFunctionListEntry js_body_proto_funcs[] = {
@@ -560,6 +642,9 @@ namespace js
 
     JS_NewClassID(&node_class_id);
     node_class_def.class_name = "Node";
+
+    JS_NewClassID(&network_class_id);
+    network_class_def.class_name = "Network";
   }
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -745,6 +830,7 @@ namespace js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
+    ccf::NetworkState* network_state,
     JSContext* ctx)
   {
     auto ccf = JS_NewObject(ctx);
@@ -890,6 +976,36 @@ namespace js
           js_node_transition_service_to_open,
           "transitionServiceToOpen",
           0));
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "triggerRecoverySharesRefresh",
+        JS_NewCFunction(
+          ctx,
+          js_node_trigger_recovery_shares_refresh,
+          "triggerRecoverySharesRefresh",
+          0));
+    }
+
+    if (network_state != nullptr)
+    {
+      if (txctx == nullptr)
+      {
+        throw std::logic_error("Tx should be set to set network context");
+      }
+
+      auto network = JS_NewObjectClass(ctx, network_class_id);
+      JS_SetOpaque(network, network_state);
+      JS_SetPropertyStr(ctx, ccf, "network", network);
+      JS_SetPropertyStr(
+        ctx,
+        network,
+        "getLatestLedgerSecretSeqno",
+        JS_NewCFunction(
+          ctx,
+          js_network_latest_ledger_secret_seqno,
+          "getLatestLedgerSecretSeqno",
+          0));
     }
 
     return ccf;
@@ -900,6 +1016,7 @@ namespace js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
+    ccf::NetworkState* network_state,
     JSContext* ctx)
   {
     auto global_obj = JS_GetGlobalObject(ctx);
@@ -908,7 +1025,8 @@ namespace js
       ctx,
       global_obj,
       "ccf",
-      create_ccf_obj(txctx, transaction_id, receipt, node_state, ctx));
+      create_ccf_obj(
+        txctx, transaction_id, receipt, node_state, network_state, ctx));
 
     JS_FreeValue(ctx, global_obj);
   }
@@ -954,8 +1072,17 @@ namespace js
           "Failed to register JS class definition for node");
       }
     }
+
+    // Register class for network
+    {
+      auto ret = JS_NewClass(rt, network_class_id, &network_class_def);
+      if (ret != 0)
+      {
+        throw std::logic_error(
+          "Failed to register JS class definition for network");
+      }
+    }
   }
 
 #pragma clang diagnostic pop
-
 }

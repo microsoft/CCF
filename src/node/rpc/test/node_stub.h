@@ -25,6 +25,11 @@ namespace ccf
       return true;
     }
 
+    void trigger_recovery_shares_refresh(kv::Tx& tx) override
+    {
+      return;
+    }
+
     bool is_part_of_public_network() const override
     {
       return is_public;

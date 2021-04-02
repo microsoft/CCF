@@ -155,7 +155,7 @@ namespace kv
     const std::string& name)
   {
     constexpr auto internal_category_prefix = "ccf.internal.";
-    constexpr auto governance_category_prefix = "ccf.gov.";
+    constexpr auto governance_category_prefix = "public:ccf.gov.";
     constexpr auto reserved_category_prefix = "ccf.";
 
     auto security_domain = SecurityDomain::PRIVATE;
@@ -170,7 +170,7 @@ namespace kv
     {
       access_category = AccessCategory::INTERNAL;
     }
-    else if (nonstd::starts_with(core_name, governance_category_prefix))
+    else if (nonstd::starts_with(name, governance_category_prefix))
     {
       access_category = AccessCategory::GOVERNANCE;
     }
