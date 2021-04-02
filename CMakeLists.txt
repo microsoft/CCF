@@ -686,6 +686,7 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME reconfiguration_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+    CONSENSUS cft
   )
 
   add_e2e_test(
