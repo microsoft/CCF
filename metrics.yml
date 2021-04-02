@@ -2,7 +2,7 @@ db: "ccf"
 collection: "perf"
 view: "trend"
 columns: 4
-span: 20
+span: 150
 ewma_span: 4
 pr_user: "ccf-bot"
 monitoring_issue: 1063
