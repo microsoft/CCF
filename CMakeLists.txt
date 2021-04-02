@@ -220,7 +220,10 @@ install(
 
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
 install(FILES tests/sandbox/sandbox_gov.lua DESTINATION bin)
-install(FILES tests/sandbox/sandbox_constitution.js DESTINATION bin)
+install(FILES tests/sandbox/actions.js DESTINATION bin/sandbox_constitution)
+install(FILES tests/sandbox/validate.js DESTINATION bin/sandbox_constitution)
+install(FILES tests/sandbox/resolve.js DESTINATION bin/sandbox_constitution)
+install(FILES tests/sandbox/apply.js DESTINATION bin/sandbox_constitution)
 install(FILES tests/start_network.py DESTINATION bin)
 install(FILES tests/requirements.txt DESTINATION bin)
 
@@ -500,9 +503,16 @@ if(BUILD_TESTS)
 
   if(ENABLE_JS_GOV)
     set(CONSTITUTION_ARGS
-        --constitution ${CCF_DIR}/src/runtime_config/default_actions.js
-        --constitution ${CCF_DIR}/src/runtime_config/test_actions.js
-        --constitution ${CCF_DIR}/src/runtime_config/constitution.js
+        --constitution
+        ${CCF_DIR}/src/runtime_config/default/actions.js
+        --constitution
+        ${CCF_DIR}/src/runtime_config/test/test_actions.js
+        --constitution
+        ${CCF_DIR}/src/runtime_config/default/validate.js
+        --constitution
+        ${CCF_DIR}/src/runtime_config/test/resolve.js
+        --constitution
+        ${CCF_DIR}/src/runtime_config/default/apply.js
     )
     add_e2e_test(
       NAME governance_js_test

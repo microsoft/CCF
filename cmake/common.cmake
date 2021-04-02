@@ -382,8 +382,14 @@ set(WORKER_THREADS
 
 set(CCF_NETWORK_TEST_DEFAULT_GOV ${CCF_DIR}/src/runtime_config/gov.lua)
 set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
-    --constitution ${CCF_DIR}/src/runtime_config/default_actions.js
-    --constitution ${CCF_DIR}/src/runtime_config/constitution.js
+    --constitution
+    ${CCF_DIR}/src/runtime_config/default/actions.js
+    --constitution
+    ${CCF_DIR}/src/runtime_config/default/validate.js
+    --constitution
+    ${CCF_DIR}/src/runtime_config/default/resolve.js
+    --constitution
+    ${CCF_DIR}/src/runtime_config/default/apply.js
 )
 set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
