@@ -670,7 +670,7 @@ const actions = new Map([
       },
       function (args) {
         const codeId = ccf.strToBuf(args.code_id);
-        const ALLOWED = ccf.strToBuf("AllowedToJoin");
+        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
         ccf.kv["public:ccf.gov.nodes.code_ids"].set(codeId, ALLOWED);
       }
     ),
@@ -709,7 +709,7 @@ const actions = new Map([
       },
       function (args) {
         const codeId = ccf.strToBuf(args.code_id);
-        ccf.kv["public:ccf.gov.nodes.code_ids"].remove(codeId);
+        ccf.kv["public:ccf.gov.nodes.code_ids"].delete(codeId);
       }
     ),
   ],
