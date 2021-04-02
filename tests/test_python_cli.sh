@@ -11,7 +11,6 @@ keygenerator.sh --help
 keygenerator.sh --name alice
 keygenerator.sh --name bob --gen-enc-key
 
-
 python -m ccf.proposal_generator --help
 
 python -m ccf.proposal_generator set_member --help
