@@ -358,6 +358,16 @@ def retire_node_code(code_digest: str, **kwargs):
 
 
 @cli_proposal
+def add_node_code(code_id: str, **kwargs):
+    return build_proposal("add_node_code", {"code_id": code_id}, **kwargs)
+
+
+@cli_proposal
+def remove_node_code(code_id: str, **kwargs):
+    return build_proposal("remove_node_code", {"code_id": code_id}, **kwargs)
+
+
+@cli_proposal
 def transition_service_to_open(**kwargs):
     return build_proposal("transition_service_to_open", **kwargs)
 

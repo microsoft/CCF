@@ -672,9 +672,11 @@ const actions = new Map([
         const codeId = ccf.strToBuf(args.code_id);
         const ALLOWED = ccf.strToBuf("AllowedToJoin");
         ccf.kv["public:ccf.gov.nodes.code_ids"].set(codeId, ALLOWED);
-      })],
+      }
+    ),
+  ],
 
-      [
+  [
     "transition_node_to_trusted",
     new Action(
       function (args) {
@@ -708,9 +710,10 @@ const actions = new Map([
       function (args) {
         const codeId = ccf.strToBuf(args.code_id);
         ccf.kv["public:ccf.gov.nodes.code_ids"].remove(codeId);
-      })
-    ],
-    [
+      }
+    ),
+  ],
+  [
     "remove_node",
     new Action(
       function (args) {
