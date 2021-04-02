@@ -487,6 +487,9 @@ if(BUILD_TESTS)
     SRCS src/crypto/test/bench.cpp
     LINK_LIBS
   )
+  include(
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/bench-enclave/crypto_bench.cmake
+  )
   add_picobench(history_bench SRCS src/node/test/history_bench.cpp)
 
   if(LONG_TESTS)

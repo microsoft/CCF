@@ -30,7 +30,7 @@ if((NOT ${IS_VALID_TARGET}))
 endif()
 
 # Find OpenEnclave package
-find_package(OpenEnclave 0.15 CONFIG REQUIRED)
+find_package(OpenEnclave 0.14 CONFIG REQUIRED)
 # As well as pulling in openenclave:: targets, this sets variables which can be
 # used for our edge cases (eg - for virtual libraries). These do not follow the
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
