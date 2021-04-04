@@ -28,8 +28,8 @@ python -m ccf.proposal_generator set_user alice_cert.pem '{"type": "ADMIN", "fri
 python -m ccf.proposal_generator transition_service_to_open --help
 python -m ccf.proposal_generator transition_service_to_open
 
-python -m ccf.proposal_generator trust_node --help
-python -m ccf.proposal_generator trust_node 42
+python -m ccf.proposal_generator transition_node_to_trusted --help
+python -m ccf.proposal_generator transition_node_to_trusted 42
 
-python -m ccf.proposal_generator new_node_code --help
-python -m ccf.proposal_generator new_node_code 1234abcd
+python -m ccf.proposal_generator add_node_code --help
+python -m ccf.proposal_generator add_node_code 1234abcd

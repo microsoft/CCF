@@ -246,6 +246,22 @@ def new_member(
 
 
 @cli_proposal
+def set_member(
+    member_cert_path: str,
+    member_enc_pubk_path: str = None,
+    member_data: Any = None,
+    **kwargs,
+):
+    member_info = {"cert": open(member_cert_path).read()}
+    if member_enc_pubk_path is not None:
+        member_info["encryption_pub_key"] = open(member_enc_pubk_path).read()
+    if member_data is not None:
+        member_info["member_data"] = member_data
+
+    return build_proposal("set_member", member_info, **kwargs)
+
+
+@cli_proposal
 def remove_member(member_id: str, **kwargs):
     args = {"member_id": member_id} if GENERATE_JS_PROPOSALS else member_id
     return build_proposal("remove_member", args, **kwargs)
@@ -381,11 +397,21 @@ def rekey_ledger(**kwargs):
 
 
 @cli_proposal
+def trigger_ledger_rekey(**kwargs):
+    return build_proposal("trigger_ledger_rekey", **kwargs)
+
+
+@cli_proposal
 def update_recovery_shares(**kwargs):
     if GENERATE_JS_PROPOSALS:
         return build_proposal("trigger_recovery_shares_refresh", **kwargs)
     else:
         return build_proposal("update_recovery_shares", **kwargs)
+
+
+@cli_proposal
+def trigger_recovery_shares_refresh(**kwargs):
+    return build_proposal("trigger_recovery_shares_refresh", **kwargs)
 
 
 @cli_proposal
