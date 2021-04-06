@@ -1,6 +1,11 @@
 Governance
 ==========
 
+.. warning::
+    These pages describes the deprecated Lua constitution.
+    These docs will be replaced shortly to describe the new JS constitution.
+    See :doc:`/governance/js_gov` for pointers on converting from Lua to JS.
+
 This section describes how a consortium of trusted :term:`Members` governs an existing CCF network. It explains how members can submit proposals to CCF and how these proposals are accepted based on the rules defined in the :term:`Constitution`.
 
 Before creating a new CCF network, the identity of the initial member(s) of the consortium must be generated. See :ref:`governance/adding_member:Generating Member Keys and Certificates`.
