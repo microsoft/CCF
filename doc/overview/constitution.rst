@@ -1,6 +1,11 @@
 Constitution
 ============
 
+.. warning::
+    This page describes the deprecated Lua constitution.
+    These docs will be replaced shortly to describe the new JS constitution.
+    See :doc:`/governance/js_gov` for pointers on converting from Lua to JS.
+
 The :term:`Constitution` defines the set of rules and conditions (as a Lua script) that members must follow for their proposals to be accepted. For example, in a CCF network governed by `4` members, a strict majority constitution would only execute proposals once `3` members (`4/2 + 1`) have voted for that proposal.
 
 Votes for the proposal are evaluated by the constitution's ``pass`` function. If the `pass` function returns ``true``, the vote is passed, and its consequences are applied to the KV in a transaction.
