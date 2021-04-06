@@ -966,7 +966,8 @@ namespace js
         ctx,
         node,
         "triggerLedgerRekey",
-        JS_NewCFunction(ctx, js_node_trigger_ledger_rekey, "triggerLedgerRekey", 0));
+        JS_NewCFunction(
+          ctx, js_node_trigger_ledger_rekey, "triggerLedgerRekey", 0));
       JS_SetPropertyStr(
         ctx,
         node,
