@@ -86,7 +86,7 @@ def run(args):
             f"Keys and certificates have been copied to the common folder: {network.common_dir}"
         )
         LOG.info(
-            "See https://microsoft.github.io/CCF/main/users/issue_commands.html for more information"
+            "See https://microsoft.github.io/CCF/main/use_apps/issue_commands.html for more information"
         )
         LOG.warning("Press Ctrl+C to shutdown the network")
 
