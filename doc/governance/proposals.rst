@@ -1,6 +1,11 @@
 Proposing and Voting for a Proposal
 ===================================
 
+.. warning::
+    This page describes the deprecated Lua constitution.
+    These docs will be replaced shortly to describe the new JS constitution.
+    See :doc:`/governance/js_gov` for pointers on converting from Lua to JS.
+
 This page explains how members can submit and vote for proposals.
 
 Proposals and vote ballots are submitted as Lua scripts. These scripts are executed transactionally, able to read from the current KV state but not write directly to it. Proposals return a list of proposed actions which can make writes, but are only applied when the proposal is accepted. Each vote script is given this list of proposed actions, and also able to read from the KV, and returns a Boolean indicating whether it supports or rejects the proposed actions.
