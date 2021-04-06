@@ -27,7 +27,7 @@ parameters:
     perf:
       cmake_args: '-DBUILD_UNIT_TESTS=OFF -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
     release:
-      cmake_args: "-DTLS_TEST=ON -DENABLE_BFT=OFF -DENABLE_JS_GOV=OFF"
+      cmake_args: "-DTLS_TEST=ON -DENABLE_BFT=OFF"
 
   test:
     NoSGX:
