@@ -1,5 +1,6 @@
 steps:
   - script: |
+      set -ex
       cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
       cpack -V -G DEB
       PKG=`ls *.deb`
@@ -9,6 +10,7 @@ steps:
     displayName: "Make .deb package"
 
   - script: |
+      set -ex
       python3.8 -m venv env
       source ./env/bin/activate
       pip install -r requirements.txt
@@ -22,22 +24,25 @@ steps:
     displayName: Build wheel
 
   - script: |
-      CCF_VERSION=$(<../build/VERSION)
+      set -ex
+      CCF_VERSION=$(<../../build/VERSION)
       npm version $CCF_VERSION
       npm pack
       PKG=`ls *.tgz`
       cp $PKG $(Build.ArtifactStagingDirectory)
       echo "##vso[task.setvariable variable=npmtgz]$PKG"
-    workingDirectory: js
+    workingDirectory: js/ccf-app
     displayName: Build npm package
 
   - script: |
+      set -ex
       sudo apt -y install ./$(pkgname)
       cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {} release"
     workingDirectory: build
     displayName: Test installed CCF
 
   - script: |
+      set -ex
       ./tests/test_install_build.sh
     displayName: Test building a sample against installed CCF
 
