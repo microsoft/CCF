@@ -235,7 +235,7 @@ const actions = new Map([
           // A retired recovery member should not have access to the private
           // ledger going forward so rekey the ledger, issuing new shares to
           // remaining active recovery members
-          ccf.node.rekeyLedger();
+          ccf.node.triggerLedgerRekey();
         }
       }
     ),
@@ -396,7 +396,7 @@ const actions = new Map([
       },
 
       function (args) {
-        ccf.node.rekeyLedger();
+        ccf.node.triggerLedgerRekey();
       }
     ),
   ],
