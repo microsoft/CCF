@@ -336,7 +336,7 @@ namespace js
     return body_;
   }
 
-  JSValue js_node_rekey_ledger(
+  JSValue js_node_trigger_ledger_rekey(
     JSContext* ctx,
     JSValueConst this_val,
     int argc,
@@ -965,8 +965,8 @@ namespace js
       JS_SetPropertyStr(
         ctx,
         node,
-        "rekeyLedger",
-        JS_NewCFunction(ctx, js_node_rekey_ledger, "rekeyLedger", 0));
+        "triggerLedgerRekey",
+        JS_NewCFunction(ctx, js_node_trigger_ledger_rekey, "triggerLedgerRekey", 0));
       JS_SetPropertyStr(
         ctx,
         node,
