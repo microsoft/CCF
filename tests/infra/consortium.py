@@ -496,12 +496,26 @@ class Consortium:
         return r
 
     def add_new_code(self, remote_node, new_code_id):
-        proposal_body, careful_vote = self.make_proposal("new_node_code", new_code_id)
+        if os.getenv("JS_GOVERNANCE"):
+            proposal_body, careful_vote = self.make_proposal(
+                "add_node_code", new_code_id
+            )
+        else:
+            proposal_body, careful_vote = self.make_proposal(
+                "new_node_code", new_code_id
+            )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def retire_code(self, remote_node, code_id):
-        proposal_body, careful_vote = self.make_proposal("retire_node_code", code_id)
+        if os.getenv("JS_GOVERNANCE"):
+            proposal_body, careful_vote = self.make_proposal(
+                "remove_node_code", code_id
+            )
+        else:
+            proposal_body, careful_vote = self.make_proposal(
+                "retire_node_code", code_id
+            )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
