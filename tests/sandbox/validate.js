@@ -1,0 +1,1 @@
+../../src/runtime_config/default/validate.js

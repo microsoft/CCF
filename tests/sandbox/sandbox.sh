@@ -9,7 +9,8 @@ VENV_DIR=${VENV_DIR:-.venv_ccf_sandbox}
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 VERSION_FILE="${PATH_HERE}"/../share/VERSION
 GOV_SCRIPT="${PATH_HERE}"/sandbox_gov.lua
-CONSTITUTION="${PATH_HERE}"/sandbox_constitution.js
+
+export JS_GOVERNANCE=1
 
 is_package_specified=false
 is_js_bundle_specified=false
@@ -81,7 +82,10 @@ exec python "${START_NETWORK_SCRIPT}" \
     --enclave-type virtual \
     --initial-member-count 1 \
     --gov-script "${GOV_SCRIPT}" \
-    --constitution "${CONSTITUTION}" \
+    --constitution "${PATH_HERE}"/actions.js \
+    --constitution "${PATH_HERE}"/validate.js \
+    --constitution "${PATH_HERE}"/resolve.js \
+    --constitution "${PATH_HERE}"/apply.js \
     --ledger-chunk-bytes 5MB \
     --snapshot-tx-interval 10000 \
     --label sandbox \

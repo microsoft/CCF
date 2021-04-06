@@ -663,6 +663,20 @@ const actions = new Map([
     ),
   ],
   [
+    "add_node_code",
+    new Action(
+      function (args) {
+        checkType(args.code_id, "string", "code_id");
+      },
+      function (args) {
+        const codeId = ccf.strToBuf(args.code_id);
+        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
+        ccf.kv["public:ccf.gov.nodes.code_ids"].set(codeId, ALLOWED);
+      }
+    ),
+  ],
+
+  [
     "transition_node_to_trusted",
     new Action(
       function (args) {
@@ -688,6 +702,18 @@ const actions = new Map([
     ),
   ],
   [
+    "remove_node_code",
+    new Action(
+      function (args) {
+        checkType(args.code_id, "string", "code_id");
+      },
+      function (args) {
+        const codeId = ccf.strToBuf(args.code_id);
+        ccf.kv["public:ccf.gov.nodes.code_ids"].delete(codeId);
+      }
+    ),
+  ],
+  [
     "remove_node",
     new Action(
       function (args) {
@@ -705,6 +731,34 @@ const actions = new Map([
             ccf.jsonCompatibleToBuf(node_obj)
           );
         }
+      }
+    ),
+  ],
+  [
+    "set_service_principal",
+    new Action(
+      function (args) {
+        checkType(args.id, "string", "id");
+        checkType(args.data, "object", "data");
+      },
+      function (args) {
+        ccf.kv["public:ccf.gov.service_principals"].set(
+          ccf.strToBuf(args.id),
+          ccf.jsonCompatibleToBuf(args.data)
+        );
+      }
+    ),
+  ],
+  [
+    "remove_service_principal",
+    new Action(
+      function (args) {
+        checkType(args.id, "string", "id");
+      },
+      function (args) {
+        ccf.kv["public:ccf.gov.service_principals"].delete(
+          ccf.strToBuf(args.id)
+        );
       }
     ),
   ],

@@ -37,13 +37,9 @@ variables:
     perf_or_release: release
   ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
     perf_or_release: perf
-  ${{ if not(eq(variables['Build.SourceBranch'], 'refs/heads/main')) }}:
-    perf_tests: no_run
-  ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
-    perf_tests: run
 
 jobs:
   - template: .azure-pipelines-templates/matrix.yml
     parameters:
       perf_or_release: ${{ variables['perf_or_release'] }}
-      perf_tests: ${{ variables['perf_tests'] }}
+      perf_tests: run
