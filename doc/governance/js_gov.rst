@@ -63,3 +63,5 @@ See `this Discussion <https://github.com/microsoft/CCF/discussions/2169#discussi
     }
 
 If you have custom tooling to generate proposals or votes, please use ``proposal_generator`` as a guide to the format these should now have. Note that if you have a custom constitution, then the format of the proposals themselves is also under your control.
+
+Finally, these proposals and votes should be submitted to URL paths under ``/gov/proposals.js`` rather than ``/gov/proposals``.
