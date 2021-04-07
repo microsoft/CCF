@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.network
 import functools
 
 from loguru import logger as LOG
@@ -157,40 +156,6 @@ def recover(number_txs=5):
                 timeout=infra.e2e_args.get("ledger_recovery_timeout"),
             )
             return new_network
-
-        return wrapper
-
-    return decorator
-
-
-# TODO: Move to reconfiguration.py instead of decorator!
-def add_from_snapshot():
-    # Before adding the node from a snapshot, override at least one app entry
-    # and wait for a snapshot covering that entry. After the test, verify
-    # that all entries (including historical ones) can be read.
-    def issue_historical_queries_with_snapshot(network, snapshot_tx_interval):
-        network.txs.issue(network, number_txs=1)
-        for _ in range(1, snapshot_tx_interval):
-            network.txs.issue(network, number_txs=1, repeat=True)
-            last_tx = network.txs.get_last_tx(priv=True)
-            if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
-                break
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            network = args[0]
-            infra.e2e_args = vars(args[1])
-            snapshot_tx_interval = infra.e2e_args.get("snapshot_tx_interval")
-            if snapshot_tx_interval is not None:
-                issue_historical_queries_with_snapshot(
-                    network, int(snapshot_tx_interval)
-                )
-            network = func(*args, **kwargs)
-            # Only verify entries on node just added
-            network.txs.verify(node=network.get_joined_nodes()[-1])
-
-            return network
 
         return wrapper
 

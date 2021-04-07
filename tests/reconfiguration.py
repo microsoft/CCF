@@ -81,10 +81,19 @@ def test_add_node_from_backup(network, args):
 
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
-@reqs.add_from_snapshot()
 def test_add_node_from_snapshot(
     network, args, copy_ledger_read_only=True, from_backup=False
 ):
+    # Before adding the node from a snapshot, override at least one app entry
+    # and wait for a new committed snapshot covering that entry, so that there
+    # is at least one historical entry to verify.
+    network.txs.issue(network, number_txs=1)
+    for _ in range(1, args.snapshot_tx_interval):
+        network.txs.issue(network, number_txs=1, repeat=True)
+        last_tx = network.txs.get_last_tx(priv=True)
+        if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
+            break
+
     target_node = None
     snapshot_dir = None
     if from_backup:
@@ -109,6 +118,10 @@ def test_add_node_from_snapshot(
             assert (
                 r.body.json()["startup_seqno"] != 0
             ), "Node started from snapshot but reports startup seqno of 0"
+
+    # Finally, verify all app entries on the new node, including historical ones
+    network.txs.verify(node=new_node)
+
     return network
 
 
