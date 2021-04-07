@@ -29,7 +29,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 20210407: 1 issue was detected with this workflow: git checkout HEAD^2 is no longer necessary. 
+      # 20210407: 1 issue was detected with this workflow: git checkout HEAD^2 is no longer necessary.
       # Please remove this step as Code Scanning recommends analyzing the merge commit for best results.
 
       # # If this run was triggered by a pull request event, then checkout
