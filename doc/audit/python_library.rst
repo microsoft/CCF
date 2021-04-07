@@ -15,7 +15,7 @@ This page describes the Python API of the :py:class:`ccf.ledger` module which ca
 
         $ read_ledger.py /path/to/ledger/dir
         Initialised CCF ledger from directory '/path/to/ledger/dir' (found 6 files)
-        seqno 1 (11 tables)
+        seqno 1 (11 public tables)
         table "public:ccf.gov.constitution":
         ...
         Ledger verification complete (found 12 signatures). Ledger verified till seqno 79 in view 2
