@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "hash.h"
 #include "pem.h"
 
 #include <cstdint>
@@ -69,5 +70,12 @@ namespace crypto
      * Get the public key in DER format
      */
     virtual std::vector<uint8_t> public_key_der() const = 0;
+
+    virtual bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* signature,
+      size_t signature_size,
+      MDType md_type = MDType::NONE) = 0;
   };
 }
