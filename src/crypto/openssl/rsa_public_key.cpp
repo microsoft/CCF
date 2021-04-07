@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "hash.h"
 #include "openssl_wrappers.h"
 #include "rsa_key_pair.h"
 
@@ -108,5 +109,20 @@ namespace crypto
   std::vector<uint8_t> RSAPublicKey_OpenSSL::public_key_der() const
   {
     return PublicKey_OpenSSL::public_key_der();
+  }
+
+  bool RSAPublicKey_OpenSSL::verify(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size,
+    MDType md_type)
+  {
+    auto hash = OpenSSLHashProvider().Hash(contents, contents_size, md_type);
+    Unique_EVP_PKEY_CTX pctx(key);
+    CHECK1(EVP_PKEY_verify_init(pctx));
+    CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+    return EVP_PKEY_verify(
+             pctx, signature, signature_size, hash.data(), hash.size()) == 1;
   }
 }
