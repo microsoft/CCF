@@ -31,5 +31,15 @@ namespace crypto
     virtual Pem private_key_pem() const override;
     virtual Pem public_key_pem() const override;
     virtual std::vector<uint8_t> public_key_der() const override;
+
+    virtual std::vector<uint8_t> sign(
+      CBuffer d, MDType md_type = MDType::NONE) const override;
+
+    virtual bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* signature,
+      size_t signature_size,
+      MDType md_type = MDType::NONE) override;
   };
 }

@@ -3,8 +3,10 @@
 
 #include "rsa_key_pair.h"
 
+#include "crypto/mbedtls/hash.h"
 #include "crypto/mbedtls/rsa_public_key.h"
 #include "entropy.h"
+#include "hash.h"
 #include "mbedtls_wrappers.h"
 
 namespace crypto
@@ -121,5 +123,35 @@ namespace crypto
   std::vector<uint8_t> RSAKeyPair_mbedTLS::public_key_der() const
   {
     return PublicKey_mbedTLS::public_key_der();
+  }
+
+  std::vector<uint8_t> RSAKeyPair_mbedTLS::sign(CBuffer d, MDType md_type) const
+  {
+    std::vector<uint8_t> r(2048);
+    auto hash = MBedHashProvider().Hash(d.p, d.n, md_type);
+    EntropyPtr entropy = create_entropy();
+    size_t olen = r.size();
+    int rc = mbedtls_pk_sign(
+      ctx.get(),
+      get_md_type(md_type),
+      hash.data(),
+      hash.size(),
+      r.data(),
+      &olen,
+      entropy->get_rng(),
+      entropy->get_data());
+    r.resize(olen);
+    return r;
+  }
+
+  bool RSAKeyPair_mbedTLS::verify(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size,
+    MDType md_type)
+  {
+    return RSAPublicKey_mbedTLS::verify(
+      contents, contents_size, signature, signature_size, md_type);
   }
 }

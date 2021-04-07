@@ -3,6 +3,7 @@
 
 #include "rsa_key_pair.h"
 
+#include "crypto/openssl/hash.h"
 #include "openssl_wrappers.h"
 
 namespace crypto
@@ -104,5 +105,30 @@ namespace crypto
   std::vector<uint8_t> RSAKeyPair_OpenSSL::public_key_der() const
   {
     return PublicKey_OpenSSL::public_key_der();
+  }
+
+  std::vector<uint8_t> RSAKeyPair_OpenSSL::sign(CBuffer d, MDType md_type) const
+  {
+    std::vector<uint8_t> r(2048);
+    auto hash = OpenSSLHashProvider().Hash(d.p, d.n, md_type);
+    Unique_EVP_PKEY_CTX pctx(key);
+    OpenSSL::CHECK1(EVP_PKEY_sign_init(pctx));
+    OpenSSL::CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+    size_t olen = r.size();
+    OpenSSL::CHECK1(
+      EVP_PKEY_sign(pctx, r.data(), &olen, hash.data(), hash.size()));
+    r.resize(olen);
+    return r;
+  }
+
+  bool RSAKeyPair_OpenSSL::verify(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size,
+    MDType md_type)
+  {
+    return RSAPublicKey_OpenSSL::verify(
+      contents, contents_size, signature, signature_size, md_type);
   }
 }
