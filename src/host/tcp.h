@@ -175,11 +175,16 @@ namespace asynchost
 
         case DISCONNECTED:
         {
-          // Close and reset the uv_handle before trying again with the same
-          // addr_current that succeeded previously.
-          LOG_DEBUG_FMT("Reconnect from resolved address");
-          status = RECONNECTING;
-          uv_close((uv_handle_t*)&uv_handle, on_reconnect);
+          // It's possible there was a request to close the uv_handle in the
+          // meanwhile; in that case we abort the reconnection attempt.
+          if (!uv_is_closing((uv_handle_t*)&uv_handle))
+          {
+            // Close and reset the uv_handle before trying again with the same
+            // addr_current that succeeded previously.
+            LOG_DEBUG_FMT("Reconnect from resolved address");
+            status = RECONNECTING;
+            uv_close((uv_handle_t*)&uv_handle, on_reconnect);
+          }
           return true;
         }
 
