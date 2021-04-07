@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "host/ledger.h"
-
 #include "ds/serialized.h"
+#include "host/ledger.h"
 #include "host/snapshot.h"
 
 #include <doctest/doctest.h>
@@ -1061,7 +1060,11 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
       snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx);
 
     REQUIRE(
-      snapshots.find_latest_committed_snapshot().value() == snapshot_file_name);
+      fmt::format(
+        "{}/{}",
+        snapshot_dir,
+        snapshots.find_latest_committed_snapshot().value()) ==
+      snapshot_file_name);
 
     fs::remove(snapshot_file_name);
   }
@@ -1091,7 +1094,10 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
 
     // Snapshot is now valid
     REQUIRE(
-      snapshots.find_latest_committed_snapshot().value() ==
+      fmt::format(
+        "{}/{}",
+        snapshot_dir,
+        snapshots.find_latest_committed_snapshot().value()) ==
       get_snapshot_file_name(
         snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx));
   }

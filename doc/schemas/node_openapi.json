@@ -199,6 +199,9 @@
           "recovery_target_seqno": {
             "$ref": "#/components/schemas/uint64"
           },
+          "startup_seqno": {
+            "$ref": "#/components/schemas/uint64"
+          },
           "state": {
             "$ref": "#/components/schemas/ccf__State"
           }
@@ -206,7 +209,8 @@
         "required": [
           "node_id",
           "state",
-          "last_signed_seqno"
+          "last_signed_seqno",
+          "startup_seqno"
         ],
         "type": "object"
       },
