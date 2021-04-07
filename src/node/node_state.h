@@ -902,10 +902,12 @@ namespace ccf
       if (!startup_snapshot_info->is_snapshot_verified())
       {
         // Node should shutdown if the startup snapshot cannot be verified
-        throw std::logic_error(fmt::format(
-          "Snapshot evidence at {} was not committed in ledger ending at {}",
+        LOG_FAIL_FMT(
+          "Snapshot evidence at {} was not committed in ledger ending at {}. "
+          "Node should be shutdown by operator.",
           startup_snapshot_info->evidence_seqno,
-          ledger_idx));
+          ledger_idx);
+        return;
       }
 
       ledger_truncate(startup_snapshot_info->seqno);

@@ -55,6 +55,10 @@ class CodeIdNotFound(Exception):
     pass
 
 
+class StartupSnapshotIsOld(Exception):
+    pass
+
+
 class NodeShutdownError(Exception):
     pass
 
@@ -176,7 +180,7 @@ class Network:
         target_node=None,
         recovery=False,
         ledger_dir=None,
-        copy_ledger_read_only=False,
+        copy_ledger_read_only=True,
         read_only_ledger_dir=None,
         from_snapshot=True,
         snapshot_dir=None,
@@ -597,8 +601,10 @@ class Network:
             if errors:
                 # Throw accurate exceptions if known errors found in
                 for error in errors:
-                    if "Quote does not contain known enclave measurement" in error:
+                    if "FailedCodeIdNotFound" in error:
                         raise CodeIdNotFound from e
+                    if "StartupSnapshotIsOld" in error:
+                        raise StartupSnapshotIsOld from e
             raise
 
         return new_node
