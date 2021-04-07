@@ -175,7 +175,10 @@ export interface CryptoKeyPair {
   publicKey: string;
 }
 
-export type EvidenceClaims = { [claimName: string]: ArrayBuffer };
+export interface EvidenceClaims {
+  claims: { [name: string]: ArrayBuffer }
+  customClaims: { [name: string]: ArrayBuffer }
+}
 
 export interface CCF {
   /**

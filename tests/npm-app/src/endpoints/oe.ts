@@ -10,20 +10,44 @@ interface Evidence {
 
 interface Claims {
   claims: { [key: string]: string }
+  customClaims: { [key: string]: string }
 }
 
-export function verifyOpenEnclaveEvidence(request: ccfapp.Request<Evidence>): ccfapp.Response<Claims> {
+interface ErrorResponse {
+  error: {
+    message: string
+  }
+}
+
+export function verifyOpenEnclaveEvidence(request: ccfapp.Request<Evidence>): ccfapp.Response<Claims | ErrorResponse> {
   const body = request.body.json();
   const evidence = typedArrToArrBuf(Base64.toUint8Array(body.evidence));
   const endorsements = body.endorsements ? typedArrToArrBuf(Base64.toUint8Array(body.endorsements)) : undefined;
-  const claims = ccfoe.verifyOpenEnclaveEvidence(evidence, endorsements);
+  let r: ccfoe.EvidenceClaims
+  try {
+    r = ccfoe.verifyOpenEnclaveEvidence(evidence, endorsements);
+  } catch (e) {
+    return {
+      statusCode: 400,
+      body: {
+        error: {
+          message: e.message
+        }
+      }
+    }
+  }
   const claimsHex = {};
-  for (const [name, value] of Object.entries(claims)) {
+  for (const [name, value] of Object.entries(r.claims)) {
     claimsHex[name] = hex(value);
+  }
+  const customClaimsHex = {};
+  for (const [name, value] of Object.entries(r.customClaims)) {
+    customClaimsHex[name] = hex(value);
   }
   return {
     body: {
-      claims: claimsHex
+      claims: claimsHex,
+      customClaims: customClaimsHex
     }
   };
 }
