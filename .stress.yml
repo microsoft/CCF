@@ -21,7 +21,7 @@ schedules:
 resources:
   containers:
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.15.0-rc1
+      image: ccfciteam/ccf-ci:oe0.15.0
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
