@@ -212,6 +212,9 @@ namespace ccf
       }
     };
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
+    // Set to the snapshot seqno when a node starts from one and remembered for
+    // the lifetime of the node
+    std::optional<kv::Version> startup_seqno = std::nullopt;
 
     std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
     {
@@ -262,6 +265,8 @@ namespace ccf
       LOG_INFO_FMT(
         "Public snapshot deserialised at seqno {}",
         snapshot_store->current_version());
+
+      startup_seqno = snapshot_store->current_version();
 
       ledger_idx = snapshot_store->current_version();
       last_recovered_signed_idx = ledger_idx;
@@ -654,6 +659,7 @@ namespace ccf
         node_encrypt_kp->public_key_pem().raw();
       join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
+      join_params.startup_seqno = startup_seqno;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -1480,6 +1486,12 @@ namespace ccf
     NodeId get_node_id() const override
     {
       return self;
+    }
+
+    std::optional<kv::Version> get_startup_seqno() override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      return startup_seqno;
     }
 
   private:

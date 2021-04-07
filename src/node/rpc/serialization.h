@@ -30,7 +30,8 @@ namespace ccf
     node_info_network,
     quote_info,
     public_encryption_key,
-    consensus_type)
+    consensus_type,
+    startup_seqno)
 
   DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)

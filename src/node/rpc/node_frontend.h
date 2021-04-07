@@ -222,6 +222,23 @@ namespace ccf
               this->network.consensus_type));
         }
 
+        auto this_startup_seqno =
+          this->context.get_node_state().get_startup_seqno();
+
+        if (
+          this_startup_seqno.has_value() && in.startup_seqno.has_value() &&
+          this_startup_seqno.value() > in.startup_seqno.value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::StartupSnapshotIsOld,
+            fmt::format(
+              "Node requested to join from snapshot at seqno {} which is older "
+              "than this node's startup seqno {}",
+              in.startup_seqno.value(),
+              this_startup_seqno.value()));
+        }
+
         auto nodes = args.tx.rw(this->network.nodes);
         auto service = args.tx.rw(this->network.service);
 
