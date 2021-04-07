@@ -28,6 +28,8 @@ import {
   JsonCompatible,
   CryptoKeyPair,
   WrapAlgoParams,
+  EvidenceClaims,
+  HistoricalState,
 } from "./global";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -59,6 +61,7 @@ class KvMapPolyfill implements KvMap {
 }
 
 class CCFPolyfill implements CCF {
+  historicalState?: HistoricalState | undefined;
   kv = new Proxy(<KvMaps>{}, {
     get: (target, name, receiver) => {
       if (typeof name === "string") {
@@ -150,6 +153,10 @@ class CCFPolyfill implements CCF {
     } else {
       throw new Error("unsupported wrapAlgo.name");
     }
+  }
+
+  verifyOpenEnclaveEvidence(evidence: ArrayBuffer, endorsements?: ArrayBuffer): EvidenceClaims {
+    throw new Error("Method not implemented.");
   }
 }
 

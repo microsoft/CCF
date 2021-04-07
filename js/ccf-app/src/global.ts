@@ -175,6 +175,8 @@ export interface CryptoKeyPair {
   publicKey: string;
 }
 
+export type EvidenceClaims = { [claimName: string]: ArrayBuffer };
+
 export interface CCF {
   /**
    * Convert a string into an ArrayBuffer.
@@ -226,6 +228,14 @@ export interface CCF {
     wrappingKey: ArrayBuffer,
     wrapAlgo: WrapAlgoParams
   ): ArrayBuffer;
+
+  /**
+   * Verifies Open Enclave evidence and returns the claims of the evidence.
+   */
+  verifyOpenEnclaveEvidence(
+    evidence: ArrayBuffer,
+    endorsements?: ArrayBuffer
+  ): EvidenceClaims
 
   /**
    * An object that provides access to the maps of the Key-Value Store of CCF.

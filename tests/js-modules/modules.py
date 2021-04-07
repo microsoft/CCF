@@ -325,6 +325,20 @@ def test_npm_app(network, args):
         body = r.body.json()
         assert body["msg"].startswith("token signing key not found"), r.body
 
+        r = c.get("/node/quotes/self")
+        if r.status_code == http.HTTPStatus.NOT_FOUND:
+            print('Skipping /app/verifyOpenEnclaveEvidence test, virtual mode')
+            pass
+        else:
+            primary_quote_info = r.body.json()
+            r = c.post("/app/verifyOpenEnclaveEvidence", {
+                "evidence": primary_quote_info["raw"],
+                "endorsements": primary_quote_info["endorsements"]
+            })
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            body = r.body.json()
+            assert body["claims"]["mrenclave"] == primary_quote_info["mrenclave"], body
+
         validate_openapi(c)
 
     LOG.info("Store JWT signing keys")
