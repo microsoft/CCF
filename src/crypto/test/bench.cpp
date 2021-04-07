@@ -1,10 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "crypto/hash_provider.h"
 #include "crypto/key_pair.h"
 #include "crypto/mbedtls/hash.h"
 #include "crypto/mbedtls/key_pair.h"
+#include "crypto/mbedtls/rsa_key_pair.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
+#include "crypto/openssl/rsa_key_pair.h"
 
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>
@@ -230,6 +233,89 @@ namespace SECP256R1
     CurveID::SECP256R1,
     102400>;
   PICOBENCH(verify_256r1_ossl_100k).PICO_SUFFIX(CurveID::SECP256R1);
+}
+
+PICOBENCH_SUITE("sign RSA-2048");
+namespace SIGN_RSA2048
+{
+  template <typename P, size_t KSZ, size_t NContents>
+  static void benchmark_sign(picobench::state& s)
+  {
+    P kp(KSZ);
+    auto contents = make_contents<NContents>();
+
+    s.start_timer();
+    for (auto _ : s)
+    {
+      (void)_;
+      auto signature = kp.sign(contents, MDType::SHA256);
+      do_not_optimize(signature);
+      clobber_memory();
+    }
+    s.stop_timer();
+  }
+
+  auto sign_rsa_ossl_1byte = benchmark_sign<RSAKeyPair_OpenSSL, 2048, 1>;
+  PICOBENCH(sign_rsa_ossl_1byte).PICO_SUFFIX();
+  auto sign_rsa_mbed_1byte = benchmark_sign<RSAKeyPair_mbedTLS, 2048, 1>;
+  PICOBENCH(sign_rsa_mbed_1byte).PICO_SUFFIX();
+
+  auto sign_rsa_ossl_1k = benchmark_sign<RSAKeyPair_OpenSSL, 2048, 1024>;
+  PICOBENCH(sign_rsa_ossl_1k).PICO_SUFFIX();
+  auto sign_rsa_mbed_1k = benchmark_sign<RSAKeyPair_mbedTLS, 2048, 1024>;
+  PICOBENCH(sign_rsa_mbed_1k).PICO_SUFFIX();
+
+  auto sign_rsa_ossl_100k = benchmark_sign<RSAKeyPair_OpenSSL, 2048, 102400>;
+  PICOBENCH(sign_rsa_ossl_100k).PICO_SUFFIX();
+  auto sign_rsa_mbed_100k = benchmark_sign<RSAKeyPair_mbedTLS, 2048, 102400>;
+  PICOBENCH(sign_rsa_mbed_100k).PICO_SUFFIX();
+}
+
+PICOBENCH_SUITE("verify RSA-2048");
+namespace VERIFY_RSA2048
+{
+  template <typename P, size_t KSZ, size_t NContents>
+  static void benchmark_verify(picobench::state& s)
+  {
+    P kp(KSZ);
+    auto contents = make_contents<NContents>();
+    auto signature = kp.sign(contents, MDType::SHA256);
+
+    s.start_timer();
+    for (auto _ : s)
+    {
+      (void)_;
+      if (!kp.verify(
+            contents.data(),
+            contents.size(),
+            signature.data(),
+            signature.size(),
+            MDType::SHA256))
+      {
+        throw std::runtime_error("verification failure");
+      }
+      do_not_optimize(signature);
+      clobber_memory();
+    }
+    s.stop_timer();
+  }
+
+  auto verify_rsa_ossl_1byte = benchmark_verify<RSAKeyPair_OpenSSL, 2048, 1>;
+  PICOBENCH(verify_rsa_ossl_1byte).PICO_SUFFIX();
+  auto verify_rsa_mbed_1byte = benchmark_verify<RSAKeyPair_mbedTLS, 2048, 1>;
+  PICOBENCH(verify_rsa_mbed_1byte).PICO_SUFFIX();
+
+  auto verify_rsa_ossl_1k = benchmark_verify<RSAKeyPair_OpenSSL, 2048, 1024>;
+  PICOBENCH(verify_rsa_ossl_1k).PICO_SUFFIX();
+  auto verify_rsa_mbed_1k = benchmark_verify<RSAKeyPair_mbedTLS, 2048, 1024>;
+  PICOBENCH(verify_rsa_mbed_1k).PICO_SUFFIX();
+
+  auto verify_rsa_ossl_100k =
+    benchmark_verify<RSAKeyPair_OpenSSL, 2048, 102400>;
+  PICOBENCH(verify_rsa_ossl_100k).PICO_SUFFIX();
+  auto verify_rsa_mbed_100k =
+    benchmark_verify<RSAKeyPair_mbedTLS, 2048, 102400>;
+  PICOBENCH(verify_rsa_mbed_100k).PICO_SUFFIX();
 }
 
 PICOBENCH_SUITE("hash");

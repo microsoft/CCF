@@ -3,8 +3,12 @@
 
 #include "rsa_public_key.h"
 
+#include "crypto/mbedtls/curve.h"
+#include "crypto/mbedtls/hash.h"
 #include "entropy.h"
 #include "mbedtls_wrappers.h"
+
+#include <mbedtls/md.h>
 
 namespace crypto
 {
@@ -96,5 +100,19 @@ namespace crypto
   std::vector<uint8_t> RSAPublicKey_mbedTLS::public_key_der() const
   {
     return PublicKey_mbedTLS::public_key_der();
+  }
+
+  bool RSAPublicKey_mbedTLS::verify(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size,
+    MDType md_type)
+  {
+    auto hash = MBedHashProvider().Hash(contents, contents_size, md_type);
+    auto mbed_md = get_md_type(md_type);
+    int rc = mbedtls_pk_verify(
+      ctx.get(), mbed_md, hash.data(), hash.size(), signature, signature_size);
+    return rc == 0;
   }
 }
