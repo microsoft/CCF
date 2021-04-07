@@ -751,12 +751,12 @@ namespace ccf
         !sm.check(State::verifyingSnapshot))
       {
         throw std::logic_error(fmt::format(
-          "Node should be in state {} or {} to recover public ledger entry",
+          "Node should be in state {} or {} to start reading ledger",
           State::readingPublicLedger,
           State::verifyingSnapshot));
       }
 
-      LOG_INFO_FMT("Starting public recovery");
+      LOG_INFO_FMT("Starting to read public ledger");
       read_ledger_idx(++ledger_idx);
     }
 
@@ -861,13 +861,25 @@ namespace ccf
         auto tx = store->create_read_only_tx();
         auto snapshot_evidence = tx.ro(network.snapshot_evidence);
 
+        LOG_FAIL_FMT("Read snapshot evidence");
+        LOG_FAIL_FMT("ledger idx: {}", ledger_idx);
+        LOG_FAIL_FMT(
+          "evidence seqno: {}", startup_snapshot_info->evidence_seqno);
+
         if (ledger_idx == startup_snapshot_info->evidence_seqno)
         {
+          LOG_FAIL_FMT("here");
           auto evidence = snapshot_evidence->get(0);
           if (!evidence.has_value())
           {
             throw std::logic_error("Invalid snapshot evidence");
           }
+
+          LOG_FAIL_FMT(
+            "there: {} vs {} [{}]",
+            evidence->hash,
+            crypto::Sha256Hash(startup_snapshot_info->raw),
+            startup_snapshot_info->raw.size());
 
           if (evidence->hash == crypto::Sha256Hash(startup_snapshot_info->raw))
           {

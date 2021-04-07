@@ -306,5 +306,5 @@ if __name__ == "__main__":
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_user_count = 1
 
-    # run(args)
+    run(args)
     run_join_old_snapshot(args)
