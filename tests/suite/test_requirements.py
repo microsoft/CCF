@@ -5,6 +5,7 @@ import functools
 
 from loguru import logger as LOG
 from math import ceil
+import infra.network
 
 
 class TestRequirementsNotMet(Exception):

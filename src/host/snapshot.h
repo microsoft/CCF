@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
+#include "ds/files.h"
 #include "host/ledger.h"
 
 #include <charconv>
