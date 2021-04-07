@@ -338,6 +338,7 @@ def test_npm_app(network, args):
             assert r.status_code == http.HTTPStatus.OK, r.status_code
             body = r.body.json()
             assert body["claims"]["mrenclave"] == primary_quote_info["mrenclave"], body
+            assert body["customClaims"] == "", body
 
         validate_openapi(c)
 
@@ -385,9 +386,9 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_module_import(network, args)
-        network = test_app_bundle(network, args)
-        network = test_dynamic_endpoints(network, args)
+        #network = test_module_import(network, args)
+        #network = test_app_bundle(network, args)
+        #network = test_dynamic_endpoints(network, args)
         network = test_npm_app(network, args)
 
 
