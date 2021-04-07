@@ -59,6 +59,9 @@ def test_add_node(network, args):
     with new_node.client() as c:
         s = c.get("/node/state")
         assert s.body.json()["node_id"] == new_node.node_id
+        assert (
+            s.body.json()["startup_seqno"] == 0
+        ), "Node started without snapshot but reports startup seqno != 0"
     assert new_node
     return network
 
@@ -99,6 +102,13 @@ def test_add_node_from_snapshot(
         snapshot_dir=snapshot_dir,
     )
     assert new_node
+
+    if copy_ledger_read_only:
+        with new_node.client() as c:
+            r = c.get("/node/state")
+            assert (
+                r.body.json()["startup_seqno"] != 0
+            ), "Node started from snapshot but reports startup seqno of 0"
     return network
 
 
@@ -213,6 +223,8 @@ def run(args):
             ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
 
         test_node_filter(network, args)
+
+        # TODO: Start from old snapshot
 
 
 if __name__ == "__main__":

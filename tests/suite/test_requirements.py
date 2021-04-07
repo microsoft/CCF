@@ -163,6 +163,7 @@ def recover(number_txs=5):
     return decorator
 
 
+# TODO: Move to reconfiguration.py instead of decorator!
 def add_from_snapshot():
     # Before adding the node from a snapshot, override at least one app entry
     # and wait for a snapshot covering that entry. After the test, verify

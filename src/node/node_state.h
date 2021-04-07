@@ -1488,7 +1488,7 @@ namespace ccf
       return self;
     }
 
-    std::optional<kv::Version> get_startup_seqno() override
+    std::optional<kv::Version> get_startup_snapshot_seqno() override
     {
       std::lock_guard<SpinLock> guard(lock);
       return startup_seqno;

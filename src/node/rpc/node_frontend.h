@@ -222,9 +222,10 @@ namespace ccf
               this->network.consensus_type));
         }
 
+        // If the joiner and this node both started from a snapshot, make sure
+        // that the joiner's snapshot is more recent than this node's snapshot
         auto this_startup_seqno =
-          this->context.get_node_state().get_startup_seqno();
-
+          this->context.get_node_state().get_startup_snapshot_seqno();
         if (
           this_startup_seqno.has_value() && in.startup_seqno.has_value() &&
           this_startup_seqno.value() > in.startup_seqno.value())
@@ -342,6 +343,9 @@ namespace ccf
         result.state = s;
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
+        result.startup_seqno =
+          this->context.get_node_state().get_startup_snapshot_seqno().value_or(
+            0);
 
         auto signatures = args.tx.template ro<Signatures>(Tables::SIGNATURES);
         auto sig = signatures->get(0);

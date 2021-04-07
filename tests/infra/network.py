@@ -591,8 +591,6 @@ class Network:
                 ),
             )
         except TimeoutError as e:
-            # The node can be safely discarded since it has not been
-            # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
             errors, _ = new_node.stop()
             self.nodes.remove(new_node)

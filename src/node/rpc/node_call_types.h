@@ -35,6 +35,7 @@ namespace ccf
       ccf::NodeId node_id;
       ccf::State state;
       kv::Version last_signed_seqno;
+      kv::Version startup_seqno;
 
       // Only on recovery
       std::optional<kv::Version> recovery_target_seqno;
