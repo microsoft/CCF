@@ -699,7 +699,7 @@ namespace js
       JS_FreeValue(ctx, val);
     }
 
-    JS_FreeValue(ctx, exception_val);
+    JS_Throw(ctx, exception_val);
   }
 
   std::pair<std::string, std::optional<std::string>> js_error_message(
