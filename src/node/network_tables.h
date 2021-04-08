@@ -22,7 +22,6 @@
 #include "secrets.h"
 #include "service.h"
 #include "service_map.h"
-#include "service_principals.h"
 #include "shares.h"
 #include "signatures.h"
 #include "snapshot_evidence.h"
@@ -86,7 +85,6 @@ namespace ccf
     UserCerts user_certs;
     UserInfo user_info;
 
-    ServicePrincipals service_principals;
 
     //
     // Node table
@@ -140,7 +138,6 @@ namespace ccf
       jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
       user_certs(Tables::USER_CERTS),
       user_info(Tables::USER_INFO),
-      service_principals(Tables::SERVICE_PRINCIPALS),
       nodes(Tables::NODES),
       service(Tables::SERVICE),
       values(Tables::VALUES),
@@ -179,7 +176,6 @@ namespace ccf
         std::ref(jwt_public_signing_key_issuer),
         std::ref(user_certs),
         std::ref(user_info),
-        std::ref(service_principals),
         std::ref(nodes),
         std::ref(service),
         std::ref(values),

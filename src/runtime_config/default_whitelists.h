@@ -26,7 +26,6 @@ namespace ccf
       Tables::SERVICE,
       Tables::CONFIGURATION,
       Tables::CA_CERT_BUNDLE_PEMS,
-      Tables::SERVICE_PRINCIPALS,
       Tables::JWT_ISSUERS,
       Tables::JWT_PUBLIC_SIGNING_KEYS,
       Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER}},
@@ -40,7 +39,6 @@ namespace ccf
       Tables::MODULES,
       Tables::CONFIGURATION,
       Tables::CA_CERT_BUNDLE_PEMS,
-      Tables::SERVICE_PRINCIPALS,
       Tables::JWT_ISSUERS,
       Tables::JWT_PUBLIC_SIGNING_KEYS,
       Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER}}};
