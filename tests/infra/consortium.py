@@ -272,6 +272,8 @@ class Consortium:
                 ccf.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
         if proposal.state != ProposalState.ACCEPTED:
+            proposal = self.get_proposal(remote_node, proposal.proposal_id)
+            LOG.error(json.dumps(proposal, indent=2))
             raise infra.proposal.ProposalNotAccepted(proposal)
         return proposal
 
@@ -299,6 +301,13 @@ class Consortium:
                     )
                 )
         return proposals
+
+    def get_proposal(self, remote_node, proposal_id):
+        member = self.get_any_active_member()
+        with remote_node.client(*member.auth()) as c:
+            r = c.get(f"/gov/proposals.js/{proposal_id}")
+            assert r.status_code == http.HTTPStatus.OK.value
+            return r.body.json()
 
     def retire_node(self, remote_node, node_to_retire):
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
