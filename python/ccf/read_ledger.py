@@ -30,8 +30,8 @@ def print_key(indent_s, k, is_removed=False):
     else:
         LOG.info(f"{indent_s}{k}:")
 
-def count_string(l, name):
-    return f"{len(l)} {name}{'s' * bool(len(l))}"
+def counted_string(l, name):
+    return f"{len(l)} {name}{'s' * bool(len(l) != 1)}"
 
 if __name__ == "__main__":
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     ledger = ccf.ledger.Ledger(ledger_dir)
 
     LOG.info(f"Reading ledger from {ledger_dir}")
-    LOG.info(f"Contains {count_string(ledger, 'chunk')}")
+    LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
 
     for chunk in ledger:
         LOG.info(f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)")
@@ -58,12 +58,16 @@ if __name__ == "__main__":
             public_tables = public_transaction.get_tables()
 
             LOG.success(
-                f"{indent(2)}seqno {public_transaction.get_seqno()} ({count_string(public_tables, 'table')})"
+                f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')})"
             )
+
+            private_table_size = transaction.get_private_domain_size()
+            if private_table_size:
+                LOG.error(f"-- private: {private_table_size} bytes")
 
             for table_name, records in public_tables.items():
                 LOG.warning(
-                    f'{indent(4)}table "{table_name}" ({count_string(records, "write")}):'
+                    f'{indent(4)}table "{table_name}" ({counted_string(records, "write")}):'
                 )
                 key_indent = indent(6)
                 value_indent = indent(8)
