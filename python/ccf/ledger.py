@@ -384,6 +384,14 @@ class Transaction:
             self._public_domain = PublicDomain(buffer)
         return self._public_domain
 
+    def get_private_domain_size(self) -> int:
+        """
+        Retrieve the size of the private (i.e. encrypted) domain for that transaction.
+        """
+        return self._total_size - (
+            GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
+        )
+
     def get_raw_tx(self) -> bytes:
         """
         Returns raw transaction bytes.
