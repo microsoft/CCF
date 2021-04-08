@@ -89,31 +89,18 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     # also stamps the other config (heap size etc) which _are_ needed
     set(DEBUG_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.debuggable.conf)
 
-    # Need to put in a temp folder, as oesign has a fixed output path, so
-    # multiple calls will force unnecessary rebuilds
-    set(TMP_FOLDER ${CMAKE_CURRENT_BINARY_DIR}/${name}_tmp)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
+      # Copy conf file locally
+      COMMAND cp ${app_oe_conf_path} ${DEBUG_CONF_NAME}
+      # Remove any existing Debug= lines
+      COMMAND sed -i "/^Debug=\.*/d" ${DEBUG_CONF_NAME}
+      # Add Debug=1 line
+      COMMAND echo "Debug=1" >> ${DEBUG_CONF_NAME}
       COMMAND
-        cp ${app_oe_conf_path} ${DEBUG_CONF_NAME} && (grep
-                                                      -q
-                                                      "Debug\=.*"
-                                                      ${DEBUG_CONF_NAME}
-                                                      &&
-                                                      (sed -i
-                                                       "s/Debug=\.*/Debug=1/"
-                                                       ${DEBUG_CONF_NAME})
-                                                      ||
-                                                      (echo "Debug=1" >>
-                                                       ${DEBUG_CONF_NAME}))
-      COMMAND mkdir -p ${TMP_FOLDER}
-      COMMAND ln -s ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
-              ${TMP_FOLDER}/lib${name}.so
-      COMMAND openenclave::oesign sign -e ${TMP_FOLDER}/lib${name}.so -c
-              ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path}
-      COMMAND mv ${TMP_FOLDER}/lib${name}.so.signed
-              ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-      COMMAND rm -rf ${TMP_FOLDER}
+        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
+        ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path} -o
+        ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
       DEPENDS ${name} ${app_oe_conf_path} ${enclave_sign_key_path}
     )
 
@@ -127,18 +114,12 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     set(SIGNED_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.signed.conf)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-      COMMAND
-        cp ${app_oe_conf_path} ${SIGNED_CONF_NAME} && (grep
-                                                       -q
-                                                       "Debug\=.*"
-                                                       ${SIGNED_CONF_NAME}
-                                                       &&
-                                                       (sed -i
-                                                        "s/Debug=\.*/Debug=0/"
-                                                        ${SIGNED_CONF_NAME})
-                                                       ||
-                                                       (echo "Debug=0" >>
-                                                        ${SIGNED_CONF_NAME}))
+      # Copy conf file locally
+      COMMAND cp ${app_oe_conf_path} ${SIGNED_CONF_NAME}
+      # Remove any existing Debug= lines
+      COMMAND sed -i "/^Debug=\.*/d" ${SIGNED_CONF_NAME}
+      # Add Debug=0 line
+      COMMAND echo "Debug=0" >> ${SIGNED_CONF_NAME}
       COMMAND
         openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
         ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
