@@ -89,10 +89,9 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     # also stamps the other config (heap size etc) which _are_ needed
     set(DEBUG_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.debuggable.conf)
 
-    # Need to put in a temp folder, as oesign has a fixed output path, so
-    # multiple calls will force unnecessary rebuilds
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
+      # Copy conf file locally, add single Debug=1 line
       COMMAND
         cp ${app_oe_conf_path} ${DEBUG_CONF_NAME} && (grep
                                                       -q
@@ -122,6 +121,7 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     set(SIGNED_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.signed.conf)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
+      # Copy conf file locally, add single Debug=0 line
       COMMAND
         cp ${app_oe_conf_path} ${SIGNED_CONF_NAME} && (grep
                                                        -q
