@@ -18,6 +18,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import utils, ec
 
 from ccf.merkletree import MerkleTree
+from ccf.tx_id import TxID
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -108,7 +109,6 @@ class PublicDomain:
         while True:
             try:
                 map_name = self._read_string()
-                LOG.trace(f"Reading map {map_name}")
             except EOFError:
                 break
 
@@ -135,10 +135,6 @@ class PublicDomain:
                 for _ in range(remove_count):
                     k = self._read_next_entry()
                     records[k] = None
-
-            LOG.trace(
-                f"Found {read_count} reads, {write_count} writes, and {remove_count} removes"
-            )
 
     def get_tables(self) -> dict:
         """
@@ -258,9 +254,6 @@ class LedgerValidator:
 
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view
-                LOG.debug(
-                    f"Ledger verified till seqno: {current_seqno} and view: {current_view}"
-                )
 
         # Checks complete, add this transaction to tree
         self.merkle.add_leaf(transaction.get_raw_tx())
@@ -441,11 +434,7 @@ class LedgerChunk:
         self._filename = name
 
     def __next__(self) -> Transaction:
-        try:
-            return next(self._current_tx)
-        except StopIteration:
-            LOG.info(f"Completed verifying ledger file '{self._filename}'")
-            raise
+        return next(self._current_tx)
 
     def __iter__(self):
         return self
@@ -486,16 +475,10 @@ class Ledger:
 
         for chunk in sorted_ledgers:
             if os.path.isfile(os.path.join(directory, chunk)):
-                if not is_ledger_chunk_committed(chunk):
-                    LOG.warning(f"Ledger file {chunk} is not committed")
                 self._filenames.append(os.path.join(directory, chunk))
 
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
-
-        LOG.info(
-            f"Initialised CCF ledger from directory '{directory}' (found {len(sorted_ledgers)} files)"
-        )
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1
@@ -505,14 +488,19 @@ class Ledger:
             )
             return self._current_chunk
         else:
-            LOG.success(
-                f"Ledger verification complete (found {self._ledger_validator.signature_count} signatures)."
-                + f" Ledger verified till seqno {self._ledger_validator.last_verified_seqno} in view {self._ledger_validator.last_verified_view}"
-            )
             raise StopIteration
+
+    def __len__(self):
+        return len(self._filenames)
 
     def __iter__(self):
         return self
+
+    def signature_count(self):
+        return self._ledger_validator.signature_count
+
+    def last_verified_txid(self):
+        return TxID(self._ledger_validator.last_verified_view, self._ledger_validator.last_verified_seqno)
 
 
 class InvalidRootException(Exception):

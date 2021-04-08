@@ -30,6 +30,8 @@ def print_key(indent_s, k, is_removed=False):
     else:
         LOG.info(f"{indent_s}{k}:")
 
+def count_string(l, name):
+    return f"{len(l)} {name}{'s' * bool(len(l))}"
 
 if __name__ == "__main__":
 
@@ -43,33 +45,41 @@ if __name__ == "__main__":
         LOG.error("First argument should be CCF ledger directory")
         sys.exit(1)
 
-    ledger = ccf.ledger.Ledger(sys.argv[1])
+    ledger_dir = sys.argv[1]
+    ledger = ccf.ledger.Ledger(ledger_dir)
+
+    LOG.info(f"Reading ledger from {ledger_dir}")
+    LOG.info(f"Contains {count_string(ledger, 'chunk')}")
 
     for chunk in ledger:
+        LOG.info(f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)")
         for transaction in chunk:
             public_transaction = transaction.get_public_domain()
             public_tables = public_transaction.get_tables()
 
             LOG.success(
-                f"seqno {public_transaction.get_seqno()} ({len(public_tables)} table{'s' * bool(len(public_tables))})"
+                f"{indent(2)}seqno {public_transaction.get_seqno()} ({count_string(public_tables, 'table')})"
             )
 
             for table_name, records in public_tables.items():
                 LOG.warning(
-                    f'{indent(2)}table "{table_name}" ({len(records)} write{"s" * bool(len(records))}):'
+                    f'{indent(4)}table "{table_name}" ({count_string(records, "write")}):'
                 )
-                key_indent = indent(4)
+                key_indent = indent(6)
+                value_indent = indent(8)
                 for key, value in records.items():
                     if value is not None:
                         try:
                             value = json.dumps(json.loads(value), indent=2)
                             value = value.replace(
-                                "\n", f"\n{indent(6)}"
+                                "\n", f"\n{value_indent}"
                             )  # Indent every line within stringified JSON
                         except (json.decoder.JSONDecodeError, UnicodeDecodeError):
                             pass
                         finally:
                             print_key(key_indent, key)
-                            LOG.info(f"{indent(6)}{value}")
+                            LOG.info(f"{value_indent}{value}")
                     else:
                         print_key(key_indent, key, is_removed=True)
+
+    LOG.success(f"Ledger verification complete. Found {ledger.signature_count()} signatures, and verified till {ledger.last_verified_txid()}")
