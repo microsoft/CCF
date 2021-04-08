@@ -508,7 +508,10 @@ class Ledger:
         return self._ledger_validator.signature_count
 
     def last_verified_txid(self):
-        return TxID(self._ledger_validator.last_verified_view, self._ledger_validator.last_verified_seqno)
+        return TxID(
+            self._ledger_validator.last_verified_view,
+            self._ledger_validator.last_verified_seqno,
+        )
 
 
 class InvalidRootException(Exception):

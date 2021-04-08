@@ -30,8 +30,10 @@ def print_key(indent_s, k, is_removed=False):
     else:
         LOG.info(f"{indent_s}{k}:")
 
+
 def counted_string(l, name):
     return f"{len(l)} {name}{'s' * bool(len(l) != 1)}"
+
 
 if __name__ == "__main__":
 
@@ -52,7 +54,9 @@ if __name__ == "__main__":
     LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
 
     for chunk in ledger:
-        LOG.info(f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)")
+        LOG.info(
+            f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
+        )
         for transaction in chunk:
             public_transaction = transaction.get_public_domain()
             public_tables = public_transaction.get_tables()
@@ -63,7 +67,7 @@ if __name__ == "__main__":
 
             private_table_size = transaction.get_private_domain_size()
             if private_table_size:
-                LOG.error(f"-- private: {private_table_size} bytes")
+                LOG.error(f"{indent(2)}-- private: {private_table_size} bytes")
 
             for table_name, records in public_tables.items():
                 LOG.warning(
@@ -86,4 +90,6 @@ if __name__ == "__main__":
                     else:
                         print_key(key_indent, key, is_removed=True)
 
-    LOG.success(f"Ledger verification complete. Found {ledger.signature_count()} signatures, and verified till {ledger.last_verified_txid()}")
+    LOG.success(
+        f"Ledger verification complete. Found {ledger.signature_count()} signatures, and verified till {ledger.last_verified_txid()}"
+    )
