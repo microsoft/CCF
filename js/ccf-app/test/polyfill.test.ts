@@ -1,4 +1,5 @@
 import { assert } from "chai";
+import * as crypto from "crypto";
 import "../src/polyfill";
 import {
   AesKwpParams,
@@ -6,7 +7,7 @@ import {
   RsaOaepAesKwpParams,
   RsaOaepParams,
 } from "../src/global";
-import { unwrapKey } from "./crypto";
+import { unwrapKey, generateSelfSignedCert } from "./crypto";
 
 beforeEach(function () {
   // clear KV before each test
@@ -90,6 +91,25 @@ describe("polyfill", function () {
         wrapAlgo
       );
       assert.deepEqual(unwrapped, key);
+    });
+  });
+
+  describe("isValidX509CertBundle", function (this) {
+    const supported = "X509Certificate" in crypto;
+    it("returns true for valid certs", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pem1 = generateSelfSignedCert();
+      const pem2 = generateSelfSignedCert();
+      assert.isTrue(ccf.isValidX509CertBundle(pem1));
+      assert.isTrue(ccf.isValidX509CertBundle(pem1 + "\n" + pem2));
+    });
+    it("returns false for invalid certs", function () {
+      if (!supported) {
+        this.skip();
+      }
+      assert.isFalse(ccf.isValidX509CertBundle("garbage"));
     });
   });
   describe("kv", function () {

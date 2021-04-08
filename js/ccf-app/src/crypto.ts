@@ -25,6 +25,11 @@ export const generateRsaKeyPair = ccf.generateRsaKeyPair;
  */
 export const wrapKey = ccf.wrapKey;
 
+/**
+ * @inheritDoc CCF.isValidX509CertBundle
+ */
+export const isValidX509CertBundle = ccf.isValidX509CertBundle;
+
 export {
   WrapAlgoParams,
   AesKwpParams,
