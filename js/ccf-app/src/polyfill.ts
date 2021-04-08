@@ -61,7 +61,6 @@ class KvMapPolyfill implements KvMap {
 }
 
 class CCFPolyfill implements CCF {
-  historicalState?: HistoricalState | undefined;
   kv = new Proxy(<KvMaps>{}, {
     get: (target, name, receiver) => {
       if (typeof name === "string") {
