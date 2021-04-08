@@ -313,12 +313,8 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
-        member = self.get_any_active_member()
-        with remote_node.client(*member.auth(write=True)) as c:
-            r = c.post(
-                "/gov/read",
-                {"table": "public:ccf.gov.nodes.info", "key": node_to_retire.node_id},
-            )
+        with remote_node.client() as c:
+            r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
             assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.value
 
     def trust_node(self, remote_node, node_id, timeout=3):
@@ -567,11 +563,8 @@ class Consortium:
             ), f"Service status {current_status} (expected {status.value})"
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
-        member = self.get_any_active_member()
-        with remote_node.client(*member.auth()) as c:
-            r = c.post(
-                "/gov/read", {"table": "public:ccf.gov.nodes.info", "key": node_id}
-            )
+        with remote_node.client() as c:
+            r = c.get(f"/node/network/nodes/{node_id}")
 
             if r.status_code != http.HTTPStatus.OK.value or (
                 node_status and r.body.json()["status"] != node_status.value
