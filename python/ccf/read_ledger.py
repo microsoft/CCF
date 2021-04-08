@@ -40,8 +40,12 @@ if __name__ == "__main__":
             public_tables = public_transaction.get_tables()
 
             LOG.success(
-                f"seqno {public_transaction.get_seqno()} ({len(public_tables)} table{'s' if len(public_tables) > 1 else ''})"
+                f"seqno {public_transaction.get_seqno()} ({len(public_tables)} public table{'s' if len(public_tables) > 1 else ''})"
             )
+
+            private_table_size = transaction.get_private_domain_size()
+            if private_table_size:
+                LOG.error(f"-- private: {private_table_size} bytes")
 
             for table_name, records in public_tables.items():
                 LOG.warning(f'table "{table_name}":')
