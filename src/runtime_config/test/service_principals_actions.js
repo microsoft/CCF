@@ -21,9 +21,7 @@ actions.set(
       checkType(args.id, "string", "id");
     },
     function (args) {
-      ccf.kv["public:ccf.gov.service_principals"].delete(
-        ccf.strToBuf(args.id)
-      );
+      ccf.kv["public:ccf.gov.service_principals"].delete(ccf.strToBuf(args.id));
     }
   )
 );

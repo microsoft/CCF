@@ -506,7 +506,7 @@ const actions = new Map([
   [
     "remove_js_app",
     new Action(
-      function (args) { },
+      function (args) {},
       function (args) {
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
         const endpointsMap = ccf.kv["public:ccf.gov.endpoints"];
