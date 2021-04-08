@@ -91,7 +91,6 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
 
     # Need to put in a temp folder, as oesign has a fixed output path, so
     # multiple calls will force unnecessary rebuilds
-    set(TMP_FOLDER ${CMAKE_CURRENT_BINARY_DIR}/${name}_tmp)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
       COMMAND
@@ -106,14 +105,10 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
                                                       ||
                                                       (echo "Debug=1" >>
                                                        ${DEBUG_CONF_NAME}))
-      COMMAND mkdir -p ${TMP_FOLDER}
-      COMMAND ln -s ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
-              ${TMP_FOLDER}/lib${name}.so
-      COMMAND openenclave::oesign sign -e ${TMP_FOLDER}/lib${name}.so -c
-              ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path}
-      COMMAND mv ${TMP_FOLDER}/lib${name}.so.signed
-              ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-      COMMAND rm -rf ${TMP_FOLDER}
+      COMMAND
+        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
+        ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path} -o
+        ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
       DEPENDS ${name} ${app_oe_conf_path} ${enclave_sign_key_path}
     )
 
