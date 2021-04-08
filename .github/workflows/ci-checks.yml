@@ -9,7 +9,7 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-18.04
-    container: ccfciteam/ccf-ci:oe0.15.0-rc1
+    container: ccfciteam/ccf-ci:oe0.15.0
 
     steps:
       - name: Checkout repository
