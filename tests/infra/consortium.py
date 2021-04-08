@@ -517,39 +517,13 @@ class Consortium:
 
     def check_for_service(self, remote_node, status):
         """
-        Check via the member frontend of the given node that the certificate
-        associated with current CCF service signing key has been recorded in
+        Check the certificate associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
-        # When opening the service in BFT, the first transaction to be
-        # completed when f = 1 takes a significant amount of time
-        member = self.get_any_active_member()
-        with remote_node.client(*member.auth()) as c:
-            r = c.post(
-                "/gov/query",
-                {
-                    "text": """tables = ...
-                    service = tables["public:ccf.gov.service.info"]:get(0)
-                    if service == nil then
-                        LOG_DEBUG("Service is nil")
-                    else
-                        LOG_DEBUG("Service version: ", tostring(service.version))
-                        LOG_DEBUG("Service status: ", tostring(service.status_code))
-                        cert_len = #service.cert
-                        LOG_DEBUG("Service cert len: ", tostring(cert_len))
-                        LOG_DEBUG("Service cert bytes: " ..
-                            tostring(service.cert[math.ceil(cert_len / 4)]) .. " " ..
-                            tostring(service.cert[math.ceil(cert_len / 3)]) .. " " ..
-                            tostring(service.cert[math.ceil(cert_len / 2)])
-                        )
-                    end
-                    return service
-                    """
-                },
-                timeout=3,
-            )
-            current_status = r.body.json()["status"]
-            current_cert = r.body.json()["cert"]
+        with remote_node.client() as c:
+            r = c.get("/node/network")
+            current_status = r.body.json()["service_status"]
+            current_cert = r.body.json()["service_certificate"]
 
             expected_cert = open(
                 os.path.join(self.common_dir, "networkcert.pem"), "rb"
