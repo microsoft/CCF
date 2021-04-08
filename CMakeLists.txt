@@ -508,6 +508,8 @@ if(BUILD_TESTS)
         --constitution
         ${CCF_DIR}/src/runtime_config/test/test_actions.js
         --constitution
+        ${CCF_DIR}/src/runtime_config/test/service_principals_actions.js
+        --constitution
         ${CCF_DIR}/src/runtime_config/default/validate.js
         --constitution
         ${CCF_DIR}/src/runtime_config/test/resolve.js

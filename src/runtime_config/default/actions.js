@@ -506,7 +506,7 @@ const actions = new Map([
   [
     "remove_js_app",
     new Action(
-      function (args) {},
+      function (args) { },
       function (args) {
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
         const endpointsMap = ccf.kv["public:ccf.gov.endpoints"];
@@ -731,34 +731,6 @@ const actions = new Map([
             ccf.jsonCompatibleToBuf(node_obj)
           );
         }
-      }
-    ),
-  ],
-  [
-    "set_service_principal",
-    new Action(
-      function (args) {
-        checkType(args.id, "string", "id");
-        checkType(args.data, "object", "data");
-      },
-      function (args) {
-        ccf.kv["public:ccf.gov.service_principals"].set(
-          ccf.strToBuf(args.id),
-          ccf.jsonCompatibleToBuf(args.data)
-        );
-      }
-    ),
-  ],
-  [
-    "remove_service_principal",
-    new Action(
-      function (args) {
-        checkType(args.id, "string", "id");
-      },
-      function (args) {
-        ccf.kv["public:ccf.gov.service_principals"].delete(
-          ccf.strToBuf(args.id)
-        );
       }
     ),
   ],
