@@ -9,7 +9,7 @@ This page describes the Python API of the :py:class:`ccf.ledger` module which ca
 
 .. tip::
 
-    The ``read_ledger.py`` command line utility can be used to parse and display the public content of ledger directory:
+    The ``read_ledger.py`` command line utility can be used to parse and display the public content of the ledger directory:
 
     .. code-block:: bash
 
