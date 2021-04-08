@@ -601,7 +601,7 @@ class Network:
             if errors:
                 # Throw accurate exceptions if known errors found in
                 for error in errors:
-                    if "FailedCodeIdNotFound" in error:
+                    if "Quote does not contain known enclave measurement" in error:
                         raise CodeIdNotFound from e
                     if "StartupSnapshotIsOld" in error:
                         raise StartupSnapshotIsOld from e
