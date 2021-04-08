@@ -85,7 +85,6 @@ namespace ccf
     UserCerts user_certs;
     UserInfo user_info;
 
-
     //
     // Node table
     //
