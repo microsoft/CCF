@@ -291,6 +291,9 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "format": {
+                      "type": "string"
+                    },
                     "evidence": {
                       "type": "string"
                     },
@@ -305,11 +308,15 @@
           },
           "responses": {
             "200": {
+              "description": "Ok",
               "content": {
                 "application/json": {
                   "schema": {
                     "properties": {
                       "claims": {
+                        "type": "object"
+                      },
+                      "customClaims": {
                         "type": "object"
                       }
                     },

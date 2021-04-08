@@ -877,7 +877,8 @@ namespace js
       ctx,
       ccf,
       "verifyOpenEnclaveEvidence",
-      JS_NewCFunction(ctx, js_verify_open_enclave_evidence, "verifyOpenEnclaveEvidence", 2));
+      JS_NewCFunction(
+        ctx, js_verify_open_enclave_evidence, "verifyOpenEnclaveEvidence", 3));
 
     if (txctx != nullptr)
     {

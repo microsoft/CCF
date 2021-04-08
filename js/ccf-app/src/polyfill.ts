@@ -155,7 +155,11 @@ class CCFPolyfill implements CCF {
     }
   }
 
-  verifyOpenEnclaveEvidence(evidence: ArrayBuffer, endorsements?: ArrayBuffer): EvidenceClaims {
+  verifyOpenEnclaveEvidence(
+    format: string | undefined,
+    evidence: ArrayBuffer,
+    endorsements?: ArrayBuffer
+  ): EvidenceClaims {
     throw new Error("Method not implemented.");
   }
 }
