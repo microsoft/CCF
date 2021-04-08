@@ -450,6 +450,12 @@ class LedgerChunk:
     def __iter__(self):
         return self
 
+    def filename(self):
+        return self._filename
+
+    def is_committed(self):
+        return is_ledger_chunk_committed(self._filename)
+
 
 class Ledger:
     """
