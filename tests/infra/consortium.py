@@ -271,8 +271,11 @@ class Consortium:
                     view = response.view
                 ccf.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
-        if proposal.state != ProposalState.ACCEPTED:
+        if proposal.state == ProposalState.ACCEPTED:
+            proposal.set_completed(seqno, view)
+        else:
             raise infra.proposal.ProposalNotAccepted(proposal)
+
         return proposal
 
     def get_proposals(self, remote_node):

@@ -8,6 +8,7 @@ import infra.remote
 import infra.net
 import infra.path
 import ccf.clients
+import ccf.ledger
 import os
 import socket
 import re
@@ -315,6 +316,14 @@ class Node:
             raise TimeoutError(
                 f"Node {self.local_node_id} failed to join the network"
             ) from e
+
+    def get_public_ledger_tables_at(self, seqno):
+        ledger = ccf.ledger.Ledger(self.remote.ledger_path())
+        tx = ledger.get_transaction(seqno)
+
+        # LOG.error(tx.get_public_domain().get_tables())
+
+        return tx.get_public_domain().get_tables()
 
     def get_ledger(self, include_read_only_dirs=False):
         """

@@ -508,6 +508,42 @@ class Ledger:
     def __iter__(self):
         return self
 
+    def get_transaction(self, seqno: int) -> Transaction:
+        """
+        Returns the :py:class:`ccf.Ledger.Transaction` recorded in the ledger at the given sequence number
+
+        :param int seqno: Sequence number of the transaction to fetch
+        """
+
+        if seqno < 1:
+            raise ValueError("Ledger first seqno is 1")
+
+        LOG.success(f"Finding tx at {seqno}")
+
+        transaction = None
+        try:
+            for chunk in self:
+                for tx in chunk:
+                    public_transaction = tx.get_public_domain()
+                    if public_transaction.get_seqno() == seqno:
+                        return tx
+        except:
+            pass
+        finally:
+            LOG.warning("Resetting ledger")
+            self._fileindex = -1
+            self._ledger_validator = LedgerValidator()
+
+        if transaction is None:
+            raise UnknownTransaction(
+                f"Transaction at seqno {seqno} does not exist in ledger"
+            )
+        return transaction
+
+    def get_latest_state(self) -> dict:
+
+        return {}
+
 
 class InvalidRootException(Exception):
     """MerkleTree root doesn't match with the root reported in the signature's table"""
@@ -523,3 +559,7 @@ class CommitIdRangeException(Exception):
 
 class UntrustedNodeException(Exception):
     """The signing node wasn't part of the network"""
+
+
+class UnknownTransaction(Exception):
+    """The transaction at seqno does not exist in ledger"""
