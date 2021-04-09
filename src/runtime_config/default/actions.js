@@ -707,7 +707,7 @@ const actions = new Map([
       function (args) {
         checkType(args.code_id, "string", "code_id");
       },
-      function (args) {
+      function (args, proposalId) {
         const codeId = ccf.strToBuf(args.code_id);
         const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
         ccf.kv["public:ccf.gov.nodes.code_ids"].set(codeId, ALLOWED);
