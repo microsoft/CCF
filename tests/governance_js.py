@@ -162,9 +162,7 @@ def test_ballot_storage(network, args):
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", {})
         assert r.status_code == 400, r.body.text()
 
-        ballot = {
-            "ballot": "export function vote (proposal, proposer_id) { return true }"
-        }
+        ballot = ballot_yes
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
 
@@ -174,9 +172,7 @@ def test_ballot_storage(network, args):
         assert r.body.json() == ballot, r.body.json()
 
     with node.client(None, "member1") as c:
-        ballot = {
-            "ballot": "export function vote (proposal, proposer_id) { return false }"
-        }
+        ballot = ballot_no
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
         member_id = network.consortium.get_member_by_local_id("member1").service_id
@@ -201,9 +197,7 @@ def test_pure_proposals(network, args):
             assert r.body.json()["state"] == state, r.body.json()
             proposal_id = r.body.json()["proposal_id"]
 
-            ballot = {
-                "ballot": "export function vote (proposal, proposer_id) { return true }"
-            }
+            ballot = ballot_yes
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 400, r.body.text()
 
@@ -256,26 +250,20 @@ def test_proposals_with_votes(network, args):
             assert r.body.json()["state"] == state, r.body.json()
 
     with node.client(None, "member0") as c:
-        for prop, state, direction in [
-            (always_accept_with_two_votes, "Accepted", "true"),
-            (always_reject_with_two_votes, "Rejected", "false"),
+        for prop, state, ballot in [
+            (always_accept_with_two_votes, "Accepted", ballot_yes),
+            (always_reject_with_two_votes, "Rejected", ballot_no),
         ]:
             r = c.post("/gov/proposals.js", prop)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == "Open", r.body.json()
             proposal_id = r.body.json()["proposal_id"]
 
-            ballot = {
-                "ballot": f"export function vote (proposal, proposer_id) {{ return {direction} }}"
-            }
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == "Open", r.body.json()
 
             with node.client(None, "member1") as oc:
-                ballot = {
-                    "ballot": f"export function vote (proposal, proposer_id) {{ return {direction} }}"
-                }
                 r = oc.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
                 assert r.status_code == 200, r.body.text()
                 assert r.body.json()["state"] == state, r.body.json()
@@ -292,9 +280,7 @@ def test_operator_proposals_and_votes(network, args):
         assert r.body.json()["state"] == "Open", r.body.json()
         proposal_id = r.body.json()["proposal_id"]
 
-        ballot = {
-            "ballot": "export function vote (proposal, proposer_id) { return true; }"
-        }
+        ballot = ballot_yes
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Accepted", r.body.json()
@@ -411,6 +397,8 @@ def test_actions(network, args):
     network.consortium.remove_member(node, new_member)
     network.consortium.remove_member(node, new_member)
 
+    return network
+
 
 @reqs.description("Test apply")
 def test_apply(network, args):
@@ -500,15 +488,15 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # network = test_proposal_validation(network, args)
-        # network = test_proposal_storage(network, args)
-        # network = test_proposal_withdrawal(network, args)
-        # network = test_ballot_storage(network, args)
-        # network = test_pure_proposals(network, args)
-        # network = test_proposals_with_votes(network, args)
-        # network = test_operator_proposals_and_votes(network, args)
-        # network = test_apply(network, args)
-        # network = test_actions(network, args)
+        network = test_proposal_validation(network, args)
+        network = test_proposal_storage(network, args)
+        network = test_proposal_withdrawal(network, args)
+        network = test_ballot_storage(network, args)
+        network = test_pure_proposals(network, args)
+        network = test_proposals_with_votes(network, args)
+        network = test_operator_proposals_and_votes(network, args)
+        network = test_apply(network, args)
+        network = test_actions(network, args)
         network = test_set_constitution(network, args)
 
 
