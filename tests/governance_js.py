@@ -333,7 +333,7 @@ def test_actions(network, args):
     network.consortium.set_member_data(
         node,
         network.consortium.get_member_by_local_id("member0").service_id,
-        member_data={"is_admin": True},
+        member_data={"is_operator": True, "is_admin": True},
     )
 
     # Set recovery threshold
@@ -439,7 +439,7 @@ def test_set_constitution(network, args):
     with node.client(None, "member0") as c:
         r = c.post(
             "/gov/proposals.js",
-            proposal(action("always_accept_with_one_vote")),
+            valid_set_recovery_threshold,
         )
         assert r.status_code == 200, r.body.text()
         body = r.body.json()
@@ -448,24 +448,66 @@ def test_set_constitution(network, args):
 
         r = c.post(
             "/gov/proposals.js",
-            proposal(action("always_reject_with_one_vote")),
+            always_accept_with_one_vote,
         )
         assert r.status_code == 200, r.body.text()
         body = r.body.json()
         assert body["state"] == "Open", body
         pending_proposals.append(body["proposal_id"])
 
-    # Create a set_constitution proposal, and pass it
-    network.consortium.set_constitution(node, args.constitution)
+    # Create a set_constitution proposal, with test proposals removed, and pass it
+    original_constitution = args.constitution
+    modified_constitution = [
+        path for path in original_constitution if "test_actions.js" not in path
+    ]
+    network.consortium.set_constitution(node, modified_constitution)
 
-    # Check other proposals were invalidated
     with node.client(None, "member0") as c:
+        # Check all other proposals were invalidated
         for proposal_id in pending_proposals:
             r = c.get(f"/gov/proposals.js/{proposal_id}")
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == "Invalidated", r.body.json()
 
-    # TODO: Propose a new action, check it is available
+        # Confirm constitution has changed by proposing test actions which are no longer present
+        r = c.post(
+            "/gov/proposals.js",
+            always_accept_noop,
+        )
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), r.body.text()
+
+        r = c.post(
+            "/gov/proposals.js",
+            always_reject_noop,
+        )
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), r.body.text()
+
+        # Confirm modified constitution can still accept valid proposals
+        r = c.post(
+            "/gov/proposals.js",
+            valid_set_recovery_threshold,
+        )
+        assert r.status_code == 200, r.body.text()
+        body = r.body.json()
+        assert body["state"] == "Open", body
+
+    # Restore original constitution
+    network.consortium.set_constitution(node, original_constitution)
+
+    # Confirm original constitution was restored
+    r = c.post(
+        "/gov/proposals.js",
+        always_accept_noop,
+    )
+    assert r.status_code == 200, r.body.text()
+    body = r.body.json()
+    assert body["state"] == "Accepted", body
 
     return network
 
@@ -475,16 +517,15 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # TODO: Re-enable
-        # network = test_proposal_validation(network, args)
-        # network = test_proposal_storage(network, args)
-        # network = test_proposal_withdrawal(network, args)
-        # network = test_ballot_storage(network, args)
-        # network = test_pure_proposals(network, args)
-        # network = test_proposals_with_votes(network, args)
-        # network = test_operator_proposals_and_votes(network, args)
-        # network = test_apply(network, args)
-        # network = test_actions(network, args)
+        network = test_proposal_validation(network, args)
+        network = test_proposal_storage(network, args)
+        network = test_proposal_withdrawal(network, args)
+        network = test_ballot_storage(network, args)
+        network = test_pure_proposals(network, args)
+        network = test_proposals_with_votes(network, args)
+        network = test_operator_proposals_and_votes(network, args)
+        network = test_apply(network, args)
+        network = test_actions(network, args)
         network = test_set_constitution(network, args)
 
 
