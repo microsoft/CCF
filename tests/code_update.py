@@ -39,6 +39,10 @@ def test_verify_quotes(network, args):
         LOG.warning("Skipping quote test with virtual enclave")
         return network
 
+    LOG.info("Check the network is stable")
+    primary, _ = network.find_primary()
+    reconfiguration.check_can_progress(primary)
+
     for node in network.get_joined_nodes():
         LOG.info(f"Verifying quote for node {node.node_id}")
         cafile = os.path.join(network.common_dir, "networkcert.pem")
@@ -134,7 +138,7 @@ def test_update_all_nodes(network, args):
     old_nodes = network.nodes.copy()
 
     LOG.info("Start fresh nodes running new code")
-    for _ in range(0, len(network.nodes)):
+    for _ in range(0, len(old_nodes)):
         new_node = network.create_and_trust_node(
             replacement_package, "local://localhost", args
         )
@@ -171,8 +175,8 @@ def test_proposal_invalidation(network, args):
         pending_proposals.append(new_member_proposal.proposal_id)
 
     LOG.info("Add temporary code ID")
-    new_code_id = get_code_id(args, get_replacement_package(args))
-    network.consortium.add_new_code(primary, new_code_id)
+    temp_code_id = get_code_id(args, get_replacement_package(args))
+    network.consortium.add_new_code(primary, temp_code_id)
 
     LOG.info("Confirm open proposals are invalidated")
     with primary.client(None, "member0") as c:
@@ -182,7 +186,7 @@ def test_proposal_invalidation(network, args):
             assert r.body.json()["state"] == "Invalidated", r.body.json()
 
     LOG.info("Remove temporary code ID")
-    network.consortium.retire_code(primary, new_code_id)
+    network.consortium.retire_code(primary, temp_code_id)
 
     return network
 
@@ -195,8 +199,9 @@ def run(args):
 
         test_verify_quotes(network, args)
         test_add_node_with_bad_code(network, args)
-        test_update_all_nodes(network, args)
+        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
         test_proposal_invalidation(network, args)
+        test_update_all_nodes(network, args)
 
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
