@@ -302,12 +302,12 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
     latest_public_state, _ = primary.get_latest_public_tables()
     latest_jwt_signing_key = latest_public_state[
         "public:ccf.gov.jwt.public_signing_keys"
-    ][kid.encode()]
+    ]
 
     if cert_pem is None:
-        assert latest_jwt_signing_key is None
+        assert kid.encode() not in latest_jwt_signing_key
     else:
-        stored_cert = infra.crypto.cert_der_to_pem(latest_jwt_signing_key)
+        stored_cert = infra.crypto.cert_der_to_pem(latest_jwt_signing_key[kid.encode()])
         assert infra.crypto.are_certs_equal(
             cert_pem, stored_cert
         ), "input cert is not equal to stored cert"

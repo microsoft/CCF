@@ -5,7 +5,7 @@ import io
 import struct
 import os
 
-from typing import BinaryIO, NamedTuple, Optional, Tuple
+from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict
 
 import json
 import base64
@@ -549,25 +549,28 @@ class Ledger:
             )
         return transaction
 
-    # TODO: Call from JWT!
     def get_latest_public_state(self) -> Tuple[dict, int]:
         """
         Returns the current public state of the service
         """
-        public_tables = {}
-        latest_seqno = {}
+        self._reset_iterators()
+
+        public_tables: Dict[str, Dict] = {}
+        latest_seqno = 0
         for chunk in self:
             for tx in chunk:
                 latest_seqno = tx.get_public_domain().get_seqno()
-                for k, v in tx.get_public_domain().get_tables().items():
-                    if k in public_tables:
-                        public_tables[k] = {**public_tables[k], **v}
+                for table_name, records in tx.get_public_domain().get_tables().items():
+                    if table_name in public_tables:
+                        public_tables[table_name].update(records)
+                        # Remove deleted keys
+                        public_tables[table_name] = {
+                            k: v
+                            for k, v in public_tables[table_name].items()
+                            if v is not None
+                        }
                     else:
-                        public_tables[k] = v
-
-        # TODO: Delete
-        for k, v in public_tables.items():
-            LOG.warning(f"{k}: {len(v)} entries")
+                        public_tables[table_name] = records
 
         return public_tables, latest_seqno
 
