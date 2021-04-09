@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import glob from "glob";
 import bent from "bent";
-import { parse } from "papaparse";
+import papa from "papaparse";
 import { NODE_ADDR } from "../util";
 import { SubmitOpinionsRequest } from "../../src/controllers/poll";
 
@@ -14,7 +14,7 @@ const ENDPOINT_URL = `${NODE_ADDR}/app/polls`;
 function getAuth(jwt: string) {
   // See src/util.ts.
   return {
-    authorization: `Bearer ${jwt}'`,
+    authorization: `Bearer ${jwt}`,
   };
 }
 
@@ -36,7 +36,7 @@ async function main() {
     const jwtPath = path.join(folder, user + ".jwt");
     const jwt = fs.readFileSync(jwtPath, "utf8");
     const csv = fs.readFileSync(csvPath, "utf8");
-    const rows = parse(csv, { header: true }).data as CSVRow[];
+    const rows = papa.parse(csv, { header: true }).data as CSVRow[];
 
     const req: SubmitOpinionsRequest = { opinions: {} };
     for (const row of rows) {

@@ -5,7 +5,6 @@ import * as fs from "fs";
 import * as tmp from "tmp";
 import * as crypto from "crypto";
 import * as forge from "node-forge";
-import * as selfsigned from "selfsigned";
 import { assert } from "chai";
 import bent from "bent";
 import jwt from "jsonwebtoken";
@@ -47,14 +46,19 @@ class FakeAuth {
         format: "pem",
       },
     });
-    const certPem = selfsigned.generate(null, {
-      algorithm: "sha256",
-      keyPair: {
-        privateKey: keys.privateKey,
-        publicKey: keys.publicKey,
+    const cert = forge.pki.createCertificate();
+    const attrs = [
+      {
+        name: "commonName",
+        value: "Test",
       },
-    }).cert;
-    const cert = forge.pki.certificateFromPem(certPem);
+    ];
+    cert.setIssuer(attrs);
+    cert.publicKey = forge.pki.publicKeyFromPem(keys.publicKey);
+    cert.sign(
+      forge.pki.privateKeyFromPem(keys.privateKey),
+      forge.md.sha256.create()
+    );
     const certDer = forge.asn1
       .toDer(forge.pki.certificateToAsn1(cert))
       .getBytes();

@@ -6,3 +6,4 @@ build/
 .workspace_ccf/
 *_opinions.csv
 *.jwt
+*.pem
