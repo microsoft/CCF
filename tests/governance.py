@@ -248,9 +248,9 @@ def run(args):
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    # if args.enclave_type == "virtual":
-    #     LOG.warning("This test can only run in real enclaves, skipping")
-    #     sys.exit(0)
+    if args.enclave_type == "virtual":
+        LOG.warning("This test can only run in real enclaves, skipping")
+        sys.exit(0)
 
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)

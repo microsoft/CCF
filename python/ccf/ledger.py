@@ -423,8 +423,7 @@ class Transaction:
             self._ledger_validator.add_transaction(self)
 
             return self
-        except Exception as exception:
-            LOG.exception(f"Encountered exception: {exception}")
+        except:
             raise
 
 
@@ -523,12 +522,15 @@ class Ledger:
         """
         Returns the :py:class:`ccf.Ledger.Transaction` recorded in the ledger at the given sequence number
 
+        Note that the transaction returned may not yet be verified by a
+        signature transaction nor committed by the service.
+
         :param int seqno: Sequence number of the transaction to fetch
+
+        :return: :py:class:`ccf.Ledger.Transaction`
         """
         if seqno < 1:
             raise ValueError("Ledger first seqno is 1")
-
-        LOG.success(f"Finding tx at {seqno}")
 
         self._reset_iterators()
 
@@ -539,11 +541,8 @@ class Ledger:
                     public_transaction = tx.get_public_domain()
                     if public_transaction.get_seqno() == seqno:
                         return tx
-        except:
-            pass
         finally:
-            self._fileindex = -1
-            self._ledger_validator = LedgerValidator()
+            self._reset_iterators()
 
         if transaction is None:
             raise UnknownTransaction(
@@ -553,7 +552,12 @@ class Ledger:
 
     def get_latest_public_state(self) -> Tuple[dict, int]:
         """
-        Returns the current public state of the service
+        Returns the current public state of the service.
+
+        Note that the public state returned may not yet be verified by a
+        signature transaction nor committed by the service.
+
+        :return: Tuple[Dict, int]: Tuple containing a dictionnary of public tables and their values and the seqno of the state read from the ledger.
         """
         self._reset_iterators()
 

@@ -1114,34 +1114,6 @@ namespace ccf
       const AuthnPolicies member_cert_or_sig = {member_cert_auth_policy,
                                                 member_signature_auth_policy};
 
-      auto query = [this](auto& ctx, nlohmann::json&& params) {
-        const auto member_id = get_caller_member_id(ctx);
-        if (!member_id.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is unknown.");
-        }
-        if (!check_member_accepted(ctx.tx, member_id.value()))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not accepted.");
-        }
-
-        const auto script = params.get<ccf::Script>();
-        return make_success(tsr.run<nlohmann::json>(
-          ctx.tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
-      };
-      make_endpoint("query", HTTP_POST, json_adapter(query), member_cert_or_sig)
-        // This can be executed locally, but can't currently take ReadOnlyTx due
-        // to restrictions in our lua wrappers
-        .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
-        .set_auto_schema<Script, nlohmann::json>()
-        .install();
-
       auto propose = [this](auto& ctx, nlohmann::json&& params) {
         const auto& caller_identity =
           ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>();

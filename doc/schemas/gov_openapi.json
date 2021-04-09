@@ -897,37 +897,6 @@
         ]
       }
     },
-    "/query": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Script"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ]
-      }
-    },
     "/receipt": {
       "get": {
         "parameters": [

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0]
+
+### Removed
+
+- `/gov/query` and `/gov/read` governance endpoints are removed.
+
 ## [0.99.0]
 
 This is a bridging release to simplify the upgrade to 1.0. It includes the new JS constitution, but also supports the existing Lua governance so that users can upgrade in 2 steps - first implementing all of the changes below with their existing Lua governance, then upgrading to the JS governance. Lua governance will be removed in CCF 1.0. See [temporary docs](https://microsoft.github.io/CCF/ccf-0.99.0/governance/js_gov.html) for help with transitioning from Lua to JS.
