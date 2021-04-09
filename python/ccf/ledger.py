@@ -520,12 +520,12 @@ class Ledger:
 
     def get_transaction(self, seqno: int) -> Transaction:
         """
-        Returns the :py:class:`ccf.Ledger.Transaction` recorded in the ledger at the given sequence number
+        Returns the :py:class:`ccf.Ledger.Transaction` recorded in the ledger at the given sequence number.
 
         Note that the transaction returned may not yet be verified by a
         signature transaction nor committed by the service.
 
-        :param int seqno: Sequence number of the transaction to fetch
+        :param int seqno: Sequence number of the transaction to fetch.
 
         :return: :py:class:`ccf.Ledger.Transaction`
         """
