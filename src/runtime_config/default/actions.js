@@ -136,14 +136,10 @@ function invalidateOtherOpenProposals(proposalIdToRetain) {
         console.log(`Setting state of ${proposalId} to invalidated`);
         info.state = "Invalidated";
         proposalsMap.set(k, ccf.jsonCompatibleToBuf(info));
-      }
-      else
-      {
+      } else {
         console.log(`State is ${info.state} - ignoring`);
       }
-    }
-    else
-    {
+    } else {
       console.log("Match, making no changes");
     }
   });
@@ -715,6 +711,9 @@ const actions = new Map([
         const codeId = ccf.strToBuf(args.code_id);
         const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
         ccf.kv["public:ccf.gov.nodes.code_ids"].set(codeId, ALLOWED);
+
+        // Adding a new allowed code ID changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        invalidateOtherOpenProposals(proposalId);
       }
     ),
   ],
