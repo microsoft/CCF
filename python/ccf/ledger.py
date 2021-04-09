@@ -414,17 +414,15 @@ class Transaction:
     def __next__(self):
         if self._next_offset == self._file_size:
             raise StopIteration()
-        try:
-            self._complete_read()
-            self._read_header()
 
-            # Adds every transaction to the ledger validator
-            # LedgerValidator does verification for every added transaction and throws when it finds any anomaly.
-            self._ledger_validator.add_transaction(self)
+        self._complete_read()
+        self._read_header()
 
-            return self
-        except:
-            raise
+        # Adds every transaction to the ledger validator
+        # LedgerValidator does verification for every added transaction and throws when it finds any anomaly.
+        self._ledger_validator.add_transaction(self)
+
+        return self
 
 
 class LedgerChunk:

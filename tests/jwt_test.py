@@ -5,7 +5,6 @@ import tempfile
 import json
 import time
 import base64
-import http
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http import HTTPStatus
 import ssl
@@ -94,12 +93,9 @@ def test_jwt_without_key_policy(network, args):
     LOG.info("Remove JWT issuer")
     remove_jwt_proposal = network.consortium.remove_jwt_issuer(primary, issuer)
 
-    assert (
-        raw_kid
-        not in primary.get_ledger_public_state_at(remove_jwt_proposal.completed_seqno)[
-            "public:ccf.gov.jwt.public_signing_keys"
-        ]
-    ), "JWT issuer was not removed"
+    assert primary.get_ledger_public_state_at(remove_jwt_proposal.completed_seqno)[
+        "public:ccf.gov.jwt.public_signing_keys"
+    ][raw_kid], "JWT issuer was not removed"
 
     LOG.info("Add JWT issuer with initial keys")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:

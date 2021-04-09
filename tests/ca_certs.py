@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import os
 import tempfile
-import http
 import infra.network
 import infra.path
 import infra.proc
@@ -75,10 +74,10 @@ def test_cert_store(network, args):
     remove_proposal = network.consortium.remove_ca_cert_bundle(primary, cert_name)
 
     assert (
-        raw_cert_name
-        not in primary.get_ledger_public_state_at(remove_proposal.completed_seqno)[
+        primary.get_ledger_public_state_at(remove_proposal.completed_seqno)[
             "public:ccf.gov.tls.ca_cert_bundles"
-        ]
+        ][raw_cert_name]
+        == None
     ), "CA bundle was not removed"
 
     return network

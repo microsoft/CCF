@@ -325,7 +325,7 @@ class Node:
                 ledger = ccf.ledger.Ledger(self.remote.ledger_path())
                 tx = ledger.get_transaction(seqno)
                 return tx.get_public_domain().get_tables()
-            except:
+            except Exception:
                 time.sleep(0.1)
 
         raise TimeoutError(
@@ -338,7 +338,7 @@ class Node:
             try:
                 ledger = ccf.ledger.Ledger(self.remote.ledger_path())
                 return ledger.get_latest_public_state()
-            except:
+            except Exception:
                 time.sleep(0.1)
 
         raise TimeoutError(

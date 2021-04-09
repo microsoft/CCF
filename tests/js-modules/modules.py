@@ -15,7 +15,6 @@ import infra.net
 import infra.e2e_args
 import infra.crypto
 import suite.test_requirements as reqs
-import ccf.proposal_generator
 import openapi_spec_validator
 
 from loguru import logger as LOG
@@ -102,10 +101,10 @@ def test_app_bundle(network, args):
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     assert (
-        raw_module_name
-        not in primary.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
+        primary.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
             "public:ccf.gov.modules"
-        ]
+        ][raw_module_name]
+        is None
     ), "Module was not removed"
 
     return network
