@@ -555,7 +555,7 @@ class Ledger:
         Note that the public state returned may not yet be verified by a
         signature transaction nor committed by the service.
 
-        :return: Tuple[Dict, int]: Tuple containing a dictionnary of public tables and their values and the seqno of the state read from the ledger.
+        :return: Tuple[Dict, int]: Tuple containing a dictionary of public tables and their values and the seqno of the state read from the ledger.
         """
         self._reset_iterators()
 
