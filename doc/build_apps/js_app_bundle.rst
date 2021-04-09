@@ -137,9 +137,9 @@ An app bundle can be wrapped into a governance proposal with the Python client f
 
 .. code-block:: bash
 
-    $ python -m ccf.proposal_generator deploy_js_app my-app/
-    SUCCESS | Writing proposal to ./deploy_js_app_proposal.json
-    SUCCESS | Wrote vote to ./deploy_js_app_vote_for.json
+    $ python -m ccf.proposal_generator set_js_app my-app/
+    SUCCESS | Writing proposal to ./set_js_app_proposal.json
+    SUCCESS | Wrote vote to ./set_js_app_vote_for.json
 
-Once :ref:`submitted and accepted <governance/proposals:Submitting a New Proposal>`, a ``deploy_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
+Once :ref:`submitted and accepted <governance/proposals:Submitting a New Proposal>`, a ``set_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
 Any existing application endpoints and JavaScript modules are removed.
