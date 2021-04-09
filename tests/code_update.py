@@ -13,19 +13,24 @@ import hashlib
 from loguru import logger as LOG
 
 
-def get_code_id(oe_binary_path, lib_path):
-    res = subprocess.run(
-        [os.path.join(oe_binary_path, "oesign"), "dump", "-e", lib_path],
-        capture_output=True,
-        check=True,
-    )
-    lines = [
-        line
-        for line in res.stdout.decode().split(os.linesep)
-        if line.startswith("mrenclave=")
-    ]
+def get_code_id(args, package):
+    lib_path = infra.path.build_lib_path(package, args.enclave_type)
 
-    return lines[0].split("=")[1]
+    if args.enclave_type == "virtual":
+        return hashlib.sha256(lib_path.encode()).hexdigest()
+    else:
+        res = subprocess.run(
+            [os.path.join(args.oe_binary, "oesign"), "dump", "-e", lib_path],
+            capture_output=True,
+            check=True,
+        )
+        lines = [
+            line
+            for line in res.stdout.decode().split(os.linesep)
+            if line.startswith("mrenclave=")
+        ]
+
+        return lines[0].split("=")[1]
 
 
 @reqs.description("Verify node evidence")
@@ -62,8 +67,8 @@ def test_add_node_with_bad_code(network, args):
     )
 
     new_code_id = get_code_id(
-        args.oe_binary,
-        infra.path.build_lib_path(replacement_package, args.enclave_type),
+        args,
+        replacement_package,
     )
 
     LOG.info(f"Adding a node with unsupported code id {new_code_id}")
@@ -82,27 +87,22 @@ def test_add_node_with_bad_code(network, args):
     return network
 
 
+def get_replacement_package(args):
+    return "liblogging" if args.package == "libjs_generic" else "libjs_generic"
+
+
 @reqs.description("Update all nodes code")
 def test_update_all_nodes(network, args):
-    replacement_package = (
-        "liblogging" if args.package == "libjs_generic" else "libjs_generic"
-    )
+    replacement_package = get_replacement_package(args)
 
     primary, _ = network.find_nodes()
 
-    if args.enclave_type != "virtual":
-        first_code_id, new_code_id = [
-            get_code_id(
-                args.oe_binary, infra.path.build_lib_path(pkg, args.enclave_type)
-            )
-            for pkg in [args.package, replacement_package]
-        ]
-    else:
-        def make_fake_virtual_code_id(s):
-            return hashlib.sha256(s.encode()).hexdigest()
-        first_code_id = make_fake_virtual_code_id("Old")
-        network.consortium.add_new_code(primary, first_code_id) # Pretend this was already there
-        new_code_id = make_fake_virtual_code_id("New")
+    first_code_id = get_code_id(args, args.package)
+    new_code_id = get_code_id(args, replacement_package)
+
+    if args.enclave_type == "virtual":
+        # Pretend this was already present
+        network.consortium.add_new_code(primary, first_code_id)
 
     LOG.info("Add new code id")
     network.consortium.add_new_code(primary, new_code_id)
@@ -160,77 +160,29 @@ def test_update_all_nodes(network, args):
 
 @reqs.description("Adding a new code ID invalidates open proposals")
 def test_proposal_invalidation(network, args):
-    # # Create some open proposals
-    # pending_proposals = []
-    # with node.client(None, "member0") as c:
-    #     r = c.post(
-    #         "/gov/proposals.js",
-    #         valid_set_recovery_threshold,
-    #     )
-    #     assert r.status_code == 200, r.body.text()
-    #     body = r.body.json()
-    #     assert body["state"] == "Open", body
-    #     pending_proposals.append(body["proposal_id"])
+    primary, _ = network.find_nodes()
 
-    #     r = c.post(
-    #         "/gov/proposals.js",
-    #         always_accept_with_one_vote,
-    #     )
-    #     assert r.status_code == 200, r.body.text()
-    #     body = r.body.json()
-    #     assert body["state"] == "Open", body
-    #     pending_proposals.append(body["proposal_id"])
+    LOG.info("Create an open proposal")
+    pending_proposals = []
+    with primary.client(None, "member0") as c:
+        new_member_proposal, _, _ = network.consortium.generate_and_propose_new_member(
+            primary, curve=args.participants_curve
+        )
+        pending_proposals.append(new_member_proposal.proposal_id)
 
-    # # Create a set_constitution proposal, with test proposals removed, and pass it
-    # original_constitution = args.constitution
-    # modified_constitution = [
-    #     path for path in original_constitution if "test_actions.js" not in path
-    # ]
-    # network.consortium.set_constitution(node, modified_constitution)
+    LOG.info("Add temporary code ID")
+    new_code_id = get_code_id(args, get_replacement_package(args))
+    network.consortium.add_new_code(primary, new_code_id)
 
-    # with node.client(None, "member0") as c:
-    #     # Check all other proposals were invalidated
-    #     for proposal_id in pending_proposals:
-    #         r = c.get(f"/gov/proposals.js/{proposal_id}")
-    #         assert r.status_code == 200, r.body.text()
-    #         assert r.body.json()["state"] == "Invalidated", r.body.json()
+    LOG.info("Confirm open proposals are invalidated")
+    with primary.client(None, "member0") as c:
+        for proposal_id in pending_proposals:
+            r = c.get(f"/gov/proposals.js/{proposal_id}")
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == "Invalidated", r.body.json()
 
-    #     # Confirm constitution has changed by proposing test actions which are no longer present
-    #     r = c.post(
-    #         "/gov/proposals.js",
-    #         always_accept_noop,
-    #     )
-    #     assert (
-    #         r.status_code == 400
-    #         and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
-    #     ), r.body.text()
-
-    #     r = c.post(
-    #         "/gov/proposals.js",
-    #         always_reject_noop,
-    #     )
-    #     assert (
-    #         r.status_code == 400
-    #         and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
-    #     ), r.body.text()
-
-    #     # Confirm modified constitution can still accept valid proposals
-    #     r = c.post(
-    #         "/gov/proposals.js",
-    #         valid_set_recovery_threshold,
-    #     )
-    #     assert r.status_code == 200, r.body.text()
-    #     body = r.body.json()
-    #     assert body["state"] == "Open", body
-
-    # # Confirm original constitution was restored
-    # r = c.post(
-    #     "/gov/proposals.js",
-    #     always_accept_noop,
-    # )
-    # assert r.status_code == 200, r.body.text()
-    # body = r.body.json()
-    # assert body["state"] == "Accepted", body
+    LOG.info("Remove temporary code ID")
+    network.consortium.retire_code(primary, new_code_id)
 
     return network
 
