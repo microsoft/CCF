@@ -8,6 +8,7 @@ import suite.test_requirements as reqs
 import os
 import subprocess
 import reconfiguration
+import hashlib
 
 from loguru import logger as LOG
 
@@ -96,33 +97,39 @@ def test_update_all_nodes(network, args):
             )
             for pkg in [args.package, replacement_package]
         ]
+    else:
+        def make_fake_virtual_code_id(s):
+            return hashlib.sha256(s.encode()).hexdigest()
+        first_code_id = make_fake_virtual_code_id("Old")
+        network.consortium.add_new_code(primary, first_code_id) # Pretend this was already there
+        new_code_id = make_fake_virtual_code_id("New")
 
-        LOG.info("Add new code id")
-        network.consortium.add_new_code(primary, new_code_id)
-        with primary.client() as uc:
-            r = uc.get("/node/code")
-            versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-            expected = sorted(
-                [
-                    {"digest": first_code_id, "status": "AllowedToJoin"},
-                    {"digest": new_code_id, "status": "AllowedToJoin"},
-                ],
-                key=lambda x: x["digest"],
-            )
-            assert versions == expected, versions
+    LOG.info("Add new code id")
+    network.consortium.add_new_code(primary, new_code_id)
+    with primary.client() as uc:
+        r = uc.get("/node/code")
+        versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
+        expected = sorted(
+            [
+                {"digest": first_code_id, "status": "AllowedToJoin"},
+                {"digest": new_code_id, "status": "AllowedToJoin"},
+            ],
+            key=lambda x: x["digest"],
+        )
+        assert versions == expected, versions
 
-        LOG.info("Remove old code id")
-        network.consortium.retire_code(primary, first_code_id)
-        with primary.client() as uc:
-            r = uc.get("/node/code")
-            versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-            expected = sorted(
-                [
-                    {"digest": new_code_id, "status": "AllowedToJoin"},
-                ],
-                key=lambda x: x["digest"],
-            )
-            assert versions == expected, versions
+    LOG.info("Remove old code id")
+    network.consortium.retire_code(primary, first_code_id)
+    with primary.client() as uc:
+        r = uc.get("/node/code")
+        versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
+        expected = sorted(
+            [
+                {"digest": new_code_id, "status": "AllowedToJoin"},
+            ],
+            key=lambda x: x["digest"],
+        )
+        assert versions == expected, versions
 
     old_nodes = network.nodes.copy()
 
@@ -151,6 +158,83 @@ def test_update_all_nodes(network, args):
     return network
 
 
+@reqs.description("Adding a new code ID invalidates open proposals")
+def test_proposal_invalidation(network, args):
+    # # Create some open proposals
+    # pending_proposals = []
+    # with node.client(None, "member0") as c:
+    #     r = c.post(
+    #         "/gov/proposals.js",
+    #         valid_set_recovery_threshold,
+    #     )
+    #     assert r.status_code == 200, r.body.text()
+    #     body = r.body.json()
+    #     assert body["state"] == "Open", body
+    #     pending_proposals.append(body["proposal_id"])
+
+    #     r = c.post(
+    #         "/gov/proposals.js",
+    #         always_accept_with_one_vote,
+    #     )
+    #     assert r.status_code == 200, r.body.text()
+    #     body = r.body.json()
+    #     assert body["state"] == "Open", body
+    #     pending_proposals.append(body["proposal_id"])
+
+    # # Create a set_constitution proposal, with test proposals removed, and pass it
+    # original_constitution = args.constitution
+    # modified_constitution = [
+    #     path for path in original_constitution if "test_actions.js" not in path
+    # ]
+    # network.consortium.set_constitution(node, modified_constitution)
+
+    # with node.client(None, "member0") as c:
+    #     # Check all other proposals were invalidated
+    #     for proposal_id in pending_proposals:
+    #         r = c.get(f"/gov/proposals.js/{proposal_id}")
+    #         assert r.status_code == 200, r.body.text()
+    #         assert r.body.json()["state"] == "Invalidated", r.body.json()
+
+    #     # Confirm constitution has changed by proposing test actions which are no longer present
+    #     r = c.post(
+    #         "/gov/proposals.js",
+    #         always_accept_noop,
+    #     )
+    #     assert (
+    #         r.status_code == 400
+    #         and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
+    #     ), r.body.text()
+
+    #     r = c.post(
+    #         "/gov/proposals.js",
+    #         always_reject_noop,
+    #     )
+    #     assert (
+    #         r.status_code == 400
+    #         and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
+    #     ), r.body.text()
+
+    #     # Confirm modified constitution can still accept valid proposals
+    #     r = c.post(
+    #         "/gov/proposals.js",
+    #         valid_set_recovery_threshold,
+    #     )
+    #     assert r.status_code == 200, r.body.text()
+    #     body = r.body.json()
+    #     assert body["state"] == "Open", body
+
+    # # Confirm original constitution was restored
+    # r = c.post(
+    #     "/gov/proposals.js",
+    #     always_accept_noop,
+    # )
+    # assert r.status_code == 200, r.body.text()
+    # body = r.body.json()
+    # assert body["state"] == "Accepted", body
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -160,6 +244,9 @@ def run(args):
         test_verify_quotes(network, args)
         test_add_node_with_bad_code(network, args)
         test_update_all_nodes(network, args)
+        test_proposal_invalidation(network, args)
+
+        # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
 
 
