@@ -211,6 +211,44 @@
         }
       }
     },
+    "/digest": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "digest",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "algorithm": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Digest",
+              "content": {
+                "text/plain": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/partition": {
       "post": {
         "js_module": "endpoints/partition.js",
