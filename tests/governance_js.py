@@ -41,6 +41,9 @@ always_accept_if_proposed_by_operator = proposal(
 always_accept_with_two_votes = proposal(action("always_accept_with_two_votes"))
 always_reject_with_two_votes = proposal(action("always_reject_with_two_votes"))
 
+ballot_yes = {"ballot": "export function vote (proposal, proposer_id) { return true }"}
+ballot_no = {"ballot": "export function vote (proposal, proposer_id) { return false }"}
+
 
 @reqs.description("Test proposal validation")
 def test_proposal_validation(network, args):
@@ -439,20 +442,74 @@ def test_apply(network, args):
     return network
 
 
+@reqs.description("Test set_constitution")
+def test_set_constitution(network, args):
+    node = network.find_random_node()
+
+    # Create some open proposals
+    pending_proposals = []
+    with node.client(None, "member0") as c:
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("always_accept_with_one_vote")),
+        )
+        assert r.status_code == 200, r.body.text()
+        body = r.body.json()
+        assert body["state"] == "Open", body
+        pending_proposals.append(body["proposal_id"])
+
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("always_reject_with_one_vote")),
+        )
+        assert r.status_code == 200, r.body.text()
+        body = r.body.json()
+        assert body["state"] == "Open", body
+        pending_proposals.append(body["proposal_id"])
+
+    # Create a set_constitution proposal, and pass it
+    with node.client(None, "member0") as c:
+        r = c.post(
+            "/gov/proposals.js",
+            proposal(action("set_constitution", constitution="Oops this is invalid")),
+        )
+        assert r.status_code == 200, r.body.text()
+        body = r.body.json()
+        proposal_id = body["proposal_id"]
+
+        for member in ("member0", "member1", "member2"):
+            with node.client(None, member) as c:
+                r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot_yes)
+
+        r = c.get(f"/gov/proposals.js/{proposal_id}")
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Accepted", r.body.json()
+
+    # Check other proposals were invalidated
+    with node.client(None, "member0") as c:
+        for proposal_id in pending_proposals:
+            r = c.get(f"/gov/proposals.js/{proposal_id}")
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == "Invalidated", r.body.json()
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        network = test_proposal_validation(network, args)
-        network = test_proposal_storage(network, args)
-        network = test_proposal_withdrawal(network, args)
-        network = test_ballot_storage(network, args)
-        network = test_pure_proposals(network, args)
-        network = test_proposals_with_votes(network, args)
-        network = test_operator_proposals_and_votes(network, args)
-        network = test_apply(network, args)
-        network = test_actions(network, args)
+        # network = test_proposal_validation(network, args)
+        # network = test_proposal_storage(network, args)
+        # network = test_proposal_withdrawal(network, args)
+        # network = test_ballot_storage(network, args)
+        # network = test_pure_proposals(network, args)
+        # network = test_proposals_with_votes(network, args)
+        # network = test_operator_proposals_and_votes(network, args)
+        # network = test_apply(network, args)
+        # network = test_actions(network, args)
+        network = test_set_constitution(network, args)
 
 
 if __name__ == "__main__":
