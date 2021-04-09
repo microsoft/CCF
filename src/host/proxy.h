@@ -79,7 +79,10 @@ namespace asynchost
 
     void close()
     {
-      uv_close((uv_handle_t*)&uv_handle, on_close);
+      if (!uv_is_closing((uv_handle_t*)&uv_handle))
+      {
+        uv_close((uv_handle_t*)&uv_handle, on_close);
+      }
     }
 
     static void on_close(uv_handle_t* handle)
