@@ -25,10 +25,16 @@ export const generateRsaKeyPair = ccf.generateRsaKeyPair;
  */
 export const wrapKey = ccf.wrapKey;
 
+/**
+ * @inheritDoc CCF.digest
+ */
+export const digest = ccf.digest;
+
 export {
   WrapAlgoParams,
   AesKwpParams,
   RsaOaepParams,
   RsaOaepAesKwpParams,
   CryptoKeyPair,
+  DigestAlgorithm,
 } from "./global";
