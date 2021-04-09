@@ -285,6 +285,19 @@ def test_npm_app(network, args):
         )
         assert unwrapped == aes_key_to_wrap
 
+        r = c.post(
+            "/app/digest",
+            {
+                "algorithm": "SHA-256",
+                "data": b64encode(bytes("Hello world!", "ascii")).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert (
+            r.body.text()
+            == "c0535e4be2b79ffd93291305436bf889314e4a3faec05ecffcbb7df31ad9e51a"
+        ), r.body
+
         r = c.get("/app/log?id=42")
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 

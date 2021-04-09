@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import ccf.ledger
 import sys
 from loguru import logger as LOG
 import json
@@ -24,37 +23,38 @@ if len(sys.argv) < 2:
 ledger_dir = sys.argv[1]
 
 # SNIPPET: import_ledger
+import ccf.ledger
 
 # SNIPPET: create_ledger
 ledger = ccf.ledger.Ledger(ledger_dir)
 
-# # SNIPPET: target_table
-# target_table = "public:ccf.gov.nodes.info"
+# SNIPPET: target_table
+target_table = "public:ccf.gov.nodes.info"
 
-# # SNIPPET_START: iterate_over_ledger
-# for chunk in ledger:
-#     for transaction in chunk:
-#         # Retrieve all public tables changed in transaction
-#         public_tables = transaction.get_public_domain().get_tables()
+# SNIPPET_START: iterate_over_ledger
+for chunk in ledger:
+    for transaction in chunk:
+        # Retrieve all public tables changed in transaction
+        public_tables = transaction.get_public_domain().get_tables()
 
-#         # If target_table was changed, count the number of keys changed
-#         if target_table in public_tables:
-#             # Ledger verification is happening implicitly in ccf.ledger.Ledger()
-#             for key, value in public_tables[target_table].items():
-#                 # Note: `key` and `value` are raw bytes here.
-#                 # This code needs to have knowledge of the serialisation format for each table.
-#                 # In this case, the target table 'public:ccf.gov.nodes.info' is raw bytes to JSON.
-#                 LOG.info(f"{key.decode()} : {json.loads(value)}")
-# # SNIPPET_END: iterate_over_ledger
+        if target_table in public_tables:
+            # Ledger verification is happening implicitly in ccf.ledger.Ledger()
+            for key, value in public_tables[target_table].items():
+                # Note: `key` and `value` are raw bytes here.
+                # This code needs to have knowledge of the serialisation format for each table.
+                # In this case, the target table 'public:ccf.gov.nodes.info' is raw bytes to JSON.
+                LOG.info(f"{key.decode()} : {json.loads(value)}")
+# SNIPPET_END: iterate_over_ledger
 
-# seqnos = [1, 2, 3, 385, 1, 2, 3, 385]
-# random.shuffle(seqnos)
+seqnos = [1, 2, 3, 385, 1, 2, 3, 385]
+random.shuffle(seqnos)
 
-# for seqno in seqnos:
-#     # SNIPPET_START: get_seqno
-#     transaction = ledger.get_transaction(seqno)
+for seqno in seqnos:
+    # SNIPPET_START: get_seqno
+    transaction = ledger.get_transaction(seqno)
 
 
 # SNIPPET_END: get_seqno
 
-ledger.get_latest_public_state()
+_, seqno = ledger.get_latest_public_state()
+LOG.error(f"Latest state at {seqno}")

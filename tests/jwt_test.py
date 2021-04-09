@@ -300,36 +300,17 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
     primary, _ = network.find_nodes()
 
     latest_public_state, _ = primary.get_latest_public_tables()
-
     latest_jwt_signing_key = latest_public_state[
         "public:ccf.gov.jwt.public_signing_keys"
     ][kid.encode()]
 
-    LOG.warning(latest_jwt_signing_key)
-
-    stored_cert = infra.crypto.cert_der_to_pem(latest_jwt_signing_key)
-
-    assert infra.crypto.are_certs_equal(
-        cert_pem, stored_cert
-    ), "input cert is not equal to stored cert"
-
-    # with primary.client(network.consortium.get_any_active_member().local_id) as c:
-    #     r = c.post(
-    #         "/gov/read",
-    #         {"table": "public:ccf.gov.jwt.public_signing_keys", "key": kid},
-    #     )
-    #     if cert_pem is None:
-    #         assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
-    #     else:
-    #         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-    #         # Note that /gov/read returns all data as JSON.
-    #         # Here, the stored data is a uint8 array, therefore it
-    #         # is returned as an array of integers.
-    #         cert_kv_der = base64.b64decode(r.body.json())
-    #         cert_kv_pem = infra.crypto.cert_der_to_pem(cert_kv_der)
-    #         assert infra.crypto.are_certs_equal(
-    #             cert_pem, cert_kv_pem
-    #         ), "stored cert not equal to input cert"
+    if cert_pem is None:
+        assert latest_jwt_signing_key is None
+    else:
+        stored_cert = infra.crypto.cert_der_to_pem(latest_jwt_signing_key)
+        assert infra.crypto.are_certs_equal(
+            cert_pem, stored_cert
+        ), "input cert is not equal to stored cert"
 
 
 def get_jwt_refresh_endpoint_metrics(network) -> dict:
@@ -490,29 +471,29 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        # network = test_jwt_without_key_policy(network, args)
-        # network = test_jwt_with_sgx_key_policy(network, args)
-        # network = test_jwt_with_sgx_key_filter(network, args)
+        network = test_jwt_without_key_policy(network, args)
+        network = test_jwt_with_sgx_key_policy(network, args)
+        network = test_jwt_with_sgx_key_filter(network, args)
         network = test_jwt_key_auto_refresh(network, args)
 
         # Check that auto refresh also works on backups
-    #     primary, _ = network.find_primary()
-    #     primary.stop()
-    #     network.wait_for_new_primary(primary.node_id)
-    #     network = test_jwt_key_auto_refresh(network, args)
+        primary, _ = network.find_primary()
+        primary.stop()
+        network.wait_for_new_primary(primary.node_id)
+        network = test_jwt_key_auto_refresh(network, args)
 
-    # args.jwt_key_refresh_interval_s = 100000
-    # with infra.network.network(
-    #     args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    # ) as network:
-    #     network.start_and_join(args)
-    #     network = test_jwt_key_initial_refresh(network, args)
+    args.jwt_key_refresh_interval_s = 100000
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        network = test_jwt_key_initial_refresh(network, args)
 
-    #     # Check that initial refresh also works on backups
-    #     primary, _ = network.find_primary()
-    #     primary.stop()
-    #     network.wait_for_new_primary(primary.node_id)
-    #     network = test_jwt_key_initial_refresh(network, args)
+        # Check that initial refresh also works on backups
+        primary, _ = network.find_primary()
+        primary.stop()
+        network.wait_for_new_primary(primary.node_id)
+        network = test_jwt_key_initial_refresh(network, args)
 
 
 if __name__ == "__main__":
