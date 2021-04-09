@@ -871,9 +871,7 @@ namespace ccf
         js::populate_global_ccf(
           &txctx, std::nullopt, nullptr, nullptr, nullptr, js_context);
         auto resolve_func = js_context.function(
-          constitution,
-          "resolve",
-          "public:ccf.gov.constitution[0]");
+          constitution, "resolve", "public:ccf.gov.constitution[0]");
         JSValue argv[3];
         auto prop = JS_NewStringLen(
           js_context, (const char*)proposal.data(), proposal.size());
@@ -977,16 +975,14 @@ namespace ccf
               &network,
               js_context);
             auto apply_func = js_context.function(
-              constitution,
-              "apply",
-              "public:ccf.gov.constitution[0]");
+              constitution, "apply", "public:ccf.gov.constitution[0]");
 
             JSValue argv[2];
             auto prop = JS_NewStringLen(
               js_context, (const char*)proposal.data(), proposal.size());
             argv[0] = prop;
 
-            auto prop_id =  JS_NewStringLen(
+            auto prop_id = JS_NewStringLen(
               js_context, proposal_id.c_str(), proposal_id.size());
             argv[1] = prop_id;
 
@@ -995,8 +991,8 @@ namespace ccf
 
             // Execution of apply may make arbitrary changes to KV. Refetch
             // current proposal info in case it has been modified
-            // TODO: Can't do this, because we've only modified the .state on our local copy!
-            // pi_ = pi->get(proposal_id);
+            // NB: Can't do this, because we've only modified the .state on our
+            // local copy! pi_ = pi->get(proposal_id);
 
             JS_FreeValue(js_context, apply_func);
             JS_FreeValue(js_context, prop);

@@ -544,8 +544,7 @@ if __name__ == "__main__":
                 param_type = json.loads
             elif param.annotation == List[str]:
                 add_argument_extras["nargs"] = "+"
-                add_argument_extras["default"] = []
-                param_type = str
+                param_type = str  # type: ignore
             else:
                 param_type = param.annotation
             if param.default is None:
