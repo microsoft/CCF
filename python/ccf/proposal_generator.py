@@ -294,6 +294,13 @@ def set_user_data(user_id: str, user_data: Any, **kwargs):
 
 
 @cli_proposal
+def set_constitution(constitution_paths: List[str], **kwargs):
+    concatenated = "\n".join(open(path, "r").read() for path in constitution_paths)
+    proposal_args = {"constitution": concatenated}
+    return build_proposal("set_constitution", proposal_args, **kwargs)
+
+
+@cli_proposal
 def set_js_app(bundle_path: str, **kwargs):
     # read modules
     if os.path.isfile(bundle_path):
@@ -528,15 +535,19 @@ if __name__ == "__main__":
         parameters = inspect.signature(func).parameters
         func_param_names = []
         for param_name, param in parameters.items():
+            add_argument_extras = {}
             if param.kind == param.VAR_POSITIONAL or param.kind == param.VAR_KEYWORD:
                 continue
             if param.annotation == param.empty:
                 param_type = None
             elif param.annotation == dict or param.annotation == Any:
                 param_type = json.loads
+            elif param.annotation == List[str]:
+                add_argument_extras["nargs"] = "+"
+                add_argument_extras["default"] = []
+                param_type = str
             else:
                 param_type = param.annotation
-            add_argument_extras = {}
             if param.default is None:
                 add_argument_extras["nargs"] = "?"
                 add_argument_extras["default"] = param.default  # type: ignore
