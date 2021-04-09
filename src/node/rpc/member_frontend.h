@@ -1010,12 +1010,6 @@ namespace ccf
       return check_member_status(tx, id, {MemberStatus::ACTIVE});
     }
 
-    bool check_member_accepted(kv::ReadOnlyTx& tx, const MemberId& id)
-    {
-      return check_member_status(
-        tx, id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED});
-    }
-
     bool check_member_status(
       kv::ReadOnlyTx& tx,
       const MemberId& id,

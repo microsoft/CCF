@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [1.0]
 
+### Added
+
+- The service certificate is now returned as part of the `/node/network/` endpoint response.
+
 ### Removed
 
 - `/gov/query` and `/gov/read` governance endpoints are removed.

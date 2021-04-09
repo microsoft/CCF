@@ -239,9 +239,9 @@ def run(args):
 
         network = test_node_ids(network, args)
         network = test_member_data(network, args)
-        # network = test_quote(network, args)
+        network = test_quote(network, args)
         network = test_user(network, args)
-        # network = test_no_quote(network, args)
+        network = test_no_quote(network, args)
         network = test_service_principals(network, args)
         network = test_ack_state_digest_update(network, args)
 
