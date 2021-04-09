@@ -5,6 +5,10 @@ parameters:
 
 steps:
   - script: |
+      sudo tc qdisc del dev lo root netem loss 10% 25% duplicate 2% corrupt 2% delay 1ms reorder 1% 10%
+    displayName: Emulate bad network
+
+  - script: |
       set -ex
       ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
     env:
