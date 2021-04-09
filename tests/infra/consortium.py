@@ -14,6 +14,7 @@ import infra.node
 import infra.crypto
 import infra.member
 import ccf.proposal_generator
+import ccf.ledger
 from infra.proposal import ProposalState
 
 from loguru import logger as LOG
@@ -75,46 +76,36 @@ class Consortium:
                         f"Successfully recovered member {local_id}: {new_member.service_id}"
                     )
 
+            # Retrieve state of service directly from ledger
+            latest_public_state, _ = remote_node.get_latest_ledger_public_state()
+            self.recovery_threshold = json.loads(
+                latest_public_state["public:ccf.gov.service.config"][
+                    ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
+                ]
+            )["recovery_threshold"]
+
             if not self.members:
                 LOG.warning("No consortium member to recover")
                 return
 
-            with remote_node.client(self.members[0].local_id) as c:
-                r = c.post(
-                    "/gov/query",
-                    {
-                        "text": """tables = ...
-                        members = {}
-                        tables["public:ccf.gov.members.info"]:foreach(function(service_id, info)
-                        table.insert(members, {service_id, info})
-                        end)
-                        return members
-                        """
-                    },
-                )
-                for member_service_id, info in r.body.json():
-                    status = info["status"]
-                    member = self.get_member_by_service_id(member_service_id)
-                    if member:
-                        if (
-                            infra.member.MemberStatus(status)
-                            == infra.member.MemberStatus.ACTIVE
-                        ):
-                            member.set_active()
-                    else:
-                        LOG.warning(
-                            f"Keys and certificates for consortium member {member_service_id} do not exist locally"
-                        )
+            for id_bytes, info_bytes in latest_public_state[
+                "public:ccf.gov.members.info"
+            ].items():
+                member_id = id_bytes.decode()
+                member_info = json.loads(info_bytes)
 
-                r = c.post(
-                    "/gov/query",
-                    {
-                        "text": """tables = ...
-                        return tables["public:ccf.gov.service.config"]:get(0)
-                        """
-                    },
-                )
-                self.recovery_threshold = r.body.json()["recovery_threshold"]
+                status = member_info["status"]
+                member = self.get_member_by_service_id(member_id)
+                if member:
+                    if (
+                        infra.member.MemberStatus(status)
+                        == infra.member.MemberStatus.ACTIVE
+                    ):
+                        member.set_active()
+                else:
+                    LOG.warning(
+                        f"Keys and certificates for consortium member {member_id} do not exist locally"
+                    )
 
     def set_authenticate_session(self, flag):
         self.authenticate_session = flag
@@ -278,31 +269,6 @@ class Consortium:
 
         return proposal
 
-    def get_proposals(self, remote_node):
-        script = """
-        tables = ...
-        local proposals = {}
-        tables["public:ccf.gov.proposals"]:foreach( function(k, v)
-            proposals[tostring(k)] = v;
-        end )
-        return proposals;
-        """
-
-        proposals = []
-        member = self.get_any_active_member()
-        with remote_node.client(*member.auth()) as c:
-            r = c.post("/gov/query", {"text": script})
-            assert r.status_code == http.HTTPStatus.OK.value
-            for proposal_id, attr in r.body.json().items():
-                proposals.append(
-                    infra.proposal.Proposal(
-                        proposal_id=proposal_id,
-                        proposer_id=attr["proposer"],
-                        state=infra.proposal.ProposalState(attr["state"]),
-                    )
-                )
-        return proposals
-
     def retire_node(self, remote_node, node_to_retire):
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         if os.getenv("JS_GOVERNANCE"):
@@ -414,9 +380,7 @@ class Consortium:
 
     def remove_js_app(self, remote_node):
         proposal_body, careful_vote = ccf.proposal_generator.remove_js_app()
-        proposal = self.get_any_active_member().propose(
-            remote_node, proposal_body
-        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_jwt_issuer(self, remote_node, json_path):

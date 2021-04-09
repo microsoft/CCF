@@ -161,21 +161,6 @@
         ],
         "type": "object"
       },
-      "KVRead__In": {
-        "properties": {
-          "key": {
-            "$ref": "#/components/schemas/json"
-          },
-          "table": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "table",
-          "key"
-        ],
-        "type": "object"
-      },
       "Proposal": {
         "properties": {
           "actions": {
@@ -919,37 +904,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Script"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ]
-      }
-    },
-    "/read": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/KVRead__In"
               }
             }
           },

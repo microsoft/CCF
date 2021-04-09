@@ -317,15 +317,12 @@ class Node:
                 f"Node {self.local_node_id} failed to join the network"
             ) from e
 
-    def get_public_ledger_tables_at(self, seqno):
+    def get_ledger_public_state_at(self, seqno):
         ledger = ccf.ledger.Ledger(self.remote.ledger_path())
         tx = ledger.get_transaction(seqno)
-
-        # LOG.error(tx.get_public_domain().get_tables())
-
         return tx.get_public_domain().get_tables()
 
-    def get_latest_public_tables(self):
+    def get_latest_ledger_public_state(self):
         ledger = ccf.ledger.Ledger(self.remote.ledger_path())
         return ledger.get_latest_public_state()
 

@@ -71,7 +71,7 @@ def test_app_bundle(network, args):
 
         assert (
             raw_module_name
-            in primary.get_public_ledger_tables_at(set_js_proposal.completed_seqno)[
+            in primary.get_ledger_public_state_at(set_js_proposal.completed_seqno)[
                 "public:ccf.gov.modules"
             ]
         ), "Module was not added"
@@ -102,7 +102,7 @@ def test_app_bundle(network, args):
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     assert (
-        primary.get_public_ledger_tables_at(remove_js_proposal.completed_seqno)[
+        primary.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
             "public:ccf.gov.modules"
         ][raw_module_name]
         is None

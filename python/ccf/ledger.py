@@ -31,6 +31,9 @@ LEDGER_HEADER_SIZE = 8
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 
+# Key used by CCF to record single-key tables
+WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
+
 
 def to_uint_32(buffer):
     return struct.unpack("@I", buffer)[0]
@@ -539,7 +542,6 @@ class Ledger:
         except:
             pass
         finally:
-            LOG.warning("Resetting ledger")
             self._fileindex = -1
             self._ledger_validator = LedgerValidator()
 
