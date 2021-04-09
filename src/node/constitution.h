@@ -4,5 +4,5 @@
 
 namespace ccf
 {
-  using Constitution = kv::JsonSerialisedMap<size_t, std::string>;
+  using Constitution = ServiceMap<size_t, std::string>;
 }
