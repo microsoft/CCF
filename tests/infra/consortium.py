@@ -416,6 +416,11 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def set_constitution(self, remote_node, constitution_paths):
+        proposal_body, careful_vote = self.make_proposal("set_constitution", constitution_paths)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
     def set_js_app(self, remote_node, app_bundle_path):
         proposal_body, careful_vote = self.make_proposal("set_js_app", app_bundle_path)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
