@@ -6,8 +6,8 @@ import * as path from "path";
 import glob from "glob";
 import bent from "bent";
 import { parse } from "papaparse";
-import { NODE_ADDR } from "../util";
-import { SubmitOpinionsRequest } from "../../src/controllers/poll";
+import { NODE_ADDR } from "../test/e2e/util";
+import { SubmitOpinionsRequest } from "../src/controllers/poll";
 
 const ENDPOINT_URL = `${NODE_ADDR}/app/polls`;
 

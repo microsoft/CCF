@@ -11,11 +11,5 @@
     "preserveConstEnums": true,
     "sourceMap": false
   },
-  "ts-node": {
-    "compilerOptions": {
-      "lib": ["ES2015"],
-      "target": "ES2015"
-    }
-  },
-  "include": ["src/**/*", "test/**/*", "build/**/*"]
+  "include": ["src/**/*", "build/**/*", "test/**/*", "demo/**/*"]
 }

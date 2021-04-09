@@ -1,12 +1,54 @@
 {
   "endpoints": {
+    "/csv": {
+      "get": {
+        "js_module": "CsvControllerProxy.js",
+        "js_function": "getOpinionsAsCsv",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": [
+          "jwt"
+        ],
+        "mode": "readonly",
+        "openapi_merge_patch": {
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": null,
+                "text/csv": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "js_module": "CsvControllerProxy.js",
+        "js_function": "submitOpinionsFromCSV",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": [
+          "jwt"
+        ],
+        "mode": "readwrite",
+        "openapi_merge_patch": {
+          "requestBody": {
+            "content": {
+              "application/json": null,
+              "text/csv": {}
+            }
+          }
+        }
+      }
+    },
     "/polls/{topic}": {
       "post": {
         "js_module": "PollControllerProxy.js",
         "js_function": "createPoll",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": ["jwt"],
+        "authn_policies": [
+          "jwt"
+        ],
         "mode": "readwrite"
       },
       "put": {
@@ -14,7 +56,9 @@
         "js_function": "submitOpinion",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": ["jwt"],
+        "authn_policies": [
+          "jwt"
+        ],
         "mode": "readwrite"
       },
       "get": {
@@ -22,7 +66,9 @@
         "js_function": "getPoll",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": ["jwt"],
+        "authn_policies": [
+          "jwt"
+        ],
         "mode": "readonly"
       }
     },
@@ -32,7 +78,9 @@
         "js_function": "createPolls",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": ["jwt"],
+        "authn_policies": [
+          "jwt"
+        ],
         "mode": "readwrite"
       },
       "put": {
@@ -40,7 +88,9 @@
         "js_function": "submitOpinions",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": ["jwt"],
+        "authn_policies": [
+          "jwt"
+        ],
         "mode": "readwrite"
       },
       "get": {
@@ -48,7 +98,9 @@
         "js_function": "getPolls",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": ["jwt"],
+        "authn_policies": [
+          "jwt"
+        ],
         "mode": "readonly"
       }
     },
@@ -90,42 +142,6 @@
         "execute_outside_consensus": "never",
         "authn_policies": [],
         "mode": "readonly"
-      }
-    },
-    "/csv": {
-      "get": {
-        "js_module": "CSVControllerProxy.js",
-        "js_function": "getOpinionsAsCSV",
-        "forwarding_required": "always",
-        "execute_outside_consensus": "never",
-        "authn_policies": ["jwt"],
-        "mode": "readonly",
-        "openapi_merge_patch": {
-          "responses": {
-            "200": {
-              "content": {
-                "application/json": null,
-                "text/csv": {}
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "js_module": "CSVControllerProxy.js",
-        "js_function": "submitOpinionsFromCSV",
-        "forwarding_required": "always",
-        "execute_outside_consensus": "never",
-        "authn_policies": ["jwt"],
-        "mode": "readwrite",
-        "openapi_merge_patch": {
-          "requestBody": {
-            "content": {
-              "application/json": null,
-              "text/csv": {}
-            }
-          }
-        }
       }
     }
   }

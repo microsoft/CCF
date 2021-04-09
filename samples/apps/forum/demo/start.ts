@@ -4,11 +4,10 @@
 import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as crypto from "crypto";
-import selfsigned from "selfsigned";
 import tmp from "tmp";
 import bent from "bent";
 import forge from "node-forge";
-import * as util from "./util";
+import * as util from "../test/e2e/util";
 
 const demoJwtKeyPath = "test/jwt_demo_key.pem";
 const demoJwtCertPath = "test/jwt_demo_cert.pem";
@@ -71,13 +70,20 @@ function generateKeyPair(keyPath: string, certPath: string) {
       format: "pem",
     },
   });
-  const certPem = selfsigned.generate(null, {
-    algorithm: "sha256",
-    keyPair: {
-      privateKey: keys.privateKey,
-      publicKey: keys.publicKey,
+  const cert = forge.pki.createCertificate();
+  const attrs = [
+    {
+      name: "commonName",
+      value: "Test",
     },
-  }).cert;
+  ];
+  cert.setIssuer(attrs);
+  cert.publicKey = forge.pki.publicKeyFromPem(keys.publicKey);
+  cert.sign(
+    forge.pki.privateKeyFromPem(keys.privateKey),
+    forge.md.sha256.create()
+  );
+  const certPem = forge.pki.certificateToPem(cert);
   fs.writeFileSync(keyPath, keys.privateKey);
   fs.writeFileSync(certPath, certPem);
 }
