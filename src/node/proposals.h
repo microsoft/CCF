@@ -200,7 +200,11 @@ struct formatter<ccf::ProposalState>
       }
       case (ccf::ProposalState::REJECTED):
       {
-        return format_to(ctx.out(), "reject");
+        return format_to(ctx.out(), "rejected");
+      }
+      case (ccf::ProposalState::INVALIDATED):
+      {
+        return format_to(ctx.out(), "invalidated");
       }
       default:
       {
