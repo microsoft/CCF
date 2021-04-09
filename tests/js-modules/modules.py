@@ -102,10 +102,10 @@ def test_app_bundle(network, args):
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     assert (
-        primary.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
+        raw_module_name
+        not in primary.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
             "public:ccf.gov.modules"
-        ][raw_module_name]
-        is None
+        ]
     ), "Module was not removed"
 
     return network
