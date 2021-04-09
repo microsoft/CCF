@@ -5,7 +5,7 @@ import io
 import struct
 import os
 
-from typing import BinaryIO, NamedTuple, Optional
+from typing import BinaryIO, NamedTuple, Optional, Tuple
 
 import json
 import base64
@@ -514,7 +514,6 @@ class Ledger:
 
         :param int seqno: Sequence number of the transaction to fetch
         """
-
         if seqno < 1:
             raise ValueError("Ledger first seqno is 1")
 
@@ -540,9 +539,27 @@ class Ledger:
             )
         return transaction
 
-    def get_latest_state(self) -> dict:
+    # TODO: Call from JWT!
+    def get_latest_public_state(self) -> Tuple[dict, int]:
+        """
+        Returns the current public state of the service
+        """
+        public_tables = {}
+        latest_seqno = {}
+        for chunk in self:
+            for tx in chunk:
+                latest_seqno = tx.get_public_domain().get_seqno()
+                for k, v in tx.get_public_domain().get_tables().items():
+                    if k in public_tables:
+                        public_tables[k] = {**public_tables[k], **v}
+                    else:
+                        public_tables[k] = v
 
-        return {}
+        # TODO: Delete
+        for k, v in public_tables.items():
+            LOG.warning(f"{k}: {len(v)} entries")
+
+        return public_tables, latest_seqno
 
 
 class InvalidRootException(Exception):

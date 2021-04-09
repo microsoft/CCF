@@ -47,12 +47,14 @@ ledger = ccf.ledger.Ledger(ledger_dir)
 #                 LOG.info(f"{key.decode()} : {json.loads(value)}")
 # # SNIPPET_END: iterate_over_ledger
 
-seqnos = [1, 2, 3, 385, 1, 2, 3, 385]
-random.shuffle(seqnos)
+# seqnos = [1, 2, 3, 385, 1, 2, 3, 385]
+# random.shuffle(seqnos)
 
-for seqno in seqnos:
-    # SNIPPET_START: get_seqno
-    transaction = ledger.get_transaction(seqno)
+# for seqno in seqnos:
+#     # SNIPPET_START: get_seqno
+#     transaction = ledger.get_transaction(seqno)
 
 
 # SNIPPET_END: get_seqno
+
+ledger.get_latest_public_state()

@@ -325,6 +325,10 @@ class Node:
 
         return tx.get_public_domain().get_tables()
 
+    def get_latest_public_tables(self):
+        ledger = ccf.ledger.Ledger(self.remote.ledger_path())
+        return ledger.get_latest_public_state()
+
     def get_ledger(self, include_read_only_dirs=False):
         """
         Triage committed and un-committed (i.e. current) ledger files
