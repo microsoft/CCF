@@ -92,6 +92,16 @@ describe("polyfill", function () {
       assert.deepEqual(unwrapped, key);
     });
   });
+  describe("digest", function () {
+    it("generates a valid SHA-256 hash", function () {
+      const data = "Hello world!";
+      const expected =
+        "c0535e4be2b79ffd93291305436bf889314e4a3faec05ecffcbb7df31ad9e51a";
+      const digest = ccf.digest("SHA-256", ccf.strToBuf(data));
+      const actual = Buffer.from(digest).toString("hex");
+      assert.equal(actual, expected);
+    });
+  });
   describe("kv", function () {
     it("basic", function () {
       const foo = ccf.kv["foo"];
