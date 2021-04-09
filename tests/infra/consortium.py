@@ -272,8 +272,11 @@ class Consortium:
                 ccf.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
         if proposal.state != ProposalState.ACCEPTED:
-            proposal = self.get_proposal(remote_node, proposal.proposal_id)
-            LOG.error(json.dumps(proposal, indent=2))
+            LOG.error(
+                json.dumps(
+                    self.get_proposal(remote_node, proposal.proposal_id), indent=2
+                )
+            )
             raise infra.proposal.ProposalNotAccepted(proposal)
         return proposal
 
