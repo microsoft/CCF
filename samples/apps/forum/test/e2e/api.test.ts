@@ -4,25 +4,24 @@
 import * as fs from "fs";
 import * as tmp from "tmp";
 import * as crypto from "crypto";
-import * as forge from "node-forge";
+import forge from "node-forge";
 import { assert } from "chai";
 import bent from "bent";
 import jwt from "jsonwebtoken";
-import { parse, unparse } from "papaparse";
-import { NODE_ADDR, setupMochaCCFSandbox } from "./util";
+import papa from "papaparse";
+import { NODE_ADDR, setupMochaCCFSandbox } from "./util.js";
 import {
   CreatePollRequest,
   SubmitOpinionRequest,
   CreatePollsRequest,
   SubmitOpinionsRequest,
   GetPollResponse,
-} from "../../src/controllers/poll";
+} from "../../src/controllers/poll.js";
 import {
   NumericPollSummary,
-  StringPollSummary
-} from "../../src/models/poll";
-
-const MINIMUM_OPINION_THRESHOLD = 10;
+  StringPollSummary,
+  MINIMUM_OPINION_THRESHOLD
+} from "../../src/models/poll.js";
 
 tmp.setGracefulCleanup();
 
@@ -459,7 +458,7 @@ describe("REST API", function () {
           { Topic: "csv-a", Opinion: 1.4 },
           { Topic: "csv-b", Opinion: "foo" },
         ];
-        const csv = unparse(rows);
+        const csv = papa.unparse(rows);
         await bent("POST", 204)(
           `${CSV_ENDPOINT_URL}`,
           csv,
@@ -471,7 +470,7 @@ describe("REST API", function () {
           null,
           fakeAuth.user(userId)
         );
-        const kvRows = parse(csvOut, { header: true, dynamicTyping: true })
+        const kvRows = papa.parse(csvOut, { header: true, dynamicTyping: true })
           .data;
         assert.deepEqual(kvRows, rows);
       });

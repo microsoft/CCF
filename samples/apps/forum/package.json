@@ -3,9 +3,9 @@
   "scripts": {
     "build": "del-cli -f dist/ build/ && tsoa spec-and-routes && node tsoa-support/postprocess.js && rollup --config && del-cli dist/src/build/endpoints.js",
     "start": "npm run build && npm run ts demo/start.ts",
-    "test": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/**/*.test.ts",
-    "test:unit": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/unit/*.test.ts",
-    "test:e2e": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/e2e/*.test.ts",
+    "test": "mocha --loader=ts-node/esm test/**/*.test.ts",
+    "test:unit": "mocha --loader=ts-node/esm --file=test/unit/setup.ts test/unit/*.test.ts",
+    "test:e2e": "mocha --loader=ts-node/esm test/e2e/*.test.ts",
     "ts": "node --no-warnings --experimental-specifier-resolution=node --loader=ts-node/esm"
   },
   "type": "module",
@@ -34,7 +34,6 @@
     "@types/tmp": "^0.2.0",
     "bent": "^7.3.12",
     "chai": "^4.2.0",
-    "cross-env": "^7.0.3",
     "del-cli": "^3.0.1",
     "glob": "^7.1.6",
     "http-server": "^0.12.3",

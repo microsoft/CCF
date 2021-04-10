@@ -1,18 +1,10 @@
 import '@microsoft/ccf-app/polyfill.js';
-import * as kv from '@microsoft/ccf-app/kv.js';
 import papa from "papaparse";
 import { assert } from "chai";
 
 import { CsvService } from "../../src/services/csv.js";
 import { PollService } from '../../src/services/poll.js';
 import { getPollMap } from '../../src/models/poll.js';
-
-beforeEach(function () {
-  // clear KV before each test
-  for (const prop of Object.getOwnPropertyNames(kv.rawKv)) {
-    delete kv.rawKv[prop];
-  }
-});
 
 describe("CsvService", function () {
   const pollService = new PollService();

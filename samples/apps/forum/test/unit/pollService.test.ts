@@ -1,16 +1,8 @@
 import '@microsoft/ccf-app/polyfill.js';
-import * as kv from '@microsoft/ccf-app/kv.js';
 import { assert } from "chai";
 
 import { getPollMap, PollType, Opinion, NumericPollSummary, StringPollSummary, MINIMUM_OPINION_THRESHOLD } from "../../src/models/poll.js";
 import { PollService } from "../../src/services/poll.js";
-
-beforeEach(function () {
-  // clear KV before each test
-  for (const prop of Object.getOwnPropertyNames(kv.rawKv)) {
-    delete kv.rawKv[prop];
-  }
-});
 
 describe("PollService", function () {
   const pollService = new PollService();
@@ -184,7 +176,7 @@ describe("PollService", function () {
       const topic = "a";
       const type = "string";
       pollService.createPoll(user, topic, type);
-      for (let i = 0; i < MINIMUM_OPINION_THRESHOLD; i++) {
+      for (let i = 0; i < MINIMUM_OPINION_THRESHOLD - 1; i++) {
         pollService.submitOpinion(`user${i}`, topic, "foo");
       }
 
