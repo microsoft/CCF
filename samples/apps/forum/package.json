@@ -2,11 +2,11 @@
   "private": true,
   "scripts": {
     "build": "del-cli -f dist/ build/ && tsoa spec-and-routes && node tsoa-support/postprocess.js && rollup --config && del-cli dist/src/build/endpoints.js",
-    "start": "npm run build && npm run ts test/start.ts",
-    "test": "npm run build && mocha -r esm -r ts-node/register test/**/*.test.ts",
-    "test:unit": "tsc -p ./tsconfig.test.json && mocha build/test/test/unit/*.test.js",
-    "test:e2e": "npm run build && mocha -r esm -r ts-node/register test/e2e/*.test.ts",
-    "ts": "node --no-warnings --experimental-specifier-resolution=node --loader ts-node/esm"
+    "start": "npm run build && npm run ts demo/start.ts",
+    "test": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/**/*.test.ts",
+    "test:unit": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/unit/*.test.ts",
+    "test:e2e": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/e2e/*.test.ts",
+    "ts": "node --no-warnings --experimental-specifier-resolution=node --loader=ts-node/esm"
   },
   "type": "module",
   "dependencies": {
@@ -18,9 +18,6 @@
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.0.2",
-    "@babel/core": "^7.13.15",
-    "@babel/preset-typescript": "^7.13.0",
-    "@babel/register": "^7.13.14",
     "@rollup/plugin-commonjs": "^14.0.0",
     "@rollup/plugin-node-resolve": "^8.4.0",
     "@rollup/plugin-typescript": "^5.0.2",
@@ -37,8 +34,8 @@
     "@types/tmp": "^0.2.0",
     "bent": "^7.3.12",
     "chai": "^4.2.0",
+    "cross-env": "^7.0.3",
     "del-cli": "^3.0.1",
-    "esm": "^3.2.25",
     "glob": "^7.1.6",
     "http-server": "^0.12.3",
     "json-merge-patch": "^1.0.1",

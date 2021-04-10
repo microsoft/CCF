@@ -1,11 +1,10 @@
 import * as _ from "lodash-es";
-import * as math from "mathjs";
 
 // Need to use minified browser bundle to avoid pulling in Node.JS dependencies
-import { parse, unparse } from "papaparse/papaparse.min";
+import papa from "papaparse/papaparse.min.js";
 
-import { BadRequestError, ForbiddenError, NotFoundError } from "../error_handler";
-import { getPollMap, MINIMUM_OPINION_THRESHOLD, Opinion, PollMap, PollSummary, PollType } from "../models/poll";
+import { BadRequestError } from "../error_handler.js";
+import { getPollMap, PollMap } from "../models/poll.js";
 
 
 export class CsvService {
@@ -23,12 +22,12 @@ export class CsvService {
       }
     });
 
-    const csv = unparse(rows);
+    const csv = papa.unparse(rows);
     return csv;
   }
 
   public submitOpinions(userId: string, csv: string) {
-    const rows = parse<any>(csv, { header: true }).data;
+    const rows = papa.parse<any>(csv, { header: true }).data;
 
     for (const row of rows) {
       const topic = row.Topic;

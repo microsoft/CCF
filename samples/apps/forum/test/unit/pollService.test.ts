@@ -1,9 +1,9 @@
-import '@microsoft/ccf-app/polyfill';
-import * as kv from '@microsoft/ccf-app/kv';
+import '@microsoft/ccf-app/polyfill.js';
+import * as kv from '@microsoft/ccf-app/kv.js';
 import { assert } from "chai";
 
-import { getPollMap, PollType, Opinion, NumericPollSummary, StringPollSummary, MINIMUM_OPINION_THRESHOLD } from "../../src/models/poll";
-import { PollService } from "../../src/services/poll";
+import { getPollMap, PollType, Opinion, NumericPollSummary, StringPollSummary, MINIMUM_OPINION_THRESHOLD } from "../../src/models/poll.js";
+import { PollService } from "../../src/services/poll.js";
 
 beforeEach(function () {
   // clear KV before each test

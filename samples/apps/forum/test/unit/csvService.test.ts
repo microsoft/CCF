@@ -1,11 +1,11 @@
-import '@microsoft/ccf-app/polyfill';
-import * as kv from '@microsoft/ccf-app/kv';
-import { parse, unparse } from "papaparse";
+import '@microsoft/ccf-app/polyfill.js';
+import * as kv from '@microsoft/ccf-app/kv.js';
+import papa from "papaparse";
 import { assert } from "chai";
 
-import { CsvService } from "../../src/services/csv";
-import { PollService } from '../../src/services/poll';
-import { getPollMap } from '../../src/models/poll';
+import { CsvService } from "../../src/services/csv.js";
+import { PollService } from '../../src/services/poll.js';
+import { getPollMap } from '../../src/models/poll.js';
 
 beforeEach(function () {
   // clear KV before each test
@@ -29,7 +29,7 @@ describe("CsvService", function () {
         { Topic: topicA, Opinion: 1.4 },
         { Topic: topicB, Opinion: "foo" },
       ];
-      const csv = unparse(rows);
+      const csv = papa.unparse(rows);
       pollService.createPoll(user, topicA, typeA);
       pollService.createPoll(user, topicB, typeB);
       csvService.submitOpinions(user, csv);
@@ -54,7 +54,7 @@ describe("CsvService", function () {
       pollService.submitOpinion(user, topicB, opinionB);
 
       const csvOut = csvService.getOpinions(user);
-      const rowsOut = parse(csvOut, { header: true, dynamicTyping: true })
+      const rowsOut = papa.parse(csvOut, { header: true, dynamicTyping: true })
           .data;
       assert.deepEqual(rowsOut, [
         { Topic: topicA, Opinion: opinionA },
