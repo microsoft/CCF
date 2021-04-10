@@ -7,7 +7,7 @@
  * It must be imported before all other imports like so:
  *
  * ```
- * import '@microsoft/ccf-app/polyfills';
+ * import '@microsoft/ccf-app/polyfill.js';
  * ```
  *
  * Note that some functionality is not polyfilled,
