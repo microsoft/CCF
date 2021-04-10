@@ -29,7 +29,7 @@ import {
   CryptoKeyPair,
   WrapAlgoParams,
   DigestAlgorithm,
-} from "./global";
+} from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
 // whereas CCF compares the content of the ArrayBuffer.

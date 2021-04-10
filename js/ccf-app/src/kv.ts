@@ -26,8 +26,8 @@
  * @module
  */
 
-import { KvMap, ccf } from "./global";
-import { DataConverter } from "./converters";
+import { KvMap, ccf } from "./global.js";
+import { DataConverter } from "./converters.js";
 
 export class TypedKvMap<K, V> {
   constructor(
