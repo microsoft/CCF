@@ -1,12 +1,12 @@
 import { assert } from "chai";
-import "../src/polyfill";
+import "../src/polyfill.js";
 import {
   AesKwpParams,
   ccf,
   RsaOaepAesKwpParams,
   RsaOaepParams,
-} from "../src/global";
-import { unwrapKey } from "./crypto";
+} from "../src/global.js";
+import { unwrapKey } from "./crypto.js";
 
 beforeEach(function () {
   // clear KV before each test
