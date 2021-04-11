@@ -20,8 +20,8 @@ import {
 import {
   NumericPollSummary,
   StringPollSummary,
-  MINIMUM_OPINION_THRESHOLD
 } from "../../src/models/poll.js";
+import { MINIMUM_OPINION_THRESHOLD } from "../../src/constants.js";
 
 tmp.setGracefulCleanup();
 

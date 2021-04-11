@@ -1,8 +1,19 @@
 import * as _ from "lodash-es";
 import * as math from "mathjs";
 
-import { BadRequestError, ForbiddenError, NotFoundError } from "../error_handler.js";
-import { getPollMap, MINIMUM_OPINION_THRESHOLD, Opinion, PollMap, PollSummary, PollType } from "../models/poll.js";
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+} from "../error_handler.js";
+import {
+  getPollMap,
+  Opinion,
+  PollMap,
+  PollSummary,
+  PollType,
+} from "../models/poll.js";
+import { MINIMUM_OPINION_THRESHOLD } from "../constants.js";
 
 export class PollService {
   private kvPolls: PollMap;

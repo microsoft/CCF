@@ -1,7 +1,5 @@
 import * as ccfapp from "@microsoft/ccf-app";
 
-export const MINIMUM_OPINION_THRESHOLD = 10;
-
 type User = string;
 
 interface PollBase<T extends Opinion> {

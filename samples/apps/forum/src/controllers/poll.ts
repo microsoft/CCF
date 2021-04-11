@@ -56,7 +56,7 @@ export {
   CreatePollsRequest,
   SubmitOpinionsRequest,
   GetPollResponse,
-  GetPollsResponse
+  GetPollsResponse,
 };
 
 // GET  /polls/{topic} return poll
@@ -101,8 +101,9 @@ export class PollController extends Controller {
     @Request() request: ccfapp.Request
   ): void {
     const user = <User>request.caller;
-    const polls = new Map(Object.entries(body.polls).map(
-      ([type, poll]) => [type, poll.type]));
+    const polls = new Map(
+      Object.entries(body.polls).map(([type, poll]) => [type, poll.type])
+    );
     this.pollService.createPolls(user.userId, polls);
     this.setStatus(201);
   }
@@ -126,8 +127,12 @@ export class PollController extends Controller {
     @Request() request: ccfapp.Request
   ): void {
     const user = <User>request.caller;
-    const opinions = new Map(Object.entries(body.opinions).map(
-      ([topic, opinion]) => [topic, opinion.opinion]));
+    const opinions = new Map(
+      Object.entries(body.opinions).map(([topic, opinion]) => [
+        topic,
+        opinion.opinion,
+      ])
+    );
     this.pollService.submitOpinions(user.userId, opinions);
     this.setStatus(204);
   }

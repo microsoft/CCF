@@ -3,10 +3,10 @@
   "scripts": {
     "build": "del-cli -f dist/ build/ && tsoa spec-and-routes && node tsoa-support/postprocess.js && rollup --config && del-cli dist/src/build/endpoints.js",
     "start": "npm run build && npm run ts demo/start.ts",
-    "test": "mocha --loader=ts-node/esm test/**/*.test.ts",
+    "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "mocha --loader=ts-node/esm --file=test/unit/setup.ts test/unit/*.test.ts",
     "test:e2e": "mocha --loader=ts-node/esm test/e2e/*.test.ts",
-    "ts": "node --no-warnings --experimental-specifier-resolution=node --loader=ts-node/esm"
+    "ts": "node --no-warnings --loader=ts-node/esm"
   },
   "type": "module",
   "dependencies": {

@@ -6,7 +6,6 @@ import papa from "papaparse/papaparse.min.js";
 import { BadRequestError } from "../error_handler.js";
 import { getPollMap, PollMap } from "../models/poll.js";
 
-
 export class CsvService {
   private kvPolls: PollMap;
   constructor() {

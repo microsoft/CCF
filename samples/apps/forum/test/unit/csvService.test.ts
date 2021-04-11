@@ -1,10 +1,10 @@
-import '@microsoft/ccf-app/polyfill.js';
+import "@microsoft/ccf-app/polyfill.js";
 import papa from "papaparse";
 import { assert } from "chai";
 
 import { CsvService } from "../../src/services/csv.js";
-import { PollService } from '../../src/services/poll.js';
-import { getPollMap } from '../../src/models/poll.js';
+import { PollService } from "../../src/services/poll.js";
+import { getPollMap } from "../../src/models/poll.js";
 
 describe("CsvService", function () {
   const pollService = new PollService();
@@ -47,12 +47,11 @@ describe("CsvService", function () {
 
       const csvOut = csvService.getOpinions(user);
       const rowsOut = papa.parse(csvOut, { header: true, dynamicTyping: true })
-          .data;
+        .data;
       assert.deepEqual(rowsOut, [
         { Topic: topicA, Opinion: opinionA },
         { Topic: topicB, Opinion: opinionB },
       ]);
-    })
-  })
-  
-})
+    });
+  });
+});

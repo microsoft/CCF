@@ -6,9 +6,7 @@
         "js_function": "getOpinionsAsCsv",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": [
-          "jwt"
-        ],
+        "authn_policies": ["jwt"],
         "mode": "readonly",
         "openapi_merge_patch": {
           "responses": {
@@ -26,9 +24,7 @@
         "js_function": "submitOpinionsFromCSV",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": [
-          "jwt"
-        ],
+        "authn_policies": ["jwt"],
         "mode": "readwrite",
         "openapi_merge_patch": {
           "requestBody": {
@@ -46,9 +42,7 @@
         "js_function": "createPoll",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": [
-          "jwt"
-        ],
+        "authn_policies": ["jwt"],
         "mode": "readwrite"
       },
       "put": {
@@ -56,9 +50,7 @@
         "js_function": "submitOpinion",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": [
-          "jwt"
-        ],
+        "authn_policies": ["jwt"],
         "mode": "readwrite"
       },
       "get": {
@@ -66,9 +58,7 @@
         "js_function": "getPoll",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": [
-          "jwt"
-        ],
+        "authn_policies": ["jwt"],
         "mode": "readonly"
       }
     },
@@ -78,9 +68,7 @@
         "js_function": "createPolls",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": [
-          "jwt"
-        ],
+        "authn_policies": ["jwt"],
         "mode": "readwrite"
       },
       "put": {
@@ -88,9 +76,7 @@
         "js_function": "submitOpinions",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": [
-          "jwt"
-        ],
+        "authn_policies": ["jwt"],
         "mode": "readwrite"
       },
       "get": {
@@ -98,9 +84,7 @@
         "js_function": "getPolls",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
-        "authn_policies": [
-          "jwt"
-        ],
+        "authn_policies": ["jwt"],
         "mode": "readonly"
       }
     },
