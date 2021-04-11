@@ -65,6 +65,7 @@ npm run docs:serve
 `tsconfig.json` is configured such that the transpiled JavaScript files are output in the root folder. This allows to consume modules without subfolder like `import .. from '@microsoft/ccf-app/crypto.js`. A side-effect of this is that the root folder becomes messy during development.
 
 A look into the future:
+
 - Node.js gained support for [export maps](https://nodejs.org/dist/latest-v15.x/docs/api/packages.html#packages_exports) which give library authors control over how other packages can import modules, essentially allowing to redirect imports to different folders and/or names, including omitting file extensions.
 - TypeScript still [lacks support](https://github.com/microsoft/TypeScript/issues/33079) for export maps. Once TypeScript gains support, this package should make use of it and generate files in `lib/` instead of the root, while also simplifying imports by removing `.js`.
 - Another benefit of export maps is that test code can [self-reference the package](https://nodejs.org/dist/latest-v15.x/docs/api/packages.html#packages_self_referencing_a_package_using_its_name). This avoids long relative paths and serves as additional copy-pastable sample code.

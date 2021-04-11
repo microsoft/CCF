@@ -4,7 +4,7 @@
 /**
  * The `crypto` module provides access to common cryptographic
  * algorithms.
- * 
+ *
  * Example:
  * ```
  * import * as ccfcrypto from '@microsoft/ccf-app/crypto.js';
