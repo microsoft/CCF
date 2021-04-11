@@ -19,9 +19,9 @@ import {
   ValidateErrorResponse,
   ValidateError,
   UnauthorizedError,
-} from "../error_handler";
-import { User } from "../authentication";
-import { CsvService } from "../services/csv";
+} from "../error_handler.js";
+import { User } from "../authentication.js";
+import { CsvService } from "../services/csv.js";
 
 // GET  /csv return all opinions of authenticated user as CSV
 // POST /csv submits opinions for authenticated user from CSV

@@ -3,7 +3,7 @@
 
 import { Hidden, Controller, Get, Route } from "@tsoa/runtime";
 
-import { MS_APP_ID, MS_APP_ID_URI } from "../authentication";
+import { MS_APP_ID, MS_APP_ID_URI } from "../authentication.js";
 
 const HEADER_HTML = `
 <!doctype html>

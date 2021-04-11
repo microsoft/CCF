@@ -9,8 +9,8 @@ import bent from "bent";
 import forge from "node-forge";
 import * as util from "../test/e2e/util";
 
-const demoJwtKeyPath = "test/jwt_demo_key.pem";
-const demoJwtCertPath = "test/jwt_demo_cert.pem";
+const demoJwtKeyPath = "demo/jwt_demo_key.pem";
+const demoJwtCertPath = "demo/jwt_demo_cert.pem";
 
 async function main() {
   tmp.setGracefulCleanup();

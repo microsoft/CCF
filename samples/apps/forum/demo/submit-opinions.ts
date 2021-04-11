@@ -5,9 +5,9 @@ import * as fs from "fs";
 import * as path from "path";
 import glob from "glob";
 import bent from "bent";
-import { parse } from "papaparse";
-import { NODE_ADDR } from "../test/e2e/util";
-import { SubmitOpinionsRequest } from "../src/controllers/poll";
+import papa from "papaparse";
+import { NODE_ADDR } from "../test/e2e/util.js";
+import { SubmitOpinionsRequest } from "../src/controllers/poll.js";
 
 const ENDPOINT_URL = `${NODE_ADDR}/app/polls`;
 
@@ -36,7 +36,7 @@ async function main() {
     const jwtPath = path.join(folder, user + ".jwt");
     const jwt = fs.readFileSync(jwtPath, "utf8");
     const csv = fs.readFileSync(csvPath, "utf8");
-    const rows = parse(csv, { header: true }).data as CSVRow[];
+    const rows = papa.parse(csv, { header: true }).data as CSVRow[];
 
     const req: SubmitOpinionsRequest = { opinions: {} };
     for (const row of rows) {
