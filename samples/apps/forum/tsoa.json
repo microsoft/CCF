@@ -1,5 +1,4 @@
 {
-  "entryFile": "tsoa-support/entry.ts",
   "noImplicitAdditionalProperties": "throw-on-extras",
   "controllerPathGlobs": ["src/controllers/*.ts"],
   "spec": {

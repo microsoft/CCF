@@ -14,7 +14,7 @@ const ENDPOINT_URL = `${NODE_ADDR}/app/polls`;
 function getAuth(jwt: string) {
   // See src/util.ts.
   return {
-    authorization: `Bearer ${jwt}'`,
+    authorization: `Bearer ${jwt}`,
   };
 }
 

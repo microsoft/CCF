@@ -14,6 +14,8 @@ Start the sandbox:
 npm start
 ```
 
+(Use `VERBOSE=1 npm start` for verbose output)
+
 Open your browser at https://127.0.0.1:8000/app/site
 
 Generate opinions, user identities and submit:
