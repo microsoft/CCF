@@ -5,6 +5,13 @@
  * The `crypto` module provides access to common cryptographic
  * algorithms.
  *
+ * Example:
+ * ```
+ * import * as ccfcrypto from '@microsoft/ccf-app/crypto.js';
+ *
+ * const key = ccfcrypto.generateAesKey(128);
+ * ```
+ *
  * @module
  */
 

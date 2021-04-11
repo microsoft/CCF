@@ -117,6 +117,10 @@ describe("polyfill", function () {
       assert.deepEqual(foo.get(key_buf), val_buf);
       assert.isTrue(foo.has(key_buf));
 
+      const foo2 = ccf.kv["foo"];
+      assert.deepEqual(foo2.get(key_buf), val_buf);
+      assert.isTrue(foo2.has(key_buf));
+
       let found = false;
       foo.forEach((v, k) => {
         if (ccf.bufToStr(k) == key && ccf.bufToJsonCompatible(v) == val) {
