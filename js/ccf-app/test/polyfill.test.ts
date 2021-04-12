@@ -1,12 +1,12 @@
 import { assert } from "chai";
-import "../src/polyfill";
+import "../src/polyfill.js";
 import {
   AesKwpParams,
   ccf,
   RsaOaepAesKwpParams,
   RsaOaepParams,
-} from "../src/global";
-import { unwrapKey } from "./crypto";
+} from "../src/global.js";
+import { unwrapKey } from "./crypto.js";
 
 beforeEach(function () {
   // clear KV before each test
@@ -116,6 +116,10 @@ describe("polyfill", function () {
       foo.set(key_buf, val_buf);
       assert.deepEqual(foo.get(key_buf), val_buf);
       assert.isTrue(foo.has(key_buf));
+
+      const foo2 = ccf.kv["foo"];
+      assert.deepEqual(foo2.get(key_buf), val_buf);
+      assert.isTrue(foo2.has(key_buf));
 
       let found = false;
       foo.forEach((v, k) => {
