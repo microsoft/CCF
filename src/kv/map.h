@@ -17,8 +17,8 @@ namespace kv
    * determine how each K and V are serialised and deserialised, so they may be
    * written to the ledger and replicated by the consensus algorithm. Note that
    * equality is always evaluated on the serialised form; if unequal Ks produce
-   * the same serialisation, they will coincide within this table. Serialisers
-   * which leverage existing msgpack or JSON serialisation are provided by CCF.
+   * the same serialisation, they will coincide within this table. Serialiser
+   * which leverages existing JSON serialisation is provided by CCF.
    */
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
   class TypedMap : public NamedMap
