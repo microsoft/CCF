@@ -5,7 +5,7 @@ import io
 import struct
 import os
 
-from typing import BinaryIO, NamedTuple, Optional
+from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict
 
 import json
 import base64
@@ -30,6 +30,9 @@ LEDGER_HEADER_SIZE = 8
 # https://github.com/microsoft/CCF/blob/main/src/node/entities.h
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
+
+# Key used by CCF to record single-key tables
+WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
 
 
 def to_uint_32(buffer):
@@ -411,18 +414,15 @@ class Transaction:
     def __next__(self):
         if self._next_offset == self._file_size:
             raise StopIteration()
-        try:
-            self._complete_read()
-            self._read_header()
 
-            # Adds every transaction to the ledger validator
-            # LedgerValidator does verification for every added transaction and throws when it finds any anomaly.
-            self._ledger_validator.add_transaction(self)
+        self._complete_read()
+        self._read_header()
 
-            return self
-        except Exception as exception:
-            LOG.exception(f"Encountered exception: {exception}")
-            raise
+        # Adds every transaction to the ledger validator
+        # LedgerValidator does verification for every added transaction and throws when it finds any anomaly.
+        self._ledger_validator.add_transaction(self)
+
+        return self
 
 
 class LedgerChunk:
@@ -466,10 +466,14 @@ class Ledger:
     _current_chunk: LedgerChunk
     _ledger_validator: LedgerValidator
 
+    def _reset_iterators(self):
+        self._fileindex = -1
+        # Initialize LedgerValidator instance which will be passed to LedgerChunks.
+        self._ledger_validator = LedgerValidator()
+
     def __init__(self, directory: str):
 
         self._filenames = []
-        self._fileindex = -1
 
         ledgers = os.listdir(directory)
         # Sorts the list based off the first number after ledger_ so that
@@ -485,8 +489,7 @@ class Ledger:
             if os.path.isfile(os.path.join(directory, chunk)):
                 self._filenames.append(os.path.join(directory, chunk))
 
-        # Initialize LedgerValidator instance which will be passed to LedgerChunks.
-        self._ledger_validator = LedgerValidator()
+        self._reset_iterators()
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1
@@ -513,6 +516,70 @@ class Ledger:
             self._ledger_validator.last_verified_seqno,
         )
 
+    def get_transaction(self, seqno: int) -> Transaction:
+        """
+        Returns the :py:class:`ccf.Ledger.Transaction` recorded in the ledger at the given sequence number.
+
+        Note that the transaction returned may not yet be verified by a
+        signature transaction nor committed by the service.
+
+        :param int seqno: Sequence number of the transaction to fetch.
+
+        :return: :py:class:`ccf.Ledger.Transaction`
+        """
+        if seqno < 1:
+            raise ValueError("Ledger first seqno is 1")
+
+        self._reset_iterators()
+
+        transaction = None
+        try:
+            # Note: This is slower than it really needs to as this will walk through
+            # all transactions from the start of the ledger.
+            for chunk in self:
+                for tx in chunk:
+                    public_transaction = tx.get_public_domain()
+                    if public_transaction.get_seqno() == seqno:
+                        return tx
+        finally:
+            self._reset_iterators()
+
+        if transaction is None:
+            raise UnknownTransaction(
+                f"Transaction at seqno {seqno} does not exist in ledger"
+            )
+        return transaction
+
+    def get_latest_public_state(self) -> Tuple[dict, int]:
+        """
+        Returns the current public state of the service.
+
+        Note that the public state returned may not yet be verified by a
+        signature transaction nor committed by the service.
+
+        :return: Tuple[Dict, int]: Tuple containing a dictionary of public tables and their values and the seqno of the state read from the ledger.
+        """
+        self._reset_iterators()
+
+        public_tables: Dict[str, Dict] = {}
+        latest_seqno = 0
+        for chunk in self:
+            for tx in chunk:
+                latest_seqno = tx.get_public_domain().get_seqno()
+                for table_name, records in tx.get_public_domain().get_tables().items():
+                    if table_name in public_tables:
+                        public_tables[table_name].update(records)
+                        # Remove deleted keys
+                        public_tables[table_name] = {
+                            k: v
+                            for k, v in public_tables[table_name].items()
+                            if v is not None
+                        }
+                    else:
+                        public_tables[table_name] = records
+
+        return public_tables, latest_seqno
+
 
 class InvalidRootException(Exception):
     """MerkleTree root doesn't match with the root reported in the signature's table"""
@@ -528,3 +595,7 @@ class CommitIdRangeException(Exception):
 
 class UntrustedNodeException(Exception):
     """The signing node wasn't part of the network"""
+
+
+class UnknownTransaction(Exception):
+    """The transaction at seqno does not exist in ledger"""

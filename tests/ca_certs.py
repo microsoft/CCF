@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import os
 import tempfile
-import http
 import infra.network
 import infra.path
 import infra.proc
@@ -10,6 +9,7 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import ccf.proposal_generator
+import json
 
 from loguru import logger as LOG
 
@@ -21,6 +21,7 @@ def test_cert_store(network, args):
     primary, _ = network.find_nodes()
 
     cert_name = "mycert"
+    raw_cert_name = cert_name.encode()
 
     LOG.info("Member builds a ca cert update proposal with malformed cert")
     with tempfile.NamedTemporaryFile("w") as f:
@@ -55,29 +56,29 @@ def test_cert_store(network, args):
         cert_pem_fp.write(cert_pem)
         cert_pem_fp.write(cert2_pem)
         cert_pem_fp.flush()
-        network.consortium.set_ca_cert_bundle(primary, cert_name, cert_pem_fp.name)
-
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.post(
-            "/gov/read",
-            {"table": "public:ccf.gov.tls.ca_cert_bundles", "key": cert_name},
+        set_proposal = network.consortium.set_ca_cert_bundle(
+            primary, cert_name, cert_pem_fp.name
         )
-        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        stored_cert = json.loads(
+            primary.get_ledger_public_state_at(set_proposal.completed_seqno)[
+                "public:ccf.gov.tls.ca_cert_bundles"
+            ][raw_cert_name]
+        )
         cert_ref = cert_pem + cert2_pem
-        cert_kv = r.body.json()
         assert (
-            cert_ref == cert_kv
-        ), f"stored cert not equal to input certs: {cert_ref} != {cert_kv}"
+            cert_ref == stored_cert
+        ), f"input certs not equal to stored cert: {cert_ref} != {stored_cert}"
 
     LOG.info("Member removes a ca cert")
-    network.consortium.remove_ca_cert_bundle(primary, cert_name)
+    remove_proposal = network.consortium.remove_ca_cert_bundle(primary, cert_name)
 
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.post(
-            "/gov/read",
-            {"table": "public:ccf.gov.tls.ca_cert_bundles", "key": cert_name},
-        )
-        assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
+    assert (
+        primary.get_ledger_public_state_at(remove_proposal.completed_seqno)[
+            "public:ccf.gov.tls.ca_cert_bundles"
+        ][raw_cert_name]
+        == None
+    ), "CA bundle was not removed"
 
     return network
 
