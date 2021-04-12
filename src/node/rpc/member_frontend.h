@@ -172,8 +172,6 @@ namespace ccf
       });
     }
 
-#ifdef ENABLE_JS_GOV
-
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wc99-extensions"
 
@@ -373,7 +371,6 @@ namespace ccf
     }
 
 #  pragma clang diagnostic pop
-#endif
 
     bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
     {
@@ -909,9 +906,6 @@ namespace ccf
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
-
-      // JavaScript governance
-#ifdef ENABLE_JS_GOV
 
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wc99-extensions"
@@ -1460,8 +1454,6 @@ namespace ccf
         .install();
 
 #  pragma clang diagnostic pop
-
-#endif
     }
   };
 

@@ -60,10 +60,6 @@ option(ZAP_TEST
        "ZAP fuzz test using https://www.zaproxy.org/docs/docker/api-scan/" OFF
 )
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
-option(ENABLE_JS_GOV "Enable JS Governance" ON)
-if(ENABLE_JS_GOV)
-  add_definitions(-DENABLE_JS_GOV)
-endif()
 option(BUILD_TPCC "Build TPPC sample app and clients" ON)
 
 # Build common library for CCF enclaves
@@ -501,32 +497,30 @@ if(BUILD_TESTS)
     add_picobench(digest_bench SRCS src/crypto/test/digest_bench.cpp)
   endif()
 
-  if(ENABLE_JS_GOV)
-    set(CONSTITUTION_ARGS
-        --constitution
-        ${CCF_DIR}/src/runtime_config/default/actions.js
-        --constitution
-        ${CCF_DIR}/src/runtime_config/test/test_actions.js
-        --constitution
-        ${CCF_DIR}/src/runtime_config/default/validate.js
-        --constitution
-        ${CCF_DIR}/src/runtime_config/test/resolve.js
-        --constitution
-        ${CCF_DIR}/src/runtime_config/default/apply.js
-    )
-    add_e2e_test(
-      NAME governance_js_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
-      CONSENSUS cft
-      CONSTITUTION ${CONSTITUTION_ARGS}
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-    )
-    set_property(
-      TEST governance_js_test
-      APPEND
-      PROPERTY ENVIRONMENT "JS_GOVERNANCE=ON"
-    )
-  endif()
+  set(CONSTITUTION_ARGS
+      --constitution
+      ${CCF_DIR}/src/runtime_config/default/actions.js
+      --constitution
+      ${CCF_DIR}/src/runtime_config/test/test_actions.js
+      --constitution
+      ${CCF_DIR}/src/runtime_config/default/validate.js
+      --constitution
+      ${CCF_DIR}/src/runtime_config/test/resolve.js
+      --constitution
+      ${CCF_DIR}/src/runtime_config/default/apply.js
+  )
+  add_e2e_test(
+    NAME governance_js_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
+    CONSENSUS cft
+    CONSTITUTION ${CONSTITUTION_ARGS}
+    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+  )
+  set_property(
+    TEST governance_js_test
+    APPEND
+    PROPERTY ENVIRONMENT "JS_GOVERNANCE=ON"
+  )
 
   # Storing signed governance operations
   add_e2e_test(
