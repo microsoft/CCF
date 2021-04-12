@@ -47,11 +47,14 @@ for chunk in ledger:
 # SNIPPET_END: iterate_over_ledger
 
 # Read state of ledger
-_, latest_seqno = ledger.get_latest_public_state()
+latest_state, latest_seqno = ledger.get_latest_public_state()
 
 seqnos = [1, 2, 3, latest_seqno // 2, latest_seqno]
 random.shuffle(seqnos)
 for seqno in seqnos:
     transaction = ledger.get_transaction(seqno)
 
-ledger.get_latest_public_state()
+# Confirm latest state can still be accessed, and is unchanged
+latest_state1, latest_seqno1 = ledger.get_latest_public_state()
+assert(latest_seqno == latest_seqno1)
+assert(latest_state == latest_state1)
