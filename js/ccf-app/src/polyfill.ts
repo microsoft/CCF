@@ -28,8 +28,9 @@ import {
   JsonCompatible,
   CryptoKeyPair,
   WrapAlgoParams,
+  DigestAlgorithm,
   EvidenceClaims,
-  HistoricalState,
+  HistoricalState,  
 } from "./global";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -154,6 +155,16 @@ class CCFPolyfill implements CCF {
     }
   }
 
+  digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer {
+    if (algorithm === "SHA-256") {
+      return nodeBufToArrBuf(
+        crypto.createHash("sha256").update(new Uint8Array(data)).digest()
+      );
+    } else {
+      throw new Error("unsupported algorithm");
+    }
+  }
+  
   verifyOpenEnclaveEvidence(
     format: string | undefined,
     evidence: ArrayBuffer,

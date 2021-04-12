@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import ccf.ledger
 import sys
 from loguru import logger as LOG
 import json
@@ -23,6 +22,7 @@ if len(sys.argv) < 2:
 ledger_dir = sys.argv[1]
 
 # SNIPPET: import_ledger
+import ccf.ledger
 
 # SNIPPET: create_ledger
 ledger = ccf.ledger.Ledger(ledger_dir)
@@ -36,7 +36,6 @@ for chunk in ledger:
         # Retrieve all public tables changed in transaction
         public_tables = transaction.get_public_domain().get_tables()
 
-        # If target_table was changed, count the number of keys changed
         if target_table in public_tables:
             # Ledger verification is happening implicitly in ccf.ledger.Ledger()
             for key, value in public_tables[target_table].items():

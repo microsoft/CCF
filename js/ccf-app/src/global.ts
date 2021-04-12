@@ -175,6 +175,8 @@ export interface CryptoKeyPair {
   publicKey: string;
 }
 
+export type DigestAlgorithm = "SHA-256";
+
 export interface EvidenceClaims {
   claims: { [name: string]: ArrayBuffer };
   customClaims: { [name: string]: ArrayBuffer };
@@ -231,6 +233,11 @@ export interface CCF {
     wrappingKey: ArrayBuffer,
     wrapAlgo: WrapAlgoParams
   ): ArrayBuffer;
+  
+  /**
+   * Generate a digest (hash) of the given data.
+   */
+  digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
 
   /**
    * Verifies Open Enclave evidence and returns the claims of the evidence.
