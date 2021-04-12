@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.network
+from ccf.ledger import NodeStatus
 import functools
 
 from loguru import logger as LOG
@@ -105,7 +106,7 @@ def can_kill_n_nodes(nodes_to_kill_count):
                 [
                     node
                     for node in r.body.json()["nodes"]
-                    if node["status"] == infra.node.NodeStatus.TRUSTED.value
+                    if node["status"] == NodeStatus.TRUSTED.value
                 ]
             )
             running_nodes_count = len(network.get_joined_nodes())
