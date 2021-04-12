@@ -989,11 +989,6 @@ namespace ccf
             auto val = js_context(
               JS_Call(js_context, apply_func, JS_UNDEFINED, 2, argv));
 
-            // Execution of apply may make arbitrary changes to KV. Refetch
-            // current proposal info in case it has been modified
-            // NB: Can't do this, because we've only modified the .state on our
-            // local copy! pi_ = pi->get(proposal_id);
-
             JS_FreeValue(js_context, apply_func);
             JS_FreeValue(js_context, prop);
             JS_FreeValue(js_context, prop_id);
