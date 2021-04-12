@@ -1,10 +1,30 @@
 # Confidential Forum sample app
 
-Install dependencies:
+See also the [TypeScript Application using tsoa](https://microsoft.github.io/CCF/main/build_apps/js_app_tsoa.html) documentation page for further details on how this sample is built using the tsoa framework.
+
+## Getting started
+
+When running this sample against a CCF release, open `package.json` and replace the `file:` reference of `ccf-app` with a reference to a published version (adjust the version number accordingly):
+
+```
+"@microsoft/ccf-app": "~1.0.0",
+```
+
+Now you can continue with installing all dependencies:
 
 ```sh
 npm install
 ```
+
+To run the demo and end-to-end tests, define the following environment variable:
+
+```sh
+export CCF_BINARY_DIR=/opt/ccf-x.y.z/bin
+```
+
+If not defined, it assumes you built CCF from source and defaults to `CCF_BINARY_DIR=<repo_root>/build`.
+
+## Demo
 
 Start the sandbox:
 
@@ -27,6 +47,8 @@ npm run ts demo/submit-opinions.ts demo/data
 ```
 
 Return to the website and view the statistics which should be visible now.
+
+## Tests & debugging
 
 Run tests:
 
