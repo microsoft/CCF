@@ -723,6 +723,12 @@ int main(int argc, char** argv)
       ccf_config.genesis.constitution = "";
       for (const auto& constitution_path : constitution_paths)
       {
+        // Separate with single newlines
+        if (!ccf_config.genesis.constitution.empty())
+        {
+          ccf_config.genesis.constitution += '\n';
+        }
+
         ccf_config.genesis.constitution +=
           files::slurp_string(constitution_path);
       }
