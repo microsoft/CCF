@@ -5,9 +5,9 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "serialise_msgpack.h"
 
 #include <doctest/doctest.h>
+#include <msgpack/msgpack.hpp>
 #undef FAIL
 #include <string>
 #include <vector>
@@ -424,6 +424,37 @@ struct CustomJsonSerialiser
   }
 };
 
+struct CustomMsgPackSerialiser
+{
+  using Bytes = kv::serialisers::SerialisedEntry;
+
+  struct SerialisedEntryWriter
+  {
+    Bytes& b;
+
+    void write(const char* d, size_t n)
+    {
+      b.insert(b.end(), d, d + n);
+    }
+  };
+
+  static Bytes to_serialised(const CustomClass& c)
+  {
+    Bytes b;
+    SerialisedEntryWriter w{b};
+    msgpack::pack(w, c);
+    return b;
+  }
+
+  static CustomClass from_serialised(const Bytes& b)
+  {
+    msgpack::object_handle oh =
+      msgpack::unpack(reinterpret_cast<const char*>(b.data()), b.size());
+    auto object = oh.get();
+    return object.as<CustomClass>();
+  }
+};
+
 struct KPrefix
 {
   static constexpr auto prefix = "This is a key:";
@@ -474,7 +505,7 @@ using RawCopySerialisedMap = kv::RawCopySerialisedMap<CustomClass, CustomClass>;
 using MixSerialisedMapA = kv::TypedMap<
   CustomClass,
   CustomClass,
-  kv::serialisers::MsgPackSerialiser<CustomClass>,
+  CustomMsgPackSerialiser,
   kv::serialisers::JsonSerialiser<CustomClass>>;
 using MixSerialisedMapB = kv::TypedMap<
   CustomClass,
@@ -485,7 +516,7 @@ using MixSerialisedMapC = kv::TypedMap<
   CustomClass,
   CustomClass,
   kv::serialisers::BlitSerialiser<CustomClass>,
-  kv::serialisers::MsgPackSerialiser<CustomClass>>;
+  CustomMsgPackSerialiser>;
 
 // SNIPPET_START: CustomSerialisedMap definition
 using CustomSerialisedMap =
@@ -699,12 +730,12 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
     NonSerialisable,
     size_t,
     NonSerialiser,
-    kv::serialisers::MsgPackSerialiser<size_t>>
+    kv::serialisers::JsonSerialiser<size_t>>
     bad_map_k("bad_map_k");
   kv::TypedMap<
     size_t,
     NonSerialisable,
-    kv::serialisers::MsgPackSerialiser<size_t>,
+    kv::serialisers::JsonSerialiser<size_t>,
     NonSerialiser>
     bad_map_v("bad_map_v");
 
