@@ -56,5 +56,5 @@ for seqno in seqnos:
 
 # Confirm latest state can still be accessed, and is unchanged
 latest_state1, latest_seqno1 = ledger.get_latest_public_state()
-assert(latest_seqno == latest_seqno1)
-assert(latest_state == latest_state1)
+assert latest_seqno == latest_seqno1
+assert latest_state == latest_state1
