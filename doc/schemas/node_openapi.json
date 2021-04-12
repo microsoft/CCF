@@ -111,12 +111,16 @@
           "primary_id": {
             "$ref": "#/components/schemas/EntityId"
           },
+          "service_certificate": {
+            "$ref": "#/components/schemas/Pem"
+          },
           "service_status": {
             "$ref": "#/components/schemas/ServiceStatus"
           }
         },
         "required": [
           "service_status",
+          "service_certificate",
           "current_view",
           "primary_id"
         ],
@@ -250,6 +254,9 @@
           "Trusted",
           "Retired"
         ],
+        "type": "string"
+      },
+      "Pem": {
         "type": "string"
       },
       "Quote": {
