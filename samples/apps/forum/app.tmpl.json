@@ -1,41 +1,5 @@
 {
   "endpoints": {
-    "/csv": {
-      "get": {
-        "js_module": "CsvControllerProxy.js",
-        "js_function": "getOpinionsAsCsv",
-        "forwarding_required": "always",
-        "execute_outside_consensus": "never",
-        "authn_policies": ["jwt"],
-        "mode": "readonly",
-        "openapi_merge_patch": {
-          "responses": {
-            "200": {
-              "content": {
-                "application/json": null,
-                "text/csv": {}
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "js_module": "CsvControllerProxy.js",
-        "js_function": "submitOpinionsFromCSV",
-        "forwarding_required": "always",
-        "execute_outside_consensus": "never",
-        "authn_policies": ["jwt"],
-        "mode": "readwrite",
-        "openapi_merge_patch": {
-          "requestBody": {
-            "content": {
-              "application/json": null,
-              "text/csv": {}
-            }
-          }
-        }
-      }
-    },
     "/polls/{topic}": {
       "post": {
         "js_module": "PollControllerProxy.js",
@@ -126,6 +90,42 @@
         "execute_outside_consensus": "never",
         "authn_policies": [],
         "mode": "readonly"
+      }
+    },
+    "/csv": {
+      "get": {
+        "js_module": "CsvControllerProxy.js",
+        "js_function": "getOpinionsAsCsv",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt"],
+        "mode": "readonly",
+        "openapi_merge_patch": {
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": null,
+                "text/csv": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "js_module": "CsvControllerProxy.js",
+        "js_function": "submitOpinionsFromCSV",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["jwt"],
+        "mode": "readwrite",
+        "openapi_merge_patch": {
+          "requestBody": {
+            "content": {
+              "application/json": null,
+              "text/csv": {}
+            }
+          }
+        }
       }
     }
   }
