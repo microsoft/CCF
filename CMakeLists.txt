@@ -516,11 +516,6 @@ if(BUILD_TESTS)
     CONSTITUTION ${CONSTITUTION_ARGS}
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
   )
-  set_property(
-    TEST governance_js_test
-    APPEND
-    PROPERTY ENVIRONMENT "JS_GOVERNANCE=ON"
-  )
 
   # Storing signed governance operations
   add_e2e_test(

@@ -126,16 +126,15 @@ def test_governance(network, args):
 
     LOG.info("Unknown proposal is rejected on completion")
 
-    if os.getenv("JS_GOVERNANCE"):
-        unkwown_proposal = {"actions": [{"name": "unknown_action"}]}
+    unkwown_proposal = {"actions": [{"name": "unknown_action"}]}
 
-        try:
-            proposal = network.consortium.get_any_active_member().propose(
-                primary, unkwown_proposal
-            )
-            assert False, "Unknown proposal should fail on validation"
-        except infra.proposal.ProposalNotCreated as e:
-            pass
+    try:
+        proposal = network.consortium.get_any_active_member().propose(
+            primary, unkwown_proposal
+        )
+        assert False, "Unknown proposal should fail on validation"
+    except infra.proposal.ProposalNotCreated as e:
+        pass
 
     LOG.info("Proposal to add a new member (with different curve)")
     (
@@ -148,11 +147,10 @@ def test_governance(network, args):
     )
 
     LOG.info("Check proposal has been recorded in open state")
-    if os.getenv("JS_GOVERNANCE"):
-        with primary.client(network.consortium.get_any_active_member().local_id) as c:
-            r = c.get(f"/gov/proposals.js/{new_member_proposal.proposal_id}")
-            assert r.status_code == 200, r.body.text()
-            assert r.body.json()["state"] == infra.proposal.ProposalState.OPEN.value
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
+        r = c.get(f"/gov/proposals.js/{new_member_proposal.proposal_id}")
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == infra.proposal.ProposalState.OPEN.value
 
     LOG.info("Rest of consortium accept the proposal")
     network.consortium.vote_using_majority(node, new_member_proposal, careful_vote)
@@ -223,13 +221,12 @@ def test_governance(network, args):
     assert response.status_code == http.HTTPStatus.OK.value
     assert proposal.state == infra.proposal.ProposalState.WITHDRAWN
 
-    if os.getenv("JS_GOVERNANCE"):
-        with primary.client(network.consortium.get_any_active_member().local_id) as c:
-            r = c.get(f"/gov/proposals.js/{proposal.proposal_id}")
-            assert r.status_code == 200, r.body.text()
-            assert (
-                r.body.json()["state"] == infra.proposal.ProposalState.WITHDRAWN.value
-            )
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
+        r = c.get(f"/gov/proposals.js/{proposal.proposal_id}")
+        assert r.status_code == 200, r.body.text()
+        assert (
+            r.body.json()["state"] == infra.proposal.ProposalState.WITHDRAWN.value
+        )
 
     LOG.debug("Further withdraw proposals fail")
     response = new_member.withdraw(node, proposal)

@@ -227,21 +227,16 @@ def recovery_shares_scenario(args):
         )
 
         LOG.info("Set recovery threshold to 0 is impossible")
-        exception = (
-            infra.proposal.ProposalNotCreated
-            if os.getenv("JS_GOVERNANCE")
-            else infra.proposal.ProposalNotAccepted
-        )
+        exception = infra.proposal.ProposalNotCreated
         try:
             test_set_recovery_threshold(network, args, recovery_threshold=0)
             assert False, "Setting recovery threshold to 0 should not be possible"
         except exception as e:
-            if os.getenv("JS_GOVERNANCE"):
-                assert (
-                    e.response.status_code == 400
-                    and e.response.body.json()["error"]["code"]
-                    == "ProposalFailedToValidate"
-                ), e.response.body.text()
+            assert (
+                e.response.status_code == 400
+                and e.response.body.json()["error"]["code"]
+                == "ProposalFailedToValidate"
+            ), e.response.body.text()
 
         LOG.info(
             "Set recovery threshold to more that number of active recovery members is impossible"
@@ -263,23 +258,21 @@ def recovery_shares_scenario(args):
             test_set_recovery_threshold(network, args, recovery_threshold=256)
             assert False, "Recovery threshold cannot be set to > 255"
         except exception as e:
-            if os.getenv("JS_GOVERNANCE"):
-                assert (
-                    e.response.status_code == 400
-                    and e.response.body.json()["error"]["code"]
-                    == "ProposalFailedToValidate"
-                ), e.response.body.text()
+            assert (
+                e.response.status_code == 400
+                and e.response.body.json()["error"]["code"]
+                == "ProposalFailedToValidate"
+            ), e.response.body.text()
 
         try:
             network.consortium.set_recovery_threshold(primary, recovery_threshold=None)
             assert False, "Recovery threshold value must be passed as proposal argument"
         except exception as e:
-            if os.getenv("JS_GOVERNANCE"):
-                assert (
-                    e.response.status_code == 400
-                    and e.response.body.json()["error"]["code"]
-                    == "ProposalFailedToValidate"
-                ), e.response.body.text()
+            assert (
+                e.response.status_code == 400
+                and e.response.body.json()["error"]["code"]
+                == "ProposalFailedToValidate"
+            ), e.response.body.text()
 
         LOG.info(
             "Setting recovery threshold to current threshold does not update shares"
@@ -294,7 +287,7 @@ def recovery_shares_scenario(args):
 
 
 def run(args):
-    if not os.getenv("JS_GOVERNANCE"):
+    if not os.getenv("JS_GOVERNANCE") or True:
         # Still fails with QuickJS assert because some objects are not
         # cleaned up correctly when an assertion occurs in some JS_CALLs
         service_startups(args)

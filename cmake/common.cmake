@@ -505,13 +505,6 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
       )
     endif()
-
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "JS_GOVERNANCE=ON"
-    )
-
   endif()
 endfunction()
 
