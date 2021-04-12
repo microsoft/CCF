@@ -21,9 +21,9 @@ TEST_CASE("Simple key exchange")
     // Trying to load empty peer's public
     std::vector<uint8_t> empty_peer;
     REQUIRE_THROWS_AS(
-      peer1_ctx.load_peer_key_share(empty_peer), std::logic_error);
+      peer1_ctx.load_peer_key_share(empty_peer), std::runtime_error);
     REQUIRE_THROWS_AS(
-      peer2_ctx.load_peer_key_share(empty_peer), std::logic_error);
+      peer2_ctx.load_peer_key_share(empty_peer), std::runtime_error);
 
     REQUIRE_THROWS_AS(peer1_ctx.compute_shared_secret(), std::logic_error);
     REQUIRE_THROWS_AS(peer2_ctx.compute_shared_secret(), std::logic_error);
