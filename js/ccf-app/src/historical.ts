@@ -11,7 +11,7 @@
  * @module
  */
 
-import { ccf } from "./global";
+import { ccf } from "./global.js";
 
 /**
  * @inheritDoc CCF.historicalState

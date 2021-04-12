@@ -7,7 +7,7 @@
  * It must be imported before all other imports like so:
  *
  * ```
- * import '@microsoft/ccf-app/polyfills';
+ * import '@microsoft/ccf-app/polyfill.js';
  * ```
  *
  * Note that some functionality is not polyfilled,
@@ -30,8 +30,8 @@ import {
   WrapAlgoParams,
   DigestAlgorithm,
   EvidenceClaims,
-  HistoricalState,  
-} from "./global";
+  HistoricalState,
+} from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
 // whereas CCF compares the content of the ArrayBuffer.
