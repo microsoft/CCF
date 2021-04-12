@@ -16,7 +16,7 @@
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
-using MapT = kv::JsonSerialisedMap<size_t, size_t>;
+using MapT = kv::Map<size_t, size_t>;
 
 class DummyConsensus : public kv::test::StubConsensus
 {

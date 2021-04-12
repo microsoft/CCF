@@ -171,7 +171,7 @@ public:
 class TestExplicitCommitability : public BaseTestFrontend
 {
 public:
-  kv::JsonSerialisedMap<size_t, size_t> values;
+  kv::Map<size_t, size_t> values;
 
   TestExplicitCommitability(kv::Store& tables) :
     BaseTestFrontend(tables),
@@ -1452,7 +1452,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
 class TestConflictFrontend : public BaseTestFrontend
 {
 public:
-  using Values = kv::JsonSerialisedMap<size_t, size_t>;
+  using Values = kv::Map<size_t, size_t>;
 
   TestConflictFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {

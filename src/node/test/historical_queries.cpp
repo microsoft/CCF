@@ -17,7 +17,7 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
-using NumToString = kv::JsonSerialisedMap<size_t, std::string>;
+using NumToString = kv::Map<size_t, std::string>;
 
 struct StubWriter : public ringbuffer::AbstractWriter
 {

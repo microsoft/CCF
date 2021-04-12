@@ -28,8 +28,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
   source_store.set_history(source_history);
 
-  kv::JsonSerialisedMap<std::string, std::string> string_map(
-    "public:string_map");
+  kv::Map<std::string, std::string> string_map("public:string_map");
 
   size_t transactions_count = 3;
   kv::Version snapshot_version = kv::NoVersion;

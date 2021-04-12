@@ -15,7 +15,7 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 constexpr auto buffer_size = 1024 * 16;
 
-using StringString = kv::JsonSerialisedMap<std::string, std::string>;
+using StringString = kv::Map<std::string, std::string>;
 using rb_msg = std::pair<ringbuffer::Message, size_t>;
 
 auto read_ringbuffer_out(ringbuffer::Circuit& circuit)

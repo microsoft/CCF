@@ -14,10 +14,10 @@
 
 struct MapTypes
 {
-  using StringString = kv::JsonSerialisedMap<std::string, std::string>;
-  using NumNum = kv::JsonSerialisedMap<size_t, size_t>;
-  using NumString = kv::JsonSerialisedMap<size_t, std::string>;
-  using StringNum = kv::JsonSerialisedMap<std::string, size_t>;
+  using StringString = kv::Map<std::string, std::string>;
+  using NumNum = kv::Map<size_t, size_t>;
+  using NumString = kv::Map<size_t, std::string>;
+  using StringNum = kv::Map<std::string, size_t>;
 };
 
 TEST_CASE(
@@ -601,7 +601,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   SUBCASE("baseline")
   {
     auto consensus = std::make_shared<kv::test::StubConsensus>();
-    using Table = kv::JsonSerialisedMap<std::vector<int>, std::string>;
+    using Table = kv::Map<std::vector<int>, std::string>;
     kv::Store s0(consensus), s1;
     Table t("public:t");
 
@@ -619,7 +619,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   SUBCASE("nlohmann")
   {
     auto consensus = std::make_shared<kv::test::StubConsensus>();
-    using Table = kv::JsonSerialisedMap<nlohmann::json, nlohmann::json>;
+    using Table = kv::Map<nlohmann::json, nlohmann::json>;
     kv::Store s0(consensus), s1;
     Table t("public:t");
 

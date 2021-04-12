@@ -8,10 +8,10 @@
 
 struct MapTypes
 {
-  using StringString = kv::JsonSerialisedMap<std::string, std::string>;
-  using NumNum = kv::JsonSerialisedMap<size_t, size_t>;
-  using NumString = kv::JsonSerialisedMap<size_t, std::string>;
-  using StringNum = kv::JsonSerialisedMap<std::string, size_t>;
+  using StringString = kv::Map<std::string, std::string>;
+  using NumNum = kv::Map<size_t, size_t>;
+  using NumString = kv::Map<size_t, std::string>;
+  using StringNum = kv::Map<std::string, size_t>;
 };
 
 TEST_CASE("Basic dynamic table" * doctest::test_suite("dynamic"))

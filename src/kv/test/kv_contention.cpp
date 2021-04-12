@@ -22,7 +22,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   // entry. The goal is for these commits and compactions to avoid deadlock
   kv::Store kv_store;
 
-  using MapType = kv::JsonSerialisedMap<size_t, size_t>;
+  using MapType = kv::Map<size_t, size_t>;
   constexpr size_t max_k = 32;
 
   constexpr size_t thread_count = 16;
@@ -215,7 +215,7 @@ DOCTEST_TEST_CASE(
   // Many threads attempt to produce a chain of transactions pointing at the
   // previous write to a single key, at that key.
   kv::Store kv_store;
-  using MapType = kv::JsonSerialisedMap<size_t, nlohmann::json>;
+  using MapType = kv::Map<size_t, nlohmann::json>;
   MapType map("public:foo");
 
   constexpr size_t k = 42;

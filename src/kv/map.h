@@ -111,4 +111,7 @@ namespace kv
     V,
     kv::serialisers::BlitSerialiser<K>,
     kv::serialisers::BlitSerialiser<V>>;
+
+  template <typename K, typename V>
+  using Map = JsonSerialisedMap<K, V>;
 }

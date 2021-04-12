@@ -16,7 +16,7 @@
 #include <string>
 
 kv::ConsensusHookPtrs hooks;
-using StringString = kv::JsonSerialisedMap<std::string, std::string>;
+using StringString = kv::Map<std::string, std::string>;
 
 void commit_one(kv::Store& store, StringString& map)
 {

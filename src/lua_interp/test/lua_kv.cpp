@@ -18,13 +18,13 @@ using namespace nlohmann;
 
 namespace ccf
 {
-  using TableII = kv::JsonSerialisedMap<int, int>;
+  using TableII = kv::Map<int, int>;
   using TxII = TableII::Handle;
 
   using TableIS = kv::RawCopySerialisedMap<int, std::string>;
   using TxIS = TableIS::Handle;
 
-  using TableSB = kv::JsonSerialisedMap<std::string, bool>;
+  using TableSB = kv::Map<std::string, bool>;
   using TxSB = TableSB::Handle;
 
   using TableVI = kv::RawCopySerialisedMap<vector<uint8_t>, int>;

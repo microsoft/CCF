@@ -18,10 +18,10 @@
 
 struct MapTypes
 {
-  using StringString = kv::JsonSerialisedMap<std::string, std::string>;
-  using NumNum = kv::JsonSerialisedMap<size_t, size_t>;
-  using NumString = kv::JsonSerialisedMap<size_t, std::string>;
-  using StringNum = kv::JsonSerialisedMap<std::string, size_t>;
+  using StringString = kv::Map<std::string, std::string>;
+  using NumNum = kv::Map<size_t, size_t>;
+  using NumString = kv::Map<size_t, std::string>;
+  using StringNum = kv::Map<std::string, size_t>;
 };
 
 TEST_CASE("Map name parsing")
@@ -951,7 +951,7 @@ TEST_CASE("Global commit hooks")
   };
 
   kv::Store kv_store;
-  using MapT = kv::JsonSerialisedMap<std::string, std::string>;
+  using MapT = kv::Map<std::string, std::string>;
   MapT map_with_hook("public:map_with_hook");
   kv_store.set_global_hook(
     map_with_hook.get_name(), map_with_hook.wrap_commit_hook(global_hook));
