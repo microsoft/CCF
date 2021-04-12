@@ -1,10 +1,10 @@
-import "@microsoft/ccf-app/polyfill.js";
+import "@microsoft/ccf-app/polyfill";
 import papa from "papaparse";
 import { assert } from "chai";
 
-import { CsvService } from "../../src/services/csv.js";
-import { PollService } from "../../src/services/poll.js";
-import { getPollMap } from "../../src/models/poll.js";
+import { CsvService } from "../../src/services/csv";
+import { PollService } from "../../src/services/poll";
+import { getPollMap } from "../../src/models/poll";
 
 describe("CsvService", function () {
   const pollService = new PollService();

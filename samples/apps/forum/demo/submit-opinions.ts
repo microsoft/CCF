@@ -6,8 +6,8 @@ import * as path from "path";
 import glob from "glob";
 import bent from "bent";
 import papa from "papaparse";
-import { NODE_ADDR } from "../test/e2e/util.js";
-import { SubmitOpinionsRequest } from "../src/controllers/poll.js";
+import { NODE_ADDR } from "../test/e2e/util";
+import { SubmitOpinionsRequest } from "../src/controllers/poll";
 
 const ENDPOINT_URL = `${NODE_ADDR}/app/polls`;
 
@@ -36,7 +36,8 @@ async function main() {
     const jwtPath = path.join(folder, user + ".jwt");
     const jwt = fs.readFileSync(jwtPath, "utf8");
     const csv = fs.readFileSync(csvPath, "utf8");
-    const rows = papa.parse(csv, { header: true }).data as CSVRow[];
+    const rows = papa.parse(csv, { header: true, skipEmptyLines: true })
+      .data as CSVRow[];
 
     const req: SubmitOpinionsRequest = { opinions: {} };
     for (const row of rows) {
@@ -45,6 +46,7 @@ async function main() {
       };
     }
     console.log("Submitting opinions for user " + user);
+    console.log(req);
     try {
       await bent("PUT", 204)(`${ENDPOINT_URL}`, req, getAuth(jwt));
     } catch (e) {

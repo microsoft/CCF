@@ -1,4 +1,4 @@
-import "@microsoft/ccf-app/polyfill.js";
+import "@microsoft/ccf-app/polyfill";
 import { assert } from "chai";
 
 import {
@@ -7,9 +7,9 @@ import {
   Opinion,
   NumericPollSummary,
   StringPollSummary,
-} from "../../src/models/poll.js";
-import { PollService } from "../../src/services/poll.js";
-import { MINIMUM_OPINION_THRESHOLD } from "../../src/constants.js";
+} from "../../src/models/poll";
+import { PollService } from "../../src/services/poll";
+import { MINIMUM_OPINION_THRESHOLD } from "../../src/constants";
 
 describe("PollService", function () {
   const pollService = new PollService();

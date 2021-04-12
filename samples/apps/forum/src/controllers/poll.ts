@@ -22,10 +22,10 @@ import {
   ValidateErrorResponse,
   ValidateError,
   UnauthorizedError,
-} from "../error_handler.js";
-import { User } from "../authentication.js";
-import { Opinion, PollSummary } from "../models/poll.js";
-import { PollService } from "../services/poll.js";
+} from "../error_handler";
+import { User } from "../authentication";
+import { Opinion, PollSummary } from "../models/poll";
+import { PollService } from "../services/poll";
 
 interface CreatePollRequest {
   type: "string" | "number";

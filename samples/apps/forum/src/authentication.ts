@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 import * as ccfapp from "@microsoft/ccf-app";
-import { UnauthorizedError } from "./error_handler.js";
+import { UnauthorizedError } from "./error_handler";
 
 export interface User extends ccfapp.JwtAuthnIdentity {
   userId: string;

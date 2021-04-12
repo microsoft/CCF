@@ -20,9 +20,10 @@ The statistics will still be empty since the opinion threshold has not been reac
 Now, generate more opinions, user identities and submit:
 
 ```sh
-python3.8 demo/generate-opinions.py demo/polls.csv 9
-npm run ts demo/generate-jwts.ts . 9
-npm run ts demo/submit-opinions.ts .
+mkdir demo/data
+python3.8 demo/generate-opinions.py demo/data demo/polls.csv 9
+npm run ts demo/generate-jwts.ts demo/data 9
+npm run ts demo/submit-opinions.ts demo/data
 ```
 
 Return to the website and view the statistics which should be visible now.

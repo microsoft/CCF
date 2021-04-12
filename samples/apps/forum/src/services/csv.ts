@@ -3,8 +3,8 @@ import * as _ from "lodash-es";
 // Need to use minified browser bundle to avoid pulling in Node.JS dependencies
 import papa from "papaparse/papaparse.min.js";
 
-import { BadRequestError } from "../error_handler.js";
-import { getPollMap, PollMap } from "../models/poll.js";
+import { BadRequestError } from "../error_handler";
+import { getPollMap, PollMap } from "../models/poll";
 
 export class CsvService {
   private kvPolls: PollMap;

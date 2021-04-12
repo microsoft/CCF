@@ -4,16 +4,16 @@
     "build": "del-cli -f dist/ build/ && tsoa spec-and-routes && node tsoa-support/postprocess.js && rollup --config && del-cli dist/src/build/endpoints.js",
     "start": "npm run build && npm run ts demo/start.ts",
     "test": "npm run test:unit && npm run test:e2e",
-    "test:unit": "mocha --loader=ts-node/esm --file=test/unit/setup.ts test/unit/*.test.ts",
-    "test:e2e": "mocha --loader=ts-node/esm test/e2e/*.test.ts",
-    "ts": "node --no-warnings --loader=ts-node/esm"
+    "test:unit": "mocha --loader=ts-node/esm --experimental-specifier-resolution=node --file=test/unit/setup.ts test/unit/*.test.ts",
+    "test:e2e": "mocha --loader=ts-node/esm --experimental-specifier-resolution=node test/e2e/*.test.ts",
+    "ts": "node --no-warnings --loader=ts-node/esm --experimental-specifier-resolution=node"
   },
   "type": "module",
   "dependencies": {
     "@microsoft/ccf-app": "file:../../../js/ccf-app",
     "@tsoa/runtime": "^3.6.1",
     "lodash-es": "^4.17.15",
-    "mathjs": "^9.3.0",
+    "mathjs": "9.3.0 || ^9.3.2",
     "papaparse": "^5.3.0"
   },
   "devDependencies": {

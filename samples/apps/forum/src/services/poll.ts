@@ -5,15 +5,15 @@ import {
   BadRequestError,
   ForbiddenError,
   NotFoundError,
-} from "../error_handler.js";
+} from "../error_handler";
 import {
   getPollMap,
   Opinion,
   PollMap,
   PollSummary,
   PollType,
-} from "../models/poll.js";
-import { MINIMUM_OPINION_THRESHOLD } from "../constants.js";
+} from "../models/poll";
+import { MINIMUM_OPINION_THRESHOLD } from "../constants";
 
 export class PollService {
   private kvPolls: PollMap;

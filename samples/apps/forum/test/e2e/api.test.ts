@@ -9,19 +9,16 @@ import { assert } from "chai";
 import bent from "bent";
 import jwt from "jsonwebtoken";
 import papa from "papaparse";
-import { NODE_ADDR, setupMochaCCFSandbox } from "./util.js";
+import { NODE_ADDR, setupMochaCCFSandbox } from "./util";
 import {
   CreatePollRequest,
   SubmitOpinionRequest,
   CreatePollsRequest,
   SubmitOpinionsRequest,
   GetPollResponse,
-} from "../../src/controllers/poll.js";
-import {
-  NumericPollSummary,
-  StringPollSummary,
-} from "../../src/models/poll.js";
-import { MINIMUM_OPINION_THRESHOLD } from "../../src/constants.js";
+} from "../../src/controllers/poll";
+import { NumericPollSummary, StringPollSummary } from "../../src/models/poll";
+import { MINIMUM_OPINION_THRESHOLD } from "../../src/constants";
 
 tmp.setGracefulCleanup();
 

@@ -1,4 +1,4 @@
-import "@microsoft/ccf-app/polyfill.js";
+import "@microsoft/ccf-app/polyfill";
 import * as ccfapp from "@microsoft/ccf-app";
 
 beforeEach(function () {
