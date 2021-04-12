@@ -112,6 +112,9 @@ namespace kv
     kv::serialisers::BlitSerialiser<K>,
     kv::serialisers::BlitSerialiser<V>>;
 
+  /** Short name for default-serialised maps, using msgpack serialisers. Support
+   * for custom types can be added through the DECLARE_JSON... macros.
+   */
   template <typename K, typename V>
   using Map = JsonSerialisedMap<K, V>;
 }

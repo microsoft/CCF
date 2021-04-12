@@ -5,8 +5,6 @@ Every transaction executed by the primary on its key-value store is serialised b
 
 Writes to private :cpp:type:`kv::Map`\s are encrypted before being written to the ledger, and can only be decrypted by other nodes within the service. Writes to public :cpp:type:`kv::Map`\s are only integrity-protected; they are readable by anyone with access to the ledger.
 
-.. note:: Transactions are serialised to MessagePack_ with a prepended header for integrity protection.
-
 Serialised Transaction Format
 -----------------------------
 
@@ -65,7 +63,7 @@ The following table describes the structure of a serialised KV Store transaction
 Custom key and value types
 --------------------------
 
-User-defined types can be used for both the key and value types of a :cpp:type:`kv::Map`. It must be possible to use the key type as the key of an ``std::map`` (so it must be copyable, assignable, and less-comparable), and both types must be serialisable. By default, when using a :cpp:type:`kv::Map`, serialisation converts to `MessagePack`_ using `msgpack-c`_. To add support to your custom types, it should usually be possible to use the ``MSGPACK_DEFINE`` macro:
+User-defined types can be used for both the key and value types of a :cpp:type:`kv::Map`. It must be possible to use the key type as the key of an ``std::map`` (so it must be copyable, assignable, and less-comparable), and both types must be serialisable. By default, when using a :cpp:type:`kv::Map`, serialisation converts to JSON. To add support to your custom types, it should usually be possible to use the ``DECLARE_JSON_...`` macros:
 
 .. literalinclude:: ../../../src/kv/test/kv_serialisation.cpp
     :language: cpp

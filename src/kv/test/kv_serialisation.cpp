@@ -309,14 +309,14 @@ struct CustomClass
   std::string s;
   size_t n;
 
-  // This macro allows the msgpack serialiser to be used
+  // This macro allows custom msgpack serialisation (optional)
   MSGPACK_DEFINE(s, n);
 };
-// SNIPPET_END: CustomClass definition
 
 // These macros allow the default nlohmann JSON serialiser to be used
 DECLARE_JSON_TYPE(CustomClass);
 DECLARE_JSON_REQUIRED_FIELDS(CustomClass, s, n);
+// SNIPPET_END: CustomClass definition
 
 // Not really intended to be extended, but lets us use the BlitSerialiser for
 // this specific type

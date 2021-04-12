@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../lua_interp.h"
 #include "../lua_kv.h"
+
+#include "../lua_interp.h"
 #include "ccf/app_interface.h"
 #include "ds/hash.h"
 #include "ds/logger.h"
