@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- `kv::Map` is now an alias to `kv::JsonSerialisedMap`, which means all existing applications using `kv::Map` will now require `DECLARE_JSON...` macros (instead of `MSGPACK_DEFINE`) for custom key and value types. Note that this change may affect throughput of existing applications (#2449).
+- `kv::Map` is now an alias to `kv::JsonSerialisedMap`, which means all existing applications using `kv::Map`s will now require `DECLARE_JSON...` macros for custom key and value types. `msgpack-c` is no longer available to apps and `MSGPACK_DEFINE` macros should be removed. Note that this change may affect throughput of existing applications, in which case an app-defined serialiser (or `kv::RawCopySerialisedMap`) should be used (#2449).
 
 ### Removed
 

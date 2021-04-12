@@ -131,7 +131,7 @@ namespace tpcc
       {
         bool is_original = selected_rows.find(i) != selected_rows.end();
         Stock s = generate_stock(i, wh_id, is_original);
-        auto stocks = args.tx.rw(TpccTables::stocks);
+        auto stocks = args.tx.rw(tpcc::TpccTables::stocks);
         stocks->put(s.get_key(), s);
       }
     }
@@ -327,14 +327,14 @@ namespace tpcc
     {
       Warehouse w;
       generate_warehouse(w_id, &w);
-      auto warehouses = args.tx.rw(TpccTables::warehouses);
+      auto warehouses = args.tx.rw(tpcc::TpccTables::warehouses);
       warehouses->put(w.get_key(), w);
 
       for (int32_t d_id = 1; d_id <= districts_per_warehouse; ++d_id)
       {
         District d;
         generate_district(d_id, w_id, &d);
-        auto districts = args.tx.rw(TpccTables::districts);
+        auto districts = args.tx.rw(tpcc::TpccTables::districts);
         districts->put(d.get_key(), d);
 
         // Select 10% of the customers to have bad credit
@@ -346,14 +346,14 @@ namespace tpcc
           bool bad_credit = selected_rows.find(c_id) != selected_rows.end();
           generate_customer(c_id, d_id, w_id, bad_credit, &c);
 
-          TpccTables::DistributeKey table_key;
+          tpcc::TpccTables::DistributeKey table_key;
           table_key.v.w_id = w_id;
           table_key.v.d_id = d_id;
-          auto it = TpccTables::customers.find(table_key.k);
-          if (it == TpccTables::customers.end())
+          auto it = tpcc::TpccTables::customers.find(table_key.k);
+          if (it == tpcc::TpccTables::customers.end())
           {
             std::string tbl_name = fmt::format("customer_{}_{}", w_id, d_id);
-            auto r = TpccTables::customers.insert(
+            auto r = tpcc::TpccTables::customers.insert(
               {table_key.k,
                TpccMap<Customer::Key, Customer>(tbl_name.c_str())});
             it = r.first;
@@ -364,7 +364,7 @@ namespace tpcc
 
           History h;
           generate_history(c_id, d_id, w_id, &h);
-          auto history = args.tx.rw(TpccTables::histories);
+          auto history = args.tx.rw(tpcc::TpccTables::histories);
           history->put(h.get_key(), h);
         }
 
@@ -383,14 +383,14 @@ namespace tpcc
           generate_order(
             o_id, permutation[o_id - 1], d_id, w_id, new_order, &o);
 
-          TpccTables::DistributeKey table_key;
+          tpcc::TpccTables::DistributeKey table_key;
           table_key.v.w_id = w_id;
           table_key.v.d_id = d_id;
-          auto it = TpccTables::orders.find(table_key.k);
-          if (it == TpccTables::orders.end())
+          auto it = tpcc::TpccTables::orders.find(table_key.k);
+          if (it == tpcc::TpccTables::orders.end())
           {
             std::string tbl_name = fmt::format("orders_{}_{}", w_id, d_id);
-            auto r = TpccTables::orders.insert(
+            auto r = tpcc::TpccTables::orders.insert(
               {table_key.k, TpccMap<Order::Key, Order>(tbl_name.c_str())});
             it = r.first;
           }
@@ -403,20 +403,20 @@ namespace tpcc
           {
             OrderLine line;
             generate_order_line(ol_number, o_id, d_id, w_id, new_order, &line);
-            auto order_lines = args.tx.rw(TpccTables::order_lines);
+            auto order_lines = args.tx.rw(tpcc::TpccTables::order_lines);
             order_lines->put(line.get_key(), line);
 
             if (new_order)
             {
-              TpccTables::DistributeKey table_key;
+              tpcc::TpccTables::DistributeKey table_key;
               table_key.v.w_id = w_id;
               table_key.v.d_id = d_id;
-              auto it = TpccTables::new_orders.find(table_key.k);
-              if (it == TpccTables::new_orders.end())
+              auto it = tpcc::TpccTables::new_orders.find(table_key.k);
+              if (it == tpcc::TpccTables::new_orders.end())
               {
                 std::string tbl_name =
                   fmt::format("new_orders_{}_{}", w_id, d_id);
-                auto r = TpccTables::new_orders.insert(
+                auto r = tpcc::TpccTables::new_orders.insert(
                   {table_key.k,
                    TpccMap<NewOrder::Key, NewOrder>(tbl_name.c_str())});
                 it = r.first;
@@ -448,7 +448,7 @@ namespace tpcc
       {
         set_original(item.data);
       }
-      auto items_table = args.tx.rw(TpccTables::items);
+      auto items_table = args.tx.rw(tpcc::TpccTables::items);
       items_table->put(item.get_key(), item);
     }
 
