@@ -178,12 +178,12 @@ def test_proposal_invalidation(network, args):
     temp_code_id = get_code_id(args, get_replacement_package(args))
     network.consortium.add_new_code(primary, temp_code_id)
 
-    LOG.info("Confirm open proposals are invalidated")
+    LOG.info("Confirm open proposals are dropped")
     with primary.client(None, "member0") as c:
         for proposal_id in pending_proposals:
             r = c.get(f"/gov/proposals.js/{proposal_id}")
             assert r.status_code == 200, r.body.text()
-            assert r.body.json()["state"] == "Invalidated", r.body.json()
+            assert r.body.json()["state"] == "Dropped", r.body.json()
 
     LOG.info("Remove temporary code ID")
     network.consortium.retire_code(primary, temp_code_id)

@@ -940,9 +940,9 @@ namespace ccf
           {
             pi_.value().state = ProposalState::FAILED;
           }
-          else if (status == "Invalidated")
+          else if (status == "Dropped")
           {
-            pi_.value().state = ProposalState::INVALIDATED;
+            pi_.value().state = ProposalState::DROPPED;
           }
           else
           {

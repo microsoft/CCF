@@ -242,7 +242,7 @@
           "Withdrawn",
           "Rejected",
           "Failed",
-          "Invalidated"
+          "Dropped"
         ],
         "type": "string"
       },

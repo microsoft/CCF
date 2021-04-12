@@ -54,9 +54,9 @@ namespace ccf
     REJECTED, //< Proposal was rejected by vote, will never be enacted
     FAILED, //< Proposal passed a successful vote, but its proposed actions
             // failed, will never be enacted
-    INVALIDATED, //< Proposal was open when its semantics were potentially
-                 // changed (code or constitution were modified), so it was
-                 // automatically invalidated
+    DROPPED, //< Proposal was open when its semantics were potentially changed
+             // (code or constitution were modified), so it was automatically
+             // invalidated and dropped
   };
   DECLARE_JSON_ENUM(
     ProposalState,
@@ -65,7 +65,7 @@ namespace ccf
      {ProposalState::WITHDRAWN, "Withdrawn"},
      {ProposalState::REJECTED, "Rejected"},
      {ProposalState::FAILED, "Failed"},
-     {ProposalState::INVALIDATED, "Invalidated"}});
+     {ProposalState::DROPPED, "Dropped"}});
 
   struct Proposal
   {
@@ -202,9 +202,9 @@ struct formatter<ccf::ProposalState>
       {
         return format_to(ctx.out(), "rejected");
       }
-      case (ccf::ProposalState::INVALIDATED):
+      case (ccf::ProposalState::DROPPED):
       {
-        return format_to(ctx.out(), "invalidated");
+        return format_to(ctx.out(), "dropped");
       }
       default:
       {

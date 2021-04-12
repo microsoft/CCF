@@ -124,23 +124,16 @@ function checkX509CertChain(value, field) {
 }
 
 function invalidateOtherOpenProposals(proposalIdToRetain) {
-  console.log(`Retaining ${proposalIdToRetain}`);
   let proposals = ccf.kv["public:ccf.gov.proposals_info.js"];
   const proposalsMap = ccf.kv["public:ccf.gov.proposals_info.js"];
   proposalsMap.forEach((v, k) => {
     let proposalId = ccf.bufToStr(k);
-    console.log(`Looking at ${proposalId}`);
     if (proposalId !== proposalIdToRetain) {
       let info = ccf.bufToJsonCompatible(v);
       if (info.state === "Open") {
-        console.log(`Setting state of ${proposalId} to invalidated`);
-        info.state = "Invalidated";
+        info.state = "Dropped";
         proposalsMap.set(k, ccf.jsonCompatibleToBuf(info));
-      } else {
-        console.log(`State is ${info.state} - ignoring`);
       }
-    } else {
-      console.log("Match, making no changes");
     }
   });
 }

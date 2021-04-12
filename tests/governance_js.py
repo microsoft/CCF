@@ -463,11 +463,11 @@ def test_set_constitution(network, args):
     network.consortium.set_constitution(node, modified_constitution)
 
     with node.client(None, "member0") as c:
-        # Check all other proposals were invalidated
+        # Check all other proposals were dropped
         for proposal_id in pending_proposals:
             r = c.get(f"/gov/proposals.js/{proposal_id}")
             assert r.status_code == 200, r.body.text()
-            assert r.body.json()["state"] == "Invalidated", r.body.json()
+            assert r.body.json()["state"] == "Dropped", r.body.json()
 
         # Confirm constitution has changed by proposing test actions which are no longer present
         r = c.post(
