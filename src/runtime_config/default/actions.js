@@ -155,7 +155,7 @@ const actions = new Map([
       function (args, proposalId) {
         ccf.kv["public:ccf.gov.constitution"].set(
           getSingletonKvKey(),
-          ccf.strToBuf(JSON.stringify(args.constitution))
+          ccf.jsonCompatibleToBuf(args.constitution)
         );
 
         // Changing the constitution changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
