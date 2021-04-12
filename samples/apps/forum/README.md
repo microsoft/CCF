@@ -33,7 +33,7 @@ Run tests:
 ```sh
 npm test
 # or:
-npm run test:unit #  unit tests
+npm run test:unit # unit tests
 npm run test:e2e # end-to-end tests
 ```
 
@@ -41,3 +41,6 @@ Unit tests run outside CCF and end-to-end tests run against a single CCF sandbox
 
 The unit tests make use of the [`ccf-app` polyfill](https://microsoft.github.io/CCF/main/js/ccf-app/modules/polyfill.html) and can be easily debugged in VS Code.
 The simplest workflow is using the [JavaScript Debug Terminal](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_javascript-debug-terminal) in VS Code. Set a break point and run `npm run test:unit` inside the JavaScript Debug Terminal. The debugger will attach and stop automatically.
+
+Debugging of JavaScript code running in CCF is currently not possible.
+However, all uncaught exceptions and output from `console.log()` are dumped to the node's log files.
