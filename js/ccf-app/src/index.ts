@@ -15,7 +15,7 @@
  * @module ROOT
  */
 
-export * from "./kv";
-export * from "./converters";
-export * from "./historical";
-export * from "./endpoints";
+export * from "./kv.js";
+export * from "./converters.js";
+export * from "./historical.js";
+export * from "./endpoints.js";

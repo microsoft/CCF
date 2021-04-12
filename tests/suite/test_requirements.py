@@ -98,23 +98,16 @@ def sufficient_recovery_member_count():
 def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
-        with primary.client(network.consortium.get_any_active_member().local_id) as c:
-            r = c.post(
-                "/gov/query",
-                {
-                    "text": """tables = ...
-                        trusted_nodes_count = 0
-                        tables["public:ccf.gov.nodes.info"]:foreach(function(node_id, details)
-                            if details["status"] == "Trusted" then
-                                trusted_nodes_count = trusted_nodes_count + 1
-                            end
-                        end)
-                        return trusted_nodes_count
-                        """
-                },
-            )
+        with primary.client() as c:
+            r = c.get("/node/network/nodes")
 
-            trusted_nodes_count = r.body.json()
+            trusted_nodes_count = len(
+                [
+                    node
+                    for node in r.body.json()["nodes"]
+                    if node["status"] == infra.node.NodeStatus.TRUSTED.value
+                ]
+            )
             running_nodes_count = len(network.get_joined_nodes())
             would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
             minimum_nodes_to_run_count = ceil((trusted_nodes_count + 1) / 2)

@@ -429,7 +429,9 @@ namespace ccf
         auto service_state = service->get(0);
         if (service_state.has_value())
         {
-          out.service_status = service_state.value().status;
+          const auto& service_value = service_state.value();
+          out.service_status = service_value.status;
+          out.service_certificate = service_value.cert;
           if (consensus != nullptr)
           {
             out.current_view = consensus->get_view();
