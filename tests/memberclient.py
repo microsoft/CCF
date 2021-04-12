@@ -154,15 +154,6 @@ def test_governance(network, args):
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == infra.proposal.ProposalState.OPEN.value
 
-    else:
-        proposals = network.consortium.get_proposals(primary)
-        proposal_entry = next(
-            (p for p in proposals if p.proposal_id == new_member_proposal.proposal_id),
-            None,
-        )
-        assert proposal_entry
-        assert proposal_entry.state == ProposalState.OPEN
-
     LOG.info("Rest of consortium accept the proposal")
     network.consortium.vote_using_majority(node, new_member_proposal, careful_vote)
     assert new_member_proposal.state == ProposalState.ACCEPTED
@@ -239,14 +230,6 @@ def test_governance(network, args):
             assert (
                 r.body.json()["state"] == infra.proposal.ProposalState.WITHDRAWN.value
             )
-    else:
-        proposals = network.consortium.get_proposals(primary)
-        proposal_entry = next(
-            (p for p in proposals if p.proposal_id == proposal.proposal_id),
-            None,
-        )
-        assert proposal_entry
-        assert proposal_entry.state == ProposalState.WITHDRAWN
 
     LOG.debug("Further withdraw proposals fail")
     response = new_member.withdraw(node, proposal)

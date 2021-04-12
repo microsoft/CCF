@@ -8,9 +8,11 @@ import infra.remote
 import infra.net
 import infra.path
 import ccf.clients
+import ccf.ledger
 import os
 import socket
 import re
+import time
 
 from loguru import logger as LOG
 
@@ -315,6 +317,33 @@ class Node:
             raise TimeoutError(
                 f"Node {self.local_node_id} failed to join the network"
             ) from e
+
+    def get_ledger_public_state_at(self, seqno, timeout=3):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            try:
+                ledger = ccf.ledger.Ledger(self.remote.ledger_path())
+                tx = ledger.get_transaction(seqno)
+                return tx.get_public_domain().get_tables()
+            except Exception:
+                time.sleep(0.1)
+
+        raise TimeoutError(
+            f"Could not read transaction at seqno {seqno} from ledger {self.remote.ledger_path()}"
+        )
+
+    def get_latest_ledger_public_state(self, timeout=3):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            try:
+                ledger = ccf.ledger.Ledger(self.remote.ledger_path())
+                return ledger.get_latest_public_state()
+            except Exception:
+                time.sleep(0.1)
+
+        raise TimeoutError(
+            f"Could not read latest state from ledger {self.remote.ledger_path()}"
+        )
 
     def get_ledger(self, include_read_only_dirs=False):
         """
