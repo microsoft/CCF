@@ -5,7 +5,7 @@
     "start": "npm run build && npm run ts demo/start.ts",
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "mocha --loader=ts-node/esm --experimental-specifier-resolution=node --file=test/unit/setup.ts test/unit/*.test.ts",
-    "test:e2e": "mocha --loader=ts-node/esm --experimental-specifier-resolution=node test/e2e/*.test.ts",
+    "test:e2e": "npm run build && mocha --loader=ts-node/esm --experimental-specifier-resolution=node test/e2e/*.test.ts",
     "ts": "node --no-warnings --loader=ts-node/esm --experimental-specifier-resolution=node"
   },
   "type": "module",
