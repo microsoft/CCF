@@ -154,3 +154,15 @@ DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::tick);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::work_stats, std::string);
+
+/// Messages sent from app endpoints
+enum AppMessage : ringbuffer::Message
+{
+  /// Start an arbitrary process on the host. Enclave -> Host
+  DEFINE_RINGBUFFER_MSG_TYPE(launch_host_process)
+};
+
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  AppMessage::launch_host_process,
+  std::vector<std::string>
+  );

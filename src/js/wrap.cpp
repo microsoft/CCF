@@ -618,6 +618,64 @@ namespace js
     return JS_UNDEFINED;
   }
 
+  JSValue js_node_trigger_host_process_launch(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments but expected 1", argc);
+    }
+
+    auto args = argv[0];
+
+    if (!JS_IsArray(ctx, args))
+    {
+      return JS_ThrowTypeError(
+        ctx, "First argument must be an array");
+    }
+
+    std::vector<std::string> process_args;  
+
+    auto len_atom = JS_NewAtom(ctx, "length");
+    auto len_val = JS_GetProperty(ctx, args, len_atom);
+    JS_FreeAtom(ctx, len_atom);
+    uint32_t len = 0;
+    JS_ToUint32(ctx, &len, len_val);
+    JS_FreeValue(ctx, len_val);
+
+    if (len == 0)
+    {
+      return JS_ThrowRangeError(
+        ctx, "First argument must be a non-empty array");
+    }
+    
+    for (uint32_t i = 0; i < len; i++)
+    {
+      auto arg_val = JS_GetPropertyUint32(ctx, args, i);
+      if (!JS_IsString(arg_val))
+      {
+        JS_FreeValue(ctx, arg_val);
+        return JS_ThrowTypeError(
+          ctx, "First argument must be an array of strings, found non-string");
+      }
+      auto arg_cstr = JS_ToCString(ctx, arg_val);
+      process_args.push_back(arg_cstr);
+      JS_FreeCString(ctx, arg_cstr);
+      JS_FreeValue(ctx, arg_val);
+    }
+
+    auto node = static_cast<ccf::AbstractNodeState*>(
+      JS_GetOpaque(this_val, node_class_id));
+
+    node->trigger_host_process_launch(process_args);
+
+    return JS_UNDEFINED;
+  }
+
   // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
   // with a synchronous interface.
   static const JSCFunctionListEntry js_body_proto_funcs[] = {
@@ -986,6 +1044,9 @@ namespace js
           js_node_trigger_recovery_shares_refresh,
           "triggerRecoverySharesRefresh",
           0));
+      JS_SetPropertyStr(
+        ctx, ccf, "triggerHostProcessLaunch",
+        JS_NewCFunction(ctx, js_node_trigger_host_process_launch, "triggerHostProcessLaunch", 1));
     }
 
     if (network_state != nullptr)

@@ -12,6 +12,7 @@
 #include "load_monitor.h"
 #include "node_connections.h"
 #include "rpc_connections.h"
+#include "process_launcher.h"
 #include "sig_term.h"
 #include "snapshot.h"
 #include "ticker.h"
@@ -620,6 +621,9 @@ int main(int argc, char** argv)
 
     asynchost::SnapshotManager snapshots(snapshot_dir, ledger);
     snapshots.register_message_handlers(bp.get_dispatcher());
+
+    asynchost::ProcessLauncher process_launcher;
+    process_launcher.register_message_handlers(bp.get_dispatcher());
 
     // Begin listening for node-to-node and RPC messages.
     // This includes DNS resolution and potentially dynamic port assignment (if

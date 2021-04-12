@@ -1237,6 +1237,12 @@ namespace ccf
       share_manager.shuffle_recovery_shares(tx);
     }
 
+    void trigger_host_process_launch(const std::vector<std::string>& args) override
+    {
+      RINGBUFFER_WRITE_MESSAGE(
+          AppMessage::launch_host_process, to_host, args);
+    }
+
     void transition_service_to_open(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
