@@ -1,7 +1,7 @@
 import { assert } from "chai";
-import "../src/polyfill";
-import * as kv from "../src/kv";
-import * as conv from "../src/converters";
+import "../src/polyfill.js";
+import * as kv from "../src/kv.js";
+import * as conv from "../src/converters.js";
 
 beforeEach(function () {
   // clear KV before each test
