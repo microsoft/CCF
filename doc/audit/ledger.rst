@@ -16,4 +16,59 @@ When a transaction is committed, each affected ``Store::Map`` is serialised in d
 
 Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :doc:`/overview/cryptography`). This key is kept secure inside each enclave. See :ref:`governance/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
 
-Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the sequence number is always present in the serialised entry. More information about the ledger entry format is available in the :doc:`/build_apps/kv/kv_serialisation` section.
+Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the sequence number is always present in the serialised entry.
+
+Transaction Format
+------------------
+
+The ledger is stored as a series of a 4 byte transaction length field followed by a transaction.
+
+The following table describes the structure of a serialised KV Store transaction.
+
++----------+------------------------------------------+-------------------------------------------------------------------------+
+|          | Field Type                               | Description                                                             |
++==========+==========================================+=========================================================================+
+|          | AES GCM Header                           | IV and tag fields required to decrypt and verify integrity              |
++ Header   +------------------------------------------+-------------------------------------------------------------------------+
+|          | uint64_t                                 | Length of serialised public domain                                      |
++----------+------------------------------------------+-------------------------------------------------------------------------+
+|          | bool                                     | Is snapshot (``false`` for all ledger entries)                          |
++          +------------------------------------------+-------------------------------------------------------------------------+
+|          | :cpp:type:`kv::Version`                  | Transaction version                                                     |
++          +------------------------------------------+-------------------------------------------------------------------------+
+|          | :cpp:type:`kv::Version`                  | Indicates after which version can this ledger entry be executed while   |
+|          |                                          | maintaining linearizability                                             |
++          +------------------------------------------+-------------------------------------------------------------------------+
+|          | **Repeating [0..n]**                     | With ``n`` the number of maps in the transaction                        |
++          +-----+------------------------------------+-------------------------------------------------------------------------+
+|          |     | std::string                        | Name of the serialised :cpp:type:`kv::Map`                              |
+|          +-----+------------------------------------+-------------------------------------------------------------------------+
+|          |     | | :cpp:type:`kv::Version`          | | Read version                                                          |
+|          +-----+------------------------------------+-------------------------------------------------------------------------+
+|          |     | uint64_t                           | | Read count                                                            |
+|          |     +------------------------------------+-------------------------------------------------------------------------+
+|          |     | **Repeating [0..read count]**                                                                                |
++          |     +---+--------------------------------+-------------------------------------------------------------------------+
+| | Public |     |   | | uint64_t                     | | Key length                                                            |
+| | Domain |     |   | | K                            | | Key                                                                   |
+|          |     |   | | Ver                          | | Version                                                               |
++          +-----+---+--------------------------------+-------------------------------------------------------------------------+
+|          |     | uint64_t                           | | Write count                                                           |
++          |     +------------------------------------+-------------------------------------------------------------------------+
+|          |     | **Repeating [0..write count]**                                                                               |
++          |     +---+--------------------------------+-------------------------------------------------------------------------+
+|          |     |   | | uint64_t                     | | Key length                                                            |
+|          |     |   | | K                            | | Key                                                                   |
+|          |     |   | | uint64_t                     | | Value length                                                          |
+|          |     |   | | V                            | | Value                                                                 |
++          +-----+---+--------------------------------+-------------------------------------------------------------------------+
+|          |     | | uint64_t                         | | Remove count                                                          |
++          +     +------------------------------------+-------------------------------------------------------------------------+
+|          |     | **Repeating [0..remove count]**                                                                              |
++          +     +---+--------------------------------+-------------------------------------------------------------------------+
+|          |     |   | | uint64_t                     | | Key length                                                            |
+|          |     |   | | K                            | | Key                                                                   |
++----------+-----+---+--------------------------------+-------------------------------------------------------------------------+
+| | Private| **Optional**                                                                                                       |
+| | Domain | | Encrypted serialised private domain blob.                                                                        |
++----------+--------------------------------------------------------------------------------------------------------------------+

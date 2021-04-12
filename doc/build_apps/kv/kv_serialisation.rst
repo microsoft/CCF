@@ -1,64 +1,9 @@
-KV Serialisation
-================
+Key-Value Serialisation
+=======================
 
-Every transaction executed by the primary on its key-value store is serialised before being replicated to all backups of the CCF network and written to the ledger.
+Every transaction executed by the primary on its Key-Value store is serialised before being replicated to all backups of the CCF network and written to the ledger. The serialisation format is defined per :cpp:type:`kv::Map` and distinctly for the key and value types.
 
-Writes to private :cpp:type:`kv::Map`\s are encrypted before being written to the ledger, and can only be decrypted by other nodes within the service. Writes to public :cpp:type:`kv::Map`\s are only integrity-protected; they are readable by anyone with access to the ledger.
-
-Serialised Transaction Format
------------------------------
-
-The ledger is stored as a series of a 4 byte transaction length field followed by a transaction.
-
-The following table describes the structure of a serialised KV Store transaction.
-
-+----------+------------------------------------------+-------------------------------------------------------------------------+
-|          | Field Type                               | Description                                                             |
-+==========+==========================================+=========================================================================+
-|          | AES GCM Header                           | IV and tag fields required to decrypt and verify integrity              |
-+ Header   +------------------------------------------+-------------------------------------------------------------------------+
-|          | uint64_t                                 | Length of serialised public domain                                      |
-+----------+------------------------------------------+-------------------------------------------------------------------------+
-|          | bool                                     | Is snapshot (``false`` for all ledger entries)                          |
-+          +------------------------------------------+-------------------------------------------------------------------------+
-|          | :cpp:type:`kv::Version`                  | Transaction version                                                     |
-+          +------------------------------------------+-------------------------------------------------------------------------+
-|          | :cpp:type:`kv::Version`                  | Indicates after which version can this ledger entry be executed while   |
-|          |                                          | maintaining linearizability                                             |
-+          +------------------------------------------+-------------------------------------------------------------------------+
-|          | **Repeating [0..n]**                     | With ``n`` the number of maps in the transaction                        |
-+          +-----+------------------------------------+-------------------------------------------------------------------------+
-|          |     | std::string                        | Name of the serialised :cpp:type:`kv::Map`                              |
-|          +-----+------------------------------------+-------------------------------------------------------------------------+
-|          |     | | :cpp:type:`kv::Version`          | | Read version                                                          |
-|          +-----+------------------------------------+-------------------------------------------------------------------------+
-|          |     | uint64_t                           | | Read count                                                            |
-|          |     +------------------------------------+-------------------------------------------------------------------------+
-|          |     | **Repeating [0..read count]**                                                                                |
-+          |     +---+--------------------------------+-------------------------------------------------------------------------+
-| | Public |     |   | | uint64_t                     | | Key length                                                            |
-| | Domain |     |   | | K                            | | Key                                                                   |
-|          |     |   | | Ver                          | | Version                                                               |
-+          +-----+---+--------------------------------+-------------------------------------------------------------------------+
-|          |     | uint64_t                           | | Write count                                                           |
-+          |     +------------------------------------+-------------------------------------------------------------------------+
-|          |     | **Repeating [0..write count]**                                                                               |
-+          |     +---+--------------------------------+-------------------------------------------------------------------------+
-|          |     |   | | uint64_t                     | | Key length                                                            |
-|          |     |   | | K                            | | Key                                                                   |
-|          |     |   | | uint64_t                     | | Value length                                                          |
-|          |     |   | | V                            | | Value                                                                 |
-+          +-----+---+--------------------------------+-------------------------------------------------------------------------+
-|          |     | | uint64_t                         | | Remove count                                                          |
-+          +     +------------------------------------+-------------------------------------------------------------------------+
-|          |     | **Repeating [0..remove count]**                                                                              |
-+          +     +---+--------------------------------+-------------------------------------------------------------------------+
-|          |     |   | | uint64_t                     | | Key length                                                            |
-|          |     |   | | K                            | | Key                                                                   |
-+----------+-----+---+--------------------------------+-------------------------------------------------------------------------+
-| | Private| **Optional**                                                                                                       |
-| | Domain | | Encrypted serialised private domain blob.                                                                        |
-+----------+--------------------------------------------------------------------------------------------------------------------+
+.. tip:: Selecting the right serialision format for a KV map depends on the application logic but is generally a trade-off between performance and auditability of the ledger. For example, the default serialisation format for :cpp:type:`kv::Map` is JSON and allows for easy parsing of transactions in the `public` ledger. For more performance sensitive use cases, apps may define or use their own serialisers.
 
 Custom key and value types
 --------------------------
