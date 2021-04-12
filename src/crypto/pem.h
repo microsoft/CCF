@@ -116,6 +116,16 @@ namespace crypto
         fmt::format("Unable to parse pem from this JSON: {}", j.dump()));
     }
   }
+
+  inline std::string schema_name(const Pem&)
+  {
+    return "Pem";
+  }
+
+  inline void fill_json_schema(nlohmann::json& schema, const Pem&)
+  {
+    schema["type"] = "string";
+  }
 }
 
 namespace std
