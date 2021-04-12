@@ -149,7 +149,7 @@ namespace tls
     {
       if (!ctx)
       {
-        throw std::runtime_error("Missing key exchange context");
+        throw std::runtime_error("Missing key exchange context when loading peer key share");
       }
 
       if (ks.n == 0)
