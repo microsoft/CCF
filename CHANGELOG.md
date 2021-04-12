@@ -9,11 +9,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- The service certificate is now returned as part of the `/node/network/` endpoint response.
+- The service certificate is now returned as part of the `/node/network/` endpoint response (#2442).
+
+### Changed
+
+- `kv::Map` is now an alias to `kv::JsonSerialisedMap`, which means all existing applications using `kv::Map` will now require `DECLARE_JSON...` macros (instead of `MSGPACK_DEFINE`) for custom key and value types. Note that this change may affect throughput of existing applications (#2449).
 
 ### Removed
 
-- `/gov/query` and `/gov/read` governance endpoints are removed.
+- `/gov/query` and `/gov/read` governance endpoints are removed (#2442).
 
 ## [0.99.0]
 
