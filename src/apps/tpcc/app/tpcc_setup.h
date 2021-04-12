@@ -355,7 +355,8 @@ namespace tpcc
             std::string tbl_name = fmt::format("customer_{}_{}", w_id, d_id);
             auto r = tpcc::TpccTables::customers.insert(
               {table_key.k,
-               kv::Map<Customer::Key, Customer>(tbl_name.c_str())});
+               kv::MsgPackSerialisedMap<Customer::Key, Customer>(
+                 tbl_name.c_str())});
             it = r.first;
           }
 
@@ -391,7 +392,8 @@ namespace tpcc
           {
             std::string tbl_name = fmt::format("orders_{}_{}", w_id, d_id);
             auto r = tpcc::TpccTables::orders.insert(
-              {table_key.k, kv::Map<Order::Key, Order>(tbl_name.c_str())});
+              {table_key.k,
+               kv::MsgPackSerialisedMap<Order::Key, Order>(tbl_name.c_str())});
             it = r.first;
           }
 
@@ -418,7 +420,8 @@ namespace tpcc
                   fmt::format("new_orders_{}_{}", w_id, d_id);
                 auto r = tpcc::TpccTables::new_orders.insert(
                   {table_key.k,
-                   kv::Map<NewOrder::Key, NewOrder>(tbl_name.c_str())});
+                   kv::MsgPackSerialisedMap<NewOrder::Key, NewOrder>(
+                     tbl_name.c_str())});
                 it = r.first;
               }
 

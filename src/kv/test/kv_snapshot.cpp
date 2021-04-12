@@ -10,8 +10,8 @@
 
 struct MapTypes
 {
-  using StringString = kv::Map<std::string, std::string>;
-  using NumNum = kv::Map<size_t, size_t>;
+  using StringString = kv::JsonSerialisedMap<std::string, std::string>;
+  using NumNum = kv::JsonSerialisedMap<size_t, size_t>;
 };
 
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))

@@ -87,6 +87,3 @@ To use these serialised for a specific map declare the map as a :cpp:class:`kv::
     :end-before: SNIPPET_END: CustomSerialisedMap definition
 
 .. note:: Any external tools which wish to parse the ledger will need to know the serialisation format of the tables they care about. It is recommended, though not enforced, that you size-prefix each entry so it can be skipped by tools which do not understand the serialised format.
-
-.. _MessagePack: https://msgpack.org/
-.. _msgpack-c: https://github.com/msgpack/msgpack-c

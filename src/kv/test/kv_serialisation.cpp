@@ -1,24 +1,23 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
-#include "ds/msgpack_adaptor_nlohmann.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "serialise_msgpack.h"
 
 #include <doctest/doctest.h>
 #undef FAIL
-#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
 struct MapTypes
 {
-  using StringString = kv::Map<std::string, std::string>;
-  using NumNum = kv::Map<size_t, size_t>;
-  using NumString = kv::Map<size_t, std::string>;
-  using StringNum = kv::Map<std::string, size_t>;
+  using StringString = kv::JsonSerialisedMap<std::string, std::string>;
+  using NumNum = kv::JsonSerialisedMap<size_t, size_t>;
+  using NumString = kv::JsonSerialisedMap<size_t, std::string>;
+  using StringNum = kv::JsonSerialisedMap<std::string, size_t>;
 };
 
 TEST_CASE(
@@ -310,7 +309,7 @@ struct CustomClass
   std::string s;
   size_t n;
 
-  // This macro allows the default msgpack serialiser to be used
+  // This macro allows the msgpack serialiser to be used
   MSGPACK_DEFINE(s, n);
 };
 // SNIPPET_END: CustomClass definition
@@ -470,7 +469,6 @@ struct CustomVerboseDumbSerialiser
   }
 };
 
-using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
 using JsonSerialisedMap = kv::JsonSerialisedMap<CustomClass, CustomClass>;
 using RawCopySerialisedMap = kv::RawCopySerialisedMap<CustomClass, CustomClass>;
 using MixSerialisedMapA = kv::TypedMap<
@@ -508,7 +506,6 @@ using VerboseSerialisedMap = kv::TypedMap<
 TEST_CASE_TEMPLATE(
   "Custom type serialisation test" * doctest::test_suite("serialisation"),
   MapType,
-  DefaultSerialisedMap,
   JsonSerialisedMap,
   RawCopySerialisedMap,
   MixSerialisedMapA,
@@ -573,7 +570,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   SUBCASE("baseline")
   {
     auto consensus = std::make_shared<kv::test::StubConsensus>();
-    using Table = kv::Map<std::vector<int>, std::string>;
+    using Table = kv::JsonSerialisedMap<std::vector<int>, std::string>;
     kv::Store s0(consensus), s1;
     Table t("public:t");
 
@@ -591,7 +588,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   SUBCASE("nlohmann")
   {
     auto consensus = std::make_shared<kv::test::StubConsensus>();
-    using Table = kv::Map<nlohmann::json, nlohmann::json>;
+    using Table = kv::JsonSerialisedMap<nlohmann::json, nlohmann::json>;
     kv::Store s0(consensus), s1;
     Table t("public:t");
 

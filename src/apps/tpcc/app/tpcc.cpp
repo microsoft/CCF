@@ -165,19 +165,27 @@ namespace ccfapp
   }
 }
 
-kv::Map<tpcc::Stock::Key, tpcc::Stock> tpcc::TpccTables::stocks("stocks");
-kv::Map<tpcc::Warehouse::Key, tpcc::Warehouse> tpcc::TpccTables::warehouses(
-  "warehouses");
-kv::Map<tpcc::District::Key, tpcc::District> tpcc::TpccTables::districts(
-  "districts");
-kv::Map<tpcc::History::Key, tpcc::History> tpcc::TpccTables::histories(
-  "histories");
-std::unordered_map<uint64_t, kv::Map<tpcc::Customer::Key, tpcc::Customer>>
+kv::MsgPackSerialisedMap<tpcc::Stock::Key, tpcc::Stock> tpcc::TpccTables::
+  stocks("stocks");
+kv::MsgPackSerialisedMap<tpcc::Warehouse::Key, tpcc::Warehouse> tpcc::
+  TpccTables::warehouses("warehouses");
+kv::MsgPackSerialisedMap<tpcc::District::Key, tpcc::District> tpcc::TpccTables::
+  districts("districts");
+kv::MsgPackSerialisedMap<tpcc::History::Key, tpcc::History> tpcc::TpccTables::
+  histories("histories");
+std::unordered_map<
+  uint64_t,
+  kv::MsgPackSerialisedMap<tpcc::Customer::Key, tpcc::Customer>>
   tpcc::TpccTables::customers;
-std::unordered_map<uint64_t, kv::Map<tpcc::Order::Key, tpcc::Order>>
+std::unordered_map<
+  uint64_t,
+  kv::MsgPackSerialisedMap<tpcc::Order::Key, tpcc::Order>>
   tpcc::TpccTables::orders;
-kv::Map<tpcc::OrderLine::Key, tpcc::OrderLine> tpcc::TpccTables::order_lines(
-  "order_lines");
-std::unordered_map<uint64_t, kv::Map<tpcc::NewOrder::Key, tpcc::NewOrder>>
+kv::MsgPackSerialisedMap<tpcc::OrderLine::Key, tpcc::OrderLine> tpcc::
+  TpccTables::order_lines("order_lines");
+std::unordered_map<
+  uint64_t,
+  kv::MsgPackSerialisedMap<tpcc::NewOrder::Key, tpcc::NewOrder>>
   tpcc::TpccTables::new_orders;
-kv::Map<tpcc::Item::Key, tpcc::Item> tpcc::TpccTables::items("items");
+kv::MsgPackSerialisedMap<tpcc::Item::Key, tpcc::Item> tpcc::TpccTables::items(
+  "items");

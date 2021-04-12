@@ -164,8 +164,6 @@ namespace ccf
   };
 }
 
-MSGPACK_ADD_ENUM(ccf::ProposalState);
-
 FMT_BEGIN_NAMESPACE
 template <>
 struct formatter<ccf::ProposalState>

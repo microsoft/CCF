@@ -22,7 +22,8 @@ using namespace nlohmann;
 namespace loggingapp
 {
   // SNIPPET: table_definition
-  using Table = kv::Map<size_t, string>;
+  using Table = kv::JsonSerialisedMap<size_t, string>;
+  // TODO: This will probably affect performance??
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity

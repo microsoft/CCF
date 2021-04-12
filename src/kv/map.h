@@ -6,7 +6,6 @@
 #include "map_handle.h"
 #include "serialise_entry_blit.h"
 #include "serialise_entry_json.h"
-#include "serialise_entry_msgpack.h"
 
 namespace kv
 {
@@ -112,14 +111,4 @@ namespace kv
     V,
     kv::serialisers::BlitSerialiser<K>,
     kv::serialisers::BlitSerialiser<V>>;
-
-  template <typename K, typename V>
-  using MsgPackSerialisedMap =
-    MapSerialisedWith<K, V, kv::serialisers::MsgPackSerialiser>;
-
-  /** Short name for default-serialised maps, using msgpack serialisers. Support
-   * for custom types can be added through the MSGPACK_DEFINE macro
-   */
-  template <typename K, typename V>
-  using Map = MsgPackSerialisedMap<K, V>;
 }

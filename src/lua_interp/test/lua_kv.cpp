@@ -1,8 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../lua_kv.h"
-
 #include "../lua_interp.h"
+#include "../lua_kv.h"
 #include "ccf/app_interface.h"
 #include "ds/hash.h"
 #include "ds/logger.h"
@@ -19,16 +18,16 @@ using namespace nlohmann;
 
 namespace ccf
 {
-  using TableII = kv::Map<int, int>;
+  using TableII = kv::JsonSerialisedMap<int, int>;
   using TxII = TableII::Handle;
 
-  using TableIS = kv::Map<int, std::string>;
+  using TableIS = kv::RawCopySerialisedMap<int, std::string>;
   using TxIS = TableIS::Handle;
 
-  using TableSB = kv::Map<std::string, bool>;
+  using TableSB = kv::JsonSerialisedMap<std::string, bool>;
   using TxSB = TableSB::Handle;
 
-  using TableVI = kv::Map<vector<uint8_t>, int>;
+  using TableVI = kv::RawCopySerialisedMap<vector<uint8_t>, int>;
   using TxVI = TableVI::Handle;
 
   TEST_CASE("lua tx")

@@ -3,7 +3,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "kv/encryptor.h"
-
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
@@ -17,7 +16,7 @@
 #include <string>
 
 kv::ConsensusHookPtrs hooks;
-using StringString = kv::Map<std::string, std::string>;
+using StringString = kv::JsonSerialisedMap<std::string, std::string>;
 
 void commit_one(kv::Store& store, StringString& map)
 {

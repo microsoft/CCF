@@ -1,13 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "node/history.h"
-
 #include "ccf/app_interface.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
+#include "node/history.h"
 #include "node/nodes.h"
 #include "node/signatures.h"
 
@@ -17,7 +16,7 @@
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
-using MapT = kv::Map<size_t, size_t>;
+using MapT = kv::JsonSerialisedMap<size_t, size_t>;
 
 class DummyConsensus : public kv::test::StubConsensus
 {

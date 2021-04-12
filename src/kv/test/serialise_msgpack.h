@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "serialised_entry.h"
+#include "kv/map.h"
+#include "kv/serialised_entry.h"
 
 #include <msgpack/msgpack.hpp>
 
@@ -40,4 +41,11 @@ namespace kv::serialisers
       return object.as<T>();
     }
   };
+}
+
+namespace kv
+{
+  template <typename K, typename V>
+  using MsgPackSerialisedMap =
+    MapSerialisedWith<K, V, kv::serialisers::MsgPackSerialiser>;
 }

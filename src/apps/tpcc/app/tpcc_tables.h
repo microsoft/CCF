@@ -3,11 +3,15 @@
 #pragma once
 
 #include <cstring>
+#include <msgpack/msgpack.hpp>
 #include <nlohmann/json.hpp>
 #include <stdint.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+// TODO: Move elsewhere!
+#include "kv/test/serialise_msgpack.h"
 namespace tpcc
 {
   namespace Address
@@ -489,16 +493,20 @@ namespace tpcc
       sizeof(DistributeKey) == sizeof(uint64_t),
       "Distribute key is the wrong size");
 
-    static kv::Map<Stock::Key, Stock> stocks;
-    static kv::Map<Warehouse::Key, Warehouse> warehouses;
-    static kv::Map<District::Key, District> districts;
-    static kv::Map<History::Key, History> histories;
-    static std::unordered_map<uint64_t, kv::Map<Customer::Key, Customer>>
-      customers;
-    static std::unordered_map<uint64_t, kv::Map<Order::Key, Order>> orders;
-    static kv::Map<OrderLine::Key, OrderLine> order_lines;
-    static std::unordered_map<uint64_t, kv::Map<NewOrder::Key, NewOrder>>
-      new_orders;
-    static kv::Map<Item::Key, Item> items;
+    static kv::MsgPackSerialisedMap<Stock::Key, Stock> stocks;
+    static kv::MsgPackSerialisedMap<Warehouse::Key, Warehouse> warehouses;
+    static kv::MsgPackSerialisedMap<District::Key, District> districts;
+    static kv::MsgPackSerialisedMap<History::Key, History> histories;
+    static std::
+      unordered_map<uint64_t, kv::MsgPackSerialisedMap<Customer::Key, Customer>>
+        customers;
+    static std::
+      unordered_map<uint64_t, kv::MsgPackSerialisedMap<Order::Key, Order>>
+        orders;
+    static kv::MsgPackSerialisedMap<OrderLine::Key, OrderLine> order_lines;
+    static std::
+      unordered_map<uint64_t, kv::MsgPackSerialisedMap<NewOrder::Key, NewOrder>>
+        new_orders;
+    static kv::MsgPackSerialisedMap<Item::Key, Item> items;
   };
 }

@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/snapshotter.h"
-
 #include "ds/logger.h"
 #include "kv/test/null_encryptor.h"
+#include "node/snapshotter.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -16,7 +15,7 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 constexpr auto buffer_size = 1024 * 16;
 
-using StringString = kv::Map<std::string, std::string>;
+using StringString = kv::JsonSerialisedMap<std::string, std::string>;
 using rb_msg = std::pair<ringbuffer::Message, size_t>;
 
 auto read_ringbuffer_out(ringbuffer::Circuit& circuit)

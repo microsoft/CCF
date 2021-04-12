@@ -1,12 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/historical_queries.h"
-
 #include "crypto/rsa_key_pair.h"
 #include "ds/messaging.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "node/historical_queries.h"
 #include "node/history.h"
 #include "node/share_manager.h"
 
@@ -18,7 +17,7 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
-using NumToString = kv::Map<size_t, std::string>;
+using NumToString = kv::JsonSerialisedMap<size_t, std::string>;
 
 struct StubWriter : public ringbuffer::AbstractWriter
 {
