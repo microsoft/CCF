@@ -41,5 +41,12 @@ class Proposal:
         self.view = view
         self.seqno = seqno
 
+        self.completed_view = view if state == ProposalState.ACCEPTED else None
+        self.completed_seqno = seqno if state == ProposalState.ACCEPTED else None
+
+    def set_completed(self, seqno, view):
+        self.completed_seqno = seqno
+        self.completed_view = view
+
     def increment_votes_for(self):
         self.votes_for += 1
