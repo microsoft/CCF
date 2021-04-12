@@ -128,26 +128,6 @@ std::vector<uint8_t> create_signed_request(
   return r.build_request();
 }
 
-template <typename T>
-auto query_params(T script, bool compile)
-{
-  json params;
-  if (compile)
-    params["bytecode"] = lua::compile(script);
-  else
-    params["text"] = script;
-  return params;
-}
-
-template <typename T>
-auto read_params(const T& key, const string& table_name)
-{
-  json params;
-  params["key"] = key;
-  params["table"] = table_name;
-  return params;
-}
-
 auto frontend_process(
   MemberRpcFrontend& frontend,
   const std::vector<uint8_t>& serialized_request,

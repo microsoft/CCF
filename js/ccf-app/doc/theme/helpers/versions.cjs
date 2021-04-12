@@ -1,9 +1,3 @@
-/* Test without sphinx-multiversion:
-export SMV_CURRENT_VERSION=ccf-0.19.1
-export SMV_METADATA_PATH=$(pwd)/doc/theme/helpers/versions.sample.json
-npm run docs:serve
-*/
-
 const fs = require("fs");
 
 function sortByNameDesc(arr) {

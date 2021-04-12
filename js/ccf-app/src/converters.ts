@@ -20,7 +20,7 @@
  * @module
  */
 
-import { ccf } from "./global";
+import { ccf } from "./global.js";
 
 // This should eventually cover all JSON-compatible values.
 // There are attempts at https://github.com/microsoft/TypeScript/issues/1897

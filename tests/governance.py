@@ -12,6 +12,7 @@ from infra.node import NodeStatus
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
+import json
 
 from loguru import logger as LOG
 
@@ -113,23 +114,22 @@ def test_no_quote(network, args):
 def test_member_data(network, args):
     assert args.initial_operator_count > 0
     primary, _ = network.find_nodes()
-    with primary.client("member0") as mc:
 
-        def member_info(mid):
-            return mc.post(
-                "/gov/read", {"table": "public:ccf.gov.members.info", "key": mid}
-            ).body.json()
+    latest_public_tables, _ = primary.get_latest_ledger_public_state()
+    members_info = latest_public_tables["public:ccf.gov.members.info"]
 
-        md_count = 0
-        for member in network.get_members():
-            if member.member_data:
-                assert (
-                    member_info(member.service_id)["member_data"] == member.member_data
-                )
-                md_count += 1
-            else:
-                assert "member_data" not in member_info(member.service_id)
-        assert md_count == args.initial_operator_count
+    md_count = 0
+    for member in network.get_members():
+        stored_member_info = json.loads(members_info[member.service_id.encode()])
+        if member.member_data:
+            assert (
+                stored_member_info["member_data"] == member.member_data
+            ), f'stored member data "{stored_member_info["member_data"]}" != expected "{member.member_data} "'
+            md_count += 1
+        else:
+            assert "member_data" not in stored_member_info
+
+    assert md_count == args.initial_operator_count
 
     return network
 
@@ -154,16 +154,9 @@ def test_service_principals(network, args):
 
     principal_id = "0xdeadbeef"
 
-    def read_service_principal():
-        with node.client("member0") as mc:
-            return mc.post(
-                "/gov/read",
-                {"table": "public:ccf.gov.service_principals", "key": principal_id},
-            )
-
     # Initially, there is nothing in this table
-    r = read_service_principal()
-    assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+    latest_public_tables, _ = node.get_latest_ledger_public_state()
+    assert "public:ccf.gov.service_principals" not in latest_public_tables
 
     # Create and accept a proposal which populates an entry in this table
     principal_data = {"name": "Bob", "roles": ["Fireman", "Zookeeper"]}
@@ -194,10 +187,15 @@ def test_service_principals(network, args):
     network.consortium.vote_using_majority(node, proposal, ballot)
 
     # Confirm it can be read
-    r = read_service_principal()
-    assert r.status_code == http.HTTPStatus.OK.value
-    j = r.body.json()
-    assert j == principal_data
+    latest_public_tables, _ = node.get_latest_ledger_public_state()
+    assert (
+        json.loads(
+            latest_public_tables["public:ccf.gov.service_principals"][
+                principal_id.encode()
+            ]
+        )
+        == principal_data
+    )
 
     # Create and accept a proposal which removes an entry from this table
     if os.getenv("JS_GOVERNANCE"):
@@ -219,9 +217,11 @@ def test_service_principals(network, args):
     network.consortium.vote_using_majority(node, proposal, ballot)
 
     # Confirm it is gone
-    r = read_service_principal()
-    assert r.status_code == http.HTTPStatus.NOT_FOUND.value
-
+    latest_public_tables, _ = node.get_latest_ledger_public_state()
+    assert (
+        principal_id.encode()
+        not in latest_public_tables["public:ccf.gov.service_principals"]
+    )
     return network
 
 
