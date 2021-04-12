@@ -8,7 +8,7 @@
  * @module
  */
 
-import { JsonCompatible } from "./global";
+import { JsonCompatible } from "./global.js";
 
 /**
  * The body of a request.

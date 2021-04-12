@@ -7,7 +7,7 @@
  * It must be imported before all other imports like so:
  *
  * ```
- * import '@microsoft/ccf-app/polyfills';
+ * import '@microsoft/ccf-app/polyfill.js';
  * ```
  *
  * Note that some functionality is not polyfilled,
@@ -28,7 +28,8 @@ import {
   JsonCompatible,
   CryptoKeyPair,
   WrapAlgoParams,
-} from "./global";
+  DigestAlgorithm,
+} from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
 // whereas CCF compares the content of the ArrayBuffer.
@@ -149,6 +150,16 @@ class CCFPolyfill implements CCF {
       );
     } else {
       throw new Error("unsupported wrapAlgo.name");
+    }
+  }
+
+  digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer {
+    if (algorithm === "SHA-256") {
+      return nodeBufToArrBuf(
+        crypto.createHash("sha256").update(new Uint8Array(data)).digest()
+      );
+    } else {
+      throw new Error("unsupported algorithm");
     }
   }
 }

@@ -1,12 +1,12 @@
 import { assert } from "chai";
-import "../src/polyfill";
+import "../src/polyfill.js";
 import {
   AesKwpParams,
   ccf,
   RsaOaepAesKwpParams,
   RsaOaepParams,
-} from "../src/global";
-import { unwrapKey } from "./crypto";
+} from "../src/global.js";
+import { unwrapKey } from "./crypto.js";
 
 beforeEach(function () {
   // clear KV before each test
@@ -92,6 +92,16 @@ describe("polyfill", function () {
       assert.deepEqual(unwrapped, key);
     });
   });
+  describe("digest", function () {
+    it("generates a valid SHA-256 hash", function () {
+      const data = "Hello world!";
+      const expected =
+        "c0535e4be2b79ffd93291305436bf889314e4a3faec05ecffcbb7df31ad9e51a";
+      const digest = ccf.digest("SHA-256", ccf.strToBuf(data));
+      const actual = Buffer.from(digest).toString("hex");
+      assert.equal(actual, expected);
+    });
+  });
   describe("kv", function () {
     it("basic", function () {
       const foo = ccf.kv["foo"];
@@ -106,6 +116,10 @@ describe("polyfill", function () {
       foo.set(key_buf, val_buf);
       assert.deepEqual(foo.get(key_buf), val_buf);
       assert.isTrue(foo.has(key_buf));
+
+      const foo2 = ccf.kv["foo"];
+      assert.deepEqual(foo2.get(key_buf), val_buf);
+      assert.isTrue(foo2.has(key_buf));
 
       let found = false;
       foo.forEach((v, k) => {
