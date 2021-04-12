@@ -534,6 +534,8 @@ class Ledger:
 
         transaction = None
         try:
+            # Note: This is slower than it really needs to as this will walk through
+            # all transactions from the start of the ledger.
             for chunk in self:
                 for tx in chunk:
                     public_transaction = tx.get_public_domain()
