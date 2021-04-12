@@ -871,9 +871,7 @@ namespace ccf
         js::populate_global_ccf(
           &txctx, std::nullopt, nullptr, nullptr, nullptr, js_context);
         auto resolve_func = js_context.function(
-          constitution,
-          "resolve",
-          fmt::format("public:ccf.gov.constitution[0]", proposal_id));
+          constitution, "resolve", "public:ccf.gov.constitution[0]");
         JSValue argv[3];
         auto prop = JS_NewStringLen(
           js_context, (const char*)proposal.data(), proposal.size());
@@ -942,6 +940,10 @@ namespace ccf
           {
             pi_.value().state = ProposalState::FAILED;
           }
+          else if (status == "Dropped")
+          {
+            pi_.value().state = ProposalState::DROPPED;
+          }
           else
           {
             pi_.value().state = ProposalState::FAILED;
@@ -973,16 +975,24 @@ namespace ccf
               &network,
               js_context);
             auto apply_func = js_context.function(
-              constitution,
-              "apply",
-              fmt::format("public:ccf.gov.constitution[0]", proposal_id));
+              constitution, "apply", "public:ccf.gov.constitution[0]");
 
+            JSValue argv[2];
             auto prop = JS_NewStringLen(
               js_context, (const char*)proposal.data(), proposal.size());
+            argv[0] = prop;
+
+            auto prop_id = JS_NewStringLen(
+              js_context, proposal_id.c_str(), proposal_id.size());
+            argv[1] = prop_id;
+
             auto val = js_context(
-              JS_Call(js_context, apply_func, JS_UNDEFINED, 1, &prop));
+              JS_Call(js_context, apply_func, JS_UNDEFINED, 2, argv));
+
             JS_FreeValue(js_context, apply_func);
             JS_FreeValue(js_context, prop);
+            JS_FreeValue(js_context, prop_id);
+
             if (JS_IsException(val))
             {
               pi_.value().state = ProposalState::FAILED;
@@ -1008,12 +1018,6 @@ namespace ccf
     bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
     {
       return check_member_status(tx, id, {MemberStatus::ACTIVE});
-    }
-
-    bool check_member_accepted(kv::ReadOnlyTx& tx, const MemberId& id)
-    {
-      return check_member_status(
-        tx, id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED});
     }
 
     bool check_member_status(
@@ -1113,85 +1117,6 @@ namespace ccf
 
       const AuthnPolicies member_cert_or_sig = {member_cert_auth_policy,
                                                 member_signature_auth_policy};
-
-      auto read = [this](auto& ctx, nlohmann::json&& params) {
-        const auto member_id = get_caller_member_id(ctx);
-        if (!member_id.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is unknown.");
-        }
-
-        if (!check_member_status(
-              ctx.tx,
-              member_id.value(),
-              {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not active or accepted.");
-        }
-
-        const auto in = params.get<KVRead::In>();
-
-        const ccf::Script read_script(R"xxx(
-        local tables, table_name, key = ...
-        return tables[table_name]:get(key) or {}
-        )xxx");
-
-        auto value = tsr.run<nlohmann::json>(
-          ctx.tx,
-          {read_script, {}, WlIds::MEMBER_CAN_READ, {}},
-          in.table,
-          in.key);
-        if (value.empty())
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::KeyNotFound,
-            fmt::format(
-              "Key {} does not exist in table {}.", in.key.dump(), in.table));
-        }
-
-        return make_success(value);
-      };
-      make_endpoint("read", HTTP_POST, json_adapter(read), member_cert_or_sig)
-        // This can be executed locally, but can't currently take ReadOnlyTx due
-        // to restrictions in our lua wrappers
-        .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
-        .set_auto_schema<KVRead>()
-        .install();
-
-      auto query = [this](auto& ctx, nlohmann::json&& params) {
-        const auto member_id = get_caller_member_id(ctx);
-        if (!member_id.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is unknown.");
-        }
-        if (!check_member_accepted(ctx.tx, member_id.value()))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not accepted.");
-        }
-
-        const auto script = params.get<ccf::Script>();
-        return make_success(tsr.run<nlohmann::json>(
-          ctx.tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
-      };
-      make_endpoint("query", HTTP_POST, json_adapter(query), member_cert_or_sig)
-        // This can be executed locally, but can't currently take ReadOnlyTx due
-        // to restrictions in our lua wrappers
-        .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
-        .set_auto_schema<Script, nlohmann::json>()
-        .install();
 
       auto propose = [this](auto& ctx, nlohmann::json&& params) {
         const auto& caller_identity =
