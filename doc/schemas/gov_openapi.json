@@ -226,7 +226,8 @@
           "Accepted",
           "Withdrawn",
           "Rejected",
-          "Failed"
+          "Failed",
+          "Dropped"
         ],
         "type": "string"
       },

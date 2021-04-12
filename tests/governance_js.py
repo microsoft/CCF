@@ -41,6 +41,9 @@ always_accept_if_proposed_by_operator = proposal(
 always_accept_with_two_votes = proposal(action("always_accept_with_two_votes"))
 always_reject_with_two_votes = proposal(action("always_reject_with_two_votes"))
 
+ballot_yes = {"ballot": "export function vote (proposal, proposer_id) { return true }"}
+ballot_no = {"ballot": "export function vote (proposal, proposer_id) { return false }"}
+
 
 @reqs.description("Test proposal validation")
 def test_proposal_validation(network, args):
@@ -159,9 +162,7 @@ def test_ballot_storage(network, args):
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", {})
         assert r.status_code == 400, r.body.text()
 
-        ballot = {
-            "ballot": "export function vote (proposal, proposer_id) { return true }"
-        }
+        ballot = ballot_yes
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
 
@@ -171,9 +172,7 @@ def test_ballot_storage(network, args):
         assert r.body.json() == ballot, r.body.json()
 
     with node.client(None, "member1") as c:
-        ballot = {
-            "ballot": "export function vote (proposal, proposer_id) { return false }"
-        }
+        ballot = ballot_no
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
         member_id = network.consortium.get_member_by_local_id("member1").service_id
@@ -198,9 +197,7 @@ def test_pure_proposals(network, args):
             assert r.body.json()["state"] == state, r.body.json()
             proposal_id = r.body.json()["proposal_id"]
 
-            ballot = {
-                "ballot": "export function vote (proposal, proposer_id) { return true }"
-            }
+            ballot = ballot_yes
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 400, r.body.text()
 
@@ -253,26 +250,20 @@ def test_proposals_with_votes(network, args):
             assert r.body.json()["state"] == state, r.body.json()
 
     with node.client(None, "member0") as c:
-        for prop, state, direction in [
-            (always_accept_with_two_votes, "Accepted", "true"),
-            (always_reject_with_two_votes, "Rejected", "false"),
+        for prop, state, ballot in [
+            (always_accept_with_two_votes, "Accepted", ballot_yes),
+            (always_reject_with_two_votes, "Rejected", ballot_no),
         ]:
             r = c.post("/gov/proposals.js", prop)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == "Open", r.body.json()
             proposal_id = r.body.json()["proposal_id"]
 
-            ballot = {
-                "ballot": f"export function vote (proposal, proposer_id) {{ return {direction} }}"
-            }
             r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == "Open", r.body.json()
 
             with node.client(None, "member1") as oc:
-                ballot = {
-                    "ballot": f"export function vote (proposal, proposer_id) {{ return {direction} }}"
-                }
                 r = oc.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
                 assert r.status_code == 200, r.body.text()
                 assert r.body.json()["state"] == state, r.body.json()
@@ -289,9 +280,7 @@ def test_operator_proposals_and_votes(network, args):
         assert r.body.json()["state"] == "Open", r.body.json()
         proposal_id = r.body.json()["proposal_id"]
 
-        ballot = {
-            "ballot": "export function vote (proposal, proposer_id) { return true; }"
-        }
+        ballot = ballot_yes
         r = c.post(f"/gov/proposals.js/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Accepted", r.body.json()
@@ -344,7 +333,7 @@ def test_actions(network, args):
     network.consortium.set_member_data(
         node,
         network.consortium.get_member_by_local_id("member0").service_id,
-        member_data={"is_admin": True},
+        member_data={"is_operator": True, "is_admin": True},
     )
 
     # Set recovery threshold
@@ -408,6 +397,8 @@ def test_actions(network, args):
     network.consortium.remove_member(node, new_member)
     network.consortium.remove_member(node, new_member)
 
+    return network
+
 
 @reqs.description("Test apply")
 def test_apply(network, args):
@@ -439,6 +430,88 @@ def test_apply(network, args):
     return network
 
 
+@reqs.description("Test set_constitution")
+def test_set_constitution(network, args):
+    node = network.find_random_node()
+
+    # Create some open proposals
+    pending_proposals = []
+    with node.client(None, "member0") as c:
+        r = c.post(
+            "/gov/proposals.js",
+            valid_set_recovery_threshold,
+        )
+        assert r.status_code == 200, r.body.text()
+        body = r.body.json()
+        assert body["state"] == "Open", body
+        pending_proposals.append(body["proposal_id"])
+
+        r = c.post(
+            "/gov/proposals.js",
+            always_accept_with_one_vote,
+        )
+        assert r.status_code == 200, r.body.text()
+        body = r.body.json()
+        assert body["state"] == "Open", body
+        pending_proposals.append(body["proposal_id"])
+
+    # Create a set_constitution proposal, with test proposals removed, and pass it
+    original_constitution = args.constitution
+    modified_constitution = [
+        path for path in original_constitution if "test_actions.js" not in path
+    ]
+    network.consortium.set_constitution(node, modified_constitution)
+
+    with node.client(None, "member0") as c:
+        # Check all other proposals were dropped
+        for proposal_id in pending_proposals:
+            r = c.get(f"/gov/proposals.js/{proposal_id}")
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == "Dropped", r.body.json()
+
+        # Confirm constitution has changed by proposing test actions which are no longer present
+        r = c.post(
+            "/gov/proposals.js",
+            always_accept_noop,
+        )
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), r.body.text()
+
+        r = c.post(
+            "/gov/proposals.js",
+            always_reject_noop,
+        )
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), r.body.text()
+
+        # Confirm modified constitution can still accept valid proposals
+        r = c.post(
+            "/gov/proposals.js",
+            valid_set_recovery_threshold,
+        )
+        assert r.status_code == 200, r.body.text()
+        body = r.body.json()
+        assert body["state"] == "Open", body
+
+    # Restore original constitution
+    network.consortium.set_constitution(node, original_constitution)
+
+    # Confirm original constitution was restored
+    r = c.post(
+        "/gov/proposals.js",
+        always_accept_noop,
+    )
+    assert r.status_code == 200, r.body.text()
+    body = r.body.json()
+    assert body["state"] == "Accepted", body
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -453,6 +526,7 @@ def run(args):
         network = test_operator_proposals_and_votes(network, args)
         network = test_apply(network, args)
         network = test_actions(network, args)
+        network = test_set_constitution(network, args)
 
 
 if __name__ == "__main__":

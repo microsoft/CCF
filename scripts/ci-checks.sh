@@ -28,7 +28,7 @@ else
   "$SCRIPT_DIR"/check-format.sh include src samples
 fi
 
-npm --loglevel=error install prettier 1>/dev/null
+npm install --loglevel=error --no-save prettier 1>/dev/null
 echo "TypeScript, JavaScript, Markdown, YAML and JSON format"
 if [ $FIX -ne 0 ]; then
   git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | xargs npx prettier --write
@@ -36,7 +36,7 @@ else
   git ls-files | grep -e '\.ts$' -e '\.js$' -e '\.md$' -e '\.yaml$' -e '\.yml$' -e '\.json$' | xargs npx prettier --check
 fi
 
-npm install --loglevel=error @apidevtools/swagger-cli 1>/dev/null
+npm install --loglevel=error --no-save @apidevtools/swagger-cli 1>/dev/null
 echo "OpenAPI"
 find doc/schemas/*.json -exec npx swagger-cli validate {} \;
 
