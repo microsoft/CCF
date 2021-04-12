@@ -1,6 +1,6 @@
 import { assert } from "chai";
-import "../src/polyfill";
-import * as conv from "../src/converters";
+import "../src/polyfill.js";
+import * as conv from "../src/converters.js";
 
 describe("converters", function () {
   it("bool", function () {
