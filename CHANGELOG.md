@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `/node/state` endpoint also returns the `seqno` at which a node was started (i.e. `seqno` of the snapshot a node started from or `0` otherwise) (#2422).
 - The service certificate is now returned as part of the `/node/network/` endpoint response.
 
 ### Removed

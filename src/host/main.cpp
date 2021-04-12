@@ -773,9 +773,10 @@ int main(int argc, char** argv)
             snapshot));
         }
 
-        ccf_config.startup_snapshot = files::slurp(snapshot);
+        ccf_config.startup_snapshot = snapshots.read_snapshot(snapshot);
         ccf_config.startup_snapshot_evidence_seqno =
           snapshot_evidence_idx->first;
+
         LOG_INFO_FMT(
           "Found latest snapshot file: {} (size: {}, evidence seqno: {})",
           snapshot,
