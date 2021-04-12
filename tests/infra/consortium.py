@@ -265,9 +265,21 @@ class Consortium:
         if proposal.state == ProposalState.ACCEPTED:
             proposal.set_completed(seqno, view)
         else:
+            LOG.error(
+                json.dumps(
+                    self.get_proposal(remote_node, proposal.proposal_id), indent=2
+                )
+            )
             raise infra.proposal.ProposalNotAccepted(proposal)
 
         return proposal
+
+    def get_proposal(self, remote_node, proposal_id):
+        member = self.get_any_active_member()
+        with remote_node.client(*member.auth()) as c:
+            r = c.get(f"/gov/proposals.js/{proposal_id}")
+            assert r.status_code == http.HTTPStatus.OK.value
+            return r.body.json()
 
     def retire_node(self, remote_node, node_to_retire):
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
@@ -371,6 +383,13 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_constitution(self, remote_node, constitution_paths):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_constitution", constitution_paths
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_js_app(self, remote_node, app_bundle_path):
         proposal_body, careful_vote = self.make_proposal("set_js_app", app_bundle_path)

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/ledger_enclave_types.h"
+#include "ds/files.h"
 #include "host/ledger.h"
 
 #include <charconv>
@@ -123,6 +124,11 @@ namespace asynchost
       }
     }
 
+    std::vector<uint8_t> read_snapshot(const std::string& file_name)
+    {
+      return files::slurp(fs::path(snapshot_dir) / fs::path(file_name));
+    }
+
     void write_snapshot(
       consensus::Index idx,
       consensus::Index evidence_idx,
@@ -235,7 +241,7 @@ namespace asynchost
         size_t snapshot_idx = std::stol(file_name.substr(pos + 1));
         if (snapshot_idx > latest_idx)
         {
-          snapshot_file = f.path().string();
+          snapshot_file = file_name;
           latest_idx = snapshot_idx;
         }
       }
