@@ -788,15 +788,7 @@ namespace ccf
         g.trust_node_code_id(in.code_digest);
 #endif
 
-        for (const auto& wl : default_whitelists)
-        {
-          g.set_whitelist(wl.first, wl.second);
-        }
-
-        g.set_gov_scripts(
-          lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
-
-        ctx.tx.rw(this->network.constitution)->put(0, in.constitution);
+        g.set_constitution(in.constitution);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);
@@ -1081,7 +1073,7 @@ namespace ccf
 
       make_endpoint(
         "proposals.js", HTTP_POST, post_proposals_js, member_sig_only)
-        .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfo>()
+        .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfoSummary>()
         .install();
 
       auto get_proposal_js =

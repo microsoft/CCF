@@ -75,7 +75,6 @@ namespace ccf
     static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
     static constexpr auto GOV_SCRIPTS = "public:ccf.gov.scripts";
     static constexpr auto GOV_HISTORY = "public:ccf.gov.history";
-    static constexpr auto WHITELISTS = "public:ccf.gov.whitelists";
 
     // JS applications, not service specific but writable by governance only
     static constexpr auto MODULES = "public:ccf.gov.modules";

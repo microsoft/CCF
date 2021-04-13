@@ -12,6 +12,7 @@
 
 namespace ccf
 {
+  // TODO
   /** Members use proposals to propose changes to the KV store.
    * Active members can issue proposals through the Propose RPC.
    * A proposal is defined by a Lua script and a corresponding parameter.
@@ -111,41 +112,6 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(Vote)
   DECLARE_JSON_REQUIRED_FIELDS(Vote, ballot)
-
-  //! A call proposed by a proposal script
-  struct ProposedCall
-  {
-    //! the name of the function to call
-    std::string func;
-    //! the corresponding arguments
-    nlohmann::json args;
-  };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposedCall)
-  DECLARE_JSON_REQUIRED_FIELDS(ProposedCall, func)
-  DECLARE_JSON_OPTIONAL_FIELDS(ProposedCall, args)
-
-  struct Propose
-  {
-    //! arguments for propose RPC
-    struct In
-    {
-      //! script that proposes changes
-      Script script;
-      //! fixed parameter for the script
-      nlohmann::json parameter = nullptr;
-    };
-
-    //! results from propose RPC
-    using Out = ProposalInfo;
-  };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Propose::In)
-  DECLARE_JSON_REQUIRED_FIELDS(Propose::In, script)
-  DECLARE_JSON_OPTIONAL_FIELDS(Propose::In, parameter)
-
-  /** A list of calls proposed (and returned) by a proposal script
-   * Every proposal script must return a compatible data structure.
-   */
-  using ProposedCalls = std::vector<ProposedCall>;
 
   struct KVRead
   {

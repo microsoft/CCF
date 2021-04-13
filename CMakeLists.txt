@@ -432,13 +432,6 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
-    )
-    target_include_directories(lua_test PRIVATE ${LUA_DIR})
-    target_link_libraries(lua_test PRIVATE lua.host http_parser.host)
-
-    add_unit_test(
       merkle_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
     )
 

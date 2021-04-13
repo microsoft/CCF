@@ -16,7 +16,6 @@
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/serdes.h"
 #include "node_stub.h"
-#include "runtime_config/default_whitelists.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -88,12 +87,6 @@ void check_result_state(const TResponse& r, ProposalState expected)
   DOCTEST_CHECK(r.status == HTTP_STATUS_OK);
   const auto result = parse_response_body<ProposalInfo>(r);
   DOCTEST_CHECK(result.state == expected);
-}
-
-void set_whitelists(GenesisGenerator& gen)
-{
-  for (const auto& wl : default_whitelists)
-    gen.set_whitelist(wl.first, wl.second);
 }
 
 std::vector<uint8_t> create_request(
@@ -212,9 +205,6 @@ auto init_frontend(
     member_certs.push_back(get_cert(i, kp));
     gen.activate_member(gen.add_member(member_certs.back()));
   }
-
-  set_whitelists(gen);
-  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
 
   return MemberRpcFrontend(network, context, share_manager);
 }

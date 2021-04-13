@@ -7,13 +7,10 @@
 #include "crypto/verifier.h"
 #include "entities.h"
 #include "ledger_secrets.h"
-#include "lua_interp/lua_interp.h"
-#include "lua_interp/lua_util.h"
 #include "members.h"
 #include "network_tables.h"
 #include "node_info_network.h"
 #include "nodes.h"
-#include "runtime_config/default_whitelists.h"
 #include "values.h"
 
 #include <algorithm>
@@ -27,22 +24,6 @@ namespace ccf
     NetworkTables& tables;
 
     kv::Tx& tx;
-
-    template <typename T>
-    void set_scripts(
-      std::map<std::string, std::string> scripts,
-      T& table,
-      const bool compile = false)
-    {
-      auto tx_scripts = tx.rw(table);
-      for (auto& rs : scripts)
-      {
-        if (compile)
-          tx_scripts->put(rs.first, lua::compile(rs.second));
-        else
-          tx_scripts->put(rs.first, rs.second);
-      }
-    }
 
   public:
     GenesisGenerator(NetworkTables& tables_, kv::Tx& tx_) :
@@ -414,16 +395,9 @@ namespace ccf
       return signatures->get(0);
     }
 
-    void set_whitelist(WlIds id, Whitelist wl)
+    void set_constitution(const std::string& constitution)
     {
-      tx.rw(tables.whitelists)->put(id, wl);
-    }
-
-    void set_gov_scripts(std::map<std::string, std::string> scripts)
-    {
-      // don't compile, because gov scripts are important functionally but not
-      // performance-wise
-      set_scripts(scripts, tables.gov_scripts, false);
+      tx.rw(tables.constitution)->put(0, constitution);
     }
 
     void trust_node_code_id(const CodeDigest& node_code_id)
