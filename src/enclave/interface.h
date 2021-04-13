@@ -163,6 +163,12 @@ enum AppMessage : ringbuffer::Message
 };
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  AppMessage::launch_host_process,
-  std::vector<std::string>
-  );
+  AppMessage::launch_host_process, std::string);
+
+struct LaunchHostProcessMessage
+{
+  std::vector<std::string> args;
+};
+
+DECLARE_JSON_TYPE(LaunchHostProcessMessage);
+DECLARE_JSON_REQUIRED_FIELDS(LaunchHostProcessMessage, args);

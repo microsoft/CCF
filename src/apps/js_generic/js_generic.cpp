@@ -332,7 +332,13 @@ namespace ccfapp
       js::register_request_body_class(ctx);
       js::populate_global_console(ctx);
       js::populate_global_ccf(
-        &txctx, transaction_id, receipt, &context.get_node_state(), nullptr, ctx);
+        &txctx,
+        transaction_id,
+        receipt,
+        // TODO temporary (?)
+        &context.get_node_state(),
+        nullptr,
+        ctx);
 
       // Compile module
       std::string code = handler_script.value();

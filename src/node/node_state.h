@@ -1237,10 +1237,14 @@ namespace ccf
       share_manager.shuffle_recovery_shares(tx);
     }
 
-    void trigger_host_process_launch(const std::vector<std::string>& args) override
+    void trigger_host_process_launch(
+      const std::vector<std::string>& args) override
     {
-      RINGBUFFER_WRITE_MESSAGE(
-          AppMessage::launch_host_process, to_host, args);
+      LaunchHostProcessMessage msg{args};
+      nlohmann::json j = msg;
+      auto json = j.dump();
+      LOG_DEBUG_FMT("Triggering host process launch: {}", json);
+      RINGBUFFER_WRITE_MESSAGE(AppMessage::launch_host_process, to_host, json);
     }
 
     void transition_service_to_open(kv::Tx& tx) override

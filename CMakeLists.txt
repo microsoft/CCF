@@ -659,6 +659,15 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME launch_host_process_test
+    PYTHON_SCRIPT
+      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
+  )
+
+  add_e2e_test(
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft

@@ -30,7 +30,8 @@ namespace ccf
       return;
     }
 
-    void trigger_host_process_launch(const std::vector<std::string>& args) override
+    void trigger_host_process_launch(
+      const std::vector<std::string>& args) override
     {
       return;
     }

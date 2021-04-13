@@ -619,26 +619,21 @@ namespace js
   }
 
   JSValue js_node_trigger_host_process_launch(
-    JSContext* ctx,
-    JSValueConst this_val,
-    int argc,
-    JSValueConst* argv)
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     if (argc != 1)
     {
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments but expected 1", argc);
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
     }
 
     auto args = argv[0];
 
     if (!JS_IsArray(ctx, args))
     {
-      return JS_ThrowTypeError(
-        ctx, "First argument must be an array");
+      return JS_ThrowTypeError(ctx, "First argument must be an array");
     }
 
-    std::vector<std::string> process_args;  
+    std::vector<std::string> process_args;
 
     auto len_atom = JS_NewAtom(ctx, "length");
     auto len_val = JS_GetProperty(ctx, args, len_atom);
@@ -652,7 +647,7 @@ namespace js
       return JS_ThrowRangeError(
         ctx, "First argument must be a non-empty array");
     }
-    
+
     for (uint32_t i = 0; i < len; i++)
     {
       auto arg_val = JS_GetPropertyUint32(ctx, args, i);
@@ -1045,8 +1040,14 @@ namespace js
           "triggerRecoverySharesRefresh",
           0));
       JS_SetPropertyStr(
-        ctx, ccf, "triggerHostProcessLaunch",
-        JS_NewCFunction(ctx, js_node_trigger_host_process_launch, "triggerHostProcessLaunch", 1));
+        ctx,
+        node,
+        "triggerHostProcessLaunch",
+        JS_NewCFunction(
+          ctx,
+          js_node_trigger_host_process_launch,
+          "triggerHostProcessLaunch",
+          1));
     }
 
     if (network_state != nullptr)
