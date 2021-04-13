@@ -21,6 +21,7 @@ def run(args):
         primary, _ = network.find_nodes()
 
         primary_pid = primary.remote.remote.proc.pid
+
         num_fds = psutil.Process(primary_pid).num_fds()
         max_fds = num_fds + 150
         LOG.success(f"{primary_pid} has {num_fds} open file descriptors")
@@ -34,28 +35,15 @@ def run(args):
                 LOG.success(f"Creating {target} clients")
                 for i in range(target):
                     try:
+                        LOG.info(f"Creating client {i}")
                         clients.append(es.enter_context(primary.client("user0", connection_timeout=1)))
-                        LOG.info(f"Created client {i}")
-                    except OSError:
-                        LOG.error(f"Failed to create client {i}")
-
-                # Creating clients may not actually create connections/fds. Send messages until we run out of fds
-                for i, c in enumerate(clients):
-                    if psutil.Process(primary_pid).num_fds() >= max_fds:
-                        LOG.warning(f"Reached fd limit at client {i}")
+                        check(
+                            clients[-1].post("/app/log/private", {"id": 42, "msg": "foo"}),
+                            result=True,
+                        )
+                    except Exception as e:
+                        LOG.warning(f"Hit exception at client {i}: {e}")
                         break
-                    LOG.info(f"Sending as client {i}")
-                    check(
-                        c.post("/app/log/private", {"id": 42, "msg": "foo"}),
-                        result=True,
-                    )
-
-                try:
-                    clients[-1].post("/app/log/private", {"id": 42, "msg": "foo"})
-                except Exception:
-                    pass
-                else:
-                    assert False, "Expected error due to fd limit"
 
                 num_fds = psutil.Process(primary_pid).num_fds()
                 LOG.success(
@@ -65,12 +53,13 @@ def run(args):
                 clients.pop(-1)
 
                 LOG.info("Continuing to submit on existing connections")
-                while True:
+                for _ in range(1):
                     for client in clients:
                         try:
                             client.post("/app/log/private", {"id": 42, "msg": "foo"}, timeout=1)
                         except Exception as e:
                             LOG.error(e)
+                            raise e
 
                 time.sleep(1)
                 num_fds = psutil.Process(primary_pid).num_fds()
@@ -87,8 +76,8 @@ def run(args):
         nb_conn = (max_fds - num_fds) * 2
         num_fds = create_connections_until_exhaustion(nb_conn)
 
-        # to_create = max_fds - num_fds + 1
-        # num_fds = create_connections_until_exhaustion(to_create)
+        to_create = max_fds - num_fds + 1
+        num_fds = create_connections_until_exhaustion(to_create)
 
 
 if __name__ == "__main__":
