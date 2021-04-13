@@ -2321,6 +2321,10 @@ namespace aft
 
     void become_leader()
     {
+      // TODO:
+      // 1. Schedule task instead here
+      // 2. Create a Tx and remove all nodes that are retired
+
       election_index = last_committable_index();
       LOG_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);

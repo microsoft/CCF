@@ -43,5 +43,6 @@ namespace ccf
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der) = 0;
     virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
+    virtual void remove_node(kv::Tx& tx, const NodeId& node_id) = 0;
   };
 }

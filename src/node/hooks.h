@@ -23,6 +23,12 @@ namespace ccf
     {
       for (const auto& [node_id, opt_ni] : w)
       {
+        if (!opt_ni.has_value())
+        {
+          cfg_delta.emplace(node_id, std::nullopt);
+          return;
+        }
+
         const auto& ni = opt_ni.value();
         switch (ni.status)
         {
@@ -34,12 +40,12 @@ namespace ccf
           }
           case NodeStatus::TRUSTED:
           {
-            cfg_delta.try_emplace(node_id, NodeAddr{ni.nodehost, ni.nodeport});
+            cfg_delta.emplace(node_id, NodeAddr{ni.nodehost, ni.nodeport});
             break;
           }
           case NodeStatus::RETIRED:
           {
-            cfg_delta.try_emplace(node_id, std::nullopt);
+            cfg_delta.emplace(node_id, std::nullopt);
             break;
           }
           default:

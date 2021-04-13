@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "js/wrap.h"
-
 #include "ccf/tx_id.h"
 #include "ds/logger.h"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
+#include "js/wrap.h"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"
@@ -618,6 +617,49 @@ namespace js
     return JS_UNDEFINED;
   }
 
+  JSValue js_node_remove_node(
+    JSContext* ctx,
+    JSValueConst this_val,
+    int argc,
+    [[maybe_unused]] JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments but expected one", argc);
+    }
+
+    auto node = static_cast<ccf::AbstractNodeState*>(
+      JS_GetOpaque(this_val, node_class_id));
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(
+        ctx, "No transaction available to remove node");
+    }
+
+    auto node_id_cstr = JS_ToCString(ctx, argv[0]);
+    if (node_id_cstr == nullptr)
+    {
+      return JS_ThrowTypeError(ctx, "node id argument is not a string");
+    }
+    std::string node_id(node_id_cstr);
+    JS_FreeCString(ctx, node_id_cstr);
+
+    JS_FreeValue(ctx, kv);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+
+    node->remove_node(*tx_ctx_ptr->tx, node_id);
+
+    return JS_UNDEFINED;
+  }
+
   // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
   // with a synchronous interface.
   static const JSCFunctionListEntry js_body_proto_funcs[] = {
@@ -986,6 +1028,11 @@ namespace js
           js_node_trigger_recovery_shares_refresh,
           "triggerRecoverySharesRefresh",
           0));
+      JS_SetPropertyStr(
+        ctx,
+        node,
+        "removeNode",
+        JS_NewCFunction(ctx, js_node_remove_node, "removeNode", 0));
     }
 
     if (network_state != nullptr)

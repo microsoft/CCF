@@ -1246,6 +1246,41 @@ namespace ccf
       share_manager.shuffle_recovery_shares(tx);
     }
 
+    void remove_node(kv::Tx& tx, const NodeId& node_id) override
+    {
+      auto primary_id = consensus->primary();
+      if (!primary_id.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot remove node {} as primary node is unknown", node_id));
+      }
+
+      LOG_FAIL_FMT(
+        "Removing node {}, primary is {}", node_id, primary_id.value());
+
+      auto nodes = tx.rw(network.nodes);
+      if (node_id == primary_id.value())
+      {
+        // Mark the node as retired as it will still issue signature
+        // transactions until its retirement is committed by the service. The
+        // node will be removed from the store once a new primary is elected.
+        auto primary_info = nodes->get(node_id);
+        if (!primary_info.has_value())
+        {
+          // If the node doesn't exist in the store, return with no effect
+          return;
+        }
+        primary_info->status = NodeStatus::RETIRED;
+        nodes->put(node_id, primary_info.value());
+      }
+      else
+      {
+        LOG_FAIL_FMT("Retiring backup!");
+        // Otherwise, remove the backup node straight away.
+        nodes->remove(node_id);
+      }
+    }
+
     void transition_service_to_open(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
