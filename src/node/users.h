@@ -20,6 +20,7 @@ namespace ccf
 
   struct UserDetails
   {
+    /// Free-form user data, useful to store role information about users for example.
     nlohmann::json user_data = nullptr;
   };
   DECLARE_JSON_TYPE(UserDetails)

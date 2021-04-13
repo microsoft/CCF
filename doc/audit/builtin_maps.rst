@@ -48,6 +48,9 @@ Value
    :project: CCF
    :members:
 
+.. doxygenenum:: ccf::MemberStatus
+   :project: CCF
+
 Represented as a JSON string.
 
 `public:ccf.gov.members.acks`
@@ -64,6 +67,14 @@ Value
 ~~~~~
 
 .. doxygenstruct:: ccf::MemberAck
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::StateDigest
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::SignedReq
    :project: CCF
    :members:
 
@@ -87,7 +98,7 @@ User certificate, represented as a PEM-encoded string.
 `public:ccf.gov.users.info`
 ---------------------------
 
-User status and auxiliary information.
+User auxiliary information.
 
 Key
 ~~~
@@ -117,6 +128,22 @@ Value
 ~~~~~
 
 .. doxygenstruct:: ccf::NodeInfo
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::NodeStatus
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::NodeInfoNetwork
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::QuoteInfo
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::QuoteFormat
    :project: CCF
    :members:
 
