@@ -346,7 +346,7 @@ namespace tpcc
           bool bad_credit = selected_rows.find(c_id) != selected_rows.end();
           generate_customer(c_id, d_id, w_id, bad_credit, &c);
 
-          TpccTables::DistributeKey table_key;
+          tpcc::TpccTables::DistributeKey table_key;
           table_key.v.w_id = w_id;
           table_key.v.d_id = d_id;
           auto it = tpcc::TpccTables::customers.find(table_key.k);
@@ -355,7 +355,7 @@ namespace tpcc
             std::string tbl_name = fmt::format("customer_{}_{}", w_id, d_id);
             auto r = tpcc::TpccTables::customers.insert(
               {table_key.k,
-               kv::Map<Customer::Key, Customer>(tbl_name.c_str())});
+               TpccMap<Customer::Key, Customer>(tbl_name.c_str())});
             it = r.first;
           }
 
@@ -383,7 +383,7 @@ namespace tpcc
           generate_order(
             o_id, permutation[o_id - 1], d_id, w_id, new_order, &o);
 
-          TpccTables::DistributeKey table_key;
+          tpcc::TpccTables::DistributeKey table_key;
           table_key.v.w_id = w_id;
           table_key.v.d_id = d_id;
           auto it = tpcc::TpccTables::orders.find(table_key.k);
@@ -391,7 +391,7 @@ namespace tpcc
           {
             std::string tbl_name = fmt::format("orders_{}_{}", w_id, d_id);
             auto r = tpcc::TpccTables::orders.insert(
-              {table_key.k, kv::Map<Order::Key, Order>(tbl_name.c_str())});
+              {table_key.k, TpccMap<Order::Key, Order>(tbl_name.c_str())});
             it = r.first;
           }
 
@@ -408,7 +408,7 @@ namespace tpcc
 
             if (new_order)
             {
-              TpccTables::DistributeKey table_key;
+              tpcc::TpccTables::DistributeKey table_key;
               table_key.v.w_id = w_id;
               table_key.v.d_id = d_id;
               auto it = tpcc::TpccTables::new_orders.find(table_key.k);
@@ -418,7 +418,7 @@ namespace tpcc
                   fmt::format("new_orders_{}_{}", w_id, d_id);
                 auto r = tpcc::TpccTables::new_orders.insert(
                   {table_key.k,
-                   kv::Map<NewOrder::Key, NewOrder>(tbl_name.c_str())});
+                   TpccMap<NewOrder::Key, NewOrder>(tbl_name.c_str())});
                 it = r.first;
               }
 
