@@ -59,7 +59,8 @@ namespace ccf
   {
     /// Status of the member in the consortium
     MemberStatus status = MemberStatus::ACCEPTED;
-    /// Free-form member data, can be used to associate specific roles to members for example.
+    /** Free-form member data, can be used to associate specific roles to
+        members for example. */
     nlohmann::json member_data = nullptr;
 
     bool operator==(const MemberDetails& rhs) const
