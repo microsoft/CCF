@@ -1,15 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
-#include "ds/msgpack_adaptor_nlohmann.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 
 #include <doctest/doctest.h>
-#undef FAIL
 #include <msgpack/msgpack.hpp>
+#undef FAIL
 #include <string>
 #include <vector>
 
@@ -310,14 +309,14 @@ struct CustomClass
   std::string s;
   size_t n;
 
-  // This macro allows the default msgpack serialiser to be used
+  // This macro allows custom msgpack serialisation (optional)
   MSGPACK_DEFINE(s, n);
 };
-// SNIPPET_END: CustomClass definition
 
 // These macros allow the default nlohmann JSON serialiser to be used
 DECLARE_JSON_TYPE(CustomClass);
 DECLARE_JSON_REQUIRED_FIELDS(CustomClass, s, n);
+// SNIPPET_END: CustomClass definition
 
 // Not really intended to be extended, but lets us use the BlitSerialiser for
 // this specific type
@@ -425,6 +424,37 @@ struct CustomJsonSerialiser
   }
 };
 
+struct CustomMsgPackSerialiser
+{
+  using Bytes = kv::serialisers::SerialisedEntry;
+
+  struct SerialisedEntryWriter
+  {
+    Bytes& b;
+
+    void write(const char* d, size_t n)
+    {
+      b.insert(b.end(), d, d + n);
+    }
+  };
+
+  static Bytes to_serialised(const CustomClass& c)
+  {
+    Bytes b;
+    SerialisedEntryWriter w{b};
+    msgpack::pack(w, c);
+    return b;
+  }
+
+  static CustomClass from_serialised(const Bytes& b)
+  {
+    msgpack::object_handle oh =
+      msgpack::unpack(reinterpret_cast<const char*>(b.data()), b.size());
+    auto object = oh.get();
+    return object.as<CustomClass>();
+  }
+};
+
 struct KPrefix
 {
   static constexpr auto prefix = "This is a key:";
@@ -470,13 +500,12 @@ struct CustomVerboseDumbSerialiser
   }
 };
 
-using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
 using JsonSerialisedMap = kv::JsonSerialisedMap<CustomClass, CustomClass>;
 using RawCopySerialisedMap = kv::RawCopySerialisedMap<CustomClass, CustomClass>;
 using MixSerialisedMapA = kv::TypedMap<
   CustomClass,
   CustomClass,
-  kv::serialisers::MsgPackSerialiser<CustomClass>,
+  CustomMsgPackSerialiser,
   kv::serialisers::JsonSerialiser<CustomClass>>;
 using MixSerialisedMapB = kv::TypedMap<
   CustomClass,
@@ -487,7 +516,7 @@ using MixSerialisedMapC = kv::TypedMap<
   CustomClass,
   CustomClass,
   kv::serialisers::BlitSerialiser<CustomClass>,
-  kv::serialisers::MsgPackSerialiser<CustomClass>>;
+  CustomMsgPackSerialiser>;
 
 // SNIPPET_START: CustomSerialisedMap definition
 using CustomSerialisedMap =
@@ -508,7 +537,6 @@ using VerboseSerialisedMap = kv::TypedMap<
 TEST_CASE_TEMPLATE(
   "Custom type serialisation test" * doctest::test_suite("serialisation"),
   MapType,
-  DefaultSerialisedMap,
   JsonSerialisedMap,
   RawCopySerialisedMap,
   MixSerialisedMapA,
@@ -702,12 +730,12 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
     NonSerialisable,
     size_t,
     NonSerialiser,
-    kv::serialisers::MsgPackSerialiser<size_t>>
+    kv::serialisers::JsonSerialiser<size_t>>
     bad_map_k("bad_map_k");
   kv::TypedMap<
     size_t,
     NonSerialisable,
-    kv::serialisers::MsgPackSerialiser<size_t>,
+    kv::serialisers::JsonSerialiser<size_t>,
     NonSerialiser>
     bad_map_v("bad_map_v");
 
