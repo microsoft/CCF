@@ -2,12 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "serialise_msgpack.h"
+
 #include <cstring>
+#include <msgpack/msgpack.hpp>
 #include <nlohmann/json.hpp>
 #include <stdint.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
 namespace tpcc
 {
   namespace Address
@@ -474,6 +478,11 @@ namespace tpcc
   DECLARE_JSON_REQUIRED_FIELDS(
     History, c_id, c_d_id, c_w_id, d_id, w_id, amount, date, data);
 
+  // TPCC KV tables use msgpack as key and value serialisation format.
+  // See serialise_msgpack.h for serialiser definition.
+  template <typename K, typename V>
+  using TpccMap = kv::MapSerialisedWith<K, V, MsgPackSerialiser>;
+
   struct TpccTables
   {
     union DistributeKey
@@ -489,16 +498,16 @@ namespace tpcc
       sizeof(DistributeKey) == sizeof(uint64_t),
       "Distribute key is the wrong size");
 
-    static kv::Map<Stock::Key, Stock> stocks;
-    static kv::Map<Warehouse::Key, Warehouse> warehouses;
-    static kv::Map<District::Key, District> districts;
-    static kv::Map<History::Key, History> histories;
-    static std::unordered_map<uint64_t, kv::Map<Customer::Key, Customer>>
+    static TpccMap<Stock::Key, Stock> stocks;
+    static TpccMap<Warehouse::Key, Warehouse> warehouses;
+    static TpccMap<District::Key, District> districts;
+    static TpccMap<History::Key, History> histories;
+    static std::unordered_map<uint64_t, TpccMap<Customer::Key, Customer>>
       customers;
-    static std::unordered_map<uint64_t, kv::Map<Order::Key, Order>> orders;
-    static kv::Map<OrderLine::Key, OrderLine> order_lines;
-    static std::unordered_map<uint64_t, kv::Map<NewOrder::Key, NewOrder>>
+    static std::unordered_map<uint64_t, TpccMap<Order::Key, Order>> orders;
+    static TpccMap<OrderLine::Key, OrderLine> order_lines;
+    static std::unordered_map<uint64_t, TpccMap<NewOrder::Key, NewOrder>>
       new_orders;
-    static kv::Map<Item::Key, Item> items;
+    static TpccMap<Item::Key, Item> items;
   };
 }

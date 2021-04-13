@@ -6,7 +6,6 @@
 #include "map_handle.h"
 #include "serialise_entry_blit.h"
 #include "serialise_entry_json.h"
-#include "serialise_entry_msgpack.h"
 
 namespace kv
 {
@@ -18,8 +17,8 @@ namespace kv
    * determine how each K and V are serialised and deserialised, so they may be
    * written to the ledger and replicated by the consensus algorithm. Note that
    * equality is always evaluated on the serialised form; if unequal Ks produce
-   * the same serialisation, they will coincide within this table. Serialisers
-   * which leverage existing msgpack or JSON serialisation are provided by CCF.
+   * the same serialisation, they will coincide within this table. Serialiser
+   * which leverages existing JSON serialisation is provided by CCF.
    */
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
   class TypedMap : public NamedMap
@@ -113,13 +112,9 @@ namespace kv
     kv::serialisers::BlitSerialiser<K>,
     kv::serialisers::BlitSerialiser<V>>;
 
-  template <typename K, typename V>
-  using MsgPackSerialisedMap =
-    MapSerialisedWith<K, V, kv::serialisers::MsgPackSerialiser>;
-
   /** Short name for default-serialised maps, using msgpack serialisers. Support
-   * for custom types can be added through the MSGPACK_DEFINE macro
+   * for custom types can be added through the DECLARE_JSON... macros.
    */
   template <typename K, typename V>
-  using Map = MsgPackSerialisedMap<K, V>;
+  using Map = JsonSerialisedMap<K, V>;
 }
