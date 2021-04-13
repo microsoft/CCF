@@ -28,71 +28,52 @@ def run(args):
         resource.prlimit(primary_pid, resource.RLIMIT_NOFILE, (max_fds, max_fds))
         LOG.success(f"set max fds to {max_fds} on {primary_pid}")
 
-        nb_conn = (max_fds - num_fds) * 2
-        clients = []
+        def create_connections_until_exhaustion(target):
+            with contextlib.ExitStack() as es:
+                clients = []
+                LOG.success(f"Creating {target} clients")
+                for i in range(target):
+                    try:
+                        clients.append(es.enter_context(primary.client("user0")))
+                        LOG.info(f"Created client {i}")
+                    except OSError:
+                        LOG.error(f"Failed to create client {i}")
 
-        with contextlib.ExitStack() as es:
-            LOG.success(f"Creating {nb_conn} clients")
-            for i in range(nb_conn):
+                # Creating clients may not actually create connections/fds. Send messages until we run out of fds
+                for i, c in enumerate(clients):
+                    if psutil.Process(primary_pid).num_fds() >= max_fds:
+                        LOG.warning(f"Reached fd limit at client {i}")
+                        break
+                    LOG.info(f"Sending as client {i}")
+                    check(
+                        c.post("/app/log/private", {"id": 42, "msg": "foo"}),
+                        result=True,
+                    )
+
                 try:
-                    clients.append(es.enter_context(primary.client("user0")))
-                    LOG.info(f"Created client {i}")
-                except OSError:
-                    LOG.error(f"Failed to create client {i}")
+                    clients[-1].post("/app/log/private", {"id": 42, "msg": "foo"})
+                except Exception:
+                    pass
+                else:
+                    assert False, "Expected error due to fd limit"
 
-            # Creating clients may not actually create connections/fds. Send messages until we run out of fds
-            for i, c in enumerate(clients):
-                if psutil.Process(primary_pid).num_fds() >= max_fds:
-                    LOG.warning(f"Reached fd limit at client {i}")
-                    break
-                LOG.info(f"Sending as client {i}")
-                check(c.post("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
+                num_fds = psutil.Process(primary_pid).num_fds()
+                LOG.success(
+                    f"{primary_pid} has {num_fds}/{max_fds} open file descriptors"
+                )
+                LOG.info("Disconnecting clients")
+                clients = []
 
-            try:
-                clients[-1].post("/app/log/private", {"id": 42, "msg": "foo"})
-            except Exception:
-                pass
-            else:
-                assert False, "Expected error due to fd limit"
-
+            time.sleep(1)
             num_fds = psutil.Process(primary_pid).num_fds()
             LOG.success(f"{primary_pid} has {num_fds}/{max_fds} open file descriptors")
-            LOG.info("Disconnecting clients")
-            clients = []
+            return num_fds
 
-        time.sleep(1)
-        num_fds = psutil.Process(primary_pid).num_fds()
-        LOG.success(f"{primary_pid} has {num_fds}/{max_fds} open file descriptors")
+        nb_conn = (max_fds - num_fds) * 2
+        num_fds = create_connections_until_exhaustion(nb_conn)
 
-        with contextlib.ExitStack() as es:
-            to_create = max_fds - num_fds + 1
-            LOG.success(f"Creating {to_create} clients")
-            for i in range(to_create):
-                clients.append(es.enter_context(primary.client("user0")))
-                LOG.info(f"Created client {i}")
-
-            for i, c in enumerate(clients):
-                if psutil.Process(primary_pid).num_fds() >= max_fds:
-                    LOG.warning(f"Reached fd limit at client {i}")
-                    break
-                LOG.info(f"Sending as client {i}")
-                check(c.post("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
-
-            try:
-                clients[-1].post("/app/log/private", {"id": 42, "msg": "foo"})
-            except Exception:
-                pass
-            else:
-                assert False, "Expected error due to fd limit"
-
-            num_fds = psutil.Process(primary_pid).num_fds()
-            LOG.success(f"{primary_pid} has {num_fds}/{max_fds} open file descriptors")
-            LOG.info("Disconnecting clients")
-            clients = []
-
-        time.sleep(1)
-        num_fds = psutil.Process(primary_pid).num_fds()
-        LOG.success(f"{primary_pid} has {num_fds}/{max_fds} open file descriptors")
+        to_create = max_fds - num_fds + 1
+        num_fds = create_connections_until_exhaustion(to_create)
 
 
 if __name__ == "__main__":
