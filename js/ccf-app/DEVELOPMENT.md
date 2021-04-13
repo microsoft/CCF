@@ -37,8 +37,7 @@ Debugging problems that only happen in CCF is harder.
 If the problem occurs in native functions/properties exposed from C++ (see `src/global.ts`) then VS Code's C++ debugger can be used when running a CCF end-to-end test in virtual mode (not SGX).
 
 Debugging of JavaScript code running in CCF is currently not possible.
-A compromise is to run a debug build of CCF with verbose logging enabled.
-When running JavaScript code, uncaught exceptions and output from `console.log()` is dumped to the node's log files.
+However, all uncaught exceptions and output from `console.log()` are dumped to the node's log files.
 
 ## Docs
 

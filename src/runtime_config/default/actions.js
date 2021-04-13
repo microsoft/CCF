@@ -123,7 +123,39 @@ function checkX509CertChain(value, field) {
   }
 }
 
+function invalidateOtherOpenProposals(proposalIdToRetain) {
+  let proposals = ccf.kv["public:ccf.gov.proposals_info.js"];
+  const proposalsMap = ccf.kv["public:ccf.gov.proposals_info.js"];
+  proposalsMap.forEach((v, k) => {
+    let proposalId = ccf.bufToStr(k);
+    if (proposalId !== proposalIdToRetain) {
+      let info = ccf.bufToJsonCompatible(v);
+      if (info.state === "Open") {
+        info.state = "Dropped";
+        proposalsMap.set(k, ccf.jsonCompatibleToBuf(info));
+      }
+    }
+  });
+}
+
 const actions = new Map([
+  [
+    "set_constitution",
+    new Action(
+      function (args) {
+        checkType(args.constitution, "string");
+      },
+      function (args, proposalId) {
+        ccf.kv["public:ccf.gov.constitution"].set(
+          getSingletonKvKey(),
+          ccf.jsonCompatibleToBuf(args.constitution)
+        );
+
+        // Changing the constitution changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        invalidateOtherOpenProposals(proposalId);
+      }
+    ),
+  ],
   [
     "set_member",
     new Action(
@@ -668,10 +700,13 @@ const actions = new Map([
       function (args) {
         checkType(args.code_id, "string", "code_id");
       },
-      function (args) {
+      function (args, proposalId) {
         const codeId = ccf.strToBuf(args.code_id);
         const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
         ccf.kv["public:ccf.gov.nodes.code_ids"].set(codeId, ALLOWED);
+
+        // Adding a new allowed code ID changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        invalidateOtherOpenProposals(proposalId);
       }
     ),
   ],

@@ -723,6 +723,12 @@ int main(int argc, char** argv)
       ccf_config.genesis.constitution = "";
       for (const auto& constitution_path : constitution_paths)
       {
+        // Separate with single newlines
+        if (!ccf_config.genesis.constitution.empty())
+        {
+          ccf_config.genesis.constitution += '\n';
+        }
+
         ccf_config.genesis.constitution +=
           files::slurp_string(constitution_path);
       }
@@ -767,9 +773,10 @@ int main(int argc, char** argv)
             snapshot));
         }
 
-        ccf_config.startup_snapshot = files::slurp(snapshot);
+        ccf_config.startup_snapshot = snapshots.read_snapshot(snapshot);
         ccf_config.startup_snapshot_evidence_seqno =
           snapshot_evidence_idx->first;
+
         LOG_INFO_FMT(
           "Found latest snapshot file: {} (size: {}, evidence seqno: {})",
           snapshot,
