@@ -24,14 +24,14 @@ export function validate(input) {
 }
 
 export function resolve(proposal, proposerId, votes) {
+  // Busy wait
+  let u = 0;
+  for (let i = 0; i < 1000000; i++) {
+    u = i ^ 0.5;
+  }
   return "Open";
 }
 export function apply(proposal, proposalId) {
-  // Busy wait
-  let u = 0;
-  for (i = 0; i < 10000000; i++) {
-    u = i ^ 0.5;
-  }
 }
   )xxx");
 
@@ -79,6 +79,9 @@ export function apply(proposal, proposalId) {
   DOCTEST_CHECK(out2.state == ProposalState::OPEN);
   DOCTEST_CHECK(out1.proposal_id != out2.proposal_id);
 
+  // Count retries to confirm that these proposals conflicted and one was
+  // retried (potentially multiple times, if very unlucky and gets a retried
+  // root before the earlier transaction has set it)
   auto metrics_req = create_request(nlohmann::json(), "api/metrics", HTTP_GET);
   auto metrics = frontend_process(frontend, metrics_req, proposer_cert);
   auto metrics_json = serdes::unpack(metrics.body, serdes::Pack::Text);
@@ -86,7 +89,7 @@ export function apply(proposal, proposalId) {
   {
     if (row["path"] == "proposals.js")
     {
-      DOCTEST_CHECK(row["retries"] == 1);
+      DOCTEST_CHECK(row["retries"] >= 1);
     }
   }
 }
@@ -108,7 +111,8 @@ export function apply(proposal, proposalId) {
 //     forced = true;
 //   }
 
-//   std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
+//   std::pair<kv::TxID, crypto::Sha256Hash>
+//   get_replicated_state_txid_and_root()
 //     override
 //   {
 //     if (forced)
@@ -172,7 +176,8 @@ export function apply(proposal, proposalId) {
 //   const auto propose =
 //     create_signed_request(proposal, "proposals.js", kp, proposer_cert);
 
-//   // Force history version to an already compacted version to trigger compaction
+//   // Force history version to an already compacted version to trigger
+//   compaction
 //   // conflict
 //   history->force_version(cv - 1);
 
@@ -180,10 +185,10 @@ export function apply(proposal, proposalId) {
 //   const auto out = parse_response_body<Propose::Out>(rs);
 //   DOCTEST_CHECK(out.state == ProposalState::OPEN);
 
-//   auto metrics_req = create_request(nlohmann::json(), "api/metrics", HTTP_GET);
-//   auto metrics = frontend_process(frontend, metrics_req, proposer_cert);
-//   auto metrics_json = serdes::unpack(metrics.body, serdes::Pack::Text);
-//   for (auto& row : metrics_json["metrics"])
+//   auto metrics_req = create_request(nlohmann::json(), "api/metrics",
+//   HTTP_GET); auto metrics = frontend_process(frontend, metrics_req,
+//   proposer_cert); auto metrics_json = serdes::unpack(metrics.body,
+//   serdes::Pack::Text); for (auto& row : metrics_json["metrics"])
 //   {
 //     if (row["path"] == "proposals.js")
 //     {
