@@ -39,30 +39,18 @@ namespace crypto
     return MBEDTLS_ECP_DP_NONE;
   }
 
-  static std::vector<std::pair<std::string, std::string>> parse_name(
-    const std::string& name)
+  static std::map<std::string, std::string> parse_name(const std::string& name)
   {
-    std::vector<std::pair<std::string, std::string>> r;
-
-    char* name_cpy = strdup(name.c_str());
-    if (!name_cpy)
-      throw std::runtime_error("out of memory");
-    char* p = std::strtok(name_cpy, ",");
-    while (p)
+    std::map<std::string, std::string> result;
+    const auto ns = nonstd::split(name, ",");
+    for (const auto& n : ns)
     {
-      char* eq = strchr(p, '=');
-      if (!eq)
-      {
-        free(name_cpy);
-        throw std::runtime_error("illegal name");
-      }
-      *eq = '\0';
-      r.push_back(std::make_pair(p, eq + 1));
-      p = std::strtok(NULL, ",");
+      const auto& [key, value] = nonstd::split_1(n, "=");
+      result.emplace(
+        std::string(key.data(), key.size()),
+        std::string(value.data(), value.size()));
     }
-    free(name_cpy);
-
-    return r;
+    return result;
   }
 
   KeyPair_OpenSSL::KeyPair_OpenSSL(CurveID curve_id)
@@ -181,13 +169,13 @@ namespace crypto
     X509_NAME* subj_name = NULL;
     OpenSSL::CHECKNULL(subj_name = X509_NAME_new());
 
-    for (auto kv : parse_name(name))
+    for (const auto& [k, v] : parse_name(name))
     {
       OpenSSL::CHECK1(X509_NAME_add_entry_by_txt(
         subj_name,
-        kv.first.c_str(),
+        k.data(),
         MBSTRING_ASC,
-        (const unsigned char*)kv.second.c_str(),
+        (const unsigned char*)v.data(),
         -1,
         -1,
         0));
