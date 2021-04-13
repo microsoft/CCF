@@ -217,14 +217,76 @@ Represented as a JSON string.
 `public:ccf.gov.proposals`
 --------------------------
 
+Governance proposals.
+
+Key
+~~~
+
+Proposal ID: SHA-256 digest of the proposal and store state observed during its creation, represented as a hex-encoded string.
+
+Value
+~~~~~
+
+Proposal as submitted (body of proposal request), as a raw buffer.
+
 `public:ccf.gov.proposals_info`
 -------------------------------
+
+Status, proposer ID and ballots attached to a proposal.
+
+Key
+~~~
+
+Proposal ID: SHA-256 digest of the proposal and store state observed during its creation, represented as a hex-encoded string.
+
+Value
+~~~~~
+
+.. doxygenstruct:: ccf::jsgov::ProposalInfoDetails
+   :project: CCF
+   :members:
+
+.. doxygenenum:: ccf::ProposalState
+   :project: CCF
+   :members:
+
+Represented as a JSON string.
 
 `public:ccf.gov.modules`
 ------------------------
 
+JavaScript modules, accessible by JavaScript endpoint functions.
+
+Key
+~~~
+
+Module name as a string.
+
+Value
+~~~~~~
+
+Contents of the module as a string.
+
 `public:ccf.gov.endpoints`
 --------------------------
+
+JavaScript endpoint definitions.
+
+Key
+~~~
+
+.. doxygenstruct:: ccf::endpoints::EndpointKey
+   :project: CCF
+   :members:
+
+Represented as a JSON string.
+
+Value
+~~~~~~
+
+.. doxygenstruct:: ccf::endpoints::EndpointProperties
+   :project: CCF
+   :members:
 
 `public:ccf.gov.tls.ca_cert_bundles`
 ------------------------------------

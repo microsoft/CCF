@@ -42,9 +42,13 @@ namespace ccf
 
     struct ProposalInfoDetails
     {
+      /// Proposal ID
       ProposalId proposal_id;
+      /// Member ID of the proposer
       ccf::MemberId proposer_id;
+      /// Proposal state
       ccf::ProposalState state;
+      /// Ballots (scripts) submitted for the proposal
       std::unordered_map<ccf::MemberId, std::string> ballots = {};
     };
     DECLARE_JSON_TYPE(ProposalInfoDetails);
