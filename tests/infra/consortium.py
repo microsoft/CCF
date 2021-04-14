@@ -278,7 +278,7 @@ class Consortium:
     def get_proposal(self, remote_node, proposal_id):
         member = self.get_any_active_member()
         with remote_node.client(*member.auth()) as c:
-            r = c.get(f"/gov/proposals.js/{proposal_id}")
+            r = c.get(f"/gov/proposals/{proposal_id}")
             assert r.status_code == http.HTTPStatus.OK.value
             return r.body.json()
 

@@ -128,7 +128,7 @@ class Member:
 
     def propose(self, remote_node, proposal):
         with remote_node.client(*self.auth(write=True)) as mc:
-            r = mc.post("/gov/proposals.js", proposal)
+            r = mc.post("/gov/proposals", proposal)
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
@@ -143,7 +143,7 @@ class Member:
     def vote(self, remote_node, proposal, ballot):
         with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post(
-                f"/gov/proposals.js/{proposal.proposal_id}/ballots",
+                f"/gov/proposals/{proposal.proposal_id}/ballots",
                 body=ballot,
             )
 
@@ -151,7 +151,7 @@ class Member:
 
     def withdraw(self, remote_node, proposal):
         with remote_node.client(*self.auth(write=True)) as c:
-            r = c.post(f"/gov/proposals.js/{proposal.proposal_id}/withdraw")
+            r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
             if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.WITHDRAWN
             return r

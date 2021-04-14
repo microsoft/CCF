@@ -47,7 +47,7 @@ DOCTEST_TEST_CASE("Unique proposal ids")
 
   nlohmann::json proposal_body = "Ignored";
   const auto propose =
-    create_signed_request(proposal_body, "proposals.js", kp, proposer_cert);
+    create_signed_request(proposal_body, "proposals", kp, proposer_cert);
 
   jsgov::ProposalInfoSummary out1;
   jsgov::ProposalInfoSummary out2;
@@ -88,7 +88,7 @@ DOCTEST_TEST_CASE("Unique proposal ids")
   auto metrics_json = serdes::unpack(metrics.body, serdes::Pack::Text);
   for (auto& row : metrics_json["metrics"])
   {
-    if (row["path"] == "proposals.js")
+    if (row["path"] == "proposals")
     {
       DOCTEST_CHECK(row["retries"] >= 1);
     }
@@ -171,7 +171,7 @@ DOCTEST_TEST_CASE("Compaction conflict")
 
   nlohmann::json proposal_body = "Ignored";
   const auto propose =
-    create_signed_request(proposal_body, "proposals.js", kp, proposer_cert);
+    create_signed_request(proposal_body, "proposals", kp, proposer_cert);
 
   // Force history version to an already compacted version to trigger compaction
   // conflict
@@ -186,7 +186,7 @@ DOCTEST_TEST_CASE("Compaction conflict")
   auto metrics_json = serdes::unpack(metrics.body, serdes::Pack::Text);
   for (auto& row : metrics_json["metrics"])
   {
-    if (row["path"] == "proposals.js")
+    if (row["path"] == "proposals")
     {
       DOCTEST_CHECK(row["retries"] == 1);
     }

@@ -505,7 +505,7 @@
         }
       }
     },
-    "/proposals.js": {
+    "/proposals": {
       "post": {
         "requestBody": {
           "content": {
@@ -536,7 +536,7 @@
         ]
       }
     },
-    "/proposals.js/{proposal_id}": {
+    "/proposals/{proposal_id}": {
       "get": {
         "responses": {
           "200": {
@@ -567,7 +567,7 @@
         }
       ]
     },
-    "/proposals.js/{proposal_id}/actions": {
+    "/proposals/{proposal_id}/actions": {
       "get": {
         "responses": {
           "200": {
@@ -598,7 +598,7 @@
         }
       ]
     },
-    "/proposals.js/{proposal_id}/ballots": {
+    "/proposals/{proposal_id}/ballots": {
       "parameters": [
         {
           "in": "path",
@@ -639,7 +639,7 @@
         ]
       }
     },
-    "/proposals.js/{proposal_id}/ballots/{member_id}": {
+    "/proposals/{proposal_id}/ballots/{member_id}": {
       "get": {
         "responses": {
           "200": {
@@ -678,7 +678,7 @@
         }
       ]
     },
-    "/proposals.js/{proposal_id}/withdraw": {
+    "/proposals/{proposal_id}/withdraw": {
       "parameters": [
         {
           "in": "path",

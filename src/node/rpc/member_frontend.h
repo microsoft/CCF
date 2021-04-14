@@ -181,8 +181,7 @@ namespace ccf
       const std::vector<uint8_t>& proposal,
       const std::string& constitution)
     {
-      auto pi =
-        tx.rw<ccf::jsgov::ProposalInfoMap>("public:ccf.gov.proposals_info.js");
+      auto pi = tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
       auto pi_ = pi->get(proposal_id);
 
       std::vector<std::pair<MemberId, bool>> votes;
@@ -1021,8 +1020,7 @@ namespace ccf
           return;
         }
 
-        auto pm =
-          ctx.tx.rw<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+        auto pm = ctx.tx.rw<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
         // Introduce a read dependency, so that if identical proposal
         // creations are in-flight and reading at the same version, all except
         // the first conflict and are re-executed. If we ever produce a
@@ -1037,8 +1035,8 @@ namespace ccf
         }
         pm->put(proposal_id, ctx.rpc_ctx->get_request_body());
 
-        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
-          "public:ccf.gov.proposals_info.js");
+        auto pi =
+          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
         pi->put(
           proposal_id,
           {caller_identity.member_id, ccf::ProposalState::OPEN, {}});
@@ -1065,8 +1063,7 @@ namespace ccf
         ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
       };
 
-      make_endpoint(
-        "proposals.js", HTTP_POST, post_proposals_js, member_sig_only)
+      make_endpoint("proposals", HTTP_POST, post_proposals_js, member_sig_only)
         .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfoSummary>()
         .install();
 
@@ -1100,8 +1097,7 @@ namespace ccf
               HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
           }
 
-          auto pm =
-            ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+          auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
           auto p = pm->get(proposal_id);
 
           if (!p)
@@ -1112,8 +1108,8 @@ namespace ccf
               fmt::format("Proposal {} does not exist.", proposal_id));
           }
 
-          auto pi = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(
-            "public:ccf.gov.proposals_info.js");
+          auto pi =
+            ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
           auto pi_ = pi->get(proposal_id);
 
           if (!pi_)
@@ -1129,7 +1125,7 @@ namespace ccf
         };
 
       make_read_only_endpoint(
-        "proposals.js/{proposal_id}",
+        "proposals/{proposal_id}",
         HTTP_GET,
         json_read_only_adapter(get_proposal_js),
         member_cert_or_sig)
@@ -1157,8 +1153,8 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
-          "public:ccf.gov.proposals_info.js");
+        auto pi =
+          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
         auto pi_ = pi->get(proposal_id);
 
         if (!pi_)
@@ -1205,7 +1201,7 @@ namespace ccf
       };
 
       make_endpoint(
-        "proposals.js/{proposal_id}/withdraw",
+        "proposals/{proposal_id}/withdraw",
         HTTP_POST,
         json_adapter(withdraw_js),
         member_sig_only)
@@ -1237,8 +1233,7 @@ namespace ccf
             return;
           }
 
-          auto pm =
-            ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+          auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
           auto p = pm->get(proposal_id);
 
           if (!p)
@@ -1257,7 +1252,7 @@ namespace ccf
         };
 
       make_read_only_endpoint(
-        "proposals.js/{proposal_id}/actions",
+        "proposals/{proposal_id}/actions",
         HTTP_GET,
         get_proposal_actions_js,
         member_cert_or_sig)
@@ -1295,8 +1290,8 @@ namespace ccf
             "No constitution is set - proposals cannot be evaluated");
         }
 
-        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
-          "public:ccf.gov.proposals_info.js");
+        auto pi =
+          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
         auto pi_ = pi->get(proposal_id);
         if (!pi_)
         {
@@ -1319,8 +1314,7 @@ namespace ccf
               ProposalState::OPEN));
         }
 
-        auto pm =
-          ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+        auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
         auto p = pm->get(proposal_id);
 
         if (!p)
@@ -1364,7 +1358,7 @@ namespace ccf
         return make_success(rv);
       };
       make_endpoint(
-        "proposals.js/{proposal_id}/ballots",
+        "proposals/{proposal_id}/ballots",
         HTTP_POST,
         json_adapter(vote_js),
         member_sig_only)
@@ -1406,8 +1400,8 @@ namespace ccf
               HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
           }
 
-          auto pi = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(
-            "public:ccf.gov.proposals_info.js");
+          auto pi =
+            ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
           auto pi_ = pi->get(proposal_id);
           if (!pi_)
           {
@@ -1432,7 +1426,7 @@ namespace ccf
           return make_success(jsgov::Ballot{vote_it->second});
         };
       make_read_only_endpoint(
-        "proposals.js/{proposal_id}/ballots/{member_id}",
+        "proposals/{proposal_id}/ballots/{member_id}",
         HTTP_GET,
         json_read_only_adapter(get_vote_js),
         member_cert_or_sig)

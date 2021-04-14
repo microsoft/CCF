@@ -110,12 +110,11 @@ namespace ccf
       "public:ccf.internal.consensus.backup_signatures";
     static constexpr auto NONCES = "public:ccf.internal.consensus.nonces";
 
-    // JS Governance
+    // Governance
     static constexpr auto GOV_HISTORY = "public:ccf.gov.history";
     static constexpr auto CONSTITUTION = "public:ccf.gov.constitution";
-    static constexpr auto JS_PROPOSALS = "public:ccf.gov.js.proposals";
-    static constexpr auto JS_PROPOSALS_INFO =
-      "public:ccf.gov.js.proposals_info";
+    static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
+    static constexpr auto PROPOSALS_INFO = "public:ccf.gov.proposals_info";
   };
 
 }
