@@ -48,6 +48,7 @@ struct CCFConfig
   ccf::NodeInfoNetwork node_info_network = {};
   std::string domain;
   size_t snapshot_tx_interval;
+  size_t max_open_sessions;
 
   // Only if joining or recovering
   std::vector<uint8_t> startup_snapshot;
@@ -109,6 +110,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   node_info_network,
   domain,
   snapshot_tx_interval,
+  max_open_sessions,
   startup_snapshot,
   startup_snapshot_evidence_seqno,
   signature_intervals,

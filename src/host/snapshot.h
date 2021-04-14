@@ -165,35 +165,43 @@ namespace asynchost
     void commit_snapshot(
       consensus::Index snapshot_idx, consensus::Index evidence_commit_idx)
     {
-      // Find previously-generated snapshot for snapshot_idx and rename file,
-      // including evidence_commit_idx in name too
-      for (auto const& f : fs::directory_iterator(snapshot_dir))
+      try
       {
-        auto file_name = f.path().filename().string();
-        if (
-          !get_snapshot_evidence_idx_from_file_name(file_name).has_value() &&
-          get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
+        // Find previously-generated snapshot for snapshot_idx and rename file,
+        // including evidence_commit_idx in name too
+        for (auto const& f : fs::directory_iterator(snapshot_dir))
         {
-          LOG_INFO_FMT(
-            "Committing snapshot file \"{}\" with evidence proof committed "
-            "at "
-            "{}",
-            file_name,
-            evidence_commit_idx);
+          auto file_name = f.path().filename().string();
+          if (
+            !get_snapshot_evidence_idx_from_file_name(file_name).has_value() &&
+            get_snapshot_idx_from_file_name(file_name) == snapshot_idx)
+          {
+            LOG_INFO_FMT(
+              "Committing snapshot file \"{}\" with evidence proof committed "
+              "at "
+              "{}",
+              file_name,
+              evidence_commit_idx);
 
-          const auto committed_file_name = fmt::format(
-            "{}.{}{}{}",
-            file_name,
-            snapshot_committed_suffix,
-            snapshot_idx_delimiter,
-            evidence_commit_idx);
+            const auto committed_file_name = fmt::format(
+              "{}.{}{}{}",
+              file_name,
+              snapshot_committed_suffix,
+              snapshot_idx_delimiter,
+              evidence_commit_idx);
 
-          fs::rename(
-            fs::path(snapshot_dir) / fs::path(file_name),
-            fs::path(snapshot_dir) / fs::path(committed_file_name));
+            fs::rename(
+              fs::path(snapshot_dir) / fs::path(file_name),
+              fs::path(snapshot_dir) / fs::path(committed_file_name));
 
-          return;
+            return;
+          }
         }
+      }
+      catch (std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Exception while attempting to commit snapshot: {}", e.what());
       }
 
       LOG_FAIL_FMT("Could not find snapshot to commit at {}", snapshot_idx);

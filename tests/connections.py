@@ -8,11 +8,15 @@ import infra.checker
 import contextlib
 import resource
 import psutil
+from ccf.log_capture import flush_info
+import random
 
 from loguru import logger as LOG
 
 
 def run(args):
+    args.max_open_sessions = 100
+
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -34,14 +38,23 @@ def run(args):
                 clients = []
                 LOG.success(f"Creating {target} clients")
                 for i in range(target):
+                    logs = []
                     try:
-                        LOG.info(f"Creating client {i}")
-                        clients.append(es.enter_context(primary.client("user0", connection_timeout=1)))
+                        clients.append(
+                            es.enter_context(
+                                primary.client("user0", connection_timeout=1)
+                            )
+                        )
                         check(
-                            clients[-1].post("/app/log/private", {"id": 42, "msg": "foo"}),
+                            clients[-1].post(
+                                "/app/log/private",
+                                {"id": 42, "msg": "foo"},
+                                log_capture=logs,
+                            ),
                             result=True,
                         )
                     except Exception as e:
+                        flush_info(logs)
                         LOG.warning(f"Hit exception at client {i}: {e}")
                         break
 
@@ -52,18 +65,28 @@ def run(args):
 
                 clients.pop(-1)
 
-                LOG.info("Continuing to submit on existing connections")
-                for _ in range(1):
-                    for client in clients:
-                        try:
-                            client.post("/app/log/private", {"id": 42, "msg": "foo"}, timeout=1)
-                        except Exception as e:
-                            LOG.error(e)
-                            raise e
+                more_requests = len(clients) * 3
+                LOG.info(f"Submitting an additional {more_requests} requests from existing clients")
+                for _ in range(more_requests):
+                    client = random.choice(clients)
+                    logs = []
+                    try:
+                        client.post(
+                            "/app/log/private",
+                            {"id": 42, "msg": "foo"},
+                            timeout=1,
+                            log_capture=logs,
+                        )
+                    except Exception as e:
+                        flush_info(logs)
+                        LOG.error(e)
+                        raise e
 
                 time.sleep(1)
                 num_fds = psutil.Process(primary_pid).num_fds()
-                LOG.success(f"{primary_pid} has {num_fds}/{max_fds} open file descriptors")
+                LOG.success(
+                    f"{primary_pid} has {num_fds}/{max_fds} open file descriptors"
+                )
 
                 LOG.info("Disconnecting clients")
                 clients = []

@@ -255,6 +255,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=10,
     )
     parser.add_argument(
+        "--max-open-sessions",
+        help="Max open TLS sessions on each node",
+        default=None,
+    )
+    parser.add_argument(
         "--jwt-key-refresh-interval-s",
         help="JWT key refresh interval in seconds",
         default=None,

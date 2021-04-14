@@ -168,6 +168,15 @@ int main(int argc, char** argv)
       "Number of transactions between snapshots")
     ->capture_default_str();
 
+  size_t max_open_sessions = 1'000;
+  app
+    .add_option(
+      "--max-open-sessions",
+      max_open_sessions,
+      "Number of TLS sessions which may be open at the same time. Additional "
+      "connections past this limit will be refused")
+    ->capture_default_str();
+
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
   for (int i = logger::MOST_VERBOSE; i < logger::MAX_LOG_LEVEL; i++)
@@ -687,6 +696,7 @@ int main(int argc, char** argv)
                                     public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
+    ccf_config.max_open_sessions = max_open_sessions;
 
     ccf_config.subject_name = subject_name;
     ccf_config.subject_alternative_names = subject_alternative_names;
