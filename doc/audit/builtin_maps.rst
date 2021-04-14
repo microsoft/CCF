@@ -9,7 +9,7 @@ Built-in Maps
 
 X509 certificates of all members in the consortium.
 
-``Key`` Member ID: SHA-256 digest of the member certificate, represented as a hex-encoded string.
+``Key`` Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
 
 ``Value`` Member certificate, represented as a PEM-encoded string.
 
@@ -18,7 +18,7 @@ X509 certificates of all members in the consortium.
 
 Public encryption keys submitted by members to the network. The recovery share for each member is encrypted by the key they have submitted.
 
-``Key`` Member ID: SHA-256 digest of the member certificate, represented as a hex-encoded string.
+``Key`` Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
 
 ``Value`` Member public encryption key, represented as a PEM-encoded string.
 
@@ -27,7 +27,7 @@ Public encryption keys submitted by members to the network. The recovery share f
 
 Participation status and auxiliary information attached to a member.
 
-``Key`` Member ID: SHA-256 digest of the member's X509 certificate, represented as a hex-encoded string.
+``Key`` Member ID: SHA-256 fingerprint of the member's X509 certificate, represented as a hex-encoded string.
 
 ``Value`` Represented as JSON.
 
@@ -43,7 +43,7 @@ Participation status and auxiliary information attached to a member.
 
 Member acknowledgements of the ledger state, each containing a signature over the Merkle root at a particular sequence number.
 
-``Key`` Member ID: SHA-256 digest of the member certificate, represented as a hex-encoded string.
+``Key`` Member ID: SHA-256 fingerprint of the member certificate, represented as a hex-encoded string.
 
 ``Value`` Represented as JSON.
 
@@ -64,7 +64,7 @@ Member acknowledgements of the ledger state, each containing a signature over th
 
 X509 certificates of all network users.
 
-``Key`` User ID: SHA-256 digest of the user certificate, represented as a hex-encoded string.
+``Key`` User ID: SHA-256 fingerprint of the user certificate, represented as a hex-encoded string.
 
 ``Value`` User certificate, represented as a PEM-encoded string.
 
@@ -73,7 +73,7 @@ X509 certificates of all network users.
 
 Auxiliary information attached to a user.
 
-``Key`` User ID: SHA-256 digest of the user certificate, represented as a hex-encoded string.
+``Key`` User ID: SHA-256 fingerprint of the user certificate, represented as a hex-encoded string.
 
 ``Value`` Represented as JSON.
 

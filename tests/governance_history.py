@@ -76,6 +76,7 @@ def check_all_tables_are_documented(ledger, doc_path):
         [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.gov.")]
     )
     undocumented_tables = gov_tables_in_ledger - set(table_names)
+    LOG.info(undocumented_tables)
     # Enable once Lua governance removal is complete
     # assert undocumented_tables == set(), undocumented_tables
 
