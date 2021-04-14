@@ -19,6 +19,13 @@ namespace ccf
   public:
     virtual ~NodeToNode() = default;
 
+    class DroppedMessageException : public std::exception
+    {
+    public:
+      NodeId from;
+      DroppedMessageException(const NodeId& from) : from(from) {}
+    };
+
     virtual void create_channel(
       const NodeId& peer_id,
       const std::string& peer_hostname,
@@ -56,9 +63,7 @@ namespace ccf
 
       if (!recv_authenticated(from, asCb(t), data, size))
       {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message with load from node {}",
-          from));
+        throw DroppedMessageException(from);
       }
 
       return t;
@@ -75,9 +80,7 @@ namespace ccf
 
       if (!recv_authenticated_with_load(from, data, size))
       {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message with load from node {}",
-          from));
+        throw DroppedMessageException(from);
       }
       serialized::skip(data, size, sizeof(T));
 
@@ -254,9 +257,7 @@ namespace ccf
       auto plain = n2n_channel->recv_encrypted(cb, data, size);
       if (!plain.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message with load from node {}",
-          from));
+        throw DroppedMessageException(from);
       }
 
       return plain.value();

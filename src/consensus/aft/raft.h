@@ -673,6 +673,11 @@ namespace aft
           }
         }
       }
+      catch (const ccf::NodeToNode::DroppedMessageException &e)
+      {
+        LOG_INFO_FMT("Dropped invalid message from {}", e.from);
+        return;
+      }
       catch (const std::exception& e)
       {
         LOG_FAIL_EXC(e.what());
@@ -969,7 +974,7 @@ namespace aft
         return true;
       }
 
-      // Check if there have been too many entried since the last signature
+      // Check if there have been too many entries since the last signature
       if (
         sig_tx_interval != 0 &&
         last_sig_seqno + sig_tx_interval * wait_factor <
