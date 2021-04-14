@@ -753,8 +753,6 @@ if(BUILD_TESTS)
   )
 
   if(NOT SAN)
-    # Writing new ledger files and generating new snapshots uses more file
-    # descriptors so disable those for this test
     add_e2e_test(
       NAME connections_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
