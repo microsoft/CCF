@@ -94,8 +94,8 @@
     },
     "/csv": {
       "get": {
-        "js_module": "CSVControllerProxy.js",
-        "js_function": "getOpinionsAsCSV",
+        "js_module": "CsvControllerProxy.js",
+        "js_function": "getOpinionsAsCsv",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
@@ -112,7 +112,7 @@
         }
       },
       "post": {
-        "js_module": "CSVControllerProxy.js",
+        "js_module": "CsvControllerProxy.js",
         "js_function": "submitOpinionsFromCSV",
         "forwarding_required": "always",
         "execute_outside_consensus": "never",
