@@ -413,7 +413,14 @@ namespace js
     JS_FreeValue(ctx, ccf);
     JS_FreeValue(ctx, global_obj);
 
-    node->transition_service_to_open(*tx_ctx_ptr->tx);
+    try
+    {
+      node->transition_service_to_open(*tx_ctx_ptr->tx);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Unable to open service: {}", e.what());
+    }
 
     return JS_UNDEFINED;
   }

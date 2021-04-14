@@ -1289,8 +1289,7 @@ namespace ccf
         catch (const std::logic_error& e)
         {
           throw std::logic_error(fmt::format(
-            "Failed to issuing recovery shares failed when "
-            "transitioning the service to open: {}",
+            "Failed to issue recovery shares: {}",
             e.what()));
         }
 

@@ -117,10 +117,11 @@ def service_startups(args):
         try:
             network.start_and_join(args)
             assert False, "Service cannot be opened with no recovery members"
-        except infra.proposal.ProposalNotAccepted as e:
-            assert (
-                e.proposal.state == infra.proposal.ProposalState.OPEN
-            ), e.proposal.state
+        except AssertionError as e:
+            primary, _ = network.find_primary()
+            network.consortium.check_for_service(
+                primary, infra.network.ServiceStatus.OPENING
+            )
             LOG.success(
                 "Service could not be opened with insufficient number of recovery mmebers"
             )
@@ -287,10 +288,7 @@ def recovery_shares_scenario(args):
 
 
 def run(args):
-    if not os.getenv("JS_GOVERNANCE") or True:
-        # Still fails with QuickJS assert because some objects are not
-        # cleaned up correctly when an assertion occurs in some JS_CALLs
-        service_startups(args)
+    service_startups(args)
     recovery_shares_scenario(args)
 
 
