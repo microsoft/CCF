@@ -7,7 +7,7 @@ For convenience, CCF provides access to commonly used cryptographic primitives t
 Hashing
 -------
 
-.. doxygenfunction:: crypto::SHA256
+.. doxygenfunction:: crypto::SHA256(const std::vector<uint8_t> &data)
   :project: CCF
 
 .. doxygenClass:: crypto::HashProvider
