@@ -1,5 +1,4 @@
 {
-  "entryFile": "tsoa-support/entry.ts",
   "noImplicitAdditionalProperties": "throw-on-extras",
   "controllerPathGlobs": ["src/controllers/*.ts"],
   "spec": {
@@ -17,6 +16,6 @@
   "routes": {
     "routesDir": "build",
     "middlewareTemplate": "tsoa-support/routes.ts.tmpl",
-    "authenticationModule": "./src/authentication.ts"
+    "authenticationModule": "./src/authentication"
   }
 }

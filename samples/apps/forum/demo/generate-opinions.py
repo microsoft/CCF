@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import os
 import sys
 import csv
 import random
@@ -42,7 +43,7 @@ def spread(topic):
             assert False
 
 
-def main(polls_path, user_count):
+def main(out_dir, polls_path, user_count):
     entries = []
 
     with open(polls_path, "r") as pp:
@@ -50,7 +51,7 @@ def main(polls_path, user_count):
         entries = [poll for poll in polls]
 
     for user in range(user_count):
-        with open(f"user{user}_opinions.csv", "w") as uf:
+        with open(os.path.join(out_dir, f"user{user}_opinions.csv"), "w") as uf:
             header = ["Topic", "Opinion"]
             writer = csv.DictWriter(uf, header)
             writer.writeheader()
@@ -68,4 +69,4 @@ def main(polls_path, user_count):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], int(sys.argv[2]))
+    main(sys.argv[1], sys.argv[2], int(sys.argv[3]))

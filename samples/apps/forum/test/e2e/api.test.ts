@@ -4,24 +4,21 @@
 import * as fs from "fs";
 import * as tmp from "tmp";
 import * as crypto from "crypto";
-import * as forge from "node-forge";
-import * as selfsigned from "selfsigned";
+import forge from "node-forge";
 import { assert } from "chai";
 import bent from "bent";
 import jwt from "jsonwebtoken";
-import { parse, unparse } from "papaparse";
+import papa from "papaparse";
 import { NODE_ADDR, setupMochaCCFSandbox } from "./util";
 import {
   CreatePollRequest,
   SubmitOpinionRequest,
   CreatePollsRequest,
   SubmitOpinionsRequest,
-  NumericPollResponse,
-  StringPollResponse,
   GetPollResponse,
-} from "../src/controllers/poll";
-
-const MINIMUM_OPINION_THRESHOLD = 10;
+} from "../../src/controllers/poll";
+import { NumericPollSummary, StringPollSummary } from "../../src/models/poll";
+import { MINIMUM_OPINION_THRESHOLD } from "../../src/constants";
 
 tmp.setGracefulCleanup();
 
@@ -47,14 +44,19 @@ class FakeAuth {
         format: "pem",
       },
     });
-    const certPem = selfsigned.generate(null, {
-      algorithm: "sha256",
-      keyPair: {
-        privateKey: keys.privateKey,
-        publicKey: keys.publicKey,
+    const cert = forge.pki.createCertificate();
+    const attrs = [
+      {
+        name: "commonName",
+        value: "Test",
       },
-    }).cert;
-    const cert = forge.pki.certificateFromPem(certPem);
+    ];
+    cert.setIssuer(attrs);
+    cert.publicKey = forge.pki.publicKeyFromPem(keys.publicKey);
+    cert.sign(
+      forge.pki.privateKeyFromPem(keys.privateKey),
+      forge.md.sha256.create()
+    );
     const certDer = forge.asn1
       .toDer(forge.pki.certificateToAsn1(cert))
       .getBytes();
@@ -342,7 +344,7 @@ describe("REST API", function () {
           );
         }
 
-        let aggregated: NumericPollResponse = await bent("GET", "json", 200)(
+        let aggregated: NumericPollSummary = await bent("GET", "json", 200)(
           `${POLL_ENDPOINT_URL}/${topic}`,
           null,
           fakeAuth.user(1)
@@ -386,7 +388,7 @@ describe("REST API", function () {
           );
         }
 
-        let aggregated: StringPollResponse = await bent("GET", "json", 200)(
+        let aggregated: StringPollSummary = await bent("GET", "json", 200)(
           `${POLL_ENDPOINT_URL}/${topic}`,
           null,
           fakeAuth.user(1)
@@ -453,7 +455,7 @@ describe("REST API", function () {
           { Topic: "csv-a", Opinion: 1.4 },
           { Topic: "csv-b", Opinion: "foo" },
         ];
-        const csv = unparse(rows);
+        const csv = papa.unparse(rows);
         await bent("POST", 204)(
           `${CSV_ENDPOINT_URL}`,
           csv,
@@ -465,7 +467,7 @@ describe("REST API", function () {
           null,
           fakeAuth.user(userId)
         );
-        const kvRows = parse(csvOut, { header: true, dynamicTyping: true })
+        const kvRows = papa.parse(csvOut, { header: true, dynamicTyping: true })
           .data;
         assert.deepEqual(kvRows, rows);
       });

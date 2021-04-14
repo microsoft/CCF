@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 import jwt from "jsonwebtoken";
 
-const demoJwtKeyPath = "test/jwt_demo_key.pem";
+const demoJwtKeyPath = "demo/jwt_demo_key.pem";
 
 function main() {
   const args = process.argv.slice(2);
