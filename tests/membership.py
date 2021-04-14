@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import http
-import os
 
 import infra.e2e_args
 import infra.network
@@ -117,7 +116,7 @@ def service_startups(args):
         try:
             network.start_and_join(args)
             assert False, "Service cannot be opened with no recovery members"
-        except AssertionError as e:
+        except AssertionError:
             primary, _ = network.find_primary()
             network.consortium.check_for_service(
                 primary, infra.network.ServiceStatus.OPENING
