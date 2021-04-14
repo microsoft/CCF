@@ -55,6 +55,10 @@ class CodeIdNotFound(Exception):
     pass
 
 
+class StartupSnapshotIsOld(Exception):
+    pass
+
+
 class NodeShutdownError(Exception):
     pass
 
@@ -176,7 +180,7 @@ class Network:
         target_node=None,
         recovery=False,
         ledger_dir=None,
-        copy_ledger_read_only=False,
+        copy_ledger_read_only=True,
         read_only_ledger_dir=None,
         from_snapshot=True,
         snapshot_dir=None,
@@ -591,8 +595,6 @@ class Network:
                 ),
             )
         except TimeoutError as e:
-            # The node can be safely discarded since it has not been
-            # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
             errors, _ = new_node.stop()
             self.nodes.remove(new_node)
@@ -601,6 +603,8 @@ class Network:
                 for error in errors:
                     if "Quote does not contain known enclave measurement" in error:
                         raise CodeIdNotFound from e
+                    if "StartupSnapshotIsOld" in error:
+                        raise StartupSnapshotIsOld from e
             raise
 
         return new_node
