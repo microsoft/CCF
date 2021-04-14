@@ -404,12 +404,6 @@ namespace ccf
       governance_history->put(caller_id, {signed_request});
     }
 
-    static ProposalInfo get_proposal_info(
-      const ProposalId& proposal_id, const Proposal& proposal)
-    {
-      return ProposalInfo{proposal_id, proposal.proposer, proposal.state};
-    }
-
     bool get_proposal_id_from_path(
       const enclave::PathParams& params,
       ProposalId& proposal_id,

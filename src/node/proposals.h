@@ -38,70 +38,7 @@ namespace ccf
      {ProposalState::FAILED, "Failed"},
      {ProposalState::DROPPED, "Dropped"}});
 
-  struct Proposal
-  {
-    Script script = {};
-    nlohmann::json parameter = {};
-    MemberId proposer = {};
-    ProposalState state = ProposalState::OPEN;
-    std::unordered_map<MemberId, Script> votes = {};
-
-    Proposal() = default;
-    Proposal(const Script& s, const nlohmann::json& param, MemberId prop) :
-      script(s),
-      parameter(param),
-      proposer(prop),
-      state(ProposalState::OPEN)
-    {}
-
-    bool operator==(const Proposal& o) const
-    {
-      return script == o.script && parameter == o.parameter &&
-        proposer == o.proposer && state == o.state && votes == o.votes;
-    }
-  };
-  DECLARE_JSON_TYPE(Proposal)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    Proposal, script, parameter, proposer, state, votes)
-
   using ProposalId = std::string;
-  using Proposals = ServiceMap<ProposalId, Proposal>;
-
-  struct ProposalInfo
-  {
-    ProposalId proposal_id;
-    MemberId proposer_id;
-    ProposalState state;
-  };
-  DECLARE_JSON_TYPE(ProposalInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposal_id, proposer_id, state);
-
-  struct Vote
-  {
-    Script ballot;
-  };
-  DECLARE_JSON_TYPE(Vote)
-  DECLARE_JSON_REQUIRED_FIELDS(Vote, ballot)
-
-  struct KVRead
-  {
-    struct In
-    {
-      std::string table = {};
-      nlohmann::json key = {};
-    };
-
-    using Out = nlohmann::json;
-  };
-  DECLARE_JSON_TYPE(KVRead::In)
-  DECLARE_JSON_REQUIRED_FIELDS(KVRead::In, table, key);
-
-  enum CompletionResult
-  {
-    PASSED = 1,
-    PENDING = 0,
-    REJECTED = -1
-  };
 }
 
 FMT_BEGIN_NAMESPACE

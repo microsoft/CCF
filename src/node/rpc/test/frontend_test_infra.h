@@ -49,11 +49,6 @@ string get_script_path(string name)
   ss << (dir ? dir : default_dir) << "/" << name;
   return ss.str();
 }
-const auto gov_script_file = files::slurp_string(get_script_path("gov.lua"));
-const auto gov_veto_script_file =
-  files::slurp_string(get_script_path("gov_veto.lua"));
-const auto operator_gov_script_file =
-  files::slurp_string(get_script_path("operator_gov.lua"));
 
 template <typename T>
 T parse_response_body(const TResponse& r)
@@ -80,13 +75,6 @@ std::string parse_response_body(const TResponse& r)
 void check_error(const TResponse& r, http_status expected)
 {
   DOCTEST_CHECK(r.status == expected);
-}
-
-void check_result_state(const TResponse& r, ProposalState expected)
-{
-  DOCTEST_CHECK(r.status == HTTP_STATUS_OK);
-  const auto result = parse_response_body<ProposalInfo>(r);
-  DOCTEST_CHECK(result.state == expected);
 }
 
 std::vector<uint8_t> create_request(
@@ -141,18 +129,6 @@ auto frontend_process(
   DOCTEST_REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();
-}
-
-auto get_proposal(
-  MemberRpcFrontend& frontend,
-  const ProposalId& proposal_id,
-  const crypto::Pem& caller)
-{
-  const auto getter =
-    create_request(nullptr, fmt::format("proposals/{}", proposal_id), HTTP_GET);
-
-  return parse_response_body<Proposal>(
-    frontend_process(frontend, getter, caller));
 }
 
 auto get_vote(

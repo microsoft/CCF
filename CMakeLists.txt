@@ -213,7 +213,6 @@ install(
 )
 
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
-install(FILES tests/sandbox/sandbox_gov.lua DESTINATION bin)
 install(FILES src/runtime_config/default/actions.js DESTINATION bin)
 install(FILES src/runtime_config/default/validate.js DESTINATION bin)
 install(FILES src/runtime_config/sandbox/resolve.js DESTINATION bin)

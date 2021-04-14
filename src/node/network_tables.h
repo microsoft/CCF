@@ -61,9 +61,7 @@ namespace ccf
     MmeberPublicEncryptionKeys member_encryption_public_keys;
     MemberInfo member_info;
 
-    Scripts gov_scripts;
     Modules modules;
-    Proposals proposals;
     CodeIDs node_code_ids;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
@@ -121,9 +119,7 @@ namespace ccf
       member_certs(Tables::MEMBER_CERTS),
       member_encryption_public_keys(Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS),
       member_info(Tables::MEMBER_INFO),
-      gov_scripts(Tables::GOV_SCRIPTS),
       modules(Tables::MODULES),
-      proposals(Tables::PROPOSALS),
       node_code_ids(Tables::NODE_CODE_IDS),
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
