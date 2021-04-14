@@ -12,9 +12,10 @@
 
 namespace ccf
 {
-  /** Members use proposals to propose changes to the public governance tables in the KV store.
-   * Active members can issue proposals.
-   * These proposals are stored in the KV, and passed to the JS constitution functions for validation and execution.
+  /** Members use proposals to propose changes to the public governance tables
+   * in the KV store. Active members can issue proposals. These proposals are
+   * stored in the KV, and passed to the JS constitution functions for
+   * validation and execution.
    */
   enum class ProposalState
   {
