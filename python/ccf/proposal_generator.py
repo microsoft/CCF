@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
-from collections import abc
 import inspect
 import json
 import glob
@@ -10,7 +9,7 @@ import os
 import sys
 import shutil
 import tempfile
-from typing import Union, Optional, Any, List, Dict
+from typing import Optional, Any, List, Dict
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
@@ -21,47 +20,6 @@ def dump_to_file(output_path: str, obj: dict, dump_args: dict):
     with open(output_path, "w") as f:
         json.dump(obj, f, **dump_args)
 
-
-def as_lua_literal(arg):
-    if isinstance(arg, str):
-        # This long string swallows any initial newline. This means if we
-        # had an actual newline, it will be lost. To work around this, we
-        # insert a newline to every string. If there was originally a
-        # newline at the start, its now the second character, and is kept.
-        return f"[====[\n{arg}]====]"
-    elif isinstance(arg, bool):
-        return str(arg).lower()
-    elif isinstance(arg, abc.Sequence):
-        return f"{{ {', '.join(as_lua_literal(e) for e in arg)} }}"
-    elif isinstance(arg, abc.Mapping):
-        inner = ", ".join(
-            f"[ {as_lua_literal(k)} ] = {as_lua_literal(v)}" for k, v in arg.items()
-        )
-        return f"{{ {inner} }}"
-    else:
-        return str(arg)
-
-
-LUA_FUNCTION_EQUAL_TABLES = """function equal_tables(a, b)
-  if #a ~= #b then
-    return false
-  else
-    for k, v in pairs(a) do
-      if type(v) ~= type(b[k]) then
-        return false
-      elseif type(v) == "table" then
-        if not equal_tables(v, b[k]) then
-          return false
-        end
-      else
-        if v ~= b[k] then
-          return false
-        end
-      end
-    end
-    return true
-  end
-end"""
 
 DEFAULT_PROPOSAL_OUTPUT = "{proposal_name}_proposal.json"
 DEFAULT_VOTE_OUTPUT = "{proposal_name}_vote_for.json"
@@ -97,43 +55,6 @@ def complete_vote_output_path(
     vote_output_path = os.path.join(common_dir, vote_output_path)
 
     return vote_output_path
-
-
-def add_arg_construction(
-    lines: list,
-    arg: Union[str, abc.Sequence, abc.Mapping],
-    arg_name: str = "args",
-):
-    lines.append(f"{arg_name} = {as_lua_literal(arg)}")
-
-
-def add_arg_checks(
-    lines: list,
-    arg: Union[str, abc.Sequence, abc.Mapping],
-    arg_name: str = "args",
-    added_equal_tables_fn: bool = False,
-):
-    lines.append(f"if {arg_name} == nil then return false end")
-    if isinstance(arg, str):
-        lines.append(
-            f"if not {arg_name} == {as_lua_literal(arg)} then return false end"
-        )
-    elif isinstance(arg, abc.Sequence) or isinstance(arg, abc.Mapping):
-        if not added_equal_tables_fn:
-            lines.extend(
-                line.strip() for line in LUA_FUNCTION_EQUAL_TABLES.splitlines()
-            )
-            added_equal_tables_fn = True
-        expected_name = "expected"
-        lines.append(f"{expected_name} = {as_lua_literal(arg)}")
-        lines.append(
-            f"if not equal_tables({arg_name}, {expected_name}) then return false end"
-        )
-    else:
-        lines.append(
-            f"if not {arg_name} == {as_lua_literal(arg)} then return false end"
-        )
-    return added_equal_tables_fn
 
 
 def build_proposal(
