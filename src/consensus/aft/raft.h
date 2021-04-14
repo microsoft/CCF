@@ -673,7 +673,7 @@ namespace aft
           }
         }
       }
-      catch (const ccf::NodeToNode::DroppedMessageException &e)
+      catch (const ccf::NodeToNode::DroppedMessageException& e)
       {
         LOG_INFO_FMT("Dropped invalid message from {}", e.from);
         return;
