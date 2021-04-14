@@ -197,14 +197,14 @@ namespace asynchost
             return;
           }
         }
+
+        LOG_FAIL_FMT("Could not find snapshot to commit at {}", snapshot_idx);
       }
       catch (std::exception& e)
       {
         LOG_FAIL_FMT(
           "Exception while attempting to commit snapshot: {}", e.what());
       }
-
-      LOG_FAIL_FMT("Could not find snapshot to commit at {}", snapshot_idx);
     }
 
     std::optional<std::string> find_latest_committed_snapshot()
