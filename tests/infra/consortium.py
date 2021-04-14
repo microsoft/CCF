@@ -13,6 +13,7 @@ import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
+from ccf.ledger import NodeStatus
 import ccf.proposal_generator
 import ccf.ledger
 from infra.proposal import ProposalState
@@ -291,12 +292,10 @@ class Consortium:
 
         with remote_node.client() as c:
             r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
-            assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.value
+            assert r.body.json()["status"] == NodeStatus.RETIRED.value
 
     def trust_node(self, remote_node, node_id, timeout=3):
-        if not self._check_node_exists(
-            remote_node, node_id, infra.node.NodeStatus.PENDING
-        ):
+        if not self._check_node_exists(remote_node, node_id, NodeStatus.PENDING):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
         proposal_body, careful_vote = self.make_proposal(
@@ -311,9 +310,7 @@ class Consortium:
             timeout=timeout,
         )
 
-        if not self._check_node_exists(
-            remote_node, node_id, infra.node.NodeStatus.TRUSTED
-        ):
+        if not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def remove_member(self, remote_node, member_to_remove):
@@ -546,5 +543,5 @@ class Consortium:
     def wait_for_all_nodes_to_be_trusted(self, remote_node, nodes, timeout=3):
         for n in nodes:
             self.wait_for_node_to_exist_in_store(
-                remote_node, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
+                remote_node, n.node_id, timeout, NodeStatus.TRUSTED
             )
