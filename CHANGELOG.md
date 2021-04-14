@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0]
+
+### Added
+
+- The service certificate is now returned as part of the `/node/network/` endpoint response (#2442).
+
+### Changed
+
+- `kv::Map` is now an alias to `kv::JsonSerialisedMap`, which means all existing applications using `kv::Map`s will now require `DECLARE_JSON...` macros for custom key and value types. `msgpack-c` is no longer available to apps and `MSGPACK_DEFINE` macros should be removed. Note that this change may affect throughput of existing applications, in which case an app-defined serialiser (or `kv::RawCopySerialisedMap`) should be used (#2449).
+- `/node/state` endpoint also returns the `seqno` at which a node was started (i.e. `seqno` of the snapshot a node started from or `0` otherwise) (#2422).
+
+### Removed
+
+- `/gov/query` and `/gov/read` governance endpoints are removed (#2442).
+
 ## [0.99.0]
 
 This is a bridging release to simplify the upgrade to 1.0. It includes the new JS constitution, but also supports the existing Lua governance so that users can upgrade in 2 steps - first implementing all of the changes below with their existing Lua governance, then upgrading to the JS governance. Lua governance will be removed in CCF 1.0. See [temporary docs](https://microsoft.github.io/CCF/ccf-0.99.0/governance/js_gov.html) for help with transitioning from Lua to JS.

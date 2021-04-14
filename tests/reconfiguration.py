@@ -7,6 +7,9 @@ import infra.logging_app as app
 from ccf.tx_id import TxID
 import suite.test_requirements as reqs
 import time
+import tempfile
+from shutil import copy
+import os
 
 from loguru import logger as LOG
 
@@ -59,6 +62,9 @@ def test_add_node(network, args):
     with new_node.client() as c:
         s = c.get("/node/state")
         assert s.body.json()["node_id"] == new_node.node_id
+        assert (
+            s.body.json()["startup_seqno"] == 0
+        ), "Node started without snapshot but reports startup seqno != 0"
     assert new_node
     return network
 
@@ -78,10 +84,19 @@ def test_add_node_from_backup(network, args):
 
 @reqs.description("Adding a valid node from snapshot")
 @reqs.at_least_n_nodes(2)
-@reqs.add_from_snapshot()
 def test_add_node_from_snapshot(
     network, args, copy_ledger_read_only=True, from_backup=False
 ):
+    # Before adding the node from a snapshot, override at least one app entry
+    # and wait for a new committed snapshot covering that entry, so that there
+    # is at least one historical entry to verify.
+    network.txs.issue(network, number_txs=1)
+    for _ in range(1, args.snapshot_tx_interval):
+        network.txs.issue(network, number_txs=1, repeat=True)
+        last_tx = network.txs.get_last_tx(priv=True)
+        if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
+            break
+
     target_node = None
     snapshot_dir = None
     if from_backup:
@@ -99,6 +114,17 @@ def test_add_node_from_snapshot(
         snapshot_dir=snapshot_dir,
     )
     assert new_node
+
+    if copy_ledger_read_only:
+        with new_node.client() as c:
+            r = c.get("/node/state")
+            assert (
+                r.body.json()["startup_seqno"] != 0
+            ), "Node started from snapshot but reports startup seqno of 0"
+
+    # Finally, verify all app entries on the new node, including historical ones
+    network.txs.verify(node=new_node)
+
     return network
 
 
@@ -215,10 +241,70 @@ def run(args):
         test_node_filter(network, args)
 
 
+def run_join_old_snapshot(args):
+    txs = app.LoggingTxs()
+    nodes = ["local://localhost"]
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+
+        with infra.network.network(
+            nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            pdb=args.pdb,
+            txs=txs,
+        ) as network:
+            network.start_and_join(args)
+            primary, _ = network.find_primary()
+
+            # First, retrieve and save one committed snapshot
+            txs.issue(network, number_txs=args.snapshot_tx_interval)
+            old_committed_snapshots = network.get_committed_snapshots(primary)
+            copy(
+                os.path.join(
+                    old_committed_snapshots, os.listdir(old_committed_snapshots)[0]
+                ),
+                tmp_dir,
+            )
+
+            # Then generate another newer snapshot, and add two more nodes from it
+            txs.issue(network, number_txs=args.snapshot_tx_interval)
+
+            for _ in range(0, 2):
+                network.create_and_trust_node(
+                    args.package,
+                    "local://localhost",
+                    args,
+                    from_snapshot=True,
+                )
+
+            # Kill primary and wait for a new one: new primary is
+            # guaranteed to have started from the new snapshot
+            primary.stop()
+            network.wait_for_new_primary(primary.node_id)
+
+            # Start new node from the old snapshot
+            try:
+                network.create_and_trust_node(
+                    args.package,
+                    "local://localhost",
+                    args,
+                    from_snapshot=True,
+                    snapshot_dir=tmp_dir,
+                    timeout=3,
+                )
+                assert False, "Node should not be able to join from old snapshot"
+            except infra.network.StartupSnapshotIsOld:
+                pass
+
+
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_user_count = 1
+
     run(args)
+    run_join_old_snapshot(args)

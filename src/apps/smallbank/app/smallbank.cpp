@@ -15,9 +15,9 @@ namespace ccfapp
 {
   struct SmallBankTables
   {
-    kv::Map<std::string, uint64_t> accounts;
-    kv::Map<uint64_t, int64_t> savings;
-    kv::Map<uint64_t, int64_t> checkings;
+    kv::RawCopySerialisedMap<std::string, uint64_t> accounts;
+    kv::RawCopySerialisedMap<uint64_t, int64_t> savings;
+    kv::RawCopySerialisedMap<uint64_t, int64_t> checkings;
 
     SmallBankTables() : accounts("a"), savings("b"), checkings("c") {}
   };

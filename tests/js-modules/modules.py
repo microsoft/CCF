@@ -15,7 +15,6 @@ import infra.net
 import infra.e2e_args
 import infra.crypto
 import suite.test_requirements as reqs
-import ccf.proposal_generator
 import openapi_spec_validator
 
 from loguru import logger as LOG
@@ -62,16 +61,21 @@ def test_app_bundle(network, args):
     # Testing the bundle archive support of the Python client here.
     # Plain bundle folders are tested in the npm-based app tests.
     bundle_dir = os.path.join(PARENT_DIR, "js-app-bundle")
+    raw_module_name = "/math.js".encode()
     with tempfile.TemporaryDirectory(prefix="ccf") as tmp_dir:
         bundle_path = shutil.make_archive(
             os.path.join(tmp_dir, "bundle"), "zip", bundle_dir
         )
-        network.consortium.set_js_app(primary, bundle_path)
+        set_js_proposal = network.consortium.set_js_app(primary, bundle_path)
 
-    LOG.info("Verifying that modules and endpoints were added")
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.post("/gov/read", {"table": "public:ccf.gov.modules", "key": "/math.js"})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert (
+            raw_module_name
+            in primary.get_ledger_public_state_at(set_js_proposal.completed_seqno)[
+                "public:ccf.gov.modules"
+            ]
+        ), "Module was not added"
+
+    LOG.info("Verifying that app was deployed")
 
     with primary.client("user0") as c:
         valid_body = {"op": "sub", "left": 82, "right": 40}
@@ -89,20 +93,19 @@ def test_app_bundle(network, args):
         validate_openapi(c)
 
     LOG.info("Removing js app")
-    proposal_body, careful_vote = ccf.proposal_generator.remove_js_app()
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    network.consortium.vote_using_majority(primary, proposal, careful_vote)
+    remove_js_proposal = network.consortium.remove_js_app(primary)
 
     LOG.info("Verifying that modules and endpoints were removed")
     with primary.client("user0") as c:
         r = c.post("/app/compute", valid_body)
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
-    with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.post("/gov/read", {"table": "public:ccf.gov.modules", "key": "/math.js"})
-        assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
+    assert (
+        primary.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
+            "public:ccf.gov.modules"
+        ][raw_module_name]
+        is None
+    ), "Module was not removed"
 
     return network
 
