@@ -46,7 +46,7 @@ def count_governance_operations(ledger):
                         cert, sig, req, request_body, digest
                     )
                     request_target_line = req.decode().splitlines()[0]
-                    if "/gov/proposals.js" in request_target_line:
+                    if "/gov/proposals" in request_target_line:
                         vote_suffix = "/ballots"
                         if request_target_line.endswith(vote_suffix):
                             verified_votes += 1

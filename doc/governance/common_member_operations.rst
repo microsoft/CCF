@@ -62,7 +62,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
         ]
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals.js --cacert network_cert --key member1_privk --cert member1_cert --data-binary @trigger_ledger_rekey.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @trigger_ledger_rekey.json -H "content-type: application/json"
     {
         "ballot_count": 0,
         "proposal_id": "2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e",
@@ -70,7 +70,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals.js/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     {
         "ballot_count": 1,
         "proposal_id": "2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e",
@@ -78,7 +78,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals.js/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e",
@@ -111,7 +111,7 @@ The number of member shares required to restore the private ledger (``recovery_t
         ]
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals.js --cacert network_cert --key member1_privk --cert member1_cert --data-binary @set_recovery_threshold.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @set_recovery_threshold.json -H "content-type: application/json"
     {
         "ballot_count": 0,
         "proposal_id": "b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8",
@@ -119,7 +119,7 @@ The number of member shares required to restore the private ledger (``recovery_t
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals.js/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     {
         "ballot_count": 1,
         "proposal_id": "b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8",
@@ -128,7 +128,7 @@ The number of member shares required to restore the private ledger (``recovery_t
     }
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals.js/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "b9c08b3861395eca904d913427dcb436136e277cf4712eb14e9e9cddf9d231a8",

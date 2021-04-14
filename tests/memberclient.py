@@ -19,7 +19,7 @@ def test_missing_signature_header(network, args):
     node = network.find_node_by_role()
     member = network.consortium.get_any_active_member()
     with node.client(member.local_id) as mc:
-        r = mc.post("/gov/proposals.js")
+        r = mc.post("/gov/proposals")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         www_auth = "www-authenticate"
         assert www_auth in r.headers, r.headers
@@ -100,7 +100,7 @@ def test_corrupted_signature(network, args):
             # Override the auth provider with invalid ones
             for fn in (missing_signature, empty_signature, modified_signature):
                 ccf.clients.RequestClient._auth_provider = make_signature_corrupter(fn)
-                r = mc.post("/gov/proposals.js")
+                r = mc.post("/gov/proposals")
                 assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
 
             # Restore original auth provider for future calls!
@@ -147,7 +147,7 @@ def test_governance(network, args):
 
     LOG.info("Check proposal has been recorded in open state")
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get(f"/gov/proposals.js/{new_member_proposal.proposal_id}")
+        r = c.get(f"/gov/proposals/{new_member_proposal.proposal_id}")
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == infra.proposal.ProposalState.OPEN.value
 
@@ -221,7 +221,7 @@ def test_governance(network, args):
     assert proposal.state == infra.proposal.ProposalState.WITHDRAWN
 
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get(f"/gov/proposals.js/{proposal.proposal_id}")
+        r = c.get(f"/gov/proposals/{proposal.proposal_id}")
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == infra.proposal.ProposalState.WITHDRAWN.value
 

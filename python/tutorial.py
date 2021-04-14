@@ -107,7 +107,7 @@ member_client = ccf.clients.CCFClient(
     signing_auth=ccf.clients.Identity(member_key, member_cert, "member"),
 )
 response = member_client.post(
-    "/gov/proposals.js",
+    "/gov/proposals",
     body=proposal,
 )
 # SNIPPET_END: dict_proposal
@@ -118,7 +118,7 @@ with open("my_open_network_proposal.json", "w") as f:
 
 # The contents of `my_open_network_proposal.json` are submitted as the request body.
 response = member_client.post(
-    "/gov/proposals.js",
+    "/gov/proposals",
     body="@my_open_network_proposal.json",
 )
 # SNIPPET_END: json_proposal_with_file

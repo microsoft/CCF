@@ -120,7 +120,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
       ]
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals.js --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
     {
       "ballot_count": 0,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
@@ -145,7 +145,7 @@ In this case, a new proposal with id ``4`` has successfully been created and the
     }
 
     # Member 2 rejects the proposal (votes in favour: 1/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals.js/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
     {
       "ballot_count": 1,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",

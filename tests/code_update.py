@@ -181,7 +181,7 @@ def test_proposal_invalidation(network, args):
     LOG.info("Confirm open proposals are dropped")
     with primary.client(None, "member0") as c:
         for proposal_id in pending_proposals:
-            r = c.get(f"/gov/proposals.js/{proposal_id}")
+            r = c.get(f"/gov/proposals/{proposal_id}")
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == "Dropped", r.body.json()
 
