@@ -10,6 +10,7 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
+from ccf.ledger import NodeStatus
 from ccf.tx_status import TxStatus
 from ccf.tx_id import TxID
 import random
@@ -589,9 +590,9 @@ class Network:
                 new_node.node_id,
                 timeout=timeout,
                 node_status=(
-                    infra.node.NodeStatus.PENDING
+                    NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
-                    else infra.node.NodeStatus.TRUSTED
+                    else NodeStatus.TRUSTED
                 ),
             )
         except TimeoutError as e:
