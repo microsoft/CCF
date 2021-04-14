@@ -31,13 +31,17 @@ namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
   {
+    /// Node certificate
     crypto::Pem cert;
+    /// Node enclave quote
     QuoteInfo quote_info;
+    /// Node encryption public key, used to distribute ledger re-keys.
     crypto::Pem encryption_pub_key;
+    /// Node status
     NodeStatus status = NodeStatus::PENDING;
 
-    // Set to the seqno of the latest ledger secret at the time the node is
-    // trusted
+    /** Set to the seqno of the latest ledger secret at the time the node is
+        trusted */
     std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
