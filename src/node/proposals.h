@@ -12,39 +12,9 @@
 
 namespace ccf
 {
-  // TODO
-  /** Members use proposals to propose changes to the KV store.
-   * Active members can issue proposals through the Propose RPC.
-   * A proposal is defined by a Lua script and a corresponding parameter.
-   * Proposal are passed two arguments:
-   *  (1) a table mapping KV store table names to corresponding accessors
-   *  (2) the specified parameter (which is translated from json to Lua, this
-   * could for example be the certificate of a to-be-added node).
-   * Proposal scripts can read KV tables with the rights of the proposing
-   * member, but they cannot write. Proposal scripts must return a list of
-   * proposed function calls (ie, ::ProposedCalls). For this, they have access
-   * to the helper class Calls. If a script returns an empty list, the vote is
-   * aborted and it may run again at a later point. The available function calls
-   * are defined in
-   * ccf::MemberRpcFrontend and gov.lua. The following script proposes calling
-   * "raw_puts" (defined in gov.lua) to make raw writes to the KV. It uses the
-   * helper class Puts. (The environment for proposal scripts is defined
-   * ./src/runtime_config/gov.lua.)
-   *
-   *  local tables, param = ...
-   *  local value = tables["public:ccf.internal.values"]:get(param)
-   *  local c = Calls:new()
-   *  local p = Puts:new()
-   *  -- propose writing store["table"]["key"] = value
-   *  p:put("table", "key", value)
-   *  c:call("raw_puts", p)
-   *  return c
-   *
-   * Or more compact:
-   *
-   *  local tables, param = ...
-   *  return Calls:call(Puts:put("table", "key",
-   *    tables["public:ccf.internal.values"]:get(param))
+  /** Members use proposals to propose changes to the public governance tables in the KV store.
+   * Active members can issue proposals.
+   * These proposals are stored in the KV, and passed to the JS constitution functions for validation and execution.
    */
   enum class ProposalState
   {
