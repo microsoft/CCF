@@ -1288,9 +1288,8 @@ namespace ccf
         }
         catch (const std::logic_error& e)
         {
-          throw std::logic_error(fmt::format(
-            "Failed to issue recovery shares: {}",
-            e.what()));
+          throw std::logic_error(
+            fmt::format("Failed to issue recovery shares: {}", e.what()));
         }
 
         GenesisGenerator g(network, tx);
