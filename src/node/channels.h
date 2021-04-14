@@ -971,16 +971,13 @@ namespace ccf
         return;
       }
 
-      search->second->reset();
+      search->second = nullptr;
     }
 
     void destroy_all_channels()
     {
       std::lock_guard<SpinLock> guard(lock);
-      for (auto& c : channels)
-      {
-        c.second->reset();
-      }
+      channels.clear();
     }
 
     void close_all_outgoing()
