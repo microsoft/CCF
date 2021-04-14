@@ -11,7 +11,6 @@ import http
 import base64
 import json
 from loguru import logger as LOG
-import os
 
 
 def count_governance_operations(ledger):

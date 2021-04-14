@@ -270,8 +270,10 @@ namespace http
     {
       response_body = std::vector<uint8_t>(body.begin(), body.end());
 
-      // If there's no explicit content type already set, assume this is really text
-      const auto content_type_it = response_headers.find(http::headers::CONTENT_TYPE);
+      // If there's no explicit content type already set, assume this is really
+      // text
+      const auto content_type_it =
+        response_headers.find(http::headers::CONTENT_TYPE);
       if (content_type_it == response_headers.end())
       {
         set_response_header(

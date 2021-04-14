@@ -353,7 +353,6 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
-
   std::vector<std::string> constitution_paths;
   start
     ->add_option(

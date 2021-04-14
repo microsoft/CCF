@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import http
 import re
-import os
 
 import infra.e2e_args
 import infra.network
@@ -224,9 +223,7 @@ def test_governance(network, args):
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
         r = c.get(f"/gov/proposals.js/{proposal.proposal_id}")
         assert r.status_code == 200, r.body.text()
-        assert (
-            r.body.json()["state"] == infra.proposal.ProposalState.WITHDRAWN.value
-        )
+        assert r.body.json()["state"] == infra.proposal.ProposalState.WITHDRAWN.value
 
     LOG.debug("Further withdraw proposals fail")
     response = new_member.withdraw(node, proposal)

@@ -8,7 +8,6 @@ VENV_DIR=${VENV_DIR:-.venv_ccf_sandbox}
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 VERSION_FILE="${PATH_HERE}"/../share/VERSION
-GOV_SCRIPT="${PATH_HERE}"/sandbox_gov.lua
 
 is_package_specified=false
 is_js_bundle_specified=false

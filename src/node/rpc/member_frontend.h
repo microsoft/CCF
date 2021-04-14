@@ -172,8 +172,8 @@ namespace ccf
       });
     }
 
-#  pragma clang diagnostic push
-#  pragma clang diagnostic ignored "-Wc99-extensions"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-extensions"
 
     ccf::jsgov::ProposalInfoSummary resolve_proposal(
       kv::Tx& tx,
@@ -370,7 +370,7 @@ namespace ccf
       }
     }
 
-#  pragma clang diagnostic pop
+#pragma clang diagnostic pop
 
     bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
     {
@@ -899,8 +899,8 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-#  pragma clang diagnostic push
-#  pragma clang diagnostic ignored "-Wc99-extensions"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-extensions"
 
       auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
         const auto& caller_identity =
@@ -1445,7 +1445,7 @@ namespace ccf
         .set_auto_schema<void, jsgov::Ballot>()
         .install();
 
-#  pragma clang diagnostic pop
+#pragma clang diagnostic pop
     }
   };
 
