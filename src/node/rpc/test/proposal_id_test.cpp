@@ -6,7 +6,6 @@ constexpr auto test_constitution = R"xxx(
 export function validate(input) {
   return { valid: true, description: "All good" };
 }
-
 export function resolve(proposal, proposerId, votes) {
   // Busy wait
   let u = 0;
@@ -118,14 +117,12 @@ public:
   {
     if (forced)
     {
-      std::cout << "Using forced version" << std::endl;
       forced = false;
       return {{term, forced_version},
               crypto::Sha256Hash(std::to_string(version))};
     }
     else
     {
-      std::cout << "Using non-forced version" << std::endl;
       return {{term, version}, crypto::Sha256Hash(std::to_string(version))};
     }
   }
@@ -156,9 +153,11 @@ DOCTEST_TEST_CASE("Compaction conflict")
 
   DOCTEST_REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
 
-  // Stub transaction, at which we can compact
+  // Stub transaction, at which we can compact. Write to a table which the
+  // proposal execution will try to read, so that it tries to retrieve a
+  // MapHandle at this forced compacted version
   auto tx = network.tables->create_tx();
-  tx.rw(network.values)->put(42, 42);
+  tx.rw(network.member_info)->put({}, {});
   DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
   auto cv = tx.commit_version();
   network.tables->compact(cv);
