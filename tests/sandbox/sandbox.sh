@@ -79,7 +79,6 @@ exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
     --enclave-type virtual \
     --initial-member-count 1 \
-    --gov-script "${GOV_SCRIPT}" \
     --constitution "${PATH_HERE}"/actions.js \
     --constitution "${PATH_HERE}"/validate.js \
     --constitution "${PATH_HERE}"/resolve.js \

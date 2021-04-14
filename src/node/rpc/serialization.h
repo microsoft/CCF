@@ -53,7 +53,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     CreateNetworkNodeToNode::In,
     members_info,
-    gov_script,
     constitution,
     node_id,
     node_cert,

@@ -353,16 +353,6 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
-  std::string gov_script = "gov.lua";
-  start
-    ->add_option(
-      "--gov-script",
-      gov_script,
-      "Path to Lua file that defines the contents of the "
-      "public:ccf.gov.scripts table")
-    ->capture_default_str()
-    ->check(CLI::ExistingFile)
-    ->required();
 
   std::vector<std::string> constitution_paths;
   start
@@ -719,7 +709,6 @@ int main(int argc, char** argv)
         ccf_config.genesis.members_info.emplace_back(
           files::slurp(m_info.cert_file), public_encryption_key_file, md);
       }
-      ccf_config.genesis.gov_script = files::slurp_string(gov_script);
       ccf_config.genesis.constitution = "";
       for (const auto& constitution_path : constitution_paths)
       {
