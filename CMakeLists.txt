@@ -101,7 +101,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            quickjs.enclave
            ccfcrypto.enclave
            http_parser.enclave
-           lua.enclave
            aft.enclave
            sss.enclave
            ccf_endpoints.enclave
@@ -151,7 +150,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            -lgcc
            ccfcrypto.host
            http_parser.host
-           lua.host
            quickjs.host
            aft.virtual
            sss.host
@@ -382,7 +380,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
                             sss.host ccf_endpoints.host quickjs.host
     )
 
@@ -398,7 +396,7 @@ if(BUILD_TESTS)
     # )
     # target_link_libraries(
     #   member_voting_test
-    #   PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host sss.host
+    #   PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
     #           ccf_endpoints.host quickjs.host
     # )
     # set_tests_properties(
@@ -413,7 +411,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       proposal_id_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host sss.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
               ccf_endpoints.host quickjs.host
     )
 
@@ -422,7 +420,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
     )
     target_link_libraries(
-      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
+      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT}
                                  http_parser.host sss.host ccf_endpoints.host
     )
 
