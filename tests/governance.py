@@ -8,7 +8,7 @@ import infra.network
 import infra.path
 import infra.proc
 import infra.net
-from infra.node import NodeStatus
+from ccf.ledger import NodeStatus
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app

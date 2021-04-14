@@ -4,6 +4,7 @@
 import io
 import struct
 import os
+from enum import Enum
 
 from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict
 
@@ -33,6 +34,12 @@ NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
+
+
+class NodeStatus(Enum):
+    PENDING = "Pending"
+    TRUSTED = "Trusted"
+    RETIRED = "Retired"
 
 
 def to_uint_32(buffer):
@@ -221,10 +228,15 @@ class LedgerValidator:
             for node_id, node_info in node_table.items():
                 node_id = node_id.decode()
                 node_info = json.loads(node_info)
-                # Add the nodes certificate
+                # Add the node certificate
                 self.node_certificates[node_id] = node_info["cert"].encode()
                 # Update node trust status
-                self.node_activity_status[node_id] = node_info["status"]
+                # Also record the seqno at which the node status changed to
+                # track when a primary node should stop issuing signatures
+                self.node_activity_status[node_id] = (
+                    node_info["status"],
+                    transaction_public_domain.get_seqno(),
+                )
 
         # This is a merkle root/signature tx if the table exists
         if SIGNATURE_TX_TABLE_NAME in tables:
@@ -240,13 +252,13 @@ class LedgerValidator:
                 # Get binary representations for the cert, existing root, and signature
                 cert = self.node_certificates[signing_node]
                 existing_root = bytes.fromhex(signature["root"])
-                signature = base64.b64decode(signature["sig"])
+                sig = base64.b64decode(signature["sig"])
 
                 tx_info = TxBundleInfo(
                     self.merkle,
                     existing_root,
                     cert,
-                    signature,
+                    sig,
                     self.node_activity_status,
                     signing_node,
                 )
@@ -254,6 +266,14 @@ class LedgerValidator:
                 # validations for 1, 2 and 3
                 # throws if ledger validation failed.
                 self._verify_tx_set(tx_info)
+
+                # Forget about nodes whose retirement has been committed
+                for node_id, (status, seqno) in list(self.node_activity_status.items()):
+                    if (
+                        status == NodeStatus.RETIRED.value
+                        and signature["commit_seqno"] >= seqno
+                    ):
+                        self.node_activity_status.pop(node_id)
 
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view
@@ -274,8 +294,13 @@ class LedgerValidator:
 
     @staticmethod
     def _verify_node_status(tx_info: TxBundleInfo):
-        """Verify item 1, The merkle root is signed by a Trusted node in the given network"""
-        if tx_info.node_activity[tx_info.signing_node] != "Trusted":
+        """Verify item 1, The merkle root is signed by a valid node in the given network"""
+        # Note: A retired primary will still issue signature transactions until
+        # its retirement is committed
+        if tx_info.node_activity[tx_info.signing_node][0] not in (
+            NodeStatus.TRUSTED.value,
+            NodeStatus.RETIRED.value,
+        ):
             LOG.error(
                 f"The signing node {tx_info.signing_node!r} is not trusted by the network"
             )
