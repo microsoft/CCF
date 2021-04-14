@@ -1,48 +1,35 @@
 Built-in Maps
 =============
 
-`public:ccf.gov.members.certs`
-------------------------------
+`public:ccf.gov.`
+-----------------
 
-This table contains the certificates of all members in the consortium.
+`certs`
+~~~~~~~
 
-Key
-~~~
+X509 certificates of all members in the consortium.
 
-Member ID: SHA-256 digest of the member certificate, represented as a hex-encoded string.
+**Key** Member ID: SHA-256 digest of the member certificate, represented as a hex-encoded string.
 
-Value
-~~~~~
+**Value** Member certificate, represented as a PEM-encoded string.
 
-Member certificate, represented as a PEM-encoded string.
+`encryption_public_keys`
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-`public:ccf.gov.members.encryption_public_keys`
------------------------------------------------
+Public encryption keys submitted by members to the network. The recovery share for each member is encrypted by the key they have submitted.
 
-This table contains the public keys submitted by members for CCF to encrypt their recovery share with.
+**Key** Member ID: SHA-256 digest of the member certificate, represented as a hex-encoded string.
 
-Key
-~~~
+**Value** Member public encryption key, represented as a PEM-encoded string.
 
-Member ID: SHA-256 digest of the member certificate, represented as a hex-encoded string.
+`members.info`
+~~~~~~~~~~~~~~
 
-Value
-~~~~~
+Participation status and auxiliary information attached to a member.
 
-Member public encryption key, represented as a PEM-encoded string.
+**Key** Member ID: SHA-256 digest of the member's X509 certificate, represented as a hex-encoded string.
 
-`public:ccf.gov.members.info`
------------------------------
-
-Member status and auxiliary information.
-
-Key
-~~~
-
-Member ID: SHA-256 digest of the member certificate, represented as a hex-encoded string.
-
-Value
-~~~~~
+**Value** Represented as JSON.
 
 .. doxygenstruct:: ccf::MemberDetails
    :project: CCF
@@ -51,20 +38,14 @@ Value
 .. doxygenenum:: ccf::MemberStatus
    :project: CCF
 
-Represented as JSON.
+`members.acks`
+~~~~~~~~~~~~~~
 
-`public:ccf.gov.members.acks`
------------------------------
+Member acknowledgements of the ledger state, each containing a signature over the Merkle root at a particular sequence number.
 
-Member acknowledgements of the ledger state: signatures over the Merkle root at a particular sequence number.
+**Key** Member ID: SHA-256 digest of the member certificate, represented as a hex-encoded string.
 
-Key
-~~~
-
-Member ID: SHA-256 digest of the member certificate, represented as a hex-encoded string.
-
-Value
-~~~~~
+**Value** Represented as JSON.
 
 .. doxygenstruct:: ccf::MemberAck
    :project: CCF
@@ -78,54 +59,36 @@ Value
    :project: CCF
    :members:
 
-Represented as JSON.
+`users.certs`
+~~~~~~~~~~~~~
 
-`public:ccf.gov.users.certs`
-----------------------------
+X509 certificates of all network users.
 
-This table contains the certificates of all users.
+**Key** User ID: SHA-256 digest of the user certificate, represented as a hex-encoded string.
 
-Key
-~~~
+**Value** User certificate, represented as a PEM-encoded string.
 
-User ID: SHA-256 digest of the user certificate, represented as a hex-encoded string.
+`users.info`
+~~~~~~~~~~~~
 
-Value
-~~~~~
+Auxiliary information attached to a user.
 
-User certificate, represented as a PEM-encoded string.
+**Key** User ID: SHA-256 digest of the user certificate, represented as a hex-encoded string.
 
-`public:ccf.gov.users.info`
----------------------------
-
-User auxiliary information.
-
-Key
-~~~
-
-User ID: SHA-256 digest of the user certificate, represented as a hex-encoded string.
-
-Value
-~~~~~
+**Value** Represented as JSON.
 
 .. doxygenstruct:: ccf::UserDetails
    :project: CCF
    :members:
 
-Represented as JSON.
+`nodes.info`
+~~~~~~~~~~~~
 
-`public:ccf.gov.nodes.info`
----------------------------
+Identity, status and attestations (endorsed quotes) of the nodes hosting the network.
 
-Identity and status of participant nodes.
+**Key** Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
 
-Key
-~~~
-
-Node ID: SHA-256 digest of the node public key, represented as a hex-encoded string.
-
-Value
-~~~~~
+**Value** Represented as JSON.
 
 .. doxygenstruct:: ccf::NodeInfo
    :project: CCF
@@ -133,7 +96,6 @@ Value
 
 .. doxygenenum:: ccf::NodeStatus
    :project: CCF
-   :members:
 
 .. doxygenstruct:: ccf::NodeInfoNetwork
    :project: CCF
@@ -145,28 +107,20 @@ Value
 
 .. doxygenenum:: ccf::QuoteFormat
    :project: CCF
-   :members:
 
-Represented as JSON.
+`nodes.code_ids`
+~~~~~~~~~~~~~~~~
 
-`public:ccf.gov.nodes.code_ids`
--------------------------------
+Versions of the code allowed to join the current network.
 
-This table contains all the versions of the code allowed to join the current network.
+**Key** MRENCLAVE, represented as a base64 string.
 
-Key
-~~~
-
-base64 string representation of MRENCLAVE
-
-Value
-~~~~~
+**Value** Represented as JSON.
 
 .. doxygenenum:: ccf::CodeStatus
    :project: CCF
 
-Example
-~~~~~~~
+**Example**
 
 .. list-table::
    :header-rows: 1
@@ -176,71 +130,49 @@ Example
    * - `cae46d1...bb908b64e`
      - `ALLOWED_TO_JOIN`
 
-`public:ccf.gov.service.info`
------------------------------
+`service.info`
+~~~~~~~~~~~~~~
 
 Service identity and status.
 
-Key
-~~~
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
-
-Value
-~~~~~
+**Value** Represented as JSON.
 
 .. doxygenstruct:: ccf::ServiceInfo
    :project: CCF
    :members:
 
-Represented as JSON.
-
-`public:ccf.gov.service.config`
--------------------------------
+`service.config`
+~~~~~~~~~~~~~~~~
 
 Service configuration.
 
-Key
-~~~
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
-
-Value
-~~~~~
+**Value** Represented as JSON.
 
 .. doxygenstruct:: ccf::ServiceConfiguration
    :project: CCF
    :members:
 
-Represented as JSON.
-
-`public:ccf.gov.proposals`
---------------------------
+`proposals`
+~~~~~~~~~~~
 
 Governance proposals.
 
-Key
-~~~
+**Key** Proposal ID: SHA-256 digest of the proposal and store state observed during its creation, represented as a hex-encoded string.
 
-Proposal ID: SHA-256 digest of the proposal and store state observed during its creation, represented as a hex-encoded string.
+**Value** Proposal as submitted (body of proposal request), as a raw buffer.
 
-Value
-~~~~~
-
-Proposal as submitted (body of proposal request), as a raw buffer.
-
-`public:ccf.gov.proposals_info`
--------------------------------
+`proposals_info`
+~~~~~~~~~~~~~~~~
 
 Status, proposer ID and ballots attached to a proposal.
 
-Key
-~~~
+**Key** Proposal ID: SHA-256 digest of the proposal and store state observed during its creation, represented as a hex-encoded string.
 
-Proposal ID: SHA-256 digest of the proposal and store state observed during its creation, represented as a hex-encoded string.
-
-Value
-~~~~~
+**Value** Represented as JSON.
 
 .. doxygenstruct:: ccf::jsgov::ProposalInfoDetails
    :project: CCF
@@ -248,41 +180,28 @@ Value
 
 .. doxygenenum:: ccf::ProposalState
    :project: CCF
-   :members:
 
-Represented as JSON.
-
-`public:ccf.gov.modules`
-------------------------
+`modules`
+~~~~~~~~~
 
 JavaScript modules, accessible by JavaScript endpoint functions.
 
-Key
-~~~
+**Key** Module name as a string.
 
-Module name as a string.
+**Value** Contents of the module as a string.
 
-Value
-~~~~~~
-
-Contents of the module as a string.
-
-`public:ccf.gov.endpoints`
---------------------------
+`endpoints`
+~~~~~~~~~~~
 
 JavaScript endpoint definitions.
 
-Key
-~~~
+**Key** Represented as JSON.
 
 .. doxygenstruct:: ccf::endpoints::EndpointKey
    :project: CCF
    :members:
 
-Represented as JSON.
-
-Value
-~~~~~~
+**Value** Represented as JSON.
 
 .. doxygenstruct:: ccf::endpoints::EndpointProperties
    :project: CCF
@@ -297,16 +216,49 @@ Value
 .. doxygenenum:: ccf::endpoints::ExecuteOutsideConsensus
    :project: CCF
 
-Represented as JSON.
+`tls.ca_cert_bundles`
+~~~~~~~~~~~~~~~~~~~~~
 
-`public:ccf.gov.tls.ca_cert_bundles`
-------------------------------------
+CA cert bundle storage table, these bundles are used to authenticate connections to JWT issuers.
 
-`public:ccf.gov.jwt.issuers`
-----------------------------
+**Key** Bundle name, represented as a string.
 
-`public:ccf.gov.jwt.public_signing_keys`
-----------------------------------------
+**Value** Cert bundle, represented as a PEM-encoded string.
 
-`public:ccf.gov.jwt.public_signing_key_issuer`
-----------------------------------------------
+`jwt.issuers`
+~~~~~~~~~~~~~
+
+JWT issuers.
+
+**Key** JWT issuer URL, represented as a string.
+
+**Value** Represented as JSON.
+
+.. doxygenstruct:: ccf::JwtIssuerMetadata
+   :project: CCF
+   :members:
+
+.. doxygenenum:: ccf::JwtIssuerKeyFilter
+   :project: CCF
+
+.. doxygenstruct:: ccf::JwtIssuerKeyPolicy
+   :project: CCF
+   :members:
+
+`jwt.public_signing_keys`
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+JWT signing keys.
+
+**Key** JWT Key ID, represented as a string.
+
+**Value** JWT public key or certificate, represented as a PEM-encoded string.
+
+`jwt.public_signing_key_issuer`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+JWT signing key to Issuer mapping.
+
+**Key** JWT Key ID, represented as a string.
+
+**Value** JWT issuer URL, represented as a string.

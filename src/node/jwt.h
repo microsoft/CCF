@@ -21,8 +21,8 @@ namespace ccf
 {
   struct JwtIssuerKeyPolicy
   {
-    // OE claim name -> hex-encoded claim value
-    // See openenclave/attestation/verifier.h
+    /** OE claim name -> hex-encoded claim value
+        See openenclave/attestation/verifier.h */
     std::optional<std::map<std::string, std::string>> sgx_claims;
 
     bool operator!=(const JwtIssuerKeyPolicy& rhs) const
@@ -46,9 +46,13 @@ namespace ccf
 
   struct JwtIssuerMetadata
   {
+    /// JWT issuer key filter
     JwtIssuerKeyFilter key_filter;
+    /// Optional Key Policy
     std::optional<JwtIssuerKeyPolicy> key_policy;
+    /// Optional CA bundle name used for authentication when auto-refreshing
     std::optional<std::string> ca_cert_bundle_name;
+    /// Whether to auto-refresh keys from the issuer
     bool auto_refresh = false;
   };
 

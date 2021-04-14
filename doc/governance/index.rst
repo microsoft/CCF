@@ -64,6 +64,7 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
     adding_member
     hsm_keys
     member_rpc_api
+    js_gov
 
 
 
