@@ -94,108 +94,108 @@ export function apply(proposal, proposalId) {
   }
 }
 
-// class NullTxHistoryWithOverride : public ccf::NullTxHistory
-// {
-//   kv::Version forced_version;
-//   bool forced = false;
+class NullTxHistoryWithOverride : public ccf::NullTxHistory
+{
+  kv::Version forced_version;
+  bool forced = false;
 
-// public:
-//   NullTxHistoryWithOverride(
-//     kv::Store& store_, const NodeId& id_, crypto::KeyPair& kp_) :
-//     ccf::NullTxHistory(store_, id_, kp_)
-//   {}
+public:
+  NullTxHistoryWithOverride(
+    kv::Store& store_, const NodeId& id_, crypto::KeyPair& kp_) :
+    ccf::NullTxHistory(store_, id_, kp_)
+  {}
 
-//   void force_version(kv::Version v)
-//   {
-//     forced_version = v;
-//     forced = true;
-//   }
+  void force_version(kv::Version v)
+  {
+    forced_version = v;
+    forced = true;
+  }
 
-//   std::pair<kv::TxID, crypto::Sha256Hash>
-//   get_replicated_state_txid_and_root()
-//     override
-//   {
-//     if (forced)
-//     {
-//       forced = false;
-//       return {{term, forced_version},
-//               crypto::Sha256Hash(std::to_string(version))};
-//     }
-//     else
-//     {
-//       return {{term, version}, crypto::Sha256Hash(std::to_string(version))};
-//     }
-//   }
-// };
+  std::pair<kv::TxID, crypto::Sha256Hash>
+  get_replicated_state_txid_and_root()
+    override
+  {
+    if (forced)
+    {
+      forced = false;
+      return {{term, forced_version},
+              crypto::Sha256Hash(std::to_string(version))};
+    }
+    else
+    {
+      return {{term, version}, crypto::Sha256Hash(std::to_string(version))};
+    }
+  }
+};
 
-// DOCTEST_TEST_CASE("Compaction conflict")
-// {
-//   NetworkState network;
-//   network.tables->set_encryptor(encryptor);
-//   auto history = std::make_shared<NullTxHistoryWithOverride>(
-//     *network.tables, kv::test::PrimaryNodeId, *kp);
-//   network.tables->set_history(history);
-//   auto consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
-//   network.tables->set_consensus(consensus);
-//   auto gen_tx = network.tables->create_tx();
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
-//   gen.create_service({});
+DOCTEST_TEST_CASE("Compaction conflict")
+{
+  NetworkState network;
+  network.tables->set_encryptor(encryptor);
+  auto history = std::make_shared<NullTxHistoryWithOverride>(
+    *network.tables, kv::test::PrimaryNodeId, *kp);
+  network.tables->set_history(history);
+  auto consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  network.tables->set_consensus(consensus);
+  auto gen_tx = network.tables->create_tx();
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  gen.create_service({});
 
-//   const auto proposer_cert = get_cert(0, kp);
-//   const auto proposer_id = gen.add_member(proposer_cert);
-//   gen.activate_member(proposer_id);
-//   const auto voter_cert = get_cert(1, kp);
-//   const auto voter_id = gen.add_member(voter_cert);
-//   gen.activate_member(voter_id);
+  const auto proposer_cert = get_cert(0, kp);
+  const auto proposer_id = gen.add_member(proposer_cert);
+  gen.activate_member(proposer_id);
+  const auto voter_cert = get_cert(1, kp);
+  const auto voter_id = gen.add_member(voter_cert);
+  gen.activate_member(voter_id);
 
-//   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-//   DOCTEST_REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  DOCTEST_REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
 
-//   // Stub transaction, at which we can compact
-//   auto tx = network.tables->create_tx();
-//   tx.rw(network.values)->put(42, 42);
-//   DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
-//   auto cv = tx.commit_version();
-//   network.tables->compact(cv);
+  // Stub transaction, at which we can compact
+  auto tx = network.tables->create_tx();
+  tx.rw(network.values)->put(42, 42);
+  DOCTEST_CHECK(tx.commit() == kv::CommitResult::SUCCESS);
+  auto cv = tx.commit_version();
+  network.tables->compact(cv);
 
-//   ShareManager share_manager(network);
-//   StubNodeContext context;
-//   MemberRpcFrontend frontend(network, context, share_manager);
+  ShareManager share_manager(network);
+  StubNodeContext context;
+  MemberRpcFrontend frontend(network, context, share_manager);
 
-//   frontend.open();
-//   const auto proposed_member = get_cert(2, kp);
+  frontend.open();
+  const auto proposed_member = get_cert(2, kp);
 
-//   Propose::In proposal;
-//   proposal.script = std::string(R"xxx(
-//     tables, member_info = ...
-//     return Calls:call("new_member", member_info)
-//   )xxx");
-//   proposal.parameter["cert"] = proposed_member;
-//   proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
-//   const auto propose =
-//     create_signed_request(proposal, "proposals.js", kp, proposer_cert);
+  Propose::In proposal;
+  proposal.script = std::string(R"xxx(
+    tables, member_info = ...
+    return Calls:call("new_member", member_info)
+  )xxx");
+  proposal.parameter["cert"] = proposed_member;
+  proposal.parameter["encryption_pub_key"] = dummy_enc_pubk;
+  const auto propose =
+    create_signed_request(proposal, "proposals.js", kp, proposer_cert);
 
-//   // Force history version to an already compacted version to trigger
-//   compaction
-//   // conflict
-//   history->force_version(cv - 1);
+  // Force history version to an already compacted version to trigger
+  compaction
+  // conflict
+  history->force_version(cv - 1);
 
-//   const auto rs = frontend_process(frontend, propose, proposer_cert);
-//   const auto out = parse_response_body<Propose::Out>(rs);
-//   DOCTEST_CHECK(out.state == ProposalState::OPEN);
+  const auto rs = frontend_process(frontend, propose, proposer_cert);
+  const auto out = parse_response_body<Propose::Out>(rs);
+  DOCTEST_CHECK(out.state == ProposalState::OPEN);
 
-//   auto metrics_req = create_request(nlohmann::json(), "api/metrics",
-//   HTTP_GET); auto metrics = frontend_process(frontend, metrics_req,
-//   proposer_cert); auto metrics_json = serdes::unpack(metrics.body,
-//   serdes::Pack::Text); for (auto& row : metrics_json["metrics"])
-//   {
-//     if (row["path"] == "proposals.js")
-//     {
-//       DOCTEST_CHECK(row["retries"] == 1);
-//     }
-//   }
-// }
+  auto metrics_req = create_request(nlohmann::json(), "api/metrics",
+  HTTP_GET); auto metrics = frontend_process(frontend, metrics_req,
+  proposer_cert); auto metrics_json = serdes::unpack(metrics.body,
+  serdes::Pack::Text); for (auto& row : metrics_json["metrics"])
+  {
+    if (row["path"] == "proposals.js")
+    {
+      DOCTEST_CHECK(row["retries"] == 1);
+    }
+  }
+}
 
 int main(int argc, char** argv)
 {
