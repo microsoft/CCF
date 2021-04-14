@@ -11,7 +11,7 @@
  * as follows:
  *
  * ```
- * import { ccf } from '@microsoft/ccf-app/global';
+ * import { ccf } from '@microsoft/ccf-app/global.js';
  * ```
  *
  * @module
@@ -175,6 +175,8 @@ export interface CryptoKeyPair {
   publicKey: string;
 }
 
+export type DigestAlgorithm = "SHA-256";
+
 export interface CCF {
   /**
    * Convert a string into an ArrayBuffer.
@@ -226,6 +228,11 @@ export interface CCF {
     wrappingKey: ArrayBuffer,
     wrapAlgo: WrapAlgoParams
   ): ArrayBuffer;
+
+  /**
+   * Generate a digest (hash) of the given data.
+   */
+  digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
 
   /**
    * An object that provides access to the maps of the Key-Value Store of CCF.

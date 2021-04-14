@@ -74,6 +74,7 @@ namespace ccf
     ERROR(InvalidQuote)
     ERROR(InvalidNodeState)
     ERROR(NodeAlreadyExists)
+    ERROR(StartupSnapshotIsOld)
 
 #undef ERROR
   }

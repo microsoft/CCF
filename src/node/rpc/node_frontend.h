@@ -222,6 +222,24 @@ namespace ccf
               this->network.consensus_type));
         }
 
+        // If the joiner and this node both started from a snapshot, make sure
+        // that the joiner's snapshot is more recent than this node's snapshot
+        auto this_startup_seqno =
+          this->context.get_node_state().get_startup_snapshot_seqno();
+        if (
+          this_startup_seqno.has_value() && in.startup_seqno.has_value() &&
+          this_startup_seqno.value() > in.startup_seqno.value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::StartupSnapshotIsOld,
+            fmt::format(
+              "Node requested to join from snapshot at seqno {} which is older "
+              "than this node startup seqno {}",
+              in.startup_seqno.value(),
+              this_startup_seqno.value()));
+        }
+
         auto nodes = args.tx.rw(this->network.nodes);
         auto service = args.tx.rw(this->network.service);
 
@@ -325,6 +343,9 @@ namespace ccf
         result.state = s;
         result.recovery_target_seqno = rts;
         result.last_recovered_seqno = lrs;
+        result.startup_seqno =
+          this->context.get_node_state().get_startup_snapshot_seqno().value_or(
+            0);
 
         auto signatures = args.tx.template ro<Signatures>(Tables::SIGNATURES);
         auto sig = signatures->get(0);
@@ -429,7 +450,9 @@ namespace ccf
         auto service_state = service->get(0);
         if (service_state.has_value())
         {
-          out.service_status = service_state.value().status;
+          const auto& service_value = service_state.value();
+          out.service_status = service_value.status;
+          out.service_certificate = service_value.cert;
           if (consensus != nullptr)
           {
             out.current_view = consensus->get_view();

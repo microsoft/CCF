@@ -98,6 +98,27 @@ export function wrapKey(
   return { body: wrappedKey };
 }
 
+interface DigestRequest {
+  algorithm: ccfcrypto.DigestAlgorithm;
+  data: Base64;
+}
+
+export function digest(
+  request: ccfapp.Request<DigestRequest>
+): ccfapp.Response {
+  const body = request.body.json();
+  const data = b64ToBuf(body.data);
+  return {
+    body: hex(ccfcrypto.digest(body.algorithm, data)),
+  };
+}
+
 function b64ToBuf(b64: string): ArrayBuffer {
   return Base64.toUint8Array(b64).buffer;
+}
+
+function hex(buf: ArrayBuffer) {
+  return Array.from(new Uint8Array(buf))
+    .map((n) => n.toString(16).padStart(2, "0"))
+    .join("");
 }
