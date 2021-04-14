@@ -51,7 +51,7 @@ Value
 .. doxygenenum:: ccf::MemberStatus
    :project: CCF
 
-Represented as a JSON string.
+Represented as JSON.
 
 `public:ccf.gov.members.acks`
 -----------------------------
@@ -78,7 +78,7 @@ Value
    :project: CCF
    :members:
 
-Represented as a JSON string.
+Represented as JSON.
 
 `public:ccf.gov.users.certs`
 ----------------------------
@@ -112,7 +112,7 @@ Value
    :project: CCF
    :members:
 
-Represented as a JSON string.
+Represented as JSON.
 
 `public:ccf.gov.nodes.info`
 ---------------------------
@@ -131,7 +131,7 @@ Value
    :project: CCF
    :members:
 
-.. doxygenstruct:: ccf::NodeStatus
+.. doxygenenum:: ccf::NodeStatus
    :project: CCF
    :members:
 
@@ -143,11 +143,11 @@ Value
    :project: CCF
    :members:
 
-.. doxygenstruct:: ccf::QuoteFormat
+.. doxygenenum:: ccf::QuoteFormat
    :project: CCF
    :members:
 
-Represented as a JSON string.
+Represented as JSON.
 
 `public:ccf.gov.nodes.code_ids`
 -------------------------------
@@ -184,7 +184,7 @@ Service identity and status.
 Key
 ~~~
 
-Sentinel value 0.
+Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
 Value
 ~~~~~
@@ -193,7 +193,7 @@ Value
    :project: CCF
    :members:
 
-Represented as a JSON string.
+Represented as JSON.
 
 `public:ccf.gov.service.config`
 -------------------------------
@@ -203,7 +203,7 @@ Service configuration.
 Key
 ~~~
 
-Sentinel value 0.
+Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
 Value
 ~~~~~
@@ -212,7 +212,7 @@ Value
    :project: CCF
    :members:
 
-Represented as a JSON string.
+Represented as JSON.
 
 `public:ccf.gov.proposals`
 --------------------------
@@ -250,7 +250,7 @@ Value
    :project: CCF
    :members:
 
-Represented as a JSON string.
+Represented as JSON.
 
 `public:ccf.gov.modules`
 ------------------------
@@ -279,7 +279,7 @@ Key
    :project: CCF
    :members:
 
-Represented as a JSON string.
+Represented as JSON.
 
 Value
 ~~~~~~
@@ -287,6 +287,17 @@ Value
 .. doxygenstruct:: ccf::endpoints::EndpointProperties
    :project: CCF
    :members:
+
+.. doxygenenum:: ccf::endpoints::Mode
+   :project: CCF
+
+.. doxygenenum:: ccf::endpoints::ForwardingRequired
+   :project: CCF
+
+.. doxygenenum:: ccf::endpoints::ExecuteOutsideConsensus
+   :project: CCF
+
+Represented as JSON.
 
 `public:ccf.gov.tls.ca_cert_bundles`
 ------------------------------------
