@@ -37,11 +37,11 @@ Upgrading proposals and votes
 
 While the functionality of the proposals remains similar, the name and body schema of many proposals has been modified. Additionally the semantics may be slightly different as the new default proposal actions aim to be idempotent, so will execute successfully in some situations where they would previously have thrown (eg - adding a user who already exists). Similarly the format of the vote body has changed as it now expects a JS script exporting a ``vote`` function.
 
-See `this Discussion <https://github.com/microsoft/CCF/discussions/2169#discussioncomment-373490>`_ for the mapping between proposal names in Lua and JS. The ``ccf.proposal_generator`` Python utility can be used to generate proposals by using the env var ``JS_GOVERNANCE``. For instance:
+See `this Discussion <https://github.com/microsoft/CCF/discussions/2169#discussioncomment-373490>`_ for the mapping between proposal names in Lua and JS. The ``ccf.proposal_generator`` Python utility can be used to generate proposals. For instance:
 
 .. code-block:: bash
 
-    $ JS_GOVERNANCE=1 python -m ccf.proposal_generator --pretty-print set_user bob_cert.pem 
+    $ python -m ccf.proposal_generator --pretty-print set_user bob_cert.pem 
     [2021-04-06 11:10:00.194] SUCCESS | Writing proposal to ./set_user_proposal.json
     [2021-04-06 11:10:00.194] SUCCESS | Wrote vote to ./set_user_vote_for.json
 
@@ -59,7 +59,7 @@ See `this Discussion <https://github.com/microsoft/CCF/discussions/2169#discussi
 
     $ cat ./set_user_vote_for.json 
     {
-        "ballot": "export function vote (raw_proposal, proposer_id) {\n  let proposal = JSON.parse(raw_proposal);\n  if (!('actions' in proposal)) { return false; };\n  let actions = proposal['actions'];\n  if (actions.length !== 1) { return false; };\n  let action = actions[0];\n  if (!('name' in action)) { return false; };\n  if (action.name !== 'set_user') { return false; };\n  if (!('args' in action)) { return false; };\n  let args = action.args;\n  {\n    if (!('cert' in args)) { return false; };\n    let expected = \"-----BEGIN CERTIFICATE-----\\nMIIBrjCCATSgAwIBAgIUGCKB69cgr9N+EEMFvrVu6cInLvgwCgYIKoZIzj0EAwMw\\nDjEMMAoGA1UEAwwDYm9iMB4XDTIxMDQwNjEwMDc0OFoXDTIyMDQwNjEwMDc0OFow\\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEAdgT5JJTVd0x\\nyxphNeF8nccwu+Ro1lAEsKEdxzZhD461kv/ecOiqGtHnqlahiHxdQoiAhSfErjpx\\n4bCQTCQeZkjZ/7FvOkS9St4uIwUf+/0CU0YxtVLGlSLRep0Sr5nZo1MwUTAdBgNV\\nHQ4EFgQUOTRHQS8XOiS0Tf8yh6reB++Fzc8wHwYDVR0jBBgwFoAUOTRHQS8XOiS0\\nTf8yh6reB++Fzc8wDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNoADBlAjBt\\nkHZNFMtWT/79or93gasIuuKItFFjwyMYCMyDq2xUQyX2GtLhVfiVt0Te6hNeVE0C\\nMQC7paiA2jrZjJ6qaFbDsJvrY7y9YioIrXA5txGgEEYhlPRDA2+5/5hG+bHLeQbi\\noIU=\\n-----END CERTIFICATE-----\\n\";\n    if (JSON.stringify(args['cert']) !== JSON.stringify(expected)) { return false; };\n  }\n  return true;\n}"
+        "ballot": "export function vote (rawProposal, proposerId) {\n  let proposal = JSON.parse(rawProposal);\n  if (!('actions' in proposal)) { return false; };\n  let actions = proposal['actions'];\n  if (actions.length !== 1) { return false; };\n  let action = actions[0];\n  if (!('name' in action)) { return false; };\n  if (action.name !== 'set_user') { return false; };\n  if (!('args' in action)) { return false; };\n  let args = action.args;\n  {\n    if (!('cert' in args)) { return false; };\n    let expected = \"-----BEGIN CERTIFICATE-----\\nMIIBrjCCATSgAwIBAgIUGCKB69cgr9N+EEMFvrVu6cInLvgwCgYIKoZIzj0EAwMw\\nDjEMMAoGA1UEAwwDYm9iMB4XDTIxMDQwNjEwMDc0OFoXDTIyMDQwNjEwMDc0OFow\\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEAdgT5JJTVd0x\\nyxphNeF8nccwu+Ro1lAEsKEdxzZhD461kv/ecOiqGtHnqlahiHxdQoiAhSfErjpx\\n4bCQTCQeZkjZ/7FvOkS9St4uIwUf+/0CU0YxtVLGlSLRep0Sr5nZo1MwUTAdBgNV\\nHQ4EFgQUOTRHQS8XOiS0Tf8yh6reB++Fzc8wHwYDVR0jBBgwFoAUOTRHQS8XOiS0\\nTf8yh6reB++Fzc8wDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNoADBlAjBt\\nkHZNFMtWT/79or93gasIuuKItFFjwyMYCMyDq2xUQyX2GtLhVfiVt0Te6hNeVE0C\\nMQC7paiA2jrZjJ6qaFbDsJvrY7y9YioIrXA5txGgEEYhlPRDA2+5/5hG+bHLeQbi\\noIU=\\n-----END CERTIFICATE-----\\n\";\n    if (JSON.stringify(args['cert']) !== JSON.stringify(expected)) { return false; };\n  }\n  return true;\n}"
     }
 
 If you have custom tooling to generate proposals or votes, please use ``proposal_generator`` as a guide to the format these should now have. Note that if you have a custom constitution, then the format of the proposals themselves is also under your control.

@@ -53,7 +53,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     CreateNetworkNodeToNode::In,
     members_info,
-    gov_script,
     constitution,
     node_id,
     node_cert,
@@ -91,12 +90,6 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetNodes::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetNodes::Out, nodes)
-
-  DECLARE_JSON_TYPE(CallerInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id)
-
-  DECLARE_JSON_TYPE(GetCallerId::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetCallerId::In, cert)
 
   DECLARE_JSON_TYPE(EndpointMetrics::Entry)
   DECLARE_JSON_REQUIRED_FIELDS(

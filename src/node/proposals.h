@@ -12,38 +12,10 @@
 
 namespace ccf
 {
-  /** Members use proposals to propose changes to the KV store.
-   * Active members can issue proposals through the Propose RPC.
-   * A proposal is defined by a Lua script and a corresponding parameter.
-   * Proposal are passed two arguments:
-   *  (1) a table mapping KV store table names to corresponding accessors
-   *  (2) the specified parameter (which is translated from json to Lua, this
-   * could for example be the certificate of a to-be-added node).
-   * Proposal scripts can read KV tables with the rights of the proposing
-   * member, but they cannot write. Proposal scripts must return a list of
-   * proposed function calls (ie, ::ProposedCalls). For this, they have access
-   * to the helper class Calls. If a script returns an empty list, the vote is
-   * aborted and it may run again at a later point. The available function calls
-   * are defined in
-   * ccf::MemberRpcFrontend and gov.lua. The following script proposes calling
-   * "raw_puts" (defined in gov.lua) to make raw writes to the KV. It uses the
-   * helper class Puts. (The environment for proposal scripts is defined
-   * ./src/runtime_config/gov.lua.)
-   *
-   *  local tables, param = ...
-   *  local value = tables["public:ccf.internal.values"]:get(param)
-   *  local c = Calls:new()
-   *  local p = Puts:new()
-   *  -- propose writing store["table"]["key"] = value
-   *  p:put("table", "key", value)
-   *  c:call("raw_puts", p)
-   *  return c
-   *
-   * Or more compact:
-   *
-   *  local tables, param = ...
-   *  return Calls:call(Puts:put("table", "key",
-   *    tables["public:ccf.internal.values"]:get(param))
+  /** Members use proposals to propose changes to the public governance tables
+   * in the KV store. Active members can issue proposals. These proposals are
+   * stored in the KV, and passed to the JS constitution functions for
+   * validation and execution.
    */
   enum class ProposalState
   {
@@ -67,105 +39,7 @@ namespace ccf
      {ProposalState::FAILED, "Failed"},
      {ProposalState::DROPPED, "Dropped"}});
 
-  struct Proposal
-  {
-    Script script = {};
-    nlohmann::json parameter = {};
-    MemberId proposer = {};
-    ProposalState state = ProposalState::OPEN;
-    std::unordered_map<MemberId, Script> votes = {};
-
-    Proposal() = default;
-    Proposal(const Script& s, const nlohmann::json& param, MemberId prop) :
-      script(s),
-      parameter(param),
-      proposer(prop),
-      state(ProposalState::OPEN)
-    {}
-
-    bool operator==(const Proposal& o) const
-    {
-      return script == o.script && parameter == o.parameter &&
-        proposer == o.proposer && state == o.state && votes == o.votes;
-    }
-  };
-  DECLARE_JSON_TYPE(Proposal)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    Proposal, script, parameter, proposer, state, votes)
-
   using ProposalId = std::string;
-  using Proposals = ServiceMap<ProposalId, Proposal>;
-
-  struct ProposalInfo
-  {
-    ProposalId proposal_id;
-    MemberId proposer_id;
-    ProposalState state;
-  };
-  DECLARE_JSON_TYPE(ProposalInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposal_id, proposer_id, state);
-
-  struct Vote
-  {
-    Script ballot;
-  };
-  DECLARE_JSON_TYPE(Vote)
-  DECLARE_JSON_REQUIRED_FIELDS(Vote, ballot)
-
-  //! A call proposed by a proposal script
-  struct ProposedCall
-  {
-    //! the name of the function to call
-    std::string func;
-    //! the corresponding arguments
-    nlohmann::json args;
-  };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposedCall)
-  DECLARE_JSON_REQUIRED_FIELDS(ProposedCall, func)
-  DECLARE_JSON_OPTIONAL_FIELDS(ProposedCall, args)
-
-  struct Propose
-  {
-    //! arguments for propose RPC
-    struct In
-    {
-      //! script that proposes changes
-      Script script;
-      //! fixed parameter for the script
-      nlohmann::json parameter = nullptr;
-    };
-
-    //! results from propose RPC
-    using Out = ProposalInfo;
-  };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Propose::In)
-  DECLARE_JSON_REQUIRED_FIELDS(Propose::In, script)
-  DECLARE_JSON_OPTIONAL_FIELDS(Propose::In, parameter)
-
-  /** A list of calls proposed (and returned) by a proposal script
-   * Every proposal script must return a compatible data structure.
-   */
-  using ProposedCalls = std::vector<ProposedCall>;
-
-  struct KVRead
-  {
-    struct In
-    {
-      std::string table = {};
-      nlohmann::json key = {};
-    };
-
-    using Out = nlohmann::json;
-  };
-  DECLARE_JSON_TYPE(KVRead::In)
-  DECLARE_JSON_REQUIRED_FIELDS(KVRead::In, table, key);
-
-  enum CompletionResult
-  {
-    PASSED = 1,
-    PENDING = 0,
-    REJECTED = -1
-  };
 }
 
 FMT_BEGIN_NAMESPACE
