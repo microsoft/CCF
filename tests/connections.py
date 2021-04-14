@@ -9,6 +9,7 @@ import contextlib
 import resource
 import psutil
 from ccf.log_capture import flush_info
+from ccf.clients import CCFConnectionException
 import random
 
 from loguru import logger as LOG
@@ -60,7 +61,7 @@ def run(args):
                             result=True,
                         )
                         consecutive_failures = 0
-                    except Exception as e:
+                    except CCFConnectionException as e:
                         flush_info(logs)
                         LOG.warning(f"Hit exception at client {i}: {e}")
                         clients.pop(-1)
