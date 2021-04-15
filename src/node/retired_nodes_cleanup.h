@@ -6,7 +6,6 @@
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
 #include "kv/kv_types.h"
-#include "node/rpc/node_frontend.h"
 #include "node/rpc/serdes.h"
 
 #include <mutex>

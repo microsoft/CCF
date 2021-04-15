@@ -8,7 +8,7 @@ import infra.network
 import infra.path
 import infra.proc
 import infra.net
-from infra.node import NodeStatus
+from ccf.ledger import NodeStatus
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.logging_app as app
@@ -158,29 +158,15 @@ def test_service_principals(network, args):
 
     # Create and accept a proposal which populates an entry in this table
     principal_data = {"name": "Bob", "roles": ["Fireman", "Zookeeper"]}
-    if os.getenv("JS_GOVERNANCE"):
-        proposal = {
-            "actions": [
-                {
-                    "name": "set_service_principal",
-                    "args": {"id": principal_id, "data": principal_data},
-                }
-            ]
-        }
-        ballot = {
-            "ballot": "export function vote(proposal, proposer_id) { return true; }"
-        }
-    else:
-        proposal = {
-            "script": {
-                "text": 'tables, args = ...\nreturn Calls:call("set_service_principal", args)'
-            },
-            "parameter": {
-                "id": principal_id,
-                "data": principal_data,
-            },
-        }
-        ballot = {"ballot": {"text": "return true"}}
+    proposal = {
+        "actions": [
+            {
+                "name": "set_service_principal",
+                "args": {"id": principal_id, "data": principal_data},
+            }
+        ]
+    }
+    ballot = {"ballot": "export function vote(proposal, proposer_id) { return true; }"}
     proposal = network.consortium.get_any_active_member().propose(node, proposal)
     network.consortium.vote_using_majority(node, proposal, ballot)
 
@@ -196,21 +182,9 @@ def test_service_principals(network, args):
     )
 
     # Create and accept a proposal which removes an entry from this table
-    if os.getenv("JS_GOVERNANCE"):
-        proposal = {
-            "actions": [
-                {"name": "remove_service_principal", "args": {"id": principal_id}}
-            ]
-        }
-    else:
-        proposal = {
-            "script": {
-                "text": 'tables, args = ...\nreturn Calls:call("remove_service_principal", args)'
-            },
-            "parameter": {
-                "id": principal_id,
-            },
-        }
+    proposal = {
+        "actions": [{"name": "remove_service_principal", "args": {"id": principal_id}}]
+    }
     proposal = network.consortium.get_any_active_member().propose(node, proposal)
     network.consortium.vote_using_majority(node, proposal, ballot)
 

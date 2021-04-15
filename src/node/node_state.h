@@ -1318,10 +1318,8 @@ namespace ccf
         }
         catch (const std::logic_error& e)
         {
-          throw std::logic_error(fmt::format(
-            "Failed to issuing recovery shares failed when "
-            "transitioning the service to open: {}",
-            e.what()));
+          throw std::logic_error(
+            fmt::format("Failed to issue recovery shares: {}", e.what()));
         }
 
         GenesisGenerator g(network, tx);
@@ -1607,7 +1605,6 @@ namespace ccf
         create_params.members_info.push_back(m_info);
       }
 
-      create_params.gov_script = config.genesis.gov_script;
       create_params.constitution = config.genesis.constitution;
       create_params.node_id = self;
       create_params.node_cert = node_cert;

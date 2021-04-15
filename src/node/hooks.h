@@ -26,7 +26,7 @@ namespace ccf
         if (!opt_ni.has_value())
         {
           cfg_delta.emplace(node_id, std::nullopt);
-          return;
+          continue;
         }
 
         const auto& ni = opt_ni.value();

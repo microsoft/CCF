@@ -13,62 +13,59 @@ Then, the certificates of trusted users should be registered in CCF via the memb
 
 .. code-block:: bash
 
-    $ cat add_user.json
+    $ cat set_user.json
     {
-        "parameter": [<cert of proposed new user>],
-        "script": {
-            "text": "tables, user_cert = ...; return Calls:call(\"set_user\", user_cert)"
+        "actions": [
+            {
+                "name": "set_user",
+                "args": {
+                    "cert": "-----BEGIN CERTIFICATE-----\nMIIBs...<SNIP>...yR\n-----END CERTIFICATE-----\n"
+                }
+            }
+        ]
     }
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json -H "content-type: application/json"
     {
+        "ballot_count": 0,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
-        "proposer_id": 0,
-        "state": "OPEN"
+        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "state": "Open"
     }
 
-Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``5``). They may submit an unconditional approval, or their vote may query the current state and the proposed actions. These votes `must` be signed.
+Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member. They may submit an unconditional approval, or their vote may query the current state and the proposed actions. These votes `must` be signed.
 
 .. code-block:: bash
 
     $ cat vote_accept.json
     {
-        "ballot": {
-            "text": "return true"
-        }
+        "ballot": "export function vote (proposal, proposerId) { return true }"
     }
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/votes --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
+        "ballot_count": 1,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
-        "proposer_id": 0,
-        "state": "OPEN"
+        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "state": "Open"
     }
 
     $ cat vote_conditional.json
     {
-        "ballot": {
-            "text": "tables, calls = ...; return (#calls == 1 and calls[1].func == \"set_user\")"
-        }
+        "ballot": "export function vote (proposal, proposerId) { return proposerId == \"2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0\" }"
     }
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
     {
+        "ballot_count": 2,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
-        "proposer_id": 0,
-        "state": "ACCEPTED"
+        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "state": "Accepted"
     }
 
 The user is successfully added once a the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body showing a transition to state ``ACCEPTED``).
 
-The user can then make user RPCs, for example ``user_id`` to retrieve the unique caller ID assigned to them by CCF:
-
-.. code-block:: bash
-
-    $ curl https://<ccf-node-address>/app/user_id --cacert network_cert --key new_user_privk --cert new_user_cert
-    {
-        "caller_id": 4
-    }
+The user can then make user RPCs.
 
 User Data
 ---------
@@ -127,18 +124,22 @@ Once users are added to the opening network, members should create a proposal to
 
     $ cat transition_service_to_open.json
     {
-        "script": {
-            "text": "return Calls:call(\"transition_service_to_open\")"
-        }
+        "actions": [
+            {
+                "name": "transition_service_to_open",
+                "args": null
+            }
+        ]
     }
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @transition_service_to_open.json -H "content-type: application/json"
     {
+        "ballot_count": 0,
         "proposal_id": "77374e16de0b2d61f58aec84d01e6218205d19c9401d2df127d893ce62576b81",
-        "proposer_id": 0,
-        "state": "OPEN"
+        "proposer_id": "2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0",
+        "state": "Open"
     }
 
-Other members are then able to vote for the proposal using the returned proposal id (here ``10``).
+Other members are then able to vote for the proposal using the returned proposal id.
 
 Once the proposal has received enough votes under the rules of the :term:`Constitution` (``"result":true``), the network is opened to users. It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).

@@ -6,6 +6,7 @@ import infra.network
 import infra.proc
 import infra.logging_app as app
 from ccf.tx_id import TxID
+from ccf.ledger import NodeStatus
 import suite.test_requirements as reqs
 import time
 import tempfile
@@ -154,7 +155,7 @@ def test_add_as_many_pending_nodes(network, args):
 def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
-    network.consortium.retire_node(primary, backup_to_retire)
+    network.consortium.remove_node(primary, backup_to_retire)
     backup_to_retire.stop()
     check_can_progress(primary)
     return network
@@ -166,12 +167,12 @@ def test_retire_primary(network, args):
     pre_count = count_nodes(node_configs(network), network)
 
     primary, backup = network.find_primary_and_any_backup()
-    network.consortium.retire_node(primary, primary)
+    network.consortium.remove_node(primary, primary)
 
     # Primary node is not yet removed from the stored but marked as retired
     with primary.client() as c:
         r = c.get(f"/node/network/nodes/{primary.node_id}")
-        assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.value
+        assert r.body.json()["status"] == NodeStatus.RETIRED.value
 
     new_primary, new_term = network.wait_for_new_primary(primary.node_id)
     LOG.debug(f"New primary is {new_primary.local_id} in term {new_term}")

@@ -84,21 +84,6 @@ namespace ccf
     };
   };
 
-  struct CallerInfo
-  {
-    EntityId caller_id;
-  };
-
-  struct GetCallerId
-  {
-    struct In
-    {
-      std::string cert;
-    };
-
-    using Out = CallerInfo;
-  };
-
   struct GetAPI
   {
     using Out = nlohmann::json;

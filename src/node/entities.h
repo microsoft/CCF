@@ -71,12 +71,6 @@ namespace ccf
     static constexpr auto SERVICE = "public:ccf.gov.service.info";
     static constexpr auto CONFIGURATION = "public:ccf.gov.service.config";
 
-    // Governance
-    static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
-    static constexpr auto GOV_SCRIPTS = "public:ccf.gov.scripts";
-    static constexpr auto GOV_HISTORY = "public:ccf.gov.history";
-    static constexpr auto WHITELISTS = "public:ccf.gov.whitelists";
-
     // JS applications, not service specific but writable by governance only
     static constexpr auto MODULES = "public:ccf.gov.modules";
     static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
@@ -116,11 +110,11 @@ namespace ccf
       "public:ccf.internal.consensus.backup_signatures";
     static constexpr auto NONCES = "public:ccf.internal.consensus.nonces";
 
-    // JS Governance
+    // Governance
+    static constexpr auto GOV_HISTORY = "public:ccf.gov.history";
     static constexpr auto CONSTITUTION = "public:ccf.gov.constitution";
-    static constexpr auto JS_PROPOSALS = "public:ccf.gov.js.proposals";
-    static constexpr auto JS_PROPOSALS_INFO =
-      "public:ccf.gov.js.proposals_info";
+    static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
+    static constexpr auto PROPOSALS_INFO = "public:ccf.gov.proposals_info";
   };
 
 }

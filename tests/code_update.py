@@ -147,7 +147,7 @@ def test_update_all_nodes(network, args):
     LOG.info("Retire original nodes running old code")
     for node in old_nodes:
         primary, _ = network.find_nodes()
-        network.consortium.retire_node(primary, node)
+        network.consortium.remove_node(primary, node)
         # Elections take (much) longer than a backup removal which is just
         # a commit, so we need to adjust our timeout accordingly, hence this branch
         if node.node_id == primary.node_id:
@@ -181,7 +181,7 @@ def test_proposal_invalidation(network, args):
     LOG.info("Confirm open proposals are dropped")
     with primary.client(None, "member0") as c:
         for proposal_id in pending_proposals:
-            r = c.get(f"/gov/proposals.js/{proposal_id}")
+            r = c.get(f"/gov/proposals/{proposal_id}")
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == "Dropped", r.body.json()
 
