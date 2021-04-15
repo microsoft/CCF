@@ -5,7 +5,6 @@
         "js_module": "PollControllerProxy.js",
         "js_function": "createPoll",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
         "mode": "readwrite"
       },
@@ -13,7 +12,6 @@
         "js_module": "PollControllerProxy.js",
         "js_function": "submitOpinion",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
         "mode": "readwrite"
       },
@@ -21,7 +19,6 @@
         "js_module": "PollControllerProxy.js",
         "js_function": "getPoll",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
         "mode": "readonly"
       }
@@ -31,7 +28,6 @@
         "js_module": "PollControllerProxy.js",
         "js_function": "createPolls",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
         "mode": "readwrite"
       },
@@ -39,7 +35,6 @@
         "js_module": "PollControllerProxy.js",
         "js_function": "submitOpinions",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
         "mode": "readwrite"
       },
@@ -47,7 +42,6 @@
         "js_module": "PollControllerProxy.js",
         "js_function": "getPolls",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
         "mode": "readonly"
       }
@@ -57,7 +51,6 @@
         "js_module": "SiteControllerProxy.js",
         "js_function": "getStartPage",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": [],
         "mode": "readonly"
       }
@@ -67,7 +60,6 @@
         "js_module": "SiteControllerProxy.js",
         "js_function": "getPollsCreatePage",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": [],
         "mode": "readonly"
       }
@@ -77,7 +69,6 @@
         "js_module": "SiteControllerProxy.js",
         "js_function": "getOpinionsSubmitPage",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": [],
         "mode": "readonly"
       }
@@ -87,7 +78,6 @@
         "js_module": "SiteControllerProxy.js",
         "js_function": "getViewPage",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": [],
         "mode": "readonly"
       }
@@ -97,7 +87,6 @@
         "js_module": "CsvControllerProxy.js",
         "js_function": "getOpinionsAsCsv",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
         "mode": "readonly",
         "openapi_merge_patch": {
@@ -115,7 +104,6 @@
         "js_module": "CsvControllerProxy.js",
         "js_function": "submitOpinionsFromCSV",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
         "mode": "readwrite",
         "openapi_merge_patch": {
