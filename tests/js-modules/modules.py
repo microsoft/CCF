@@ -321,6 +321,13 @@ def test_npm_app(network, args):
         assert {"id": 42, "msg": "Saluton!"} in body, body
         assert {"id": 43, "msg": "Bonjour!"} in body, body
 
+        r = c.post("/app/rpc/apply_writes")
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+        val = primary.get_ledger_public_state_at(r.seqno)["public:apply_writes"][
+            "foo".encode()
+        ]
+        assert val == b"bar", val
+
         r = c.get("/app/jwt")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         body = r.body.json()
