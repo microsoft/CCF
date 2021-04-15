@@ -281,22 +281,27 @@ Governance history of the service, captures all governance requests submitted by
 
 **Value** Represented as JSON.
 
-.. doxygenstruct:: ccf::SignedReq
-   :project: CCF
-   :members:
+See :cpp:struct:`ccf::SignedReq`
 
 ``public:ccf.internal.``
 ------------------------
 
 ``values``
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~
 
 Deprecated, only used to create monotonic node ids when CCF is configured to use BFT at the moment. Will be removed once BFT is adapted to use the same node ids as CFT.
 
 ``historical_encrypted_ledger_secret``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 On each rekey, the old ledger secret is stored in this table , encrypted with the new secret.
+
+While the contents themselves are encrypted, the table is public so as to be accessible by a node bootstrapping a recovery service.
+
+``encrypted_ledger_secrets``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Used to broadcast ledger secrets between nodes during a recovery.
 
 While the contents themselves are encrypted, the table is public so as to be accessible by a node bootstrapping a recovery service.
 
@@ -327,6 +332,26 @@ Signatures emitted by the primary node at regular interval, over the root of the
 ``recovery_shares``
 ~~~~~~~~~~~~~~~~~~~
 
-Members' recovery_shares, encrypted by the keys recorded in :ref:`members.encryption_public_keys`.
+Members' recovery_shares, encrypted by the keys recorded in ``members.encryption_public_keys``.
 
-While the contents themselves are encrypted, the table is public so as to be accessible by a node bootstrapping a recovery service.
+While the contents themselves are encrypted, the table is public so as to be accessible by nodes bootstrapping a recovery service.
+
+``snapshot_evidence``
+~~~~~~~~~~~~~~~~~~~~~
+
+Evidence inserted in the ledger by a primary producing a snapshot to establish provenance.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value**
+
+.. doxygenstruct:: ccf::SnapshotHash
+   :project: CCF
+   :members:
+
+``encrypted_submitted_shares``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Used to persist submitted shares during a recovery.
+
+While the contents themselves are encrypted, the table is public so as to be accessible by nodes bootstrapping a recovery service.
