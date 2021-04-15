@@ -104,7 +104,7 @@ namespace ccf
 
     // Consensus
     static constexpr auto AFT_REQUESTS =
-      "public:ccf.internal.consensus.requests";
+      "ccf.internal.consensus.requests";
     static constexpr auto NEW_VIEWS = "public:ccf.internal.consensus.new_views";
     static constexpr auto BACKUP_SIGNATURES =
       "public:ccf.internal.consensus.backup_signatures";
