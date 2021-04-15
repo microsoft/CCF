@@ -5,7 +5,6 @@
         "js_module": "logging.js",
         "js_function": "get_private",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -14,7 +13,6 @@
         "js_module": "logging.js",
         "js_function": "post_private",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
@@ -23,7 +21,6 @@
         "js_module": "logging.js",
         "js_function": "delete_private",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
@@ -34,7 +31,6 @@
         "js_module": "logging.js",
         "js_function": "get_historical",
         "forwarding_required": "never",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "historical",
         "openapi": {}
@@ -45,7 +41,6 @@
         "js_module": "logging.js",
         "js_function": "get_historical_with_receipt",
         "forwarding_required": "never",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "historical",
         "openapi": {}
@@ -56,7 +51,6 @@
         "js_module": "logging.js",
         "js_function": "get_public",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -65,7 +59,6 @@
         "js_module": "logging.js",
         "js_function": "post_public",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
@@ -74,7 +67,6 @@
         "js_module": "logging.js",
         "js_function": "delete_public",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {}
