@@ -284,3 +284,49 @@ Governance history of the service, captures all governance requests submitted by
 .. doxygenstruct:: ccf::SignedReq
    :project: CCF
    :members:
+
+``public:ccf.internal.``
+------------------------
+
+``values``
+~~~~~~~~~~~~~~~~~~~
+
+Deprecated, only used to create monotonic node ids when CCF is configured to use BFT at the moment. Will be removed once BFT is adapted to use the same node ids as CFT.
+
+``historical_encrypted_ledger_secret``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+On each rekey, the old ledger secret is stored in this table , encrypted with the new secret.
+
+While the contents themselves are encrypted, the table is public so as to be accessible by a node bootstrapping a recovery service.
+
+``tree``
+~~~~~~~~
+
+On every signature transaction, this contains the serialised Merkle Tree for the ledger, between the previous signature and this onen
+
+This is used to generate receipts for historical transactions without having the recompute hashes.
+
+``signatures``
+~~~~~~~~~~~~~~
+
+Signatures emitted by the primary node at regular interval, over the root of the Merkle Tree at that sequence number.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value**
+
+.. doxygenstruct:: ccf::PrimarySignature
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::NodeSignature
+   :project: CCF
+   :members:
+
+``recovery_shares``
+~~~~~~~~~~~~~~~~~~~
+
+Members' recovery_shares, encrypted by the keys recorded in :ref:`members.encryption_public_keys`.
+
+While the contents themselves are encrypted, the table is public so as to be accessible by a node bootstrapping a recovery service.

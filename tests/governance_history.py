@@ -72,7 +72,7 @@ def check_all_tables_are_documented(ledger, doc_path):
     gov_tables_in_ledger = set(
         [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.gov.")]
     )
-    undocumented_tables = gov_tables_in_ledger - set(table_names)
+    undocumented_tables = table_names_in_ledger - set(table_names)
     assert undocumented_tables == set(), undocumented_tables
 
 
