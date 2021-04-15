@@ -55,7 +55,6 @@ The ``app.json`` file of an app bundle has the following structure:
             "js_module": "app.js",
             "js_function": "foo_post",
             "forwarding_required": "never",
-            "execute_outside_consensus": "never",
             "authn_policies": ["user_cert"],
             "mode": "readonly",
             "openapi": {
