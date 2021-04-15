@@ -25,8 +25,6 @@ function poll_for_service_open()
     return 0
 }
 
-export JS_GOVERNANCE=1
-
 if [ "$#" -lt 1 ]; then
     echo "Install prefix should be passed as first argument to $0"
     exit 1

@@ -124,8 +124,8 @@ function checkX509CertChain(value, field) {
 }
 
 function invalidateOtherOpenProposals(proposalIdToRetain) {
-  let proposals = ccf.kv["public:ccf.gov.proposals_info.js"];
-  const proposalsMap = ccf.kv["public:ccf.gov.proposals_info.js"];
+  let proposals = ccf.kv["public:ccf.gov.proposals_info"];
+  const proposalsMap = ccf.kv["public:ccf.gov.proposals_info"];
   proposalsMap.forEach((v, k) => {
     let proposalId = ccf.bufToStr(k);
     if (proposalId !== proposalIdToRetain) {

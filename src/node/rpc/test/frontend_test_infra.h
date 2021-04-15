@@ -16,7 +16,6 @@
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/serdes.h"
 #include "node_stub.h"
-#include "runtime_config/default_whitelists.h"
 
 #include <doctest/doctest.h>
 #include <iostream>
@@ -50,11 +49,6 @@ string get_script_path(string name)
   ss << (dir ? dir : default_dir) << "/" << name;
   return ss.str();
 }
-const auto gov_script_file = files::slurp_string(get_script_path("gov.lua"));
-const auto gov_veto_script_file =
-  files::slurp_string(get_script_path("gov_veto.lua"));
-const auto operator_gov_script_file =
-  files::slurp_string(get_script_path("operator_gov.lua"));
 
 template <typename T>
 T parse_response_body(const TResponse& r)
@@ -81,19 +75,6 @@ std::string parse_response_body(const TResponse& r)
 void check_error(const TResponse& r, http_status expected)
 {
   DOCTEST_CHECK(r.status == expected);
-}
-
-void check_result_state(const TResponse& r, ProposalState expected)
-{
-  DOCTEST_CHECK(r.status == HTTP_STATUS_OK);
-  const auto result = parse_response_body<ProposalInfo>(r);
-  DOCTEST_CHECK(result.state == expected);
-}
-
-void set_whitelists(GenesisGenerator& gen)
-{
-  for (const auto& wl : default_whitelists)
-    gen.set_whitelist(wl.first, wl.second);
 }
 
 std::vector<uint8_t> create_request(
@@ -150,18 +131,6 @@ auto frontend_process(
   return processor.received.front();
 }
 
-auto get_proposal(
-  MemberRpcFrontend& frontend,
-  const ProposalId& proposal_id,
-  const crypto::Pem& caller)
-{
-  const auto getter =
-    create_request(nullptr, fmt::format("proposals/{}", proposal_id), HTTP_GET);
-
-  return parse_response_body<Proposal>(
-    frontend_process(frontend, getter, caller));
-}
-
 auto get_vote(
   MemberRpcFrontend& frontend,
   ProposalId proposal_id,
@@ -212,9 +181,6 @@ auto init_frontend(
     member_certs.push_back(get_cert(i, kp));
     gen.activate_member(gen.add_member(member_certs.back()));
   }
-
-  set_whitelists(gen);
-  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
 
   return MemberRpcFrontend(network, context, share_manager);
 }

@@ -8,7 +8,6 @@ VENV_DIR=${VENV_DIR:-.venv_ccf_sandbox}
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 VERSION_FILE="${PATH_HERE}"/../share/VERSION
-GOV_SCRIPT="${PATH_HERE}"/sandbox_gov.lua
 
 is_package_specified=false
 is_js_bundle_specified=false
@@ -79,7 +78,6 @@ exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
     --enclave-type virtual \
     --initial-member-count 1 \
-    --gov-script "${GOV_SCRIPT}" \
     --constitution "${PATH_HERE}"/actions.js \
     --constitution "${PATH_HERE}"/validate.js \
     --constitution "${PATH_HERE}"/resolve.js \
