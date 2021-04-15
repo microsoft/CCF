@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [1.0]
+## [0.99.1]
 
 ### Added
 
@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - `/gov/query` and `/gov/read` governance endpoints are removed (#2442).
+- Lua governance is removed. `JS_GOVERNANCE` env var is no longer necessary, and JS constitution is the only governance script which must be provided and will be used by the service. `--gov-script` can no longer be passed to `cchost` or `sandbox.sh`.
 
 ## [0.99.0]
 
@@ -802,6 +803,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.99.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.1
 [0.99.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.0
 [0.19.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.3
 [0.19.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.2

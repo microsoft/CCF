@@ -27,7 +27,7 @@ def has_notice(path, prefixes):
 
 
 def is_src(name):
-    for suffix in [".c", ".cpp", ".h", ".hpp", ".py", ".sh", ".lua", ".cmake"]:
+    for suffix in [".c", ".cpp", ".h", ".hpp", ".py", ".sh", ".cmake"]:
         if name.endswith(suffix):
             return True
     return False
