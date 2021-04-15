@@ -175,6 +175,28 @@ namespace ccf
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
+    void remove_all_other_non_open_proposals(
+      kv::Tx& tx, const ProposalId& proposal_id)
+    {
+      auto p = tx.rw<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
+      auto pi = tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
+      std::vector<ProposalId> to_be_removed;
+      pi->foreach(
+        [&to_be_removed, &proposal_id](
+          const ProposalId& pid, const ccf::jsgov::ProposalInfo& pinfo) {
+          if (pid != proposal_id && pinfo.state != ProposalState::OPEN)
+          {
+            to_be_removed.push_back(pid);
+          }
+          return true;
+        });
+      for (const auto& pr : to_be_removed)
+      {
+        p->remove(pr);
+        pi->remove(pr);
+      }
+    }
+
     ccf::jsgov::ProposalInfoSummary resolve_proposal(
       kv::Tx& tx,
       const ProposalId& proposal_id,
@@ -185,6 +207,7 @@ namespace ccf
       auto pi_ = pi->get(proposal_id);
 
       std::vector<std::pair<MemberId, bool>> votes;
+      std::unordered_map<ccf::MemberId, bool> final_votes = {};
       for (const auto& [mid, mb] : pi_->ballots)
       {
         js::Runtime rt;
@@ -316,7 +339,11 @@ namespace ccf
 
         if (pi_.value().state != ProposalState::OPEN)
         {
-          // Record votes and errors
+          remove_all_other_non_open_proposals(tx, proposal_id);
+          for (auto& [mid, vote] : votes)
+          {
+            final_votes[mid] = vote;
+          }
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
             js::Runtime rt;
@@ -364,6 +391,7 @@ namespace ccf
                                           pi_->proposer_id,
                                           pi_.value().state,
                                           pi_.value().ballots.size(),
+                                          final_votes,
                                           failure_reason,
                                           failure_trace};
       }
@@ -1054,6 +1082,7 @@ namespace ccf
           {caller_identity.member_id,
            rv.state,
            {},
+           {},
            rv.failure_reason,
            rv.failure_trace});
 
@@ -1352,6 +1381,7 @@ namespace ccf
         auto rv = resolve_proposal(
           ctx.tx, proposal_id, p.value(), constitution.value());
         pi_.value().state = rv.state;
+        pi_.value().final_votes = rv.votes;
         pi_.value().failure_reason = rv.failure_reason;
         pi_.value().failure_trace = rv.failure_trace;
         pi->put(proposal_id, pi_.value());
