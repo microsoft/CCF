@@ -153,13 +153,13 @@ class Network:
         for host in hosts:
             self.create_node(host)
 
-    def _get_next_local_node_id(self):
+    def _get_next_local_id(self):
         if len(self.nodes):
-            return self.nodes[-1].local_node_id + 1
+            return self.nodes[-1].local_id + 1
         return self.node_offset
 
     def create_node(self, host):
-        node_id = self._get_next_local_node_id()
+        node_id = self._get_next_local_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
         )
@@ -195,7 +195,7 @@ class Network:
             target_node, _ = self.find_primary(
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
-        LOG.info(f"Joining from target node {target_node.node_id}")
+        LOG.info(f"Joining from target node {target_node.local_id}")
 
         # Only retrieve snapshot from target node if the snapshot directory is not
         # specified
@@ -242,7 +242,7 @@ class Network:
             try:
                 node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
             except TimeoutError:
-                LOG.error(f"New node {node.node_id} failed to join the network")
+                LOG.error(f"New node {node.local_id} failed to join the network")
                 raise
             node.network_state = infra.node.NodeNetworkState.joined
 
@@ -308,7 +308,7 @@ class Network:
                         snapshot_dir=snapshot_dir,
                     )
             except Exception:
-                LOG.exception("Failed to start node {}".format(node.node_id))
+                LOG.exception("Failed to start node {}".format(node.local_id))
                 raise
 
         self.election_duration = (
@@ -520,7 +520,7 @@ class Network:
                 if ledger_end_seqno > longest_ledger_seqno:
                     longest_ledger_seqno = ledger_end_seqno
                     most_up_to_date_node = node
-                committed_ledger_dirs[node.node_id] = [
+                committed_ledger_dirs[node.local_id] = [
                     committed_ledger_dir,
                     ledger_end_seqno,
                 ]
@@ -529,17 +529,17 @@ class Network:
             # and are identical
             if most_up_to_date_node:
                 longest_ledger_dir, _ = committed_ledger_dirs[
-                    most_up_to_date_node.node_id
+                    most_up_to_date_node.local_id
                 ]
-                for node_id, (committed_ledger_dir, _) in (
+                for local_id, (committed_ledger_dir, _) in (
                     l
                     for l in committed_ledger_dirs.items()
-                    if not l[0] == most_up_to_date_node.node_id
+                    if not l[0] == most_up_to_date_node.local_id
                 ):
                     for ledger_file in os.listdir(committed_ledger_dir):
                         if ledger_file not in os.listdir(longest_ledger_dir):
                             raise Exception(
-                                f"Ledger file on node {node_id} does not exist on most up-to-date node {most_up_to_date_node.node_id}: {ledger_file}"
+                                f"Ledger file on node {local_id} does not exist on most up-to-date node {most_up_to_date_node.local_id}: {ledger_file}"
                             )
                         if infra.path.compute_file_checksum(
                             os.path.join(longest_ledger_dir, ledger_file)
@@ -547,7 +547,7 @@ class Network:
                             os.path.join(committed_ledger_dir, ledger_file)
                         ):
                             raise Exception(
-                                f"Ledger file checksums between node {node_id} and most up-to-date node {most_up_to_date_node.node_id} did not match: {ledger_file}"
+                                f"Ledger file checksums between node {local_id} and most up-to-date node {most_up_to_date_node.local_id} did not match: {ledger_file}"
                             )
 
                 LOG.success(
@@ -595,7 +595,9 @@ class Network:
                 ),
             )
         except TimeoutError as e:
-            LOG.error(f"New pending node {new_node.node_id} failed to join the network")
+            LOG.error(
+                f"New pending node {new_node.local_id} failed to join the network"
+            )
             errors, _ = new_node.stop()
             self.nodes.remove(new_node)
             if errors:
@@ -743,7 +745,7 @@ class Network:
 
                     except CCFConnectionException:
                         LOG.warning(
-                            f"Could not successfully connect to node {node.node_id}. Retrying..."
+                            f"Could not successfully connect to node {node.local_id}. Retrying..."
                         )
 
             if primary_id is not None:
@@ -805,7 +807,7 @@ class Network:
             time.sleep(0.1)
         assert (
             tx_id.valid()
-        ), f"Primary {primary.node_id} has not made any progress yet ({tx_id})"
+        ), f"Primary {primary.local_id} has not made any progress yet ({tx_id})"
 
         caught_up_nodes = []
         while time.time() < end_time:
@@ -821,7 +823,7 @@ class Network:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:
                         raise RuntimeError(
-                            f"Node {node.node_id} reports transaction ID {tx_id} is invalid and will never be committed"
+                            f"Node {node.local_id} reports transaction ID {tx_id} is invalid and will never be committed"
                         )
                     else:
                         pass

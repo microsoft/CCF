@@ -36,6 +36,7 @@
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
 #include "node/request_tracker.h"
+#include "node/retired_nodes_cleanup.h"
 #include "node/rpc/tx_status.h"
 #include "node/signatures.h"
 #include "raft_types.h"
@@ -124,6 +125,8 @@ namespace aft
     std::shared_ptr<aft::RequestTracker> request_tracker;
     std::unique_ptr<aft::ViewChangeTracker> view_change_tracker;
 
+    std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup;
+
     // Async execution
     struct AsyncExecution;
     AsyncExecutor async_executor;
@@ -180,6 +183,7 @@ namespace aft
       std::shared_ptr<Executor> executor_,
       std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
+      std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -195,6 +199,7 @@ namespace aft
       executor(executor_),
       request_tracker(request_tracker_),
       view_change_tracker(std::move(view_change_tracker_)),
+      retired_node_cleanup(std::move(retired_node_cleanup_)),
       async_executor(threading::ThreadMessaging::thread_count),
 
       request_timeout(request_timeout_),
@@ -2321,10 +2326,6 @@ namespace aft
 
     void become_leader()
     {
-      // TODO:
-      // 1. Schedule task instead here
-      // 2. Create a Tx and remove all nodes that are retired
-
       election_index = last_committable_index();
       LOG_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);
@@ -2367,6 +2368,11 @@ namespace aft
 
         // Send an empty append_entries to all nodes.
         send_append_entries(it->first, next);
+      }
+
+      if (retired_node_cleanup)
+      {
+        retired_node_cleanup->cleanup();
       }
     }
 

@@ -478,7 +478,7 @@ def test_historical_receipts(network, args):
         return network
 
     primary, backups = network.find_nodes()
-    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
+    cert_path = os.path.join(primary.common_dir, f"{primary.local_id}.pem")
     with open(cert_path) as c:
         primary_cert = load_pem_x509_certificate(
             c.read().encode("ascii"), default_backend()
@@ -712,7 +712,7 @@ def test_view_history(network, args):
                 if len(views) != 1:
                     txs_ok = False
                     LOG.error(
-                        f"Node {node.node_id}: Found {len(views)} committed Tx IDs for seqno {seqno}"
+                        f"Node {node.local_id}: Found {len(views)} committed Tx IDs for seqno {seqno}"
                     )
 
             tx_ids_condensed = ", ".join(
@@ -722,14 +722,14 @@ def test_view_history(network, args):
 
             if txs_ok:
                 LOG.success(
-                    f"Node {node.node_id}: Found a valid sequence of Tx IDs:\n{tx_ids_condensed}"
+                    f"Node {node.local_id}: Found a valid sequence of Tx IDs:\n{tx_ids_condensed}"
                 )
             else:
                 LOG.error(
-                    f"Node {node.node_id}: Invalid sequence of Tx IDs:\n{tx_ids_condensed}"
+                    f"Node {node.local_id}: Invalid sequence of Tx IDs:\n{tx_ids_condensed}"
                 )
                 raise RuntimeError(
-                    f"Node {node.node_id}: Incomplete or inconsistent view history"
+                    f"Node {node.local_id}: Incomplete or inconsistent view history"
                 )
 
             # Compare view history between nodes
@@ -739,7 +739,7 @@ def test_view_history(network, args):
                 assert (
                     tx_ids_condensed[:min_tx_ids_len]
                     == previous_tx_ids[:min_tx_ids_len]
-                ), f"Tx IDs don't match between node {node.node_id} and node {previous_node.node_id}: {tx_ids_condensed[:min_tx_ids_len]} and {previous_tx_ids[:min_tx_ids_len]}"
+                ), f"Tx IDs don't match between node {node.local_id} and node {previous_node.local_id}: {tx_ids_condensed[:min_tx_ids_len]} and {previous_tx_ids[:min_tx_ids_len]}"
 
             previous_tx_ids = tx_ids_condensed
             previous_node = node
@@ -990,7 +990,7 @@ def test_ws(network, args):
 @reqs.at_least_n_nodes(2)
 def test_receipts(network, args):
     primary, _ = network.find_primary_and_any_backup()
-    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
+    cert_path = os.path.join(primary.common_dir, f"{primary.local_id}.pem")
     with open(cert_path) as c:
         node_cert = load_pem_x509_certificate(
             c.read().encode("ascii"), default_backend()

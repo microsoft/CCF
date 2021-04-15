@@ -80,13 +80,13 @@ def test_share_resilience(network, args, from_snapshot=False):
             submitted_shares_count += 1
 
     LOG.info(
-        f"Shutting down node {primary.node_id} before submitting last recovery share"
+        f"Shutting down node {primary.local_id} before submitting last recovery share"
     )
     primary.stop()
     new_primary, _ = recovered_network.wait_for_new_primary(primary.node_id)
     assert (
         new_primary is not primary
-    ), f"Primary {primary.node_id} should have changed after election"
+    ), f"Primary {primary.local_id} should have changed after election"
 
     last_member_to_submit.get_and_submit_recovery_share(new_primary)
 

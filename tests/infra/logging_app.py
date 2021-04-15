@@ -66,7 +66,7 @@ class LoggingTxs:
         if on_backup:
             remote_node = network.find_any_backup()
 
-        LOG.info(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
+        LOG.info(f"Applying {number_txs} logging txs to node {remote_node.local_id}")
 
         with remote_node.client(self.user) as c:
             check_commit = infra.checker.Checker(c)

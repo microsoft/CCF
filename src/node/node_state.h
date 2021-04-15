@@ -1916,6 +1916,9 @@ namespace ccf
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
+      auto retired_node_cleanup =
+        std::make_unique<RetiredNodeCleanup>(rpc_map, node_sign_kp, node_cert);
+
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
@@ -1929,6 +1932,7 @@ namespace ccf
         std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,
         std::move(view_change_tracker),
+        std::move(retired_node_cleanup),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),

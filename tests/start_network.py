@@ -55,7 +55,7 @@ def run(args):
             network.start_and_join(args)
 
         nodes = network.get_joined_nodes()
-        max_len = max([len(str(node.local_node_id)) for node in nodes])
+        max_len = max([len(str(node.local_id)) for node in nodes])
 
         # To be sure, confirm that the app frontend is open on each node
         for node in nodes:
@@ -73,7 +73,7 @@ def run(args):
         for node in nodes:
             LOG.info(
                 "  Node [{}] = https://{}:{}".format(
-                    pad_node_id(node.local_node_id), node.pubhost, node.pubport
+                    pad_node_id(node.local_id), node.pubhost, node.pubport
                 )
             )
 

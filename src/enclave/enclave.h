@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "node/node_state.h"
+
 #include "ccf/app_interface.h"
 #include "crypto/hash.h"
 #include "ds/logger.h"
@@ -10,7 +12,6 @@
 #include "node/entities.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
-#include "node/node_state.h"
 #include "node/node_types.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/member_frontend.h"
@@ -392,10 +393,19 @@ namespace enclave
 
           // Then, execute some thread messages
           size_t thread_msg = 0;
-          while (thread_msg < max_messages &&
-                 threading::ThreadMessaging::thread_messaging.run_one())
+          try
           {
-            thread_msg++;
+            while (thread_msg < max_messages &&
+                   threading::ThreadMessaging::thread_messaging.run_one())
+            {
+              thread_msg++;
+            }
+          }
+          catch (const std::exception& e)
+          {
+            // If the execution of a thread message throws, catch it here and
+            // continue
+            LOG_FAIL_FMT("Error executing thread message: {}", e.what());
           }
 
           // If no messages were read from the ringbuffer and no thread

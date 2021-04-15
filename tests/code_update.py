@@ -44,7 +44,7 @@ def test_verify_quotes(network, args):
     reconfiguration.check_can_progress(primary)
 
     for node in network.get_joined_nodes():
-        LOG.info(f"Verifying quote for node {node.node_id}")
+        LOG.info(f"Verifying quote for node {node.local_id}")
         cafile = os.path.join(network.common_dir, "networkcert.pem")
         assert (
             infra.proc.ccall(
@@ -55,7 +55,7 @@ def test_verify_quotes(network, args):
                 log_output=True,
             ).returncode
             == 0
-        ), f"Quote verification for node {node.node_id} failed"
+        ), f"Quote verification for node {node.local_id} failed"
 
     return network
 
@@ -152,7 +152,7 @@ def test_update_all_nodes(network, args):
         # a commit, so we need to adjust our timeout accordingly, hence this branch
         if node.node_id == primary.node_id:
             new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-            LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+            LOG.debug(f"New primary is {new_primary.local_id} in term {new_term}")
             primary = new_primary
         network.nodes.remove(node)
         node.stop()

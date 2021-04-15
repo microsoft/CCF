@@ -15,7 +15,7 @@ def test_suspend_primary(network, args):
     primary, _ = network.find_primary()
     primary.suspend()
     new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    LOG.debug(f"New primary is {new_primary.local_id} in term {new_term}")
     reconfiguration.check_can_progress(new_primary)
     primary.resume()
     reconfiguration.check_can_progress(new_primary)

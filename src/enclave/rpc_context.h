@@ -191,7 +191,7 @@ namespace enclave
     virtual void set_response_body(std::string&& body) = 0;
 
     virtual void set_response_status(int status) = 0;
-    virtual int get_response_status() const = 0;
+    virtual http_status get_response_status() const = 0;
 
     virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
 

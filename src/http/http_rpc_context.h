@@ -278,7 +278,7 @@ namespace http
       response_status = (http_status)status;
     }
 
-    virtual int get_response_status() const override
+    virtual http_status get_response_status() const override
     {
       return response_status;
     }

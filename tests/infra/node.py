@@ -72,14 +72,14 @@ def get_snapshot_seqnos(file_name):
 class Node:
     def __init__(
         self,
-        local_node_id,
+        local_id,
         host,
         binary_dir=".",
         library_dir=".",
         debug=False,
         perf=False,
     ):
-        self.local_node_id = local_node_id
+        self.local_id = local_id
         self.binary_dir = binary_dir
         self.library_dir = library_dir
         self.debug = debug
@@ -113,10 +113,10 @@ class Node:
         self.node_port = None
 
     def __hash__(self):
-        return self.local_node_id
+        return self.local_id
 
     def __eq__(self, other):
-        return self.local_node_id == other.local_node_id
+        return self.local_id == other.local_id
 
     def start(
         self,
@@ -202,7 +202,7 @@ class Node:
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
-            str(self.local_node_id),
+            str(self.local_id),
             self.host,
             self.pubhost,
             self.node_port,
@@ -222,7 +222,7 @@ class Node:
         self.network_state = NodeNetworkState.started
         if self.debug:
             with open("/tmp/vscode-gdb.sh", "a") as f:
-                f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
+                f.write(f"if [ $1 -eq {self.remote.local_id} ]; then\n")
                 f.write(f"cd {self.remote.remote.root}\n")
                 f.write(f"{' '.join(self.remote.remote.cmd)}\n")
                 f.write("fi\n")
@@ -244,17 +244,17 @@ class Node:
         self.remote.get_startup_files(self.common_dir)
 
         if kwargs.get("consensus") == "cft":
-            with open(os.path.join(self.common_dir, f"{self.local_node_id}.pem")) as f:
+            with open(os.path.join(self.common_dir, f"{self.local_id}.pem")) as f:
                 self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
                     f.read()
                 )
         else:
             # BFT consensus should deterministically compute the primary id from the
             # consensus view, so node ids are monotonic in this case
-            self.node_id = "{:0>8}".format(self.local_node_id)
+            self.node_id = "{:0>8}".format(self.local_id)
 
         self._read_ports()
-        LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
+        LOG.info(f"Node {self.local_id} started: {self.node_id}")
 
     def _read_ports(self):
         node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
@@ -312,10 +312,10 @@ class Node:
                 rep = nc.get("/node/commit")
                 assert (
                     rep.status_code == 200
-                ), f"An error occured after node {self.local_node_id} joined the network: {rep.body}"
+                ), f"An error occured after node {self.local_id} joined the network: {rep.body}"
         except ccf.clients.CCFConnectionException as e:
             raise TimeoutError(
-                f"Node {self.local_node_id} failed to join the network"
+                f"Node {self.local_id} failed to join the network"
             ) from e
 
     def get_ledger_public_state_at(self, seqno, timeout=3):
@@ -350,14 +350,14 @@ class Node:
         Triage committed and un-committed (i.e. current) ledger files
         """
         main_ledger_dir, read_only_ledger_dirs = self.remote.get_ledger(
-            f"{self.local_node_id}.ledger", include_read_only_dirs
+            f"{self.local_id}.ledger", include_read_only_dirs
         )
 
         current_ledger_dir = os.path.join(
-            self.common_dir, f"{self.local_node_id}.ledger.current"
+            self.common_dir, f"{self.local_id}.ledger.current"
         )
         committed_ledger_dir = os.path.join(
-            self.common_dir, f"{self.local_node_id}.ledger.committed"
+            self.common_dir, f"{self.local_id}.ledger.committed"
         )
         infra.path.create_dir(current_ledger_dir)
         infra.path.create_dir(committed_ledger_dir)
@@ -406,7 +406,7 @@ class Node:
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
             "description"
-        ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
+        ] = f"[{self.local_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
         return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
 
@@ -414,18 +414,18 @@ class Node:
         assert not self.suspended
         self.suspended = True
         self.remote.suspend()
-        LOG.info(f"Node {self.local_node_id} suspended...")
+        LOG.info(f"Node {self.local_id} suspended...")
 
     def resume(self):
         assert self.suspended
         self.suspended = False
         self.remote.resume()
-        LOG.info(f"Node {self.local_node_id} has resumed from suspension.")
+        LOG.info(f"Node {self.local_id} has resumed from suspension.")
 
 
 @contextmanager
 def node(
-    local_node_id,
+    local_id,
     host,
     binary_directory,
     library_directory,
@@ -435,7 +435,7 @@ def node(
 ):
     """
     Context manager for Node class.
-    :param local_node_id: infra-specific unique ID
+    :param local_id: infra-specific unique ID
     :param binary_directory: the directory where CCF's binaries are located
     :param library_directory: the directory where CCF's libraries are located
     :param host: node's hostname
@@ -444,7 +444,7 @@ def node(
     :return: a Node instance that can be used to build a CCF network
     """
     this_node = Node(
-        local_node_id=local_node_id,
+        local_id=local_id,
         host=host,
         binary_dir=binary_directory,
         library_dir=library_directory,

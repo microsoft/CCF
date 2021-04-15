@@ -282,7 +282,7 @@ class Consortium:
             return r.body.json()
 
     def retire_node(self, remote_node, node_to_retire):
-        LOG.info(f"Retiring node {node_to_retire.local_node_id}")
+        LOG.info(f"Retiring node {node_to_retire.local_id}")
         if os.getenv("JS_GOVERNANCE"):
             proposal_body, careful_vote = self.make_proposal(
                 "remove_node", node_to_retire.node_id
@@ -293,11 +293,6 @@ class Consortium:
             )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
-
-        # TODO: Not true anymore!
-        # with remote_node.client() as c:
-        #     r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
-        #     assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.value
 
     def trust_node(self, remote_node, node_id, timeout=3):
         if not self._check_node_exists(

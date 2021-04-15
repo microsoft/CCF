@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import http
 import infra.e2e_args
 import infra.network
 import infra.proc
@@ -166,9 +167,28 @@ def test_retire_primary(network, args):
 
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
+
+    # Primary node is not yet removed from the stored but marked as retired
+    with primary.client() as c:
+        r = c.get(f"/node/network/nodes/{primary.node_id}")
+        assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.value
+
     new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    LOG.debug(f"New primary is {new_primary.local_id} in term {new_term}")
     check_can_progress(backup)
+
+    # The primary node should automatically be removed from the store soon
+    # after a new primary is elected
+    with new_primary.client() as c:
+        timeout = 3
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            r = c.get(f"/node/network/nodes/{primary.node_id}")
+            if r.status_code == http.HTTPStatus.NOT_FOUND.value:
+                break
+            time.sleep(0.1)
+        assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+
     network.nodes.remove(primary)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
@@ -221,16 +241,12 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # test_add_node_from_backup(network, args)
+        test_add_node_from_backup(network, args)
         test_add_node(network, args)
         test_retire_backup(network, args)
-        # test_add_as_many_pending_nodes(network, args)
+        test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
         test_retire_primary(network, args)
-
-        import sys
-
-        sys.exit(0)
 
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)

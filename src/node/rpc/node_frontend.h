@@ -336,6 +336,29 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
+      auto remove_retired_nodes = [this](auto& args, nlohmann::json&&) {
+        auto nodes = args.tx.rw(network.nodes);
+        nodes->foreach(
+          [this, &nodes](const auto& node_id, const auto& node_info) {
+            if (
+              node_info.status == ccf::NodeStatus::RETIRED &&
+              node_id != this->context.get_node_state().get_node_id())
+            {
+              nodes->remove(node_id);
+            }
+            return true;
+          });
+
+        return make_success();
+      };
+      make_endpoint(
+        "network/nodes/cleanup",
+        HTTP_POST,
+        json_adapter(remove_retired_nodes),
+        {std::make_shared<NodeCertAuthnPolicy>()})
+        .set_openapi_hidden(true)
+        .install();
+
       auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;
         auto [s, rts, lrs] = this->context.get_node_state().state();

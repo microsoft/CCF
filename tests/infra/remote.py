@@ -545,7 +545,7 @@ class CCFRemote(object):
         self,
         start_type,
         lib_path,
-        local_node_id,
+        local_id,
         host,
         pubhost,
         node_port,
@@ -584,10 +584,10 @@ class CCFRemote(object):
         Run a ccf binary on a remote host.
         """
         self.start_type = start_type
-        self.local_node_id = local_node_id
-        self.pem = f"{local_node_id}.pem"
-        self.node_address_path = f"{local_node_id}.node_address"
-        self.rpc_address_path = f"{local_node_id}.rpc_address"
+        self.local_id = local_id
+        self.pem = f"{local_id}.pem"
+        self.node_address_path = f"{local_id}.node_address"
+        self.rpc_address_path = f"{local_id}.rpc_address"
         self.BIN = infra.path.build_bin_path(
             self.BIN, enclave_type, binary_dir=binary_dir
         )
@@ -597,7 +597,7 @@ class CCFRemote(object):
         self.ledger_dir_name = (
             os.path.basename(self.ledger_dir)
             if self.ledger_dir
-            else f"{local_node_id}.ledger"
+            else f"{local_id}.ledger"
         )
 
         self.read_only_ledger_dir = read_only_ledger_dir
@@ -607,7 +607,7 @@ class CCFRemote(object):
         self.snapshot_dir_name = (
             os.path.basename(self.snapshot_dir)
             if self.snapshot_dir
-            else f"{local_node_id}.snapshots"
+            else f"{local_id}.snapshots"
         )
 
         exe_files = [self.BIN, lib_path] + self.DEPS
@@ -731,7 +731,9 @@ class CCFRemote(object):
         if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
             if coverage_enabled(lib_path):
-                self.profraw = f"{uuid.uuid4()}-{local_node_id}_{os.path.basename(lib_path)}.profraw"
+                self.profraw = (
+                    f"{uuid.uuid4()}-{local_id}_{os.path.basename(lib_path)}.profraw"
+                )
                 env["LLVM_PROFILE_FILE"] = self.profraw
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(host_log_level)
@@ -739,7 +741,7 @@ class CCFRemote(object):
             env["OE_LOG_LEVEL"] = oe_log_level
 
         self.remote = remote_class(
-            local_node_id,
+            local_id,
             host,
             exe_files,
             data_files,
@@ -778,7 +780,7 @@ class CCFRemote(object):
         try:
             errors, fatal_errors = self.remote.stop()
         except Exception:
-            LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
+            LOG.exception("Failed to shut down {} cleanly".format(self.local_id))
         if self.profraw:
             try:
                 self.remote.get(self.profraw, self.common_dir)

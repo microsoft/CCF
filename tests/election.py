@@ -44,7 +44,7 @@ def test_kill_primary(network, args):
             LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
 
     new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    LOG.debug(f"New primary is {new_primary.local_id} in term {new_term}")
 
     return network
 
@@ -72,7 +72,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
                 elif status == TxStatus.Invalid:
                     flush_info(logs[f.node_id], None, 0)
                     raise RuntimeError(
-                        f"Node {f.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
+                        f"Node {f.local_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
                     )
                 else:
                     pass
@@ -111,7 +111,7 @@ def run(args):
 
             LOG.debug(
                 "Commit new transactions, primary:{}, current_view:{}".format(
-                    primary.node_id, current_view
+                    primary.local_id, current_view
                 )
             )
             with primary.client("user0") as c:
