@@ -8,7 +8,7 @@
  * @module
  */
 
-import { JsonCompatible } from "./global.js";
+import { JsonCompatible, ccf } from "./global.js";
 
 /**
  * The body of a request.
@@ -224,3 +224,8 @@ export type EndpointFn<
   A extends JsonCompatible<A> = any,
   B extends ResponseBodyType<B> = any
 > = (request: Request<A>) => Response<B>;
+
+/**
+ * @inheritDoc CCF.rpc.setApplyWrites
+ */
+export const setApplyWrites = ccf.rpc.setApplyWrites.bind(ccf.rpc);
