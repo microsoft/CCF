@@ -1,8 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "node/node_state.h"
-
 #include "ccf/app_interface.h"
 #include "crypto/hash.h"
 #include "ds/logger.h"
@@ -12,6 +10,7 @@
 #include "node/entities.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"
+#include "node/node_state.h"
 #include "node/node_types.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/member_frontend.h"

@@ -99,6 +99,11 @@ namespace ccf
     {
       return std::nullopt;
     }
+
+    void remove_node(kv::Tx& tx, const NodeId& node_id) override
+    {
+      return;
+    }
   };
 
   class StubNodeStateCache : public historical::AbstractStateCache

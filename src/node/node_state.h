@@ -863,7 +863,6 @@ namespace ccf
 
         if (ledger_idx == startup_snapshot_info->evidence_seqno)
         {
-          LOG_FAIL_FMT("here");
           auto evidence = snapshot_evidence->get(0);
           if (!evidence.has_value())
           {
@@ -1255,9 +1254,6 @@ namespace ccf
           "Cannot remove node {} as primary node is unknown", node_id));
       }
 
-      LOG_FAIL_FMT(
-        "Removing node {}, primary is {}", node_id, primary_id.value());
-
       auto nodes = tx.rw(network.nodes);
       if (node_id == primary_id.value())
       {
@@ -1275,7 +1271,6 @@ namespace ccf
       }
       else
       {
-        LOG_FAIL_FMT("Retiring backup!");
         // Otherwise, remove the backup node straight away.
         nodes->remove(node_id);
       }

@@ -13,11 +13,9 @@
 
 namespace ccf
 {
-  // TODO: Add mutex?
   class RetiredNodeCleanup
   {
   private:
-    ccf::View view_of_last_cleanup = VIEW_UNKNOWN; // TODO: Remove?
     std::shared_ptr<enclave::RPCMap> rpc_map;
     crypto::KeyPairPtr node_sign_kp;
     crypto::Pem node_cert;
