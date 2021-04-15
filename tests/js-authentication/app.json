@@ -5,7 +5,6 @@
         "js_module": "endpoints.js",
         "js_function": "jwt",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["jwt"],
         "mode": "readonly",
         "openapi": {}
@@ -16,7 +15,6 @@
         "js_module": "endpoints.js",
         "js_function": "multi_auth",
         "forwarding_required": "sometimes",
-        "execute_outside_consensus": "never",
         "authn_policies": [
           "user_cert",
           "user_signature",
