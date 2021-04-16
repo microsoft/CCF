@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0]
+
+### Changed
+
+- The default constitution no longer contains `set_service_principal` or `remove_service_principal` since they are not used by the core framework. Instead any apps which wish to use these tables should add them to their own constitution. A [sample implementation](https://github.com/microsoft/CCF/tree/main/src/runtime_config/test/service_principals/actions.js) is available, and used in the CI tests.
+
 ## [0.99.1]
 
 ### Added
