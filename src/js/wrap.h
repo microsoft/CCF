@@ -5,6 +5,7 @@
 #include "ccf/historical_queries_interface.h"
 #include "ccf/tx.h"
 #include "ds/logger.h"
+#include "enclave/rpc_context.h"
 #include "kv/kv_types.h"
 #include "node/network_state.h"
 #include "node/rpc/node_interface.h"
@@ -49,6 +50,7 @@ namespace js
   void populate_global_console(JSContext* ctx);
   void populate_global_ccf(
     TxContext* txctx,
+    enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,

@@ -48,7 +48,9 @@ Some of these subcommands require additional arguments, such as the node ID or u
     {"script": {"text": "tables, args = ...; return Calls:call(\"trust_node\", args)"}, "parameter": "5"}
 
     $ cat trust_node_vote_for.json
-    {"ballot": {"text": "tables, calls = ...; if not #calls == 1 then return false end; call = calls[1]; if not call.func == \"trust_node\" then return false end; args = call.args; if args == nil then return false end; if not args == [====[5]====] then return false end; return true"}}
+    {
+      "ballot": "export function vote (rawProposal, proposerId) {\n  let proposal = JSON.parse(rawProposal);\n  if (!('actions' in proposal)) { return false; };\n  let actions = proposal['actions'];\n  if (actions.length !== 1) { return false; };\n  let action = actions[0];\n  if (!('name' in action)) { return false; };\n  if (action.name !== 'transition_node_to_trusted') { return false; };\n  if (!('args' in action)) { return false; };\n  let args = action.args;\n  {\n    if (!('node_id' in args)) { return false; };\n    let expected = \"cc6e776911230e4c419475b528ae272c655b1133c513476783daea67c59d9ffa\";\n    if (JSON.stringify(args['node_id']) !== JSON.stringify(expected)) { return false; };\n  }\n  return true;\n}"
+    }
 
     $ python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json set_user pedro_cert.pem
     SUCCESS | Writing proposal to ./add_pedro.json
@@ -56,17 +58,19 @@ Some of these subcommands require additional arguments, such as the node ID or u
 
     $ cat add_pedro.json
     {
-      "script": {
-        "text": "tables, args = ...; return Calls:call(\"set_user\", args)"
-      },
-      "parameter": "-----BEGIN CERTIFICATE-----\nMIIBrzCCATSgAwIBAgIUJY+H0OzuFQWz/udd+WCD7Cv+cgwwCgYIKoZIzj0EAwMw\nDjEMMAoGA1UEAwwDYm9iMB4XDTIwMDcyNDE1MzYyOFoXDTIxMDcyNDE1MzYyOFow\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE7h75Xd1+0QDD\nWF2edGphgryHcDoBXdRowq6ciYH2++ilXXagi5Rybai7ewgV0YuvrDm+WfGyJ9CC\n5HbT6C/z5GCJQnLH2t3LaZrw9MQDF3bH6XOHGmaJh6m7rfpZZljpo1MwUTAdBgNV\nHQ4EFgQUN/LhCyVExERjt5f1RZx7820934wwHwYDVR0jBBgwFoAUN/LhCyVExERj\nt5f1RZx7820934wwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNpADBmAjEA\n5MsDNvjEMSgYXy+bPbE2nxOlmH6OhP375IVZxNQALJGzTfgHu+IbpyvDF0/VrMrW\nAjEA723VxgMgpuxB5SszN6eZuz8EW51DsgRIVWMSbBZYYBYyQmu5x3T+Hx/Cs7TD\nu4Ee\n-----END CERTIFICATE-----\n"
+      "actions": [
+        {
+          "name": "set_user",
+          "args": {
+            "cert": "-----BEGIN CERTIFICATE-----\nMIIBsjCCATigAwIBAgIUOiTU32JZsA0dSv64hW2mrKM0phEwCgYIKoZIzj0EAwMw\nEDEOMAwGA1UEAwwFdXNlcjIwHhcNMjEwNDE0MTUyODMyWhcNMjIwNDE0MTUyODMy\nWjAQMQ4wDAYDVQQDDAV1c2VyMjB2MBAGByqGSM49AgEGBSuBBAAiA2IABBFf+FD0\nUGIyJubt8j+f8+/BP7IY6G144yF/vBNe7CJpNNRyiMZzEyN6wmEKIjsn3gU36A6E\nqNYBlbYbXD1kzlw4q/Pe/Wl3o237p8Es6LD1e1MDUFp2qUcNA6vari6QLKNTMFEw\nHQYDVR0OBBYEFDuGVragGSHoIrFA44kQRg/SKIcFMB8GA1UdIwQYMBaAFDuGVrag\nGSHoIrFA44kQRg/SKIcFMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaAAw\nZQIxAPx54LaqQevKrcZIr7QSCZKGFJgSxfVxovSfEqTMD+sKdWzNTqJtJ1SDav1v\nImA4iwIwBsrdevSQj4U2ynXiTJKljviDnyc47ktJVkg/Ppq5cMcEZHO4Q0H/Wq3H\nlUuVImyR\n-----END CERTIFICATE-----\n"
+          }
+        }
+      ]
     }
 
     $ cat vote_for_pedro.json
     {
-      "ballot": {
-        "text": "tables, calls = ...; if not #calls == 1 then return false end; call = calls[1]; if not call.func == \"set_user\" then return false end; args = call.args; if args == nil then return false end; if not args == [====[-----BEGIN CERTIFICATE-----\nMIIBrzCCATSgAwIBAgIUJY+H0OzuFQWz/udd+WCD7Cv+cgwwCgYIKoZIzj0EAwMw\nDjEMMAoGA1UEAwwDYm9iMB4XDTIwMDcyNDE1MzYyOFoXDTIxMDcyNDE1MzYyOFow\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE7h75Xd1+0QDD\nWF2edGphgryHcDoBXdRowq6ciYH2++ilXXagi5Rybai7ewgV0YuvrDm+WfGyJ9CC\n5HbT6C/z5GCJQnLH2t3LaZrw9MQDF3bH6XOHGmaJh6m7rfpZZljpo1MwUTAdBgNV\nHQ4EFgQUN/LhCyVExERjt5f1RZx7820934wwHwYDVR0jBBgwFoAUN/LhCyVExERj\nt5f1RZx7820934wwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNpADBmAjEA\n5MsDNvjEMSgYXy+bPbE2nxOlmH6OhP375IVZxNQALJGzTfgHu+IbpyvDF0/VrMrW\nAjEA723VxgMgpuxB5SszN6eZuz8EW51DsgRIVWMSbBZYYBYyQmu5x3T+Hx/Cs7TD\nu4Ee\n-----END CERTIFICATE-----\n]====] then return false end; return true"
-      }
+      "ballot": "export function vote (rawProposal, proposerId) {\n  let proposal = JSON.parse(rawProposal);\n  if (!('actions' in proposal)) { return false; };\n  let actions = proposal['actions'];\n  if (actions.length !== 1) { return false; };\n  let action = actions[0];\n  if (!('name' in action)) { return false; };\n  if (action.name !== 'set_user') { return false; };\n  if (!('args' in action)) { return false; };\n  let args = action.args;\n  {\n    if (!('cert' in args)) { return false; };\n    let expected = \"-----BEGIN CERTIFICATE-----\\nMIIBsjCCATigAwIBAgIUOiTU32JZsA0dSv64hW2mrKM0phEwCgYIKoZIzj0EAwMw\\nEDEOMAwGA1UEAwwFdXNlcjIwHhcNMjEwNDE0MTUyODMyWhcNMjIwNDE0MTUyODMy\\nWjAQMQ4wDAYDVQQDDAV1c2VyMjB2MBAGByqGSM49AgEGBSuBBAAiA2IABBFf+FD0\\nUGIyJubt8j+f8+/BP7IY6G144yF/vBNe7CJpNNRyiMZzEyN6wmEKIjsn3gU36A6E\\nqNYBlbYbXD1kzlw4q/Pe/Wl3o237p8Es6LD1e1MDUFp2qUcNA6vari6QLKNTMFEw\\nHQYDVR0OBBYEFDuGVragGSHoIrFA44kQRg/SKIcFMB8GA1UdIwQYMBaAFDuGVrag\\nGSHoIrFA44kQRg/SKIcFMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaAAw\\nZQIxAPx54LaqQevKrcZIr7QSCZKGFJgSxfVxovSfEqTMD+sKdWzNTqJtJ1SDav1v\\nImA4iwIwBsrdevSQj4U2ynXiTJKljviDnyc47ktJVkg/Ppq5cMcEZHO4Q0H/Wq3H\\nlUuVImyR\\n-----END CERTIFICATE-----\\n\";\n    if (JSON.stringify(args['cert']) !== JSON.stringify(expected)) { return false; };\n  }\n  return true;\n}"
     }
 
 These proposals and votes should be sent as the body of HTTP requests as described below.
@@ -103,23 +107,25 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
 
 .. code-block:: bash
 
-    $ cat new_member.json
+    $ cat set_member.json
     {
-      "parameter": {
-        "cert": "-----BEGIN CERTIFICATE-----\nMIIBdzCCARygAwIBAgIURwD6S1/rcb2TbHhQLnTNh/7WyYYwCgYIKoZIzj0EAwIw\nEjEQMA4GA1UEAwwHbWVtYmVyNDAeFw0yMDEwMjkxNjI2NTNaFw0yMTEwMjkxNjI2\nNTNaMBIxEDAOBgNVBAMMB21lbWJlcjQwVjAQBgcqhkjOPQIBBgUrgQQACgNCAARG\nwqj2ZD7vA+h4KoTdh3if3tVO/yks+xtLU1tXAFsbeWSQfDxK3nnA65uX6n/25A20\nJcAQMDHYH2NdLOLra9lxo1MwUTAdBgNVHQ4EFgQUQQDC71N60r/a9c+EGXrzr5l6\nIDQwHwYDVR0jBBgwFoAUQQDC71N60r/a9c+EGXrzr5l6IDQwDwYDVR0TAQH/BAUw\nAwEB/zAKBggqhkjOPQQDAgNJADBGAiEAkvP0AuAU7y0b3z4rhvoOkCBKoH4G3vh/\nPJpLFdWcEu4CIQCSnEYpDaDTP2zoWTheqchZ+/BdTzM2j2s9ILpvSVYMxg==\n-----END CERTIFICATE-----\n",
-        "encryption_pub_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvYKesV5xoT2XnGhLkeqZ\neSC2KsjNUvdjqPrTERk/hp64Xd30SGjdj2HytG3hfCy5hBhc9muQMXoOAOBgxwMA\nQRu7KCANPZNCLEWKR5DZc8YzE+rHX1/8WxhhtV/bvr90selV0BfLWLLJYDxnyo3D\nyioYXNw6Ij2sYBt8MTPNPti3jRJ7LmMow/VrJD9Ww1FKWCyxa7/iCxSsbmrwdv8m\nBVf/+d3p+ivxb6gBvtTimj+fj1OdRkGHElZSaBFWmQISga3Ki4vnP4W1iw/ujaza\n3gItLPrEnD0lxGBaCSs+XVm2l8nsn3HJDZYMP5u3jWB3MWsBwna0o+KUon4KaS1k\nlwIDAQAB\n-----END PUBLIC KEY-----\n",
-        "member_data": null
-      },
-      "script": {
-        "text": "\n    tables, args = ...\n    return Calls:call(\"new_member\", args)\n    "
-      }
+      "actions": [
+        {
+          "name": "set_member",
+          "args": {
+            "cert": "-----BEGIN CERTIFICATE-----\nMIIBeDCCAR+gAwIBAgIUNIlSzogSRYEIFzXZkt/8+yPP1mkwCgYIKoZIzj0EAwIw\nEjEQMA4GA1UEAwwHbWVtYmVyNTAeFw0yMTA0MTQxNTI5MDdaFw0yMjA0MTQxNTI5\nMDdaMBIxEDAOBgNVBAMMB21lbWJlcjUwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC\nAATQ31dh+lbI9wtmEA5B9uvwMpchayuC6y2ODpvdikpW22YEEgMOHRTz9C1ouyA6\nDU/B8e44/Ix8EOyZ/o+o/x4uo1MwUTAdBgNVHQ4EFgQUkw5qTP11HKXElw/1PgS9\nczAI6kwwHwYDVR0jBBgwFoAUkw5qTP11HKXElw/1PgS9czAI6kwwDwYDVR0TAQH/\nBAUwAwEB/zAKBggqhkjOPQQDAgNHADBEAiBKK27btVObhaY3dNaRfTE5EPZeUvFQ\nysnx5xOcn7MGIAIgErGPvJeOD1mVKnHIsJ7JWpxbHCOWkiWuX5uPIX8didQ=\n-----END CERTIFICATE-----\n",
+            "encryption_pub_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwHGQBecZimsPBmDJP7Bb\nSEtn3n2ee8luvyYWDgmxH2+GCE9bBdDrRu4qibGk/itrJ0ezIXChdszTQk1MdG0a\noWa4LbV2wTT7wRaqla+QaVI0VUAFFWuZkRlrTNvD6rizB7YBC9Qy54FqSmWfqbyK\nZF4gsnODPo78CABuiGvqASKfi9cfhJYARsXwFQNDTj+M9gXzThwC+oT5etOHmLVX\nxrs4mEmKaVgRS/qjedqqq2WSseteWDTg72LuSUgxC3OMBD+E0xQfOAOBXsi7EVqv\naPLlDSQJBG5tQDltz+kspUs3WWcP0UMY/mCvWeFtpP2wcaH5Y60PdYeOnSDYfCB5\nKwIDAQAB\n-----END PUBLIC KEY-----\n"
+          }
+        }
+      ]
     }
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
     {
+      "ballot_count": 0,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": 1,
-      "state": "OPEN"
+      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
+      "state": "Open"
     }
 
 In this case, a new proposal with id ``4`` has successfully been created and the proposer member has voted to accept it (they may instead pass a voting ballot with their proposal if they wish to vote conditionally, or withhold their vote until later). Other members can then vote to accept or reject the proposal:
@@ -130,32 +136,30 @@ In this case, a new proposal with id ``4`` has successfully been created and the
 
     $ cat vote_reject.json
     {
-        "ballot": {
-            "text": "return false"
-        }
+      "ballot": "export function vote (proposal, proposerId) { return false }"
     }
 
     $ cat vote_accept.json
     {
-        "ballot": {
-            "text": "return true"
-        }
+      "ballot": "export function vote (proposal, proposerId) { return true }"
     }
 
     # Member 2 rejects the proposal (votes in favour: 1/3)
     $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
     {
+      "ballot_count": 1,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": 1,
-      "state": "OPEN"
+      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
+      "state": "Open"
     }
 
     # Member 3 accepts the proposal (votes in favour: 2/3)
     $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
+      "ballot_count": 2,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": 1,
-      "state": "ACCEPTED"
+      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
+      "state": "Accepted"
     }
 
     # As a majority of members have accepted the proposal, member 4 is added to the consortium
@@ -209,9 +213,10 @@ At any stage during the voting process, before the proposal is accepted, the pro
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals/<proposal-id>/withdraw --cacert networkcert.pem --key member1_privk.pem --cert member1_cert.pem -H "content-type: application/json"
     {
+      "ballot_count": 1,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
-      "proposer_id": 1,
-      "state": "WITHDRAWN"
+      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
+      "state": "Withdrawn"
     }
 
 This means future votes will be rejected, and the proposal will never be accepted. However it remains visible as a proposal so members can easily audit historic proposals.

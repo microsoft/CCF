@@ -17,7 +17,9 @@ namespace ccf::endpoints
 
   struct EndpointKey
   {
+    /// URI path to endpoint
     URI uri_path;
+    /// HTTP Verb
     RESTVerb verb = HTTP_POST;
   };
 
@@ -71,16 +73,22 @@ namespace ccf::endpoints
 
   struct EndpointProperties
   {
+    /// Endpoint mode
     Mode mode = Mode::ReadWrite;
+    /// Endpoint forwarding policy
     ForwardingRequired forwarding_required = ForwardingRequired::Always;
+    /// Execution policy
     ExecuteOutsideConsensus execute_outside_consensus =
       ExecuteOutsideConsensus::Never;
+    /// Authentication policies
     std::vector<std::string> authn_policies = {};
-
+    /// OpenAPI schema for endpoint
     nlohmann::json openapi;
+    //// Whether to include endpoint schema in frontend schema
     bool openapi_hidden = false;
-
+    /// JavaScript module
     std::string js_module;
+    /// JavaScript function name
     std::string js_function;
   };
 

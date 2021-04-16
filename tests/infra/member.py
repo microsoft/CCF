@@ -14,9 +14,6 @@ from typing import NamedTuple, Optional
 
 from loguru import logger as LOG
 
-# To remove once JS governance migration is complete
-PROPOSAL_ENDPOINT = f"/gov/proposals{('.js' if os.getenv('JS_GOVERNANCE') else '')}"
-
 
 class NoRecoveryShareFound(Exception):
     def __init__(self, response):
@@ -131,7 +128,7 @@ class Member:
 
     def propose(self, remote_node, proposal):
         with remote_node.client(*self.auth(write=True)) as mc:
-            r = mc.post(f"{PROPOSAL_ENDPOINT}", proposal)
+            r = mc.post("/gov/proposals", proposal)
             if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
@@ -146,7 +143,7 @@ class Member:
     def vote(self, remote_node, proposal, ballot):
         with remote_node.client(*self.auth(write=True)) as mc:
             r = mc.post(
-                f"{PROPOSAL_ENDPOINT}/{proposal.proposal_id}/{'ballots' if os.getenv('JS_GOVERNANCE') else 'votes'}",
+                f"/gov/proposals/{proposal.proposal_id}/ballots",
                 body=ballot,
             )
 
@@ -154,7 +151,7 @@ class Member:
 
     def withdraw(self, remote_node, proposal):
         with remote_node.client(*self.auth(write=True)) as c:
-            r = c.post(f"{PROPOSAL_ENDPOINT}/{proposal.proposal_id}/withdraw")
+            r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
             if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.WITHDRAWN
             return r

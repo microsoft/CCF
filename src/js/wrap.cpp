@@ -4,6 +4,7 @@
 
 #include "ccf/tx_id.h"
 #include "ds/logger.h"
+#include "enclave/rpc_context.h"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
 #include "kv/untyped_map.h"
@@ -28,6 +29,7 @@ namespace js
   JSClassID body_class_id = 0;
   JSClassID node_class_id = 0;
   JSClassID network_class_id = 0;
+  JSClassID rpc_class_id = 0;
 
   JSClassDef kv_class_def = {};
   JSClassExoticMethods kv_exotic_methods = {};
@@ -35,6 +37,7 @@ namespace js
   JSClassDef body_class_def = {};
   JSClassDef node_class_def = {};
   JSClassDef network_class_def = {};
+  JSClassDef rpc_class_def = {};
 
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -413,7 +416,14 @@ namespace js
     JS_FreeValue(ctx, ccf);
     JS_FreeValue(ctx, global_obj);
 
-    node->transition_service_to_open(*tx_ctx_ptr->tx);
+    try
+    {
+      node->transition_service_to_open(*tx_ctx_ptr->tx);
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Unable to open service: {}", e.what());
+    }
 
     return JS_UNDEFINED;
   }
@@ -456,6 +466,33 @@ namespace js
 
     return JS_NewInt64(
       ctx, network->ledger_secrets->get_latest(*tx_ctx_ptr->tx).first);
+  }
+
+  JSValue js_rpc_set_apply_writes(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+    }
+
+    auto rpc_ctx =
+      static_cast<enclave::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
+
+    if (rpc_ctx == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "RPC context is not set");
+    }
+
+    int val = JS_ToBool(ctx, argv[0]);
+    if (val == -1)
+    {
+      js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    rpc_ctx->set_apply_writes(val);
+    return JS_UNDEFINED;
   }
 
   JSValue js_gov_set_jwt_public_signing_keys(
@@ -645,6 +682,9 @@ namespace js
 
     JS_NewClassID(&network_class_id);
     network_class_def.class_name = "Network";
+
+    JS_NewClassID(&rpc_class_id);
+    rpc_class_def.class_name = "RPC";
   }
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -827,6 +867,7 @@ namespace js
 
   JSValue create_ccf_obj(
     TxContext* txctx,
+    enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
@@ -1009,11 +1050,24 @@ namespace js
           0));
     }
 
+    if (rpc_ctx != nullptr)
+    {
+      auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
+      JS_SetOpaque(rpc, rpc_ctx);
+      JS_SetPropertyStr(ctx, ccf, "rpc", rpc);
+      JS_SetPropertyStr(
+        ctx,
+        rpc,
+        "setApplyWrites",
+        JS_NewCFunction(ctx, js_rpc_set_apply_writes, "setApplyWrites", 1));
+    }
+
     return ccf;
   }
 
   void populate_global_ccf(
     TxContext* txctx,
+    enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
@@ -1027,7 +1081,13 @@ namespace js
       global_obj,
       "ccf",
       create_ccf_obj(
-        txctx, transaction_id, receipt, node_state, network_state, ctx));
+        txctx,
+        rpc_ctx,
+        transaction_id,
+        receipt,
+        node_state,
+        network_state,
+        ctx));
 
     JS_FreeValue(ctx, global_obj);
   }
@@ -1081,6 +1141,16 @@ namespace js
       {
         throw std::logic_error(
           "Failed to register JS class definition for network");
+      }
+    }
+
+    // Register class for rpc
+    {
+      auto ret = JS_NewClass(rt, rpc_class_id, &rpc_class_def);
+      if (ret != 0)
+      {
+        throw std::logic_error(
+          "Failed to register JS class definition for rpc");
       }
     }
   }

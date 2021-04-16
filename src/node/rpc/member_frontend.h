@@ -8,8 +8,6 @@
 #include "ds/nonstd.h"
 #include "frontend.h"
 #include "js/wrap.h"
-#include "lua_interp/lua_json.h"
-#include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
 #include "node/gov.h"
 #include "node/jwt.h"
@@ -31,37 +29,6 @@
 
 namespace ccf
 {
-  class MemberTsr : public lua::TxScriptRunner
-  {
-    void setup_environment(
-      lua::Interpreter& li,
-      const std::optional<Script>& env_script) const override
-    {
-      TxScriptRunner::setup_environment(li, env_script);
-    }
-
-  public:
-    MemberTsr(NetworkTables& network) : TxScriptRunner(network) {}
-  };
-
-  struct SetMemberData
-  {
-    MemberId member_id;
-    nlohmann::json member_data = nullptr;
-  };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SetMemberData)
-  DECLARE_JSON_REQUIRED_FIELDS(SetMemberData, member_id)
-  DECLARE_JSON_OPTIONAL_FIELDS(SetMemberData, member_data)
-
-  struct SetUserData
-  {
-    UserId user_id;
-    nlohmann::json user_data = nullptr;
-  };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SetUserData)
-  DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
-  DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
-
   struct SetModule
   {
     std::string name;
@@ -88,30 +55,6 @@ namespace ccf
   DECLARE_JSON_TYPE(JsBundle)
   DECLARE_JSON_REQUIRED_FIELDS(JsBundle, metadata, modules)
 
-  struct DeployJsApp
-  {
-    JsBundle bundle;
-  };
-  DECLARE_JSON_TYPE(DeployJsApp)
-  DECLARE_JSON_REQUIRED_FIELDS(DeployJsApp, bundle)
-
-  struct SetJwtIssuer : public ccf::JwtIssuerMetadata
-  {
-    std::string issuer;
-    std::optional<JsonWebKeySet> jwks;
-  };
-  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(
-    SetJwtIssuer, ccf::JwtIssuerMetadata)
-  DECLARE_JSON_REQUIRED_FIELDS(SetJwtIssuer, issuer)
-  DECLARE_JSON_OPTIONAL_FIELDS(SetJwtIssuer, jwks)
-
-  struct RemoveJwtIssuer
-  {
-    std::string issuer;
-  };
-  DECLARE_JSON_TYPE(RemoveJwtIssuer)
-  DECLARE_JSON_REQUIRED_FIELDS(RemoveJwtIssuer, issuer)
-
   struct SetJwtPublicSigningKeys
   {
     std::string issuer;
@@ -120,28 +63,9 @@ namespace ccf
   DECLARE_JSON_TYPE(SetJwtPublicSigningKeys)
   DECLARE_JSON_REQUIRED_FIELDS(SetJwtPublicSigningKeys, issuer, jwks)
 
-  struct SetCaCertBundle
-  {
-    std::string name;
-    std::string cert_bundle;
-  };
-  DECLARE_JSON_TYPE(SetCaCertBundle)
-  DECLARE_JSON_REQUIRED_FIELDS(SetCaCertBundle, name, cert_bundle)
-
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
-    Script get_script(kv::Tx& tx, std::string name)
-    {
-      const auto s = tx.ro(network.gov_scripts)->get(name);
-      if (!s)
-      {
-        throw std::logic_error(
-          fmt::format("Could not find gov script: {}", name));
-      }
-      return *s;
-    }
-
     bool set_js_app(kv::Tx& tx, const JsBundle& bundle)
     {
       std::string module_prefix = "/";
@@ -248,574 +172,8 @@ namespace ccf
       });
     }
 
-    bool add_new_code_id(
-      kv::Tx& tx,
-      const CodeDigest& new_code_id,
-      CodeIDs& code_id_table,
-      const ProposalId& proposal_id)
-    {
-      auto code_ids = tx.rw(code_id_table);
-      auto existing_code_id = code_ids->get(new_code_id);
-      if (existing_code_id)
-      {
-        LOG_FAIL_FMT(
-          "Proposal {}: Code signature already exists with digest: {}",
-          proposal_id,
-          ds::to_hex(new_code_id.data));
-        return false;
-      }
-      code_ids->put(new_code_id, CodeStatus::ALLOWED_TO_JOIN);
-      return true;
-    }
-
-    bool retire_code_id(
-      kv::Tx& tx,
-      const CodeDigest& code_id,
-      CodeIDs& code_id_table,
-      const ProposalId& proposal_id)
-    {
-      auto code_ids = tx.rw(code_id_table);
-      auto existing_code_id = code_ids->get(code_id);
-      if (!existing_code_id)
-      {
-        LOG_FAIL_FMT(
-          "Proposal {}: No such code id in table: {}",
-          proposal_id,
-          ds::to_hex(code_id.data));
-        return false;
-      }
-      code_ids->remove(code_id);
-      return true;
-    }
-
-    //! Table of functions that proposal scripts can propose to invoke
-    const std::unordered_map<
-      std::string,
-      std::function<bool(const ProposalId&, kv::Tx&, const nlohmann::json&)>>
-      hardcoded_funcs = {
-        // deploy the js application bundle
-        {"set_js_app",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto parsed = args.get<DeployJsApp>();
-           return set_js_app(tx, parsed.bundle);
-         }},
-        // undeploy/remove the js application
-        {"remove_js_app",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json&) {
-           return remove_js_app(tx);
-         }},
-        // add a new member
-        {"new_member",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto parsed = args.get<NewMember>();
-           GenesisGenerator g(this->network, tx);
-           g.add_member(parsed);
-
-           return true;
-         }},
-        // retire an existing member
-        {"remove_member",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto member_id = args.get<MemberId>();
-
-           GenesisGenerator g(this->network, tx);
-           bool is_active = g.is_active_member(member_id);
-           bool is_recovery = g.is_recovery_member(member_id);
-           if (!g.remove_member(member_id))
-           {
-             return false;
-           }
-
-           if (is_active && is_recovery)
-           {
-             // A retired recovery member should not have access to the private
-             // ledger going forward so rekey ledger, issuing new share to
-             // remaining active members
-             if (!context.get_node_state().rekey_ledger(tx))
-             {
-               return false;
-             }
-           }
-
-           return true;
-         }},
-        {"set_member_data",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
-           const auto parsed = args.get<SetMemberData>();
-           auto members = tx.rw(this->network.member_info);
-           auto member_info = members->get(parsed.member_id);
-           if (!member_info.has_value())
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: {} is not a valid member ID",
-               proposal_id,
-               parsed.member_id);
-             return false;
-           }
-
-           member_info->member_data = parsed.member_data;
-           members->put(parsed.member_id, member_info.value());
-           return true;
-         }},
-        {"set_user",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto user_info = args.get<NewUser>();
-
-           GenesisGenerator g(this->network, tx);
-           g.add_user(user_info);
-
-           return true;
-         }},
-        {"remove_user",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const UserId user_id = args;
-
-           GenesisGenerator g(this->network, tx);
-           g.remove_user(user_id);
-
-           return true;
-         }},
-        {"set_user_data",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
-           const auto parsed = args.get<SetUserData>();
-           auto users = tx.rw(this->network.user_certs);
-           auto user = users->get(parsed.user_id);
-           if (!user.has_value())
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: {} is not a valid user",
-               proposal_id,
-               parsed.user_id);
-             return false;
-           }
-
-           auto user_info = tx.rw(this->network.user_info);
-           user_info->put(parsed.user_id, {parsed.user_data});
-           return true;
-         }},
-        {"set_ca_cert_bundle",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
-           const auto parsed = args.get<SetCaCertBundle>();
-           auto ca_cert_bundles = tx.rw(this->network.ca_cert_bundles);
-           try
-           {
-             tls::CA(parsed.cert_bundle);
-           }
-           catch (const std::logic_error& e)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: 'cert_bundle' is not a valid X.509 certificate "
-               "bundle in "
-               "PEM format: {}",
-               proposal_id,
-               e.what());
-             return false;
-           }
-           ca_cert_bundles->put(parsed.name, parsed.cert_bundle);
-           return true;
-         }},
-        {"remove_ca_cert_bundle",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto cert_bundle_name = args.get<std::string>();
-           auto ca_cert_bundles = tx.rw(this->network.ca_cert_bundles);
-           ca_cert_bundles->remove(cert_bundle_name);
-           return true;
-         }},
-        {"set_jwt_issuer",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
-           const auto parsed = args.get<SetJwtIssuer>();
-           auto issuers = tx.rw(this->network.jwt_issuers);
-           auto ca_cert_bundles = tx.ro(this->network.ca_cert_bundles);
-
-           if (parsed.auto_refresh)
-           {
-             if (!parsed.ca_cert_bundle_name.has_value())
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: ca_cert_bundle_name is missing but required if "
-                 "auto_refresh is true",
-                 proposal_id);
-               return false;
-             }
-             if (!ca_cert_bundles->has(parsed.ca_cert_bundle_name.value()))
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: No CA cert list found with name '{}'",
-                 proposal_id,
-                 parsed.ca_cert_bundle_name.value());
-               return false;
-             }
-             http::URL issuer_url;
-             try
-             {
-               issuer_url = http::parse_url_full(parsed.issuer);
-             }
-             catch (const std::runtime_error&)
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: issuer must be a URL if auto_refresh is true",
-                 proposal_id);
-               return false;
-             }
-             if (issuer_url.scheme != "https")
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: issuer must be a URL starting with https:// if "
-                 "auto_refresh is true",
-                 proposal_id);
-               return false;
-             }
-             if (!issuer_url.query.empty() || !issuer_url.fragment.empty())
-             {
-               LOG_FAIL_FMT(
-                 "Proposal {}: issuer must be a URL without query/fragment if "
-                 "auto_refresh is true",
-                 proposal_id);
-               return false;
-             }
-           }
-
-           bool success = true;
-           if (parsed.jwks.has_value())
-           {
-             success = set_jwt_public_signing_keys(
-               tx, proposal_id, parsed.issuer, parsed, parsed.jwks.value());
-           }
-           if (success)
-           {
-             issuers->put(parsed.issuer, parsed);
-           }
-
-           return success;
-         }},
-        {"remove_jwt_issuer",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json& args) {
-           const auto parsed = args.get<RemoveJwtIssuer>();
-           const auto issuer = parsed.issuer;
-           auto issuers = tx.rw(this->network.jwt_issuers);
-
-           if (!issuers->remove(issuer))
-           {
-             return true;
-           }
-
-           remove_jwt_public_signing_keys(tx, issuer);
-
-           return true;
-         }},
-        {"set_jwt_public_signing_keys",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
-           const auto parsed = args.get<SetJwtPublicSigningKeys>();
-
-           auto issuers = tx.rw(this->network.jwt_issuers);
-           auto issuer_metadata_ = issuers->get(parsed.issuer);
-           if (!issuer_metadata_.has_value())
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: {} is not a valid issuer",
-               proposal_id,
-               parsed.issuer);
-             return false;
-           }
-           auto& issuer_metadata = issuer_metadata_.value();
-
-           return set_jwt_public_signing_keys(
-             tx, proposal_id, parsed.issuer, issuer_metadata, parsed.jwks);
-         }},
-        // accept a node
-        {"trust_node",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
-           const auto node_id = args.get<NodeId>();
-           try
-           {
-             GenesisGenerator g(network, tx);
-             g.trust_node(
-               node_id, network.ledger_secrets->get_latest(tx).first);
-           }
-           catch (const std::logic_error& e)
-           {
-             LOG_FAIL_FMT("Proposal {} failed: {}", proposal_id, e.what());
-             return false;
-           }
-           return true;
-         }},
-        // retire a node
-        {"retire_node",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
-           const auto id = args.get<NodeId>();
-           auto nodes = tx.rw(this->network.nodes);
-           auto node_info = nodes->get(id);
-           if (!node_info.has_value())
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node {} does not exist", proposal_id, id);
-             return false;
-           }
-           if (node_info->status == NodeStatus::RETIRED)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node {} is already retired", proposal_id, id);
-             return false;
-           }
-           node_info->status = NodeStatus::RETIRED;
-           nodes->put(id, node_info.value());
-           LOG_INFO_FMT("Node {} is now {}", id, node_info->status);
-           return true;
-         }},
-        // accept new node code ID
-        {"new_node_code",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
-           return this->add_new_code_id(
-             tx,
-             args.get<CodeDigest>(),
-             this->network.node_code_ids,
-             proposal_id);
-         }},
-        // retire node code ID
-        {"retire_node_code",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
-           return this->retire_code_id(
-             tx,
-             args.get<CodeDigest>(),
-             this->network.node_code_ids,
-             proposal_id);
-         }},
-        {"transition_service_to_open",
-         [this](const ProposalId&, kv::Tx& tx, const nlohmann::json&) {
-           context.get_node_state().transition_service_to_open(tx);
-           return true;
-         }},
-        {"rekey_ledger",
-         [this](
-           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           const auto ledger_rekeyed =
-             context.get_node_state().rekey_ledger(tx);
-           if (!ledger_rekeyed)
-           {
-             LOG_FAIL_FMT("Proposal {}: Ledger rekey failed", proposal_id);
-           }
-           return ledger_rekeyed;
-         }},
-        {"update_recovery_shares",
-         [this](
-           const ProposalId& proposal_id, kv::Tx& tx, const nlohmann::json&) {
-           try
-           {
-             share_manager.shuffle_recovery_shares(tx);
-           }
-           catch (const std::logic_error& e)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Updating recovery shares failed: {}",
-               proposal_id,
-               e.what());
-             return false;
-           }
-           return true;
-         }},
-        {"set_recovery_threshold",
-         [this](
-           const ProposalId& proposal_id,
-           kv::Tx& tx,
-           const nlohmann::json& args) {
-           const auto new_recovery_threshold = args.get<size_t>();
-
-           GenesisGenerator g(this->network, tx);
-
-           if (new_recovery_threshold == g.get_recovery_threshold())
-           {
-             // If the recovery threshold is the same as before, return with no
-             // effect
-             return true;
-           }
-
-           if (!g.set_recovery_threshold(new_recovery_threshold))
-           {
-             return false;
-           }
-
-           try
-           {
-             share_manager.shuffle_recovery_shares(tx);
-           }
-           catch (const std::logic_error& e)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Setting recovery threshold failed: {}",
-               proposal_id,
-               e.what());
-             return false;
-           }
-           return true;
-         }},
-      };
-
-    ProposalInfo complete_proposal(
-      kv::Tx& tx, const ProposalId& proposal_id, Proposal& proposal)
-    {
-      if (proposal.state != ProposalState::OPEN)
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot complete non-open proposal - current state is {}",
-          proposal.state));
-      }
-
-      auto proposals = tx.rw(this->network.proposals);
-
-      // run proposal script
-      const auto proposed_calls = tsr.run<nlohmann::json>(
-        tx,
-        {proposal.script,
-         {}, // can't write
-         WlIds::MEMBER_CAN_READ,
-         get_script(tx, GovScriptIds::ENV_PROPOSAL)},
-        // vvv arguments to script vvv
-        proposal.parameter);
-
-      nlohmann::json votes = nlohmann::json::object();
-      // Collect all member votes
-      for (const auto& vote : proposal.votes)
-      {
-        // valid voter
-        if (!check_member_active(tx, vote.first))
-        {
-          continue;
-        }
-
-        // does the voter agree?
-        votes[vote.first.value()] = tsr.run<bool>(
-          tx,
-          {vote.second,
-           {}, // can't write
-           WlIds::MEMBER_CAN_READ,
-           {}},
-          proposed_calls);
-      }
-
-      const auto pass = tsr.run<int>(
-        tx,
-        {get_script(tx, GovScriptIds::PASS),
-         {}, // can't write
-         WlIds::MEMBER_CAN_READ,
-         {}},
-        // vvv arguments to script vvv
-        proposed_calls,
-        votes,
-        proposal.proposer);
-
-      switch (pass)
-      {
-        case CompletionResult::PASSED:
-        {
-          // vote passed, go on to update the state
-          break;
-        }
-        case CompletionResult::PENDING:
-        {
-          // vote is pending, return false but do not update state
-          return get_proposal_info(proposal_id, proposal);
-        }
-        case CompletionResult::REJECTED:
-        {
-          // vote unsuccessful, update the proposal's state
-          proposal.state = ProposalState::REJECTED;
-          proposals->put(proposal_id, proposal);
-          return get_proposal_info(proposal_id, proposal);
-        }
-        default:
-        {
-          throw std::logic_error(fmt::format(
-            "Invalid completion result ({}) for proposal {}",
-            pass,
-            proposal_id));
-        }
-      };
-
-      // execute proposed calls
-      ProposedCalls pc = proposed_calls;
-      std::optional<std::string> unknown_call = std::nullopt;
-      for (const auto& call : pc)
-      {
-        // proposing a hardcoded C++ function?
-        const auto f = hardcoded_funcs.find(call.func);
-        if (f != hardcoded_funcs.end())
-        {
-          if (!f->second(proposal_id, tx, call.args))
-          {
-            proposal.state = ProposalState::FAILED;
-            proposals->put(proposal_id, proposal);
-            return get_proposal_info(proposal_id, proposal);
-          }
-          continue;
-        }
-
-        // proposing a script function?
-        const auto s = tx.rw(network.gov_scripts)->get(call.func);
-        if (!s.has_value())
-        {
-          unknown_call = call.func;
-          break;
-        }
-        tsr.run<void>(
-          tx,
-          {s.value(),
-           WlIds::MEMBER_CAN_PROPOSE, // can write!
-           {},
-           {}},
-          call.args);
-      }
-
-      if (!unknown_call.has_value())
-      {
-        // if the vote was successful, update the proposal's state
-        proposal.state = ProposalState::ACCEPTED;
-      }
-      else
-      {
-        // If any function in the proposal is unknown, mark the proposal as
-        // failed
-        LOG_FAIL_FMT(
-          "Proposal {}: \"{}\" call is unknown",
-          proposal_id,
-          unknown_call.value());
-        proposal.state = ProposalState::FAILED;
-      }
-      proposals->put(proposal_id, proposal);
-
-      return get_proposal_info(proposal_id, proposal);
-    }
-
-#ifdef ENABLE_JS_GOV
-
-#  pragma clang diagnostic push
-#  pragma clang diagnostic ignored "-Wc99-extensions"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-extensions"
 
     ccf::jsgov::ProposalInfoSummary resolve_proposal(
       kv::Tx& tx,
@@ -823,8 +181,7 @@ namespace ccf
       const std::vector<uint8_t>& proposal,
       const std::string& constitution)
     {
-      auto pi =
-        tx.rw<ccf::jsgov::ProposalInfoMap>("public:ccf.gov.proposals_info.js");
+      auto pi = tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
       auto pi_ = pi->get(proposal_id);
 
       std::vector<std::pair<MemberId, bool>> votes;
@@ -836,7 +193,7 @@ namespace ccf
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_console(context);
         js::populate_global_ccf(
-          &txctx, std::nullopt, nullptr, nullptr, nullptr, context);
+          &txctx, nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
         auto ballot_func = context.function(
           mb,
           "vote",
@@ -869,7 +226,7 @@ namespace ccf
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_ccf(
-          &txctx, std::nullopt, nullptr, nullptr, nullptr, js_context);
+          &txctx, nullptr, std::nullopt, nullptr, nullptr, nullptr, js_context);
         auto resolve_func = js_context.function(
           constitution, "resolve", "public:ccf.gov.constitution[0]");
         JSValue argv[3];
@@ -969,6 +326,7 @@ namespace ccf
             js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
             js::populate_global_ccf(
               &txctx,
+              nullptr,
               std::nullopt,
               nullptr,
               &context.get_node_state(),
@@ -1012,8 +370,7 @@ namespace ccf
       }
     }
 
-#  pragma clang diagnostic pop
-#endif
+#pragma clang diagnostic pop
 
     bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
     {
@@ -1047,12 +404,6 @@ namespace ccf
       governance_history->put(caller_id, {signed_request});
     }
 
-    static ProposalInfo get_proposal_info(
-      const ProposalId& proposal_id, const Proposal& proposal)
-    {
-      return ProposalInfo{proposal_id, proposal.proposer, proposal.state};
-    }
-
     bool get_proposal_id_from_path(
       const enclave::PathParams& params,
       ProposalId& proposal_id,
@@ -1071,7 +422,6 @@ namespace ccf
 
     NetworkState& network;
     ShareManager& share_manager;
-    const MemberTsr tsr;
 
   public:
     MemberEndpoints(
@@ -1080,8 +430,7 @@ namespace ccf
       ShareManager& share_manager) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_),
       network(network),
-      share_manager(share_manager),
-      tsr(network)
+      share_manager(share_manager)
     {
       openapi_info.title = "CCF Governance API";
       openapi_info.description =
@@ -1117,343 +466,6 @@ namespace ccf
 
       const AuthnPolicies member_cert_or_sig = {member_cert_auth_policy,
                                                 member_signature_auth_policy};
-
-      auto propose = [this](auto& ctx, nlohmann::json&& params) {
-        const auto& caller_identity =
-          ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>();
-        if (!check_member_active(ctx.tx, caller_identity.member_id))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not active.");
-        }
-
-        const auto in = params.get<Propose::In>();
-
-        if (!consensus)
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "No consensus available.");
-        }
-
-        std::string proposal_id;
-
-        if (consensus->type() == ConsensusType::CFT)
-        {
-          auto root_at_read = ctx.tx.get_root_at_read_version();
-          if (!root_at_read.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Proposal failed to bind to state.");
-          }
-
-          // caller_identity.request_digest is set when getting the
-          // MemberSignatureAuthnIdentity identity. The proposal id is a digest
-          // of the root of the state tree at the read version and the request
-          // digest.
-          std::vector<uint8_t> acc(
-            root_at_read.value().h.begin(), root_at_read.value().h.end());
-          acc.insert(
-            acc.end(),
-            caller_identity.request_digest.begin(),
-            caller_identity.request_digest.end());
-          const crypto::Sha256Hash proposal_digest(acc);
-          proposal_id = proposal_digest.hex_str();
-        }
-        else
-        {
-          proposal_id = fmt::format(
-            "{:02x}", fmt::join(caller_identity.request_digest, ""));
-        }
-
-        Proposal proposal(in.script, in.parameter, caller_identity.member_id);
-        auto proposals = ctx.tx.rw(this->network.proposals);
-        // Introduce a read dependency, so that if identical proposal creations
-        // are in-flight and reading at the same version, all except the first
-        // conflict and are re-executed. If we ever produce a proposal ID which
-        // already exists, we must have a hash collision.
-        if (proposals->has(proposal_id))
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Proposal ID collision.");
-        }
-        proposals->put(proposal_id, proposal);
-
-        record_voting_history(
-          ctx.tx, caller_identity.member_id, caller_identity.signed_request);
-
-        return make_success(
-          Propose::Out{complete_proposal(ctx.tx, proposal_id, proposal)});
-      };
-      make_endpoint(
-        "proposals", HTTP_POST, json_adapter(propose), member_sig_only)
-        .set_auto_schema<Propose>()
-        .install();
-
-      auto get_proposal = [this](auto& ctx, nlohmann::json&&) {
-        const auto member_id = get_caller_member_id(ctx);
-        if (!member_id.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is unknown.");
-        }
-
-        if (!check_member_active(ctx.tx, member_id.value()))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not active.");
-        }
-
-        ProposalId proposal_id;
-        std::string error;
-        if (!get_proposal_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
-
-        auto proposals = ctx.tx.ro(this->network.proposals);
-        auto proposal = proposals->get(proposal_id);
-
-        if (!proposal)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ProposalNotFound,
-            fmt::format("Proposal {} does not exist.", proposal_id));
-        }
-
-        return make_success(proposal.value());
-      };
-      make_read_only_endpoint(
-        "proposals/{proposal_id}",
-        HTTP_GET,
-        json_read_only_adapter(get_proposal),
-        member_cert_or_sig)
-        .set_auto_schema<void, Proposal>()
-        .install();
-
-      auto withdraw = [this](auto& ctx, nlohmann::json&&) {
-        const auto& caller_identity =
-          ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>();
-        if (!check_member_active(ctx.tx, caller_identity.member_id))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not active.");
-        }
-
-        ProposalId proposal_id;
-        std::string error;
-        if (!get_proposal_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
-
-        auto proposals = ctx.tx.rw(this->network.proposals);
-        auto proposal = proposals->get(proposal_id);
-
-        if (!proposal)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ProposalNotFound,
-            fmt::format("Proposal {} does not exist.", proposal_id));
-        }
-
-        if (proposal->proposer != caller_identity.member_id)
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            fmt::format(
-              "Proposal {} can only be withdrawn by proposer {}, not caller "
-              "{}.",
-              proposal_id,
-              proposal->proposer,
-              caller_identity.member_id));
-        }
-
-        if (proposal->state != ProposalState::OPEN)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ProposalNotOpen,
-            fmt::format(
-              "Proposal {} is currently in state {} - only {} proposals can be "
-              "withdrawn.",
-              proposal_id,
-              proposal->state,
-              ProposalState::OPEN));
-        }
-
-        proposal->state = ProposalState::WITHDRAWN;
-        proposals->put(proposal_id, proposal.value());
-        record_voting_history(
-          ctx.tx, caller_identity.member_id, caller_identity.signed_request);
-
-        return make_success(get_proposal_info(proposal_id, proposal.value()));
-      };
-      make_endpoint(
-        "proposals/{proposal_id}/withdraw",
-        HTTP_POST,
-        json_adapter(withdraw),
-        member_sig_only)
-        .set_auto_schema<void, ProposalInfo>()
-        .install();
-
-      auto vote = [this](auto& ctx, nlohmann::json&& params) {
-        const auto& caller_identity =
-          ctx.template get_caller<ccf::MemberSignatureAuthnIdentity>();
-
-        if (!check_member_active(ctx.tx, caller_identity.member_id))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not active.");
-        }
-
-        ProposalId proposal_id;
-        std::string error;
-        if (!get_proposal_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
-
-        auto proposals = ctx.tx.rw(this->network.proposals);
-        auto proposal = proposals->get(proposal_id);
-        if (!proposal)
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ProposalNotFound,
-            fmt::format("Proposal {} does not exist.", proposal_id));
-        }
-
-        if (proposal->state != ProposalState::OPEN)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::ProposalNotOpen,
-            fmt::format(
-              "Proposal {} is currently in state {} - only {} proposals can "
-              "receive votes.",
-              proposal_id,
-              proposal->state,
-              ProposalState::OPEN));
-        }
-
-        const auto vote = params.get<Vote>();
-        if (
-          proposal->votes.find(caller_identity.member_id) !=
-          proposal->votes.end())
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::VoteAlreadyExists,
-            "Vote already submitted.");
-        }
-        proposal->votes[caller_identity.member_id] = vote.ballot;
-        proposals->put(proposal_id, proposal.value());
-
-        record_voting_history(
-          ctx.tx, caller_identity.member_id, caller_identity.signed_request);
-
-        return make_success(
-          complete_proposal(ctx.tx, proposal_id, proposal.value()));
-      };
-      make_endpoint(
-        "proposals/{proposal_id}/votes",
-        HTTP_POST,
-        json_adapter(vote),
-        member_sig_only)
-        .set_auto_schema<Vote, ProposalInfo>()
-        .install();
-
-      auto get_vote = [this](auto& ctx, nlohmann::json&&) {
-        const auto member_id = get_caller_member_id(ctx);
-        if (!member_id.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is unknown.");
-        }
-
-        if (!check_member_active(ctx.tx, member_id.value()))
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Member is not active.");
-        }
-
-        std::string error;
-        ProposalId proposal_id;
-        if (!get_proposal_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
-
-        MemberId vote_member_id;
-        if (!get_member_id_from_path(
-              ctx.rpc_ctx->get_request_path_params(), vote_member_id, error))
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
-        }
-
-        auto proposals = ctx.tx.ro(this->network.proposals);
-        auto proposal = proposals->get(proposal_id);
-        if (!proposal)
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::ProposalNotFound,
-            fmt::format("Proposal {} does not exist.", proposal_id));
-        }
-
-        const auto vote_it = proposal->votes.find(vote_member_id);
-        if (vote_it == proposal->votes.end())
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            ccf::errors::VoteNotFound,
-            fmt::format(
-              "Member {} has not voted for proposal {}.",
-              vote_member_id,
-              proposal_id));
-        }
-
-        return make_success(vote_it->second);
-      };
-      make_read_only_endpoint(
-        "proposals/{proposal_id}/votes/{member_id}",
-        HTTP_GET,
-        json_read_only_adapter(get_vote),
-        member_cert_or_sig)
-        .set_auto_schema<void, Vote>()
-        .install();
 
       //! A member acknowledges state
       auto ack = [this](auto& ctx, nlohmann::json&& params) {
@@ -1770,15 +782,7 @@ namespace ccf
         g.trust_node_code_id(in.code_digest);
 #endif
 
-        for (const auto& wl : default_whitelists)
-        {
-          g.set_whitelist(wl.first, wl.second);
-        }
-
-        g.set_gov_scripts(
-          lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
-
-        ctx.tx.rw(this->network.constitution)->put(0, in.constitution);
+        g.set_constitution(in.constitution);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);
@@ -1889,11 +893,8 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      // JavaScript governance
-#ifdef ENABLE_JS_GOV
-
-#  pragma clang diagnostic push
-#  pragma clang diagnostic ignored "-Wc99-extensions"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-extensions"
 
       auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
         const auto& caller_identity =
@@ -1964,7 +965,7 @@ namespace ccf
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::populate_global_ccf(
-          nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
+          nullptr, nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
 
         auto validate_func = context.function(
           validate_script, "validate", "public:ccf.gov.constitution[0]");
@@ -2020,8 +1021,7 @@ namespace ccf
           return;
         }
 
-        auto pm =
-          ctx.tx.rw<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+        auto pm = ctx.tx.rw<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
         // Introduce a read dependency, so that if identical proposal
         // creations are in-flight and reading at the same version, all except
         // the first conflict and are re-executed. If we ever produce a
@@ -2036,8 +1036,8 @@ namespace ccf
         }
         pm->put(proposal_id, ctx.rpc_ctx->get_request_body());
 
-        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
-          "public:ccf.gov.proposals_info.js");
+        auto pi =
+          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
         pi->put(
           proposal_id,
           {caller_identity.member_id, ccf::ProposalState::OPEN, {}});
@@ -2064,9 +1064,8 @@ namespace ccf
         ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
       };
 
-      make_endpoint(
-        "proposals.js", HTTP_POST, post_proposals_js, member_sig_only)
-        .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfo>()
+      make_endpoint("proposals", HTTP_POST, post_proposals_js, member_sig_only)
+        .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfoSummary>()
         .install();
 
       auto get_proposal_js =
@@ -2099,8 +1098,7 @@ namespace ccf
               HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
           }
 
-          auto pm =
-            ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+          auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
           auto p = pm->get(proposal_id);
 
           if (!p)
@@ -2111,8 +1109,8 @@ namespace ccf
               fmt::format("Proposal {} does not exist.", proposal_id));
           }
 
-          auto pi = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(
-            "public:ccf.gov.proposals_info.js");
+          auto pi =
+            ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
           auto pi_ = pi->get(proposal_id);
 
           if (!pi_)
@@ -2128,7 +1126,7 @@ namespace ccf
         };
 
       make_read_only_endpoint(
-        "proposals.js/{proposal_id}",
+        "proposals/{proposal_id}",
         HTTP_GET,
         json_read_only_adapter(get_proposal_js),
         member_cert_or_sig)
@@ -2156,8 +1154,8 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
         }
 
-        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
-          "public:ccf.gov.proposals_info.js");
+        auto pi =
+          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
         auto pi_ = pi->get(proposal_id);
 
         if (!pi_)
@@ -2204,7 +1202,7 @@ namespace ccf
       };
 
       make_endpoint(
-        "proposals.js/{proposal_id}/withdraw",
+        "proposals/{proposal_id}/withdraw",
         HTTP_POST,
         json_adapter(withdraw_js),
         member_sig_only)
@@ -2236,8 +1234,7 @@ namespace ccf
             return;
           }
 
-          auto pm =
-            ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+          auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
           auto p = pm->get(proposal_id);
 
           if (!p)
@@ -2256,7 +1253,7 @@ namespace ccf
         };
 
       make_read_only_endpoint(
-        "proposals.js/{proposal_id}/actions",
+        "proposals/{proposal_id}/actions",
         HTTP_GET,
         get_proposal_actions_js,
         member_cert_or_sig)
@@ -2294,8 +1291,8 @@ namespace ccf
             "No constitution is set - proposals cannot be evaluated");
         }
 
-        auto pi = ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(
-          "public:ccf.gov.proposals_info.js");
+        auto pi =
+          ctx.tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
         auto pi_ = pi->get(proposal_id);
         if (!pi_)
         {
@@ -2318,8 +1315,7 @@ namespace ccf
               ProposalState::OPEN));
         }
 
-        auto pm =
-          ctx.tx.ro<ccf::jsgov::ProposalMap>("public:ccf.gov.proposals.js");
+        auto pm = ctx.tx.ro<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
         auto p = pm->get(proposal_id);
 
         if (!p)
@@ -2363,7 +1359,7 @@ namespace ccf
         return make_success(rv);
       };
       make_endpoint(
-        "proposals.js/{proposal_id}/ballots",
+        "proposals/{proposal_id}/ballots",
         HTTP_POST,
         json_adapter(vote_js),
         member_sig_only)
@@ -2405,8 +1401,8 @@ namespace ccf
               HTTP_STATUS_BAD_REQUEST, ccf::errors::InvalidResourceName, error);
           }
 
-          auto pi = ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(
-            "public:ccf.gov.proposals_info.js");
+          auto pi =
+            ctx.tx.ro<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
           auto pi_ = pi->get(proposal_id);
           if (!pi_)
           {
@@ -2431,16 +1427,14 @@ namespace ccf
           return make_success(jsgov::Ballot{vote_it->second});
         };
       make_read_only_endpoint(
-        "proposals.js/{proposal_id}/ballots/{member_id}",
+        "proposals/{proposal_id}/ballots/{member_id}",
         HTTP_GET,
         json_read_only_adapter(get_vote_js),
         member_cert_or_sig)
         .set_auto_schema<void, jsgov::Ballot>()
         .install();
 
-#  pragma clang diagnostic pop
-
-#endif
+#pragma clang diagnostic pop
     }
   };
 

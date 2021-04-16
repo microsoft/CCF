@@ -64,7 +64,6 @@ struct CCFConfig
   struct Genesis
   {
     std::vector<ccf::NewMember> members_info;
-    std::string gov_script;
     std::string constitution;
     size_t recovery_threshold;
   };
@@ -93,11 +92,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 DECLARE_JSON_TYPE(CCFConfig::Genesis);
 DECLARE_JSON_REQUIRED_FIELDS(
-  CCFConfig::Genesis,
-  members_info,
-  gov_script,
-  constitution,
-  recovery_threshold);
+  CCFConfig::Genesis, members_info, constitution, recovery_threshold);
 
 DECLARE_JSON_TYPE(CCFConfig::Joining);
 DECLARE_JSON_REQUIRED_FIELDS(

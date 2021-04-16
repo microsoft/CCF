@@ -77,7 +77,7 @@ Supporting Types
 .. doxygentypedef:: ccf::SeqNo
    :project: CCF
    
-.. doxygentypedef:: ccf::TxID
+.. doxygenstruct:: ccf::TxID
    :project: CCF
    
 .. doxygenenum:: ccf::ApiResult

@@ -92,6 +92,24 @@
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
       },
+      "EntityId_to_string": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "$ref": "#/components/schemas/string"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
+      },
       "GetCode__Out": {
         "properties": {
           "versions": {
@@ -174,7 +192,13 @@
       },
       "ProposalInfo": {
         "properties": {
-          "proposal_id": {
+          "ballots": {
+            "$ref": "#/components/schemas/EntityId_to_string"
+          },
+          "failure_reason": {
+            "$ref": "#/components/schemas/string"
+          },
+          "failure_trace": {
             "$ref": "#/components/schemas/string"
           },
           "proposer_id": {
@@ -185,9 +209,9 @@
           }
         },
         "required": [
-          "proposal_id",
           "proposer_id",
-          "state"
+          "state",
+          "ballots"
         ],
         "type": "object"
       },
@@ -230,20 +254,6 @@
           "Dropped"
         ],
         "type": "string"
-      },
-      "Propose__In": {
-        "properties": {
-          "parameter": {
-            "$ref": "#/components/schemas/json"
-          },
-          "script": {
-            "$ref": "#/components/schemas/Script"
-          }
-        },
-        "required": [
-          "script"
-        ],
-        "type": "object"
       },
       "Receipt": {
         "properties": {
@@ -289,17 +299,6 @@
         },
         "type": "array"
       },
-      "Script": {
-        "properties": {
-          "bytecode": {
-            "$ref": "#/components/schemas/base64string"
-          },
-          "text": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "type": "object"
-      },
       "StateDigest": {
         "properties": {
           "state_digest": {
@@ -344,21 +343,6 @@
           "Committed",
           "Invalid"
         ],
-        "type": "string"
-      },
-      "Vote": {
-        "properties": {
-          "ballot": {
-            "$ref": "#/components/schemas/Script"
-          }
-        },
-        "required": [
-          "ballot"
-        ],
-        "type": "object"
-      },
-      "base64string": {
-        "format": "base64",
         "type": "string"
       },
       "json": {},
@@ -527,37 +511,6 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Propose__In"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProposalInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ]
-      }
-    },
-    "/proposals.js": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
                 "$ref": "#/components/schemas/Proposal"
               }
             }
@@ -569,7 +522,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProposalInfo"
+                  "$ref": "#/components/schemas/ProposalInfoSummary"
                 }
               }
             },
@@ -583,7 +536,7 @@
         ]
       }
     },
-    "/proposals.js/{proposal_id}": {
+    "/proposals/{proposal_id}": {
       "get": {
         "responses": {
           "200": {
@@ -614,7 +567,7 @@
         }
       ]
     },
-    "/proposals.js/{proposal_id}/actions": {
+    "/proposals/{proposal_id}/actions": {
       "get": {
         "responses": {
           "200": {
@@ -645,7 +598,7 @@
         }
       ]
     },
-    "/proposals.js/{proposal_id}/ballots": {
+    "/proposals/{proposal_id}/ballots": {
       "parameters": [
         {
           "in": "path",
@@ -686,7 +639,7 @@
         ]
       }
     },
-    "/proposals.js/{proposal_id}/ballots/{member_id}": {
+    "/proposals/{proposal_id}/ballots/{member_id}": {
       "get": {
         "responses": {
           "200": {
@@ -694,148 +647,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Ballot"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ]
-      },
-      "parameters": [
-        {
-          "in": "path",
-          "name": "proposal_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        },
-        {
-          "in": "path",
-          "name": "member_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ]
-    },
-    "/proposals.js/{proposal_id}/withdraw": {
-      "parameters": [
-        {
-          "in": "path",
-          "name": "proposal_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
-      "post": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProposalInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ]
-      }
-    },
-    "/proposals/{proposal_id}": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Proposal"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ]
-      },
-      "parameters": [
-        {
-          "in": "path",
-          "name": "proposal_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ]
-    },
-    "/proposals/{proposal_id}/votes": {
-      "parameters": [
-        {
-          "in": "path",
-          "name": "proposal_id",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Vote"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProposalInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        },
-        "security": [
-          {
-            "member_signature": []
-          }
-        ]
-      }
-    },
-    "/proposals/{proposal_id}/votes/{member_id}": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Vote"
                 }
               }
             },

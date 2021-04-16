@@ -103,12 +103,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="The enclave package to load (e.g., liblogging)",
     )
     parser.add_argument(
-        "-g",
-        "--gov-script",
-        help="Path to governance script",
-        type=absolute_path_to_existing_file,
-    )
-    parser.add_argument(
         "--constitution",
         help="One or more paths to constitution script fragments",
         action="append",
