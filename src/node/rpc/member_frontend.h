@@ -207,7 +207,8 @@ namespace ccf
       auto pi_ = pi->get(proposal_id);
 
       std::vector<std::pair<MemberId, bool>> votes;
-      std::unordered_map<ccf::MemberId, bool> final_votes = {};
+      std::optional<std::unordered_map<ccf::MemberId, bool>> final_votes =
+        std::nullopt;
       for (const auto& [mid, mb] : pi_->ballots)
       {
         js::Runtime rt;
@@ -340,9 +341,10 @@ namespace ccf
         if (pi_.value().state != ProposalState::OPEN)
         {
           remove_all_other_non_open_proposals(tx, proposal_id);
+          final_votes = std::unordered_map<ccf::MemberId, bool>();
           for (auto& [mid, vote] : votes)
           {
-            final_votes[mid] = vote;
+            final_votes.value()[mid] = vote;
           }
           if (pi_.value().state == ProposalState::ACCEPTED)
           {

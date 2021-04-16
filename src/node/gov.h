@@ -12,20 +12,22 @@ namespace ccf
   namespace jsgov
   {
     using ProposalId = std::string;
+    using Ballots = std::unordered_map<ccf::MemberId, std::string>;
+    using Votes = std::unordered_map<ccf::MemberId, bool>;
 
     struct ProposalInfo
     {
       ccf::MemberId proposer_id;
       ccf::ProposalState state;
-      std::unordered_map<ccf::MemberId, std::string> ballots = {};
-      std::unordered_map<ccf::MemberId, bool> final_votes = {};
+      Ballots ballots = {};
+      std::optional<Votes> final_votes = {};
       std::optional<std::string> failure_reason = std::nullopt;
       std::optional<std::string> failure_trace = std::nullopt;
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalInfo);
-    DECLARE_JSON_REQUIRED_FIELDS(
-      ProposalInfo, proposer_id, state, ballots, final_votes);
-    DECLARE_JSON_OPTIONAL_FIELDS(ProposalInfo, failure_reason, failure_trace);
+    DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposer_id, state, ballots);
+    DECLARE_JSON_OPTIONAL_FIELDS(
+      ProposalInfo, final_votes, failure_reason, failure_trace);
 
     struct ProposalInfoSummary
     {
@@ -33,20 +35,15 @@ namespace ccf
       ccf::MemberId proposer_id;
       ccf::ProposalState state;
       size_t ballot_count;
-      std::unordered_map<ccf::MemberId, bool> votes = {};
+      std::optional<Votes> votes = {};
       std::optional<std::string> failure_reason = std::nullopt;
       std::optional<std::string> failure_trace = std::nullopt;
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalInfoSummary);
     DECLARE_JSON_REQUIRED_FIELDS(
-      ProposalInfoSummary,
-      proposal_id,
-      proposer_id,
-      state,
-      ballot_count,
-      votes);
+      ProposalInfoSummary, proposal_id, proposer_id, state, ballot_count);
     DECLARE_JSON_OPTIONAL_FIELDS(
-      ProposalInfoSummary, failure_reason, failure_trace);
+      ProposalInfoSummary, votes, failure_reason, failure_trace);
 
     struct ProposalInfoDetails
     {
@@ -57,7 +54,7 @@ namespace ccf
       /// Proposal state
       ccf::ProposalState state;
       /// Ballots (scripts) submitted for the proposal
-      std::unordered_map<ccf::MemberId, std::string> ballots = {};
+      Ballots ballots = {};
     };
     DECLARE_JSON_TYPE(ProposalInfoDetails);
     DECLARE_JSON_REQUIRED_FIELDS(
