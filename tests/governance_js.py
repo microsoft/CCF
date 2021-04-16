@@ -281,7 +281,7 @@ def test_vote_failure_reporting(network, args):
         proposal_id = r.body.json()["proposal_id"]
 
         ballot = {
-            "ballot": f'export function vote (proposal, proposer_id) {{ throw new Error("Sample error") }}'
+            "ballot": 'export function vote (proposal, proposer_id) {{ throw new Error("Sample error") }}'
         }
         r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
@@ -289,7 +289,7 @@ def test_vote_failure_reporting(network, args):
 
     with node.client(None, "member1") as c:
         ballot = {
-            "ballot": f"export function vote (proposal, proposer_id) {{ return true; }}"
+            "ballot": "export function vote (proposal, proposer_id) {{ return true; }}"
         }
         r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
