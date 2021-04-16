@@ -92,6 +92,42 @@
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
       },
+      "EntityId_to_Failure": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "$ref": "#/components/schemas/Failure"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "EntityId_to_boolean": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "$ref": "#/components/schemas/boolean"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
+      },
       "EntityId_to_string": {
         "items": {
           "items": {
@@ -109,6 +145,20 @@
           "type": "array"
         },
         "type": "array"
+      },
+      "Failure": {
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/string"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
       },
       "GetCode__Out": {
         "properties": {
@@ -195,17 +245,20 @@
           "ballots": {
             "$ref": "#/components/schemas/EntityId_to_string"
           },
-          "failure_reason": {
-            "$ref": "#/components/schemas/string"
+          "failure": {
+            "$ref": "#/components/schemas/Failure"
           },
-          "failure_trace": {
-            "$ref": "#/components/schemas/string"
+          "final_votes": {
+            "$ref": "#/components/schemas/EntityId_to_boolean"
           },
           "proposer_id": {
             "$ref": "#/components/schemas/EntityId"
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
+          },
+          "vote_failures": {
+            "$ref": "#/components/schemas/EntityId_to_Failure"
           }
         },
         "required": [
@@ -220,11 +273,8 @@
           "ballot_count": {
             "$ref": "#/components/schemas/uint64"
           },
-          "failure_reason": {
-            "$ref": "#/components/schemas/string"
-          },
-          "failure_trace": {
-            "$ref": "#/components/schemas/string"
+          "failure": {
+            "$ref": "#/components/schemas/Failure"
           },
           "proposal_id": {
             "$ref": "#/components/schemas/string"
@@ -234,6 +284,12 @@
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
+          },
+          "vote_failures": {
+            "$ref": "#/components/schemas/EntityId_to_Failure"
+          },
+          "votes": {
+            "$ref": "#/components/schemas/EntityId_to_boolean"
           }
         },
         "required": [
@@ -344,6 +400,9 @@
           "Invalid"
         ],
         "type": "string"
+      },
+      "boolean": {
+        "type": "boolean"
       },
       "json": {},
       "string": {
