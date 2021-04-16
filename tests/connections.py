@@ -61,7 +61,7 @@ def run(args):
                             result=True,
                         )
                         consecutive_failures = 0
-                    except CCFConnectionException as e:
+                    except (CCFConnectionException, RuntimeError) as e:
                         flush_info(logs)
                         LOG.warning(f"Hit exception at client {i}: {e}")
                         clients.pop(-1)
