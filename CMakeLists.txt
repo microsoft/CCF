@@ -623,10 +623,15 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-content-types
   )
 
+  set(SERVICE_PRINCIPAL_CONSTITUTION_ARGS
+      ${CONSTITUTION_ARGS} --constitution
+      ${CCF_DIR}/src/runtime_config/test/service_principals_actions.js
+  )
   add_e2e_test(
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
+    CONSTITUTION ${SERVICE_PRINCIPAL_CONSTITUTION_ARGS}
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
   )
 
@@ -634,6 +639,7 @@ if(BUILD_TESTS)
     NAME governance_no_session_auth_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
+    CONSTITUTION ${SERVICE_PRINCIPAL_CONSTITUTION_ARGS}
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
                     --disable-member-session-auth
   )
