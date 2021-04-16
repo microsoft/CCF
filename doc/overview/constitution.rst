@@ -2,13 +2,11 @@ Constitution
 ============
 
 .. warning::
-    This page describes the deprecated Lua constitution.
-    These docs will be replaced shortly to describe the new JS constitution.
     See :doc:`/governance/js_gov` for pointers on converting from Lua to JS.
 
-The :term:`Constitution` defines the set of rules and conditions (as a Lua script) that members must follow for their proposals to be accepted. For example, in a CCF network governed by `4` members, a strict majority constitution would only execute proposals once `3` members (`4/2 + 1`) have voted for that proposal.
+The :term:`Constitution` defines the set of rules and conditions (as a JavaScript module) that members must follow for their proposals to be accepted. For example, in a CCF network governed by `4` members, a strict majority constitution would only execute proposals once `3` members (`4/2 + 1`) have voted for that proposal.
 
-Votes for the proposal are evaluated by the constitution's ``pass`` function. If the `pass` function returns ``true``, the vote is passed, and its consequences are applied to the KV in a transaction.
+Votes for the proposal are evaluated by the constitution's ``resolve()`` function. If the `resolve()` function returns ``"Accepted"``, the vote is passed, and its consequences are applied to the KV in a transaction.
 
 Examples of constitution include (see `Models`_ for further details):
 
@@ -16,7 +14,7 @@ Examples of constitution include (see `Models`_ for further details):
 - Strict majority with member veto (`simple constitution with veto`_) similar to the Strict majority constitution, but where each member is allowed to veto any proposal.
 - Operating member + strict majority (`operating member constitution`_) that extends the "strict majority" constitution by defining an operating member allowed to add new nodes to the network, retire existing ones, and allow new versions of the code.
 
-Once the initial set of members have agreed on a constitution, the corresponding Lua file can be given to operators to create a new network (see :doc:`/operations/start_network`).
+Once the initial set of members have agreed on a constitution, the corresponding JavaScript file can be given to operators to create a new network (see :doc:`/operations/start_network`).
 
 .. note:: The constitution can always be updated after the CCF network has been opened, subject to the existing constitution rules.
 
@@ -66,8 +64,8 @@ The constitution can limit or remove the operating members' ability to:
 
 This `operating member constitution`_ shows how some members can be made operators.
 
-.. _simple constitution: https://github.com/microsoft/CCF/blob/main/src/runtime_config/gov.lua
+.. _simple constitution: https://github.com/microsoft/CCF/blob/main/src/runtime_config/default/resolve.js
 
-.. _operating member constitution: https://github.com/microsoft/CCF/blob/main/src/runtime_config/operator_gov.lua
+.. _operating member constitution: https://github.com/microsoft/CCF/blob/main/src/runtime_config/operator/resolve.js
 
-.. _simple constitution with veto: https://github.com/microsoft/CCF/blob/main/src/runtime_config/gov_veto.lua
+.. _simple constitution with veto: https://github.com/microsoft/CCF/blob/main/src/runtime_config/veto/resolve.js
