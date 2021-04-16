@@ -6,7 +6,6 @@ import jsonmergepatch from "json-merge-patch";
 // endpoint metadata defaults when first added to endpoints.json
 const metadataDefaults = (mode) => ({
   forwarding_required: "always",
-  execute_outside_consensus: "never",
   authn_policies: ["user_cert"],
   mode: mode,
 });

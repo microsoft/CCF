@@ -6,12 +6,12 @@ import infra.proc
 import infra.remote
 import infra.crypto
 import ccf.ledger
+import infra.doc
 from infra.proposal import ProposalState
 import http
 import base64
 import json
 from loguru import logger as LOG
-import os
 
 
 def count_governance_operations(ledger):
@@ -48,9 +48,7 @@ def count_governance_operations(ledger):
                     )
                     request_target_line = req.decode().splitlines()[0]
                     if "/gov/proposals" in request_target_line:
-                        vote_suffix = (
-                            "/ballots" if os.getenv("JS_GOVERNANCE") else "/votes"
-                        )
+                        vote_suffix = "/ballots"
                         if request_target_line.endswith(vote_suffix):
                             verified_votes += 1
                         elif request_target_line.endswith("/withdraw"):
@@ -59,6 +57,25 @@ def count_governance_operations(ledger):
                             verified_proposals += 1
 
     return (verified_proposals, verified_votes, verified_withdrawals)
+
+
+def check_all_tables_are_documented(ledger, doc_path):
+    with open(doc_path) as doc:
+        parsed_doc = infra.doc.parse(doc.read())
+        table_names = infra.doc.extract_table_names(parsed_doc)
+
+    table_names_in_ledger = set()
+    for chunk in ledger:
+        for tr in chunk:
+            table_names_in_ledger.update(tr.get_public_domain().get_tables().keys())
+
+    gov_tables_in_ledger = set(
+        [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.gov.")]
+    )
+    undocumented_tables = gov_tables_in_ledger - set(table_names)
+    LOG.info(undocumented_tables)
+    # Enable once Lua governance removal is complete
+    # assert undocumented_tables == set(), undocumented_tables
 
 
 def run(args):
@@ -132,6 +149,9 @@ def run(args):
     assert (
         final_withdrawals == original_withdrawals + withdrawals_issued
     ), f"Unexpected number of withdraw operations recorded in the ledger (expected {original_withdrawals + withdrawals_issued}, found {final_withdrawals})"
+
+    ledger = ccf.ledger.Ledger(ledger_directory)
+    check_all_tables_are_documented(ledger, "../doc/audit/builtin_maps.rst")
 
 
 if __name__ == "__main__":

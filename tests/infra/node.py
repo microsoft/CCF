@@ -23,12 +23,6 @@ class NodeNetworkState(Enum):
     joined = auto()
 
 
-class NodeStatus(Enum):
-    PENDING = "Pending"
-    TRUSTED = "Trusted"
-    RETIRED = "Retired"
-
-
 class State(Enum):
     UNINITIALIZED = "Uninitialized"
     INITIALIZED = "Initialized"

@@ -6,3 +6,4 @@ cimetrics>=0.2.1
 pynacl
 openapi-spec-validator
 PyJWT
+docutils

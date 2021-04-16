@@ -567,7 +567,6 @@ class CCFRemote(object):
         consensus="cft",
         worker_threads=0,
         memory_reserve_startup=0,
-        gov_script=None,
         constitution=None,
         ledger_dir=None,
         read_only_ledger_dir=None,  # Read-only ledger dir to copy to node director
@@ -684,9 +683,7 @@ class CCFRemote(object):
             cmd += [
                 "start",
                 "--network-cert-file=networkcert.pem",
-                f"--gov-script={os.path.basename(gov_script)}",
             ]
-            data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
             for fragment in constitution:
                 cmd.append(f"--constitution={os.path.basename(fragment)}")
                 data_files += [
