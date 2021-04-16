@@ -27,7 +27,7 @@ To create a new CCF network, the first node of the network should be invoked wit
     --network-cert-file /path/to/network_certificate
     --member-info /path/to/member1_cert[,/path/to/member1_enc_pubk[,/path/to/member1_data]]
     [--member-info /path/to/member2_cert[,/path/to/member2_enc_pubk[,/path/to/member2_data]] ...]
-    --gov-script /path/to/lua/governance_script
+    --constitution /path/to/javascript/constitution_module.js
 
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying a fully qualified domain name. If an FQDN is used then ``--domain`` should be passed to the node at startup. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 

@@ -11,4 +11,4 @@ The sample `logging application <https://github.com/microsoft/CCF/tree/main/src/
 
 .. warning::
 
-    It is also possible that the governance Lua script also requires updating. You can compare your governance script with the `latest governance script samples available in GitHub <https://github.com/microsoft/CCF/tree/main/src/runtime_config>`_.
+    It is also possible that the JavaScript constitution module also requires updating. You can compare your governance module with the `latest samples available in GitHub <https://github.com/microsoft/CCF/tree/main/src/runtime_config>`_.

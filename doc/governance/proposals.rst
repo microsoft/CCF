@@ -2,13 +2,14 @@ Proposing and Voting for a Proposal
 ===================================
 
 .. warning::
-    This page describes the deprecated Lua constitution.
-    These docs will be replaced shortly to describe the new JS constitution.
     See :doc:`/governance/js_gov` for pointers on converting from Lua to JS.
 
 This page explains how members can submit and vote for proposals.
 
-Proposals and vote ballots are submitted as Lua scripts. These scripts are executed transactionally, able to read from the current KV state but not write directly to it. Proposals return a list of proposed actions which can make writes, but are only applied when the proposal is accepted. Each vote script is given this list of proposed actions, and also able to read from the KV, and returns a Boolean indicating whether it supports or rejects the proposed actions.
+Proposals are submitted as JSON documents, which if resolved successfully are applied atomically to the KV state.
+
+Ballots are submitted as JavaScript modules, executed transactionally, and are able to read from the current KV state but not write to it.
+Each vote script is given the proposal as a list of actions, and returns a Boolean indicating whether it supports or rejects it.
 
 Any member can submit a new proposal. All members can then vote, once at most, on this proposal using its unique proposal id.
 The proposer has the ability to `withdraw` a proposal while it is open.
@@ -20,7 +21,7 @@ For transparency and auditability, all governance operations (including votes) a
 Creating a Proposal
 -------------------
 
-For custom proposals with multiple actions and precise conditional requirements you will need to write the proposal script by hand. For simple proposals there is a helper script in the CCF Python package - `proposal_generator.py`. This can be used to create proposals for common operations like adding members and users, without writing any Lua. It also produces sample vote scripts, which validate that the executed proposed actions exactly match what is expected. These sample proposals and votes can be used as a syntax and API reference for producing more complex custom proposals.
+For custom proposals with multiple actions and precise conditional requirements you will need to write the proposal script by hand. For simple proposals there is a helper script in the CCF Python package - `proposal_generator.py`. This can be used to create proposals for common operations like adding members and users, without writing any JSON. It also produces sample vote scripts, which validate that the executed proposed actions exactly match what is expected. These sample proposals and votes can be used as a syntax and API reference for producing more complex custom proposals.
 
 Assuming the CCF Python package has been installed in the current Python environment, the proposal generator can be invoked directly as ``ccf.proposal_generator``. With no further argument it will print help text, including the list of possible actions as subcommands:
 
@@ -28,7 +29,7 @@ Assuming the CCF Python package has been installed in the current Python environ
 
     python -m ccf.proposal_generator
     usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE] [-vo VOTE_OUTPUT_FILE] [-pp] [-i] [-v]
-                             {new_member,new_node_code,set_user,rekey_ledger,remove_ca_cert_bundle,remove_js_app,remove_jwt_issuer,remove_member,remove_user,retire_node,retire_node_code,set_ca_cert_bundle,set_js_app,set_jwt_issuer,set_jwt_public_signing_keys,set_member_data,set_recovery_threshold,set_user_data,transition_service_to_open,trust_node,update_recovery_shares}
+                             {add_node_code,new_node_code,remove_ca_cert_bundle,remove_js_app,remove_jwt_issuer,remove_member,remove_node,remove_node_code,remove_user,retire_node,retire_node_code,set_ca_cert_bundle,set_constitution,set_js_app,set_jwt_issuer,set_jwt_public_signing_keys,set_member,set_member_data,set_recovery_threshold,set_user,set_user_data,transition_node_to_trusted,transition_service_to_open,trigger_ledger_rekey,trigger_recovery_shares_refresh,trust_node}
 
 Additional detail is available from the ``--help`` option. You can also find the script in a checkout of CCF:
 
