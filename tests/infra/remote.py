@@ -577,6 +577,7 @@ class CCFRemote(object):
         domain=None,
         san=None,
         snapshot_tx_interval=None,
+        max_open_sessions=None,
         jwt_key_refresh_interval_s=None,
     ):
         """
@@ -666,6 +667,9 @@ class CCFRemote(object):
 
         if snapshot_tx_interval:
             cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
+
+        if max_open_sessions:
+            cmd += [f"--max-open-sessions={max_open_sessions}"]
 
         if jwt_key_refresh_interval_s:
             cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
