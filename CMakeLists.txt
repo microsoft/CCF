@@ -624,9 +624,8 @@ if(BUILD_TESTS)
   )
 
   set(SERVICE_PRINCIPAL_CONSTITUTION_ARGS
-    ${CONSTITUTION_ARGS}
-    --constitution
-    ${CCF_DIR}/src/runtime_config/test/service_principals_actions.js
+      ${CONSTITUTION_ARGS} --constitution
+      ${CCF_DIR}/src/runtime_config/test/service_principals_actions.js
   )
   add_e2e_test(
     NAME governance_test
