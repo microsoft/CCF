@@ -23,6 +23,10 @@ namespace ccf
       {
         return reason == rhs.reason && trace == rhs.trace;
       }
+      bool operator!=(const Failure& rhs) const
+      {
+        return !(*this == rhs);
+      }
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Failure);
     DECLARE_JSON_REQUIRED_FIELDS(Failure, reason);
@@ -34,15 +38,14 @@ namespace ccf
       ccf::MemberId proposer_id;
       ccf::ProposalState state;
       Ballots ballots = {};
-      std::optional<Votes> final_votes = {};
-      std::optional<VoteFailures> vote_failures = {};
-      std::optional<std::string> failure_reason = std::nullopt;
-      std::optional<std::string> failure_trace = std::nullopt;
+      std::optional<Votes> final_votes = std::nullopt;
+      std::optional<VoteFailures> vote_failures = std::nullopt;
+      std::optional<Failure> failure = std::nullopt;
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalInfo);
     DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposer_id, state, ballots);
     DECLARE_JSON_OPTIONAL_FIELDS(
-      ProposalInfo, final_votes, failure_reason, failure_trace);
+      ProposalInfo, final_votes, vote_failures, failure);
 
     struct ProposalInfoSummary
     {
@@ -50,16 +53,15 @@ namespace ccf
       ccf::MemberId proposer_id;
       ccf::ProposalState state;
       size_t ballot_count;
-      std::optional<Votes> votes = {};
-      std::optional<VoteFailures> vote_failures = {};
-      std::optional<std::string> failure_reason = std::nullopt;
-      std::optional<std::string> failure_trace = std::nullopt;
+      std::optional<Votes> votes = std::nullopt;
+      std::optional<VoteFailures> vote_failures = std::nullopt;
+      std::optional<Failure> failure = std::nullopt;
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalInfoSummary);
     DECLARE_JSON_REQUIRED_FIELDS(
       ProposalInfoSummary, proposal_id, proposer_id, state, ballot_count);
     DECLARE_JSON_OPTIONAL_FIELDS(
-      ProposalInfoSummary, votes, vote_failures, failure_reason, failure_trace);
+      ProposalInfoSummary, votes, vote_failures, failure);
 
     struct ProposalInfoDetails
     {

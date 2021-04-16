@@ -295,15 +295,13 @@ namespace ccf
         JS_FreeValue(js_context, prop_id);
         JS_FreeValue(js_context, vs);
 
-        std::optional<std::string> failure_reason = std::nullopt;
-        std::optional<std::string> failure_trace = std::nullopt;
-
+        std::optional<jsgov::Failure> failure = std::nullopt;
         if (JS_IsException(val))
         {
           pi_.value().state = ProposalState::FAILED;
           auto [reason, trace] = js::js_error_message(js_context);
-          failure_reason = fmt::format("Failed to resolve(): {}", reason);
-          failure_trace = trace;
+          failure = ccf::jsgov::Failure{
+            fmt::format("Failed to resolve(): {}", reason), trace};
         }
         else if (JS_IsString(val))
         {
@@ -337,14 +335,17 @@ namespace ccf
           else
           {
             pi_.value().state = ProposalState::FAILED;
-            failure_reason = fmt::format(
-              "resolve() returned invalid status value: \"{}\"", status);
+            failure = ccf::jsgov::Failure{
+              fmt::format(
+                "resolve() returned invalid status value: \"{}\"", status),
+              std::nullopt};
           }
         }
         else
         {
           pi_.value().state = ProposalState::FAILED;
-          failure_reason = "resolve() returned invalid status value";
+          failure = ccf::jsgov::Failure{
+            "resolve() returned invalid status value", std::nullopt};
         }
 
         if (pi_.value().state != ProposalState::OPEN)
@@ -393,8 +394,8 @@ namespace ccf
             {
               pi_.value().state = ProposalState::FAILED;
               auto [reason, trace] = js::js_error_message(js_context);
-              failure_reason = fmt::format("Failed to apply(): {}", reason);
-              failure_trace = trace;
+              failure = ccf::jsgov::Failure{
+                fmt::format("Failed to apply(): {}", reason), trace};
             }
           }
         }
@@ -405,8 +406,7 @@ namespace ccf
                                           pi_.value().ballots.size(),
                                           final_votes,
                                           vote_failures,
-                                          failure_reason,
-                                          failure_trace};
+                                          failure};
       }
     }
 
@@ -1097,8 +1097,7 @@ namespace ccf
            {},
            {},
            std::nullopt,
-           rv.failure_reason,
-           rv.failure_trace});
+           rv.failure});
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
@@ -1398,8 +1397,7 @@ namespace ccf
         pi_.value().state = rv.state;
         pi_.value().final_votes = rv.votes;
         pi_.value().vote_failures = rv.vote_failures;
-        pi_.value().failure_reason = rv.failure_reason;
-        pi_.value().failure_trace = rv.failure_trace;
+        pi_.value().failure = rv.failure;
         pi->put(proposal_id, pi_.value());
         return make_success(rv);
       };
