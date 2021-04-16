@@ -14,9 +14,6 @@ namespace asynchost
 
     messaging::Dispatcher<ringbuffer::Message>& dispatcher;
 
-    std::fstream host_output_file;
-
-    std::fstream enclave_output_file;
     nlohmann::json enclave_counts;
 
   public:
@@ -27,9 +24,6 @@ namespace asynchost
       last_update = std::chrono::duration_cast<std::chrono::milliseconds>(
         TClock::now().time_since_epoch());
 
-      host_output_file.open("host_load.log", std::fstream::out);
-
-      enclave_output_file.open("enclave_load.log", std::fstream::out);
       enclave_counts = nlohmann::json::object();
 
       // Register message handler for work_stats message from enclave
@@ -87,18 +81,14 @@ namespace asynchost
           j["ringbuffer_messages"] =
             dispatcher.convert_message_counts(message_counts);
 
-          const auto line = j.dump();
-          host_output_file.write(line.data(), line.size());
-          host_output_file << std::endl;
+          LOG_DEBUG_FMT("{}", j.dump());
         }
 
         {
           j["ringbuffer_messages"] = enclave_counts;
           enclave_counts = nlohmann::json::object();
 
-          const auto line = j.dump();
-          enclave_output_file.write(line.data(), line.size());
-          enclave_output_file << std::endl;
+          LOG_DEBUG_FMT("{}", j.dump());
         }
 
         last_update = time_now;
