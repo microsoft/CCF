@@ -203,7 +203,9 @@ namespace asynchost
       catch (std::exception& e)
       {
         LOG_FAIL_FMT(
-          "Exception while attempting to commit snapshot: {}", e.what());
+          "Exception while attempting to commit snapshot at {}: {}",
+          snapshot_idx,
+          e.what());
       }
     }
 
