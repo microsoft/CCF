@@ -12,6 +12,7 @@ import http
 import base64
 import json
 from loguru import logger as LOG
+import suite.test_requirements as reqs
 
 
 def count_governance_operations(ledger):
@@ -69,13 +70,20 @@ def check_all_tables_are_documented(ledger, doc_path):
         for tr in chunk:
             table_names_in_ledger.update(tr.get_public_domain().get_tables().keys())
 
-    gov_tables_in_ledger = set(
-        [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.gov.")]
+    public_table_names_in_ledger = set(
+        [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.")]
     )
-    undocumented_tables = gov_tables_in_ledger - set(table_names)
-    LOG.info(undocumented_tables)
-    # Enable once Lua governance removal is complete
-    # assert undocumented_tables == set(), undocumented_tables
+    undocumented_tables = public_table_names_in_ledger - set(table_names)
+    assert undocumented_tables == set(), undocumented_tables
+
+
+@reqs.description("Check tables are documented")
+def test_tables_doc(network, args):
+    primary, _ = network.find_primary()
+    ledger_directory = primary.remote.ledger_path()
+    ledger = ccf.ledger.Ledger(ledger_directory)
+    check_all_tables_are_documented(ledger, "../doc/audit/builtin_maps.rst")
+    return network
 
 
 def run(args):
@@ -131,6 +139,8 @@ def run(args):
         assert response.body.json()["state"] == ProposalState.WITHDRAWN.value
         withdrawals_issued += 1
 
+        test_tables_doc(network, args)
+
     # Refresh ledger to beginning
     ledger = ccf.ledger.Ledger(ledger_directory)
 
@@ -149,9 +159,6 @@ def run(args):
     assert (
         final_withdrawals == original_withdrawals + withdrawals_issued
     ), f"Unexpected number of withdraw operations recorded in the ledger (expected {original_withdrawals + withdrawals_issued}, found {final_withdrawals})"
-
-    ledger = ccf.ledger.Ledger(ledger_directory)
-    check_all_tables_are_documented(ledger, "../doc/audit/builtin_maps.rst")
 
 
 if __name__ == "__main__":
