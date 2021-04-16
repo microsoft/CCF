@@ -404,6 +404,23 @@
           }
         }
       }
+    },
+    "/rpc/apply_writes": {
+      "post": {
+        "js_module": "endpoints/rpc.js",
+        "js_function": "applyWrites",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readwrite",
+        "openapi": {
+          "responses": {
+            "400": {
+              "description": "Error"
+            }
+          }
+        }
+      }
     }
   }
 }

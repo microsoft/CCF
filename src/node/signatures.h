@@ -12,10 +12,16 @@ namespace ccf
 {
   struct PrimarySignature : public NodeSignature
   {
+    /// Sequence number of the signature transaction
     ccf::SeqNo seqno = 0;
+    /// View of the signature transaction
     ccf::View view = 0;
+    /// Committed sequence number when the signature transaction was emitted
     ccf::SeqNo commit_seqno = 0;
+    /** View of the committed sequence number when the signature transaction was
+        emitted */
     ccf::View commit_view = 0;
+    /// Root of the Merkle Tree as of seqno - 1
     crypto::Sha256Hash root;
 
     PrimarySignature() {}

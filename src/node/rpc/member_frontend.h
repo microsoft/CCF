@@ -217,7 +217,7 @@ namespace ccf
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_console(context);
         js::populate_global_ccf(
-          &txctx, std::nullopt, nullptr, nullptr, nullptr, context);
+          &txctx, nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
         auto ballot_func = context.function(
           mb,
           "vote",
@@ -260,7 +260,7 @@ namespace ccf
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_ccf(
-          &txctx, std::nullopt, nullptr, nullptr, nullptr, js_context);
+          &txctx, nullptr, std::nullopt, nullptr, nullptr, nullptr, js_context);
         auto resolve_func = js_context.function(
           constitution, "resolve", "public:ccf.gov.constitution[0]");
         JSValue argv[3];
@@ -365,6 +365,7 @@ namespace ccf
             js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
             js::populate_global_ccf(
               &txctx,
+              nullptr,
               std::nullopt,
               nullptr,
               &context.get_node_state(),
@@ -1005,7 +1006,7 @@ namespace ccf
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::populate_global_ccf(
-          nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
+          nullptr, nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
 
         auto validate_func = context.function(
           validate_script, "validate", "public:ccf.gov.constitution[0]");
