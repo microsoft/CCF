@@ -92,6 +92,24 @@
         "pattern": "^[a-f0-9]{64}$",
         "type": "string"
       },
+      "EntityId_to_Failure": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "$ref": "#/components/schemas/Failure"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
+      },
       "EntityId_to_boolean": {
         "items": {
           "items": {
@@ -127,6 +145,21 @@
           "type": "array"
         },
         "type": "array"
+      },
+      "Failure": {
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/string"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "reason",
+          "trace"
+        ],
+        "type": "object"
       },
       "GetCode__Out": {
         "properties": {
@@ -255,6 +288,9 @@
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
+          },
+          "vote_failures": {
+            "$ref": "#/components/schemas/EntityId_to_Failure"
           },
           "votes": {
             "$ref": "#/components/schemas/EntityId_to_boolean"
