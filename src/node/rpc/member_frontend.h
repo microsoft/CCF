@@ -207,8 +207,8 @@ namespace ccf
       auto pi_ = pi->get(proposal_id);
 
       std::vector<std::pair<MemberId, bool>> votes;
-      std::optional<std::unordered_map<ccf::MemberId, bool>> final_votes =
-        std::nullopt;
+      std::optional<ccf::jsgov::Votes> final_votes = std::nullopt;
+      std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
       for (const auto& [mid, mb] : pi_->ballots)
       {
         js::Runtime rt;
@@ -237,6 +237,16 @@ namespace ccf
         if (!JS_IsException(val))
         {
           votes.emplace_back(mid, JS_ToBool(context, val));
+        }
+        else
+        {
+          if (!vote_failures.has_value())
+          {
+            vote_failures = ccf::jsgov::VoteFailures();
+          }
+          auto [reason, trace] = js::js_error_message(context);
+          vote_failures.value()[mid] =
+            ccf::jsgov::Failure{reason, trace.has_value() ? trace.value() : ""};
         }
         JS_FreeValue(context, ballot_func);
         JS_FreeValue(context, prop);
@@ -394,6 +404,7 @@ namespace ccf
                                           pi_.value().state,
                                           pi_.value().ballots.size(),
                                           final_votes,
+                                          vote_failures,
                                           failure_reason,
                                           failure_trace};
       }
@@ -1085,6 +1096,7 @@ namespace ccf
            rv.state,
            {},
            {},
+           std::nullopt,
            rv.failure_reason,
            rv.failure_trace});
 
@@ -1384,6 +1396,7 @@ namespace ccf
           ctx.tx, proposal_id, p.value(), constitution.value());
         pi_.value().state = rv.state;
         pi_.value().final_votes = rv.votes;
+        pi_.value().vote_failures = rv.vote_failures;
         pi_.value().failure_reason = rv.failure_reason;
         pi_.value().failure_trace = rv.failure_trace;
         pi->put(proposal_id, pi_.value());

@@ -271,6 +271,39 @@ def test_proposals_with_votes(network, args):
     return network
 
 
+@reqs.description("Test vote failure reporting")
+def test_vote_failure_reporting(network, args):
+    node = network.find_random_node()
+    with node.client(None, "member0") as c:
+        r = c.post("/gov/proposals", always_accept_with_one_vote)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Open", r.body.json()
+        proposal_id = r.body.json()["proposal_id"]
+
+        ballot = {
+            "ballot": f'export function vote (proposal, proposer_id) {{ throw new Error("Sample error") }}'
+        }
+        r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Open", r.body.json()
+
+    with node.client(None, "member1") as c:
+        ballot = {
+            "ballot": f"export function vote (proposal, proposer_id) {{ return true; }}"
+        }
+        r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
+        assert r.status_code == 200, r.body.text()
+        rj = r.body.json()
+        assert rj["state"] == "Accepted", r.body.json()
+        assert len(rj["vote_failures"]) == 1, rj["vote_failures"]
+        member_id = network.consortium.get_member_by_local_id("member0").service_id
+        assert rj["vote_failures"][member_id]["reason"] == "Error: Sample error", rj[
+            "vote_failures"
+        ]
+
+    return network
+
+
 @reqs.description("Test operator proposals and votes")
 def test_operator_proposals_and_votes(network, args):
     node = network.find_random_node()
@@ -523,6 +556,7 @@ def run(args):
         network = test_ballot_storage(network, args)
         network = test_pure_proposals(network, args)
         network = test_proposals_with_votes(network, args)
+        network = test_vote_failure_reporting(network, args)
         network = test_operator_proposals_and_votes(network, args)
         network = test_apply(network, args)
         network = test_actions(network, args)
