@@ -245,8 +245,7 @@ namespace ccf
             vote_failures = ccf::jsgov::VoteFailures();
           }
           auto [reason, trace] = js::js_error_message(context);
-          vote_failures.value()[mid] =
-            ccf::jsgov::Failure{reason, trace.has_value() ? trace.value() : ""};
+          vote_failures.value()[mid] = ccf::jsgov::Failure{reason, trace};
         }
         JS_FreeValue(context, ballot_func);
         JS_FreeValue(context, prop);
@@ -1238,6 +1237,7 @@ namespace ccf
         pi_->state = ProposalState::WITHDRAWN;
         pi->put(proposal_id, pi_.value());
 
+        remove_all_other_non_open_proposals(ctx.tx, proposal_id);
         record_voting_history(
           ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 

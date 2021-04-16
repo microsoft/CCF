@@ -170,6 +170,10 @@ def test_ballot_storage(network, args):
         r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
 
+        r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
+        assert r.status_code == 400, r.body.text()
+        assert r.body.json()["error"]["code"] == "VoteAlreadyExists", r.body.json()
+
         member_id = network.consortium.get_member_by_local_id("member0").service_id
         r = c.get(f"/gov/proposals/{proposal_id}/ballots/{member_id}")
         assert r.status_code == 200, r.body.text()

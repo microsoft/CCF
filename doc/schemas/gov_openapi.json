@@ -156,8 +156,7 @@
           }
         },
         "required": [
-          "reason",
-          "trace"
+          "reason"
         ],
         "type": "object"
       },

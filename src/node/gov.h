@@ -18,14 +18,15 @@ namespace ccf
     struct Failure
     {
       std::string reason;
-      std::string trace;
+      std::optional<std::string> trace;
       bool operator==(const Failure& rhs) const
       {
         return reason == rhs.reason && trace == rhs.trace;
       }
     };
-    DECLARE_JSON_TYPE(Failure);
-    DECLARE_JSON_REQUIRED_FIELDS(Failure, reason, trace);
+    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Failure);
+    DECLARE_JSON_REQUIRED_FIELDS(Failure, reason);
+    DECLARE_JSON_OPTIONAL_FIELDS(Failure, trace);
     using VoteFailures = std::unordered_map<ccf::MemberId, Failure>;
 
     struct ProposalInfo
