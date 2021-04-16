@@ -160,6 +160,21 @@ extern "C"
     return OE_FAILURE;
   }
 
+  using oe_log_level_t = size_t;
+  typedef void (*oe_log_callback_t)(
+    void* context,
+    bool is_enclave,
+    const struct tm* t,
+    long int usecs,
+    oe_log_level_t level,
+    uint64_t host_thread_id,
+    const char* message);
+
+  oe_result_t oe_log_set_callback(void* context, oe_log_callback_t callback)
+  {
+    return OE_OK;
+  }
+
 #ifdef __cplusplus
 }
 #endif
