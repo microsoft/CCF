@@ -500,22 +500,21 @@ class Ledger:
 
         self._filenames = []
 
-        ledgers = []
+        ledger_files = []
         for directory in directories:
-            ledgers += os.listdir(directory)
+            for path in os.listdir(directory):
+                chunk = os.path.join(directory, path)
+                if os.path.isfile(chunk):
+                    ledger_files.append(chunk)
 
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
-        sorted_ledgers = sorted(
-            ledgers,
+        self._filenames = sorted(
+            ledger_files,
             key=lambda x: int(
-                x.replace(".committed", "").replace("ledger_", "").split("-")[0]
+                os.path.basename(x).replace(".committed", "").replace("ledger_", "").split("-")[0]
             ),
         )
-
-        for chunk in sorted_ledgers:
-            if os.path.isfile(os.path.join(directory, chunk)):
-                self._filenames.append(os.path.join(directory, chunk))
 
         self._reset_iterators()
 

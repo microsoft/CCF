@@ -94,7 +94,7 @@ def test_ledger_is_readable(network, args):
         LOG.info(f"Reading ledger from {ledger_dirs}")
         ledger = ccf.ledger.Ledger(ledger_dirs)
         for chunk in ledger:
-            for tr in chunk:
+            for _ in chunk:
                 pass
     return network
 
@@ -156,7 +156,7 @@ def run(args):
         test_tables_doc(network, args)
 
     # Refresh ledger to beginning
-    ledger = ccf.ledger.Ledger(ledger_directory)
+    ledger = ccf.ledger.Ledger(ledger_directories)
 
     (
         final_proposals,
