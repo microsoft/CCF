@@ -394,10 +394,17 @@ namespace enclave
 
           // Then, execute some thread messages
           size_t thread_msg = 0;
-          while (thread_msg < max_messages &&
-                 threading::ThreadMessaging::thread_messaging.run_one())
+          try
           {
-            thread_msg++;
+            while (thread_msg < max_messages &&
+                   threading::ThreadMessaging::thread_messaging.run_one())
+            {
+              thread_msg++;
+            }
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT("Error executing thread message: {}", e.what());
           }
 
           // If no messages were read from the ringbuffer and no thread
