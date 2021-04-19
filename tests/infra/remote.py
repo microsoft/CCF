@@ -840,7 +840,7 @@ class CCFRemote(object):
     def ledger_paths(self):
         paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
         if self.read_only_ledger_dir is not None:
-            paths += os.path.join(self.remote.root, self.read_only_ledger_dir)
+            paths += [os.path.join(self.remote.root, self.read_only_ledger_dir)]
         return paths
 
 
