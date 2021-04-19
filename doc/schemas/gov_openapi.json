@@ -93,58 +93,22 @@
         "type": "string"
       },
       "EntityId_to_Failure": {
-        "items": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/EntityId"
-              },
-              {
-                "$ref": "#/components/schemas/Failure"
-              }
-            ]
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Failure"
         },
-        "type": "array"
+        "type": "object"
       },
       "EntityId_to_boolean": {
-        "items": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/EntityId"
-              },
-              {
-                "$ref": "#/components/schemas/boolean"
-              }
-            ]
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
+        "additionalProperties": {
+          "$ref": "#/components/schemas/boolean"
         },
-        "type": "array"
+        "type": "object"
       },
       "EntityId_to_string": {
-        "items": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/EntityId"
-              },
-              {
-                "$ref": "#/components/schemas/string"
-              }
-            ]
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
+        "additionalProperties": {
+          "$ref": "#/components/schemas/string"
         },
-        "type": "array"
+        "type": "object"
       },
       "Failure": {
         "properties": {

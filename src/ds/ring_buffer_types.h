@@ -144,7 +144,7 @@ namespace ringbuffer
   struct MessageSerializers
   {
     static_assert(
-      nonstd::dependent_false<ringbuffer::Message, m>::value,
+      nonstd::value_dependent_false<ringbuffer::Message, m>::value,
       "No payload specialization for this Message");
   };
 
