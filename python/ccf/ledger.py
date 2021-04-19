@@ -6,7 +6,7 @@ import struct
 import os
 from enum import Enum
 
-from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict
+from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict, List
 
 import json
 import base64
@@ -496,11 +496,14 @@ class Ledger:
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
 
-    def __init__(self, directory: str):
+    def __init__(self, directories: List[str]):
 
         self._filenames = []
 
-        ledgers = os.listdir(directory)
+        ledgers = []
+        for directory in directories:
+            ledgers += os.listdir(directory)
+
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
         sorted_ledgers = sorted(

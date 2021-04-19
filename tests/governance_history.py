@@ -80,9 +80,22 @@ def check_all_tables_are_documented(ledger, doc_path):
 @reqs.description("Check tables are documented")
 def test_tables_doc(network, args):
     primary, _ = network.find_primary()
-    ledger_directory = primary.remote.ledger_path()
-    ledger = ccf.ledger.Ledger(ledger_directory)
+    ledger_directories = primary.remote.ledger_paths()
+    ledger = ccf.ledger.Ledger(ledger_directories)
     check_all_tables_are_documented(ledger, "../doc/audit/builtin_maps.rst")
+    return network
+
+
+@reqs.description("Test that all node's ledgers can be read")
+def test_ledger_is_readable(network, args):
+    primary, backups = network.find_nodes()
+    for node in (primary, *backups):
+        ledger_dirs = node.remote.ledger_paths()
+        LOG.info(f"Reading ledger from {ledger_dirs}")
+        ledger = ccf.ledger.Ledger(ledger_dirs)
+        for chunk in ledger:
+            for tr in chunk:
+                pass
     return network
 
 
@@ -98,9 +111,9 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        ledger_directory = primary.remote.ledger_path()
+        ledger_directories = primary.remote.ledger_paths()
 
-        ledger = ccf.ledger.Ledger(ledger_directory)
+        ledger = ccf.ledger.Ledger(ledger_directories)
         (
             original_proposals,
             original_votes,
@@ -139,6 +152,7 @@ def run(args):
         assert response.body.json()["state"] == ProposalState.WITHDRAWN.value
         withdrawals_issued += 1
 
+        test_ledger_is_readable(network, args)
         test_tables_doc(network, args)
 
     # Refresh ledger to beginning

@@ -837,8 +837,11 @@ class CCFRemote(object):
     def log_path(self):
         return self.remote.out
 
-    def ledger_path(self):
-        return os.path.join(self.remote.root, self.ledger_dir_name)
+    def ledger_paths(self):
+        paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
+        if self.read_only_ledger_dir is not None:
+            paths += os.path.join(self.remote.root, self.read_only_ledger_dir)
+        return paths
 
 
 class StartType(Enum):
