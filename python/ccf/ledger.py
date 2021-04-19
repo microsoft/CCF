@@ -512,7 +512,10 @@ class Ledger:
         self._filenames = sorted(
             ledger_files,
             key=lambda x: int(
-                os.path.basename(x).replace(".committed", "").replace("ledger_", "").split("-")[0]
+                os.path.basename(x)
+                .replace(".committed", "")
+                .replace("ledger_", "")
+                .split("-")[0]
             ),
         )
 
