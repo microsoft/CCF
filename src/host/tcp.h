@@ -154,6 +154,40 @@ namespace asynchost
       return service;
     }
 
+    bool bind()
+    {
+      int rc;
+
+      LOG_FAIL_FMT("Bind!");
+
+      // TODO:
+      // 1. Resolve
+
+      if (!DNS::resolve("127.0.0.3", "0", this, on_client_resolved, false))
+      {
+        LOG_FAIL_FMT("Resolved failed");
+        return false;
+      }
+
+      return true;
+    }
+
+    static void on_client_resolved(
+      uv_getaddrinfo_t* req, int rc, struct addrinfo*)
+    {
+      static_cast<TCPImpl*>(req->data)->on_client_resolved(req, rc);
+    }
+
+    void on_client_resolved(uv_getaddrinfo_t* req, int rc)
+    {
+      LOG_FAIL_FMT("here!");
+      // addrinfo* localaddr = nullptr;
+      if ((rc = uv_tcp_bind(&uv_handle, req->addrinfo->ai_addr, 0)) < 0)
+      {
+        LOG_FAIL_FMT("uv_tcp_bind failed on");
+      }
+    }
+
     bool connect(const std::string& host, const std::string& service)
     {
       assert_status(FRESH, CONNECTING_RESOLVING);

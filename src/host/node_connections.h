@@ -344,11 +344,20 @@ namespace asynchost
       TCP s;
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node));
 
+      if (!s->bind())
+      {
+        LOG_DEBUG_FMT("Could not bind!");
+        return false;
+      }
+
       if (!s->connect(host, service))
       {
         LOG_DEBUG_FMT("Node failed initial connect {}", node);
         return false;
       }
+
+      LOG_FAIL_FMT("Client host: {}", s->get_host());
+      LOG_FAIL_FMT("Client port: {}", s->get_service());
 
       outgoing.emplace(node, s);
 

@@ -13,6 +13,7 @@ import os
 import socket
 import re
 import time
+import iptc
 
 from loguru import logger as LOG
 
@@ -415,6 +416,55 @@ class Node:
         self.suspended = False
         self.remote.resume()
         LOG.info(f"Node {self.local_node_id} has resumed from suspension.")
+
+    def n2n_drop_all_incoming(self):
+        # iptables-save the current config and copy the following line to /etc/cron.d/iptables-restore so that you're not locked in the account
+        # * * * * * root /sbin/iptables-restore /etc/iptables.conf
+        rule = {
+            "protocol": "tcp",
+            "target": "DROP",
+            "dst": str(self.host),
+            "tcp": {"dport": str(self.rpc_port)},
+        }
+
+        LOG.error(f"https://{self.host}:{self.rpc_port}")
+
+        if iptc.easy.has_rule("filter", "TestChain", rule):
+            iptc.easy.delete_rule("filter", "TestChain", rule)
+            # iptc.easy.delete_chain("filter", "TestChain")
+
+        # iptc.easy.add_chain("filter", "TestChain")
+        iptc.easy.insert_rule("filter", "TestChain", rule)
+
+        input_rule = {"protocol": "tcp", "target": "TestChain", "tcp": {}}
+        iptc.easy.insert_rule("filter", "INPUT", input_rule)
+
+        while True:
+            LOG.warning(iptc.easy.dump_chain("filter", "TestChain"))
+            time.sleep(10)
+
+    def n2n_isolate_from_service(self):
+        rule = {
+            "protocol": "tcp",
+            "target": "DROP",
+            "dst": str(self.host),
+            "tcp": {"dport": str(self.node_port)},
+        }
+
+        LOG.error(f"Isolating from service https://{self.host}:{self.node_port}")
+
+        if not iptc.easy.has_chain("filter", "TestChain"):
+            iptc.easy.add_chain("filter", "TestChain")
+
+        if iptc.easy.has_rule("filter", "TestChain", rule):
+            iptc.easy.delete_rule("filter", "TestChain", rule)
+            # iptc.easy.delete_chain("filter", "TestChain")
+
+        # iptc.easy.add_chain("filter", "TestChain")
+        iptc.easy.insert_rule("filter", "TestChain", rule)
+
+        input_rule = {"protocol": "tcp", "target": "TestChain", "tcp": {}}
+        iptc.easy.insert_rule("filter", "INPUT", input_rule)
 
 
 @contextmanager
