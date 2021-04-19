@@ -212,8 +212,8 @@ namespace ds
         // Nlohmann JSON serialises some maps as objects, if the keys can be
         // converted to strings. This should detect those cases. The others are
         // serialised as list-of-pairs
-        if constexpr (nlohmann::detail::is_compatible_object_type<nlohmann::json, T>::
-              value)
+        if constexpr (nlohmann::detail::
+                        is_compatible_object_type<nlohmann::json, T>::value)
         {
           schema["type"] = "object";
           schema["additionalProperties"] =
