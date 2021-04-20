@@ -44,13 +44,13 @@ if __name__ == "__main__":
     )
 
     if len(sys.argv) < 2:
-        LOG.error("First argument should be CCF ledger directory")
+        LOG.error("At least one CCF ledger directory must be passed as an argument")
         sys.exit(1)
 
-    ledger_dir = sys.argv[1]
-    ledger = ccf.ledger.Ledger(ledger_dir)
+    ledger_dirs = sys.argv[1:]
+    ledger = ccf.ledger.Ledger(ledger_dirs)
 
-    LOG.info(f"Reading ledger from {ledger_dir}")
+    LOG.info(f"Reading ledger from {ledger_dirs}")
     LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
 
     for chunk in ledger:
