@@ -10,6 +10,13 @@ Overview
 
     ---
 
+    :fa:`rocket` :doc:`release_policy`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    CCF release cadence and compatibility committments.
+
+    ---
+    
     :fa:`scroll` :doc:`governance`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -43,11 +50,19 @@ Overview
 
     CCF threading model.
 
+    ---
+
+    :fa:`book` :doc:`glossary`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Common terms used throughout the documentation and their definitions.
+
 .. toctree::
     :hidden:
     :maxdepth: 1
 
     concepts
+    release_policy
     governance
     consensus
     cryptography
