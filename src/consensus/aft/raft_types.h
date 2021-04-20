@@ -113,6 +113,7 @@ namespace aft
     raft_append_entries_signed_response,
     raft_request_vote,
     raft_request_vote_response,
+    raft_node_caught_up,
 
     bft_request,
     bft_signature_received_ack,
@@ -200,6 +201,12 @@ namespace aft
   {
     Term term;
     bool vote_granted;
+  };
+
+  struct NodeCaughtUpMsg : RaftHeader
+  {
+    ccf::View view = 0;
+    ccf::SeqNo seqno = 0;
   };
 #pragma pack(pop)
 }

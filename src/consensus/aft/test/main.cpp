@@ -49,8 +49,8 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     election_timeout,
     ms(1000));
 
-  kv::Configuration::Nodes config;
-  config.try_emplace(node_id);
+  kv::ConfigurableConsensus::ConsensusConfiguration config;
+  config.active.try_emplace(node_id);
   r0.add_configuration(0, config);
 
   DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
@@ -94,8 +94,8 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     election_timeout,
     ms(1000));
 
-  aft::Configuration::Nodes config;
-  config[node_id] = {};
+  kv::ConfigurableConsensus::ConsensusConfiguration config;
+  config.active[node_id] = {};
   r0.add_configuration(0, config);
 
   DOCTEST_INFO("Become leader after election timeout");
@@ -182,10 +182,10 @@ DOCTEST_TEST_CASE(
     ms(50),
     ms(1000));
 
-  aft::Configuration::Nodes config;
-  config[node_id0] = {};
-  config[node_id1] = {};
-  config[node_id2] = {};
+  kv::ConfigurableConsensus::ConsensusConfiguration config;
+  config.active[node_id0] = {};
+  config.active[node_id1] = {};
+  config.active[node_id2] = {};
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
   r2.add_configuration(0, config);
@@ -396,10 +396,10 @@ DOCTEST_TEST_CASE(
     ms(50),
     ms(1000));
 
-  aft::Configuration::Nodes config;
-  config[node_id0] = {};
-  config[node_id1] = {};
-  config[node_id2] = {};
+  kv::ConfigurableConsensus::ConsensusConfiguration config;
+  config.active[node_id0] = {};
+  config.active[node_id1] = {};
+  config.active[node_id2] = {};
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
   r2.add_configuration(0, config);
@@ -590,9 +590,9 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     ms(50),
     ms(1000));
 
-  aft::Configuration::Nodes config;
-  config[node_id0] = {};
-  config[node_id1] = {};
+  kv::ConfigurableConsensus::ConsensusConfiguration config;
+  config.active[node_id0] = {};
+  config.active[node_id1] = {};
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
 
@@ -670,10 +670,10 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 
   DOCTEST_INFO("Node 2 joins the ensemble");
 
-  aft::Configuration::Nodes config1;
-  config1[node_id0] = {};
-  config1[node_id1] = {};
-  config1[node_id2] = {};
+  kv::ConfigurableConsensus::ConsensusConfiguration config1;
+  config1.active[node_id0] = {};
+  config1.active[node_id1] = {};
+  config1.active[node_id2] = {};
   r0.add_configuration(0, config1);
   r1.add_configuration(0, config1);
   r2.add_configuration(0, config1);
@@ -746,9 +746,9 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     ms(100),
     ms(1000));
 
-  aft::Configuration::Nodes config0;
-  config0[node_id0] = {};
-  config0[node_id1] = {};
+  kv::ConfigurableConsensus::ConsensusConfiguration config0;
+  config0.active[node_id0] = {};
+  config0.active[node_id1] = {};
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
@@ -995,9 +995,9 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     ms(50),
     ms(1000));
 
-  aft::Configuration::Nodes config0;
-  config0[node_id0] = {};
-  config0[node_id1] = {};
+  kv::ConfigurableConsensus::ConsensusConfiguration config0;
+  config0.active[node_id0] = {};
+  config0.active[node_id1] = {};
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
@@ -1090,10 +1090,10 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   DOCTEST_INFO("Node 2 joins the ensemble");
 
-  aft::Configuration::Nodes config1;
-  config1[node_id0] = {};
-  config1[node_id1] = {};
-  config1[node_id2] = {};
+  kv::ConfigurableConsensus::ConsensusConfiguration config1;
+  config1.active[node_id0] = {};
+  config1.active[node_id1] = {};
+  config1.active[node_id2] = {};
   r0.add_configuration(0, config1);
   r1.add_configuration(0, config1);
   r2.add_configuration(0, config1);

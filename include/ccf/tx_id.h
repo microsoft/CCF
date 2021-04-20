@@ -82,6 +82,11 @@ namespace ccf
 
       return tx_id;
     }
+
+    bool operator<(const TxID& other) const
+    {
+      return view < other.view || (view == other.view && seqno < other.seqno);
+    }
   };
 
   // ADL-found functions used during JSON conversion and OpenAPI/JSON schema

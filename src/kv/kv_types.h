@@ -137,10 +137,15 @@ namespace kv
   class ConfigurableConsensus
   {
   public:
+    typedef struct
+    {
+      Configuration::Nodes active, passive;
+    } ConsensusConfiguration;
+
     virtual void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
-    virtual Configuration::Nodes get_latest_configuration() = 0;
-    virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
+      ccf::SeqNo seqno, const ConsensusConfiguration& conf) = 0;
+    virtual ConsensusConfiguration get_latest_configuration() = 0;
+    virtual ConsensusConfiguration get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
   };
 

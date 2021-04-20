@@ -269,8 +269,13 @@ namespace ccf
 
     void add_node(const NodeId& id, const NodeInfo& node_info)
     {
-      // Increment the node id (only used in BFT)
-      get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
+      auto config = tx.ro(tables.config);
+      auto c0 = config->get(0);
+      if (c0 && c0->consensus == BFT)
+      {
+        // Increment the node id (only used in BFT)
+        get_next_id(tx.rw(tables.values), ValueIds::NEXT_NODE_ID);
+      }
 
       auto node = tx.rw(tables.nodes);
       node->put(id, node_info);
@@ -382,7 +387,7 @@ namespace ccf
         throw std::logic_error(fmt::format("Node {} is retired", node_id));
       }
 
-      node_info->status = NodeStatus::TRUSTED;
+      node_info->status = NodeStatus::CATCHING_UP;
       node_info->ledger_secret_seqno = latest_ledger_secret_seqno;
       nodes->put(node_id, node_info.value());
 

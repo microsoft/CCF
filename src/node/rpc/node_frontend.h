@@ -160,7 +160,9 @@ namespace ccf
 #endif
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
-      if (node_status == NodeStatus::TRUSTED)
+      if (
+        node_status == NodeStatus::CATCHING_UP ||
+        node_status == NodeStatus::TRUSTED)
       {
         ledger_secret_seqno =
           this->network.ledger_secrets->get_latest(tx).first;
@@ -181,7 +183,9 @@ namespace ccf
       rep.node_status = node_status;
       rep.node_id = joining_node_id;
 
-      if (node_status == NodeStatus::TRUSTED)
+      if (
+        node_status == NodeStatus::CATCHING_UP ||
+        node_status == NodeStatus::TRUSTED)
       {
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           context.get_node_state().is_part_of_public_network(),
@@ -269,7 +273,7 @@ namespace ccf
         if (active_service->status == ServiceStatus::OPENING)
         {
           // If the service is opening, new nodes are trusted straight away
-          NodeStatus joining_node_status = NodeStatus::TRUSTED;
+          NodeStatus joining_node_status = NodeStatus::CATCHING_UP;
 
           // If the node is already trusted, return network secrets
           auto existing_node_info = check_node_exists(
@@ -341,7 +345,9 @@ namespace ccf
           // trusted. Otherwise, only return its status
           auto node_status = nodes->get(existing_node_info->first)->status;
           rep.node_status = node_status;
-          if (node_status == NodeStatus::TRUSTED)
+          if (
+            node_status == NodeStatus::CATCHING_UP ||
+            node_status == NodeStatus::TRUSTED)
           {
             rep.network_info = {
               context.get_node_state().is_part_of_public_network(),
@@ -489,7 +495,9 @@ namespace ccf
         auto nodes = args.tx.ro(network.nodes);
         nodes->foreach([& quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
-          if (node_info.status == ccf::NodeStatus::TRUSTED)
+          if (
+            node_info.status == ccf::NodeStatus::CATCHING_UP ||
+            node_info.status == ccf::NodeStatus::TRUSTED)
           {
             Quote q;
             q.node_id = node_id;
@@ -796,7 +804,7 @@ namespace ccf
         {
           auto cfg = consensus->get_latest_configuration();
           nlohmann::json c;
-          for (auto& [nid, ninfo] : cfg)
+          for (auto& [nid, ninfo] : cfg.active)
           {
             nlohmann::json n;
             n["address"] = fmt::format("{}:{}", ninfo.hostname, ninfo.port);

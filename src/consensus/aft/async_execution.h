@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/tx_id.h"
+#include "node/configuration_tracker.h"
 #include "raft_types.h"
 
 namespace aft
@@ -300,5 +302,31 @@ namespace aft
     const uint8_t* data;
     size_t size;
     OArray oarray;
+  };
+
+  class NodeCatchUpCallback : public AbstractMsgCallback
+  {
+  public:
+    NodeCatchUpCallback(
+      const ccf::NodeId& from_,
+      ConfigurationTracker& config_tracker_,
+      const TxID& from_txid_,
+      const TxID& node_txid_) :
+      from(from_),
+      config_tracker(config_tracker_),
+      txid(from_txid_),
+      node_txid(node_txid_)
+    {}
+
+    void execute() override
+    {
+      config_tracker.update_passive_node_progress(from, txid, node_txid);
+    }
+
+  private:
+    ccf::NodeId from;
+    ConfigurationTracker& config_tracker;
+    const TxID& txid;
+    const TxID& node_txid;
   };
 }

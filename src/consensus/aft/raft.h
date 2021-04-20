@@ -24,6 +24,7 @@
 
 #include "async_execution.h"
 #include "async_executor.h"
+#include "ccf/tx_id.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "impl/execution.h"
@@ -31,6 +32,7 @@
 #include "impl/state.h"
 #include "impl/view_change_tracker.h"
 #include "kv/kv_types.h"
+#include "node/configuration_tracker.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
@@ -55,26 +57,12 @@ namespace aft
   class Aft : public kv::ConfigurableConsensus, public AbstractConsensusCallback
   {
   private:
-    struct NodeState
+    enum ReplicaState
     {
-      Configuration::NodeInfo node_info;
-
-      // the highest index sent to the node
-      Index sent_idx;
-
-      // the highest matching index with the node that was confirmed
-      Index match_idx;
-
-      NodeState() = default;
-
-      NodeState(
-        const Configuration::NodeInfo& node_info_,
-        Index sent_idx_,
-        Index match_idx_ = 0) :
-        node_info(node_info_),
-        sent_idx(sent_idx_),
-        match_idx(match_idx_)
-      {}
+      Leader,
+      Follower,
+      Candidate,
+      Retired
     };
 
     ConsensusType consensus_type;
@@ -141,8 +129,8 @@ namespace aft
     size_t sig_tx_interval;
 
     // Configurations
-    std::list<Configuration> configurations;
-    std::unordered_map<ccf::NodeId, NodeState> nodes;
+    aft::ConfigurationTracker configuration_tracker;
+    std::unordered_map<ccf::NodeId, aft::NodeState> nodes;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -188,7 +176,10 @@ namespace aft
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
-      bool public_only_ = false) :
+      bool public_only_ = false,
+      std::shared_ptr<kv::AbstractStore> kv_store_ = nullptr) :
+      // TODO: Is there a way to get access to this without explicitly passing
+      // it?
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
@@ -205,6 +196,9 @@ namespace aft
       election_timeout(election_timeout_),
       view_change_timeout(view_change_timeout_),
       sig_tx_interval(sig_tx_interval_),
+
+      configuration_tracker(state_->my_node_id, kv_store_),
+
       public_only(public_only_),
 
       distrib(0, (int)election_timeout_.count() / 2),
@@ -252,18 +246,11 @@ namespace aft
       }
     }
 
-    std::set<ccf::NodeId> active_nodes()
+    std::set<ccf::NodeId> active_node_ids()
     {
-      // Find all nodes present in any active configuration.
       if (backup_nodes.empty())
       {
-        for (auto& conf : configurations)
-        {
-          for (auto node : conf.nodes)
-          {
-            backup_nodes.insert(node.first);
-          }
-        }
+        backup_nodes = configuration_tracker.active_node_ids();
       }
 
       return backup_nodes;
@@ -292,7 +279,7 @@ namespace aft
 
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
-      auto active_nodes_ = active_nodes();
+      auto active_nodes_ = active_node_ids();
       auto it = active_nodes_.begin();
       std::advance(it, (view - starting_view_change) % active_nodes_.size());
       return *it;
@@ -428,7 +415,7 @@ namespace aft
       return state->view_history.initialise(term_history);
     }
 
-    void add_configuration(Index idx, const Configuration::Nodes& conf)
+    void add_configuration(Index idx, const ConsensusConfiguration& conf)
     {
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       // It is safe to call is_follower() by construction as the consensus
@@ -440,23 +427,18 @@ namespace aft
       {
         guard.lock();
       }
+      configuration_tracker.add(idx, std::move(conf));
       // This should only be called when the spin lock is held.
-      configurations.push_back({idx, std::move(conf)});
       backup_nodes.clear();
       create_and_remove_node_state();
     }
 
-    Configuration::Nodes get_latest_configuration_unsafe() const
+    ConsensusConfiguration get_latest_configuration_unsafe() const
     {
-      if (configurations.empty())
-      {
-        return {};
-      }
-
-      return configurations.back().nodes;
+      return configuration_tracker.get_latest_configuration_unsafe();
     }
 
-    Configuration::Nodes get_latest_configuration()
+    ConsensusConfiguration get_latest_configuration()
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return get_latest_configuration_unsafe();
@@ -480,7 +462,7 @@ namespace aft
 
     uint32_t node_count() const
     {
-      return get_latest_configuration_unsafe().size();
+      return get_latest_configuration_unsafe().active.size();
     }
 
     template <typename T>
@@ -607,6 +589,7 @@ namespace aft
               *this, from, std::move(r), data, size, std::move(d));
             break;
           }
+
           case raft_append_entries_response:
           {
             AppendEntriesResponse r =
@@ -616,6 +599,7 @@ namespace aft
               *this, from, std::move(r));
             break;
           }
+
           case raft_append_entries_signed_response:
           {
             SignedAppendEntriesResponse r =
@@ -646,6 +630,19 @@ namespace aft
             break;
           }
 
+          case raft_node_caught_up:
+          {
+            NodeCaughtUpMsg r =
+              channels->template recv_authenticated_with_load<NodeCaughtUpMsg>(
+                from, data, size);
+
+            aee = std::make_unique<NodeCatchUpCallback>(
+              from,
+              configuration_tracker,
+              TxID({r.view, r.seqno}),
+              TxID({state->current_view, state->last_idx}));
+          }
+
           case bft_signature_received_ack:
           {
             SignaturesReceivedAck r =
@@ -665,6 +662,7 @@ namespace aft
               std::make_unique<NonceRevealCallback>(*this, from, std::move(r));
             break;
           }
+
           case bft_view_change:
           {
             RequestViewChangeMsg r =
@@ -745,6 +743,7 @@ namespace aft
           execution_backlog.empty(), "No message should be run asynchronously");
       }
     }
+
     void periodic(std::chrono::milliseconds elapsed)
     {
       {
@@ -1196,7 +1195,7 @@ namespace aft
       bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
       {
-        if (active_nodes().size() == 0)
+        if (active_node_ids().size() == 0)
         {
           // The replica is just starting up, we want to check that this replica
           // is part of the network we joined but that is dependent on Byzantine
@@ -1695,6 +1694,7 @@ namespace aft
         {
           break;
         }
+
         case kv::ApplyResult::PASS_NEW_VIEW:
         {
           view_change_tracker->clear(
@@ -2196,6 +2196,30 @@ namespace aft
         return;
       }
 
+      switch (consensus_type)
+      {
+        case ConsensusType::CFT:
+        {
+          if (is_primary())
+          {
+            state->lock.unlock(); // TODO: Fork this off instead; it needs the
+                                  // state lock to replicate the new transaction
+                                  // it may write when a node catches up.
+            TxID txid = {r.term, r.last_log_idx};
+            configuration_tracker.update_passive_node_progress(
+              from, txid, {state->current_view, state->last_idx});
+          }
+          break;
+        }
+        case ConsensusType::BFT:
+        {
+          // TODO.
+          break;
+        }
+        default:
+          LOG_FAIL_FMT("Unknown consensus type: {}", consensus_type);
+      }
+
       LOG_DEBUG_FMT(
         "Recv append entries response to {} from {} for index {}: success",
         state->my_node_id.trim(),
@@ -2530,7 +2554,12 @@ namespace aft
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
       votes_for_me.insert(from);
 
-      if (votes_for_me.size() >= ((nodes.size() + 1) / 2) + 1)
+      LOG_INFO_FMT(
+        "Received vote from {} for a total of {}", from, votes_for_me.size());
+
+      if (
+        votes_for_me.size() >=
+        ((configuration_tracker.num_active_nodes() + 1) / 2) + 1)
         become_leader();
     }
 
@@ -2550,33 +2579,9 @@ namespace aft
       }
 
       // Obtain CFT watermarks
-      for (auto& c : configurations)
-      {
-        // The majority must be checked separately for each active
-        // configuration.
-        std::vector<Index> match;
-        match.reserve(c.nodes.size() + 1);
+      new_commit_cft_idx =
+        configuration_tracker.cft_watermark(state->last_idx, nodes);
 
-        for (auto node : c.nodes)
-        {
-          if (node.first == state->my_node_id)
-          {
-            match.push_back(state->last_idx);
-          }
-          else
-          {
-            match.push_back(nodes.at(node.first).match_idx);
-          }
-        }
-
-        sort(match.begin(), match.end());
-        auto confirmed = match.at((match.size() - 1) / 2);
-
-        if (confirmed < new_commit_cft_idx)
-        {
-          new_commit_cft_idx = confirmed;
-        }
-      }
       LOG_DEBUG_FMT(
         "In update_commit, new_commit_cft_idx: {}, new_commit_bft_idx:{}. "
         "last_idx: {}",
@@ -2658,30 +2663,9 @@ namespace aft
 
       LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id.trim(), idx);
 
-      // Examine all configurations that are followed by a globally committed
-      // configuration.
-      bool changed = false;
-
-      while (true)
+      if (configuration_tracker.examine_committed_configurations(idx))
       {
-        auto conf = configurations.begin();
-        if (conf == configurations.end())
-          break;
-
-        auto next = std::next(conf);
-        if (next == configurations.end())
-          break;
-
-        if (idx < next->idx)
-          break;
-
-        configurations.pop_front();
         backup_nodes.clear();
-        changed = true;
-      }
-
-      if (changed)
-      {
         create_and_remove_node_state();
       }
     }
@@ -2723,17 +2707,9 @@ namespace aft
       }
 
       // Rollback configurations.
-      bool changed = false;
-
-      while (!configurations.empty() && (configurations.back().idx > idx))
+      if (configuration_tracker.rollback(idx))
       {
-        configurations.pop_back();
         backup_nodes.clear();
-        changed = true;
-      }
-
-      if (changed)
-      {
         create_and_remove_node_state();
       }
 
@@ -2747,15 +2723,9 @@ namespace aft
     void create_and_remove_node_state()
     {
       // Find all nodes present in any active configuration.
-      Configuration::Nodes active_nodes;
-
-      for (auto& conf : configurations)
-      {
-        for (auto node : conf.nodes)
-        {
-          active_nodes.emplace(node.first, node.second);
-        }
-      }
+      Configuration::Nodes all_nodes = configuration_tracker.active_nodes();
+      auto& pn = configuration_tracker.passive_nodes();
+      all_nodes.insert(pn.begin(), pn.end());
 
       // Remove all nodes in the node state that are not present in any active
       // configuration.
@@ -2763,7 +2733,7 @@ namespace aft
 
       for (auto& node : nodes)
       {
-        if (active_nodes.find(node.first) == active_nodes.end())
+        if (all_nodes.find(node.first) == all_nodes.end())
         {
           to_remove.push_back(node.first);
         }
@@ -2777,18 +2747,18 @@ namespace aft
         {
           channels->destroy_channel(node_id);
         }
+        configuration_tracker.erase(node_id);
         nodes.erase(node_id);
         LOG_INFO_FMT("Removed raft node {}", node_id);
       }
 
       // Add all active nodes that are not already present in the node state.
-      bool self_is_active = false;
+      bool self_is_active = configuration_tracker.is_active(state->my_node_id);
 
-      for (auto node_info : active_nodes)
+      for (auto node_info : all_nodes)
       {
         if (node_info.first == state->my_node_id)
         {
-          self_is_active = true;
           continue;
         }
 

@@ -3,6 +3,8 @@
 #pragma once
 
 #include "ds/logger.h"
+#include "kv/kv_types.h"
+#include "node/nodes.h"
 
 namespace ccf
 {
@@ -15,7 +17,7 @@ namespace ccf
   class ConfigurationChangeHook : public kv::ConsensusHook
   {
     kv::Version version;
-    std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
+    std::map<NodeId, std::optional<NodeAddr>> cfg_delta, cfg_delta_catchup;
 
   public:
     ConfigurationChangeHook(kv::Version version_, const Nodes::Write& w) :
@@ -23,6 +25,9 @@ namespace ccf
     {
       for (const auto& [node_id, opt_ni] : w)
       {
+        LOG_INFO_FMT(
+          "ConfigurationChangeHook(): {} {}", node_id, opt_ni.has_value());
+
         const auto& ni = opt_ni.value();
         switch (ni.status)
         {
@@ -30,6 +35,12 @@ namespace ccf
           {
             // Pending nodes are not added to consensus until they are
             // trusted
+            break;
+          }
+          case NodeStatus::CATCHING_UP:
+          {
+            cfg_delta_catchup.try_emplace(
+              node_id, NodeAddr{ni.nodehost, ni.nodeport});
             break;
           }
           case NodeStatus::TRUSTED:
@@ -52,18 +63,44 @@ namespace ccf
     void call(kv::ConfigurableConsensus* consensus) override
     {
       auto configuration = consensus->get_latest_configuration_unsafe();
+
+      LOG_INFO_FMT(
+        "ConfigurationChangeHook::call(): {}/{} {}/{}",
+        configuration.active.size(),
+        configuration.passive.size(),
+        cfg_delta.size(),
+        cfg_delta_catchup.size());
+
       for (const auto& [node_id, opt_ni] : cfg_delta)
       {
+        LOG_INFO_FMT("Active: {} {}", node_id, opt_ni.has_value());
         if (opt_ni.has_value())
         {
-          configuration.try_emplace(node_id, opt_ni->hostname, opt_ni->port);
+          configuration.active.try_emplace(
+            node_id, opt_ni->hostname, opt_ni->port);
+          configuration.passive.erase(node_id);
         }
         else
         {
-          configuration.erase(node_id);
+          configuration.active.erase(node_id);
         }
       }
-      if (!cfg_delta.empty())
+
+      for (const auto& [node_id, opt_ni] : cfg_delta_catchup)
+      {
+        LOG_INFO_FMT("Passive: {} {}", node_id, opt_ni.has_value());
+        if (opt_ni.has_value())
+        {
+          configuration.passive.try_emplace(
+            node_id, opt_ni->hostname, opt_ni->port);
+        }
+        else
+        {
+          configuration.passive.erase(node_id);
+        }
+      }
+
+      if (!cfg_delta.empty() || !cfg_delta_catchup.empty())
       {
         consensus->add_configuration(version, configuration);
       }

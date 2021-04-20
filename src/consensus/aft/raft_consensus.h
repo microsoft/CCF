@@ -113,7 +113,7 @@ namespace aft
 
     std::set<ccf::NodeId> active_nodes() override
     {
-      return aft->active_nodes();
+      return aft->active_node_ids();
     }
 
     void recv_message(const ccf::NodeId& from, OArray&& data) override
@@ -122,17 +122,17 @@ namespace aft
     }
 
     void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) override
+      ccf::SeqNo seqno, const ConsensusConfiguration& conf) override
     {
       aft->add_configuration(seqno, conf);
     }
 
-    Configuration::Nodes get_latest_configuration() override
+    ConsensusConfiguration get_latest_configuration() override
     {
       return aft->get_latest_configuration();
     }
 
-    Configuration::Nodes get_latest_configuration_unsafe() const override
+    ConsensusConfiguration get_latest_configuration_unsafe() const override
     {
       return aft->get_latest_configuration_unsafe();
     }

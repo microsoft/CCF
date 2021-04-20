@@ -38,6 +38,7 @@ WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
 
 class NodeStatus(Enum):
     PENDING = "Pending"
+    CATCHING_UP = "CatchingUp"
     TRUSTED = "Trusted"
     RETIRED = "Retired"
 

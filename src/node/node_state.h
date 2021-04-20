@@ -541,7 +541,9 @@ namespace ccf
           }
 
           // Set network secrets, node id and become part of network.
-          if (resp.node_status == NodeStatus::TRUSTED)
+          if (
+            resp.node_status == NodeStatus::CATCHING_UP ||
+            resp.node_status == NodeStatus::TRUSTED)
           {
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
@@ -1922,7 +1924,8 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
         sig_tx_interval,
-        public_only);
+        public_only,
+        network.tables);
 
       consensus = std::make_shared<RaftConsensusType>(
         std::move(raft), network.consensus_type);
