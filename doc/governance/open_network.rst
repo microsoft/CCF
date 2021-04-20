@@ -85,17 +85,19 @@ Members configure this permission with ``set_user_data`` proposals:
 .. code-block:: bash
 
     $ cat set_user_data_proposal.json
-    {
-        "script": {
-            "text": "tables, args = ...; return Calls:call(\"set_user_data\", args)"
-        },
-        "parameter": {
-            "user_id": 0,
-            "user_data": {
-                "isAdmin": true
+{
+    "actions": [
+        {
+            "name": "set_user_data",
+            "args": {
+                "user_id": "6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f",
+                "user_data": {
+                    "isAdmin": true
+                }
             }
         }
-    }
+    ]
+}
 
 Once this proposal is accepted, user 0 is able to use this endpoint:
 
