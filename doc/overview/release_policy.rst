@@ -50,7 +50,7 @@ Operations compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 - Patches are compatible: nodes built from the same major release but different patches releases can run within the same service (backward and forward compatibility between these).
-- The last patch in a major release (`N.0.x`) is compatible with the first patch of the next major release (`N+1.0.x`): nodes built against both versions can be run within the same service.
+- The last patch in a major release (`N.0.final`) is compatible with the first patch of the next major release (`N+1.0.0`): nodes built against both versions can be run within the same service.
 - Open-ended ledger backward compatibility: a ledger produced by version `N.0.x` can be read by all versions `> N.0.x`.
 - Forward compatibility of the ledger across patches: a ledger produced by version `N.0.x` can be read by all `N.0.*` patches in the same major release. 
 - Snapshots are compatible across incremental major releases (going from `N.0.x` to `N+1.0.x`).
