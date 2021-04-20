@@ -99,14 +99,24 @@ def test_proposal_validation(network, args):
         # Too long
         r = c.post(
             "/gov/proposals",
-            proposal(action("remove_user", user_id="0deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")),
+            proposal(
+                action(
+                    "remove_user",
+                    user_id="0deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+                )
+            ),
         )
         assert_invalid_proposal(r)
 
         # Not hex
         r = c.post(
             "/gov/proposals",
-            proposal(action("remove_user", user_id="totboeuftotboeuftotboeuftotboeuftotboeuftotboeuftotboeuftotboeuf")),
+            proposal(
+                action(
+                    "remove_user",
+                    user_id="totboeuftotboeuftotboeuftotboeuftotboeuftotboeuftotboeuftotboeuf",
+                )
+            ),
         )
         assert_invalid_proposal(r)
 
@@ -114,7 +124,12 @@ def test_proposal_validation(network, args):
         # NB: It validates (structurally correct type), but does nothing because this user doesn't exist
         r = c.post(
             "/gov/proposals",
-            proposal(action("remove_user", user_id="deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")),
+            proposal(
+                action(
+                    "remove_user",
+                    user_id="deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+                )
+            ),
         )
         assert r.status_code == 200
 

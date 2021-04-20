@@ -76,8 +76,11 @@ function checkNone(args) {
 
 function checkEntityId(value, field) {
   checkType(value, "string", field);
-  if (value.length !== 64) {
-    throw new Error(`${field} must contain exactly 64 characters`);
+  // This should be the hex-encoding of a SHA256 digest. This is 32 bytes long, so
+  // produces 64 hex characters.
+  const digestLength = 64;
+  if (value.length !== digestLength) {
+    throw new Error(`${field} must contain exactly ${digestLength} characters`);
   }
   const re = new RegExp("^[a-fA-F0-9]*$");
   if (!re.test(value)) {
