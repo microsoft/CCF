@@ -28,12 +28,6 @@ The CCF team welcome contributions to any part of the framework, including this 
 
     Build CCF from source.
 
-    ---
-
-    :fa:`rocket` :doc:`release_policy`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    CCF release and support policy.
 
 .. toctree::
     :maxdepth: 1
@@ -42,4 +36,3 @@ The CCF team welcome contributions to any part of the framework, including this 
     /build_apps/create_vm
     /build_apps/build_setup
     build_ccf
-    release_policy
