@@ -53,12 +53,19 @@ namespace nonstd
    * static_assert which will fail only when invalid paths are called, but
    * allows compilation otherwise
    */
-  template <typename T, T = T{}>
+  template <typename T>
   struct dependent_false : public std::false_type
   {};
 
-  template <typename T, T t = T{}>
-  static constexpr bool dependent_false_v = dependent_false<T, t>::value;
+  template <typename T>
+  static constexpr bool dependent_false_v = dependent_false<T>::value;
+
+  template <typename T, T>
+  struct value_dependent_false : public std::false_type
+  {};
+
+  template <typename T, T t>
+  static constexpr bool value_dependent_false_v = dependent_false<T>::value;
 
   /** remove_cvref combines remove_cv and remove_reference - this is present in
    * C++20
