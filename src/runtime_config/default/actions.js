@@ -74,6 +74,20 @@ function checkNone(args) {
   }
 }
 
+function checkEntityId(value, field) {
+  checkType(value, "string", field);
+  // This should be the hex-encoding of a SHA256 digest. This is 32 bytes long, so
+  // produces 64 hex characters.
+  const digestLength = 64;
+  if (value.length !== digestLength) {
+    throw new Error(`${field} must contain exactly ${digestLength} characters`);
+  }
+  const re = new RegExp("^[a-fA-F0-9]*$");
+  if (!re.test(value)) {
+    throw new Error(`${field} contains non-hexadecimal character`);
+  }
+}
+
 function getSingletonKvKey() {
   // When a KV map only contains one value, this is the key at which
   // the value is recorded
@@ -214,7 +228,7 @@ const actions = new Map([
     "remove_member",
     new Action(
       function (args) {
-        checkType(args.member_id, "string", "member_id");
+        checkEntityId(args.member_id, "member_id");
       },
       function (args) {
         const rawMemberId = ccf.strToBuf(args.member_id);
@@ -276,7 +290,7 @@ const actions = new Map([
     "set_member_data",
     new Action(
       function (args) {
-        checkType(args.member_id, "string", "member_id");
+        checkEntityId(args.member_id, "member_id");
         checkType(args.member_data, "object", "member_data");
       },
 
@@ -324,7 +338,7 @@ const actions = new Map([
     "remove_user",
     new Action(
       function (args) {
-        checkType(args.user_id, "string", "user_id");
+        checkEntityId(args.user_id, "user_id");
       },
       function (args) {
         const user_id = ccf.strToBuf(args.user_id);
@@ -337,7 +351,7 @@ const actions = new Map([
     "set_user_data",
     new Action(
       function (args) {
-        checkType(args.user_id, "string", "user_id");
+        checkEntityId(args.user_id, "user_id");
         checkType(args.user_data, "object?", "user_data");
       },
       function (args) {
@@ -715,7 +729,7 @@ const actions = new Map([
     "transition_node_to_trusted",
     new Action(
       function (args) {
-        checkType(args.node_id, "string", "node_id");
+        checkEntityId(args.node_id, "node_id");
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
@@ -752,7 +766,7 @@ const actions = new Map([
     "remove_node",
     new Action(
       function (args) {
-        checkType(args.node_id, "string", "node_id");
+        checkEntityId(args.node_id, "node_id");
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
