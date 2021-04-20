@@ -335,9 +335,6 @@ namespace asynchost
       }
 
       auto len = entry_size(idx);
-
-      LOG_FAIL_FMT(
-        "Reading entry of size {}, at {}", len, positions.at(idx - start_idx));
       std::vector<uint8_t> entry(len);
       fseeko(file, positions.at(idx - start_idx), SEEK_SET);
 
@@ -360,12 +357,6 @@ namespace asynchost
       }
 
       auto framed_size = framed_entries_size(from, to);
-
-      LOG_FAIL_FMT(
-        "Reading entries of size {}, at {}",
-        framed_size,
-        positions.at(from - start_idx));
-
       std::vector<uint8_t> framed_entries(framed_size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 
@@ -903,7 +894,7 @@ namespace asynchost
       auto f = get_latest_file();
       last_idx = f->write_entry(data, size, committable);
 
-      LOG_DEBUG_FMT(
+      LOG_TRACE_FMT(
         "Wrote entry at {} [committable: {}, forced: {}]",
         last_idx,
         committable,

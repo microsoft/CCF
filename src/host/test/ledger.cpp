@@ -783,6 +783,7 @@ TEST_CASE("Limit number of open files")
   {
     entry_submitter.write(true);
     entry_submitter.write(true);
+    entry_submitter.write(true);
     last_idx = entry_submitter.get_last_idx();
     ledger.commit(last_idx);
 
