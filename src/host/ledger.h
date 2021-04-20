@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "ds/messaging.h"
 #include "ds/nonstd.h"
+#include "kv/ledger_format.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -207,6 +208,7 @@ namespace asynchost
         size_t pos = sizeof(positions_offset_header_t);
         uint32_t entry_size = 0;
 
+        // TODO: Fix!
         while (len >= frame_header_size)
         {
           if (fread(&entry_size, frame_header_size, 1, file) != 1)
@@ -272,11 +274,11 @@ namespace asynchost
       positions.push_back(total_len);
       size_t new_idx = get_last_idx();
 
-      uint32_t frame = (uint32_t)size;
-      if (fwrite(&frame, frame_header_size, 1, file) != 1)
-      {
-        throw std::logic_error("Failed to write entry header to ledger");
-      }
+      // uint32_t frame = (uint32_t)size;
+      // if (fwrite(&frame, frame_header_size, 1, file) != 1)
+      // {
+      //   throw std::logic_error("Failed to write entry header to ledger");
+      // }
 
       if (fwrite(data, size, 1, file) != 1)
       {
@@ -290,11 +292,12 @@ namespace asynchost
           fmt::format("Failed to flush entry to ledger: {}", strerror(errno)));
       }
 
-      total_len += (size + frame_header_size);
+      total_len += size;
 
       return new_idx;
     }
 
+    // TODO: Rename framed_...
     size_t framed_entries_size(size_t from, size_t to) const
     {
       if ((from < start_idx) || (to < from) || (to > get_last_idx()))
@@ -315,8 +318,7 @@ namespace asynchost
 
     size_t entry_size(size_t idx) const
     {
-      auto framed_size = framed_entries_size(idx, idx);
-      return (framed_size != 0) ? framed_size - frame_header_size : 0;
+      return framed_entries_size(idx, idx);
     }
 
     std::optional<std::vector<uint8_t>> read_entry(size_t idx) const
@@ -327,10 +329,13 @@ namespace asynchost
       }
 
       auto len = entry_size(idx);
-      std::vector<uint8_t> entry(len);
-      fseeko(file, positions.at(idx - start_idx) + frame_header_size, SEEK_SET);
 
-      if (fread(entry.data(), len, 1, file) != 1)
+      LOG_FAIL_FMT(
+        "Reading entry of size {}, at {}", len, positions.at(idx - start_idx));
+      std::vector<uint8_t> entry(len);
+      fseeko(file, positions.at(idx - start_idx), SEEK_SET);
+
+      if (fread(entry.data(), entry.size(), 1, file) != 1)
       {
         throw std::logic_error(
           fmt::format("Failed to read entry {} from file", idx));
@@ -349,6 +354,12 @@ namespace asynchost
       }
 
       auto framed_size = framed_entries_size(from, to);
+
+      LOG_FAIL_FMT(
+        "Reading entries of size {}, at {}",
+        framed_size,
+        positions.at(from - start_idx));
+
       std::vector<uint8_t> framed_entries(framed_size);
       fseeko(file, positions.at(from - start_idx), SEEK_SET);
 

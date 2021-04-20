@@ -5,6 +5,7 @@
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
 #include "kv_types.h"
+#include "ledger_format.h"
 #include "serialised_entry.h"
 
 #include <optional>
@@ -14,25 +15,25 @@ namespace kv
   using SerialisedKey = kv::serialisers::SerialisedEntry;
   using SerialisedValue = kv::serialisers::SerialisedEntry;
 
-  static constexpr auto entry_format_v1 = 1;
+  // static constexpr auto entry_format_v1 = 1;
 
-  struct SerialisedEntryHeader
-  {
-    uint8_t version = entry_format_v1;
-    uint8_t flags = 0;
+  // struct SerialisedEntryHeader
+  // {
+  //   uint8_t version = entry_format_v1;
+  //   uint8_t flags = 0;
 
-    uint64_t size : (sizeof(uint64_t) - sizeof(uint8_t) - sizeof(uint8_t)) *
-                    CHAR_BIT;
+  //   uint64_t size : (sizeof(uint64_t) - sizeof(uint8_t) - sizeof(uint8_t)) *
+  //                   CHAR_BIT;
 
-    void set_size(uint64_t size_)
-    {
-      // TODO: Maximum size
-      // CCF_ASSERT_FMT(size_ <= max_entry_size, "");
+  //   void set_size(uint64_t size_)
+  //   {
+  //     // TODO: Maximum size
+  //     // CCF_ASSERT_FMT(size_ <= max_entry_size, "");
 
-      size = size_;
-    }
-  };
-  static_assert(sizeof(SerialisedEntryHeader) == sizeof(uint64_t));
+  //     size = size_;
+  //   }
+  // };
+  // static_assert(sizeof(SerialisedEntryHeader) == sizeof(uint64_t));
 
   template <typename W>
   class GenericSerialiseWrapper
