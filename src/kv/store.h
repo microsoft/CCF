@@ -955,7 +955,9 @@ namespace kv
         }
 
         if (globally_committable && txid.version > last_committable)
+        {
           last_committable = txid.version;
+        }
 
         pending_txs.insert(
           {txid.version,
@@ -968,7 +970,9 @@ namespace kv
         {
           auto search = pending_txs.find(last_replicated + offset);
           if (search == pending_txs.end())
+          {
             break;
+          }
 
           auto& [pending_tx_, committable_] = search->second;
           auto [success_, data_, hooks_] = pending_tx_->call();
@@ -982,11 +986,17 @@ namespace kv
           // execute in order with a read_version that's version - 1, so even
           // two contiguous signatures are fine
           if (success_ != CommitResult::SUCCESS)
+          {
             LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
+          }
 
           if (h)
           {
-            h->append(*data_shared);
+            // The serialised entry header is not covered by the history as it
+            // does not provide any integrity guarantee
+            h->append(
+              data_shared->data() + kv::serialised_entry_header_size,
+              data_shared->size() - kv::serialised_entry_header_size);
           }
 
           LOG_DEBUG_FMT(
@@ -998,7 +1008,9 @@ namespace kv
         }
 
         if (batch.size() == 0)
+        {
           return CommitResult::SUCCESS;
+        }
 
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;

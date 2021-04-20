@@ -194,7 +194,6 @@ namespace kv
           "Could not serialise transaction at seqno {}", tx_id.version));
       }
 
-      LOG_FAIL_FMT("Public domain length {}", serialised_public_domain.size());
       serialized::write(
         data_, size_, serialised_hdr.data(), serialised_hdr.size());
       serialized::write(data_, size_, serialised_public_domain.size());
@@ -211,8 +210,6 @@ namespace kv
           encrypted_private_domain.data(),
           encrypted_private_domain.size());
       }
-
-      LOG_FAIL_FMT("Serialised entry of size {}", entry.size());
 
       return entry;
     }
