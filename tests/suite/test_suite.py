@@ -96,6 +96,7 @@ all_tests_suite = [
     # code update:
     code_update.test_verify_quotes,
     code_update.test_add_node_with_bad_code,
+    governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
 ]
 suites["all"] = all_tests_suite
