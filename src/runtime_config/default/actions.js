@@ -225,7 +225,7 @@ const actions = new Map([
     "remove_member",
     new Action(
       function (args) {
-        checkType(args.member_id, "string", "member_id");
+        checkEntityId(args.member_id, "member_id");
       },
       function (args) {
         const rawMemberId = ccf.strToBuf(args.member_id);
@@ -287,7 +287,7 @@ const actions = new Map([
     "set_member_data",
     new Action(
       function (args) {
-        checkType(args.member_id, "string", "member_id");
+        checkEntityId(args.member_id, "member_id");
         checkType(args.member_data, "object", "member_data");
       },
 
@@ -726,7 +726,7 @@ const actions = new Map([
     "transition_node_to_trusted",
     new Action(
       function (args) {
-        checkType(args.node_id, "string", "node_id");
+        checkEntityId(args.node_id, "node_id");
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
@@ -763,7 +763,7 @@ const actions = new Map([
     "remove_node",
     new Action(
       function (args) {
-        checkType(args.node_id, "string", "node_id");
+        checkEntityId(args.node_id, "node_id");
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
