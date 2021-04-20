@@ -17,9 +17,11 @@ namespace ccf
 
   struct QuoteInfo
   {
+    /// Quote format
     QuoteFormat format = QuoteFormat::oe_sgx_v1;
-
+    /// Enclave quote
     std::vector<uint8_t> quote;
+    /// Quote endorsements
     std::vector<uint8_t> endorsements;
   };
 

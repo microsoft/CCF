@@ -1,6 +1,6 @@
 import * as crypto from "crypto";
 import * as forge from "node-forge";
-import { WrapAlgoParams } from "../src/global";
+import { WrapAlgoParams } from "../src/global.js";
 
 function nodeBufToArrBuf(buf: Buffer): ArrayBuffer {
   // Note: buf.buffer is not safe, see docs.

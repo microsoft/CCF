@@ -7,10 +7,11 @@
     "*.js",
     "*.d.ts"
   ],
+  "type": "module",
   "scripts": {
     "prepare": "npm run build",
     "build": "tsc",
-    "test": "mocha -r esm -r ts-node/register test/**/*.test.ts",
+    "test": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/**/*.test.ts",
     "docs": "typedoc",
     "docs:serve": "rm -rf html && concurrently \"typedoc --watch --preserveWatchOutput\" \"serve html\""
   },
@@ -23,7 +24,7 @@
     "@types/node-forge": "^0.9.7",
     "chai": "^4.3.4",
     "concurrently": "^6.0.0",
-    "esm": "^3.2.25",
+    "cross-env": "^7.0.3",
     "mocha": "^8.3.2",
     "node-forge": "^0.10.0",
     "serve": "^11.3.2",

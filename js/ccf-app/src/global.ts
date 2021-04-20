@@ -11,7 +11,7 @@
  * as follows:
  *
  * ```
- * import { ccf } from '@microsoft/ccf-app/global';
+ * import { ccf } from '@microsoft/ccf-app/global.js';
  * ```
  *
  * @module
@@ -175,6 +175,8 @@ export interface CryptoKeyPair {
   publicKey: string;
 }
 
+export type DigestAlgorithm = "SHA-256";
+
 export interface CCF {
   /**
    * Convert a string into an ArrayBuffer.
@@ -228,6 +230,11 @@ export interface CCF {
   ): ArrayBuffer;
 
   /**
+   * Generate a digest (hash) of the given data.
+   */
+  digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
+
+  /**
    * Returns whether a string is a PEM-encoded bundle of X.509 certificates.
    *
    * A bundle consists of one or more certificates.
@@ -235,6 +242,14 @@ export interface CCF {
    * Validation is only syntactical, properties like validity dates are not evaluated.
    */
   isValidX509CertBundle(pem: string): boolean;
+
+  rpc: {
+    /**
+     * Set whether KV writes should be applied even if the response status is not 2xx.
+     * The default is `false`.
+     */
+    setApplyWrites(force: boolean): void;
+  };
 
   /**
    * An object that provides access to the maps of the Key-Value Store of CCF.

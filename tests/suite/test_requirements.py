@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.network
+from ccf.ledger import NodeStatus
 import functools
 
 from loguru import logger as LOG
@@ -98,23 +99,16 @@ def sufficient_recovery_member_count():
 def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
-        with primary.client(network.consortium.get_any_active_member().local_id) as c:
-            r = c.post(
-                "/gov/query",
-                {
-                    "text": """tables = ...
-                        trusted_nodes_count = 0
-                        tables["public:ccf.gov.nodes.info"]:foreach(function(node_id, details)
-                            if details["status"] == "Trusted" then
-                                trusted_nodes_count = trusted_nodes_count + 1
-                            end
-                        end)
-                        return trusted_nodes_count
-                        """
-                },
-            )
+        with primary.client() as c:
+            r = c.get("/node/network/nodes")
 
-            trusted_nodes_count = r.body.json()
+            trusted_nodes_count = len(
+                [
+                    node
+                    for node in r.body.json()["nodes"]
+                    if node["status"] == NodeStatus.TRUSTED.value
+                ]
+            )
             running_nodes_count = len(network.get_joined_nodes())
             would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
             minimum_nodes_to_run_count = ceil((trusted_nodes_count + 1) / 2)
@@ -157,39 +151,6 @@ def recover(number_txs=5):
                 timeout=infra.e2e_args.get("ledger_recovery_timeout"),
             )
             return new_network
-
-        return wrapper
-
-    return decorator
-
-
-def add_from_snapshot():
-    # Before adding the node from a snapshot, override at least one app entry
-    # and wait for a snapshot covering that entry. After the test, verify
-    # that all entries (including historical ones) can be read.
-    def issue_historical_queries_with_snapshot(network, snapshot_tx_interval):
-        network.txs.issue(network, number_txs=1)
-        for _ in range(1, snapshot_tx_interval):
-            network.txs.issue(network, number_txs=1, repeat=True)
-            last_tx = network.txs.get_last_tx(priv=True)
-            if network.wait_for_snapshot_committed_for(seqno=last_tx[1]["seqno"]):
-                break
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            network = args[0]
-            infra.e2e_args = vars(args[1])
-            snapshot_tx_interval = infra.e2e_args.get("snapshot_tx_interval")
-            if snapshot_tx_interval is not None:
-                issue_historical_queries_with_snapshot(
-                    network, int(snapshot_tx_interval)
-                )
-            network = func(*args, **kwargs)
-            # Only verify entries on node just added
-            network.txs.verify(node=network.get_joined_nodes()[-1])
-
-            return network
 
         return wrapper
 

@@ -212,6 +212,9 @@ namespace ccf
       }
     };
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
+    // Set to the snapshot seqno when a node starts from one and remembered for
+    // the lifetime of the node
+    std::optional<kv::Version> startup_seqno = std::nullopt;
 
     std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
     {
@@ -262,6 +265,8 @@ namespace ccf
       LOG_INFO_FMT(
         "Public snapshot deserialised at seqno {}",
         snapshot_store->current_version());
+
+      startup_seqno = snapshot_store->current_version();
 
       ledger_idx = snapshot_store->current_version();
       last_recovered_signed_idx = ledger_idx;
@@ -654,6 +659,7 @@ namespace ccf
         node_encrypt_kp->public_key_pem().raw();
       join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
+      join_params.startup_seqno = startup_seqno;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -745,12 +751,12 @@ namespace ccf
         !sm.check(State::verifyingSnapshot))
       {
         throw std::logic_error(fmt::format(
-          "Node should be in state {} or {} to recover public ledger entry",
+          "Node should be in state {} or {} to start reading ledger",
           State::readingPublicLedger,
           State::verifyingSnapshot));
       }
 
-      LOG_INFO_FMT("Starting public recovery");
+      LOG_INFO_FMT("Starting to read public ledger");
       read_ledger_idx(++ledger_idx);
     }
 
@@ -857,6 +863,7 @@ namespace ccf
 
         if (ledger_idx == startup_snapshot_info->evidence_seqno)
         {
+          LOG_FAIL_FMT("here");
           auto evidence = snapshot_evidence->get(0);
           if (!evidence.has_value())
           {
@@ -896,10 +903,12 @@ namespace ccf
       if (!startup_snapshot_info->is_snapshot_verified())
       {
         // Node should shutdown if the startup snapshot cannot be verified
-        throw std::logic_error(fmt::format(
-          "Snapshot evidence at {} was not committed in ledger ending at {}",
+        LOG_FAIL_FMT(
+          "Snapshot evidence at {} was not committed in ledger ending at {}. "
+          "Node should be shutdown by operator.",
           startup_snapshot_info->evidence_seqno,
-          ledger_idx));
+          ledger_idx);
+        return;
       }
 
       ledger_truncate(startup_snapshot_info->seqno);
@@ -1279,10 +1288,8 @@ namespace ccf
         }
         catch (const std::logic_error& e)
         {
-          throw std::logic_error(fmt::format(
-            "Failed to issuing recovery shares failed when "
-            "transitioning the service to open: {}",
-            e.what()));
+          throw std::logic_error(
+            fmt::format("Failed to issue recovery shares: {}", e.what()));
         }
 
         GenesisGenerator g(network, tx);
@@ -1482,6 +1489,12 @@ namespace ccf
       return self;
     }
 
+    std::optional<kv::Version> get_startup_snapshot_seqno() override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      return startup_seqno;
+    }
+
   private:
     crypto::SubjectAltName get_subject_alt_name()
     {
@@ -1562,7 +1575,6 @@ namespace ccf
         create_params.members_info.push_back(m_info);
       }
 
-      create_params.gov_script = config.genesis.gov_script;
       create_params.constitution = config.genesis.constitution;
       create_params.node_id = self;
       create_params.node_cert = node_cert;

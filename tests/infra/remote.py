@@ -567,7 +567,6 @@ class CCFRemote(object):
         consensus="cft",
         worker_threads=0,
         memory_reserve_startup=0,
-        gov_script=None,
         constitution=None,
         ledger_dir=None,
         read_only_ledger_dir=None,  # Read-only ledger dir to copy to node director
@@ -578,6 +577,7 @@ class CCFRemote(object):
         domain=None,
         san=None,
         snapshot_tx_interval=None,
+        max_open_sessions=None,
         jwt_key_refresh_interval_s=None,
     ):
         """
@@ -668,6 +668,9 @@ class CCFRemote(object):
         if snapshot_tx_interval:
             cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
 
+        if max_open_sessions:
+            cmd += [f"--max-open-sessions={max_open_sessions}"]
+
         if jwt_key_refresh_interval_s:
             cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
 
@@ -684,9 +687,7 @@ class CCFRemote(object):
             cmd += [
                 "start",
                 "--network-cert-file=networkcert.pem",
-                f"--gov-script={os.path.basename(gov_script)}",
             ]
-            data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
             for fragment in constitution:
                 cmd.append(f"--constitution={os.path.basename(fragment)}")
                 data_files += [
@@ -836,8 +837,11 @@ class CCFRemote(object):
     def log_path(self):
         return self.remote.out
 
-    def ledger_path(self):
-        return os.path.join(self.remote.root, self.ledger_dir_name)
+    def ledger_paths(self):
+        paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
+        if self.read_only_ledger_dir is not None:
+            paths += [os.path.join(self.remote.root, self.read_only_ledger_dir)]
+        return paths
 
 
 class StartType(Enum):

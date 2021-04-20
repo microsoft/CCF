@@ -13,6 +13,7 @@
 #include <mbedtls/ecdh.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/pk.h>
+#include <stdexcept>
 
 namespace tls
 {
@@ -110,6 +111,16 @@ namespace tls
 
     std::vector<uint8_t> get_own_key_share()
     {
+      if (!ctx)
+      {
+        throw std::runtime_error("Missing key exchange context");
+      }
+
+      if (key_share.empty())
+      {
+        throw std::runtime_error("Missing node key share");
+      }
+
       // Note that this function returns a vector of bytes
       // where the first byte represents the
       // size of the public key
@@ -136,6 +147,17 @@ namespace tls
 
     void load_peer_key_share(CBuffer ks)
     {
+      if (!ctx)
+      {
+        throw std::runtime_error(
+          "Missing key exchange context when loading peer key share");
+      }
+
+      if (ks.n == 0)
+      {
+        throw std::runtime_error("Missing peer key share");
+      }
+
       int rc = mbedtls_ecdh_read_public(ctx.get(), ks.p, ks.n);
       if (rc != 0)
       {

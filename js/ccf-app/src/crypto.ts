@@ -5,10 +5,17 @@
  * The `crypto` module provides access to common cryptographic
  * algorithms.
  *
+ * Example:
+ * ```
+ * import * as ccfcrypto from '@microsoft/ccf-app/crypto.js';
+ *
+ * const key = ccfcrypto.generateAesKey(128);
+ * ```
+ *
  * @module
  */
 
-import { ccf } from "./global";
+import { ccf } from "./global.js";
 
 /**
  * @inheritDoc CCF.generateAesKey
@@ -26,6 +33,11 @@ export const generateRsaKeyPair = ccf.generateRsaKeyPair;
 export const wrapKey = ccf.wrapKey;
 
 /**
+ * @inheritDoc CCF.digest
+ */
+export const digest = ccf.digest;
+
+/**
  * @inheritDoc CCF.isValidX509CertBundle
  */
 export const isValidX509CertBundle = ccf.isValidX509CertBundle;
@@ -36,4 +48,5 @@ export {
   RsaOaepParams,
   RsaOaepAesKwpParams,
   CryptoKeyPair,
+  DigestAlgorithm,
 } from "./global";

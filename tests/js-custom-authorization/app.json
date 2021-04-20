@@ -5,7 +5,6 @@
         "js_module": "custom_authorization.js",
         "js_function": "compare_bearer",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}

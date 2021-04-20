@@ -172,6 +172,9 @@ namespace messaging
           "Exception while processing message {} of size {}",
           get_decorated_message_name(m),
           size);
+#ifndef INSIDE_ENCLAVE
+        LOG_FAIL_FMT("{}", e.what());
+#endif
         throw e;
       }
 

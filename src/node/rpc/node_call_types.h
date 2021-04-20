@@ -35,6 +35,7 @@ namespace ccf
       ccf::NodeId node_id;
       ccf::State state;
       kv::Version last_signed_seqno;
+      kv::Version startup_seqno;
 
       // Only on recovery
       std::optional<kv::Version> recovery_target_seqno;
@@ -47,7 +48,6 @@ namespace ccf
     struct In
     {
       std::vector<NewMember> members_info;
-      std::string gov_script;
       std::string constitution;
       NodeId node_id;
       crypto::Pem node_cert;
@@ -68,6 +68,7 @@ namespace ccf
       QuoteInfo quote_info;
       crypto::Pem public_encryption_key;
       ConsensusType consensus_type = ConsensusType::CFT;
+      std::optional<kv::Version> startup_seqno = std::nullopt;
     };
 
     struct Out

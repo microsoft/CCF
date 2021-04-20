@@ -140,6 +140,7 @@ namespace js
     }
     catch (const std::logic_error& e)
     {
+      LOG_DEBUG_FMT("isValidX509Chain: {}", e.what());
       return JS_FALSE;
     }
 

@@ -14,18 +14,18 @@ namespace ccf
 {
   struct SignedReq
   {
-    // signature
+    /// Signature
     std::vector<uint8_t> sig = {};
-    // signed content
+    /// Signed content
     std::vector<uint8_t> req = {};
 
-    // request body
+    /// Request body
     std::vector<uint8_t> request_body = {};
 
-    // signature hashing algorithm used
+    /// Hashing algorithm used to summarise content before signature
     crypto::MDType md = crypto::MDType::NONE;
 
-    // The key id, if declared in the request
+    /// Signer key id, if present in the request
     std::string key_id = {};
 
     bool operator==(const SignedReq& other) const

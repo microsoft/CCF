@@ -54,6 +54,7 @@ namespace ccf
     struct Out
     {
       ServiceStatus service_status;
+      crypto::Pem service_certificate;
       std::optional<ccf::View> current_view;
       std::optional<NodeId> primary_id;
     };
@@ -81,21 +82,6 @@ namespace ccf
     {
       std::vector<GetNode::NodeInfo> nodes = {};
     };
-  };
-
-  struct CallerInfo
-  {
-    EntityId caller_id;
-  };
-
-  struct GetCallerId
-  {
-    struct In
-    {
-      std::string cert;
-    };
-
-    using Out = CallerInfo;
   };
 
   struct GetAPI

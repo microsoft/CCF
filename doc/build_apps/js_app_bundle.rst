@@ -55,9 +55,8 @@ The ``app.json`` file of an app bundle has the following structure:
             "js_module": "app.js",
             "js_function": "foo_post",
             "forwarding_required": "never",
-            "execute_outside_consensus": "never",
             "authn_policies": ["user_cert"],
-            "readonly": true,
+            "mode": "readonly",
             "openapi": {
               ...
             }
@@ -84,8 +83,18 @@ Each endpoint object contains the following information:
   - ``"jwt"``
   - ``"no_auth"``
   
-- ``"forwarding_required"``, ``"execute_outside_consensus"``,
-  ``"readonly"``: Request execution policies, see **TODO**.
+- ``"forwarding_required"``: A string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
+
+  - ``"always"``
+  - ``"sometimes"``
+  - ``"never"``
+
+- ``"mode"``: A string indicating whether the endpoint requires read/write or read-only access to the Key-Value Store, or whether it is a historical endpoint that sees the state written in a specific transaction. Possible values are:
+
+  - ``"readwrite"``
+  - ``"readonly"``
+  - ``"historical"``
+
 - ``"openapi"``:  An `OpenAPI Operation Object <https://swagger.io/specification/#operation-object>`_ 
   without `references <https://swagger.io/specification/#reference-object>`_. This is descriptive but not
   enforced - it will be inserted into the generated OpenAPI document for this service, but will not restrict the
@@ -137,9 +146,9 @@ An app bundle can be wrapped into a governance proposal with the Python client f
 
 .. code-block:: bash
 
-    $ python -m ccf.proposal_generator deploy_js_app my-app/
-    SUCCESS | Writing proposal to ./deploy_js_app_proposal.json
-    SUCCESS | Wrote vote to ./deploy_js_app_vote_for.json
+    $ python -m ccf.proposal_generator set_js_app my-app/
+    SUCCESS | Writing proposal to ./set_js_app_proposal.json
+    SUCCESS | Wrote vote to ./set_js_app_vote_for.json
 
-Once :ref:`submitted and accepted <governance/proposals:Submitting a New Proposal>`, a ``deploy_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
+Once :ref:`submitted and accepted <governance/proposals:Submitting a New Proposal>`, a ``set_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
 Any existing application endpoints and JavaScript modules are removed.

@@ -20,7 +20,7 @@
  * @module
  */
 
-import { ccf } from "./global";
+import { ccf } from "./global.js";
 
 // This should eventually cover all JSON-compatible values.
 // There are attempts at https://github.com/microsoft/TypeScript/issues/1897
@@ -362,12 +362,10 @@ export const string: DataConverter<string> = new StringConverter();
  * const buffer = conv.encode(person); // ArrayBuffer
  * const person2 = conv.decode(buffer); // Person
  * ```
- *
- * @returns Returns a
  */
-export const json: <T extends JsonCompatible<T>>() => DataConverter<
-  JsonCompatible<T>
-> = <T extends JsonCompatible<T>>() => new JSONConverter<T>();
+export const json: <T extends JsonCompatible<T>>() => DataConverter<T> = <
+  T extends JsonCompatible<T>
+>() => new JSONConverter<T>();
 
 /**
  * Returns a converter for [TypedArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray) objects.

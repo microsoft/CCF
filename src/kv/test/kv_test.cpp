@@ -12,7 +12,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #undef FAIL
-#include <msgpack/msgpack.hpp>
 #include <set>
 #include <string>
 #include <vector>

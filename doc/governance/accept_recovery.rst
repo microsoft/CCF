@@ -16,30 +16,36 @@ A member proposes to recover the network and other members can vote on the propo
 
     $ cat transition_service_to_open.json
     {
-        "script": {
-            "text": "tables = ...; return Calls:call(\"transition_service_to_open\")"
-        }
+        "actions": [
+            {
+                "name": "transition_service_to_open",
+                "args": null
+            }
+        ]
     }
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @transition_service_to_open.json -H "content-type: application/json"
     {
+        "ballot_count": 0,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
-        "proposer_id": 0,
-        "state": "OPEN"
+        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "state": "Open"
     }
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
+        "ballot_count": 1,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
-        "proposer_id": 0,
-        "state": "OPEN"
+        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "state": "Open"
     }
 
     $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
+        "ballot_count": 2,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
-        "proposer_id": 0,
-        "state": "ACCEPTED"
+        "proposer_id": "d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1",
+        "state": "Accepted"
     }
 
 Once the proposal to recover the network has passed under the rules of the :term:`Constitution`, the recovered service is ready for members to submit their recovery shares.

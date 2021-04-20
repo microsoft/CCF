@@ -20,7 +20,8 @@ namespace ccf
      {ccf::State::readingPrivateLedger, "ReadingPrivateLedger"},
      {ccf::State::verifyingSnapshot, "VerifyingSnapshot"}})
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetState::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetState::Out, node_id, state, last_signed_seqno)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetState::Out, node_id, state, last_signed_seqno, startup_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(
     GetState::Out, recovery_target_seqno, last_recovered_seqno)
 
@@ -30,7 +31,8 @@ namespace ccf
     node_info_network,
     quote_info,
     public_encryption_key,
-    consensus_type)
+    consensus_type,
+    startup_seqno)
 
   DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
@@ -51,7 +53,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     CreateNetworkNodeToNode::In,
     members_info,
-    gov_script,
     constitution,
     node_id,
     node_cert,
@@ -70,7 +71,11 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetNetworkInfo::Out, service_status, current_view, primary_id)
+    GetNetworkInfo::Out,
+    service_status,
+    service_certificate,
+    current_view,
+    primary_id)
 
   DECLARE_JSON_TYPE(GetNode::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -85,12 +90,6 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetNodes::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetNodes::Out, nodes)
-
-  DECLARE_JSON_TYPE(CallerInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id)
-
-  DECLARE_JSON_TYPE(GetCallerId::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetCallerId::In, cert)
 
   DECLARE_JSON_TYPE(EndpointMetrics::Entry)
   DECLARE_JSON_REQUIRED_FIELDS(

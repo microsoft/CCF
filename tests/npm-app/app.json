@@ -5,7 +5,6 @@
         "js_module": "endpoints/jwt.js",
         "js_function": "jwt",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": [],
         "mode": "readonly",
         "openapi": {
@@ -55,7 +54,6 @@
         "js_module": "endpoints/crypto.js",
         "js_function": "crypto",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -88,7 +86,6 @@
         "js_module": "endpoints/crypto.js",
         "js_function": "generateAesKey",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -123,7 +120,6 @@
         "js_module": "endpoints/crypto.js",
         "js_function": "generateRsaKeyPair",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -175,7 +171,6 @@
         "js_module": "endpoints/crypto.js",
         "js_function": "wrapKey",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -205,6 +200,43 @@
               "description": "Wrapped key",
               "content": {
                 "application/octet-stream": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/digest": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "digest",
+        "forwarding_required": "always",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "algorithm": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Digest",
+              "content": {
+                "text/plain": {}
               }
             }
           }
@@ -246,7 +278,6 @@
         "js_module": "endpoints/partition.js",
         "js_function": "partition",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -285,7 +316,6 @@
         "js_module": "endpoints/proto.js",
         "js_function": "proto",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -311,7 +341,6 @@
         "js_module": "endpoints/log.js",
         "js_function": "getLogItem",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -341,7 +370,6 @@
         "js_module": "endpoints/log.js",
         "js_function": "setLogItem",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {
@@ -378,7 +406,6 @@
         "js_module": "endpoints/log.js",
         "js_function": "getAllLogItems",
         "forwarding_required": "always",
-        "execute_outside_consensus": "never",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -403,6 +430,23 @@
                   }
                 }
               }
+            }
+          }
+        }
+      }
+    },
+    "/rpc/apply_writes": {
+      "post": {
+        "js_module": "endpoints/rpc.js",
+        "js_function": "applyWrites",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readwrite",
+        "openapi": {
+          "responses": {
+            "400": {
+              "description": "Error"
             }
           }
         }
