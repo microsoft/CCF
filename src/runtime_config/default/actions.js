@@ -74,6 +74,17 @@ function checkNone(args) {
   }
 }
 
+function checkEntityId(value, field) {
+  checkType(value, "string", field);
+  if (value.length !== 64) {
+    throw new Error(`${field} must contain exactly 64 characters`);
+  }
+  const re = new RegExp("^[a-fA-F0-9]*$");
+  if (!re.test(value)) {
+    throw new Error(`${field} contains non-hexadecimal character`);
+  }
+}
+
 function getSingletonKvKey() {
   // When a KV map only contains one value, this is the key at which
   // the value is recorded
@@ -324,7 +335,7 @@ const actions = new Map([
     "remove_user",
     new Action(
       function (args) {
-        checkType(args.user_id, "string", "user_id");
+        checkEntityId(args.user_id, "user_id");
       },
       function (args) {
         const user_id = ccf.strToBuf(args.user_id);
@@ -337,7 +348,7 @@ const actions = new Map([
     "set_user_data",
     new Action(
       function (args) {
-        checkType(args.user_id, "string", "user_id");
+        checkEntityId(args.user_id, "user_id");
         checkType(args.user_data, "object?", "user_data");
       },
       function (args) {
