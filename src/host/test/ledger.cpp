@@ -4,7 +4,7 @@
 #include "ds/serialized.h"
 #include "host/ledger.h"
 #include "host/snapshot.h"
-#include "kv/ledger_format.h"
+#include "kv/serialised_entry_format.h"
 
 #include <doctest/doctest.h>
 #include <string>

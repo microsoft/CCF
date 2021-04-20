@@ -6,7 +6,7 @@
 #include "ds/logger.h"
 #include "ds/messaging.h"
 #include "ds/nonstd.h"
-#include "kv/ledger_format.h"
+#include "kv/serialised_entry_format.h"
 
 #include <cstdint>
 #include <cstdio>

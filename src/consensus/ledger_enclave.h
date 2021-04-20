@@ -5,7 +5,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/serialized.h"
-#include "kv/ledger_format.h"
+#include "kv/serialised_entry_format.h"
 
 namespace consensus
 {
@@ -46,6 +46,8 @@ namespace consensus
      * @param globally_committable True is entry is signature transaction
      * @param force_chunk Force new ledger chunk to be created after this entry
      * (only if globally_committable)
+     *
+     * Note: The entry should already contain its own header.
      */
     void put_entry(
       const uint8_t* data,

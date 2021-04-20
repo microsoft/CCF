@@ -5,8 +5,8 @@
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
 #include "kv_types.h"
-#include "ledger_format.h"
 #include "serialised_entry.h"
+#include "serialised_entry_format.h"
 
 #include <optional>
 
