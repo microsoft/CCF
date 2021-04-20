@@ -50,12 +50,6 @@ Overview
 
     CCF threading model.
 
-    ---
-
-    :fa:`book` :doc:`glossary`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Common terms used throughout the documentation and their definitions.
 
 .. toctree::
     :hidden:

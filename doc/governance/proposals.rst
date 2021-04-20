@@ -1,35 +1,41 @@
 Proposing and Voting for a Proposal
 ===================================
 
-.. warning::
+.. note::
     See :doc:`/governance/js_gov` for pointers on converting from Lua to JS.
 
-This page explains how members can submit and vote for proposals.
+Summary
+-------
 
 Proposals are submitted as JSON documents, which if resolved successfully are applied atomically to the KV state.
 
-Ballots are submitted as JavaScript modules, executed transactionally, and are able to read from the current KV state but not write to it.
-Each vote script is given the proposal as a list of actions, and returns a Boolean indicating whether it supports or rejects it.
+Ballots are submitted as JavaScript modules exporting a single `vote()` function, executed transactionally, and are able to read from the current KV state but not write to it.
+Each vote script is given the proposal as a list of actions, and returns a Boolean value indicating whether it supports or rejects it.
 
 Any member can submit a new proposal. All members can then vote, once at most, on this proposal using its unique proposal id.
-The proposer has the ability to `withdraw` a proposal while it is open.
+The proposer has the ability to `withdraw` a proposal as long as it is open.
 
-Each time a vote is submitted, all vote ballots for this proposal are re-executed on the current state to determine whether they are `for` or `against` the proposal. This vote tally is passed to the :term:`Constitution`, which determines whether the proposal is accepted or remains open. Once a proposal is accepted under the rules of the :term:`Constitution`, it is executed and its effects are recorded in the ledger.
+Each time a vote is submitted, all vote ballots for this proposal are re-executed on the current state to determine whether they are `for` or `against` the proposal.
+This vote tally is passed to the `resolve()`call in the :term:`Constitution`, which determines whether the proposal is accepted or remains open.
+Once a proposal is accepted under the rules of the :term:`Constitution`, it is executed via `apply()` and its effects are applied to the state and recorded in the ledger.
 
 For transparency and auditability, all governance operations (including votes) are recorded in plaintext in the ledger and members are required to sign their requests.
 
 Creating a Proposal
 -------------------
 
-For custom proposals with multiple actions and precise conditional requirements you will need to write the proposal script by hand. For simple proposals there is a helper script in the CCF Python package - `proposal_generator.py`. This can be used to create proposals for common operations like adding members and users, without writing any JSON. It also produces sample vote scripts, which validate that the executed proposed actions exactly match what is expected. These sample proposals and votes can be used as a syntax and API reference for producing more complex custom proposals.
+For custom proposals with multiple actions and precise conditional requirements you will need to write the proposal script by hand.
+For simple proposals there is a helper script in the CCF Python package - `proposal_generator.py`.
+This can be used to create proposals for common operations like adding members and users, without writing any JSON.
+It also produces sample vote scripts, which validate that the executed proposed actions exactly match what is expected.
+These sample proposals and votes can be used as a syntax and API reference for producing more complex custom proposals.
 
 Assuming the CCF Python package has been installed in the current Python environment, the proposal generator can be invoked directly as ``ccf.proposal_generator``. With no further argument it will print help text, including the list of possible actions as subcommands:
 
 .. code-block:: bash
 
-    python -m ccf.proposal_generator
-    usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE] [-vo VOTE_OUTPUT_FILE] [-pp] [-i] [-v]
-                             {add_node_code,new_node_code,remove_ca_cert_bundle,remove_js_app,remove_jwt_issuer,remove_member,remove_node,remove_node_code,remove_user,retire_node,retire_node_code,set_ca_cert_bundle,set_constitution,set_js_app,set_jwt_issuer,set_jwt_public_signing_keys,set_member,set_member_data,set_recovery_threshold,set_user,set_user_data,transition_node_to_trusted,transition_service_to_open,trigger_ledger_rekey,trigger_recovery_shares_refresh,trust_node}
+usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE] [-vo VOTE_OUTPUT_FILE] [-pp] [-i] [-v]
+                             {add_node_code,remove_ca_cert_bundle,remove_js_app,remove_jwt_issuer,remove_member,remove_node,remove_node_code,remove_user,set_ca_cert_bundle,set_constitution,set_js_app,set_jwt_issuer,set_jwt_public_signing_keys,set_member,set_member_data,set_recovery_threshold,set_user,set_user_data,transition_node_to_trusted,transition_service_to_open,trigger_ledger_rekey,trigger_recovery_shares_refresh}
 
 Additional detail is available from the ``--help`` option. You can also find the script in a checkout of CCF:
 
@@ -41,17 +47,12 @@ Some of these subcommands require additional arguments, such as the node ID or u
 
 .. code-block:: bash
 
-    $ python -m ccf.proposal_generator trust_node 5
+    $ python -m ccf.proposal_generator transition_node_to_trusted 6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f
     SUCCESS | Writing proposal to ./trust_node_proposal.json
     SUCCESS | Wrote vote to ./trust_node_vote_for.json
 
     $ cat trust_node_proposal.json
-    {"script": {"text": "tables, args = ...; return Calls:call(\"trust_node\", args)"}, "parameter": "5"}
-
-    $ cat trust_node_vote_for.json
-    {
-      "ballot": "export function vote (rawProposal, proposerId) {\n  let proposal = JSON.parse(rawProposal);\n  if (!('actions' in proposal)) { return false; };\n  let actions = proposal['actions'];\n  if (actions.length !== 1) { return false; };\n  let action = actions[0];\n  if (!('name' in action)) { return false; };\n  if (action.name !== 'transition_node_to_trusted') { return false; };\n  if (!('args' in action)) { return false; };\n  let args = action.args;\n  {\n    if (!('node_id' in args)) { return false; };\n    let expected = \"cc6e776911230e4c419475b528ae272c655b1133c513476783daea67c59d9ffa\";\n    if (JSON.stringify(args['node_id']) !== JSON.stringify(expected)) { return false; };\n  }\n  return true;\n}"
-    }
+    {"actions": [{"name": "transition_node_to_trusted", "args": {"node_id": "6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f"}}]}
 
     $ python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json set_user pedro_cert.pem
     SUCCESS | Writing proposal to ./add_pedro.json
@@ -67,11 +68,6 @@ Some of these subcommands require additional arguments, such as the node ID or u
           }
         }
       ]
-    }
-
-    $ cat vote_for_pedro.json
-    {
-      "ballot": "export function vote (rawProposal, proposerId) {\n  let proposal = JSON.parse(rawProposal);\n  if (!('actions' in proposal)) { return false; };\n  let actions = proposal['actions'];\n  if (actions.length !== 1) { return false; };\n  let action = actions[0];\n  if (!('name' in action)) { return false; };\n  if (action.name !== 'set_user') { return false; };\n  if (!('args' in action)) { return false; };\n  let args = action.args;\n  {\n    if (!('cert' in args)) { return false; };\n    let expected = \"-----BEGIN CERTIFICATE-----\\nMIIBsjCCATigAwIBAgIUOiTU32JZsA0dSv64hW2mrKM0phEwCgYIKoZIzj0EAwMw\\nEDEOMAwGA1UEAwwFdXNlcjIwHhcNMjEwNDE0MTUyODMyWhcNMjIwNDE0MTUyODMy\\nWjAQMQ4wDAYDVQQDDAV1c2VyMjB2MBAGByqGSM49AgEGBSuBBAAiA2IABBFf+FD0\\nUGIyJubt8j+f8+/BP7IY6G144yF/vBNe7CJpNNRyiMZzEyN6wmEKIjsn3gU36A6E\\nqNYBlbYbXD1kzlw4q/Pe/Wl3o237p8Es6LD1e1MDUFp2qUcNA6vari6QLKNTMFEw\\nHQYDVR0OBBYEFDuGVragGSHoIrFA44kQRg/SKIcFMB8GA1UdIwQYMBaAFDuGVrag\\nGSHoIrFA44kQRg/SKIcFMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwMDaAAw\\nZQIxAPx54LaqQevKrcZIr7QSCZKGFJgSxfVxovSfEqTMD+sKdWzNTqJtJ1SDav1v\\nImA4iwIwBsrdevSQj4U2ynXiTJKljviDnyc47ktJVkg/Ppq5cMcEZHO4Q0H/Wq3H\\nlUuVImyR\\n-----END CERTIFICATE-----\\n\";\n    if (JSON.stringify(args['cert']) !== JSON.stringify(expected)) { return false; };\n  }\n  return true;\n}"
     }
 
 These proposals and votes should be sent as the body of HTTP requests as described below.
@@ -129,11 +125,11 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
       "state": "Open"
     }
 
-In this case, a new proposal with id ``4`` has successfully been created and the proposer member has voted to accept it (they may instead pass a voting ballot with their proposal if they wish to vote conditionally, or withhold their vote until later). Other members can then vote to accept or reject the proposal:
+In this case, a new proposal with id ``d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd`` has successfully been created and the proposer member has voted to accept it (they may instead pass a voting ballot with their proposal if they wish to vote conditionally, or withhold their vote until later). Other members can then vote to accept or reject the proposal:
 
 .. code-block:: bash
 
-    # Proposal 4 already exists, and has a single vote in favour from the proposer member 1 (votes in favour: 1/3)
+    # Proposal d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd already exists, and has a single vote in favour from the proposer member 1 (votes in favour: 1/3)
 
     $ cat vote_reject.json
     {
@@ -146,7 +142,7 @@ In this case, a new proposal with id ``4`` has successfully been created and the
     }
 
     # Member 2 rejects the proposal (votes in favour: 1/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
     {
       "ballot_count": 1,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
@@ -155,7 +151,7 @@ In this case, a new proposal with id ``4`` has successfully been created and the
     }
 
     # Member 3 accepts the proposal (votes in favour: 2/3)
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
       "ballot_count": 2,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
@@ -176,33 +172,12 @@ The details of pending proposals, including the proposer member id, proposal scr
 
 .. code-block:: bash
 
-    # The full proposal state, including votes, can still be retrieved by any member
+    # The full proposal state, including ballots, can still be retrieved by any member
     $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --cacert networkcert.pem --key member3_privk.pem --cert member3_cert.pem -H "content-type: application/json" -X GET
     {
-      "parameter": {...},
-      "proposer": 1,
-      "script": {...},
-      "state": "ACCEPTED",
-      "votes": [
-        [
-          1,
-          {
-            "text": "return true"
-          }
-        ],
-        [
-          2,
-          {
-            "text": "return true"
-          }
-        ],
-        [
-          3,
-          {
-            "text": "return false"
-          }
-        ]
-      ]
+      "proposer": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
+      "state": "Accepted",
+      ...
     }
 
 Withdrawing a Proposal
@@ -212,7 +187,7 @@ At any stage during the voting process, before the proposal is accepted, the pro
 
 .. code-block:: bash
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/<proposal-id>/withdraw --cacert networkcert.pem --key member1_privk.pem --cert member1_cert.pem -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/withdraw --cacert networkcert.pem --key member1_privk.pem --cert member1_cert.pem -H "content-type: application/json"
     {
       "ballot_count": 1,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",

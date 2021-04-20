@@ -10,7 +10,7 @@ Glossary
     Intel SGX Data Centre Attestation Primitives which allows SGX attestation to be used within Microsoft Azure.
 
   Consensus Protocols
-    The term Consensus protocol refers to either :ref:`Raft <overview/consensus:CFT Consensus Protocol>` or :ref:`BFT <overview/consensus:BFT Consensus Protocol>`. Generic Consensus terminology will use `primary` node and `backup` node to indicate node responsibility in carrying out the protocol(s). These correspond in Raft to `leader` and `follower`. More information about consensus protocols can `be found here <https://en.wikipedia.org/wiki/Consensus_(computer_science)>`_.
+    The term Consensus protocol refers to either :ref:`CFT <overview/consensus:CFT Consensus Protocol>` or :ref:`BFT <overview/consensus:BFT Consensus Protocol>`. Generic Consensus terminology will use `primary` node and `backup` node to indicate node responsibility in carrying out the protocol(s). These correspond in Raft to `leader` and `follower`. More information about consensus protocols can `be found here <https://en.wikipedia.org/wiki/Consensus_(computer_science)>`_.
 
   Constitution
     JavaScript module that defines possible governance actions, and how members' proposals are validated, resolved and applied to the service.
