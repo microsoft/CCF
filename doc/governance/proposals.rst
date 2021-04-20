@@ -98,7 +98,7 @@ You may wish to write these proposals to files so they can be examined or modifi
 Submitting a New Proposal
 -------------------------
 
-Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``POST /gov/proposals`` and vote using ``POST /gov/proposals/{proposal_id}/votes``.
+Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``POST /gov/proposals`` and vote using ``POST /gov/proposals/{proposal_id}/ballots``.
 
 For example, ``member1`` may submit a proposal to add a new member (``member4``) to the consortium:
 
@@ -125,11 +125,9 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
       "state": "Open"
     }
 
-In this case, a new proposal with id ``d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd`` has successfully been created and the proposer member has voted to accept it (they may instead pass a voting ballot with their proposal if they wish to vote conditionally, or withhold their vote until later). Other members can then vote to accept or reject the proposal:
+Here a new proposal has successfully been created, and nobody has yet voted for it. The proposal is in state ``Open``, meaning it will can receive additional votes. Members can then vote to accept or reject the proposal:
 
 .. code-block:: bash
-
-    # Proposal d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd already exists, and has a single vote in favour from the proposer member 1 (votes in favour: 1/3)
 
     $ cat vote_reject.json
     {
@@ -141,10 +139,21 @@ In this case, a new proposal with id ``d4ec2de82267f97d3d1b464020af0bd3241f1bedf
       "ballot": "export function vote (proposal, proposerId) { return true }"
     }
 
+
+    # Member 1 approves the proposal (votes in favour: 1/3)
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    {
+      "ballot_count": 1,
+      "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
+      "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
+      "state": "Open"
+    }
+
+
     # Member 2 rejects the proposal (votes in favour: 1/3)
     $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
     {
-      "ballot_count": 1,
+      "ballot_count": 2,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
       "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
       "state": "Open"
@@ -153,7 +162,7 @@ In this case, a new proposal with id ``d4ec2de82267f97d3d1b464020af0bd3241f1bedf
     # Member 3 accepts the proposal (votes in favour: 2/3)
     $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
-      "ballot_count": 2,
+      "ballot_count": 3,
       "proposal_id": "d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd",
       "proposer_id": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
       "state": "Accepted"
@@ -161,23 +170,31 @@ In this case, a new proposal with id ``d4ec2de82267f97d3d1b464020af0bd3241f1bedf
 
     # As a majority of members have accepted the proposal, member 4 is added to the consortium
 
-As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members has been reached and the proposal completes, successfully adding ``member4``.
+As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members has been reached and the proposal completes, successfully adding ``member4``. The response shows this, as the proposal's state is now ``Accepted``.
 
 .. note:: Once a new member has been accepted to the consortium, the new member must acknowledge that it is active by sending a ``/gov/ack`` request. See :ref:`governance/adding_member:Activating a New Member`.
 
 Displaying Proposals
 --------------------
 
-The details of pending proposals, including the proposer member id, proposal script, parameters, and votes, can be queried from the service by calling ``GET /gov/proposals/{proposal_id}``. For example, after accepting the proposal above:
+The details of pending proposals, can be queried from the service by calling ``GET /gov/proposals/{proposal_id}``. For example, after accepting the proposal above:
 
 .. code-block:: bash
 
-    # The full proposal state, including ballots, can still be retrieved by any member
     $ scurl.sh https://<ccf-node-address>/gov/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd --cacert networkcert.pem --key member3_privk.pem --cert member3_cert.pem -H "content-type: application/json" -X GET
     {
-      "proposer": "52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73",
-      "state": "Accepted",
-      ...
+      "ballots": {
+        "0d8866bf4623a685963f3c087cd6fdcdf48fc483d774f7fc28bf428e31755aaa": "export function vote (proposal, proposerId) { return true }",
+        "466cc43f0cd17df4b49ded4b833f7bbba43b15ebee5be896d91e823fcce96a69": "export function vote (proposal, proposerId) { return true }",
+        "fe1b9b511fb3cf3ca3a1289b0d44db83a80dee8a54492f29467c52ebef9dbe40": "export function vote (proposal, proposerId) { return false }"
+      },
+      "final_votes": {
+        "0d8866bf4623a685963f3c087cd6fdcdf48fc483d774f7fc28bf428e31755aaa": true,
+        "466cc43f0cd17df4b49ded4b833f7bbba43b15ebee5be896d91e823fcce96a69": true,
+        "fe1b9b511fb3cf3ca3a1289b0d44db83a80dee8a54492f29467c52ebef9dbe40": false
+      },
+      "proposer_id": "0d8866bf4623a685963f3c087cd6fdcdf48fc483d774f7fc28bf428e31755aaa",
+      "state": "Accepted"
     }
 
 Withdrawing a Proposal

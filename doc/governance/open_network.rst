@@ -42,7 +42,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "ballot": "export function vote (proposal, proposerId) { return true }"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/votes --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "ballot_count": 1,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
@@ -55,7 +55,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "ballot": "export function vote (proposal, proposerId) { return proposerId == \"2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0\" }"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
@@ -90,7 +90,7 @@ Members configure this permission with ``set_user_data`` proposals:
             {
                 "name": "set_user_data",
                 "args": {
-                    "user_id": "6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f",
+                    "user_id": "529d0f48287923e7536a708c0b7747666f6b904d3fd4b84739f7d2204233a16e",
                     "user_data": {
                         "isAdmin": true
                     }
@@ -99,7 +99,8 @@ Members configure this permission with ``set_user_data`` proposals:
         ]
     }
 
-Once this proposal is accepted, user `6d566123a899afaea977c5fc0f7a2a9fef33f2946fbc4abefbc3e10ee597343f` is able to use this endpoint:
+
+Once this proposal is accepted, the newly added user (with ID ``529d0f48287923e7536a708c0b7747666f6b904d3fd4b84739f7d2204233a16e``) is able to use this endpoint:
 
 .. code-block:: bash
 
@@ -115,7 +116,7 @@ All other users have empty or non-matching user-data, so will receive a HTTP err
     $ curl https://<ccf-node-address>/app/log/private/admin_only --key user1_privk.pem --cert user1_cert.pem --cacert networkcert.pem -X POST --data-binary '{"id": 42, "msg": "hello world"}' -H "Content-type: application/json" -i
     HTTP/1.1 403 Forbidden
 
-    Only admins may access this endpoint
+    {"error":{"code":"AuthorizationFailed","message":"Only admins may access this endpoint."}}
 
 Opening the Network
 -------------------
