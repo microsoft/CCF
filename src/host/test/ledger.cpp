@@ -719,7 +719,6 @@ size_t number_open_fd()
   return fd_count;
 }
 
-/*
 TEST_CASE("Limit number of open files")
 {
   fs::remove_all(ledger_dir);
@@ -1144,4 +1143,3 @@ TEST_CASE("Find latest snapshot with corresponding ledger chunk")
         snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx));
   }
 }
-*/

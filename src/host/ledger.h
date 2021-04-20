@@ -206,30 +206,36 @@ namespace asynchost
 
         auto len = total_len - sizeof(positions_offset_header_t);
         size_t pos = sizeof(positions_offset_header_t);
-        uint32_t entry_size = 0;
+        kv::SerialisedEntryHeader entry_header;
 
-        // TODO: Fix!
-        while (len >= frame_header_size)
+        while (len >= sizeof(kv::SerialisedEntryHeader))
         {
-          if (fread(&entry_size, frame_header_size, 1, file) != 1)
+          if (
+            fread(&entry_header, sizeof(kv::SerialisedEntryHeader), 1, file) !=
+            1)
           {
             throw std::logic_error(fmt::format(
               "Failed to read frame from ledger file {}", file_path));
           }
 
-          len -= frame_header_size;
+          len -= sizeof(kv::SerialisedEntryHeader);
 
+          const auto& entry_size = entry_header.size;
           if (len < entry_size)
           {
-            throw std::logic_error(
-              fmt::format("Malformed ledger file {}", file_path));
+            throw std::logic_error(fmt::format(
+              "Malformed uncompleted ledger file {} (expecting entry of size "
+              "{}, remaining {})",
+              file_path,
+              entry_size,
+              len));
           }
 
           fseeko(file, entry_size, SEEK_CUR);
           len -= entry_size;
 
           positions.push_back(pos);
-          pos += (entry_size + frame_header_size);
+          pos += (sizeof(kv::SerialisedEntryHeader) + entry_size);
         }
         completed = false;
       }
