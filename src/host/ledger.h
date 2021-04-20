@@ -29,6 +29,9 @@ namespace asynchost
   static constexpr auto ledger_last_idx_delimiter = "-";
   static constexpr auto ledger_corrupt_file_suffix = "corrupted";
 
+  static constexpr size_t ledger_frame_header_size =
+    sizeof(kv::SerialisedEntryHeader);
+
   static inline bool is_ledger_file_committed(const std::string& file_name)
   {
     auto pos = file_name.find(".");
@@ -112,7 +115,6 @@ namespace asynchost
   private:
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
-    static constexpr size_t frame_header_size = sizeof(uint32_t);
 
     const std::string dir;
     std::string file_name;
@@ -208,17 +210,15 @@ namespace asynchost
         size_t pos = sizeof(positions_offset_header_t);
         kv::SerialisedEntryHeader entry_header;
 
-        while (len >= sizeof(kv::SerialisedEntryHeader))
+        while (len >= ledger_frame_header_size)
         {
-          if (
-            fread(&entry_header, sizeof(kv::SerialisedEntryHeader), 1, file) !=
-            1)
+          if (fread(&entry_header, ledger_frame_header_size, 1, file) != 1)
           {
             throw std::logic_error(fmt::format(
               "Failed to read frame from ledger file {}", file_path));
           }
 
-          len -= sizeof(kv::SerialisedEntryHeader);
+          len -= ledger_frame_header_size;
 
           const auto& entry_size = entry_header.size;
           if (len < entry_size)
@@ -235,7 +235,7 @@ namespace asynchost
           len -= entry_size;
 
           positions.push_back(pos);
-          pos += (sizeof(kv::SerialisedEntryHeader) + entry_size);
+          pos += (ledger_frame_header_size + entry_size);
         }
         completed = false;
       }
@@ -280,12 +280,6 @@ namespace asynchost
       positions.push_back(total_len);
       size_t new_idx = get_last_idx();
 
-      // uint32_t frame = (uint32_t)size;
-      // if (fwrite(&frame, frame_header_size, 1, file) != 1)
-      // {
-      //   throw std::logic_error("Failed to write entry header to ledger");
-      // }
-
       if (fwrite(data, size, 1, file) != 1)
       {
         throw std::logic_error("Failed to write entry to ledger");
@@ -303,7 +297,6 @@ namespace asynchost
       return new_idx;
     }
 
-    // TODO: Rename framed_...
     size_t framed_entries_size(size_t from, size_t to) const
     {
       if ((from < start_idx) || (to < from) || (to > get_last_idx()))
@@ -322,11 +315,6 @@ namespace asynchost
       }
     }
 
-    size_t entry_size(size_t idx) const
-    {
-      return framed_entries_size(idx, idx);
-    }
-
     std::optional<std::vector<uint8_t>> read_entry(size_t idx) const
     {
       if ((idx < start_idx) || (idx > get_last_idx()))
@@ -334,7 +322,7 @@ namespace asynchost
         return std::nullopt;
       }
 
-      auto len = entry_size(idx);
+      auto len = framed_entries_size(idx, idx);
       std::vector<uint8_t> entry(len);
       fseeko(file, positions.at(idx - start_idx), SEEK_SET);
 

@@ -51,26 +51,11 @@ std::string get_snapshot_file_name(
     evidence_commit_idx);
 }
 
-// TODO: Include frame size!
 // Ledger entry type
 template <typename T>
 struct LedgerEntry
 {
   T value_ = 0;
-
-  // TODO: Remove!
-  // std::vector<uint8_t> data()
-  // {
-  //   // auto size_ = std::vector<uint8_t> data(size_);
-  //   // auto data_ = data.data();
-
-  //   // kv::SerialisedEntryHeader header;
-  //   // header.set_size(sizeof(T));
-
-  //   // serialized::write(data_, size_, header);
-  //   // serialized::write(data_, size_, value_);
-  //   // return data;
-  // }
 
   auto value() const
   {
@@ -86,18 +71,8 @@ struct LedgerEntry
   LedgerEntry(T v) : value_(v) {}
   LedgerEntry(const uint8_t* data, size_t size)
   {
-    auto data_ = data;
     value_ = serialized::read<T>(data, size);
   }
-
-  // LedgerEntry(const std::vector<uint8_t>& raw)
-  // {
-  //   const uint8_t* data = raw.data();
-  //   size_t size = raw.size();
-  //   serialized::skip(data, size, sizeof(kv::SerialisedEntryHeader));
-
-  //   value_ = serialized::read<T>(data, size);
-  // }
 };
 using TestLedgerEntry = LedgerEntry<uint32_t>;
 
@@ -138,7 +113,7 @@ void verify_framed_entries_range(
     REQUIRE(header.size == sizeof(TestLedgerEntry));
 
     REQUIRE(TestLedgerEntry(data, size).value() == idx);
-    pos += sizeof(kv::SerialisedEntryHeader) + sizeof(TestLedgerEntry);
+    pos += asynchost::ledger_frame_header_size + sizeof(TestLedgerEntry);
     idx++;
   }
 
@@ -194,7 +169,7 @@ public:
   {
     auto e = TestLedgerEntry(++last_idx);
     std::vector<uint8_t> framed_entry(
-      sizeof(kv::SerialisedEntryHeader) + sizeof(TestLedgerEntry));
+      asynchost::ledger_frame_header_size + sizeof(TestLedgerEntry));
     auto data = framed_entry.data();
     auto size = framed_entry.size();
 
@@ -236,7 +211,7 @@ size_t get_entries_per_chunk(size_t chunk_threshold)
   // size of each entry
   return ceil(
     (static_cast<float>(chunk_threshold - sizeof(size_t))) /
-    (sizeof(kv::SerialisedEntryHeader) + sizeof(TestLedgerEntry)));
+    (asynchost::ledger_frame_header_size + sizeof(TestLedgerEntry)));
 }
 
 // Assumes that no entries have been written yet
