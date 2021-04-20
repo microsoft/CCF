@@ -13,7 +13,7 @@ Glossary
     The term Consensus protocol refers to either :ref:`Raft <overview/consensus:CFT Consensus Protocol>` or :ref:`BFT <overview/consensus:BFT Consensus Protocol>`. Generic Consensus terminology will use `primary` node and `backup` node to indicate node responsibility in carrying out the protocol(s). These correspond in Raft to `leader` and `follower`. More information about consensus protocols can `be found here <https://en.wikipedia.org/wiki/Consensus_(computer_science)>`_.
 
   Constitution
-    Set of rules expressed in a JavaScript module that define how members' proposals are validated, resolved and applied.
+    JavaScript module that defines possible governance actions, and how members' proposals are validated, resolved and applied to the service.
 
   FLC
     `Flexible Launch Control <https://github.com/intel/linux-sgx/blob/master/psw/ae/ref_le/ref_le.md#flexible-launch-control>`_ is a feature of the Intel :term:`SGX` architecture.

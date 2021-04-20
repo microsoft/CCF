@@ -11,11 +11,11 @@ It typically contains the following four elements:
 4. An `apply()` function, called if a proposal has been successfully accepted.
 
 `resolve()` can be used to implement a range of governance models.
-For example, in a CCF network governed by `4` equal members, a strict majority `resolve()` would only apply proposals once `3` members (`4/2 + 1`) have voted for that proposal.
+For example, in a CCF network governed by `4` equal members, a strict majority `resolve()` would only applies proposals once `3` members (`4/2 + 1`) have voted in favour.
 
-Examples of constitution include (see `Models`_ for further details):
+Sample implementations of `resolve()` include (see `Models`_ for further details):
 
-- Strict majority (`simple constitution`_) that implements a "one-member, one-vote" constitution, with a majority rule. Votes on so-called sensitive tables, such as the one containing the constitution itself, require unanimity.
+- Strict majority (`simple constitution`_) that implements a "one-member, one-vote" constitution, with a majority rule.
 - Strict majority with member veto (`simple constitution with veto`_) similar to the Strict majority constitution, but where each member is allowed to veto any proposal.
 - Operating member + strict majority (`operating member constitution`_) that extends the "strict majority" constitution by defining an operating member allowed to add new nodes to the network, retire existing ones, and allow new versions of the code.
 
@@ -43,22 +43,22 @@ In case of catastrophic failure, operators could also:
 
 Finally, operators could:
 
--	Propose new nodes (TR, Section IV D)
+-	Propose new nodes
 -	Notify the members, who would have to review and vote on the proposal
 
 Operators would not be able to add or remove members or users to the service. They would not be able to update the code of the service (and therefore apply security patches). Because they could propose new nodes, but would require member votes before nodes are allowed to participate in the network, the operators' ability to mitigate node failures may be limited and delayed.
 
-This model keeps operators out of the trust boundary for the service.
+This model keeps operators completely out of the trust boundary for the service.
 
 Operating members
 ~~~~~~~~~~~~~~~~~
 
-If network operators are made members, they could have the ability to:
+If network operators are members, they can have the ability to:
 
 -	Update code (in particular, apply security patches)
 -	Add and remove nodes to and from the network
 
-Essentially, operators gain the ability to fix security issues and mitigate service degradation of the network. In this situation however, the operator is inside the trust boundary.
+Essentially, operators have the ability to fix security issues and mitigate service degradation of the network. In this situation however, the operator is inside the trust boundary.
 
 The constitution can limit or remove the operating members' ability to:
 
@@ -70,7 +70,5 @@ The constitution can limit or remove the operating members' ability to:
 This `operating member constitution`_ shows how some members can be made operators.
 
 .. _simple constitution: https://github.com/microsoft/CCF/blob/main/src/runtime_config/default/resolve.js
-
 .. _operating member constitution: https://github.com/microsoft/CCF/blob/main/src/runtime_config/operator/resolve.js
-
 .. _simple constitution with veto: https://github.com/microsoft/CCF/blob/main/src/runtime_config/veto/resolve.js
