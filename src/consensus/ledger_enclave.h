@@ -5,6 +5,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
 #include "ds/serialized.h"
+#include "kv/ledger_format.h"
 
 namespace consensus
 {
@@ -75,8 +76,8 @@ namespace consensus
      */
     void skip_entry(const uint8_t*& data, size_t& size)
     {
-      auto entry_len = serialized::read<uint32_t>(data, size);
-      serialized::skip(data, size, entry_len);
+      auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
+      serialized::skip(data, size, header.size);
     }
 
     /**
@@ -89,9 +90,10 @@ namespace consensus
      */
     std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
-      auto entry_len = serialized::read<uint32_t>(data, size);
-      std::vector<uint8_t> entry(data, data + entry_len);
-      serialized::skip(data, size, entry_len);
+      auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
+      size_t entry_size = kv::serialised_entry_header_size + header.size;
+      std::vector<uint8_t> entry(data, data + entry_size);
+      serialized::skip(data, size, entry_size);
       return entry;
     }
 

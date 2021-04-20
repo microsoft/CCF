@@ -113,7 +113,7 @@ void verify_framed_entries_range(
     REQUIRE(header.size == sizeof(TestLedgerEntry));
 
     REQUIRE(TestLedgerEntry(data, size).value() == idx);
-    pos += asynchost::ledger_frame_header_size + sizeof(TestLedgerEntry);
+    pos += kv::serialised_entry_header_size + sizeof(TestLedgerEntry);
     idx++;
   }
 
@@ -169,7 +169,7 @@ public:
   {
     auto e = TestLedgerEntry(++last_idx);
     std::vector<uint8_t> framed_entry(
-      asynchost::ledger_frame_header_size + sizeof(TestLedgerEntry));
+      kv::serialised_entry_header_size + sizeof(TestLedgerEntry));
     auto data = framed_entry.data();
     auto size = framed_entry.size();
 
@@ -211,7 +211,7 @@ size_t get_entries_per_chunk(size_t chunk_threshold)
   // size of each entry
   return ceil(
     (static_cast<float>(chunk_threshold - sizeof(size_t))) /
-    (asynchost::ledger_frame_header_size + sizeof(TestLedgerEntry)));
+    (kv::serialised_entry_header_size + sizeof(TestLedgerEntry)));
 }
 
 // Assumes that no entries have been written yet

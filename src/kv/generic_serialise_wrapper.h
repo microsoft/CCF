@@ -15,26 +15,6 @@ namespace kv
   using SerialisedKey = kv::serialisers::SerialisedEntry;
   using SerialisedValue = kv::serialisers::SerialisedEntry;
 
-  // static constexpr auto entry_format_v1 = 1;
-
-  // struct SerialisedEntryHeader
-  // {
-  //   uint8_t version = entry_format_v1;
-  //   uint8_t flags = 0;
-
-  //   uint64_t size : (sizeof(uint64_t) - sizeof(uint8_t) - sizeof(uint8_t)) *
-  //                   CHAR_BIT;
-
-  //   void set_size(uint64_t size_)
-  //   {
-  //     // TODO: Maximum size
-  //     // CCF_ASSERT_FMT(size_ <= max_entry_size, "");
-
-  //     size = size_;
-  //   }
-  // };
-  // static_assert(sizeof(SerialisedEntryHeader) == sizeof(uint64_t));
-
   template <typename W>
   class GenericSerialiseWrapper
   {
@@ -164,7 +144,7 @@ namespace kv
       size_t size_ = serialised_public_domain.size();
 
       SerialisedEntryHeader entry_header;
-      entry_header.version = 1;
+      entry_header.version = entry_format_v1;
       entry_header.flags = 0;
 
       // If no crypto util is set (unit test only), only the header and public
@@ -214,6 +194,7 @@ namespace kv
           "Could not serialise transaction at seqno {}", tx_id.version));
       }
 
+      LOG_FAIL_FMT("Public domain length {}", serialised_public_domain.size());
       serialized::write(
         data_, size_, serialised_hdr.data(), serialised_hdr.size());
       serialized::write(data_, size_, serialised_public_domain.size());
@@ -230,6 +211,8 @@ namespace kv
           encrypted_private_domain.data(),
           encrypted_private_domain.size());
       }
+
+      LOG_FAIL_FMT("Serialised entry of size {}", entry.size());
 
       return entry;
     }
@@ -275,13 +258,14 @@ namespace kv
 
       const auto tx_header =
         serialized::read<SerialisedEntryHeader>(data_, size_);
-      LOG_FAIL_FMT("Deserialise size of {}", tx_header.size);
 
       CCF_ASSERT_FMT(
         tx_header.size == size_,
         "Reported size in entry header {} does not match size of entry {}",
         tx_header.size,
         size_);
+
+      auto gcm_hdr_data = data_;
 
       switch (tx_header.version)
       {
@@ -306,18 +290,15 @@ namespace kv
         return std::make_tuple(version, max_conflict_version);
       }
 
-      // Skip gcm hdr and read length of public domain
       serialized::skip(data_, size_, crypto_util->get_header_length());
       auto public_domain_length = serialized::read<size_t>(data_, size_);
 
-      // Set public reader
       auto data_public = data_;
       public_reader.init(data_public, public_domain_length);
-
       read_public_header();
 
       // If the domain is public only, skip the decryption and only return the
-      // public data
+      // public data (integrity will be verified at the next signature entry)
       if (
         domain_restriction.has_value() &&
         domain_restriction.value() == SecurityDomain::PUBLIC)
@@ -325,14 +306,13 @@ namespace kv
         return std::make_tuple(version, max_conflict_version);
       }
 
-      // Go to start of private domain
       serialized::skip(data_, size_, public_domain_length);
       decrypted_buffer.resize(size_);
 
       if (!crypto_util->decrypt(
             {data_, data_ + size_},
             {data_public, data_public + public_domain_length},
-            {data, data + crypto_util->get_header_length()},
+            {gcm_hdr_data, gcm_hdr_data + crypto_util->get_header_length()},
             decrypted_buffer,
             version,
             historical_hint))
@@ -340,7 +320,6 @@ namespace kv
         return std::nullopt;
       }
 
-      // Set private reader
       private_reader.init(decrypted_buffer.data(), decrypted_buffer.size());
       return std::make_tuple(version, max_conflict_version);
     }

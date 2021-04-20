@@ -25,4 +25,7 @@ namespace kv
     }
   };
   static_assert(sizeof(SerialisedEntryHeader) == sizeof(uint64_t));
+
+  static constexpr size_t serialised_entry_header_size =
+    sizeof(SerialisedEntryHeader);
 }

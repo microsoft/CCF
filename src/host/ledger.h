@@ -29,9 +29,6 @@ namespace asynchost
   static constexpr auto ledger_last_idx_delimiter = "-";
   static constexpr auto ledger_corrupt_file_suffix = "corrupted";
 
-  static constexpr size_t ledger_frame_header_size =
-    sizeof(kv::SerialisedEntryHeader);
-
   static inline bool is_ledger_file_committed(const std::string& file_name)
   {
     auto pos = file_name.find(".");
@@ -210,15 +207,17 @@ namespace asynchost
         size_t pos = sizeof(positions_offset_header_t);
         kv::SerialisedEntryHeader entry_header;
 
-        while (len >= ledger_frame_header_size)
+        while (len >= kv::serialised_entry_header_size)
         {
-          if (fread(&entry_header, ledger_frame_header_size, 1, file) != 1)
+          if (
+            fread(&entry_header, kv::serialised_entry_header_size, 1, file) !=
+            1)
           {
             throw std::logic_error(fmt::format(
               "Failed to read frame from ledger file {}", file_path));
           }
 
-          len -= ledger_frame_header_size;
+          len -= kv::serialised_entry_header_size;
 
           const auto& entry_size = entry_header.size;
           if (len < entry_size)
@@ -235,7 +234,7 @@ namespace asynchost
           len -= entry_size;
 
           positions.push_back(pos);
-          pos += (ledger_frame_header_size + entry_size);
+          pos += (kv::serialised_entry_header_size + entry_size);
         }
         completed = false;
       }
