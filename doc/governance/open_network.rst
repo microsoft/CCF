@@ -86,18 +86,20 @@ Members configure this permission with ``set_user_data`` proposals:
 
     $ cat set_user_data_proposal.json
     {
-        "script": {
-            "text": "tables, args = ...; return Calls:call(\"set_user_data\", args)"
-        },
-        "parameter": {
-            "user_id": 0,
-            "user_data": {
-                "isAdmin": true
+        "actions": [
+            {
+                "name": "set_user_data",
+                "args": {
+                    "user_id": "529d0f48287923e7536a708c0b7747666f6b904d3fd4b84739f7d2204233a16e",
+                    "user_data": {
+                        "isAdmin": true
+                    }
+                }
             }
-        }
+        ]
     }
 
-Once this proposal is accepted, user 0 is able to use this endpoint:
+Once this proposal is accepted, the newly added user (with ID ``529d0f48287923e7536a708c0b7747666f6b904d3fd4b84739f7d2204233a16e``) is able to use this endpoint:
 
 .. code-block:: bash
 
@@ -113,7 +115,7 @@ All other users have empty or non-matching user-data, so will receive a HTTP err
     $ curl https://<ccf-node-address>/app/log/private/admin_only --key user1_privk.pem --cert user1_cert.pem --cacert networkcert.pem -X POST --data-binary '{"id": 42, "msg": "hello world"}' -H "Content-type: application/json" -i
     HTTP/1.1 403 Forbidden
 
-    Only admins may access this endpoint
+    {"error":{"code":"AuthorizationFailed","message":"Only admins may access this endpoint."}}
 
 Opening the Network
 -------------------
@@ -142,4 +144,4 @@ Once users are added to the opening network, members should create a proposal to
 
 Other members are then able to vote for the proposal using the returned proposal id.
 
-Once the proposal has received enough votes under the rules of the :term:`Constitution` (``"result":true``), the network is opened to users. It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+Once the proposal has received enough votes under the rules of the :term:`Constitution`, the network is opened to users. It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).

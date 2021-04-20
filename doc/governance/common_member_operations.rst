@@ -86,7 +86,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
         "state": "Accepted"
     }
 
-Once the proposal is accepted (``"state": "ACCEPTED"``) it is immediately enacted. All subsequent transactions will be encrypted with a fresh new ledger encryption key.
+Once the proposal is accepted (``"state": "Accepted"``) it is immediately enacted. All subsequent transactions will be encrypted with a fresh new ledger encryption key.
 
 Updating Recovery Threshold
 ---------------------------
