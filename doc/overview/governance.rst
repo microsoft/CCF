@@ -1,12 +1,17 @@
-Constitution
-============
+Governance
+==========
 
-.. warning::
-    See :doc:`/governance/js_gov` for pointers on converting from Lua to JS.
+Governance rules for a CCF network are defined in a JavaScript module called the :term:`Constitution`.
 
-The :term:`Constitution` defines the set of rules and conditions (as a JavaScript module) that members must follow for their proposals to be accepted. For example, in a CCF network governed by `4` members, a strict majority constitution would only execute proposals once `3` members (`4/2 + 1`) have voted for that proposal.
+It typically contains the following four elements:
 
-Votes for the proposal are evaluated by the constitution's ``resolve()`` function. If the `resolve()` function returns ``"Accepted"``, the vote is passed, and its consequences are applied to the KV in a transaction.
+1. A set of executable actions, which can be proposed by members and submitted to a vote.
+2. A `validate()` function, used to check that proposals submitted by members are well-formed.
+3. A `resolve()` function, used to evaluate ballots submitted by members for a proposal, and decide whether to apply it.
+4. An `apply()` function, called if a proposal has been successfully accepted.
+
+`resolve()` can be used to implement a range of governance models.
+For example, in a CCF network governed by `4` equal members, a strict majority `resolve()` would only apply proposals once `3` members (`4/2 + 1`) have voted for that proposal.
 
 Examples of constitution include (see `Models`_ for further details):
 

@@ -10,8 +10,8 @@ Overview
 
     ---
 
-    :fa:`scroll` :doc:`constitution`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    :fa:`scroll` :doc:`governance`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Governance in a CCF network is implemented as an executable constitution.
 
@@ -48,7 +48,7 @@ Overview
     :maxdepth: 1
 
     concepts
-    constitution
+    governance
     consensus
     cryptography
     performance
