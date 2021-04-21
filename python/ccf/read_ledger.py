@@ -17,7 +17,7 @@ def stringify_bytes(bs):
     if s.isprintable():
         return s
     if len(bs) > 0 and len(bs) <= 8:
-        n = int.from_bytes(bs, "big")
+        n = int.from_bytes(bs, byteorder="little")
         return f"<u{8 * len(bs)}: {n}>"
     return bs
 
@@ -47,49 +47,56 @@ if __name__ == "__main__":
         LOG.error("At least one CCF ledger directory must be passed as an argument")
         sys.exit(1)
 
-    ledger_dirs = sys.argv[1:]
-    ledger = ccf.ledger.Ledger(ledger_dirs)
+    snapshot_file = sys.argv[1]
+    LOG.info(f"Snapshot file: {snapshot_file}")
 
-    LOG.info(f"Reading ledger from {ledger_dirs}")
-    LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
+    snapshot = ccf.ledger.Snapshot(snapshot_file)
 
-    for chunk in ledger:
-        LOG.info(
-            f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
-        )
-        for transaction in chunk:
-            public_transaction = transaction.get_public_domain()
-            public_tables = public_transaction.get_tables()
+    public_snapshot = snapshot.get_public_domain()
 
-            LOG.success(
-                f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')})"
-            )
+    # ledger_dirs = sys.argv[1:]
+    # ledger = ccf.ledger.Ledger(ledger_dirs)
 
-            private_table_size = transaction.get_private_domain_size()
-            if private_table_size:
-                LOG.error(f"{indent(2)}-- private: {private_table_size} bytes")
+    # LOG.info(f"Reading ledger from {ledger_dirs}")
+    # LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
 
-            for table_name, records in public_tables.items():
-                LOG.warning(
-                    f'{indent(4)}table "{table_name}" ({counted_string(records, "write")}):'
-                )
-                key_indent = indent(6)
-                value_indent = indent(8)
-                for key, value in records.items():
-                    if value is not None:
-                        try:
-                            value = json.dumps(json.loads(value), indent=2)
-                            value = value.replace(
-                                "\n", f"\n{value_indent}"
-                            )  # Indent every line within stringified JSON
-                        except (json.decoder.JSONDecodeError, UnicodeDecodeError):
-                            pass
-                        finally:
-                            print_key(key_indent, key)
-                            LOG.info(f"{value_indent}{value}")
-                    else:
-                        print_key(key_indent, key, is_removed=True)
+    # for chunk in ledger:
+    #     LOG.info(
+    #         f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
+    #     )
+    #     for transaction in chunk:
+    #         public_transaction = transaction.get_public_domain()
+    #         public_tables = public_transaction.get_tables()
 
-    LOG.success(
-        f"Ledger verification complete. Found {ledger.signature_count()} signatures, and verified till {ledger.last_verified_txid()}"
-    )
+    #         LOG.success(
+    #             f"{indent(2)}seqno {public_transaction.get_seqno()} ({counted_string(public_tables, 'public table')})"
+    #         )
+
+    #         private_table_size = transaction.get_private_domain_size()
+    #         if private_table_size:
+    #             LOG.error(f"{indent(2)}-- private: {private_table_size} bytes")
+
+    #         for table_name, records in public_tables.items():
+    #             LOG.warning(
+    #                 f'{indent(4)}table "{table_name}" ({counted_string(records, "write")}):'
+    #             )
+    #             key_indent = indent(6)
+    #             value_indent = indent(8)
+    #             for key, value in records.items():
+    #                 if value is not None:
+    #                     try:
+    #                         value = json.dumps(json.loads(value), indent=2)
+    #                         value = value.replace(
+    #                             "\n", f"\n{value_indent}"
+    #                         )  # Indent every line within stringified JSON
+    #                     except (json.decoder.JSONDecodeError, UnicodeDecodeError):
+    #                         pass
+    #                     finally:
+    #                         print_key(key_indent, key)
+    #                         LOG.info(f"{value_indent}{value}")
+    #                 else:
+    #                     print_key(key_indent, key, is_removed=True)
+
+    # LOG.success(
+    #     f"Ledger verification complete. Found {ledger.signature_count()} signatures, and verified till {ledger.last_verified_txid()}"
+    # )

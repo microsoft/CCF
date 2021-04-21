@@ -175,6 +175,13 @@ namespace kv
       serialised_tx.resize(space);
       auto data_ = serialised_tx.data();
 
+      if (is_snapshot)
+      {
+        LOG_FAIL_FMT("GCM HDR: {}", tls::b64_from_raw(serialised_hdr));
+        LOG_FAIL_FMT("Public domain size: {}", serialised_public_domain.size());
+        LOG_FAIL_FMT("Overall size: {}", serialised_tx.size());
+      }
+
       serialized::write(
         data_, space, serialised_hdr.data(), serialised_hdr.size());
       serialized::write(data_, space, serialised_public_domain.size());

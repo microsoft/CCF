@@ -62,6 +62,20 @@ def unpack(stream, fmt):
     return struct.unpack(fmt, buf)[0]
 
 
+def unpack_array(stream, fmt, length):
+    buf = stream.read(length)
+    if not buf:
+        raise EOFError  # Reached end of stream
+    unpack_iter = struct.iter_unpack(fmt, buf)
+    ret = []
+    while True:
+        try:
+            ret.append(next(unpack_iter)[0])
+        except StopIteration:
+            break
+    return ret
+
+
 class GcmHeader:
     _gcm_tag = ["\0"] * GCM_SIZE_TAG
     _gcm_iv = ["\0"] * GCM_SIZE_IV
@@ -95,6 +109,11 @@ class PublicDomain:
         self._is_snapshot = self._read_is_snapshot()
         self._version = self._read_version()
         self._max_conflict_version = self._read_version()
+
+        if self._is_snapshot:
+            LOG.error("Reading snapshot header")
+            self._read_snapshot_header()
+
         self._tables = {}
         self._read()
 
@@ -105,7 +124,7 @@ class PublicDomain:
         return unpack(self._buffer, "<q")
 
     def _read_size(self):
-        return unpack(self._buffer, "<q")
+        return unpack(self._buffer, "<Q")
 
     def _read_string(self):
         size = self._read_size()
@@ -115,36 +134,80 @@ class PublicDomain:
         size = self._read_size()
         return self._buffer.read(size)
 
+    def _read_snapshot_header(self):
+        # read hash of entry at snapshot
+        hash_size = self._read_size()
+        buffer = unpack(self._buffer, f"<{hash_size}s")
+        self._hash_at_snapshot = buffer.hex()
+
+        # read view history
+        view_history_size = self._read_size()
+        self._view_history = unpack_array(self._buffer, "<Q", view_history_size)
+
     def _read(self):
         while True:
             try:
                 map_name = self._read_string()
+                LOG.error(f"Map name: {map_name}")
             except EOFError:
                 break
 
             records = {}
             self._tables[map_name] = records
 
-            # read_version
-            self._read_version()
+            if self._is_snapshot:
+                # map snapshot version
+                LOG.error(self._read_version())
 
-            # read_count
-            # Note: Read keys are not currently included in ledger transactions
-            read_count = self._read_size()
-            assert read_count == 0, f"Unexpected read count: {read_count}"
+                # overall size of map entry
+                map_size = self._read_size()
 
-            write_count = self._read_size()
-            if write_count:
-                for _ in range(write_count):
-                    k = self._read_next_entry()
-                    val = self._read_next_entry()
-                    records[k] = val
+                LOG.success(f"Map size: {map_size}")
 
-            remove_count = self._read_size()
-            if remove_count:
-                for _ in range(remove_count):
-                    k = self._read_next_entry()
-                    records[k] = None
+                start_map_pos = self._buffer.tell()
+                LOG.warning(f"start pos: {start_map_pos}")
+
+                while self._buffer.tell() - start_map_pos < map_size:
+                    # read key
+                    size = self._read_size()
+                    key = self._buffer.read(size)
+                    LOG.error(key)
+                    padding = 8 - (size % 8) if (size % 8) else 0
+                    LOG.success(f"Padding: {padding}, size: {size}")
+                    self._buffer.read(padding)
+
+                    # read valueV
+                    size = self._read_size()
+                    LOG.success(self._read_version())
+                    value = self._buffer.read(size - 8)
+                    padding = 8 - (size % 8) if (size % 8) else 0
+                    LOG.success(f"Padding: {padding}, size: {size}")
+                    self._buffer.read(padding)
+                    LOG.error(f"Value: {value}")
+                    input("")
+                    # LOG.success("Size: {}", size)
+
+            else:
+                # read_version
+                self._read_version()
+
+                # read_count
+                # Note: Read keys are not currently included in ledger transactions
+                read_count = self._read_size()
+                assert read_count == 0, f"Unexpected read count: {read_count}"
+
+                write_count = self._read_size()
+                if write_count:
+                    for _ in range(write_count):
+                        k = self._read_next_entry()
+                        val = self._read_next_entry()
+                        records[k] = val
+
+                remove_count = self._read_size()
+                if remove_count:
+                    for _ in range(remove_count):
+                        k = self._read_next_entry()
+                        records[k] = None
 
     def get_tables(self) -> dict:
         """
@@ -448,6 +511,53 @@ class Transaction:
         self._ledger_validator.add_transaction(self)
 
         return self
+
+
+class Snapshot:
+
+    _file: Optional[BinaryIO] = None
+    _public_domain_size: int = 0
+    _public_domain: Optional[PublicDomain] = None
+    _file_size: int = 0
+    gcm_header: Optional[GcmHeader] = None
+    _ledger_validator: LedgerValidator
+
+    def __init__(self, filename: str):
+        self._file = open(filename, mode="rb")
+        if self._file is None:
+            raise RuntimeError(f"Snapshot file {filename} could not be opened")
+
+        self._file_size = os.path.getsize(filename)
+
+        LOG.error(f"File size: {self._file_size}")
+
+        self._read_header()
+
+    def _read_header(self):
+        # read the AES GCM header
+        buffer = _byte_read_safe(self._file, GcmHeader.size())
+        self.gcm_header = GcmHeader(buffer)
+
+        # read the size of the public domain
+        buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
+        self._public_domain_size = to_uint_64(buffer)
+        LOG.error(f"Public domain size: {self._public_domain_size}")
+
+    def get_public_domain(self) -> Optional[PublicDomain]:
+        """
+        Retrieve the public (i.e. non-encrypted) domain for that transaction.
+
+        Note: If the transaction is private-only, nothing is returned.
+
+        :return: :py:class:`ccf.ledger.PublicDomain`
+        """
+        if self._public_domain == None:
+            buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
+            self._public_domain = PublicDomain(buffer)
+        return self._public_domain
+
+    def __del__(self):
+        self._file.close()
 
 
 class LedgerChunk:
