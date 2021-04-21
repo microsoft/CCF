@@ -102,7 +102,7 @@ Summary Diagram
         Member 0->>+Node 2: Propose accept_recovery
         Node 2-->>Member 0: Proposal ID
         Member 1->>+Node 2: Vote for Proposal ID
-        Node 2-->>Member 1: State: ACCEPTED
+        Node 2-->>Member 1: State: Accepted
         Note over Node 2, Node 3: accept_recovery proposal completes. Service is ready to accept recovery shares.
 
         Member 0->>+Node 2: GET recovery_share
