@@ -15,7 +15,7 @@ The ledger is split into multiple files (or chunks). Each ledger file starts wit
 
 The serialised transactions follow the 8-byte offset, as described in :ref:`audit/ledger:Transaction Format`.
 
-.. note:: A completed ledger file always ends on a signature transaction.
+.. note:: A complete ledger file always ends on a signature transaction.
 
 Transaction Format
 ------------------
