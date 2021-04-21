@@ -992,8 +992,6 @@ namespace kv
 
           if (h)
           {
-            // The serialised entry header is not covered by the history as it
-            // does not provide any integrity guarantee
             h->append(*data_shared);
           }
 

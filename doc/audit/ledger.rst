@@ -25,9 +25,8 @@ The following table describes the structure of a serialised transaction as it is
 +----------+------------------------------------------+-------------------------------------------------------------------------+
 |          | Field Type                               | Description                                                             |
 +==========+==========================================+=========================================================================+
-|          |                                          | | (Not covered by Merkle Tree)                                          |
-|          | Transaction Header                       | | - Version (1 byte)                                                    |
-|          |                                          | | - Flags (1 byte)                                                      |
+|          |                                          | | - Version (1 byte)                                                    |
+|          | Transaction Header                       | | - Flags (1 byte)                                                      |
 |          |                                          | | - Entry size (6 bytes)                                                |
 +  Header  +------------------------------------------+-------------------------------------------------------------------------+
 |          | AES GCM Header                           | IV and tag fields required to decrypt and verify integrity              |
