@@ -105,7 +105,7 @@ void verify_framed_entries_range(
   const std::vector<uint8_t>& framed_entries, size_t from, size_t to)
 {
   size_t idx = from;
-  for (int pos = 0; pos < framed_entries.size();)
+  for (size_t pos = 0; pos < framed_entries.size();)
   {
     const uint8_t* data = &framed_entries[pos];
     size_t size = framed_entries.size() - pos;
