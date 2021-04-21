@@ -52,7 +52,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    ledger_dirs = args.directories
+    ledger_dirs = args.directory
     ledger = ccf.ledger.Ledger(ledger_dirs)
     table_filter = re.compile(args.tables)
 
