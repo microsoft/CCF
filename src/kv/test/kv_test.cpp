@@ -349,6 +349,37 @@ TEST_CASE("size")
     REQUIRE(handle->size() == 0);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
+
+  {
+    INFO("Sanity check");
+    for (size_t i = 0; i < 20; ++i)
+    {
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      for (size_t j = 0; j < 1'000; ++j)
+      {
+        const auto key = std::to_string(rand() % 10'000);
+        if (rand() % 4 == 0)
+        {
+          handle->remove(key);
+        }
+        else
+        {
+          handle->put(key, v);
+        }
+      }
+
+      const auto claimed_size = handle->size();
+      size_t manual_size = 0;
+      handle->foreach([&manual_size](const auto&, const auto&) {
+        ++manual_size;
+        return true;
+      });
+
+      REQUIRE(claimed_size == manual_size);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
 }
 
 TEST_CASE("foreach")
