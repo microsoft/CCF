@@ -7,9 +7,9 @@ This sections assumes that a set of nodes has already been started by :term:`Ope
 Adding Users
 ------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`Users`. First, :doc:`the identities of trusted users should be generated </use_apps/index>`.
+Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`Users`. First, the identities of trusted users should be generated, see :ref:`governance/adding_member:Generating Member Keys and Certificates`.
 
-Then, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``user_cert`` is the PEM certificate of the user -- see :ref:`overview/cryptography:Cryptography` for a list of supported algorithms):
+Then, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``cert`` is the PEM certificate of the user -- see :ref:`overview/cryptography:Cryptography` for a list of supported algorithms):
 
 .. code-block:: bash
 
@@ -63,7 +63,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "state": "Accepted"
     }
 
-The user is successfully added once a the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body showing a transition to state ``ACCEPTED``).
+The user is successfully added once the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body showing a transition to state ``Accepted``).
 
 The user can then make user RPCs.
 
@@ -98,6 +98,7 @@ Members configure this permission with ``set_user_data`` proposals:
             }
         ]
     }
+
 
 Once this proposal is accepted, the newly added user (with ID ``529d0f48287923e7536a708c0b7747666f6b904d3fd4b84739f7d2204233a16e``) is able to use this endpoint:
 
@@ -144,4 +145,4 @@ Once users are added to the opening network, members should create a proposal to
 
 Other members are then able to vote for the proposal using the returned proposal id.
 
-Once the proposal has received enough votes under the rules of the :term:`Constitution`, the network is opened to users. It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+Once the proposal has received enough votes under the rules of the :term:`Constitution` (ie. ballots which evaluate to ``true``), the network is opened to users. It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).

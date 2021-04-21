@@ -96,8 +96,6 @@ import ccf.proposal_generator
 
 # SNIPPET_START: dict_proposal
 proposal, vote = ccf.proposal_generator.transition_service_to_open()
-# >>> proposal
-# {'script': {'text': 'return Calls:call("transition_service_to_open")'}}
 
 member_client = ccf.clients.CCFClient(
     host,

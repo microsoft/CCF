@@ -16,9 +16,9 @@ Overview
     CCF release cadence and compatibility committments.
 
     ---
-
-    :fa:`scroll` :doc:`constitution`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    
+    :fa:`scroll` :doc:`governance`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Governance in a CCF network is implemented as an executable constitution.
 
@@ -50,12 +50,6 @@ Overview
 
     CCF threading model.
 
-    ---
-
-    :fa:`book` :doc:`glossary`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Common terms used throughout the documentation and their definitions.
 
 .. toctree::
     :hidden:
@@ -63,7 +57,7 @@ Overview
 
     concepts
     release_policy
-    constitution
+    governance
     consensus
     cryptography
     performance

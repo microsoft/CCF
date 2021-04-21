@@ -388,14 +388,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
     )
 
-    # TODO: Port or remove entirely? add_unit_test( member_voting_test
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp )
-    # target_link_libraries( member_voting_test PRIVATE
-    # ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host ccf_endpoints.host
-    # quickjs.host ) set_tests_properties( member_voting_test PROPERTIES
-    # ENVIRONMENT RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config )
-
     add_unit_test(
       proposal_id_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
