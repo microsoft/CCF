@@ -46,7 +46,7 @@ if __name__ == "__main__":
     )
 
     parser = argparse.ArgumentParser(description="Read a CCF ledger directory")
-    parser.add_argument("directory", help="a ledger directory", nargs='+')
+    parser.add_argument("directory", help="a ledger directory", nargs="+")
     parser.add_argument(
         "-t", "--tables", help="regex filter for tables", type=str, default=".*"
     )
