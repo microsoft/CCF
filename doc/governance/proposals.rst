@@ -10,7 +10,7 @@ Summary
 Proposals are submitted as JSON documents, which if resolved successfully are applied atomically to the KV state.
 
 Ballots are submitted as JavaScript modules exporting a single ``vote()`` function, executed transactionally, and are able to read from the current KV state but not write to it.
-Each vote script is given the proposal as a list of actions, and returns a Boolean value indicating whether it supports or rejects it.
+Each vote script is given the proposal as a JSON document, typically containing list of actions, and returns a Boolean value indicating whether it supports or rejects it.
 
 Any member can submit a new proposal. All members can then vote, once at most, on this proposal using its unique proposal id.
 The proposer has the ability to `withdraw` a proposal as long as it is open.
