@@ -180,30 +180,50 @@ TEST_CASE("clear")
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
+  SUBCASE("Basic")
   {
-    INFO("Clear removes all entries");
-    auto tx = kv_store.create_tx();
-    auto handle = tx.rw(map);
-    handle->put(k2, v);
+    {
+      INFO("Clear removes all entries");
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      handle->put(k2, v);
 
-    REQUIRE(handle->has(k1));
-    REQUIRE(handle->has(k2));
+      REQUIRE(handle->has(k1));
+      REQUIRE(handle->has(k2));
 
-    handle->clear();
+      handle->clear();
 
-    REQUIRE(!handle->has(k1));
-    REQUIRE(!handle->has(k2));
+      REQUIRE(!handle->has(k1));
+      REQUIRE(!handle->has(k2));
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Clear is committed");
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+
+      REQUIRE(!handle->has(k1));
+      REQUIRE(!handle->has(k2));
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
   }
 
+  SUBCASE("Clear conflicts correctly")
   {
-    INFO("Clear is committed");
-    auto tx = kv_store.create_tx();
-    auto handle = tx.rw(map);
+    auto tx1 = kv_store.create_tx();
+    auto handle1 = tx1.rw(map);
+    handle1->clear();
 
-    REQUIRE(!handle->has(k1));
-    REQUIRE(!handle->has(k2));
+    INFO("Another transaction creates a key and commits");
+    auto tx2 = kv_store.create_tx();
+    auto handle2 = tx2.rw(map);
+    handle2->put(k2, v);
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+
+    INFO("clear() conflicts and must be retried");
+    REQUIRE(tx1.commit() == kv::CommitResult::FAIL_CONFLICT);
   }
 }
 
