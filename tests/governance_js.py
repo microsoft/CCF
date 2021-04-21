@@ -53,15 +53,18 @@ ballot_no = vote("return false")
 def test_proposal_validation(network, args):
     node = network.find_random_node()
 
+    def assert_invalid_proposal(r):
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), r.body.text()
+
     with node.client(None, "member0") as c:
         r = c.post(
             "/gov/proposals",
             proposal(action("valid_pem", pem="That's not a PEM")),
         )
-        assert (
-            r.status_code == 400
-            and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
-        ), r.body.text()
+        assert_invalid_proposal(r)
 
         with open(os.path.join(network.common_dir, "networkcert.pem"), "r") as cert:
             valid_pem = cert.read()
@@ -69,6 +72,64 @@ def test_proposal_validation(network, args):
         r = c.post(
             "/gov/proposals",
             proposal(action("valid_pem", pem=valid_pem)),
+        )
+        assert r.status_code == 200
+
+        # Arg missing
+        r = c.post(
+            "/gov/proposals",
+            proposal(action("remove_user")),
+        )
+        assert_invalid_proposal(r)
+
+        # Not a string
+        r = c.post(
+            "/gov/proposals",
+            proposal(action("remove_user", user_id=42)),
+        )
+        assert_invalid_proposal(r)
+
+        # Too short
+        r = c.post(
+            "/gov/proposals",
+            proposal(action("remove_user", user_id="deadbeef")),
+        )
+        assert_invalid_proposal(r)
+
+        # Too long
+        r = c.post(
+            "/gov/proposals",
+            proposal(
+                action(
+                    "remove_user",
+                    user_id="0deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+                )
+            ),
+        )
+        assert_invalid_proposal(r)
+
+        # Not hex
+        r = c.post(
+            "/gov/proposals",
+            proposal(
+                action(
+                    "remove_user",
+                    user_id="totboeuftotboeuftotboeuftotboeuftotboeuftotboeuftotboeuftotboeuf",
+                )
+            ),
+        )
+        assert_invalid_proposal(r)
+
+        # Just right
+        # NB: It validates (structurally correct type), but does nothing because this user doesn't exist
+        r = c.post(
+            "/gov/proposals",
+            proposal(
+                action(
+                    "remove_user",
+                    user_id="deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+                )
+            ),
         )
         assert r.status_code == 200
 
