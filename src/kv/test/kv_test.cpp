@@ -161,6 +161,52 @@ TEST_CASE("Reads/writes and deletions")
   }
 }
 
+TEST_CASE("clear")
+{
+  kv::Store kv_store;
+  MapTypes::StringString map("public:map");
+
+  const auto k1 = "k1";
+  const auto k2 = "k2";
+
+  const auto v = "v";
+
+  {
+    INFO("Setting committed state");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put(k1, v);
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    INFO("Clear removes all entries");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put(k2, v);
+
+    REQUIRE(handle->has(k1));
+    REQUIRE(handle->has(k2));
+
+    handle->clear();
+
+    REQUIRE(!handle->has(k1));
+    REQUIRE(!handle->has(k2));
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    INFO("Clear is committed");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+
+    REQUIRE(!handle->has(k1));
+    REQUIRE(!handle->has(k2));
+  }
+}
+
 TEST_CASE("get_version_of_previous_write")
 {
   kv::Store kv_store;
