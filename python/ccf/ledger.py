@@ -416,11 +416,12 @@ class Transaction:
         self._file.close()
 
     def _read_header(self):
+        self._tx_offset = self._file.tell()
+
         # read the transaction header
         buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
         self._header = TransactionHeader(buffer)
 
-        self._tx_offset = self._file.tell()
         self._next_offset += self._header.size
         self._next_offset += TransactionHeader.get_size()
 
@@ -462,11 +463,13 @@ class Transaction:
         assert self._file is not None
 
         # remember where the pointer is in the file before we go back for the transaction bytes
-        header = self._file.tell()
+        save_pos = self._file.tell()
         self._file.seek(self._tx_offset)
-        buffer = _byte_read_safe(self._file, self._header.size)
+        buffer = _byte_read_safe(
+            self._file, TransactionHeader.get_size() + self._header.size
+        )
         # return to original filepointer and return the transaction bytes
-        self._file.seek(header)
+        self._file.seek(save_pos)
         return buffer
 
     def _complete_read(self):

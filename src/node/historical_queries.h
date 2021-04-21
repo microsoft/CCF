@@ -880,9 +880,7 @@ namespace ccf::historical
         "Processing historical store at {} ({})",
         seqno,
         (size_t)deserialise_result);
-      const auto entry_digest =
-        crypto::Sha256Hash({data.data() + kv::serialised_entry_header_size,
-                            data.size() - kv::serialised_entry_header_size});
+      const auto entry_digest = crypto::Sha256Hash(data);
       process_deserialised_store(store, entry_digest, seqno, is_signature);
 
       return true;

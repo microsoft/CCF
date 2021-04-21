@@ -129,7 +129,7 @@ namespace ccf
       id(id_)
     {}
 
-    void append(const uint8_t*, size_t) override
+    void append(const std::vector<uint8_t>&) override
     {
       version++;
     }
@@ -850,10 +850,10 @@ namespace ccf
       return consensus->on_request({id, request, caller_cert, frame_format});
     }
 
-    void append(const uint8_t* data, size_t size) override
+    void append(const std::vector<uint8_t>& data) override
     {
       std::lock_guard<SpinLock> guard(state_lock);
-      crypto::Sha256Hash rh({data, size});
+      crypto::Sha256Hash rh({data.data(), data.size()});
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);
     }

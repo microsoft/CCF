@@ -118,9 +118,7 @@ namespace kv
 
       if (history)
       {
-        history->append(
-          data.data() + kv::serialised_entry_header_size,
-          data.size() - kv::serialised_entry_header_size);
+        history->append(data);
       }
       return success;
     }
@@ -293,9 +291,7 @@ namespace kv
           "Failed to verify signature, view-changes not implemented");
         return ApplyResult::FAIL;
       }
-      history->append(
-        data.data() + kv::serialised_entry_header_size,
-        data.size() - kv::serialised_entry_header_size);
+      history->append(data);
       return ApplyResult::PASS_SIGNATURE;
     }
   };
@@ -357,9 +353,7 @@ namespace kv
       term = tx_id.view;
       version = tx_id.seqno;
 
-      history->append(
-        data.data() + kv::serialised_entry_header_size,
-        data.size() - kv::serialised_entry_header_size);
+      history->append(data);
       return success;
     }
   };
@@ -405,9 +399,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      history->append(
-        data.data() + kv::serialised_entry_header_size,
-        data.size() - kv::serialised_entry_header_size);
+      history->append(data);
       return ApplyResult::PASS_NONCES;
     }
   };
@@ -460,9 +452,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      history->append(
-        data.data() + kv::serialised_entry_header_size,
-        data.size() - kv::serialised_entry_header_size);
+      history->append(data);
       return ApplyResult::PASS_NEW_VIEW;
     }
   };

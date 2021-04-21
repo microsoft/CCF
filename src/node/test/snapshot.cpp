@@ -68,9 +68,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     auto tree = serialised_tree->get(0);
 
     auto serialised_signature = source_consensus->get_latest_data().value();
-    auto serialised_signature_hash = crypto::Sha256Hash(
-      {serialised_signature.data() + kv::serialised_entry_header_size,
-       serialised_signature.size() - kv::serialised_entry_header_size});
+    auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);
 
     ccf::MerkleTreeHistory target_tree(tree.value());
 

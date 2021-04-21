@@ -994,9 +994,7 @@ namespace kv
           {
             // The serialised entry header is not covered by the history as it
             // does not provide any integrity guarantee
-            h->append(
-              data_shared->data() + kv::serialised_entry_header_size,
-              data_shared->size() - kv::serialised_entry_header_size);
+            h->append(*data_shared);
           }
 
           LOG_DEBUG_FMT(
