@@ -223,7 +223,7 @@ namespace asynchost
           if (len < entry_size)
           {
             throw std::logic_error(fmt::format(
-              "Malformed uncompleted ledger file {} (expecting entry of size "
+              "Malformed incomplete ledger file {} (expecting entry of size "
               "{}, remaining {})",
               file_path,
               entry_size,
