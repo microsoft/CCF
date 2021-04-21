@@ -63,7 +63,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "state": "Accepted"
     }
 
-The user is successfully added once a the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body showing a transition to state ``Accepted``).
+The user is successfully added once the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body showing a transition to state ``Accepted``).
 
 The user can then make user RPCs.
 
