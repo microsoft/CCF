@@ -147,6 +147,13 @@ namespace kv
       };
       read_handle.foreach(g);
     }
+
+    /** TODO: Doxy
+     */
+    size_t size()
+    {
+      return read_handle.size();
+    }
   };
 
   /** Grants write access to a @c kv::Map, as part of a @c kv::Tx.
