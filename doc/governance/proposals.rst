@@ -9,15 +9,15 @@ Summary
 
 Proposals are submitted as JSON documents, which if resolved successfully are applied atomically to the KV state.
 
-Ballots are submitted as JavaScript modules exporting a single `vote()` function, executed transactionally, and are able to read from the current KV state but not write to it.
+Ballots are submitted as JavaScript modules exporting a single ``vote()`` function, executed transactionally, and are able to read from the current KV state but not write to it.
 Each vote script is given the proposal as a list of actions, and returns a Boolean value indicating whether it supports or rejects it.
 
 Any member can submit a new proposal. All members can then vote, once at most, on this proposal using its unique proposal id.
 The proposer has the ability to `withdraw` a proposal as long as it is open.
 
 Each time a vote is submitted, all vote ballots for this proposal are re-executed on the current state to determine whether they are `for` or `against` the proposal.
-This vote tally is passed to the `resolve()` call in the :term:`Constitution`, which determines whether the proposal is accepted or remains open.
-Once a proposal is accepted under the rules of the :term:`Constitution`, it is executed via `apply()` and its effects are applied to the state and recorded in the ledger.
+This vote tally is passed to the ``resolve()`` call in the :term:`Constitution`, which determines whether the proposal is accepted or remains open.
+Once a proposal is accepted under the rules of the :term:`Constitution`, it is executed via ``apply()`` and its effects are applied to the state and recorded in the ledger.
 
 For transparency and auditability, all governance operations (including votes) are recorded in plaintext in the ledger and members are required to sign their requests.
 

@@ -6,14 +6,14 @@ Governance rules for a CCF network are defined in a JavaScript module called the
 It typically contains the following four elements:
 
 1. A set of executable actions, which can be proposed by members and submitted to a vote.
-2. A `validate()` function, used to check that proposals submitted by members are well-formed.
-3. A `resolve()` function, used to evaluate ballots submitted by members for a proposal, and decide whether to apply it.
-4. An `apply()` function, called if a proposal has been successfully accepted.
+2. A ``validate()`` function, used to check that proposals submitted by members are well-formed.
+3. A ``resolve()`` function, used to evaluate ballots submitted by members for a proposal, and decide whether to apply it.
+4. An ``apply()`` function, called if a proposal has been successfully accepted.
 
-`resolve()` can be used to implement a range of governance models.
-For example, in a CCF network governed by `4` equal members, a strict majority `resolve()` would only applies proposals once `3` members (`4/2 + 1`) have voted in favour.
+``resolve()`` can be used to implement a range of governance models.
+For example, in a CCF network governed by `4` equal members, a strict majority ``resolve()`` would only applies proposals once `3` members (`4/2 + 1`) have voted in favour.
 
-Sample implementations of `resolve()` include (see `Models`_ for further details):
+Sample implementations of ``resolve()`` include (see `Models`_ for further details):
 
 - Strict majority (`simple constitution`_) that implements a "one-member, one-vote" constitution, with a majority rule.
 - Strict majority with member veto (`simple constitution with veto`_) similar to the Strict majority constitution, but where each member is allowed to veto any proposal.
