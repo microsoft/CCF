@@ -214,17 +214,11 @@ void validate_business_transaction(
   REQUIRE(private_v.has_value());
   REQUIRE(*private_v == v);
 
-  size_t public_count = 0;
-  public_map->foreach([&public_count](const auto& k, const auto& v) {
-    REQUIRE(public_count++ == 0);
-    return true;
-  });
+  const size_t public_count = public_map->size();
+  REQUIRE(public_count == 1);
 
-  size_t private_count = 0;
-  private_map->foreach([&private_count](const auto& k, const auto& v) {
-    REQUIRE(private_count++ == 0);
-    return true;
-  });
+  const size_t private_count = private_map->size();
+  REQUIRE(private_count == 1);
 }
 
 std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
