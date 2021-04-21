@@ -25,7 +25,7 @@ Creating a Proposal
 -------------------
 
 For custom proposals with multiple actions and precise conditional requirements you will need to write the proposal script by hand.
-For simple proposals there is a helper script in the CCF Python package - `proposal_generator.py`.
+For simple proposals there is a helper script in the CCF Python package - ``proposal_generator.py``.
 This can be used to create proposals for common operations like adding members and users, without writing any JSON.
 It also produces sample vote scripts, which validate that the executed proposed actions exactly match what is expected.
 These sample proposals and votes can be used as a syntax and API reference for producing more complex custom proposals.
