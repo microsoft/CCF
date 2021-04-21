@@ -348,7 +348,7 @@ if __name__ == "__main__":
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/votes) will be dumped. Default is {DEFAULT_VOTE_OUTPUT}",
+        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/ballots) will be dumped. Default is {DEFAULT_VOTE_OUTPUT}",
     )
     parser.add_argument(
         "-pp",

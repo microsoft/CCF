@@ -32,7 +32,7 @@ A member proposes to recover the network and other members can vote on the propo
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "ballot_count": 1,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
@@ -40,7 +40,7 @@ A member proposes to recover the network and other members can vote on the propo
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
