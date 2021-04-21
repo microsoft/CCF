@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "ds/messaging.h"
 #include "ds/nonstd.h"
+#include "kv/serialised_entry_format.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -111,7 +112,6 @@ namespace asynchost
   private:
     using positions_offset_header_t = size_t;
     static constexpr auto file_name_prefix = "ledger";
-    static constexpr size_t frame_header_size = sizeof(uint32_t);
 
     const std::string dir;
     std::string file_name;
@@ -205,29 +205,36 @@ namespace asynchost
 
         auto len = total_len - sizeof(positions_offset_header_t);
         size_t pos = sizeof(positions_offset_header_t);
-        uint32_t entry_size = 0;
+        kv::SerialisedEntryHeader entry_header;
 
-        while (len >= frame_header_size)
+        while (len >= kv::serialised_entry_header_size)
         {
-          if (fread(&entry_size, frame_header_size, 1, file) != 1)
+          if (
+            fread(&entry_header, kv::serialised_entry_header_size, 1, file) !=
+            1)
           {
             throw std::logic_error(fmt::format(
               "Failed to read frame from ledger file {}", file_path));
           }
 
-          len -= frame_header_size;
+          len -= kv::serialised_entry_header_size;
 
+          const auto& entry_size = entry_header.size;
           if (len < entry_size)
           {
-            throw std::logic_error(
-              fmt::format("Malformed ledger file {}", file_path));
+            throw std::logic_error(fmt::format(
+              "Malformed incomplete ledger file {} (expecting entry of size "
+              "{}, remaining {})",
+              file_path,
+              entry_size,
+              len));
           }
 
           fseeko(file, entry_size, SEEK_CUR);
           len -= entry_size;
 
           positions.push_back(pos);
-          pos += (entry_size + frame_header_size);
+          pos += (kv::serialised_entry_header_size + entry_size);
         }
         completed = false;
       }
@@ -272,12 +279,6 @@ namespace asynchost
       positions.push_back(total_len);
       size_t new_idx = get_last_idx();
 
-      uint32_t frame = (uint32_t)size;
-      if (fwrite(&frame, frame_header_size, 1, file) != 1)
-      {
-        throw std::logic_error("Failed to write entry header to ledger");
-      }
-
       if (fwrite(data, size, 1, file) != 1)
       {
         throw std::logic_error("Failed to write entry to ledger");
@@ -290,7 +291,7 @@ namespace asynchost
           fmt::format("Failed to flush entry to ledger: {}", strerror(errno)));
       }
 
-      total_len += (size + frame_header_size);
+      total_len += size;
 
       return new_idx;
     }
@@ -313,12 +314,6 @@ namespace asynchost
       }
     }
 
-    size_t entry_size(size_t idx) const
-    {
-      auto framed_size = framed_entries_size(idx, idx);
-      return (framed_size != 0) ? framed_size - frame_header_size : 0;
-    }
-
     std::optional<std::vector<uint8_t>> read_entry(size_t idx) const
     {
       if ((idx < start_idx) || (idx > get_last_idx()))
@@ -326,11 +321,11 @@ namespace asynchost
         return std::nullopt;
       }
 
-      auto len = entry_size(idx);
+      auto len = framed_entries_size(idx, idx);
       std::vector<uint8_t> entry(len);
-      fseeko(file, positions.at(idx - start_idx) + frame_header_size, SEEK_SET);
+      fseeko(file, positions.at(idx - start_idx), SEEK_SET);
 
-      if (fread(entry.data(), len, 1, file) != 1)
+      if (fread(entry.data(), entry.size(), 1, file) != 1)
       {
         throw std::logic_error(
           fmt::format("Failed to read entry {} from file", idx));
@@ -886,7 +881,7 @@ namespace asynchost
       auto f = get_latest_file();
       last_idx = f->write_entry(data, size, committable);
 
-      LOG_DEBUG_FMT(
+      LOG_TRACE_FMT(
         "Wrote entry at {} [committable: {}, forced: {}]",
         last_idx,
         committable,
