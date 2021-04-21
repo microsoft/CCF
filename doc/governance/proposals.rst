@@ -21,6 +21,31 @@ Once a proposal is accepted under the rules of the :term:`Constitution`, it is e
 
 For transparency and auditability, all governance operations (including votes) are recorded in plaintext in the ledger and members are required to sign their requests.
 
+.. mermaid::
+
+    sequenceDiagram
+        participant Member 0
+        participant Member 1
+        participant MemberFrontend
+        participant Constitution
+
+        Note over MemberFrontend, Constitution: CCF
+        Member 0->>+MemberFrontend: Submit Proposal to /gov/proposals
+        MemberFrontend->>+Constitution: call validate(Proposal)
+        Constitution-->>-MemberFrontend: no exception
+        MemberFrontend->>+Constitution: call resolve(Proposal, {})
+        Constitution-->>-MemberFrontend: not enough votes, return Proposal is Open
+        MemberFrontend-->>-Member 0: Proposal is Open
+
+        Member 1->>+MemberFrontend: Submit Ballot containing vote() to /gov/proposals/ProposalID/ballots
+        MemberFrontend->>MemberFrontend: evaluate vote(Proposal, KV State) to boolean Vote
+        MemberFrontend->>+Constitution: call resolve(Proposal, {Member 1: Vote})
+        Constitution-->>-MemberFrontend: enough positive votes, return Proposal is Accepted
+        MemberFrontend->>+Constitution: call apply(Proposal) to perform side-effects
+        Constitution-->>-MemberFrontend: no exception
+        MemberFrontend-->>-Member 1: Proposal is Accepted, has successfully been applied
+
+
 Creating a Proposal
 -------------------
 
