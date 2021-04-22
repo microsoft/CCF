@@ -113,6 +113,13 @@ export function digest(
   };
 }
 
+export function isValidX509CertBundle(
+  request: ccfapp.Request
+): ccfapp.Response<boolean> {
+  const pem = request.body.text();
+  return { body: ccfcrypto.isValidX509CertBundle(pem) };
+}
+
 function b64ToBuf(b64: string): ArrayBuffer {
   return Base64.toUint8Array(b64).buffer;
 }
