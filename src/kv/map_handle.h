@@ -151,7 +151,7 @@ namespace kv
     /** Returns number of entries in this map.
      *
      * This is the count of all currently present keys, including both those
-     * which were already committed and any modifications (new additions or
+     * which were already committed and any modifications (taking into account new additions or
      * removals) that have been made during this transaction.
      *
      * @return Count of entries
