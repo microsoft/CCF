@@ -199,6 +199,14 @@ namespace kv::untyped
       return true;
     }
 
+    void clear()
+    {
+      foreach([this](const auto& k, const auto&) {
+        remove(k);
+        return true;
+      });
+    }
+
     template <class F>
     void foreach(F&& f)
     {
