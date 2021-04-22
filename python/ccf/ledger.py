@@ -539,13 +539,15 @@ class Ledger:
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
 
-    def __init__(self, directories: List[str]):
+    def __init__(self, directories: List[str], committed_only: bool = True):
 
         self._filenames = []
 
         ledger_files = []
         for directory in directories:
             for path in os.listdir(directory):
+                if committed_only and not path.endswith(".committed"):
+                    continue
                 chunk = os.path.join(directory, path)
                 if os.path.isfile(chunk):
                     ledger_files.append(chunk)
