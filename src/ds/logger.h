@@ -101,12 +101,19 @@ namespace logger
 
       if (enclave_offset.has_value())
       {
+        ::timespec enc_ts = host_ts;
+        enc_ts.tv_sec += (size_t)enclave_offset.value();
+        enc_ts.tv_nsec +=
+          (long long)(enclave_offset.value() * ns_per_s) % ns_per_s;
+
+        if (enc_ts.tv_nsec > ns_per_s)
+        {
+          enc_ts.tv_sec += 1;
+          enc_ts.tv_nsec -= ns_per_s;
+        }
+
         std::tm enclave_tm;
-        ::timespec enc_ts;
-        // TODO
-        //  = enclave_ts.value();
-        // ::timespec_get(&enc_ts, TIME_UTC);
-        // ::gmtime_r(&enc_ts.tv_sec, &enclave_tm);
+        gmtime_r(&enc_ts.tv_sec, &enclave_tm);
 
         return fmt::format(
           "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{"
@@ -423,26 +430,21 @@ namespace logger
 
       // Represent offset as a real (counting seconds) to handle both small
       // negative _and_ positive numbers. Since the system clock used is not
-      // monotonic, the offset we calculate could go in either direction.
-      float offset_time;
+      // monotonic, the offset we calculate could go in either direction, and tm
+      // can't represent small negative values.
+      std::optional<double> offset_time = std::nullopt;
 
-      if (enclave_time_us == 0)
-      {
-        // If enclave doesn't know the current time yet, just give them the
-        // host's time (producing offset of 0)
-        offset_time = 0;
-      }
-      else
+      // If enclave doesn't know the
+      // current time yet, don't try to produce an offset, just give them the
+      // host's time (producing offset of 0)
+      if (enclave_time_us != 0)
       {
         // Enclave time is recomputed every time. If multiple threads
         // log inside the enclave, offsets may not always increase
-        const time_t enclave_time_s = enclave_time_us / 1'000'000;
-        const ssize_t enclave_time_ns = (enclave_time_us % 1'000'000) * 1'000;
+        const double enclave_time_s = enclave_time_us / 1'000'000.0;
+        const double host_time_s = ts.tv_sec + (ts.tv_nsec / (double)ns_per_s);
 
-        const auto offset_time_s = ts.tv_sec - enclave_time_s;
-        const auto offset_time_ns = ts.tv_nsec - enclave_time_ns;
-
-        offset_time = offset_time_s + (offset_time_ns / ns_per_s);
+        offset_time = enclave_time_s - host_time_s;
       }
 
       for (auto const& logger : config::loggers())
