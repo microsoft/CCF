@@ -1,7 +1,6 @@
 Ansible
 auditability
 auditable
-blockchain
 Boolean
 ccf
 cryptographic
