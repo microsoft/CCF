@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/symmetric_key.h"
+#include "crypto/key_wrap.h"
+#include "crypto/rsa_key_pair.h"
 #include "genesis_gen.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
-#include "tls/key_exchange.h"
 
 #include <optional>
 
@@ -14,32 +14,9 @@ namespace ccf
 {
   class LedgerSecretsBroadcast
   {
-  private:
-    static std::vector<uint8_t> encrypt_ledger_secret(
-      std::shared_ptr<crypto::KeyPair_mbedTLS> encryption_key,
-      std::shared_ptr<crypto::PublicKey_mbedTLS> backup_pubk,
-      std::vector<uint8_t>&& plain)
-    {
-      // Encrypt secrets with a shared secret derived from backup public
-      // key
-      auto backup_shared_secret = crypto::make_key_aes_gcm(
-        tls::KeyExchangeContext(encryption_key, backup_pubk)
-          .compute_shared_secret());
-
-      crypto::GcmCipher gcmcipher(plain.size());
-      auto iv = crypto::create_entropy()->random(gcmcipher.hdr.get_iv().n);
-      std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
-
-      backup_shared_secret->encrypt(
-        iv, plain, nullb, gcmcipher.cipher.data(), gcmcipher.hdr.tag);
-
-      return gcmcipher.serialise();
-    }
-
   public:
     static void broadcast_some(
       NetworkState& network,
-      std::shared_ptr<crypto::KeyPair_mbedTLS> encryption_key,
       NodeId self,
       kv::Tx& tx,
       const LedgerSecretsMap& some_ledger_secrets)
@@ -47,11 +24,9 @@ namespace ccf
       GenesisGenerator g(network, tx);
       auto secrets = tx.rw(network.secrets);
 
-      auto trusted_nodes = g.get_trusted_nodes(self);
+      LedgerSecretsForNodes secrets_for_nodes;
 
-      SecretsForNodes secrets_for_nodes;
-
-      for (auto [nid, ni] : trusted_nodes)
+      for (auto [nid, ni] : g.get_trusted_nodes(self))
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 
@@ -59,31 +34,25 @@ namespace ccf
         {
           ledger_secrets_for_node.push_back(
             {s.first,
-             encrypt_ledger_secret(
-               encryption_key,
-               std::make_shared<crypto::PublicKey_mbedTLS>(
-                 ni.encryption_pub_key),
-               std::move(s.second->raw_key)),
+             crypto::ckm_rsa_pkcs_oaep_wrap(
+               crypto::make_rsa_public_key(ni.encryption_pub_key),
+               s.second->raw_key),
              s.second->previous_secret_stored_version});
         }
 
         secrets_for_nodes.emplace(nid, std::move(ledger_secrets_for_node));
       }
 
-      secrets->put(
-        0, {encryption_key->public_key_pem().raw(), secrets_for_nodes});
+      secrets->put(0, secrets_for_nodes);
     }
 
     static void broadcast_new(
-      NetworkState& network,
-      std::shared_ptr<crypto::KeyPair_mbedTLS> encryption_key,
-      kv::Tx& tx,
-      LedgerSecretPtr&& new_ledger_secret)
+      NetworkState& network, kv::Tx& tx, LedgerSecretPtr&& new_ledger_secret)
     {
       GenesisGenerator g(network, tx);
       auto secrets = tx.rw(network.secrets);
 
-      SecretsForNodes secrets_for_nodes;
+      LedgerSecretsForNodes secrets_for_nodes;
 
       for (auto [nid, ni] : g.get_trusted_nodes())
       {
@@ -91,43 +60,22 @@ namespace ccf
 
         ledger_secrets_for_node.push_back(
           {std::nullopt,
-           encrypt_ledger_secret(
-             encryption_key,
-             std::make_shared<crypto::PublicKey_mbedTLS>(ni.encryption_pub_key),
-             std::move(new_ledger_secret->raw_key)),
+           crypto::ckm_rsa_pkcs_oaep_wrap(
+             crypto::make_rsa_public_key(ni.encryption_pub_key),
+             new_ledger_secret->raw_key),
            new_ledger_secret->previous_secret_stored_version});
 
         secrets_for_nodes.emplace(nid, std::move(ledger_secrets_for_node));
       }
 
-      secrets->put(
-        0, {encryption_key->public_key_pem().raw(), secrets_for_nodes});
+      secrets->put(0, secrets_for_nodes);
     }
 
     static std::vector<uint8_t> decrypt(
-      std::shared_ptr<crypto::KeyPair_mbedTLS> encryption_key,
-      std::shared_ptr<crypto::PublicKey_mbedTLS> primary_pubk,
+      const crypto::RSAKeyPairPtr& encryption_key,
       const std::vector<uint8_t>& cipher)
     {
-      crypto::GcmCipher gcmcipher;
-      gcmcipher.deserialise(cipher);
-      std::vector<uint8_t> plain(gcmcipher.cipher.size());
-
-      auto primary_shared_key = crypto::make_key_aes_gcm(
-        tls::KeyExchangeContext(encryption_key, primary_pubk)
-          .compute_shared_secret());
-
-      if (!primary_shared_key->decrypt(
-            gcmcipher.hdr.get_iv(),
-            gcmcipher.hdr.tag,
-            gcmcipher.cipher,
-            nullb,
-            plain.data()))
-      {
-        throw std::logic_error("Decryption of ledger secret failed");
-      }
-
-      return plain;
+      return crypto::ckm_rsa_pkcs_oaep_unwrap(encryption_key, cipher);
     }
   };
 }
