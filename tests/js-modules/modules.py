@@ -348,6 +348,15 @@ def test_npm_app(network, args):
         body = r.body.json()
         assert body["msg"].startswith("token signing key not found"), r.body
 
+        priv_key_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem = infra.crypto.generate_cert(priv_key_pem)
+        r = c.post("/app/isValidX509CertBundle", pem)
+        assert r.body.json(), r.body
+        r = c.post("/app/isValidX509CertBundle", pem + "\n" + pem)
+        assert r.body.json(), r.body
+        r = c.post("/app/isValidX509CertBundle", "garbage")
+        assert not r.body.json(), r.body
+
         validate_openapi(c)
 
     LOG.info("Store JWT signing keys")
