@@ -29,6 +29,7 @@ namespace ccf
   using EncryptedLedgerSecrets = std::vector<EncryptedLedgerSecret>;
   using SecretsForNodes = std::map<NodeId, EncryptedLedgerSecrets>;
 
+  // TODO: Remove primary public key here!
   struct EncryptedLedgerSecretsNodesInfo
   {
     std::vector<uint8_t> primary_public_encryption_key = {};

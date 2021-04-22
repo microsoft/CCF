@@ -2,11 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/symmetric_key.h"
+#include "crypto/rsa_key_pair.h"
 #include "genesis_gen.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
-#include "tls/key_exchange.h"
 
 #include <optional>
 
@@ -16,30 +15,30 @@ namespace ccf
   {
   private:
     static std::vector<uint8_t> encrypt_ledger_secret(
-      std::shared_ptr<crypto::KeyPair_mbedTLS> encryption_key,
+      std::shared_ptr<crypto::RSAKeyPair> encryption_key,
       std::shared_ptr<crypto::PublicKey_mbedTLS> backup_pubk,
       std::vector<uint8_t>&& plain)
     {
       // Encrypt secrets with a shared secret derived from backup public
       // key
-      auto backup_shared_secret = crypto::make_key_aes_gcm(
-        tls::KeyExchangeContext(encryption_key, backup_pubk)
-          .compute_shared_secret());
+      // auto backup_shared_secret = crypto::make_key_aes_gcm(
+      //   tls::KeyExchangeContext(encryption_key, backup_pubk)
+      //     .compute_shared_secret());
 
-      crypto::GcmCipher gcmcipher(plain.size());
-      auto iv = crypto::create_entropy()->random(gcmcipher.hdr.get_iv().n);
-      std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
+      // crypto::GcmCipher gcmcipher(plain.size());
+      // auto iv = crypto::create_entropy()->random(gcmcipher.hdr.get_iv().n);
+      // std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
 
-      backup_shared_secret->encrypt(
-        iv, plain, nullb, gcmcipher.cipher.data(), gcmcipher.hdr.tag);
+      // backup_shared_secret->encrypt(
+      //   iv, plain, nullb, gcmcipher.cipher.data(), gcmcipher.hdr.tag);
 
-      return gcmcipher.serialise();
+      // return gcmcipher.serialise();
     }
 
   public:
     static void broadcast_some(
       NetworkState& network,
-      std::shared_ptr<crypto::KeyPair_mbedTLS> encryption_key,
+      std::shared_ptr<crypto::RSAKeyPair> encryption_key,
       NodeId self,
       kv::Tx& tx,
       const LedgerSecretsMap& some_ledger_secrets)
@@ -61,8 +60,7 @@ namespace ccf
             {s.first,
              encrypt_ledger_secret(
                encryption_key,
-               std::make_shared<crypto::PublicKey_mbedTLS>(
-                 ni.encryption_pub_key),
+               std::make_shared<crypto::RSAPublicKey>(ni.encryption_pub_key),
                std::move(s.second->raw_key)),
              s.second->previous_secret_stored_version});
         }

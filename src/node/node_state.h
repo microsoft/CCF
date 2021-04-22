@@ -121,7 +121,7 @@ namespace ccf
 
     crypto::KeyPairPtr node_sign_kp;
     NodeId self;
-    std::shared_ptr<crypto::KeyPair_mbedTLS> node_encrypt_kp;
+    std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
     crypto::Pem node_cert;
     QuoteInfo quote_info;
     CodeDigest node_code_id;
@@ -287,7 +287,7 @@ namespace ccf
       const CurveID& curve_id) :
       sm(State::uninitialized),
       node_sign_kp(crypto::make_key_pair(curve_id)),
-      node_encrypt_kp(std::make_shared<crypto::KeyPair_mbedTLS>(curve_id)),
+      node_encrypt_kp(std::make_shared<crypto::RSAKeyPair>()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -1317,7 +1317,7 @@ namespace ccf
       // Broadcast decrypted ledger secrets to other nodes for them to initiate
       // private recovery too
       LedgerSecretsBroadcast::broadcast_some(
-        network, node_encrypt_kp, self, tx, restored_ledger_secrets);
+        network, self, tx, restored_ledger_secrets);
 
       network.ledger_secrets->restore_historical(
         std::move(restored_ledger_secrets));
