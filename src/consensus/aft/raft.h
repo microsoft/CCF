@@ -2229,37 +2229,37 @@ namespace aft
         {
           if (is_primary())
           {
-            struct UpdateNodeProgressMsg
-            {
-              UpdateNodeProgressMsg(
-                Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self_,
-                const NodeId& from_,
-                const TxID& txid_) :
-                self(self_),
-                from(from_),
-                txid(txid_)
-              {}
-              Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
-              NodeId from;
-              TxID txid;
-            };
-
-            auto tmsg =
-              std::make_unique<threading::Tmsg<UpdateNodeProgressMsg>>(
-                [](
-                  std::unique_ptr<threading::Tmsg<UpdateNodeProgressMsg>> msg) {
-                  auto& d = msg->data;
-                  d.self->configuration_tracker.update_passive_node_progress(
-                    d.from,
-                    d.txid,
-                    {d.self->state->current_view, d.self->state->last_idx});
-                },
-                this,
-                from,
-                TxID{r.term, r.last_log_idx});
-
             if (threading::ThreadMessaging::thread_count > 1)
             {
+              struct UpdateNodeProgressMsg
+              {
+                UpdateNodeProgressMsg(
+                  Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self_,
+                  const NodeId& from_,
+                  const TxID& txid_) :
+                  self(self_),
+                  from(from_),
+                  txid(txid_)
+                {}
+                Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
+                NodeId from;
+                TxID txid;
+              };
+
+              auto tmsg =
+                std::make_unique<threading::Tmsg<UpdateNodeProgressMsg>>(
+                  [](std::unique_ptr<threading::Tmsg<UpdateNodeProgressMsg>>
+                       msg) {
+                    auto& d = msg->data;
+                    d.self->configuration_tracker.update_passive_node_progress(
+                      d.from,
+                      d.txid,
+                      {d.self->state->current_view, d.self->state->last_idx});
+                  },
+                  this,
+                  from,
+                  TxID{r.term, r.last_log_idx});
+
               threading::ThreadMessaging::thread_messaging.add_task(
                 threading::ThreadMessaging::get_execution_thread(
                   threading::MAIN_THREAD_ID),
