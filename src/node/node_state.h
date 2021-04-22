@@ -1724,15 +1724,15 @@ namespace ccf
                 network.secrets.get_name()));
             }
 
-            auto secrets_for_nodes = w.at(0);
-            if (!secrets_for_nodes.has_value())
+            auto ledger_secrets_for_nodes = w.at(0);
+            if (!ledger_secrets_for_nodes.has_value())
             {
               throw std::logic_error(fmt::format(
                 "Removal from {} table", network.secrets.get_name()));
             }
 
             for (const auto& [node_id, encrypted_ledger_secrets] :
-                 secrets_for_nodes.value())
+                 ledger_secrets_for_nodes.value())
             {
               if (node_id != self)
               {

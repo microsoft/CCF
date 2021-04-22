@@ -24,7 +24,7 @@ namespace ccf
       GenesisGenerator g(network, tx);
       auto secrets = tx.rw(network.secrets);
 
-      SecretsForNodes secrets_for_nodes;
+      LedgerSecretsForNodes secrets_for_nodes;
 
       for (auto [nid, ni] : g.get_trusted_nodes(self))
       {
@@ -52,7 +52,7 @@ namespace ccf
       GenesisGenerator g(network, tx);
       auto secrets = tx.rw(network.secrets);
 
-      SecretsForNodes secrets_for_nodes;
+      LedgerSecretsForNodes secrets_for_nodes;
 
       for (auto [nid, ni] : g.get_trusted_nodes())
       {
@@ -75,11 +75,7 @@ namespace ccf
       const crypto::RSAKeyPairPtr& encryption_key,
       const std::vector<uint8_t>& cipher)
     {
-      auto unwrapped = crypto::ckm_rsa_pkcs_oaep_unwrap(encryption_key, cipher);
-
-      LOG_FAIL_FMT("Unwrapped: {}", tls::b64_from_raw(unwrapped));
-
-      return unwrapped;
+      return crypto::ckm_rsa_pkcs_oaep_unwrap(encryption_key, cipher);
     }
   };
 }
