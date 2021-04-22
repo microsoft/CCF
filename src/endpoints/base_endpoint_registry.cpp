@@ -112,6 +112,20 @@ namespace ccf
     }
   }
 
+  ApiResult BaseEndpointRegistry::get_id_for_this_node_v1(NodeId& node_id)
+  {
+    try
+    {
+      node_id = context.get_node_state().get_node_id();
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_TRACE_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
   ApiResult BaseEndpointRegistry::get_view_for_seqno_v1(
     ccf::SeqNo seqno, ccf::View& view)
   {
