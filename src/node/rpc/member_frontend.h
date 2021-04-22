@@ -166,10 +166,7 @@ namespace ccf
     {
       auto endpoints =
         tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
-      endpoints->foreach([&endpoints](const auto& k, const auto&) {
-        endpoints->remove(k);
-        return true;
-      });
+      endpoints->clear();
     }
 
 #pragma clang diagnostic push
