@@ -95,27 +95,45 @@ The following diagram summarises the steps that operators and members should fol
 
         Operators->>+Node 1: cchost join --network-cert-file=Network Certificate --target-rpc-address=ip0:port0
 
-        Note over Node 1: Node 1 starts polling Node 0 (as per --join-timer option)
-        Node 1->>+Node 0: Poll for "Trusted" state
+        Node 1->>+Node 0: Join request (includes quote)
+        Node 0->>+Node 0: Verify Node 1 attestation
         Node 0-->>Node 1: "Pending" state
 
+        loop Node 1 polls Node 0 (as per --join-timer option)
+            Node 1->>+Node 0: Poll for "Trusted" state
+            Node 0-->>-Node 1: "Pending" state
+        end
+
         Operators->>+Node 1: Poll /node/state for "PartOfNetwork"
-        Node 1-->>Operators: "Pending" state
+        Node 1-->>-Operators: "Pending" state
 
         Members->>+Node 0: transition_node_to_trusted proposal for Node 1 and votes
-        Node 0-->>Members: Proposal Accepted
+        Node 0-->>-Members: Proposal Accepted
 
         Operators->>+Node 1: Poll /node/state for "PartOfNetwork"
-        Node 1-->>Operators: "Pending" state
+        Node 1-->>-Operators: "Pending" state
 
         Node 1->>+Node 0: Poll for "Trusted" state
-        Node 0-->>Node 1: "Trusted" state
+        Node 0-->>-Node 1: "Trusted" state (includes ledger secrets and service private key)
 
-        Note over Node 1: State: "PartOfNetwork" - Ledger replication started
+        Node 1->>+Node 1: Endorse TLS with service private key
+
+        Note over Node 1: State: "PartOfNetwork" <br/> Ledger replication started <br/> Application open to users
+
+        loop Node 1 ledger replication
+            Node 0->>+Node 1: Ledger replication
+        end
 
         Operators->>+Node 1: Poll /node/state for "PartOfNetwork"
-        Node 1-->>Operators: "PartOfNetwork" state
+        Node 1-->>-Operators: "PartOfNetwork" state
 
+        loop Node 1 ledger replication
+            Node 0->>+Node 1: Ledger replication
+        end
+
+        Note over Operators: Operators monitor progress of ledger replication
+        Operators->>+Node 1: Poll /node/commit
+        Node 1-->>-Operators: "commit": ...
 
 
 Opening a Network to Users
