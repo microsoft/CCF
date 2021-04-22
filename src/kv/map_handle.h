@@ -147,6 +147,19 @@ namespace kv
       };
       read_handle.foreach(g);
     }
+
+    /** Returns number of entries in this map.
+     *
+     * This is the count of all currently present keys, including both those
+     * which were already committed and any modifications (taking into account
+     * new additions or removals) that have been made during this transaction.
+     *
+     * @return Count of entries
+     */
+    size_t size()
+    {
+      return read_handle.size();
+    }
   };
 
   /** Grants write access to a @c kv::Map, as part of a @c kv::Tx.
