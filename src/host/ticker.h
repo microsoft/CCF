@@ -17,13 +17,10 @@ namespace asynchost
 
   public:
     TickerImpl(
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::function<void(std::chrono::time_point<std::chrono::system_clock>)>
-        set_start) :
+      ringbuffer::AbstractWriterFactory& writer_factory) :
       to_enclave(writer_factory.create_writer_to_inside()),
       last(std::chrono::system_clock::now())
     {
-      set_start(last);
     }
 
     void on_timer()

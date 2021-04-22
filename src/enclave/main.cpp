@@ -18,8 +18,8 @@ static std::atomic<enclave::Enclave*> e;
 #ifdef DEBUG_CONFIG
 static uint8_t* reserved_memory;
 #endif
-std::atomic<std::chrono::milliseconds> logger::config::ms =
-  std::chrono::milliseconds::zero();
+std::atomic<std::chrono::microseconds> logger::config::us =
+  std::chrono::microseconds::zero();
 std::atomic<uint16_t> num_pending_threads = 0;
 std::atomic<uint16_t> num_complete_threads = 0;
 
