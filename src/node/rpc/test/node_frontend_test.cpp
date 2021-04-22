@@ -300,7 +300,8 @@ TEST_CASE("Add a node to an open service")
     GenesisGenerator g(network, tx);
     g.trust_node(
       crypto::Sha256Hash(kp->public_key_der()).hex_str(),
-      network.ledger_secrets->get_latest(tx).first);
+      network.ledger_secrets->get_latest(tx).first,
+      true);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     // In the meantime, a new ledger secret is added. The new ledger secret

@@ -178,8 +178,8 @@ namespace aft
       size_t sig_tx_interval_ = 0,
       bool public_only_ = false,
       std::shared_ptr<kv::AbstractStore> kv_store_ = nullptr) :
-      // TODO: Is there a way to get access to this without explicitly passing
-      // it?
+      // TODO: Is there a way to get access to kv_store_ without explicitly
+      // passing it?
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
@@ -846,7 +846,8 @@ namespace aft
       {
         if (
           replica_state != kv::ReplicaState::Retired &&
-          timeout_elapsed >= election_timeout)
+          timeout_elapsed >= election_timeout &&
+          !configuration_tracker.is_passive(state->my_node_id))
         {
           // Start an election.
           become_candidate();
@@ -868,6 +869,12 @@ namespace aft
           "Recv nonce reveal to {} from {}: unknown node",
           state->my_node_id,
           from);
+        return;
+      }
+
+      if (configuration_tracker.is_passive(from))
+      {
+        LOG_INFO_FMT("Unexpected recv view change from passive node {}", from);
         return;
       }
 
@@ -920,6 +927,13 @@ namespace aft
           "Recv view change evidence to {} from {}: unknown node",
           state->my_node_id,
           from);
+        return;
+      }
+
+      if (configuration_tracker.is_passive(from))
+      {
+        LOG_INFO_FMT(
+          "Unexpected recv view change evidence passive node {}", from);
         return;
       }
 
@@ -2020,6 +2034,12 @@ namespace aft
         return;
       }
 
+      if (configuration_tracker.is_passive(from))
+      {
+        LOG_INFO_FMT("Unexpected recv nonce reveal from passive node {}", from);
+        return;
+      }
+
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
@@ -2196,18 +2216,49 @@ namespace aft
         return;
       }
 
+      LOG_DEBUG_FMT(
+        "Recv append entries response to {} from {} for index {}: success",
+        state->my_node_id.trim(),
+        from.trim(),
+        r.last_log_idx);
+      update_commit();
+
       switch (consensus_type)
       {
         case ConsensusType::CFT:
         {
           if (is_primary())
           {
-            state->lock.unlock(); // TODO: Fork this off instead; it needs the
-                                  // state lock to replicate the new transaction
-                                  // it may write when a node catches up.
-            TxID txid = {r.term, r.last_log_idx};
-            configuration_tracker.update_passive_node_progress(
-              from, txid, {state->current_view, state->last_idx});
+            struct UpdateNodeProgressMsg
+            {
+              UpdateNodeProgressMsg(
+                Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self_,
+                const NodeId& from_,
+                const TxID& txid_) :
+                self(self_),
+                from(from_),
+                txid(txid_)
+              {}
+              Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
+              NodeId from;
+              TxID txid;
+            };
+
+            threading::ThreadMessaging::thread_messaging.add_task(
+              threading::ThreadMessaging::get_execution_thread(
+                threading::MAIN_THREAD_ID),
+              std::make_unique<threading::Tmsg<UpdateNodeProgressMsg>>(
+                [](
+                  std::unique_ptr<threading::Tmsg<UpdateNodeProgressMsg>> msg) {
+                  auto& d = msg->data;
+                  d.self->configuration_tracker.update_passive_node_progress(
+                    d.from,
+                    d.txid,
+                    {d.self->state->current_view, d.self->state->last_idx});
+                },
+                this,
+                from,
+                TxID{r.term, r.last_log_idx}));
           }
           break;
         }
@@ -2219,13 +2270,6 @@ namespace aft
         default:
           LOG_FAIL_FMT("Unknown consensus type: {}", consensus_type);
       }
-
-      LOG_DEBUG_FMT(
-        "Recv append entries response to {} from {} for index {}: success",
-        state->my_node_id.trim(),
-        from.trim(),
-        r.last_log_idx);
-      update_commit();
     }
 
     void send_request_vote(const ccf::NodeId& to)
@@ -2258,6 +2302,13 @@ namespace aft
           "Recv request vote to {} from {}: unknown node",
           state->my_node_id,
           from);
+        return;
+      }
+
+      // Ignore if the request came from a passive node.
+      if (configuration_tracker.is_passive(from))
+      {
+        LOG_INFO_FMT("Ignoring recv request vote from passive node {}", from);
         return;
       }
 
@@ -2366,6 +2417,13 @@ namespace aft
           "Recv request vote response to {} from {}: unknown node",
           state->my_node_id,
           from);
+        return;
+      }
+
+      if (configuration_tracker.is_passive(from))
+      {
+        LOG_INFO_FMT(
+          "Unexpected recv request vote response from passive node {}", from);
         return;
       }
 
@@ -2559,7 +2617,7 @@ namespace aft
 
       if (
         votes_for_me.size() >=
-        ((configuration_tracker.num_active_nodes() + 1) / 2) + 1)
+        (configuration_tracker.num_active_nodes() / 2) + 1)
         become_leader();
     }
 
@@ -2723,9 +2781,7 @@ namespace aft
     void create_and_remove_node_state()
     {
       // Find all nodes present in any active configuration.
-      Configuration::Nodes all_nodes = configuration_tracker.active_nodes();
-      auto& pn = configuration_tracker.passive_nodes();
-      all_nodes.insert(pn.begin(), pn.end());
+      Configuration::Nodes all_nodes = configuration_tracker.all_nodes();
 
       // Remove all nodes in the node state that are not present in any active
       // configuration.
@@ -2752,13 +2808,14 @@ namespace aft
         LOG_INFO_FMT("Removed raft node {}", node_id);
       }
 
-      // Add all active nodes that are not already present in the node state.
-      bool self_is_active = configuration_tracker.is_active(state->my_node_id);
+      // Add all nodes that are not already present in the node state.
+      bool self_is_active = false;
 
       for (auto node_info : all_nodes)
       {
         if (node_info.first == state->my_node_id)
         {
+          self_is_active = true;
           continue;
         }
 

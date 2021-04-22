@@ -25,8 +25,7 @@ namespace ccf
     {
       for (const auto& [node_id, opt_ni] : w)
       {
-        LOG_INFO_FMT(
-          "ConfigurationChangeHook(): {} {}", node_id, opt_ni.has_value());
+        LOG_INFO_FMT("ConfigurationChangeHook(): {}", node_id);
 
         const auto& ni = opt_ni.value();
         switch (ni.status)

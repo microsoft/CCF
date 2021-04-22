@@ -1027,7 +1027,7 @@ namespace ccf
       consensus->force_become_primary(index, view, view_history, index);
 
       // Sets itself as trusted
-      g.trust_node(self, network.ledger_secrets->get_latest(tx).first);
+      g.trust_node(self, network.ledger_secrets->get_latest(tx).first, true);
 
 #ifdef GET_QUOTE
       g.trust_node_code_id(node_code_id);

@@ -372,7 +372,9 @@ namespace ccf
     }
 
     void trust_node(
-      const NodeId& node_id, kv::Version latest_ledger_secret_seqno)
+      const NodeId& node_id,
+      kv::Version latest_ledger_secret_seqno,
+      bool caught_up = false)
     {
       auto nodes = tx.rw(tables.nodes);
       auto node_info = nodes->get(node_id);
@@ -387,7 +389,8 @@ namespace ccf
         throw std::logic_error(fmt::format("Node {} is retired", node_id));
       }
 
-      node_info->status = NodeStatus::CATCHING_UP;
+      node_info->status =
+        caught_up ? NodeStatus::TRUSTED : NodeStatus::CATCHING_UP;
       node_info->ledger_secret_seqno = latest_ledger_secret_seqno;
       nodes->put(node_id, node_info.value());
 

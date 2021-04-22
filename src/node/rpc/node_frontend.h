@@ -273,7 +273,7 @@ namespace ccf
         if (active_service->status == ServiceStatus::OPENING)
         {
           // If the service is opening, new nodes are trusted straight away
-          NodeStatus joining_node_status = NodeStatus::CATCHING_UP;
+          NodeStatus joining_node_status = NodeStatus::TRUSTED;
 
           // If the node is already trusted, return network secrets
           auto existing_node_info = check_node_exists(
@@ -496,8 +496,8 @@ namespace ccf
         nodes->foreach([& quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
           if (
-            node_info.status == ccf::NodeStatus::CATCHING_UP ||
-            node_info.status == ccf::NodeStatus::TRUSTED)
+            node_info.status == NodeStatus::CATCHING_UP ||
+            node_info.status == NodeStatus::TRUSTED)
           {
             Quote q;
             q.node_id = node_id;

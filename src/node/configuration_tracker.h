@@ -209,15 +209,55 @@ namespace aft
       return false;
     }
 
+    bool is_passive(const NodeId& id)
+    {
+      for (auto& conf : configurations)
+      {
+        if (conf.passive.find(id) != conf.passive.end())
+          return true;
+      }
+      return false;
+    }
+
     size_t num_active_nodes()
     {
       return active_nodes().size();
     }
 
-    const kv::Configuration::Nodes& passive_nodes()
+    kv::Configuration::Nodes passive_nodes()
     {
       assert(configurations.size() > 0);
-      return configurations.front().passive;
+      kv::Configuration::Nodes r;
+
+      for (auto& conf : configurations)
+      {
+        for (auto node : conf.passive)
+        {
+          r.emplace(node.first, node.second);
+        }
+      }
+
+      return r;
+    }
+
+    kv::Configuration::Nodes all_nodes()
+    {
+      assert(configurations.size() > 0);
+      kv::Configuration::Nodes r;
+
+      for (auto& conf : configurations)
+      {
+        for (auto node : conf.active.nodes)
+        {
+          r.emplace(node.first, node.second);
+        }
+        for (auto node : conf.passive)
+        {
+          r.emplace(node.first, node.second);
+        }
+      }
+
+      return r;
     }
 
     Index cft_watermark(
