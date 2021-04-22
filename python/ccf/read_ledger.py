@@ -45,7 +45,7 @@ if __name__ == "__main__":
         format="<level>{message}</level>",
     )
 
-    parser = argparse.ArgumentParser(description="Read a CCF ledger directory")
+    parser = argparse.ArgumentParser(description="Read CCF ledger directories")
     parser.add_argument("directory", help="a ledger directory", nargs="+")
     parser.add_argument(
         "-t", "--tables", help="regex filter for tables", type=str, default=".*"
