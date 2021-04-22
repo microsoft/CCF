@@ -273,6 +273,11 @@ namespace ccf
       {
         if (attempts > 0)
         {
+          // TODO: Retry loop should move
+          // If the endpoint has already been executed, all effects of its
+          // execution should be dropped
+          tx = tables.create_tx();
+          // ctx->reset_response();
           set_root_on_proposals(*ctx, tx);
           endpoints.increment_metrics_retries(endpoint);
         }
@@ -342,7 +347,6 @@ namespace ccf
 
             case kv::CommitResult::FAIL_CONFLICT:
             {
-              tx = tables.create_tx();
               break;
             }
 
@@ -363,7 +367,6 @@ namespace ccf
           // compaction. Reset and retry
           LOG_DEBUG_FMT(
             "Transaction execution conflicted with compaction: {}", e.what());
-          tx = tables.create_tx();
           continue;
         }
         catch (RpcException& e)
