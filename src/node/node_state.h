@@ -287,7 +287,7 @@ namespace ccf
       const CurveID& curve_id) :
       sm(State::uninitialized),
       node_sign_kp(crypto::make_key_pair(curve_id)),
-      node_encrypt_kp(std::make_shared<crypto::RSAKeyPair>()),
+      node_encrypt_kp(crypto::make_rsa_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -1479,7 +1479,7 @@ namespace ccf
       auto new_ledger_secret = make_ledger_secret();
       share_manager.issue_recovery_shares(tx, new_ledger_secret);
       LedgerSecretsBroadcast::broadcast_new(
-        network, node_encrypt_kp, tx, std::move(new_ledger_secret));
+        network, tx, std::move(new_ledger_secret));
 
       return true;
     }
@@ -1747,10 +1747,7 @@ namespace ccf
                    encrypted_ledger_secrets)
               {
                 auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
-                  node_encrypt_kp,
-                  std::make_shared<PublicKey_mbedTLS>(
-                    primary_public_encryption_key),
-                  encrypted_ledger_secret.encrypted_secret);
+                  node_encrypt_kp, encrypted_ledger_secret.encrypted_secret);
 
                 // On rekey, the version is inferred from the version at which
                 // the hook is executed. Otherwise, on recovery, use the version
