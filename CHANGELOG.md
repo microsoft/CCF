@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `kv::MapHandle::size()` can be used to get the number of entries in a given map.
 - `kv::MapHandle::clear()` can be used to remove all entries from a map.
 
 ## [0.99.2]
