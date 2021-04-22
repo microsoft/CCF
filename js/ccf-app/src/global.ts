@@ -239,6 +239,14 @@ export interface CCF {
    */
   digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
 
+  rpc: {
+    /**
+     * Set whether KV writes should be applied even if the response status is not 2xx.
+     * The default is `false`.
+     */
+    setApplyWrites(force: boolean): void;
+  };
+
   /**
    * Verifies Open Enclave evidence and returns the claims of the evidence.
    *

@@ -5,31 +5,32 @@ Ledger
 
 The entire service and application state is contained in the ledger (including both governance and application transactions). The ledger contains regular signature transactions (``public:ccf.internal.signatures`` map) which sign the root of the :term:`Merkle Tree` at the time the signature transaction is emitted.
 
-.. note:: The frequency of the signatures is set by the ``--sig-tx-interval`` and ``--sig-ms-interval`` command line options to ``cchost``.
+.. tip:: Use the ``read_ledger.py`` utility available as part of the :doc:`/audit/python_library` to read the public content of a CCF ledger.
 
-Ledger Encryption
------------------
 
-Each entry in the ledger corresponds to a transaction committed by the primary node.
+Ledger Format
+-------------
 
-When a transaction is committed, each affected ``Store::Map`` is serialised in different security domains (i.e. public or private), based on the name of the Map when it was created (default is private). A public ``Store::Map`` (i.e. one whose name starts with "public:") is serialised and stored in the ledger as plaintext while a private ``Store::Map`` is serialised and encrypted before being stored.
+The ledger is split into multiple files (or chunks). Each ledger file starts with an 8-byte offset pointing to the end of file where a vector of positions is stored for fast fetching of transactions (only set when a file is complete, internal use only).
 
-Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :doc:`/overview/cryptography`). This key is kept secure inside each enclave. See :ref:`governance/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
+The serialised transactions follow the 8-byte offset, as described in :ref:`audit/ledger:Transaction Format`.
 
-Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the sequence number is always present in the serialised entry.
+.. note:: A complete ledger file always ends on a signature transaction.
 
 Transaction Format
 ------------------
 
-The ledger is stored as a series of a 4 byte transaction length field followed by a transaction.
-
-The following table describes the structure of a serialised KV Store transaction.
+The following table describes the structure of a serialised transaction as it is stored in the ledger.
 
 +----------+------------------------------------------+-------------------------------------------------------------------------+
 |          | Field Type                               | Description                                                             |
 +==========+==========================================+=========================================================================+
+|          |                                          | | - Version (1 byte)                                                    |
+|          | Transaction Header                       | | - Flags (1 byte)                                                      |
+|          |                                          | | - Entry size (6 bytes)                                                |
++  Header  +------------------------------------------+-------------------------------------------------------------------------+
 |          | AES GCM Header                           | IV and tag fields required to decrypt and verify integrity              |
-+ Header   +------------------------------------------+-------------------------------------------------------------------------+
++          +------------------------------------------+-------------------------------------------------------------------------+
 |          | uint64_t                                 | Length of serialised public domain                                      |
 +----------+------------------------------------------+-------------------------------------------------------------------------+
 |          | bool                                     | Is snapshot (``false`` for all ledger entries)                          |
@@ -43,9 +44,9 @@ The following table describes the structure of a serialised KV Store transaction
 +          +-----+------------------------------------+-------------------------------------------------------------------------+
 |          |     | std::string                        | Name of the serialised :cpp:type:`kv::Map`                              |
 |          +-----+------------------------------------+-------------------------------------------------------------------------+
-|          |     | | :cpp:type:`kv::Version`          | | Read version                                                          |
+|          |     | :cpp:type:`kv::Version`            | Read version                                                            |
 |          +-----+------------------------------------+-------------------------------------------------------------------------+
-|          |     | uint64_t                           | | Read count                                                            |
+|          |     | uint64_t                           | Read count                                                              |
 |          |     +------------------------------------+-------------------------------------------------------------------------+
 |          |     | **Repeating [0..read count]**                                                                                |
 +          |     +---+--------------------------------+-------------------------------------------------------------------------+
@@ -53,7 +54,7 @@ The following table describes the structure of a serialised KV Store transaction
 | | Domain |     |   | | K                            | | Key                                                                   |
 |          |     |   | | Ver                          | | Version                                                               |
 +          +-----+---+--------------------------------+-------------------------------------------------------------------------+
-|          |     | uint64_t                           | | Write count                                                           |
+|          |     | uint64_t                           | Write count                                                             |
 +          |     +------------------------------------+-------------------------------------------------------------------------+
 |          |     | **Repeating [0..write count]**                                                                               |
 +          |     +---+--------------------------------+-------------------------------------------------------------------------+
@@ -62,7 +63,7 @@ The following table describes the structure of a serialised KV Store transaction
 |          |     |   | | uint64_t                     | | Value length                                                          |
 |          |     |   | | V                            | | Value                                                                 |
 +          +-----+---+--------------------------------+-------------------------------------------------------------------------+
-|          |     | | uint64_t                         | | Remove count                                                          |
+|          |     | | uint64_t                         | Remove count                                                            |
 +          +     +------------------------------------+-------------------------------------------------------------------------+
 |          |     | **Repeating [0..remove count]**                                                                              |
 +          +     +---+--------------------------------+-------------------------------------------------------------------------+
@@ -72,3 +73,14 @@ The following table describes the structure of a serialised KV Store transaction
 | | Private| **Optional**                                                                                                       |
 | | Domain | | Encrypted serialised private domain blob.                                                                        |
 +----------+--------------------------------------------------------------------------------------------------------------------+
+
+Transaction Encryption
+----------------------
+
+Each entry in the ledger corresponds to a transaction committed by the primary node.
+
+When a transaction is committed, each ``Store::Map`` containing writes is serialised in different security domains (i.e. public or private), based on the name of the Map when it was created (default is private). A public ``Store::Map`` (i.e. one whose name starts with "public:") is serialised and stored in the ledger as plaintext while a private ``Store::Map`` is serialised and encrypted before being stored.
+
+Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :doc:`/overview/cryptography`). This key is kept secure inside each enclave. See :ref:`governance/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
+
+Note that even if a transaction only writes to a private ``Store::Map``, unencrypted information such as the sequence number is always present in the serialised entry.

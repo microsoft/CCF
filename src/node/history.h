@@ -850,10 +850,10 @@ namespace ccf
       return consensus->on_request({id, request, caller_cert, frame_format});
     }
 
-    void append(const std::vector<uint8_t>& replicated) override
+    void append(const std::vector<uint8_t>& data) override
     {
       std::lock_guard<SpinLock> guard(state_lock);
-      crypto::Sha256Hash rh({replicated.data(), replicated.size()});
+      crypto::Sha256Hash rh({data.data(), data.size()});
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);
     }

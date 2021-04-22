@@ -74,8 +74,6 @@ namespace ccf
     // JS applications, not service specific but writable by governance only
     static constexpr auto MODULES = "public:ccf.gov.modules";
     static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
-    static constexpr auto SERVICE_PRINCIPALS =
-      "public:ccf.gov.service_principals";
 
     // TLS
     static constexpr auto CA_CERT_BUNDLE_PEMS =

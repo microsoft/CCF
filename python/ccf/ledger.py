@@ -6,10 +6,11 @@ import struct
 import os
 from enum import Enum
 
-from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict
+from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict, List
 
 import json
 import base64
+from dataclasses import dataclass
 
 from loguru import logger as LOG  # type: ignore
 from cryptography.x509 import load_pem_x509_certificate
@@ -23,7 +24,6 @@ from ccf.tx_id import TxID
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
-LEDGER_TRANSACTION_SIZE = 4
 LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
@@ -40,10 +40,6 @@ class NodeStatus(Enum):
     PENDING = "Pending"
     TRUSTED = "Trusted"
     RETIRED = "Retired"
-
-
-def to_uint_32(buffer):
-    return struct.unpack("@I", buffer)[0]
 
 
 def to_uint_64(buffer):
@@ -336,13 +332,56 @@ class LedgerValidator:
             raise InvalidRootException
 
 
+@dataclass
+class TransactionHeader:
+    VERSION_LENGTH = 1
+    FLAGS_LENGTH = 1
+    SIZE_LENGTH = 6
+
+    # 1-byte entry version
+    version: int
+
+    # 1-byte flags
+    flags: int
+
+    # 6-byte transaction size
+    size: int
+
+    def __init__(self, buffer):
+        if len(buffer) < TransactionHeader.get_size():
+            raise ValueError("Incomplete transaction header")
+
+        self.version = int.from_bytes(
+            buffer[: TransactionHeader.VERSION_LENGTH], byteorder="little"
+        )
+
+        self.flags = int.from_bytes(
+            buffer[
+                TransactionHeader.VERSION_LENGTH : TransactionHeader.VERSION_LENGTH
+                + TransactionHeader.FLAGS_LENGTH
+            ],
+            byteorder="little",
+        )
+        self.size = int.from_bytes(
+            buffer[-TransactionHeader.SIZE_LENGTH :], byteorder="little"
+        )
+
+    @staticmethod
+    def get_size():
+        return (
+            TransactionHeader.VERSION_LENGTH
+            + TransactionHeader.FLAGS_LENGTH
+            + TransactionHeader.SIZE_LENGTH
+        )
+
+
 class Transaction:
     """
     A transaction represents one entry in the CCF ledger.
     """
 
     _file: Optional[BinaryIO] = None
-    _total_size: int = 0
+    _header: TransactionHeader
     _public_domain_size: int = 0
     _next_offset: int = LEDGER_HEADER_SIZE
     _public_domain: Optional[PublicDomain] = None
@@ -377,12 +416,14 @@ class Transaction:
         self._file.close()
 
     def _read_header(self):
-        # read the size of the transaction
-        buffer = _byte_read_safe(self._file, LEDGER_TRANSACTION_SIZE)
         self._tx_offset = self._file.tell()
-        self._total_size = to_uint_32(buffer)
-        self._next_offset += self._total_size
-        self._next_offset += LEDGER_TRANSACTION_SIZE
+
+        # read the transaction header
+        buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
+        self._header = TransactionHeader(buffer)
+
+        self._next_offset += self._header.size
+        self._next_offset += TransactionHeader.get_size()
 
         # read the AES GCM header
         buffer = _byte_read_safe(self._file, GcmHeader.size())
@@ -409,7 +450,7 @@ class Transaction:
         """
         Retrieve the size of the private (i.e. encrypted) domain for that transaction.
         """
-        return self._total_size - (
+        return self._header.size - (
             GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
         )
 
@@ -422,11 +463,13 @@ class Transaction:
         assert self._file is not None
 
         # remember where the pointer is in the file before we go back for the transaction bytes
-        header = self._file.tell()
+        save_pos = self._file.tell()
         self._file.seek(self._tx_offset)
-        buffer = _byte_read_safe(self._file, self._total_size)
+        buffer = _byte_read_safe(
+            self._file, TransactionHeader.get_size() + self._header.size
+        )
         # return to original filepointer and return the transaction bytes
-        self._file.seek(header)
+        self._file.seek(save_pos)
         return buffer
 
     def _complete_read(self):
@@ -496,23 +539,28 @@ class Ledger:
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
 
-    def __init__(self, directory: str):
+    def __init__(self, directories: List[str]):
 
         self._filenames = []
 
-        ledgers = os.listdir(directory)
+        ledger_files = []
+        for directory in directories:
+            for path in os.listdir(directory):
+                chunk = os.path.join(directory, path)
+                if os.path.isfile(chunk):
+                    ledger_files.append(chunk)
+
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
-        sorted_ledgers = sorted(
-            ledgers,
+        self._filenames = sorted(
+            ledger_files,
             key=lambda x: int(
-                x.replace(".committed", "").replace("ledger_", "").split("-")[0]
+                os.path.basename(x)
+                .replace(".committed", "")
+                .replace("ledger_", "")
+                .split("-")[0]
             ),
         )
-
-        for chunk in sorted_ledgers:
-            if os.path.isfile(os.path.join(directory, chunk)):
-                self._filenames.append(os.path.join(directory, chunk))
 
         self._reset_iterators()
 

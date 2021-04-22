@@ -276,7 +276,7 @@ namespace kv
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
-    virtual void append(const std::vector<uint8_t>& replicated) = 0;
+    virtual void append(const std::vector<uint8_t>& data) = 0;
     virtual void rollback(Version v, kv::Term) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
