@@ -181,7 +181,7 @@ Two options are provided to that end:
 - ``--sig-tx-interval``: number of transactions between two signatures
 - ``--sig-ms-interval``: time in milliseconds between two signatures
 
-.. note:: These options specify the intervals at which the generation of signature transactions is `triggered`. However, because of the parallel execution of transactions, it is possible that signature transactions are recorded in the ledger at a slightly higher interval than the specified values.
+.. note:: These options specify the intervals at which the generation of signature transactions is `triggered`. However, because of the parallel execution of transactions, the actual intervals between signature transactions may be slightly larger.
 
 .. rubric:: Footnotes
 
