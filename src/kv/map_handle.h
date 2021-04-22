@@ -187,6 +187,13 @@ namespace kv
     {
       return write_handle.remove(KSerialiser::to_serialised(key));
     }
+
+    /** Delete every key-value pair.
+     */
+    void clear()
+    {
+      write_handle.clear();
+    }
   };
 
   /** Grants read and write access to a @c kv::Map, as part of a @c kv::Tx.
