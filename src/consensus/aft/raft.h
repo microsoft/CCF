@@ -2244,9 +2244,7 @@ namespace aft
               TxID txid;
             };
 
-            threading::ThreadMessaging::thread_messaging.add_task(
-              threading::ThreadMessaging::get_execution_thread(
-                threading::MAIN_THREAD_ID),
+            auto tmsg =
               std::make_unique<threading::Tmsg<UpdateNodeProgressMsg>>(
                 [](
                   std::unique_ptr<threading::Tmsg<UpdateNodeProgressMsg>> msg) {
@@ -2258,7 +2256,22 @@ namespace aft
                 },
                 this,
                 from,
-                TxID{r.term, r.last_log_idx}));
+                TxID{r.term, r.last_log_idx});
+
+            if (threading::ThreadMessaging::thread_count > 1)
+            {
+              threading::ThreadMessaging::thread_messaging.add_task(
+                threading::ThreadMessaging::get_execution_thread(
+                  threading::MAIN_THREAD_ID),
+                std::move(tmsg));
+            }
+            else
+            {
+              configuration_tracker.update_passive_node_progress(
+                from,
+                {r.term, r.last_log_idx},
+                {state->current_view, state->last_idx});
+            }
           }
           break;
         }
