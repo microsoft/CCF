@@ -58,9 +58,6 @@ namespace ccf
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 
-        LOG_FAIL_FMT(
-          "Wrapping ledger secret: {}",
-          tls::b64_from_raw(new_ledger_secret->raw_key));
         ledger_secrets_for_node.push_back(
           {std::nullopt,
            crypto::ckm_rsa_pkcs_oaep_wrap(
