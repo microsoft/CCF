@@ -245,7 +245,9 @@ namespace enclave
             const auto time_now = enclave::get_enclave_time();
             logger::config::set_time(time_now);
 
-            const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time_now - last_tick_time);
+            const auto elapsed_ms =
+              std::chrono::duration_cast<std::chrono::milliseconds>(
+                time_now - last_tick_time);
             if (elapsed_ms.count() > 0)
             {
               last_tick_time = time_now;

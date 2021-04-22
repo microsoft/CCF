@@ -40,11 +40,17 @@ namespace asynchost
       // Register message handler for log message from enclave
       DISPATCHER_SET_MESSAGE_HANDLER(
         bp, AdminMessage::log_msg, [](const uint8_t* data, size_t size) {
-          auto [log_time_us, file_name, line_number, log_level, thread_id, msg] =
-            ringbuffer::read_message<AdminMessage::log_msg>(data, size);
+          auto
+            [log_time_us, file_name, line_number, log_level, thread_id, msg] =
+              ringbuffer::read_message<AdminMessage::log_msg>(data, size);
 
           logger::Out::write(
-            file_name, line_number, log_level, thread_id, msg, log_time_us.count());
+            file_name,
+            line_number,
+            log_level,
+            thread_id,
+            msg,
+            log_time_us.count());
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

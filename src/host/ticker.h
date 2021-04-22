@@ -16,12 +16,10 @@ namespace asynchost
     std::chrono::time_point<std::chrono::system_clock> last;
 
   public:
-    TickerImpl(
-      ringbuffer::AbstractWriterFactory& writer_factory) :
+    TickerImpl(ringbuffer::AbstractWriterFactory& writer_factory) :
       to_enclave(writer_factory.create_writer_to_inside()),
       last(std::chrono::system_clock::now())
-    {
-    }
+    {}
 
     void on_timer()
     {
