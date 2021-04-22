@@ -546,6 +546,25 @@ TEST_CASE("AES Key wrap with padding")
   REQUIRE(key_to_wrap == unwrapped);
 }
 
+TEST_CASE("CKM_RSA_PKCS_OAEP")
+{
+  auto key = getRawKey();
+
+  auto rsa_kp = make_rsa_key_pair();
+  auto rsa_pk = make_rsa_public_key(rsa_kp->public_key_pem());
+
+  auto wrapped = crypto::ckm_rsa_pkcs_oaep_wrap(rsa_pk, key);
+  auto wrapped_ = crypto::ckm_rsa_pkcs_oaep_wrap(rsa_pk, key);
+
+  // CKM_RSA_PKCS_OAEP wrap is non deterministic
+  REQUIRE(wrapped != wrapped_);
+
+  auto unwrapped = crypto::ckm_rsa_pkcs_oaep_unwrap(rsa_kp, wrapped);
+  auto unwrapped_ = crypto::ckm_rsa_pkcs_oaep_unwrap(rsa_kp, wrapped_);
+
+  REQUIRE(unwrapped == unwrapped_);
+}
+
 TEST_CASE("CKM_RSA_AES_KEY_WRAP")
 {
   std::vector<uint8_t> key_to_wrap = create_entropy()->random(256);
