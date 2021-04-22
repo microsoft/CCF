@@ -1518,7 +1518,7 @@ namespace aft
     };
 
     // This code is duplicated in part by execute_append_entries_async. This is
-    // done to de-risk the version 1.0 released. These two functions should be
+    // done to de-risk the version 1.0 release. These two functions should be
     // combined post 1.0.
     void execute_append_entries_sync(
       std::unique_ptr<threading::Tmsg<AsyncExecution>>& msg)
@@ -2229,49 +2229,13 @@ namespace aft
         {
           if (is_primary())
           {
-            if (threading::ThreadMessaging::thread_count > 1)
-            {
-              struct UpdateNodeProgressMsg
-              {
-                UpdateNodeProgressMsg(
-                  Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self_,
-                  const NodeId& from_,
-                  const TxID& txid_) :
-                  self(self_),
-                  from(from_),
-                  txid(txid_)
-                {}
-                Aft<LedgerProxy, ChannelProxy, SnapshotterProxy>* self;
-                NodeId from;
-                TxID txid;
-              };
-
-              auto tmsg =
-                std::make_unique<threading::Tmsg<UpdateNodeProgressMsg>>(
-                  [](std::unique_ptr<threading::Tmsg<UpdateNodeProgressMsg>>
-                       msg) {
-                    auto& d = msg->data;
-                    d.self->configuration_tracker.update_passive_node_progress(
-                      d.from,
-                      d.txid,
-                      {d.self->state->current_view, d.self->state->last_idx});
-                  },
-                  this,
+            threading::ThreadMessaging::thread_messaging.add_task(
+              [this, from, r]() {
+                configuration_tracker.update_passive_node_progress(
                   from,
-                  TxID{r.term, r.last_log_idx});
-
-              threading::ThreadMessaging::thread_messaging.add_task(
-                threading::ThreadMessaging::get_execution_thread(
-                  threading::MAIN_THREAD_ID),
-                std::move(tmsg));
-            }
-            else
-            {
-              configuration_tracker.update_passive_node_progress(
-                from,
-                {r.term, r.last_log_idx},
-                {state->current_view, state->last_idx});
-            }
+                  {r.term, r.last_log_idx},
+                  {state->current_view, state->last_idx});
+              });
           }
           break;
         }

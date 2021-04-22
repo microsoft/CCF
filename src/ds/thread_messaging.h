@@ -14,10 +14,12 @@ namespace threading
 {
   struct ThreadMsg
   {
-    void (*cb)(std::unique_ptr<ThreadMsg>);
+    void (*cb)(std::unique_ptr<ThreadMsg>) = nullptr;
+    std::function<void()> f = nullptr;
     std::atomic<ThreadMsg*> next = nullptr;
 
     ThreadMsg(void (*_cb)(std::unique_ptr<ThreadMsg>)) : cb(_cb) {}
+    ThreadMsg(std::function<void()> f) : f(f) {}
 
     virtual ~ThreadMsg() = default;
   };
@@ -67,7 +69,10 @@ namespace threading
       ThreadMsg* current = local_msg;
       local_msg = local_msg->next;
 
-      current->cb(std::unique_ptr<ThreadMsg>(current));
+      if (current->cb)
+        current->cb(std::unique_ptr<ThreadMsg>(current));
+      else
+        current->f();
       return true;
     }
 
@@ -142,10 +147,18 @@ namespace threading
         updated = true;
         auto it = timer_map.begin();
 
-        auto& cb = it->second->cb;
-        auto msg = std::move(it->second);
-        timer_map.erase(it);
-        cb(std::move(msg));
+        if (it->second->cb)
+        {
+          auto& cb = it->second->cb;
+          auto msg = std::move(it->second);
+          timer_map.erase(it);
+          cb(std::move(msg));
+        }
+        else
+        {
+          it->second->f();
+          timer_map.erase(it);
+        }
       }
 
       if (updated)
@@ -274,6 +287,27 @@ namespace threading
       Task& task = get_task(tid);
 
       task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));
+    }
+
+    void add_task(uint16_t tid, std::function<void()> f)
+    {
+      if (threading::ThreadMessaging::thread_count <= 1)
+      {
+        f();
+      }
+      else
+      {
+        Task& task = get_task(tid);
+        task.add_task(new ThreadMsg(f));
+      }
+    }
+
+    void add_task(std::function<void()> f)
+    {
+      add_task(
+        threading::ThreadMessaging::get_execution_thread(
+          threading::MAIN_THREAD_ID),
+        f);
     }
 
     template <typename Payload>
