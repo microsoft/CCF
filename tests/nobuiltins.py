@@ -21,6 +21,7 @@ def test_nobuiltins_endpoints(network, args):
         assert body_j["committed_view"] == tx_id.view
         assert body_j["committed_seqno"] == tx_id.seqno
         assert body_j["quote_format"] == "OE_SGX_v1"
+        assert body_j["node_id"] == primary.node_id
 
         r = c.get("/app/api")
         assert r.status_code == HTTPStatus.OK

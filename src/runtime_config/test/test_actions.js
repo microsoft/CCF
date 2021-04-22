@@ -66,7 +66,7 @@ actions.set(
   "valid_pem",
   new Action(
     function (args) {
-      checkX509CertChain(args.pem, "pem");
+      checkX509CertBundle(args.pem, "pem");
     },
     function (args) {}
   )
