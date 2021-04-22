@@ -47,7 +47,7 @@ Handle
 
 .. doxygenclass:: kv::WriteableMapHandle
    :project: CCF
-   :members: put, remove
+   :members: put, remove, clear
 
 .. doxygenclass:: kv::MapHandle
    :project: CCF
