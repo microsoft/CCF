@@ -15,4 +15,4 @@ pip install --disable-pip-version-check -q -U -e ./python/
 pip install --disable-pip-version-check -q -U -r ./doc/requirements.txt
 echo "Python environment successfully setup"
 
-sphinx-autobuild -b html doc doc/html --host localhost --port 8080
+sphinx-autobuild -W -b html doc doc/html --host localhost --port 8080

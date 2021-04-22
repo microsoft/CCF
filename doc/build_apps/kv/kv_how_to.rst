@@ -169,7 +169,7 @@ Miscellaneous
 ``foreach()``
 ~~~~~~~~~~~~~
 
-Values can only be retrieved directly (:cpp:function:`kv::MapHandle::get`) for a given target key. However, it is sometimes necessary to access unknown keys, or to iterate through all Key-Value pairs.
+Values can only be retrieved directly (:cpp:func:`kv::MapHandle::get`) for a given target key. However, it is sometimes necessary to access unknown keys, or to iterate through all Key-Value pairs.
 
 CCF offers a member function :cpp:func:`kv::MapHandle::foreach` to iterate over all the elements written to that ``Map`` so far, and run a lambda function for each Key-Value pair. Note that a :cpp:class:`kv::MapHandle::foreach` loop can be ended early by returning ``false`` from this lambda, while ``true`` should be returned to continue iteration.
 
