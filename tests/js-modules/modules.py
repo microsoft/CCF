@@ -70,7 +70,7 @@ def test_app_bundle(network, args):
 
         assert (
             raw_module_name
-            in primary.get_ledger_public_state_at(set_js_proposal.completed_seqno)[
+            in network.get_ledger_public_state_at(set_js_proposal.completed_seqno)[
                 "public:ccf.gov.modules"
             ]
         ), "Module was not added"
@@ -101,7 +101,7 @@ def test_app_bundle(network, args):
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     assert (
-        primary.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
+        network.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
             "public:ccf.gov.modules"
         ][raw_module_name]
         is None
@@ -323,7 +323,7 @@ def test_npm_app(network, args):
 
         r = c.post("/app/rpc/apply_writes")
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
-        val = primary.get_ledger_public_state_at(r.seqno)["public:apply_writes"][
+        val = network.get_ledger_public_state_at(r.seqno)["public:apply_writes"][
             "foo".encode()
         ]
         assert val == b"bar", val

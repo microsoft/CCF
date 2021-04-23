@@ -937,6 +937,38 @@ class Network:
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
+    def get_ledger_public_state_at(self, seqno, timeout=3):
+        primary, _ = self.find_primary()
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            try:
+                return primary.get_ledger_public_state_at(seqno, 1)
+            except Exception:
+                self.consortium.create_large_proposal(primary)
+                time.sleep(0.1)
+
+        raise TimeoutError(
+            f"Could not read transaction at seqno {seqno} from ledger {primary.remote.ledger_paths()}"
+        )
+
+    def get_latest_ledger_public_state(self, timeout=3):
+        primary, _ = self.find_primary()
+        with primary.client() as nc:
+            resp = nc.get("/node/commit")
+            body = resp.body.json()
+            tx_id = TxID.from_str(body["transaction_id"])
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            try:
+                return primary.get_ledger_public_state_at(tx_id.seqno, 1)
+            except Exception:
+                self.consortium.create_large_proposal(primary)
+                time.sleep(0.1)
+
+        raise TimeoutError(
+            f"Could not read transaction at seqno {tx_id.seqno} from ledger {primary.remote.ledger_paths()}"
+        )
+
 
 @contextmanager
 def network(

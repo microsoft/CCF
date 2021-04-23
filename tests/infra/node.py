@@ -313,19 +313,10 @@ class Node:
             ) from e
 
     def get_ledger_public_state_at(self, seqno, timeout=3):
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            try:
-                ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
-                assert ledger.last_committed_chunk_range[1] >= seqno
-                tx = ledger.get_transaction(seqno)
-                return tx.get_public_domain().get_tables()
-            except Exception:
-                time.sleep(0.1)
-
-        raise TimeoutError(
-            f"Could not read transaction at seqno {seqno} from ledger {self.remote.ledger_paths()}"
-        )
+        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+        assert ledger.last_committed_chunk_range[1] >= seqno
+        tx = ledger.get_transaction(seqno)
+        return tx.get_public_domain().get_tables()
 
     def get_latest_ledger_public_state(self, timeout=3):
         end_time = time.time() + timeout
