@@ -2229,6 +2229,7 @@ namespace aft
         {
           if (is_primary())
           {
+            state->lock.unlock();
             threading::ThreadMessaging::thread_messaging.add_task(
               [this, from, r]() {
                 configuration_tracker.update_passive_node_progress(
