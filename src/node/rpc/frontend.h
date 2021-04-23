@@ -277,7 +277,7 @@ namespace ccf
           // If the endpoint has already been executed, all effects of its
           // execution should be dropped
           tx = tables.create_tx();
-          // ctx->reset_response();
+          ctx->reset_response();
           set_root_on_proposals(*ctx, tx);
           endpoints.increment_metrics_retries(endpoint);
         }

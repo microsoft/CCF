@@ -1464,12 +1464,12 @@ public:
                     .value()); // This header only exists in the context of
                                // this test
 
-      static size_t conflict_count = 0;
+      static size_t execution_count = 0;
 
       auto conflict_map = args.tx.template rw<Values>("test_values_conflict");
       conflict_map->get(0); // Record a read dependency
 
-      if (conflict_count++ < retry_count)
+      if (execution_count++ < retry_count)
       {
         // Warning: Never do this in a real application!
         // Create another transaction that conflicts with the frontend one
@@ -1479,12 +1479,16 @@ public:
         REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
         // Indicate that the execution conflicted
-        args.rpc_ctx->set_response_header("test-has-conflicted", "");
+        args.rpc_ctx->set_response_header("test-has-conflicted", "true");
       }
       else
       {
-        conflict_count = 0;
+        // No response header if no conflict
+        execution_count = 0;
       }
+
+      args.rpc_ctx->set_response_header(
+        "test-execution-count", execution_count);
 
       conflict_map->put(0, 0);
 
@@ -1501,18 +1505,40 @@ TEST_CASE("Retry on conflict")
   TestConflictFrontend frontend(*network.tables);
 
   auto req = create_simple_request("conflict");
+
   constexpr size_t ccf_max_attempts = 30; // Defined by CCF (frontend.h)
 
-  size_t retry_count = 10;
-  req.set_header("test-retry-count", fmt::format("{}", retry_count));
+  INFO("Does not each execution limit");
+  {
+    size_t retry_count = ccf_max_attempts - 1;
+    req.set_header("test-retry-count", fmt::format("{}", retry_count));
+    auto serialized_call = req.build_request();
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
 
-  auto serialized_call = req.build_request();
-  auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-  auto response = parse_response(frontend.process(rpc_ctx).value());
-  CHECK(response.status == HTTP_STATUS_OK);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
 
-  // Response headers are cleared once conflict is resolved
-  CHECK(response.headers.find("test-has-conflicted") == response.headers.end());
+    // Response headers are cleared once conflict is resolved
+    CHECK(
+      response.headers.find("test-has-conflicted") == response.headers.end());
+    CHECK(response.headers["test-execution-count"] == "0");
+  }
+
+  INFO("Reaches execution limit");
+  {
+    size_t retry_count = ccf_max_attempts + 1;
+    req.set_header("test-retry-count", fmt::format("{}", retry_count));
+    auto serialized_call = req.build_request();
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+
+    CHECK(response.headers["test-has-conflicted"] == "true");
+    CHECK(
+      response.headers["test-execution-count"] ==
+      fmt::format("{}", ccf_max_attempts));
+  }
 }
 
 int main(int argc, char** argv)
