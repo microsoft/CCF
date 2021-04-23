@@ -26,7 +26,7 @@ A single ``Transaction`` (``tx``) is passed to each endpoint of an application a
 
 When the end-point successfully completes, the node on which the end-point was triggered attempts to commit the transaction to apply the changes to the Store. Once the transaction is committed successfully, it is automatically replicated by CCF and should globally commit.
 
-For each :cpp:class:`kv::Map` that a transaction wants to write to or read from, a :cpp:class:`kv::MapHandle` must first be acquired. These are acquired from the :cpp:func:`kv::Tx::rw` (`read-write`) method. These may be acquired either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:class:`kv::Map` instance which defines both the map's name and key-value types.
+For each :cpp:type:`kv::Map` that a transaction wants to write to or read from, a :cpp:class:`kv::MapHandle` must first be acquired. These are acquired from the :cpp:func:`kv::Tx::rw` (`read-write`) method. These may be acquired either by name (in which case the desired type must be explicitly specified as a template parameter), or by using a :cpp:type:`kv::Map` instance which defines both the map's name and key-value types.
 
 By name:
 
@@ -60,7 +60,7 @@ As noted above, this access may cause the ``Map`` to be created, if it did not p
 Accessing Map content via a Handle
 ----------------------------------
 
-Once a :cpp:class:`kv::MapHandle` on a specific :cpp:class:`kv::Map` has been obtained, it is possible to:
+Once a :cpp:class:`kv::MapHandle` on a specific :cpp:type:`kv::Map` has been obtained, it is possible to:
 
 - test (:cpp:func:`kv::MapHandle::has`) whether a key has any associated value;
 - read (:cpp:func:`kv::MapHandle::get`) the value associated with a key;
@@ -93,7 +93,7 @@ Once a :cpp:class:`kv::MapHandle` on a specific :cpp:class:`kv::Map` has been ob
 Read/Write safety
 -----------------
 
-If you are only reading from or only writing to a given :cpp:class:`kv::Map` you can retrieve a `read-only` or `write-only` handle for it, turning unexpected reads/writes (which would introduce unintended dependencies between transactions) into compile-time errors. Instead of calling :cpp:func:`kv::Tx::rw` to get a handle which can both read and write, you can call :cpp:func:`kv::Tx::ro` to acquire a read-only handle or :cpp:func:`kv::Tx::wo` to acquire a write-only handle.
+If you are only reading from or only writing to a given :cpp:type:`kv::Map` you can retrieve a `read-only` or `write-only` handle for it, turning unexpected reads/writes (which would introduce unintended dependencies between transactions) into compile-time errors. Instead of calling :cpp:func:`kv::Tx::rw` to get a handle which can both read and write, you can call :cpp:func:`kv::Tx::ro` to acquire a read-only handle or :cpp:func:`kv::Tx::wo` to acquire a write-only handle.
 
 .. code-block:: cpp
 
@@ -169,7 +169,7 @@ Miscellaneous
 ``foreach()``
 ~~~~~~~~~~~~~
 
-Values can only be retrieved directly (:cpp:function:`kv::MapHandle::get`) for a given target key. However, it is sometimes necessary to access unknown keys, or to iterate through all Key-Value pairs.
+Values can only be retrieved directly (:cpp:func:`kv::MapHandle::get`) for a given target key. However, it is sometimes necessary to access unknown keys, or to iterate through all Key-Value pairs.
 
 CCF offers a member function :cpp:func:`kv::MapHandle::foreach` to iterate over all the elements written to that ``Map`` so far, and run a lambda function for each Key-Value pair. Note that a :cpp:class:`kv::MapHandle::foreach` loop can be ended early by returning ``false`` from this lambda, while ``true`` should be returned to continue iteration.
 
