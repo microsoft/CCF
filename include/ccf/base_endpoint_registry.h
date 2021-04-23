@@ -115,28 +115,32 @@ namespace ccf
     ApiResult get_quote_for_this_node_v1(
       kv::ReadOnlyTx& tx, QuoteInfo& quote_info);
 
-    /** Get the view associated with a given seqno, to construct a valid TxID
+    /** Get the id of the currently executing node.
+     */
+    ApiResult get_id_for_this_node_v1(NodeId& node_id);
+
+    /** Get the view associated with a given seqno, to construct a valid TxID.
      */
     ApiResult get_view_for_seqno_v1(ccf::SeqNo seqno, ccf::View& view);
 
-    /** Get the user data associated with a given user id
+    /** Get the user data associated with a given user id.
      */
     ApiResult get_user_data_v1(
       kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data);
 
-    /** Get the member data associated with a given member id
+    /** Get the member data associated with a given member id.
      */
     ApiResult get_member_data_v1(
       kv::ReadOnlyTx& tx,
       const MemberId& member_id,
       nlohmann::json& member_data);
 
-    /** Get the certificate (PEM) of a given user id
+    /** Get the certificate (PEM) of a given user id.
      */
     ApiResult get_user_cert_v1(
       kv::ReadOnlyTx& tx, const UserId& user_id, crypto::Pem& user_cert_pem);
 
-    /** Get the certificate (PEM) of a given member id
+    /** Get the certificate (PEM) of a given member id.
      */
     ApiResult get_member_cert_v1(
       kv::ReadOnlyTx& tx,
