@@ -205,6 +205,8 @@ namespace aft
       {
         if (conf.active.nodes.find(id) != conf.active.nodes.end())
           return true;
+        if (conf.passive.find(id) != conf.passive.end())
+          return false;
       }
       return false;
     }
@@ -213,6 +215,8 @@ namespace aft
     {
       for (auto& conf : configurations)
       {
+        if (conf.active.nodes.find(id) != conf.active.nodes.end())
+          return false;
         if (conf.passive.find(id) != conf.passive.end())
           return true;
       }

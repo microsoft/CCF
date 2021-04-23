@@ -2476,6 +2476,9 @@ namespace aft
       {
         for (auto it = nodes.begin(); it != nodes.end(); ++it)
         {
+          if (configuration_tracker.is_passive(it->first))
+            continue;
+
           channels->create_channel(
             it->first,
             it->second.node_info.hostname,
