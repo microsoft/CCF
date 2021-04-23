@@ -273,8 +273,7 @@ namespace ccf
       {
         if (attempts > 0)
         {
-          // TODO: Retry loop should move
-          // If the endpoint has already been executed, all effects of its
+          // If the endpoint has already been executed, the effects of its
           // execution should be dropped
           tx = tables.create_tx();
           ctx->reset_response();
