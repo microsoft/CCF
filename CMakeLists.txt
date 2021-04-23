@@ -66,7 +66,7 @@ option(BUILD_TPCC "Build TPPC sample app and clients" ON)
 add_custom_target(ccf ALL)
 
 set(CCF_IMPL_SOURCE
-    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
+    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
     ${CCF_DIR}/src/js/wrap.cpp
 )
 
@@ -377,6 +377,7 @@ if(BUILD_TESTS)
     add_unit_test(
       frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host

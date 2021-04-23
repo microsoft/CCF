@@ -26,12 +26,6 @@ std::atomic<uint16_t> num_complete_threads = 0;
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
-namespace enclave
-{
-  std::atomic<std::chrono::microseconds>* host_time = nullptr;
-  std::chrono::microseconds last_value(0);
-}
-
 extern "C"
 {
   bool enclave_create_node(
