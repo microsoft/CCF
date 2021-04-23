@@ -317,6 +317,7 @@ class Node:
         while time.time() < end_time:
             try:
                 ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+                assert ledger.last_committed_chunk_range[1] >= seqno
                 tx = ledger.get_transaction(seqno)
                 return tx.get_public_domain().get_tables()
             except Exception:
