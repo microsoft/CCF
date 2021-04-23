@@ -60,7 +60,7 @@ One of them is the :typedoc:package:`ccf-app` package.
 This package is referenced locally using ``file:``.
 You should replace this with a reference to a published version (adjust the version number accordingly):
 
-.. code-block:: json
+.. code-block:: js
 
     "@microsoft/ccf-app": "~0.19.4",
 
