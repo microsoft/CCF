@@ -5,7 +5,7 @@ This page explains how members' identity certificates and encryption keys stored
 
 .. note::
 
-    It is assumed that CCF members already have access to an existing Azure Key Vault. See `here <https://docs.microsoft.com/en-us/azure/key-vault/secrets/quick-create-portal#create-a-vault>`_ for more details on how to create one. Using the `Azure CLI <https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>`_, it is possible to check the list of available Key Vault instances:
+    It is assumed that CCF members already have access to an existing Azure Key Vault. See `these instructions <https://docs.microsoft.com/en-us/azure/key-vault/secrets/quick-create-portal#create-a-vault>`_ for more details on how to create one. Using the `Azure CLI <https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>`_, it is possible to check the list of available Key Vault instances:
 
     .. code-block:: bash
 
@@ -75,7 +75,7 @@ Then, the following command should be run to retrieve an access token, replacing
 
     export AZ_TOKEN=$(curl -X POST -d "grant_type=client_credentials&client_id=<appid>&client_secret=<password>&resource=https://vault.azure.net" https://login.microsoftonline.com/<tenant>/oauth2/token | jq -r .access_token)
 
-The member's identity key is now ready to be used for signing HTTP requests. The ``scurl.sh`` script can be used with the ``--print-digest-to-sign`` option to print the SHA384 to be signed as well as the required headers for HTTP signatures (following the scheme described `here <https://tools.ietf.org/html/draft-cavage-http-signatures-12>`_):
+The member's identity key is now ready to be used for signing HTTP requests. The ``scurl.sh`` script can be used with the ``--print-digest-to-sign`` option to print the SHA384 to be signed as well as the required headers for HTTP signatures (following the `draft-cavage-http-signatures-12 <https://tools.ietf.org/html/draft-cavage-http-signatures-12>`_ scheme):
 
 .. code-block:: bash
 
