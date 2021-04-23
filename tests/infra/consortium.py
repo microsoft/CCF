@@ -347,11 +347,13 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def create_large_proposal(self, remote_node):
+    def create_and_withdraw_large_proposal(self, remote_node):
         proposal, _ = self.make_proposal(
             "set_user", self.user_cert_path("user0"), {"padding": " " * 4096 * 5}
         )
-        return self.get_any_active_member().propose(remote_node, proposal)
+        m = self.get_any_active_member()
+        p = m.propose(remote_node, proposal)
+        m.withdraw(remote_node, p)
 
     def add_users(self, remote_node, users):
         for u in users:

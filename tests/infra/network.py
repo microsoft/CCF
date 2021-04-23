@@ -943,7 +943,7 @@ class Network:
             try:
                 return call(seqno)
             except Exception:
-                self.consortium.create_large_proposal(node)
+                self.consortium.create_and_withdraw_large_proposal(node)
 
         raise TimeoutError(
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()}"
