@@ -5,6 +5,7 @@ import infra.network
 from ccf.tx_id import TxID
 from http import HTTPStatus
 import openapi_spec_validator
+from datetime import datetime, timezone
 
 
 def test_nobuiltins_endpoints(network, args):
@@ -30,6 +31,15 @@ def test_nobuiltins_endpoints(network, args):
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
         assert body_j["transaction_id"] == f"{tx_id}"
+
+        for _ in range(3):
+            r = c.get("/app/current_time")
+            local_time = datetime.now(timezone.utc)
+            assert r.status_code == HTTPStatus.OK
+            body_j = r.body.json()
+            service_time = datetime.fromisoformat(body_j["timestamp"])
+            diff = (local_time - service_time).total_seconds()
+            assert abs(diff) < 1, diff
 
 
 def run(args):
