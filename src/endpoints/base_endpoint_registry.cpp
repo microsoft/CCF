@@ -126,6 +126,28 @@ namespace ccf
     }
   }
 
+  ApiResult BaseEndpointRegistry::get_quotes_for_all_nodes_v1(
+    kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes)
+  {
+    try
+    {
+      std::map<NodeId, QuoteInfo> tmp;
+      auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+      nodes->foreach([&tmp](const NodeId& node_id, const NodeInfo& ni) {
+        tmp[node_id] = ni.quote_info;
+        return true;
+      });
+
+      quotes = std::move(tmp);
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_TRACE_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
   ApiResult BaseEndpointRegistry::get_view_for_seqno_v1(
     ccf::SeqNo seqno, ccf::View& view)
   {
