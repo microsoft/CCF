@@ -160,7 +160,7 @@ namespace ccf
       }
 
       LOG_TRACE_FMT(
-        "<- {}: encrypted msg with nonce={}",
+        "<- {}: node msg with nonce={}",
         peer_id,
         (const uint64_t)recv_nonce.nonce);
 
@@ -775,7 +775,7 @@ namespace ccf
         cipher);
 
       LOG_TRACE_FMT(
-        "-> {}: encrypted msg with nonce={}", peer_id, (uint64_t)nonce.nonce);
+        "-> {}: node msg with nonce={}", peer_id, (uint64_t)nonce.nonce);
 
       return true;
     }
@@ -935,8 +935,10 @@ namespace ccf
       {
         // Channel with peer already exists but is incoming. Create host
         // outgoing connection.
-        LOG_DEBUG_FMT("Setting existing channel to {} as outgoing", peer_id);
-        search->second->set_outgoing(hostname, service);
+        // LOG_DEBUG_FMT("Setting existing channel to {} as outgoing", peer_id);
+        // search->second->set_outgoing(hostname, service);
+        LOG_DEBUG_FMT(
+          "No need to create channel as incoming channel already exists!");
         return;
       }
       else if (!search->second)
