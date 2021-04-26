@@ -168,7 +168,7 @@ def _byte_read_safe(file, num_of_bytes):
 
 
 class TxBundleInfo(NamedTuple):
-    """Bundle for transaction information required for validation """
+    """Bundle for transaction information required for validation"""
 
     merkle_tree: MerkleTree
     existing_root: bytes

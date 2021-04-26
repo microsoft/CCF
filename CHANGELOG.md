@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `kv::MapHandle::size()` can be used to get the number of entries in a given map.
 - `kv::MapHandle::clear()` can be used to remove all entries from a map.
 
 ## [0.99.2]
@@ -816,6 +817,8 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[0.99.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.3
+[0.99.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.2
 [0.99.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.1
 [0.99.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.0
 [0.19.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.3

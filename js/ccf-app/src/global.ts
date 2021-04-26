@@ -234,6 +234,15 @@ export interface CCF {
    */
   digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
 
+  /**
+   * Returns whether a string is a PEM-encoded bundle of X.509 certificates.
+   *
+   * A bundle consists of one or more certificates.
+   * Certificates in the bundle do not have to be related to each other.
+   * Validation is only syntactical, properties like validity dates are not evaluated.
+   */
+  isValidX509CertBundle(pem: string): boolean;
+
   rpc: {
     /**
      * Set whether KV writes should be applied even if the response status is not 2xx.
