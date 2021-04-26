@@ -13,21 +13,35 @@
 
 namespace nobuiltins
 {
-  struct NodeSummary
+  struct NodeQuote
   {
     ccf::QuoteFormat quote_format;
     std::vector<uint8_t> quote;
     std::vector<uint8_t> endorsements;
+  };
 
+  DECLARE_JSON_TYPE(NodeQuote)
+  DECLARE_JSON_REQUIRED_FIELDS(NodeQuote, quote_format, quote, endorsements)
+
+  struct NodeSummary : public NodeQuote
+  {
     ccf::View committed_view;
     ccf::SeqNo committed_seqno;
 
     ccf::NodeId node_id;
   };
 
-  DECLARE_JSON_TYPE(NodeSummary)
+  DECLARE_JSON_TYPE_WITH_BASE(NodeSummary, NodeQuote)
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeSummary, quote_format, quote, committed_view, committed_seqno, node_id)
+    NodeSummary, committed_view, committed_seqno, node_id)
+
+  struct AllNodesSummary
+  {
+    std::map<std::string, NodeQuote> nodes;
+  };
+
+  DECLARE_JSON_TYPE(AllNodesSummary)
+  DECLARE_JSON_REQUIRED_FIELDS(AllNodesSummary, nodes)
 
   struct TransactionIDResponse
   {
@@ -103,6 +117,37 @@ namespace nobuiltins
       make_endpoint(
         "node_summary", HTTP_GET, node_summary, ccf::no_auth_required)
         .set_auto_schema<void, NodeSummary>()
+        .install();
+
+      auto all_nodes = [this](auto& ctx) {
+        ccf::ApiResult result;
+
+        std::map<ccf::NodeId, ccf::QuoteInfo> node_id_to_quote_info;
+        result = get_quotes_for_all_nodes_v1(ctx.tx, node_id_to_quote_info);
+        if (result != ccf::ApiResult::OK)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get quotes: {}", ccf::api_result_to_str(result)));
+          return;
+        }
+
+        AllNodesSummary summary;
+        for (const auto& [node_id, quote_info] : node_id_to_quote_info)
+        {
+          NodeQuote nq;
+          nq.quote_format = quote_info.format;
+          nq.quote = quote_info.quote;
+          nq.endorsements = quote_info.endorsements;
+          summary.nodes[node_id.value()] = std::move(nq);
+        }
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_body(nlohmann::json(summary).dump(2));
+      };
+      make_endpoint("all_nodes", HTTP_GET, all_nodes, ccf::no_auth_required)
+        .set_auto_schema<void, AllNodesSummary>()
         .install();
 
       auto openapi = [this](auto& ctx, nlohmann::json&&) {
