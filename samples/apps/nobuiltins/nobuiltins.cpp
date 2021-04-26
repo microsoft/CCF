@@ -35,14 +35,6 @@ namespace nobuiltins
   DECLARE_JSON_TYPE(TransactionIDResponse)
   DECLARE_JSON_REQUIRED_FIELDS(TransactionIDResponse, transaction_id)
 
-  struct TimeResponse
-  {
-    std::string timestamp;
-  };
-
-  DECLARE_JSON_TYPE(TimeResponse)
-  DECLARE_JSON_REQUIRED_FIELDS(TimeResponse, timestamp)
-
   // SNIPPET: registry_inheritance
   class NoBuiltinsRegistry : public ccf::BaseEndpointRegistry
   {
