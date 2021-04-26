@@ -233,10 +233,10 @@ namespace nobuiltins
               "Unable to get time: {}", ccf::api_result_to_str(result)));
         }
 
-        // 20 characters for an ISO 8601 datetime, plus a terminating null
-        constexpr size_t buf_size = 21;
+        // 25 characters for an ISO 8601 datetime, plus a terminating null
+        constexpr size_t buf_size = 26;
         char buf[buf_size];
-        if (strftime(buf, buf_size, "%Y-%m-%dT%H:%M:%SZ", &time) == 0)
+        if (strftime(buf, buf_size, "%Y-%m-%dT%H:%M:%S+00:00", &time) == 0)
         {
           return ccf::make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
