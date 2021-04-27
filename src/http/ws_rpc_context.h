@@ -196,6 +196,15 @@ namespace ws
       return http::status_success(response_status);
     }
 
+    virtual void reset_response() override
+    {
+      seqno = 0;
+      view = 0;
+      response_body.clear();
+      response_status = HTTP_STATUS_OK;
+      explicit_apply_writes.reset();
+    }
+
     virtual std::vector<uint8_t> serialise_response() const override
     {
       return serialise(response_status, response_body, seqno, view);
