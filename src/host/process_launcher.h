@@ -5,19 +5,16 @@
 #include "ds/messaging.h"
 #include "enclave/interface.h"
 
+#include <uv.h>
 #include <chrono>
-#include <condition_variable>
-#include <mutex>
 #include <queue>
-#include <sys/wait.h>
-#include <thread>
-#include <unistd.h>
+#include <unordered_map>
 
 namespace asynchost
 {
   class ProcessLauncher
   {
-    static constexpr size_t num_threads = 8;
+    static constexpr size_t max_processes = 8;
 
     struct QueueEntry
     {
@@ -25,13 +22,24 @@ namespace asynchost
       std::chrono::steady_clock::time_point queued_at;
     };
 
-    std::queue<QueueEntry> queue;
+    std::queue<QueueEntry> queued;
 
-    std::vector<std::thread> threads;
-    std::mutex m;
-    std::condition_variable cv;
+    struct ProcessEntry
+    {
+      LaunchHostProcessMessage msg;
+      std::chrono::steady_clock::time_point started_at;
+    };
 
-    bool stopping = false;
+    std::unordered_map<pid_t, ProcessEntry> running;  
+
+    void maybe_process_next_entry() {
+      if (running.size() >= max_processes) {
+        return;
+      }
+      auto entry = std::move(queued.front());
+      queued.front();
+      handle_entry(std::move(entry));
+    }
 
     void handle_entry(QueueEntry&& entry)
     {
@@ -50,92 +58,71 @@ namespace asynchost
         argv.push_back(args.at(i).c_str());
       }
       argv.push_back(nullptr);
-      auto pid = fork();
-      if (pid == -1)
+
+      auto handle = new uv_process_t;
+      
+      uv_process_options_t options = {};
+      options.file = argv.at(0);
+      options.args = const_cast<char**>(argv.data());
+      options.exit_cb = ProcessLauncher::on_process_exit;
+
+      auto rc = uv_spawn(uv_default_loop(), handle, &options);
+
+      if (rc != 0)
       {
         LOG_FAIL_FMT(
-          "Error running host process [fork]: {}", std::strerror(errno));
+          "Error starting host process: {}", uv_strerror(rc));
         return;
       }
-      auto t_begin = std::chrono::steady_clock::now();
-      if (pid == 0)
-      {
-        // child
-        if (execv(argv.at(0), (char* const*)argv.data()) == -1)
-        {
-          LOG_FAIL_FMT(
-            "Error running host process [execv]: {} cmd={}",
-            std::strerror(errno),
-            fmt::join(args, " "));
-          exit(1);
-        }
-      }
-      else
-      {
-        // parent
-        LOG_DEBUG_FMT(
-          "Launching host process: pid={} queuetime={}ms cmd={}",
-          pid,
-          queue_time_ms,
-          fmt::join(args, " "));
-        int exit_code;
-        waitpid(pid, &exit_code, 0);
-        auto t_end = std::chrono::steady_clock::now();
-        auto runtime_ms =
-          std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_begin)
-            .count();
-        LOG_DEBUG_FMT(
-          "Host process exited: pid={} status={} runtime={}ms cmd={}",
-          pid,
-          exit_code,
-          runtime_ms,
-          fmt::join(args, " "));
-      }
+
+      handle->data = this;
+
+      auto started_at = std::chrono::steady_clock::now();
+      ProcessEntry process_entry {
+        std::move(entry.msg),
+        started_at
+      };
+      running.insert({handle->pid, std::move(process_entry)});
+
+      LOG_DEBUG_FMT(
+        "Launching host process: pid={} queuetime={}ms cmd={}",
+        handle->pid,
+        queue_time_ms,
+        fmt::join(args, " "));
     }
 
-    void worker()
-    {
-      while (!stopping)
-      {
-        std::unique_lock<std::mutex> lock(m);
-        if (queue.empty())
-        {
-          cv.wait(lock);
-          if (queue.empty())
-            continue;
-        }
-        auto entry = std::move(queue.front());
-        queue.pop();
-        lock.unlock();
-        handle_entry(std::move(entry));
-      }
+    static void on_process_exit(uv_process_t* handle, int64_t exit_status, int term_signal) {
+      static_cast<ProcessLauncher*>(handle->data)->on_process_exit(handle, exit_status);
     }
 
-    void stop()
+    void on_process_exit(uv_process_t* handle, int64_t exit_status) {
+      auto& process = running.at(handle->pid);
+
+      auto t_end = std::chrono::steady_clock::now();
+      auto runtime_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(t_end - process.started_at)
+          .count();
+
+      LOG_DEBUG_FMT(
+        "Host process exited: pid={} status={} runtime={}ms cmd={}",
+        handle->pid,
+        exit_status,
+        runtime_ms,
+        fmt::join(process.msg.args, " "));
+
+      running.erase(handle->pid);
+      
+      maybe_process_next_entry();
+
+      uv_close((uv_handle_t*)handle, ProcessLauncher::on_close);
+    }
+
+    static void on_close(uv_handle_t* handle)
     {
-      stopping = true;
-      cv.notify_all();
-      for (auto& thread : threads)
-      {
-        thread.join();
-      }
+       delete handle;
     }
 
   public:
-    ProcessLauncher()
-    {
-      for (size_t i = 0; i < num_threads; i++)
-      {
-        std::thread t(&ProcessLauncher::worker, this);
-        threads.push_back(std::move(t));
-      }
-    }
-
-    ~ProcessLauncher()
-    {
-      stop();
-    }
-
     void register_message_handlers(
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
@@ -155,9 +142,9 @@ namespace asynchost
 
           LOG_DEBUG_FMT("Queueing host process launch: {}", json);
 
-          std::lock_guard<std::mutex> lock(m);
-          queue.push(std::move(entry));
-          cv.notify_one();
+          queued.push(std::move(entry));
+
+          maybe_process_next_entry();
         });
     }
   };
