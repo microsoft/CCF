@@ -210,29 +210,6 @@ namespace ccf
     }
 
   public:
-    EnclaveAttestationProvider()
-    {
-      auto rc = oe_attester_initialize();
-      if (rc != OE_OK)
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to initialise evidence attester: {}", oe_result_str(rc)));
-      }
-
-      rc = oe_verifier_initialize();
-      if (rc != OE_OK)
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to initialise evidence verifier: {}", oe_result_str(rc)));
-      }
-    }
-
-    ~EnclaveAttestationProvider()
-    {
-      oe_attester_shutdown();
-      oe_verifier_shutdown();
-    }
-
     static CodeDigest get_code_id(const QuoteInfo& quote_info)
     {
       CodeDigest unique_id = {};

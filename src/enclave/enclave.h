@@ -15,6 +15,7 @@
 #include "node/rpc/forwarder.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
+#include "oe_init.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
 
@@ -86,6 +87,8 @@ namespace enclave
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map, consensus_type_))
     {
+      ccf::initialize_oe();
+
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
@@ -151,6 +154,7 @@ namespace enclave
         ENGINE_finish(rdrand_engine);
         ENGINE_free(rdrand_engine);
       }
+      ccf::shutdown_oe();
     }
 
     bool create_new_node(

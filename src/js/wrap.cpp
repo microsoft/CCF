@@ -883,7 +883,8 @@ namespace js
   void populate_global_openenclave(JSContext* ctx)
   {
     auto global_obj = JS_GetGlobalObject(ctx);
-    JS_SetPropertyStr(ctx, global_obj, "openenclave", create_openenclave_obj(ctx));
+    JS_SetPropertyStr(
+      ctx, global_obj, "openenclave", create_openenclave_obj(ctx));
     JS_FreeValue(ctx, global_obj);
   }
 

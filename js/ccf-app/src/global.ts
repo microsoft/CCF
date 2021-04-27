@@ -274,7 +274,7 @@ export interface OpenEnclave {
    *  `oe_get_report()`. Otherwise, this parameter must be a valid format id, and
    *  the evidence and endorsements data must not be wrapped with an attestation header.
    */
-   verifyOpenEnclaveEvidence(
+  verifyOpenEnclaveEvidence(
     format: string | undefined,
     evidence: ArrayBuffer,
     endorsements?: ArrayBuffer
