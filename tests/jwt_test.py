@@ -81,7 +81,7 @@ def test_jwt_without_key_policy(network, args):
             primary, issuer, jwks_fp.name
         )
 
-        stored_jwt_signing_key = primary.get_ledger_public_state_at(
+        stored_jwt_signing_key = network.get_ledger_public_state_at(
             set_jwt_proposal.completed_seqno
         )["public:ccf.gov.jwt.public_signing_keys"][raw_kid]
 
@@ -94,7 +94,7 @@ def test_jwt_without_key_policy(network, args):
     remove_jwt_proposal = network.consortium.remove_jwt_issuer(primary, issuer)
 
     assert (
-        primary.get_ledger_public_state_at(remove_jwt_proposal.completed_seqno)[
+        network.get_ledger_public_state_at(remove_jwt_proposal.completed_seqno)[
             "public:ccf.gov.jwt.public_signing_keys"
         ][raw_kid]
         is None
@@ -106,7 +106,7 @@ def test_jwt_without_key_policy(network, args):
         metadata_fp.flush()
         set_jwt_issuer = network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
-        stored_jwt_signing_key = primary.get_ledger_public_state_at(
+        stored_jwt_signing_key = network.get_ledger_public_state_at(
             set_jwt_issuer.completed_seqno
         )["public:ccf.gov.jwt.public_signing_keys"][raw_kid]
 
@@ -230,7 +230,7 @@ def test_jwt_with_sgx_key_filter(network, args):
             primary, issuer, jwks_fp.name
         )
 
-        stored_jwt_signing_keys = primary.get_ledger_public_state_at(
+        stored_jwt_signing_keys = network.get_ledger_public_state_at(
             set_jwt_proposal.completed_seqno
         )["public:ccf.gov.jwt.public_signing_keys"]
 
@@ -296,9 +296,7 @@ class OpenIDProviderServer(AbstractContextManager):
 
 
 def check_kv_jwt_key_matches(network, kid, cert_pem):
-    primary, _ = network.find_nodes()
-
-    latest_public_state, _ = primary.get_latest_ledger_public_state()
+    latest_public_state, _ = network.get_latest_ledger_public_state()
     latest_jwt_signing_key = latest_public_state[
         "public:ccf.gov.jwt.public_signing_keys"
     ]
