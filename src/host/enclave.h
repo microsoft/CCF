@@ -70,7 +70,9 @@ namespace host
       }
       else
       {
+#ifndef VERBOSE_LOGGING
         oe_log_set_callback(nullptr, nop_oe_logger);
+#endif
 
         auto err = oe_create_ccf_enclave(
           path.c_str(), OE_ENCLAVE_TYPE_SGX, flags, nullptr, 0, &e);
