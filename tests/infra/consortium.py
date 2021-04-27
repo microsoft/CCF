@@ -348,6 +348,10 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def create_and_withdraw_large_proposal(self, remote_node):
+        """
+        This is useful to force a ledger chunk to be produced, which is desirable
+        when trying to use ccf.ledger to read ledger entries.
+        """
         proposal, _ = self.make_proposal(
             "set_user", self.user_cert_path("user0"), {"padding": " " * 4096 * 5}
         )
