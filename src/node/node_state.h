@@ -119,6 +119,7 @@ namespace ccf
     StateMachine<State> sm;
     SpinLock lock;
 
+    CurveID curve_id;
     crypto::KeyPairPtr node_sign_kp;
     NodeId self;
     std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
@@ -284,9 +285,10 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
-      const CurveID& curve_id) :
+      CurveID curve_id_) :
       sm(State::uninitialized),
-      node_sign_kp(crypto::make_key_pair(curve_id)),
+      curve_id(curve_id_),
+      node_sign_kp(crypto::make_key_pair(curve_id_)),
       node_encrypt_kp(crypto::make_rsa_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
@@ -363,7 +365,7 @@ namespace ccf
         case StartType::New:
         {
           network.identity =
-            std::make_unique<NetworkIdentity>("CN=CCF Network");
+            std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
 
           node_cert = create_endorsed_node_cert();
 
@@ -433,7 +435,7 @@ namespace ccf
           node_info_network = config.node_info_network;
 
           network.identity =
-            std::make_unique<NetworkIdentity>("CN=CCF Network");
+            std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
           node_cert = create_endorsed_node_cert();
 
           setup_history();
