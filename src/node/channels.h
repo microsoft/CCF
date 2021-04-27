@@ -160,7 +160,7 @@ namespace ccf
       }
 
       LOG_TRACE_FMT(
-        "<- {}: encrypted msg with nonce={}",
+        "<- {}: node msg with nonce={}",
         peer_id,
         (const uint64_t)recv_nonce.nonce);
 
@@ -177,8 +177,10 @@ namespace ccf
       else if (recv_nonce.nonce <= *local_nonce)
       {
         // If the nonce received has already been processed, return
-        LOG_FAIL_FMT(
-          "Invalid nonce, possible replay attack, from:{} received:{}, "
+        // See https://github.com/microsoft/CCF/issues/2492 for more details on
+        // how this can happen around election time
+        LOG_TRACE_FMT(
+          "Received past nonce from:{}, received:{}, "
           "last_seen:{}, recv_nonce.tid:{}",
           peer_id,
           reinterpret_cast<uint64_t>(recv_nonce.nonce),
@@ -775,7 +777,7 @@ namespace ccf
         cipher);
 
       LOG_TRACE_FMT(
-        "-> {}: encrypted msg with nonce={}", peer_id, (uint64_t)nonce.nonce);
+        "-> {}: node msg with nonce={}", peer_id, (uint64_t)nonce.nonce);
 
       return true;
     }
