@@ -60,9 +60,15 @@ namespace asynchost
       argv.push_back(nullptr);
 
       auto handle = new uv_process_t;
+
       
       uv_process_options_t options = {};
+      LOG_DEBUG_FMT(
+        "Launching host process: {}", argv.at(0));
       options.file = argv.at(0);
+      LOG_DEBUG_FMT(
+        "Launching host process1: {}", options.file);
+      assert(options.file != NULL);
       options.args = const_cast<char**>(argv.data());
       options.exit_cb = ProcessLauncher::on_process_exit;
 
@@ -75,6 +81,12 @@ namespace asynchost
         return;
       }
 
+      LOG_DEBUG_FMT(
+        "Launching host process: pid={} queuetime={}ms cmd={}",
+        handle->pid,
+        queue_time_ms,
+        fmt::join(args, " "));
+
       handle->data = this;
 
       auto started_at = std::chrono::steady_clock::now();
@@ -83,12 +95,6 @@ namespace asynchost
         started_at
       };
       running.insert({handle->pid, std::move(process_entry)});
-
-      LOG_DEBUG_FMT(
-        "Launching host process: pid={} queuetime={}ms cmd={}",
-        handle->pid,
-        queue_time_ms,
-        fmt::join(args, " "));
     }
 
     static void on_process_exit(uv_process_t* handle, int64_t exit_status, int term_signal) {
