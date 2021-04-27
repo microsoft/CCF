@@ -37,7 +37,7 @@ namespace asynchost
         return;
       }
       auto entry = std::move(queued.front());
-      queued.front();
+      queued.pop();
       handle_entry(std::move(entry));
     }
 
