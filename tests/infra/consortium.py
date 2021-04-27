@@ -246,7 +246,7 @@ class Consortium:
                 proposal.state = infra.proposal.ProposalState(
                     response.body.json()["state"]
                 )
-                proposal.increment_votes_for()
+                proposal.increment_votes_for(member.service_id)
 
         # Wait for proposal completion to be committed, even if no votes are issued
         if wait_for_global_commit:
@@ -346,6 +346,18 @@ class Consortium:
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def create_and_withdraw_large_proposal(self, remote_node):
+        """
+        This is useful to force a ledger chunk to be produced, which is desirable
+        when trying to use ccf.ledger to read ledger entries.
+        """
+        proposal, _ = self.make_proposal(
+            "set_user", self.user_cert_path("user0"), {"padding": " " * 4096 * 5}
+        )
+        m = self.get_any_active_member()
+        p = m.propose(remote_node, proposal)
+        m.withdraw(remote_node, p)
 
     def add_users(self, remote_node, users):
         for u in users:
