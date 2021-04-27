@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [0.99.3]
+
+### Added
+
+- `kv::MapHandle::size()` can be used to get the number of entries in a given map.
+- `kv::MapHandle::clear()` can be used to remove all entries from a map.
+
+## [0.99.2]
+
+### Changed
+
+- The default constitution no longer contains `set_service_principal` or `remove_service_principal` since they are not used by the core framework. Instead any apps which wish to use these tables should add them to their own constitution. A [sample implementation](https://github.com/microsoft/CCF/tree/main/src/runtime_config/test/service_principals/actions.js) is available, and used in the CI tests.
+- Proposal status now includes a `final_votes` and `vote_failures` map, recording the outcome of each vote per member. `failure_reason` and `failure_trace` have been consolidated into a single `failure` object, which is also used for `vote_failures`.
+
 ## [0.99.1]
 
 ### Added

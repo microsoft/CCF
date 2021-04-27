@@ -73,6 +73,12 @@ class CCFPolyfill implements CCF {
     },
   });
 
+  rpc = {
+    setApplyWrites(force: boolean) {
+      throw new Error("Not implemented");
+    },
+  };
+
   strToBuf(s: string): ArrayBuffer {
     return typedArrToArrBuf(new TextEncoder().encode(s));
   }

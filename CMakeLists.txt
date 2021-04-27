@@ -388,14 +388,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
     )
 
-    # TODO: Port or remove entirely? add_unit_test( member_voting_test
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
-    # ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp )
-    # target_link_libraries( member_voting_test PRIVATE
-    # ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host ccf_endpoints.host
-    # quickjs.host ) set_tests_properties( member_voting_test PROPERTIES
-    # ENVIRONMENT RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config )
-
     add_unit_test(
       proposal_id_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
@@ -623,10 +615,15 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-content-types
   )
 
+  set(SERVICE_PRINCIPAL_CONSTITUTION_ARGS
+      ${CONSTITUTION_ARGS} --constitution
+      ${CCF_DIR}/src/runtime_config/test/service_principals_actions.js
+  )
   add_e2e_test(
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
+    CONSTITUTION ${SERVICE_PRINCIPAL_CONSTITUTION_ARGS}
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
   )
 
@@ -634,6 +631,7 @@ if(BUILD_TESTS)
     NAME governance_no_session_auth_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
+    CONSTITUTION ${SERVICE_PRINCIPAL_CONSTITUTION_ARGS}
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
                     --disable-member-session-auth
   )
@@ -723,13 +721,10 @@ if(BUILD_TESTS)
   )
 
   if(NOT SAN)
-    # Writing new ledger files and generating new snapshots uses more file
-    # descriptors so disable those for this test
     add_e2e_test(
       NAME connections_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --ledger-chunk-bytes 100Mib --snapshot-tx-interval 10000
     )
   endif()
 

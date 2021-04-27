@@ -216,16 +216,6 @@ def read_modules(modules_path: str) -> List[dict]:
 
 
 @cli_proposal
-def trust_node(node_id: str, **kwargs):
-    return build_proposal("trust_node", node_id, **kwargs)
-
-
-@cli_proposal
-def retire_node(node_id: str, **kwargs):
-    return build_proposal("retire_node", node_id, **kwargs)
-
-
-@cli_proposal
 def transition_node_to_trusted(node_id: str, **kwargs):
     return build_proposal("transition_node_to_trusted", {"node_id": node_id}, **kwargs)
 
@@ -233,16 +223,6 @@ def transition_node_to_trusted(node_id: str, **kwargs):
 @cli_proposal
 def remove_node(node_id: str, **kwargs):
     return build_proposal("remove_node", {"node_id": node_id}, **kwargs)
-
-
-@cli_proposal
-def new_node_code(code_digest: str, **kwargs):
-    return build_proposal("new_node_code", code_digest, **kwargs)
-
-
-@cli_proposal
-def retire_node_code(code_digest: str, **kwargs):
-    return build_proposal("retire_node_code", code_digest, **kwargs)
 
 
 @cli_proposal
@@ -348,7 +328,7 @@ if __name__ == "__main__":
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/votes) will be dumped. Default is {DEFAULT_VOTE_OUTPUT}",
+        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/ballots) will be dumped. Default is {DEFAULT_VOTE_OUTPUT}",
     )
     parser.add_argument(
         "-pp",

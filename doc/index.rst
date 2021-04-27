@@ -71,6 +71,13 @@ CCF Documentation
 
     Contribute to the CCF GitHub repository.
 
+    ---
+
+    :fa:`book` :doc:`glossary`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Common terms used throughout the documentation and their definitions.
+
 .. toctree::
     :maxdepth: 1
     :hidden:

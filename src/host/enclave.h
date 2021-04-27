@@ -14,7 +14,21 @@
 #  include <ccf_u.h>
 #  include <openenclave/bits/result.h>
 #  include <openenclave/host.h>
+#  include <openenclave/trace.h>
 #endif
+
+extern "C"
+{
+  void nop_oe_logger(
+    void* context,
+    bool is_enclave,
+    const struct tm* t,
+    long int usecs,
+    oe_log_level_t level,
+    uint64_t host_thread_id,
+    const char* message)
+  {}
+}
 
 // Marker to create virtual enclaves, should be distinct from any valid
 // OE_ENCLAVE_FLAG combinations
@@ -56,6 +70,8 @@ namespace host
       }
       else
       {
+        oe_log_set_callback(nullptr, nop_oe_logger);
+
         auto err = oe_create_ccf_enclave(
           path.c_str(), OE_ENCLAVE_TYPE_SGX, flags, nullptr, 0, &e);
 

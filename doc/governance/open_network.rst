@@ -7,9 +7,9 @@ This sections assumes that a set of nodes has already been started by :term:`Ope
 Adding Users
 ------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`Users`. First, :doc:`the identities of trusted users should be generated </use_apps/index>`.
+Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`Users`. First, the identities of trusted users should be generated, see :ref:`governance/adding_member:Generating Member Keys and Certificates`.
 
-Then, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``user_cert`` is the PEM certificate of the user -- see :ref:`overview/cryptography:Cryptography` for a list of supported algorithms):
+Then, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``cert`` is the PEM certificate of the user -- see :ref:`overview/cryptography:Cryptography` for a list of supported algorithms):
 
 .. code-block:: bash
 
@@ -42,7 +42,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "ballot": "export function vote (proposal, proposerId) { return true }"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/votes --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "ballot_count": 1,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
@@ -55,7 +55,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "ballot": "export function vote (proposal, proposerId) { return proposerId == \"2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0\" }"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253",
@@ -63,7 +63,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "state": "Accepted"
     }
 
-The user is successfully added once a the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body showing a transition to state ``ACCEPTED``).
+The user is successfully added once the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body showing a transition to state ``Accepted``).
 
 The user can then make user RPCs.
 
@@ -86,18 +86,21 @@ Members configure this permission with ``set_user_data`` proposals:
 
     $ cat set_user_data_proposal.json
     {
-        "script": {
-            "text": "tables, args = ...; return Calls:call(\"set_user_data\", args)"
-        },
-        "parameter": {
-            "user_id": 0,
-            "user_data": {
-                "isAdmin": true
+        "actions": [
+            {
+                "name": "set_user_data",
+                "args": {
+                    "user_id": "529d0f48287923e7536a708c0b7747666f6b904d3fd4b84739f7d2204233a16e",
+                    "user_data": {
+                        "isAdmin": true
+                    }
+                }
             }
-        }
+        ]
     }
 
-Once this proposal is accepted, user 0 is able to use this endpoint:
+
+Once this proposal is accepted, the newly added user (with ID ``529d0f48287923e7536a708c0b7747666f6b904d3fd4b84739f7d2204233a16e``) is able to use this endpoint:
 
 .. code-block:: bash
 
@@ -113,7 +116,7 @@ All other users have empty or non-matching user-data, so will receive a HTTP err
     $ curl https://<ccf-node-address>/app/log/private/admin_only --key user1_privk.pem --cert user1_cert.pem --cacert networkcert.pem -X POST --data-binary '{"id": 42, "msg": "hello world"}' -H "Content-type: application/json" -i
     HTTP/1.1 403 Forbidden
 
-    Only admins may access this endpoint
+    {"error":{"code":"AuthorizationFailed","message":"Only admins may access this endpoint."}}
 
 Opening the Network
 -------------------
@@ -142,4 +145,4 @@ Once users are added to the opening network, members should create a proposal to
 
 Other members are then able to vote for the proposal using the returned proposal id.
 
-Once the proposal has received enough votes under the rules of the :term:`Constitution` (``"result":true``), the network is opened to users. It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+Once the proposal has received enough votes under the rules of the :term:`Constitution` (ie. ballots which evaluate to ``true``), the network is opened to users. It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).

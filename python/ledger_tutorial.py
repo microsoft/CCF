@@ -20,13 +20,13 @@ if len(sys.argv) < 2:
     print("Error: Ledger directory should be specified as first argument")
     sys.exit(1)
 
-ledger_dir = sys.argv[1]
+ledger_dirs = sys.argv[1:]
 
 # SNIPPET: import_ledger
 import ccf.ledger
 
 # SNIPPET: create_ledger
-ledger = ccf.ledger.Ledger(ledger_dir)
+ledger = ccf.ledger.Ledger(ledger_dirs)
 
 # SNIPPET: target_table
 target_table = "public:ccf.gov.nodes.info"

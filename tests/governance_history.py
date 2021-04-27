@@ -12,6 +12,7 @@ import http
 import base64
 import json
 from loguru import logger as LOG
+import suite.test_requirements as reqs
 
 
 def count_governance_operations(ledger):
@@ -69,13 +70,33 @@ def check_all_tables_are_documented(ledger, doc_path):
         for tr in chunk:
             table_names_in_ledger.update(tr.get_public_domain().get_tables().keys())
 
-    gov_tables_in_ledger = set(
-        [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.gov.")]
+    public_table_names_in_ledger = set(
+        [tn for tn in table_names_in_ledger if tn.startswith("public:ccf.")]
     )
-    undocumented_tables = gov_tables_in_ledger - set(table_names)
-    LOG.info(undocumented_tables)
-    # Enable once Lua governance removal is complete
-    # assert undocumented_tables == set(), undocumented_tables
+    undocumented_tables = public_table_names_in_ledger - set(table_names)
+    assert undocumented_tables == set(), undocumented_tables
+
+
+@reqs.description("Check tables are documented")
+def test_tables_doc(network, args):
+    primary, _ = network.find_primary()
+    ledger_directories = primary.remote.ledger_paths()
+    ledger = ccf.ledger.Ledger(ledger_directories)
+    check_all_tables_are_documented(ledger, "../doc/audit/builtin_maps.rst")
+    return network
+
+
+@reqs.description("Test that all node's ledgers can be read")
+def test_ledger_is_readable(network, args):
+    primary, backups = network.find_nodes()
+    for node in (primary, *backups):
+        ledger_dirs = node.remote.ledger_paths()
+        LOG.info(f"Reading ledger from {ledger_dirs}")
+        ledger = ccf.ledger.Ledger(ledger_dirs)
+        for chunk in ledger:
+            for _ in chunk:
+                pass
+    return network
 
 
 def run(args):
@@ -90,9 +111,9 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        ledger_directory = primary.remote.ledger_path()
+        ledger_directories = primary.remote.ledger_paths()
 
-        ledger = ccf.ledger.Ledger(ledger_directory)
+        ledger = ccf.ledger.Ledger(ledger_directories)
         (
             original_proposals,
             original_votes,
@@ -131,8 +152,11 @@ def run(args):
         assert response.body.json()["state"] == ProposalState.WITHDRAWN.value
         withdrawals_issued += 1
 
+        test_ledger_is_readable(network, args)
+        test_tables_doc(network, args)
+
     # Refresh ledger to beginning
-    ledger = ccf.ledger.Ledger(ledger_directory)
+    ledger = ccf.ledger.Ledger(ledger_directories)
 
     (
         final_proposals,
@@ -149,9 +173,6 @@ def run(args):
     assert (
         final_withdrawals == original_withdrawals + withdrawals_issued
     ), f"Unexpected number of withdraw operations recorded in the ledger (expected {original_withdrawals + withdrawals_issued}, found {final_withdrawals})"
-
-    ledger = ccf.ledger.Ledger(ledger_directory)
-    check_all_tables_are_documented(ledger, "../doc/audit/builtin_maps.rst")
 
 
 if __name__ == "__main__":

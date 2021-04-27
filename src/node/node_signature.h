@@ -13,8 +13,11 @@ namespace ccf
 
   struct NodeSignature
   {
+    /// Signature
     std::vector<uint8_t> sig;
+    /// Node ID
     NodeId node;
+    /// Hashed nonce created by the node, only used for BFT
     Nonce hashed_nonce;
 
     NodeSignature(const NodeSignature& ns) :
