@@ -51,8 +51,6 @@ namespace crypto
         fmt::format("Failed to parse certificate: {}", error_string(rc)));
     }
 
-    md_type = get_md_type(cert->sig_md);
-
     // public_key expects to have unique ownership of the context and so does
     // `cert`, so we duplicate the key context here.
     unsigned char buf[2048];
