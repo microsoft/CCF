@@ -179,7 +179,7 @@ namespace ccf
         // If the nonce received has already been processed, return
         // See https://github.com/microsoft/CCF/issues/2492 for more details
         LOG_TRACE_FMT(
-          "Received past nonce from:{} received:{}, "
+          "Received past nonce from:{}, received:{}, "
           "last_seen:{}, recv_nonce.tid:{}",
           peer_id,
           reinterpret_cast<uint64_t>(recv_nonce.nonce),
