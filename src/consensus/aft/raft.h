@@ -1955,11 +1955,15 @@ namespace aft
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
 
+    bool is_known(const NodeId& id) const
+    {
+      return nodes.find(id) != nodes.end();
+    }
+
     void recv_append_entries_signed_response(
       const ccf::NodeId& from, SignedAppendEntriesResponse r)
     {
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      if (!is_known(from))
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
@@ -2023,8 +2027,7 @@ namespace aft
     void recv_signature_received_ack(
       const ccf::NodeId& from, SignaturesReceivedAck r)
     {
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      if (!is_known(from))
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
@@ -2094,8 +2097,7 @@ namespace aft
 
     void recv_nonce_reveal(const ccf::NodeId& from, NonceRevealMsg r)
     {
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      if (!is_known(from))
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
@@ -2229,10 +2231,9 @@ namespace aft
         {
           if (is_primary())
           {
-            state->lock.unlock();
             threading::ThreadMessaging::thread_messaging.add_task(
               [this, from, r]() {
-                configuration_tracker.update_passive_node_progress(
+                configuration_tracker.promote_if_possible(
                   from,
                   {r.term, r.last_log_idx},
                   {state->current_view, state->last_idx});
@@ -2273,8 +2274,7 @@ namespace aft
       std::lock_guard<std::mutex> guard(state->lock);
 
       // Ignore if we don't recognise the node.
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      if (!is_known(from))
       {
         LOG_FAIL_FMT(
           "Recv request vote to {} from {}: unknown node",
@@ -2388,8 +2388,7 @@ namespace aft
       }
 
       // Ignore if we don't recognise the node.
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      if (!is_known(from))
       {
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: unknown node",
@@ -2477,8 +2476,15 @@ namespace aft
       {
         for (auto it = nodes.begin(); it != nodes.end(); ++it)
         {
-          if (configuration_tracker.is_passive(it->first))
+          if (it->first == state->my_node_id)
             continue;
+
+          if (configuration_tracker.is_passive(it->first))
+          {
+            LOG_FAIL_FMT(
+              "Not requesting a vote from passive node {}", it->first);
+            continue;
+          }
 
           channels->create_channel(
             it->first,
@@ -2520,6 +2526,11 @@ namespace aft
 
       LOG_INFO_FMT(
         "Becoming leader {}: {}", state->my_node_id, state->current_view);
+
+      for (const auto& [node_id, info] : nodes)
+        LOG_TRACE_FMT("Node: {} ()", node_id, info.match_idx);
+
+      LOG_TRACE_FMT("Configurations: {}", configuration_tracker.to_string());
 
       // Immediately commit if there are no other nodes.
       if (nodes.size() == 0)
@@ -2593,12 +2604,17 @@ namespace aft
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
       votes_for_me.insert(from);
 
-      LOG_INFO_FMT(
-        "Received vote from {} for a total of {}", from, votes_for_me.size());
+      size_t n = configuration_tracker.num_active_nodes();
+      size_t threshold = (n / 2) + 1;
 
-      if (
-        votes_for_me.size() >=
-        (configuration_tracker.num_active_nodes() / 2) + 1)
+      LOG_INFO_FMT(
+        "Received vote from {} for a total of {} (n={} threshold={})",
+        from,
+        votes_for_me.size(),
+        n,
+        threshold);
+
+      if (votes_for_me.size() >= threshold)
         become_leader();
     }
 
@@ -2784,7 +2800,6 @@ namespace aft
         {
           channels->destroy_channel(node_id);
         }
-        configuration_tracker.erase(node_id);
         nodes.erase(node_id);
         LOG_INFO_FMT("Removed raft node {}", node_id);
       }

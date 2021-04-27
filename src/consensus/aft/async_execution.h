@@ -321,7 +321,7 @@ namespace aft
     void execute() override
     {
       LOG_TRACE_FMT("NodeCatchUpCallback");
-      config_tracker.update_passive_node_progress(from, txid, node_txid);
+      config_tracker.promote_if_possible(from, txid, node_txid);
     }
 
   private:

@@ -51,8 +51,6 @@ namespace aft
     } TrackedConfig;
     std::list<TrackedConfig> configurations;
 
-    std::map<NodeId, TxID> node_progress;
-
   public:
     ConfigurationTracker(
       const NodeId& node_id_, std::shared_ptr<kv::AbstractStore> store_) :
@@ -103,6 +101,8 @@ namespace aft
     {
       configurations.push_back(
         {{idx, std::move(config.active)}, std::move(config.passive)});
+
+      LOG_INFO_FMT("New configurations: {}", to_string());
     }
 
     bool empty() const
@@ -122,26 +122,18 @@ namespace aft
               configurations.back().passive};
     }
 
-    void update_passive_node_progress(
+    void promote_if_possible(
       const NodeId& id, const TxID& txid, const TxID& primary_txid)
     {
       auto& last_config = configurations.back();
       if (last_config.passive.find(id) == last_config.passive.end())
         return;
 
-      auto it = node_progress.find(id);
-      if (it == node_progress.end())
-      {
-        node_progress[id] = txid;
-      }
-      else if (it->second < txid)
-      {
-        it->second = txid;
-      }
-
       if (!(txid < primary_txid) && store != nullptr)
       {
         LOG_INFO_FMT("Promoting {} to TRUSTED as it has caught up with us", id);
+
+        // TODO: Go through frontend
 
         kv::CommittableTx tx(store.get());
         auto nodes = tx.rw<Nodes>(Tables::NODES);
@@ -156,16 +148,6 @@ namespace aft
           }
         }
       }
-    }
-
-    void remove_node_progress(const NodeId& id)
-    {
-      node_progress.erase(id);
-    }
-
-    void erase(const NodeId& id)
-    {
-      remove_node_progress(id);
     }
 
     std::set<NodeId> active_node_ids()
@@ -184,7 +166,7 @@ namespace aft
       return result;
     }
 
-    kv::Configuration::Nodes active_nodes()
+    kv::Configuration::Nodes active_nodes() const
     {
       kv::Configuration::Nodes r;
 
@@ -204,22 +186,29 @@ namespace aft
       for (auto& conf : configurations)
       {
         if (conf.active.nodes.find(id) != conf.active.nodes.end())
+        {
           return true;
-        if (conf.passive.find(id) != conf.passive.end())
-          return false;
+        }
       }
+
       return false;
     }
 
     bool is_passive(const NodeId& id)
     {
+      if (is_active(id))
+      {
+        return false;
+      }
+
       for (auto& conf : configurations)
       {
-        if (conf.active.nodes.find(id) != conf.active.nodes.end())
-          return false;
         if (conf.passive.find(id) != conf.passive.end())
+        {
           return true;
+        }
       }
+
       return false;
     }
 
@@ -228,9 +217,8 @@ namespace aft
       return active_nodes().size();
     }
 
-    kv::Configuration::Nodes passive_nodes()
+    kv::Configuration::Nodes passive_nodes() const
     {
-      assert(configurations.size() > 0);
       kv::Configuration::Nodes r;
 
       for (auto& conf : configurations)
@@ -246,7 +234,6 @@ namespace aft
 
     kv::Configuration::Nodes all_nodes()
     {
-      assert(configurations.size() > 0);
       kv::Configuration::Nodes r;
 
       for (auto& conf : configurations)
@@ -276,25 +263,45 @@ namespace aft
         std::vector<Index> match;
         match.reserve(c.active.nodes.size() + 1);
 
-        for (auto node : c.active.nodes)
+        // In CFT mode, the passive nodes count toward the majority.
+        for (const auto& cnodes : {c.active.nodes, c.passive})
         {
-          if (node.first == node_id)
+          for (const auto& node : cnodes)
           {
-            match.push_back(last_idx);
-          }
-          else
-          {
-            match.push_back(nodes.at(node.first).match_idx);
+            if (node.first == node_id)
+            {
+              match.push_back(last_idx);
+            }
+            else
+            {
+              match.push_back(nodes.at(node.first).match_idx);
+            }
           }
         }
 
         sort(match.begin(), match.end());
         auto confirmed = match.at((match.size() - 1) / 2);
-
         r = std::min(confirmed, r);
       }
 
       return r;
+    }
+
+    std::string to_string() const
+    {
+      std::stringstream ss;
+      for (auto c : configurations)
+      {
+        ss << "[";
+        ss << "active:";
+        for (const auto& [node_id, _] : c.active.nodes)
+          ss << " " << node_id;
+        ss << " passive:";
+        for (const auto& [node_id, _] : c.passive)
+          ss << " " << node_id;
+        ss << "] ";
+      }
+      return ss.str();
     }
   };
 }

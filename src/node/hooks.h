@@ -88,6 +88,12 @@ namespace ccf
       for (const auto& [node_id, opt_ni] : cfg_delta_catchup)
       {
         LOG_INFO_FMT("Passive: {} {}", node_id, opt_ni.has_value());
+
+        if (configuration.active.find(node_id) != configuration.active.end())
+        {
+          continue;
+        }
+
         if (opt_ni.has_value())
         {
           configuration.passive.try_emplace(

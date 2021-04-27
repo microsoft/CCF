@@ -291,15 +291,8 @@ namespace threading
 
     void add_task(uint16_t tid, std::function<void()> f)
     {
-      if (threading::ThreadMessaging::thread_count <= 1)
-      {
-        f();
-      }
-      else
-      {
-        Task& task = get_task(tid);
-        task.add_task(new ThreadMsg(f));
-      }
+      Task& task = get_task(tid);
+      task.add_task(new ThreadMsg(f));
     }
 
     void add_task(std::function<void()> f)
