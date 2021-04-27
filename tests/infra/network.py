@@ -40,12 +40,12 @@ class ServiceStatus(Enum):
     CLOSED = "Closed"
 
 
-class ParticipantsCurve(IntEnum):
+class EllipticCurve(IntEnum):
     secp384r1 = 0
     secp256r1 = 1
 
     def next(self):
-        return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
+        return EllipticCurve((self.value + 1) % len(EllipticCurve))
 
 
 class PrimaryNotFound(Exception):
