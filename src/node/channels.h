@@ -177,8 +177,9 @@ namespace ccf
       else if (recv_nonce.nonce <= *local_nonce)
       {
         // If the nonce received has already been processed, return
-        LOG_FAIL_FMT(
-          "Invalid nonce, possible replay attack, from:{} received:{}, "
+        // See https://github.com/microsoft/CCF/issues/2492 for more details
+        LOG_TRACE_FMT(
+          "Received past nonce from:{} received:{}, "
           "last_seen:{}, recv_nonce.tid:{}",
           peer_id,
           reinterpret_cast<uint64_t>(recv_nonce.nonce),
@@ -935,10 +936,8 @@ namespace ccf
       {
         // Channel with peer already exists but is incoming. Create host
         // outgoing connection.
-        // LOG_DEBUG_FMT("Setting existing channel to {} as outgoing", peer_id);
-        // search->second->set_outgoing(hostname, service);
-        LOG_DEBUG_FMT(
-          "No need to create channel as incoming channel already exists!");
+        LOG_DEBUG_FMT("Setting existing channel to {} as outgoing", peer_id);
+        search->second->set_outgoing(hostname, service);
         return;
       }
       else if (!search->second)

@@ -50,13 +50,13 @@ if __name__ == "__main__":
             "--rotation-retirements",
             help="Number of times to retired the primary",
             type=int,
-            default=10,
+            default=3,
         )
         parser.add_argument(
             "--rotation-suspensions",
             help="Number of times to suspend the primary",
             type=int,
-            default=10,
+            default=3,
         )
 
     args = infra.e2e_args.cli_args(add=add)
