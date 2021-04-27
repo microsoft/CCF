@@ -97,6 +97,7 @@ class Network:
         "max_open_sessions",
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",
+        "curve_id",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
