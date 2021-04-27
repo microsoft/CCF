@@ -243,6 +243,36 @@
         }
       }
     },
+    "/isValidX509CertBundle": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "isValidX509CertBundle",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "text/plain": {}
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/partition": {
       "post": {
         "js_module": "endpoints/partition.js",

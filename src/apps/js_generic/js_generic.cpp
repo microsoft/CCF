@@ -667,11 +667,6 @@ namespace ccfapp
             ds::openapi::path(document, key.uri_path),
             http_verb.value(),
             false);
-          LOG_INFO_FMT(
-            "Building OpenAPI for {} {}", key.verb.c_str(), key.uri_path);
-          const auto dumped = document.dump(2);
-          LOG_INFO_FMT(
-            "Starting from: {}", std::string(dumped.begin(), dumped.end()));
           if (!properties.openapi.empty())
           {
             for (const auto& [k, v] : properties.openapi.items())

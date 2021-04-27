@@ -21,11 +21,13 @@ namespace nobuiltins
 
     ccf::View committed_view;
     ccf::SeqNo committed_seqno;
+
+    ccf::NodeId node_id;
   };
 
   DECLARE_JSON_TYPE(NodeSummary)
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeSummary, quote_format, quote, committed_view, committed_seqno)
+    NodeSummary, quote_format, quote, committed_view, committed_seqno, node_id)
 
   struct TransactionIDResponse
   {
@@ -78,6 +80,19 @@ namespace nobuiltins
               fmt::format(
                 "Failed to get committed transaction: {}",
                 ccf::api_result_to_str(result)));
+            return;
+          }
+        }
+
+        {
+          result = get_id_for_this_node_v1(summary.node_id);
+          if (result != ccf::ApiResult::OK)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to get node ID: {}", ccf::api_result_to_str(result)));
             return;
           }
         }
