@@ -33,7 +33,7 @@ namespace asynchost
     std::unordered_map<pid_t, ProcessEntry> running;  
 
     void maybe_process_next_entry() {
-      if (running.size() >= max_processes) {
+      if (queued.empty() || running.size() >= max_processes) {
         return;
       }
       auto entry = std::move(queued.front());
