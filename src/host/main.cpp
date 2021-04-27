@@ -345,6 +345,19 @@ int main(int argc, char** argv)
       )
     ->capture_default_str();
 
+  crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
+  std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
+    {"secp384r1", crypto::CurveID::SECP384R1},
+    {"secp256r1", crypto::CurveID::SECP256R1}};
+  app
+    .add_option(
+      "--curve-id",
+      curve_id,
+      "Elliptic curve to use as for node and network identities (used for TLS "
+      "and ledger signatures)")
+    ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
+    ->capture_default_str();
+
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
@@ -427,20 +440,6 @@ int main(int argc, char** argv)
       "Destination path to freshly created network certificate")
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
-
-  crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
-  std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
-    {"secp384r1", crypto::CurveID::SECP384R1},
-    {"secp256r1", crypto::CurveID::SECP256R1}};
-  app
-    .add_option(
-      "--curve-id",
-      curve_id,
-      "Elliptic curve to use as for node and network identities (used for TLS "
-      "and ledger "
-      "signatures")
-    ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
-    ->capture_default_str();
 
   CLI11_PARSE(app, argc, argv);
 

@@ -505,6 +505,13 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME recovery_test_curve_256
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --recovery 3 --curve-id secp256r1
+  )
+
+  add_e2e_test(
     NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS cft
