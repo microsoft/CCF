@@ -246,7 +246,7 @@ class Consortium:
                 proposal.state = infra.proposal.ProposalState(
                     response.body.json()["state"]
                 )
-                proposal.increment_votes_for()
+                proposal.increment_votes_for(member.service_id)
 
         # Wait for proposal completion to be committed, even if no votes are issued
         if wait_for_global_commit:

@@ -15,14 +15,10 @@ from loguru import logger as LOG
 import suite.test_requirements as reqs
 
 
-def count_governance_operations(ledger):
+def check_operations(ledger, operations):
     LOG.debug("Audit the ledger file for governance operations")
 
     members = {}
-    verified_votes = 0
-    verified_proposals = 0
-    verified_withdrawals = 0
-
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
@@ -35,7 +31,6 @@ def count_governance_operations(ledger):
                 governance_history_table = tables["public:ccf.gov.history"]
                 for member_id, signed_request in governance_history_table.items():
                     assert member_id in members
-
                     signed_request = json.loads(signed_request)
 
                     cert = members[member_id]
@@ -50,14 +45,19 @@ def count_governance_operations(ledger):
                     request_target_line = req.decode().splitlines()[0]
                     if "/gov/proposals" in request_target_line:
                         vote_suffix = "/ballots"
+                        elements = request_target_line.split("/")
                         if request_target_line.endswith(vote_suffix):
-                            verified_votes += 1
+                            op = (elements[-2], member_id.decode(), "vote")
                         elif request_target_line.endswith("/withdraw"):
-                            verified_withdrawals += 1
+                            op = (elements[-2], member_id.decode(), "withdraw")
                         else:
-                            verified_proposals += 1
+                            (proposal_id,) = tables["public:ccf.gov.proposals"].keys()
+                            op = (proposal_id.decode(), member_id.decode(), "propose")
 
-    return (verified_proposals, verified_votes, verified_withdrawals)
+                        if op in operations:
+                            operations.remove(op)
+
+    assert operations == set(), operations
 
 
 def check_all_tables_are_documented(ledger, doc_path):
@@ -100,10 +100,8 @@ def test_ledger_is_readable(network, args):
 
 
 def run(args):
-    # Keep track of how many propose, vote and withdraw are issued in this test
-    proposals_issued = 0
-    votes_issued = 0
-    withdrawals_issued = 0
+    # Keep track of governance operations that happened in the test
+    governance_operations = set()
 
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -112,14 +110,6 @@ def run(args):
         primary, _ = network.find_primary()
 
         ledger_directories = primary.remote.ledger_paths()
-
-        ledger = ccf.ledger.Ledger(ledger_directories)
-        (
-            original_proposals,
-            original_votes,
-            original_withdrawals,
-        ) = count_governance_operations(ledger)
-
         LOG.info("Add new member proposal (implicit vote)")
         (
             new_member_proposal,
@@ -128,20 +118,31 @@ def run(args):
         ) = network.consortium.generate_and_propose_new_member(
             primary, curve=infra.network.ParticipantsCurve.secp256r1
         )
-        proposals_issued += 1
+        member = network.consortium.get_member_by_local_id(
+            new_member_proposal.proposer_id
+        )
+        governance_operations.add(
+            (new_member_proposal.proposal_id, member.service_id, "propose")
+        )
 
         LOG.info("2/3 members accept the proposal")
         p = network.consortium.vote_using_majority(
             primary, new_member_proposal, careful_vote
         )
-        votes_issued += p.votes_for
+        for voter in p.voters:
+            governance_operations.add((p.proposal_id, voter, "vote"))
         assert new_member_proposal.state == infra.proposal.ProposalState.ACCEPTED
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
         new_member_proposal, _, _ = network.consortium.generate_and_propose_new_member(
             primary, curve=infra.network.ParticipantsCurve.secp256r1
         )
-        proposals_issued += 1
+        member = network.consortium.get_member_by_local_id(
+            new_member_proposal.proposer_id
+        )
+        governance_operations.add(
+            (new_member_proposal.proposal_id, member.service_id, "propose")
+        )
 
         with primary.client() as c:
             response = network.consortium.get_member_by_local_id(
@@ -150,29 +151,20 @@ def run(args):
             infra.checker.Checker(c)(response)
         assert response.status_code == http.HTTPStatus.OK.value
         assert response.body.json()["state"] == ProposalState.WITHDRAWN.value
-        withdrawals_issued += 1
+        member = network.consortium.get_member_by_local_id(
+            new_member_proposal.proposer_id
+        )
+        governance_operations.add(
+            (new_member_proposal.proposal_id, member.service_id, "withdraw")
+        )
+
+        # Force ledger flush of all transactions so far
+        network.get_latest_ledger_public_state()
+        ledger = ccf.ledger.Ledger(ledger_directories)
+        check_operations(ledger, governance_operations)
 
         test_ledger_is_readable(network, args)
         test_tables_doc(network, args)
-
-    # Refresh ledger to beginning
-    ledger = ccf.ledger.Ledger(ledger_directories)
-
-    (
-        final_proposals,
-        final_votes,
-        final_withdrawals,
-    ) = count_governance_operations(ledger)
-
-    assert (
-        final_proposals == original_proposals + proposals_issued
-    ), f"Unexpected number of propose operations recorded in the ledger (expected {original_proposals + proposals_issued}, found {final_proposals})"
-    assert (
-        final_votes == original_votes + votes_issued
-    ), f"Unexpected number of vote operations recorded in the ledger (expected {original_votes + votes_issued}, found {final_votes})"
-    assert (
-        final_withdrawals == original_withdrawals + withdrawals_issued
-    ), f"Unexpected number of withdraw operations recorded in the ledger (expected {original_withdrawals + withdrawals_issued}, found {final_withdrawals})"
 
 
 if __name__ == "__main__":
