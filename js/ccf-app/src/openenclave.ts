@@ -7,11 +7,11 @@
  * @module
  */
 
-import { ccf } from "./global";
+import { openenclave } from "./global";
 
 /**
- * @inheritDoc CCF.verifyOpenEnclaveEvidence
+ * @inheritDoc OpenEnclave.verifyOpenEnclaveEvidence
  */
-export const verifyOpenEnclaveEvidence = ccf.verifyOpenEnclaveEvidence;
+export const verifyOpenEnclaveEvidence = openenclave.verifyOpenEnclaveEvidence;
 
 export { EvidenceClaims } from "./global";
