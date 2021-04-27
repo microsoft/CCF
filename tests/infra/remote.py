@@ -579,6 +579,7 @@ class CCFRemote(object):
         snapshot_tx_interval=None,
         max_open_sessions=None,
         jwt_key_refresh_interval_s=None,
+        curve_id=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -682,6 +683,9 @@ class CCFRemote(object):
 
         if self.common_read_only_ledger_dir is not None:
             cmd += [f"--read-only-ledger-dir={self.common_read_only_ledger_dir}"]
+
+        if curve_id is not None:
+            cmd += [f"--curve-id={curve_id.name}"]
 
         if start_type == StartType.new:
             cmd += [
