@@ -40,12 +40,12 @@ class ServiceStatus(Enum):
     CLOSED = "Closed"
 
 
-class ParticipantsCurve(IntEnum):
+class EllipticCurve(IntEnum):
     secp384r1 = 0
     secp256r1 = 1
 
     def next(self):
-        return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
+        return EllipticCurve((self.value + 1) % len(EllipticCurve))
 
 
 class PrimaryNotFound(Exception):
@@ -97,6 +97,7 @@ class Network:
         "max_open_sessions",
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",
+        "curve_id",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
