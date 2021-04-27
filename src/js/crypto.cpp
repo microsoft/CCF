@@ -116,7 +116,7 @@ namespace js
     return JS_NewArrayBufferCopy(ctx, h.data(), h.size());
   }
 
-  static JSValue js_is_valid_pem(
+  static JSValue js_is_valid_x509_cert_bundle(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
     if (argc != 1)
@@ -140,6 +140,7 @@ namespace js
     }
     catch (const std::logic_error& e)
     {
+      LOG_DEBUG_FMT("isValidX509Chain: {}", e.what());
       return JS_FALSE;
     }
 

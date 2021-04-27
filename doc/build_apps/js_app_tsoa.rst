@@ -15,7 +15,7 @@ folder of the CCF git repository.
 
 .. note::
    tsoa currently focuses on JSON as content type.
-   Using other content types is possible but requires to :ref:`manually specify the OpenAPI definition <build_apps/js_app_tsoa>`.
+   Using other content types is possible but requires to :ref:`manually specify the OpenAPI definition <build_apps/js_app_tsoa:TypeScript Application using tsoa>`.
 
 Prerequisites
 -------------
@@ -41,10 +41,13 @@ The sample app has the following folder layout:
     │   │   └── site.ts
     │   ├── models
     │   │   └── poll.ts
+    │   ├── services
+    │   │   ├── csv.ts
+    │   │   └── poll.ts
     │   ├── authentication.ts
+    │   ├── constants.ts
     │   └── error_handler.ts
     ├── tsoa-support
-    │   ├── entry.ts
     │   ├── postprocess.js
     │   └── routes.ts.tmpl
     ├── app.tmpl.json
@@ -56,9 +59,11 @@ The sample app has the following folder layout:
 It contains these files:
 
 - ``src/controllers/*.ts``: :ref:`build_apps/js_app_tsoa:Controllers`.
-- ``src/models/*.ts``: Data models shared between endpoint handlers.
+- ``src/models/*.ts``: Data models shared between different app components.
+- ``src/services/*.ts``: Business logic, called by controllers.
 - ``src/authentication.ts``: `authentication module <https://tsoa-community.github.io/docs/authentication.html>`_. 
   See also :ref:`build_apps/auth/jwt_ms_example:JWT Authentication example using Microsoft Identity Platform`.
+- ``src/constants.ts``: app-wide constants.
 - ``src/error_handler.ts``: global error handler.
 - ``tsoa-support/*``: Supporting scripts used during :ref:`build_apps/js_app_tsoa:Conversion to an app bundle`.
 - ``app.tmpl.json``: :ref:`App metadata <build_apps/js_app_tsoa:Metadata>`.
@@ -84,7 +89,7 @@ One of them is the :typedoc:package:`ccf-app` package.
 This package is referenced locally using ``file:``.
 You should replace this with a reference to a published version (adjust the version number accordingly):
 
-.. code-block:: json
+.. code-block:: js
 
     "@microsoft/ccf-app": "~0.19.4",
 

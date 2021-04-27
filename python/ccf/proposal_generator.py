@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
-from collections import abc
 import inspect
 import json
 import glob
@@ -10,61 +9,17 @@ import os
 import sys
 import shutil
 import tempfile
-from typing import Union, Optional, Any, List, Dict
+from typing import Optional, Any, List, Dict
 
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
 from loguru import logger as LOG  # type: ignore
 
 
-GENERATE_JS_PROPOSALS = os.getenv("JS_GOVERNANCE")
-
-
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):
     with open(output_path, "w") as f:
         json.dump(obj, f, **dump_args)
 
-
-def as_lua_literal(arg):
-    if isinstance(arg, str):
-        # This long string swallows any initial newline. This means if we
-        # had an actual newline, it will be lost. To work around this, we
-        # insert a newline to every string. If there was originally a
-        # newline at the start, its now the second character, and is kept.
-        return f"[====[\n{arg}]====]"
-    elif isinstance(arg, bool):
-        return str(arg).lower()
-    elif isinstance(arg, abc.Sequence):
-        return f"{{ {', '.join(as_lua_literal(e) for e in arg)} }}"
-    elif isinstance(arg, abc.Mapping):
-        inner = ", ".join(
-            f"[ {as_lua_literal(k)} ] = {as_lua_literal(v)}" for k, v in arg.items()
-        )
-        return f"{{ {inner} }}"
-    else:
-        return str(arg)
-
-
-LUA_FUNCTION_EQUAL_TABLES = """function equal_tables(a, b)
-  if #a ~= #b then
-    return false
-  else
-    for k, v in pairs(a) do
-      if type(v) ~= type(b[k]) then
-        return false
-      elseif type(v) == "table" then
-        if not equal_tables(v, b[k]) then
-          return false
-        end
-      else
-        if v ~= b[k] then
-          return false
-        end
-      end
-    end
-    return true
-  end
-end"""
 
 DEFAULT_PROPOSAL_OUTPUT = "{proposal_name}_proposal.json"
 DEFAULT_VOTE_OUTPUT = "{proposal_name}_vote_for.json"
@@ -102,43 +57,6 @@ def complete_vote_output_path(
     return vote_output_path
 
 
-def add_arg_construction(
-    lines: list,
-    arg: Union[str, abc.Sequence, abc.Mapping],
-    arg_name: str = "args",
-):
-    lines.append(f"{arg_name} = {as_lua_literal(arg)}")
-
-
-def add_arg_checks(
-    lines: list,
-    arg: Union[str, abc.Sequence, abc.Mapping],
-    arg_name: str = "args",
-    added_equal_tables_fn: bool = False,
-):
-    lines.append(f"if {arg_name} == nil then return false end")
-    if isinstance(arg, str):
-        lines.append(
-            f"if not {arg_name} == {as_lua_literal(arg)} then return false end"
-        )
-    elif isinstance(arg, abc.Sequence) or isinstance(arg, abc.Mapping):
-        if not added_equal_tables_fn:
-            lines.extend(
-                line.strip() for line in LUA_FUNCTION_EQUAL_TABLES.splitlines()
-            )
-            added_equal_tables_fn = True
-        expected_name = "expected"
-        lines.append(f"{expected_name} = {as_lua_literal(arg)}")
-        lines.append(
-            f"if not equal_tables({arg_name}, {expected_name}) then return false end"
-        )
-    else:
-        lines.append(
-            f"if not {arg_name} == {as_lua_literal(arg)} then return false end"
-        )
-    return added_equal_tables_fn
-
-
 def build_proposal(
     proposed_call: str,
     args: Optional[Any] = None,
@@ -149,71 +67,37 @@ def build_proposal(
     proposal: Dict[str, Any] = {}
     vote: Dict[str, Any] = {}
 
-    if GENERATE_JS_PROPOSALS:
-        action = {"name": proposed_call, "args": args}
-        actions = [action]
-        proposal = {"actions": actions}
+    action = {"name": proposed_call, "args": args}
+    actions = [action]
+    proposal = {"actions": actions}
 
-        vote_lines = []
-        vote_lines.append("export function vote (raw_proposal, proposer_id) {")
-        vote_lines.append("  let proposal = JSON.parse(raw_proposal);")
-        vote_lines.append("  if (!('actions' in proposal)) { return false; };")
-        vote_lines.append("  let actions = proposal['actions'];")
-        vote_lines.append("  if (actions.length !== 1) { return false; };")
-        vote_lines.append("  let action = actions[0];")
-        vote_lines.append("  if (!('name' in action)) { return false; };")
-        vote_lines.append(
-            f"  if (action.name !== '{proposed_call}') {{ return false; }};"
-        )
+    vote_lines = []
+    vote_lines.append("export function vote (rawProposal, proposerId) {")
+    vote_lines.append("  let proposal = JSON.parse(rawProposal);")
+    vote_lines.append("  if (!('actions' in proposal)) { return false; };")
+    vote_lines.append("  let actions = proposal['actions'];")
+    vote_lines.append("  if (actions.length !== 1) { return false; };")
+    vote_lines.append("  let action = actions[0];")
+    vote_lines.append("  if (!('name' in action)) { return false; };")
+    vote_lines.append(f"  if (action.name !== '{proposed_call}') {{ return false; }};")
 
-        if args is not None:
-            vote_lines.append("  if (!('args' in action)) { return false; };")
-            vote_lines.append("  let args = action.args;")
+    if args is not None:
+        vote_lines.append("  if (!('args' in action)) { return false; };")
+        vote_lines.append("  let args = action.args;")
 
-            for name, body in args.items():
-                vote_lines.append("  {")
-                vote_lines.append(f"    if (!('{name}' in args)) {{ return false; }};")
-                vote_lines.append(f"    let expected = {json.dumps(body)};")
-                vote_lines.append(
-                    f"    if (JSON.stringify(args['{name}']) !== JSON.stringify(expected)) {{ return false; }};"
-                )
-                vote_lines.append("  }")
+        for name, body in args.items():
+            vote_lines.append("  {")
+            vote_lines.append(f"    if (!('{name}' in args)) {{ return false; }};")
+            vote_lines.append(f"    let expected = {json.dumps(body)};")
+            vote_lines.append(
+                f"    if (JSON.stringify(args['{name}']) !== JSON.stringify(expected)) {{ return false; }};"
+            )
+            vote_lines.append("  }")
 
-        vote_lines.append("  return true;")
-        vote_lines.append("}")
-        vote_text = "\n".join(vote_lines)
-        vote = {"ballot": vote_text}
-
-    else:
-        proposal_script_lines = []
-        if args is None:
-            proposal_script_lines.append(f'return Calls:call("{proposed_call}")')
-        else:
-            if inline_args:
-                add_arg_construction(proposal_script_lines, args)
-            else:
-                proposal_script_lines.append("tables, args = ...")
-            proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
-
-        proposal_script_text = ";\n".join(proposal_script_lines)
-        proposal = {
-            "script": {"text": proposal_script_text},
-        }
-        if args is not None and not inline_args:
-            proposal["parameter"] = args
-
-        vote_lines = [
-            "tables, calls = ...",
-            "if not #calls == 1 then return false end",
-            "call = calls[1]",
-            f'if not call.func == "{proposed_call}" then return false end',
-        ]
-        if args is not None:
-            vote_lines.append("args = call.args")
-            add_arg_checks(vote_lines, args)
-        vote_lines.append("return true")
-        vote_text = ";\n".join(vote_lines)
-        vote = {"ballot": {"text": vote_text}}
+    vote_lines.append("  return true;")
+    vote_lines.append("}")
+    vote_text = "\n".join(vote_lines)
+    vote = {"ballot": vote_text}
 
     LOG.trace(f"Made {proposed_call} proposal:\n{json.dumps(proposal, indent=2)}")
     LOG.trace(f"Accompanying vote:\n{json.dumps(vote, indent=2)}")
@@ -224,25 +108,6 @@ def build_proposal(
 def cli_proposal(func):
     func.is_cli_proposal = True
     return func
-
-
-@cli_proposal
-def new_member(
-    member_cert_path: str,
-    member_enc_pubk_path: str = None,
-    member_data: Any = None,
-    **kwargs,
-):
-    member_info = {"cert": open(member_cert_path).read()}
-    if member_enc_pubk_path is not None:
-        member_info["encryption_pub_key"] = open(member_enc_pubk_path).read()
-    if member_data is not None:
-        member_info["member_data"] = member_data
-
-    if GENERATE_JS_PROPOSALS:
-        return build_proposal("set_member", member_info, **kwargs)
-    else:
-        return build_proposal("new_member", member_info, **kwargs)
 
 
 @cli_proposal
@@ -263,7 +128,7 @@ def set_member(
 
 @cli_proposal
 def remove_member(member_id: str, **kwargs):
-    args = {"member_id": member_id} if GENERATE_JS_PROPOSALS else member_id
+    args = {"member_id": member_id}
     return build_proposal("remove_member", args, **kwargs)
 
 
@@ -283,7 +148,7 @@ def set_user(user_cert_path: str, user_data: Any = None, **kwargs):
 
 @cli_proposal
 def remove_user(user_id: str, **kwargs):
-    args = {"user_id": user_id} if GENERATE_JS_PROPOSALS else user_id
+    args = {"user_id": user_id}
     return build_proposal("remove_user", args, **kwargs)
 
 
@@ -291,6 +156,13 @@ def remove_user(user_id: str, **kwargs):
 def set_user_data(user_id: str, user_data: Any, **kwargs):
     proposal_args = {"user_id": user_id, "user_data": user_data}
     return build_proposal("set_user_data", proposal_args, **kwargs)
+
+
+@cli_proposal
+def set_constitution(constitution_paths: List[str], **kwargs):
+    concatenated = "\n".join(open(path, "r").read() for path in constitution_paths)
+    proposal_args = {"constitution": concatenated}
+    return build_proposal("set_constitution", proposal_args, **kwargs)
 
 
 @cli_proposal
@@ -344,16 +216,6 @@ def read_modules(modules_path: str) -> List[dict]:
 
 
 @cli_proposal
-def trust_node(node_id: str, **kwargs):
-    return build_proposal("trust_node", node_id, **kwargs)
-
-
-@cli_proposal
-def retire_node(node_id: str, **kwargs):
-    return build_proposal("retire_node", node_id, **kwargs)
-
-
-@cli_proposal
 def transition_node_to_trusted(node_id: str, **kwargs):
     return build_proposal("transition_node_to_trusted", {"node_id": node_id}, **kwargs)
 
@@ -361,16 +223,6 @@ def transition_node_to_trusted(node_id: str, **kwargs):
 @cli_proposal
 def remove_node(node_id: str, **kwargs):
     return build_proposal("remove_node", {"node_id": node_id}, **kwargs)
-
-
-@cli_proposal
-def new_node_code(code_digest: str, **kwargs):
-    return build_proposal("new_node_code", code_digest, **kwargs)
-
-
-@cli_proposal
-def retire_node_code(code_digest: str, **kwargs):
-    return build_proposal("retire_node_code", code_digest, **kwargs)
 
 
 @cli_proposal
@@ -389,24 +241,8 @@ def transition_service_to_open(**kwargs):
 
 
 @cli_proposal
-def rekey_ledger(**kwargs):
-    if GENERATE_JS_PROPOSALS:
-        return build_proposal("trigger_ledger_rekey", **kwargs)
-    else:
-        return build_proposal("rekey_ledger", **kwargs)
-
-
-@cli_proposal
 def trigger_ledger_rekey(**kwargs):
     return build_proposal("trigger_ledger_rekey", **kwargs)
-
-
-@cli_proposal
-def update_recovery_shares(**kwargs):
-    if GENERATE_JS_PROPOSALS:
-        return build_proposal("trigger_recovery_shares_refresh", **kwargs)
-    else:
-        return build_proposal("update_recovery_shares", **kwargs)
 
 
 @cli_proposal
@@ -416,9 +252,7 @@ def trigger_recovery_shares_refresh(**kwargs):
 
 @cli_proposal
 def set_recovery_threshold(threshold: int, **kwargs):
-    proposal_args = (
-        {"recovery_threshold": threshold} if GENERATE_JS_PROPOSALS else threshold
-    )
+    proposal_args = {"recovery_threshold": threshold}
     return build_proposal("set_recovery_threshold", proposal_args, **kwargs)
 
 
@@ -446,7 +280,7 @@ def set_ca_cert_bundle(cert_bundle_name, cert_bundle_path, skip_checks=False, **
 
 @cli_proposal
 def remove_ca_cert_bundle(cert_bundle_name, **kwargs):
-    args = {"name": cert_bundle_name} if GENERATE_JS_PROPOSALS else cert_bundle_name
+    args = {"name": cert_bundle_name}
     return build_proposal("remove_ca_cert_bundle", args, **kwargs)
 
 
@@ -494,7 +328,7 @@ if __name__ == "__main__":
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/votes) will be dumped. Default is {DEFAULT_VOTE_OUTPUT}",
+        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/ballots) will be dumped. Default is {DEFAULT_VOTE_OUTPUT}",
     )
     parser.add_argument(
         "-pp",
@@ -528,15 +362,18 @@ if __name__ == "__main__":
         parameters = inspect.signature(func).parameters
         func_param_names = []
         for param_name, param in parameters.items():
+            add_argument_extras = {}
             if param.kind == param.VAR_POSITIONAL or param.kind == param.VAR_KEYWORD:
                 continue
             if param.annotation == param.empty:
                 param_type = None
             elif param.annotation == dict or param.annotation == Any:
                 param_type = json.loads
+            elif param.annotation == List[str]:
+                add_argument_extras["nargs"] = "+"
+                param_type = str  # type: ignore
             else:
                 param_type = param.annotation
-            add_argument_extras = {}
             if param.default is None:
                 add_argument_extras["nargs"] = "?"
                 add_argument_extras["default"] = param.default  # type: ignore

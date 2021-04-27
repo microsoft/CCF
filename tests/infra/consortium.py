@@ -13,6 +13,7 @@ import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
+from ccf.ledger import NodeStatus
 import ccf.proposal_generator
 import ccf.ledger
 from infra.proposal import ProposalState
@@ -156,7 +157,7 @@ class Consortium:
         )
 
         proposal_body, careful_vote = self.make_proposal(
-            "new_member",
+            "set_member",
             os.path.join(self.common_dir, f"{new_member_local_id}_cert.pem"),
             os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
             if recovery_member
@@ -265,39 +266,41 @@ class Consortium:
         if proposal.state == ProposalState.ACCEPTED:
             proposal.set_completed(seqno, view)
         else:
+            LOG.error(
+                json.dumps(
+                    self.get_proposal(remote_node, proposal.proposal_id), indent=2
+                )
+            )
             raise infra.proposal.ProposalNotAccepted(proposal)
 
         return proposal
 
+    def get_proposal(self, remote_node, proposal_id):
+        member = self.get_any_active_member()
+        with remote_node.client(*member.auth()) as c:
+            r = c.get(f"/gov/proposals/{proposal_id}")
+            assert r.status_code == http.HTTPStatus.OK.value
+            return r.body.json()
+
     def retire_node(self, remote_node, node_to_retire):
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
-        if os.getenv("JS_GOVERNANCE"):
-            proposal_body, careful_vote = self.make_proposal(
-                "remove_node", node_to_retire.node_id
-            )
-        else:
-            proposal_body, careful_vote = self.make_proposal(
-                "retire_node", node_to_retire.node_id
-            )
+        proposal_body, careful_vote = self.make_proposal(
+            "remove_node", node_to_retire.node_id
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
         with remote_node.client() as c:
             r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
-            assert r.body.json()["status"] == infra.node.NodeStatus.RETIRED.value
+            assert r.body.json()["status"] == NodeStatus.RETIRED.value
 
     def trust_node(self, remote_node, node_id, timeout=3):
-        if not self._check_node_exists(
-            remote_node, node_id, infra.node.NodeStatus.PENDING
-        ):
+        if not self._check_node_exists(remote_node, node_id, NodeStatus.PENDING):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        if os.getenv("JS_GOVERNANCE"):
-            proposal_body, careful_vote = self.make_proposal(
-                "transition_node_to_trusted", node_id
-            )
-        else:
-            proposal_body, careful_vote = self.make_proposal("trust_node", node_id)
+        proposal_body, careful_vote = self.make_proposal(
+            "transition_node_to_trusted", node_id
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node,
@@ -307,9 +310,7 @@ class Consortium:
             timeout=timeout,
         )
 
-        if not self._check_node_exists(
-            remote_node, node_id, infra.node.NodeStatus.TRUSTED
-        ):
+        if not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def remove_member(self, remote_node, member_to_remove):
@@ -322,12 +323,14 @@ class Consortium:
         member_to_remove.set_retired()
 
     def trigger_ledger_rekey(self, remote_node):
-        proposal_body, careful_vote = self.make_proposal("rekey_ledger")
+        proposal_body, careful_vote = self.make_proposal("trigger_ledger_rekey")
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def trigger_recovery_shares_refresh(self, remote_node):
-        proposal_body, careful_vote = self.make_proposal("update_recovery_shares")
+        proposal_body, careful_vote = self.make_proposal(
+            "trigger_recovery_shares_refresh"
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
@@ -371,6 +374,13 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def set_constitution(self, remote_node, constitution_paths):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_constitution", constitution_paths
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def set_js_app(self, remote_node, app_bundle_path):
         proposal_body, careful_vote = self.make_proposal("set_js_app", app_bundle_path)
@@ -466,26 +476,12 @@ class Consortium:
         return r
 
     def add_new_code(self, remote_node, new_code_id):
-        if os.getenv("JS_GOVERNANCE"):
-            proposal_body, careful_vote = self.make_proposal(
-                "add_node_code", new_code_id
-            )
-        else:
-            proposal_body, careful_vote = self.make_proposal(
-                "new_node_code", new_code_id
-            )
+        proposal_body, careful_vote = self.make_proposal("add_node_code", new_code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
     def retire_code(self, remote_node, code_id):
-        if os.getenv("JS_GOVERNANCE"):
-            proposal_body, careful_vote = self.make_proposal(
-                "remove_node_code", code_id
-            )
-        else:
-            proposal_body, careful_vote = self.make_proposal(
-                "retire_node_code", code_id
-            )
+        proposal_body, careful_vote = self.make_proposal("remove_node_code", code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
@@ -547,5 +543,5 @@ class Consortium:
     def wait_for_all_nodes_to_be_trusted(self, remote_node, nodes, timeout=3):
         for n in nodes:
             self.wait_for_node_to_exist_in_store(
-                remote_node, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
+                remote_node, n.node_id, timeout, NodeStatus.TRUSTED
             )

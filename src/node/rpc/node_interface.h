@@ -44,5 +44,6 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der) = 0;
+    virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
   };
 }

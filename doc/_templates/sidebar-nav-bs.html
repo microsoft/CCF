@@ -24,45 +24,23 @@
 </script>
 
 <nav class="bd-links" id="bd-docs-nav" aria-label="Main navigation">
+  <div class="bd-toc-item active">
+    {{ generate_nav_html("sidebar",
+                         maxdepth=theme_navigation_depth|int,
+                         collapse=theme_collapse_navigation|tobool,
+                         includehidden=True,
+                         titles_only=True) }}
+  </div>
 
-    <div class="bd-toc-item active">
-        {% set nav = get_nav_object(maxdepth=3, collapse=True) %}
-
-        <ul class="nav bd-sidenav">
-            {% for main_nav_item in nav %}
-            {% if main_nav_item.active %}
-            {% for nav_item in main_nav_item.children %}
-            {% if nav_item.children %}
-
-            <li class="{% if nav_item.active%}active{% endif %}">
-                <a href="{{ nav_item.url }}">{{ nav_item.title }}</a>
-                <ul>
-                    {% for nav_item in nav_item.children %}
-                    <li class="{% if nav_item.active%}active{% endif %}">
-                        <a href="{{ nav_item.url }}">{{ nav_item.title }}</a>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </li>
-            {% else %}
-            <li class="{% if nav_item.active%}active{% endif %}">
-                <a href="{{ nav_item.url }}">{{ nav_item.title }}</a>
-            </li>
-            {% endif %}
-            {% endfor %}
-            {% endif %}
-            {% endfor %}
-        </ul>
-
-        {% if versions %}
-        <h6> Versions </h6>
-        <select name="versions" id="versions" class="custom-select custom-select-sm" style="width:50%" onchange="onVersionChange()">
-            {%- for item in versions.branches|sort(attribute='name', reverse=True) %}
-            <option value="{{ item.url }}">{{ item.name }} </option>
-            {%- endfor %}
-            {%- for item in versions.tags|sort(attribute='name', reverse=True) %}
-            <option value="{{ item.url }}">{{ item.name }} </option>
-            {%- endfor %}
-        </select>
-        {% endif %}
+  {% if versions %}
+  <h6> Versions </h6>
+  <select name="versions" id="versions" class="custom-select custom-select-sm" style="width:50%" onchange="onVersionChange()">
+      {%- for item in versions.branches|sort(attribute='name', reverse=True) %}
+      <option value="{{ item.url }}">{{ item.name }} </option>
+      {%- endfor %}
+      {%- for item in versions.tags|sort(attribute='name', reverse=True) %}
+      <option value="{{ item.url }}">{{ item.name }} </option>
+      {%- endfor %}
+  </select>
+  {% endif %}
 </nav>

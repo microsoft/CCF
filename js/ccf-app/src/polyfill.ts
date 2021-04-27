@@ -71,6 +71,12 @@ class CCFPolyfill implements CCF {
     },
   });
 
+  rpc = {
+    setApplyWrites(force: boolean) {
+      throw new Error("Not implemented");
+    },
+  };
+
   strToBuf(s: string): ArrayBuffer {
     return typedArrToArrBuf(new TextEncoder().encode(s));
   }
@@ -160,6 +166,31 @@ class CCFPolyfill implements CCF {
       );
     } else {
       throw new Error("unsupported algorithm");
+    }
+  }
+
+  isValidX509CertBundle(pem: string): boolean {
+    if ("X509Certificate" in crypto) {
+      const sep = "-----END CERTIFICATE-----";
+      const items = pem.split(sep);
+      if (items.length === 1) {
+        return false;
+      }
+      const pems = items.slice(0, -1).map((p) => p + sep);
+      for (const [i, p] of pems.entries()) {
+        try {
+          new (<any>crypto).X509Certificate(p);
+        } catch (e) {
+          console.error(`cert ${i} is not valid: ${e.message}`);
+          console.error(p);
+          return false;
+        }
+      }
+      return true;
+    } else {
+      throw new Error(
+        "X509 validation unsupported, Node.js version too old (< 15.6.0)"
+      );
     }
   }
 }

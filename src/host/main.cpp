@@ -169,6 +169,15 @@ int main(int argc, char** argv)
       "Number of transactions between snapshots")
     ->capture_default_str();
 
+  size_t max_open_sessions = 1'000;
+  app
+    .add_option(
+      "--max-open-sessions",
+      max_open_sessions,
+      "Number of TLS sessions which may be open at the same time. Additional "
+      "connections past this limit will be refused")
+    ->capture_default_str();
+
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
   for (int i = logger::MOST_VERBOSE; i < logger::MAX_LOG_LEVEL; i++)
@@ -353,17 +362,6 @@ int main(int argc, char** argv)
       "Destination path to freshly created network certificate")
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
-
-  std::string gov_script = "gov.lua";
-  start
-    ->add_option(
-      "--gov-script",
-      gov_script,
-      "Path to Lua file that defines the contents of the "
-      "public:ccf.gov.scripts table")
-    ->capture_default_str()
-    ->check(CLI::ExistingFile)
-    ->required();
 
   std::vector<std::string> constitution_paths;
   start
@@ -691,6 +689,7 @@ int main(int argc, char** argv)
                                     public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
+    ccf_config.max_open_sessions = max_open_sessions;
 
     ccf_config.subject_name = subject_name;
     ccf_config.subject_alternative_names = subject_alternative_names;
@@ -723,10 +722,15 @@ int main(int argc, char** argv)
         ccf_config.genesis.members_info.emplace_back(
           files::slurp(m_info.cert_file), public_encryption_key_file, md);
       }
-      ccf_config.genesis.gov_script = files::slurp_string(gov_script);
       ccf_config.genesis.constitution = "";
       for (const auto& constitution_path : constitution_paths)
       {
+        // Separate with single newlines
+        if (!ccf_config.genesis.constitution.empty())
+        {
+          ccf_config.genesis.constitution += '\n';
+        }
+
         ccf_config.genesis.constitution +=
           files::slurp_string(constitution_path);
       }
@@ -771,9 +775,10 @@ int main(int argc, char** argv)
             snapshot));
         }
 
-        ccf_config.startup_snapshot = files::slurp(snapshot);
+        ccf_config.startup_snapshot = snapshots.read_snapshot(snapshot);
         ccf_config.startup_snapshot_evidence_seqno =
           snapshot_evidence_idx->first;
+
         LOG_INFO_FMT(
           "Found latest snapshot file: {} (size: {}, evidence seqno: {})",
           snapshot,

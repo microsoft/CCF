@@ -83,6 +83,6 @@ It is recommended for operators to backup the ledger and snapshot files as soon 
 
 A low value for ``--ledger-chunk-bytes`` means that smaller ledger files are generated and can thus be backed up by operators more regularly, at the cost of having to manage a large number of ledger files.
 
-.. note:: Uncommitted ledger files (which are likely to contain committed transactions) can also be used on join/recovery, as long as they are copied to the node's ``--ledger-dir`` directory.
-
 Similarly, a low value for ``--snapshot-tx-interval`` means that snapshots are generated often and that join/recovery time will be short, at the cost of additional workload of the primary node for snapshot generation.
+
+.. tip:: Uncommitted ledger files (which are likely to contain committed transactions) can also be used on join/recovery, as long as they are copied to the node's ``--ledger-dir`` directory.

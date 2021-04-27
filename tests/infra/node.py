@@ -23,12 +23,6 @@ class NodeNetworkState(Enum):
     joined = auto()
 
 
-class NodeStatus(Enum):
-    PENDING = "Pending"
-    TRUSTED = "Trusted"
-    RETIRED = "Retired"
-
-
 class State(Enum):
     UNINITIALIZED = "Uninitialized"
     INITIALIZED = "Initialized"
@@ -322,27 +316,27 @@ class Node:
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                ledger = ccf.ledger.Ledger(self.remote.ledger_path())
+                ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
                 tx = ledger.get_transaction(seqno)
                 return tx.get_public_domain().get_tables()
             except Exception:
                 time.sleep(0.1)
 
         raise TimeoutError(
-            f"Could not read transaction at seqno {seqno} from ledger {self.remote.ledger_path()}"
+            f"Could not read transaction at seqno {seqno} from ledger {self.remote.ledger_paths()}"
         )
 
     def get_latest_ledger_public_state(self, timeout=3):
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                ledger = ccf.ledger.Ledger(self.remote.ledger_path())
+                ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
                 return ledger.get_latest_public_state()
             except Exception:
                 time.sleep(0.1)
 
         raise TimeoutError(
-            f"Could not read latest state from ledger {self.remote.ledger_path()}"
+            f"Could not read latest state from ledger {self.remote.ledger_paths()}"
         )
 
     def get_ledger(self, include_read_only_dirs=False):

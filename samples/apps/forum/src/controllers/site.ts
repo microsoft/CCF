@@ -88,7 +88,7 @@ async function initUser() {
     const jwt = await handleRedirectLogin()
     if (jwt) {
         window.jwt = jwt
-        Cookies.set(jwtCookieName, jwt)
+        Cookies.set(jwtCookieName, jwt, { expires: 0.5 })
     } else {
         window.jwt = Cookies.get(jwtCookieName)
     }
@@ -125,6 +125,9 @@ function isLoggedIn() {
   }
 
   async function retrieve(url, method, body) {
+    if (!isLoggedIn()) {
+        throw new Error('Not logged in.')
+    }
     const response = await fetch(url, {
         method: method,
         headers: {
@@ -135,8 +138,8 @@ function isLoggedIn() {
     })
     if (!response.ok) {
         const error = await response.json()
-        console.error(error)
-        throw new Error(error.message)
+        console.error(error.error)
+        throw new Error(error.error.message)
     }
     return response
   }
@@ -434,7 +437,7 @@ $('#create-polls-btn').addEventListener('click', async () => {
     try {
         await createPolls(polls)
     } catch (e) {
-        window.alert(e)
+        window.alert(e.message)
         return
     }
     $('.alert').classList.add("show");
@@ -501,7 +504,7 @@ $('#submit-opinions-btn').addEventListener('click', async () => {
     try {
         await submitOpinions(opinions)
     } catch (e) {
-        window.alert(e)
+        window.alert(e.message)
         return
     }
     $('.alert').classList.add("show");

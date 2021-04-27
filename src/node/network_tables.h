@@ -22,14 +22,12 @@
 #include "secrets.h"
 #include "service.h"
 #include "service_map.h"
-#include "service_principals.h"
 #include "shares.h"
 #include "signatures.h"
 #include "snapshot_evidence.h"
 #include "submitted_shares.h"
 #include "users.h"
 #include "values.h"
-#include "whitelists.h"
 
 #include <memory>
 #include <tuple>
@@ -62,10 +60,7 @@ namespace ccf
     MmeberPublicEncryptionKeys member_encryption_public_keys;
     MemberInfo member_info;
 
-    Scripts gov_scripts;
     Modules modules;
-    Proposals proposals;
-    Whitelists whitelists;
     CodeIDs node_code_ids;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
@@ -85,8 +80,6 @@ namespace ccf
     //
     UserCerts user_certs;
     UserInfo user_info;
-
-    ServicePrincipals service_principals;
 
     //
     // Node table
@@ -123,10 +116,7 @@ namespace ccf
       member_certs(Tables::MEMBER_CERTS),
       member_encryption_public_keys(Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS),
       member_info(Tables::MEMBER_INFO),
-      gov_scripts(Tables::GOV_SCRIPTS),
       modules(Tables::MODULES),
-      proposals(Tables::PROPOSALS),
-      whitelists(Tables::WHITELISTS),
       node_code_ids(Tables::NODE_CODE_IDS),
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
@@ -140,7 +130,6 @@ namespace ccf
       jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
       user_certs(Tables::USER_CERTS),
       user_info(Tables::USER_INFO),
-      service_principals(Tables::SERVICE_PRINCIPALS),
       nodes(Tables::NODES),
       service(Tables::SERVICE),
       values(Tables::VALUES),
@@ -154,36 +143,5 @@ namespace ccf
       new_views_map(Tables::NEW_VIEWS),
       constitution(Tables::CONSTITUTION)
     {}
-
-    /** Returns a tuple of all tables that are possibly accessible from scripts
-     * (app and gov). More fine-grained access control is applied via
-     * whitelists.
-     */
-    auto get_scriptable_tables() const
-    {
-      return std::make_tuple(
-        std::ref(member_certs),
-        std::ref(member_encryption_public_keys),
-        std::ref(member_info),
-        std::ref(gov_scripts),
-        std::ref(modules),
-        std::ref(proposals),
-        std::ref(whitelists),
-        std::ref(node_code_ids),
-        std::ref(member_acks),
-        std::ref(governance_history),
-        std::ref(config),
-        std::ref(ca_cert_bundles),
-        std::ref(jwt_issuers),
-        std::ref(jwt_public_signing_keys),
-        std::ref(jwt_public_signing_key_issuer),
-        std::ref(user_certs),
-        std::ref(user_info),
-        std::ref(service_principals),
-        std::ref(nodes),
-        std::ref(service),
-        std::ref(values),
-        std::ref(signatures));
-    }
   };
 }

@@ -8,23 +8,29 @@ import suite.test_requirements as reqs
 import os
 import subprocess
 import reconfiguration
+import hashlib
 
 from loguru import logger as LOG
 
 
-def get_code_id(oe_binary_path, lib_path):
-    res = subprocess.run(
-        [os.path.join(oe_binary_path, "oesign"), "dump", "-e", lib_path],
-        capture_output=True,
-        check=True,
-    )
-    lines = [
-        line
-        for line in res.stdout.decode().split(os.linesep)
-        if line.startswith("mrenclave=")
-    ]
+def get_code_id(args, package):
+    lib_path = infra.path.build_lib_path(package, args.enclave_type)
 
-    return lines[0].split("=")[1]
+    if args.enclave_type == "virtual":
+        return hashlib.sha256(lib_path.encode()).hexdigest()
+    else:
+        res = subprocess.run(
+            [os.path.join(args.oe_binary, "oesign"), "dump", "-e", lib_path],
+            capture_output=True,
+            check=True,
+        )
+        lines = [
+            line
+            for line in res.stdout.decode().split(os.linesep)
+            if line.startswith("mrenclave=")
+        ]
+
+        return lines[0].split("=")[1]
 
 
 @reqs.description("Verify node evidence")
@@ -32,6 +38,10 @@ def test_verify_quotes(network, args):
     if args.enclave_type == "virtual":
         LOG.warning("Skipping quote test with virtual enclave")
         return network
+
+    LOG.info("Check the network is stable")
+    primary, _ = network.find_primary()
+    reconfiguration.check_can_progress(primary)
 
     for node in network.get_joined_nodes():
         LOG.info(f"Verifying quote for node {node.node_id}")
@@ -61,8 +71,8 @@ def test_add_node_with_bad_code(network, args):
     )
 
     new_code_id = get_code_id(
-        args.oe_binary,
-        infra.path.build_lib_path(replacement_package, args.enclave_type),
+        args,
+        replacement_package,
     )
 
     LOG.info(f"Adding a node with unsupported code id {new_code_id}")
@@ -81,53 +91,54 @@ def test_add_node_with_bad_code(network, args):
     return network
 
 
+def get_replacement_package(args):
+    return "liblogging" if args.package == "libjs_generic" else "libjs_generic"
+
+
 @reqs.description("Update all nodes code")
 def test_update_all_nodes(network, args):
-    replacement_package = (
-        "liblogging" if args.package == "libjs_generic" else "libjs_generic"
-    )
+    replacement_package = get_replacement_package(args)
 
     primary, _ = network.find_nodes()
 
-    if args.enclave_type != "virtual":
-        first_code_id, new_code_id = [
-            get_code_id(
-                args.oe_binary, infra.path.build_lib_path(pkg, args.enclave_type)
-            )
-            for pkg in [args.package, replacement_package]
-        ]
+    first_code_id = get_code_id(args, args.package)
+    new_code_id = get_code_id(args, replacement_package)
 
-        LOG.info("Add new code id")
-        network.consortium.add_new_code(primary, new_code_id)
-        with primary.client() as uc:
-            r = uc.get("/node/code")
-            versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-            expected = sorted(
-                [
-                    {"digest": first_code_id, "status": "AllowedToJoin"},
-                    {"digest": new_code_id, "status": "AllowedToJoin"},
-                ],
-                key=lambda x: x["digest"],
-            )
-            assert versions == expected, versions
+    if args.enclave_type == "virtual":
+        # Pretend this was already present
+        network.consortium.add_new_code(primary, first_code_id)
 
-        LOG.info("Remove old code id")
-        network.consortium.retire_code(primary, first_code_id)
-        with primary.client() as uc:
-            r = uc.get("/node/code")
-            versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
-            expected = sorted(
-                [
-                    {"digest": new_code_id, "status": "AllowedToJoin"},
-                ],
-                key=lambda x: x["digest"],
-            )
-            assert versions == expected, versions
+    LOG.info("Add new code id")
+    network.consortium.add_new_code(primary, new_code_id)
+    with primary.client() as uc:
+        r = uc.get("/node/code")
+        versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
+        expected = sorted(
+            [
+                {"digest": first_code_id, "status": "AllowedToJoin"},
+                {"digest": new_code_id, "status": "AllowedToJoin"},
+            ],
+            key=lambda x: x["digest"],
+        )
+        assert versions == expected, versions
+
+    LOG.info("Remove old code id")
+    network.consortium.retire_code(primary, first_code_id)
+    with primary.client() as uc:
+        r = uc.get("/node/code")
+        versions = sorted(r.body.json()["versions"], key=lambda x: x["digest"])
+        expected = sorted(
+            [
+                {"digest": new_code_id, "status": "AllowedToJoin"},
+            ],
+            key=lambda x: x["digest"],
+        )
+        assert versions == expected, versions
 
     old_nodes = network.nodes.copy()
 
     LOG.info("Start fresh nodes running new code")
-    for _ in range(0, len(network.nodes)):
+    for _ in range(0, len(old_nodes)):
         new_node = network.create_and_trust_node(
             replacement_package, "local://localhost", args
         )
@@ -151,6 +162,35 @@ def test_update_all_nodes(network, args):
     return network
 
 
+@reqs.description("Adding a new code ID invalidates open proposals")
+def test_proposal_invalidation(network, args):
+    primary, _ = network.find_nodes()
+
+    LOG.info("Create an open proposal")
+    pending_proposals = []
+    with primary.client(None, "member0") as c:
+        new_member_proposal, _, _ = network.consortium.generate_and_propose_new_member(
+            primary, curve=args.participants_curve
+        )
+        pending_proposals.append(new_member_proposal.proposal_id)
+
+    LOG.info("Add temporary code ID")
+    temp_code_id = get_code_id(args, get_replacement_package(args))
+    network.consortium.add_new_code(primary, temp_code_id)
+
+    LOG.info("Confirm open proposals are dropped")
+    with primary.client(None, "member0") as c:
+        for proposal_id in pending_proposals:
+            r = c.get(f"/gov/proposals/{proposal_id}")
+            assert r.status_code == 200, r.body.text()
+            assert r.body.json()["state"] == "Dropped", r.body.json()
+
+    LOG.info("Remove temporary code ID")
+    network.consortium.retire_code(primary, temp_code_id)
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -159,7 +199,11 @@ def run(args):
 
         test_verify_quotes(network, args)
         test_add_node_with_bad_code(network, args)
+        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        test_proposal_invalidation(network, args)
         test_update_all_nodes(network, args)
+
+        # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
 
 

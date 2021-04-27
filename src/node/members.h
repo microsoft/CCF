@@ -57,7 +57,10 @@ namespace ccf
 
   struct MemberDetails
   {
+    /// Status of the member in the consortium
     MemberStatus status = MemberStatus::ACCEPTED;
+    /** Free-form member data, can be used to associate specific roles to
+        members for example. */
     nlohmann::json member_data = nullptr;
 
     bool operator==(const MemberDetails& rhs) const
@@ -80,7 +83,7 @@ namespace ccf
    */
   struct StateDigest
   {
-    //! the next state digest the member is supposed to sign
+    /// Next state digest the member is expected to sign.
     std::string state_digest;
 
     StateDigest() {}
@@ -93,7 +96,7 @@ namespace ccf
 
   struct MemberAck : public StateDigest
   {
-    //! the signed request containing the last state digest
+    /// Signed request containing the last state digest.
     std::optional<SignedReq> signed_req = std::nullopt;
 
     MemberAck() {}

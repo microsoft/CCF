@@ -60,10 +60,6 @@ option(ZAP_TEST
        "ZAP fuzz test using https://www.zaproxy.org/docs/docker/api-scan/" OFF
 )
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
-option(ENABLE_JS_GOV "Enable JS Governance" ON)
-if(ENABLE_JS_GOV)
-  add_definitions(-DENABLE_JS_GOV)
-endif()
 option(BUILD_TPCC "Build TPPC sample app and clients" ON)
 
 # Build common library for CCF enclaves
@@ -105,7 +101,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            quickjs.enclave
            ccfcrypto.enclave
            http_parser.enclave
-           lua.enclave
            aft.enclave
            sss.enclave
            ccf_endpoints.enclave
@@ -155,7 +150,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            -lgcc
            ccfcrypto.host
            http_parser.host
-           lua.host
            quickjs.host
            aft.virtual
            sss.host
@@ -219,7 +213,6 @@ install(
 )
 
 install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
-install(FILES tests/sandbox/sandbox_gov.lua DESTINATION bin)
 install(FILES src/runtime_config/default/actions.js DESTINATION bin)
 install(FILES src/runtime_config/default/validate.js DESTINATION bin)
 install(FILES src/runtime_config/sandbox/resolve.js DESTINATION bin)
@@ -359,11 +352,6 @@ if(BUILD_TESTS)
     )
     target_link_libraries(snapshotter_test PRIVATE)
 
-    add_unit_test(
-      msgpack_serialization_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/msgpack_serialization.cpp
-    )
-
     add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
     target_link_libraries(tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -391,8 +379,8 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
     )
     target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host
-                            sss.host ccf_endpoints.host quickjs.host
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
+                            ccf_endpoints.host quickjs.host
     )
 
     add_unit_test(
@@ -401,29 +389,12 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      member_voting_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
-    )
-    target_link_libraries(
-      member_voting_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host sss.host
-              ccf_endpoints.host quickjs.host
-    )
-
-    set_tests_properties(
-      member_voting_test
-      PROPERTIES ENVIRONMENT
-                 RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
-    )
-
-    add_unit_test(
       proposal_id_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/proposal_id_test.cpp
     )
     target_link_libraries(
-      proposal_id_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host http_parser.host sss.host
-              ccf_endpoints.host quickjs.host
+      proposal_id_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                               sss.host ccf_endpoints.host quickjs.host
     )
 
     add_unit_test(
@@ -431,16 +402,9 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
     )
     target_link_libraries(
-      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} lua.host
-                                 http_parser.host sss.host ccf_endpoints.host
+      node_frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                                 sss.host ccf_endpoints.host
     )
-
-    add_unit_test(
-      lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
-    )
-    target_include_directories(lua_test PRIVATE ${LUA_DIR})
-    target_link_libraries(lua_test PRIVATE lua.host http_parser.host)
 
     add_unit_test(
       merkle_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
@@ -501,32 +465,25 @@ if(BUILD_TESTS)
     add_picobench(digest_bench SRCS src/crypto/test/digest_bench.cpp)
   endif()
 
-  if(ENABLE_JS_GOV)
-    set(CONSTITUTION_ARGS
-        --constitution
-        ${CCF_DIR}/src/runtime_config/default/actions.js
-        --constitution
-        ${CCF_DIR}/src/runtime_config/test/test_actions.js
-        --constitution
-        ${CCF_DIR}/src/runtime_config/default/validate.js
-        --constitution
-        ${CCF_DIR}/src/runtime_config/test/resolve.js
-        --constitution
-        ${CCF_DIR}/src/runtime_config/default/apply.js
-    )
-    add_e2e_test(
-      NAME governance_js_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
-      CONSENSUS cft
-      CONSTITUTION ${CONSTITUTION_ARGS}
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
-    )
-    set_property(
-      TEST governance_js_test
-      APPEND
-      PROPERTY ENVIRONMENT "JS_GOVERNANCE=ON"
-    )
-  endif()
+  set(CONSTITUTION_ARGS
+      --constitution
+      ${CCF_DIR}/src/runtime_config/default/actions.js
+      --constitution
+      ${CCF_DIR}/src/runtime_config/test/test_actions.js
+      --constitution
+      ${CCF_DIR}/src/runtime_config/default/validate.js
+      --constitution
+      ${CCF_DIR}/src/runtime_config/test/resolve.js
+      --constitution
+      ${CCF_DIR}/src/runtime_config/default/apply.js
+  )
+  add_e2e_test(
+    NAME governance_js_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_js.py
+    CONSENSUS cft
+    CONSTITUTION ${CONSTITUTION_ARGS}
+    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
+  )
 
   # Storing signed governance operations
   add_e2e_test(
@@ -658,6 +615,10 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/tests/js-content-types
   )
 
+  set(SERVICE_PRINCIPAL_CONSTITUTION_ARGS
+      ${CONSTITUTION_ARGS} --constitution
+      ${CCF_DIR}/src/runtime_config/test/service_principals_actions.js
+  )
   add_e2e_test(
     NAME launch_host_process_test
     PYTHON_SCRIPT
@@ -671,6 +632,7 @@ if(BUILD_TESTS)
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
+    CONSTITUTION ${SERVICE_PRINCIPAL_CONSTITUTION_ARGS}
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
   )
 
@@ -678,6 +640,7 @@ if(BUILD_TESTS)
     NAME governance_no_session_auth_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
     CONSENSUS cft
+    CONSTITUTION ${SERVICE_PRINCIPAL_CONSTITUTION_ARGS}
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --initial-operator-count 1
                     --disable-member-session-auth
   )
@@ -767,13 +730,10 @@ if(BUILD_TESTS)
   )
 
   if(NOT SAN)
-    # Writing new ledger files and generating new snapshots uses more file
-    # descriptors so disable those for this test
     add_e2e_test(
       NAME connections_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
       CONSENSUS cft
-      ADDITIONAL_ARGS --ledger-chunk-bytes 100Mib --snapshot-tx-interval 10000
     )
   endif()
 

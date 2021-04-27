@@ -12,7 +12,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #undef FAIL
-#include <msgpack/msgpack.hpp>
 #include <set>
 #include <string>
 #include <vector>
@@ -162,6 +161,72 @@ TEST_CASE("Reads/writes and deletions")
   }
 }
 
+TEST_CASE("clear")
+{
+  kv::Store kv_store;
+  MapTypes::StringString map("public:map");
+
+  const auto k1 = "k1";
+  const auto k2 = "k2";
+
+  const auto v = "v";
+
+  {
+    INFO("Setting committed state");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put(k1, v);
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  SUBCASE("Basic")
+  {
+    {
+      INFO("Clear removes all entries");
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      handle->put(k2, v);
+
+      REQUIRE(handle->has(k1));
+      REQUIRE(handle->has(k2));
+
+      handle->clear();
+
+      REQUIRE(!handle->has(k1));
+      REQUIRE(!handle->has(k2));
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Clear is committed");
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+
+      REQUIRE(!handle->has(k1));
+      REQUIRE(!handle->has(k2));
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
+
+  SUBCASE("Clear conflicts correctly")
+  {
+    auto tx1 = kv_store.create_tx();
+    auto handle1 = tx1.rw(map);
+    handle1->clear();
+
+    INFO("Another transaction creates a key and commits");
+    auto tx2 = kv_store.create_tx();
+    auto handle2 = tx2.rw(map);
+    handle2->put(k2, v);
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+
+    INFO("clear() conflicts and must be retried");
+    REQUIRE(tx1.commit() == kv::CommitResult::FAIL_CONFLICT);
+  }
+}
+
 TEST_CASE("get_version_of_previous_write")
 {
   kv::Store kv_store;
@@ -283,6 +348,103 @@ TEST_CASE("get_version_of_previous_write")
 
     REQUIRE(ver1.value() == second_version);
     REQUIRE(ver2.value() == third_version);
+  }
+}
+
+TEST_CASE("size")
+{
+  kv::Store kv_store;
+  MapTypes::StringString map("public:map");
+
+  const auto k1 = "k1";
+  const auto k2 = "k2";
+  const auto k3 = "k3";
+
+  const auto v = "v";
+  const auto vv = "vv";
+
+  {
+    INFO("Only local modifications");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+
+    REQUIRE(handle->size() == 0);
+    handle->put(k1, v);
+    REQUIRE(handle->size() == 1);
+    handle->remove(k2);
+    REQUIRE(handle->size() == 1);
+    handle->remove(k1);
+    REQUIRE(handle->size() == 0);
+    handle->put(k2, v);
+    REQUIRE(handle->size() == 1);
+    handle->put(k2, vv);
+    REQUIRE(handle->size() == 1);
+    handle->put(k1, v);
+    REQUIRE(handle->size() == 2);
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    INFO("Combined with committed state");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+
+    REQUIRE(handle->size() == 2);
+    handle->put(k2, v);
+    REQUIRE(handle->size() == 2);
+    handle->put(k3, v);
+    REQUIRE(handle->size() == 3);
+    handle->remove(k1);
+    REQUIRE(handle->size() == 2);
+    handle->remove(k2);
+    REQUIRE(handle->size() == 1);
+    handle->remove(k3);
+    REQUIRE(handle->size() == 0);
+
+    {
+      INFO("size() is only affected by current transaction");
+      auto tx2 = kv_store.create_tx();
+      auto handle = tx2.rw(map);
+
+      REQUIRE(handle->size() == 2);
+      handle->remove(k2);
+      REQUIRE(handle->size() == 1);
+    }
+
+    REQUIRE(handle->size() == 0);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    INFO("Sanity check");
+    for (size_t i = 0; i < 20; ++i)
+    {
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      for (size_t j = 0; j < 1'000; ++j)
+      {
+        const auto key = std::to_string(rand() % 10'000);
+        if (rand() % 4 == 0)
+        {
+          handle->remove(key);
+        }
+        else
+        {
+          handle->put(key, v);
+        }
+      }
+
+      const auto claimed_size = handle->size();
+      size_t manual_size = 0;
+      handle->foreach([&manual_size](const auto&, const auto&) {
+        ++manual_size;
+        return true;
+      });
+
+      REQUIRE(claimed_size == manual_size);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
   }
 }
 

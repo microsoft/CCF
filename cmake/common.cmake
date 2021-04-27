@@ -151,38 +151,6 @@ else()
   set(DEFAULT_ENCLAVE_TYPE virtual)
 endif()
 
-# Lua module
-set(LUA_DIR ${CCF_3RD_PARTY_INTERNAL_DIR}/lua)
-set(LUA_SOURCES
-    ${LUA_DIR}/lapi.c
-    ${LUA_DIR}/lauxlib.c
-    ${LUA_DIR}/lbaselib.c
-    ${LUA_DIR}/lcode.c
-    ${LUA_DIR}/lcorolib.c
-    ${LUA_DIR}/lctype.c
-    ${LUA_DIR}/ldebug.c
-    ${LUA_DIR}/ldo.c
-    ${LUA_DIR}/ldump.c
-    ${LUA_DIR}/lfunc.c
-    ${LUA_DIR}/lgc.c
-    ${LUA_DIR}/llex.c
-    ${LUA_DIR}/lmathlib.c
-    ${LUA_DIR}/lmem.c
-    ${LUA_DIR}/lobject.c
-    ${LUA_DIR}/lopcodes.c
-    ${LUA_DIR}/lparser.c
-    ${LUA_DIR}/lstate.c
-    ${LUA_DIR}/lstring.c
-    ${LUA_DIR}/lstrlib.c
-    ${LUA_DIR}/ltable.c
-    ${LUA_DIR}/ltablib.c
-    ${LUA_DIR}/ltm.c
-    ${LUA_DIR}/lundump.c
-    ${LUA_DIR}/lutf8lib.c
-    ${LUA_DIR}/lvm.c
-    ${LUA_DIR}/lzio.c
-)
-
 set(HTTP_PARSER_SOURCES
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
     ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
@@ -319,26 +287,6 @@ target_link_libraries(
 )
 install(TARGETS scenario_perf_client DESTINATION bin)
 
-# Lua for host and enclave
-add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
-target_compile_options(lua.enclave PRIVATE -Wno-string-plus-int)
-target_compile_definitions(lua.enclave PRIVATE NO_IO)
-install(
-  TARGETS lua.enclave
-  EXPORT ccf
-  DESTINATION lib
-)
-
-add_library(lua.host STATIC ${LUA_SOURCES})
-target_compile_options(lua.host PRIVATE -Wno-string-plus-int)
-target_compile_definitions(lua.host PRIVATE NO_IO)
-set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-install(
-  TARGETS lua.host
-  EXPORT ccf
-  DESTINATION lib
-)
-
 # HTTP parser
 add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -380,7 +328,6 @@ set(WORKER_THREADS
     CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
-set(CCF_NETWORK_TEST_DEFAULT_GOV ${CCF_DIR}/src/runtime_config/gov.lua)
 set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
     --constitution
     ${CCF_DIR}/src/runtime_config/default/actions.js
@@ -436,13 +383,9 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
-
-  if(NOT PARSED_ARGS_GOV_SCRIPT)
-    set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
-  endif()
 
   if(NOT PARSED_ARGS_CONSTITUTION)
     set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
@@ -453,9 +396,8 @@ function(add_e2e_test)
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT}
-        ${PARSED_ARGS_CONSTITUTION} --consensus ${PARSED_ARGS_CONSENSUS}
-        ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --consensus
+        ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -505,13 +447,6 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
       )
     endif()
-
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY ENVIRONMENT "JS_GOVERNANCE=ON"
-    )
-
   endif()
 endfunction()
 
@@ -576,13 +511,9 @@ function(add_perf_test)
     0
     PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
+    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
     "ADDITIONAL_ARGS"
   )
-
-  if(NOT PARSED_ARGS_GOV_SCRIPT)
-    set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
-  endif()
 
   if(NOT PARSED_ARGS_CONSTITUTION)
     set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
@@ -618,9 +549,9 @@ function(add_perf_test)
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
-      ${PARSED_ARGS_CONSTITUTION} -g ${PARSED_ARGS_GOV_SCRIPT} --write-tx-times
-      ${VERIFICATION_ARG} --label ${LABEL_ARG} --snapshot-tx-interval 10000
-      ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
+      ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
+      ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
+      ${NODES}
   )
 
   # Make python test client framework importable
