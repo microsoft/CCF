@@ -118,7 +118,7 @@ html_static_path = ["_static"]
 # 'searchbox.html']``.
 #
 html_sidebars = {
-    "**": ["sidebar-nav-bs.html"],
+    "**": ["sidebar-nav-bs.html", "search-field.html"]
 }
 
 html_css_files = [
