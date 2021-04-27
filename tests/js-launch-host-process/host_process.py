@@ -58,7 +58,7 @@ def test_host_process_launch_many(network, args):
             assert r.status_code == http.HTTPStatus.OK, r.status_code
         
         pending = set(range(count))
-        timeout = 1
+        timeout = 2
         t0 = time.time()
         while time.time() - t0 < timeout:
             for i in list(pending):

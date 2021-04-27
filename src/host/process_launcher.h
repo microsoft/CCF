@@ -16,6 +16,8 @@ namespace asynchost
   {
     static constexpr size_t max_processes = 8;
 
+    bool stopping = false;
+
     struct QueueEntry
     {
       LaunchHostProcessMessage msg;
@@ -33,7 +35,7 @@ namespace asynchost
     std::unordered_map<pid_t, ProcessEntry> running;  
 
     void maybe_process_next_entry() {
-      if (queued.empty() || running.size() >= max_processes) {
+      if (stopping || queued.empty() || running.size() >= max_processes) {
         return;
       }
       auto entry = std::move(queued.front());
@@ -60,15 +62,10 @@ namespace asynchost
       argv.push_back(nullptr);
 
       auto handle = new uv_process_t;
-
+      handle->data = this;
       
       uv_process_options_t options = {};
-      LOG_DEBUG_FMT(
-        "Launching host process: {}", argv.at(0));
       options.file = argv.at(0);
-      LOG_DEBUG_FMT(
-        "Launching host process1: {}", options.file);
-      assert(options.file != NULL);
       options.args = const_cast<char**>(argv.data());
       options.exit_cb = ProcessLauncher::on_process_exit;
 
@@ -86,8 +83,6 @@ namespace asynchost
         handle->pid,
         queue_time_ms,
         fmt::join(args, " "));
-
-      handle->data = this;
 
       auto started_at = std::chrono::steady_clock::now();
       ProcessEntry process_entry {
@@ -152,6 +147,11 @@ namespace asynchost
 
           maybe_process_next_entry();
         });
+    }
+
+    void stop()
+    {
+      stopping = true;
     }
   };
 }
