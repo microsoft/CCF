@@ -4,6 +4,7 @@
 
 #include "ccf/app_interface.h"
 #include "consensus/aft/raft_types.h"
+#include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
@@ -47,9 +48,9 @@ namespace aft
   public:
     const NodeId& node_id;
     std::shared_ptr<kv::AbstractStore> store;
-    const std::shared_ptr<enclave::RPCSessions>& rpcsessions;
-    const std::shared_ptr<enclave::RPCMap>& rpc_map;
-    const crypto::KeyPairPtr& node_sign_kp;
+    std::shared_ptr<enclave::RPCSessions> rpcsessions;
+    std::shared_ptr<enclave::RPCMap> rpc_map;
+    crypto::KeyPairPtr node_sign_kp;
     const crypto::Pem& node_cert;
 
     typedef struct
@@ -63,8 +64,8 @@ namespace aft
     ConfigurationTracker(
       const NodeId& node_id_,
       std::shared_ptr<kv::AbstractStore> store_,
-      const std::shared_ptr<enclave::RPCSessions>& rpcsessions_,
-      const std::shared_ptr<enclave::RPCMap>& rpc_map_,
+      std::shared_ptr<enclave::RPCSessions> rpcsessions_,
+      std::shared_ptr<enclave::RPCMap> rpc_map_,
       const crypto::KeyPairPtr& node_sign_kp_,
       const crypto::Pem& node_cert_) :
       node_id(node_id_),
@@ -73,7 +74,12 @@ namespace aft
       rpc_map(rpc_map_),
       node_sign_kp(node_sign_kp_),
       node_cert(node_cert_)
-    {}
+    {
+      if (!node_sign_kp_)
+        LOG_INFO_FMT("NO SIGNING KEY!");
+      if (!rpc_map)
+        LOG_INFO_FMT("NO RPC MAP!");
+    }
 
     ~ConfigurationTracker() {}
 
@@ -148,13 +154,10 @@ namespace aft
 
       if (!(txid < primary_txid) && store != nullptr)
       {
-        LOG_INFO_FMT("Promoting {} to TRUSTED as it has caught up with us", id);
-        return write_promotion_kv_entry(node_id);
+        return record_promotion(id);
       }
-      else
-      {
-        return true;
-      }
+
+      return true;
     }
 
     std::set<NodeId> active_node_ids()
@@ -311,20 +314,20 @@ namespace aft
       return ss.str();
     }
 
-    bool write_promotion_kv_entry(const NodeId& node_id)
+    bool record_promotion(const NodeId& node_id)
     {
+      LOG_INFO_FMT(
+        "Promoting {} to TRUSTED as it has caught up with us", node_id);
+
       // Serialize request object
-      PromoteNodeToTrusted::In ps;
-
-      ps.node_id = node_id;
-
-      const auto body = serdes::pack(ps, serdes::Pack::Text);
+      PromoteNodeToTrusted::In ps = {node_id};
 
       http::Request request(fmt::format(
         "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "promote"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
+      auto body = serdes::pack(ps, serdes::Pack::Text);
       request.set_body(&body);
 
       auto node_cert_der = crypto::cert_pem_to_der(node_cert);
@@ -352,10 +355,20 @@ namespace aft
         throw std::logic_error(
           "RpcMap::find returned invalid (empty) frontend");
       }
+
       auto frontend = frontend_opt.value();
       frontend->process(ctx);
 
-      return ctx->get_response_status() == HTTP_STATUS_OK;
+      auto rs = ctx->get_response_status();
+
+      if (rs != HTTP_STATUS_OK)
+      {
+        auto ser_res = ctx->serialise_response();
+        std::string str((char*)ser_res.data(), ser_res.size());
+        LOG_FAIL_FMT("Promotion request failed: {}", str);
+      }
+
+      return rs == HTTP_STATUS_OK;
     }
   };
 }

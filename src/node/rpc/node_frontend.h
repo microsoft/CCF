@@ -457,28 +457,10 @@ namespace ccf
             "Service must be open to promote nodes.");
         }
 
-        auto existing_node_info =
-          check_node_exists(args.tx, args.rpc_ctx->session->caller_cert);
-        if (!existing_node_info.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidNodeState,
-            "No such node.");
-        }
         auto nodes = args.tx.rw(this->network.nodes);
 
-        auto node_status = nodes->get(existing_node_info->first)->status;
-        if (node_status != NodeStatus::CATCHING_UP)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidNodeState,
-            "Cannot promote a node that is not catching up.");
-        }
-
-        auto value = nodes->get(in.node_id);
-        if (!value.has_value())
+        auto node_info = nodes->get(in.node_id);
+        if (!node_info.has_value())
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -486,8 +468,10 @@ namespace ccf
             "Missing node state.");
         }
 
-        value->status = NodeStatus::TRUSTED;
-        nodes->put(in.node_id, *value);
+        // TODO: Check that the node has indeed caught up with us?
+
+        node_info->status = NodeStatus::TRUSTED;
+        nodes->put(in.node_id, *node_info);
         return make_success(true);
       };
 

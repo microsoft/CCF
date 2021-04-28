@@ -2245,6 +2245,7 @@ namespace aft
                   from,
                   {r.term, r.last_log_idx},
                   {state->current_view, state->last_idx});
+                // TODO: Retry on failure
               });
           }
           break;
