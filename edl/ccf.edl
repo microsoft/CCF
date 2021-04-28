@@ -24,7 +24,7 @@ enclave {
             ConsensusType consensus_type,
             size_t num_worker_thread,
             [user_check] void* time_location,
-            [user_check] char** enclave_version
+            [string, in] const char* host_version
         );
 
         public bool enclave_run();

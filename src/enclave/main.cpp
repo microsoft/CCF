@@ -49,7 +49,7 @@ extern "C"
     ConsensusType consensus_type,
     size_t num_worker_threads,
     void* time_location,
-    char** enclave_version)
+    const char* host_version)
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
@@ -66,6 +66,13 @@ extern "C"
       return false;
     }
 #endif
+
+    // Host and enclave versions must match. Otherwise the node may crash much
+    // later (e.g. unhandled ring buffer message on either end)
+    if (strcmp(host_version, ccf::ccf_version) == 0)
+    {
+      return false;
+    }
 
     num_pending_threads = (uint16_t)num_worker_threads + 1;
 
@@ -90,13 +97,6 @@ extern "C"
     {
       return false;
     }
-
-    if (!oe_is_outside_enclave(enclave_version, sizeof(char*)))
-    {
-      return false;
-    }
-
-    *enclave_version = oe_host_strndup("Hello world", 12);
 
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
 

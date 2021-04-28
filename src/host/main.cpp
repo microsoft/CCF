@@ -792,8 +792,6 @@ int main(int argc, char** argv)
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }
 
-    char* enclave_version;
-
     if (consensus == ConsensusType::BFT)
     {
 #ifdef ENABLE_BFT
@@ -814,9 +812,7 @@ int main(int argc, char** argv)
       consensus,
       num_worker_threads,
       time_updater->behaviour.get_value(),
-      &enclave_version);
-
-    LOG_FAIL_FMT("Enclave version is: {}", enclave_version);
+      ccf::ccf_version);
 
     LOG_INFO_FMT("Created new node");
 

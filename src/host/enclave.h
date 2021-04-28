@@ -94,7 +94,7 @@ namespace host
       ConsensusType consensus_type,
       size_t num_worker_thread,
       void* time_location,
-      char** enclave_version)
+      const std::string& host_version)
     {
       bool ret;
       size_t node_cert_len = 0;
@@ -118,7 +118,7 @@ namespace host
         consensus_type,
         num_worker_thread,
         time_location,
-        enclave_version);
+        host_version.c_str());
 
       if (err != OE_OK)
       {
