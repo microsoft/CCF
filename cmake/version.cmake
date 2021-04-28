@@ -22,7 +22,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   endif()
   execute_process(
     COMMAND "bash" "-c"
-            "${GIT_EXECUTABLE} describe --tags --abbrev=0 | tr -d ccf-"
+            "${GIT_EXECUTABLE} describe --tags --abbrev=0 | cut -d'-' -f2"
     OUTPUT_VARIABLE "CCF_RELEASE_VERSION"
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
