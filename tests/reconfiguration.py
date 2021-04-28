@@ -69,6 +69,32 @@ def test_add_node(network, args):
     return network
 
 
+@reqs.description("Adding a node on different curve")
+def test_add_node_on_other_curve(network, args):
+    original_curve = args.curve_id
+    args.curve_id = (
+        infra.network.EllipticCurve.secp256r1
+        if original_curve is None
+        else original_curve.next()
+    )
+    network = test_add_node(network, args)
+    args.curve_id = original_curve
+    return network
+
+
+@reqs.description("Changing network's curve")
+def test_change_curve(network, args):
+    # NB: This doesn't actually test things, it just changes the configuration
+    # for future tests. Expects to be part of an interesting suite
+    original_curve = args.curve_id
+    args.curve_id = (
+        infra.network.EllipticCurve.secp256r1
+        if original_curve is None
+        else original_curve.next()
+    )
+    return network
+
+
 @reqs.description("Adding a valid node from a backup")
 @reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
@@ -223,6 +249,7 @@ def run(args):
 
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
+        test_add_node_on_other_curve(network, args)
         test_retire_backup(network, args)
         test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)

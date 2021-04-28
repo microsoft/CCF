@@ -58,6 +58,21 @@ suite_reconfiguration = [
 ]
 suites["reconfiguration"] = suite_reconfiguration
 
+# This suite tests that the service supports nodes on different curves, and
+# recoveries on different curves
+suite_mixed_curves = [
+    reconfiguration.test_add_node_on_other_curve,
+    election.test_kill_primary,
+    recovery.test,
+    reconfiguration.test_change_curve,
+    reconfiguration.test_add_node_on_other_curve,
+    election.test_kill_primary,
+    recovery.test,
+    reconfiguration.test_change_curve,
+    recovery.test,
+]
+suites["mixed_curves"] = suite_mixed_curves
+
 
 all_tests_suite = [
     # e2e_logging:
@@ -83,6 +98,7 @@ all_tests_suite = [
     memberclient.test_corrupted_signature,
     # reconfiguration:
     reconfiguration.test_add_node,
+    reconfiguration.test_add_node_on_other_curve,
     reconfiguration.test_add_node_from_backup,
     reconfiguration.test_add_as_many_pending_nodes,
     reconfiguration.test_retire_backup,
@@ -98,6 +114,9 @@ all_tests_suite = [
     code_update.test_add_node_with_bad_code,
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
+    # curve migration:
+    reconfiguration.test_change_curve,
+    recovery.test
 ]
 suites["all"] = all_tests_suite
 

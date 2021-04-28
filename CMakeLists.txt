@@ -523,6 +523,8 @@ if(BUILD_TESTS)
       rekey_recovery
       --test-suite
       membership_recovery
+      --test-suite
+      mixed_curves
   )
 
   add_e2e_test(
