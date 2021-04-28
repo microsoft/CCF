@@ -648,7 +648,7 @@ class CCFRemote(object):
 
         if remote_class is LocalRemote:
             cmd += [
-                f'--node-client-host={str(ipaddress.ip_address("127.0.0.0") + local_node_id)}'
+                f'--node-client-host={str(ipaddress.ip_address("127.100.0.0") + local_node_id)}'
             ]
 
         if log_format_json:
