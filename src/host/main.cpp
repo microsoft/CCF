@@ -99,7 +99,7 @@ int main(int argc, char** argv)
     app,
     node_address,
     "--node-address",
-    "Address on which to listen for TLS commands coming from other nodes")
+    "Address on which to listen for commands coming from other nodes")
     ->required();
 
   std::string node_address_file = {};
@@ -108,6 +108,16 @@ int main(int argc, char** argv)
     node_address_file,
     "Path to which the node's node-to-node address (including potentially "
     "auto-assigned port) will be written. If empty (default), write nothing");
+
+  // TODO: Does this really work with a port number != 0??
+  cli::ParsedAddress node_client_address;
+  cli::add_address_option(
+    app,
+    node_client_address,
+    "--node-client-address",
+    "Address on which to listen for TLS commands coming from other nodes (use "
+    "with caution)",
+    "0");
 
   cli::ParsedAddress rpc_address;
   cli::add_address_option(
@@ -628,7 +638,9 @@ int main(int argc, char** argv)
       ledger,
       writer_factory,
       node_address.hostname,
-      node_address.port);
+      node_address.port,
+      node_client_address.hostname,
+      node_client_address.port);
     if (!node_address_file.empty())
     {
       files::dump(

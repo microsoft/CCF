@@ -632,6 +632,7 @@ class CCFRemote(object):
             f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
             f"--node-address={make_address(host, node_port)}",
+            f"--node-client-address=127.100.0.{local_node_id}",  # TODO: Only if local remote?
             f"--node-address-file={self.node_address_path}",
             f"--rpc-address={make_address(host, rpc_port)}",
             f"--rpc-address-file={self.rpc_address_path}",

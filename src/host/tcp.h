@@ -154,16 +154,15 @@ namespace asynchost
       return service;
     }
 
-    bool bind()
+    // TODO: Could this be refactored in the existing flow?
+    bool bind(const std::string& client_host, const std::string& client_service)
     {
-      int rc;
+      assert_status(FRESH, FRESH);
 
-      LOG_FAIL_FMT("Bind!");
+      LOG_FAIL_FMT("Binding to {}:{}", client_host, client_service);
 
-      // TODO:
-      // 1. Resolve
-
-      if (!DNS::resolve("127.0.0.3", "0", this, on_client_resolved, false))
+      if (!DNS::resolve(
+            client_host, client_service, this, on_client_resolved, false))
       {
         LOG_FAIL_FMT("Resolved failed");
         return false;
@@ -180,12 +179,15 @@ namespace asynchost
 
     void on_client_resolved(uv_getaddrinfo_t* req, int rc)
     {
-      LOG_FAIL_FMT("here!");
-      // addrinfo* localaddr = nullptr;
       if ((rc = uv_tcp_bind(&uv_handle, req->addrinfo->ai_addr, 0)) < 0)
       {
-        LOG_FAIL_FMT("uv_tcp_bind failed on");
+        // TODO: Retrieve client host/port
+        LOG_FAIL_FMT(
+          "uv_tcp_bind failed on {}: {}", "127.0.0.3", uv_strerror(rc));
       }
+
+      uv_freeaddrinfo(req->addrinfo);
+      delete req;
     }
 
     bool connect(const std::string& host, const std::string& service)
