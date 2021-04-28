@@ -45,13 +45,12 @@ else()
   # Check that the first element equals "ccf"
   list(GET CCF_VERSION_COMPONENTS 0 FIRST)
   if(NOT FIRST STREQUAL "ccf")
-    message(
-      FATAL_ERROR
-        "Sources directory is not in \"ccf-...\" folder"
-    )
+    message(FATAL_ERROR "Sources directory is not in \"ccf-...\" folder")
   endif()
 
-  message(STATUS "Extracting CCF version from sources directory: ${CCF_VERSION}")
+  message(
+    STATUS "Extracting CCF version from sources directory: ${CCF_VERSION}"
+  )
 endif()
 
 # Check that we have at least ccf-x.y.z
@@ -79,10 +78,11 @@ execute_process(
 # Produce a valid version for the Python package
 set(CCF_PYTHON_VERSION "${CCF_RELEASE_VERSION}")
 if(CCF_VERSION_COMPONENTS_LENGTH GREATER 2)
+  # Look at the first suffix, if it begins with "rc" or "dev" then keep it
+  # verbatim
   list(GET CCF_VERSION_COMPONENTS 2 FIRST_SUFFIX)
   set(FIRST_SUFFIX_IS_PYTHON_FRIENDLY "FALSE")
   string(SUBSTRING "${FIRST_SUFFIX}" 0 2 FIRST_SUFFIX_INIT)
-  message(STATUS "First suffix is ${FIRST_SUFFIX} beginning ${FIRST_SUFFIX_INIT}")
   if(FIRST_SUFFIX_INIT STREQUAL "rc")
     set(FIRST_SUFFIX_IS_PYTHON_FRIENDLY TRUE)
   else()
@@ -96,7 +96,11 @@ if(CCF_VERSION_COMPONENTS_LENGTH GREATER 2)
     set(CCF_PYTHON_VERSION "${CCF_PYTHON_VERSION}.${FIRST_SUFFIX}")
   endif()
 
-  if(NOT FIRST_SUFFIX_IS_PYTHON_FRIENDLY OR CCF_VERSION_COMPONENTS_LENGTH GREATER 3)
+  # If that didn't work, or we have any other components (ie - we're not on a
+  # tag), add the precise description as a local version after "+"
+  if(NOT FIRST_SUFFIX_IS_PYTHON_FRIENDLY OR CCF_VERSION_COMPONENTS_LENGTH
+                                            GREATER 3
+  )
     set(CCF_PYTHON_VERSION "${CCF_PYTHON_VERSION}+${CCF_VERSION_SUFFIX}")
   endif()
 endif()
