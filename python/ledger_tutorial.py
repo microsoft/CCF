@@ -26,7 +26,7 @@ ledger_dirs = sys.argv[1:]
 import ccf.ledger
 
 # SNIPPET: create_ledger
-ledger = ccf.ledger.Ledger(ledger_dirs)
+ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=False)
 
 # SNIPPET: target_table
 target_table = "public:ccf.gov.nodes.info"
