@@ -22,6 +22,10 @@ def merge(*proposals):
     return {"actions": sum((prop["actions"] for prop in proposals), [])}
 
 
+def vote(body):
+    return {"ballot": f"export function vote (proposal, proposer_id) {{ {body} }}"}
+
+
 valid_set_recovery_threshold = proposal(
     action("set_recovery_threshold", recovery_threshold=5)
 )
@@ -41,23 +45,26 @@ always_accept_if_proposed_by_operator = proposal(
 always_accept_with_two_votes = proposal(action("always_accept_with_two_votes"))
 always_reject_with_two_votes = proposal(action("always_reject_with_two_votes"))
 
-ballot_yes = {"ballot": "export function vote (proposal, proposer_id) { return true }"}
-ballot_no = {"ballot": "export function vote (proposal, proposer_id) { return false }"}
+ballot_yes = vote("return true")
+ballot_no = vote("return false")
 
 
 @reqs.description("Test proposal validation")
 def test_proposal_validation(network, args):
     node = network.find_random_node()
 
+    def assert_invalid_proposal(r):
+        assert (
+            r.status_code == 400
+            and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
+        ), r.body.text()
+
     with node.client(None, "member0") as c:
         r = c.post(
             "/gov/proposals",
             proposal(action("valid_pem", pem="That's not a PEM")),
         )
-        assert (
-            r.status_code == 400
-            and r.body.json()["error"]["code"] == "ProposalFailedToValidate"
-        ), r.body.text()
+        assert_invalid_proposal(r)
 
         with open(os.path.join(network.common_dir, "networkcert.pem"), "r") as cert:
             valid_pem = cert.read()
@@ -65,6 +72,64 @@ def test_proposal_validation(network, args):
         r = c.post(
             "/gov/proposals",
             proposal(action("valid_pem", pem=valid_pem)),
+        )
+        assert r.status_code == 200
+
+        # Arg missing
+        r = c.post(
+            "/gov/proposals",
+            proposal(action("remove_user")),
+        )
+        assert_invalid_proposal(r)
+
+        # Not a string
+        r = c.post(
+            "/gov/proposals",
+            proposal(action("remove_user", user_id=42)),
+        )
+        assert_invalid_proposal(r)
+
+        # Too short
+        r = c.post(
+            "/gov/proposals",
+            proposal(action("remove_user", user_id="deadbeef")),
+        )
+        assert_invalid_proposal(r)
+
+        # Too long
+        r = c.post(
+            "/gov/proposals",
+            proposal(
+                action(
+                    "remove_user",
+                    user_id="0deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+                )
+            ),
+        )
+        assert_invalid_proposal(r)
+
+        # Not hex
+        r = c.post(
+            "/gov/proposals",
+            proposal(
+                action(
+                    "remove_user",
+                    user_id="totboeuftotboeuftotboeuftotboeuftotboeuftotboeuftotboeuftotboeuf",
+                )
+            ),
+        )
+        assert_invalid_proposal(r)
+
+        # Just right
+        # NB: It validates (structurally correct type), but does nothing because this user doesn't exist
+        r = c.post(
+            "/gov/proposals",
+            proposal(
+                action(
+                    "remove_user",
+                    user_id="deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+                )
+            ),
         )
         assert r.status_code == 200
 
@@ -94,7 +159,7 @@ def test_proposal_storage(network, args):
                     "member0"
                 ).service_id,
                 "state": "Open",
-                "ballots": [],
+                "ballots": {},
             }
             assert r.body.json() == expected, r.body.json()
 
@@ -129,7 +194,7 @@ def test_proposal_withdrawal(network, args):
                     "member0"
                 ).service_id,
                 "state": "Open",
-                "ballots": [],
+                "ballots": {},
             }
             assert r.body.json() == expected, r.body.json()
 
@@ -140,7 +205,7 @@ def test_proposal_withdrawal(network, args):
                     "member0"
                 ).service_id,
                 "state": "Withdrawn",
-                "ballots": [],
+                "ballots": {},
             }
             assert r.body.json() == expected, r.body.json()
 
@@ -165,6 +230,10 @@ def test_ballot_storage(network, args):
         ballot = ballot_yes
         r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
         assert r.status_code == 200, r.body.text()
+
+        r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
+        assert r.status_code == 400, r.body.text()
+        assert r.body.json()["error"]["code"] == "VoteAlreadyExists", r.body.json()
 
         member_id = network.consortium.get_member_by_local_id("member0").service_id
         r = c.get(f"/gov/proposals/{proposal_id}/ballots/{member_id}")
@@ -229,9 +298,7 @@ def test_proposals_with_votes(network, args):
             assert r.body.json()["state"] == "Open", r.body.json()
             proposal_id = r.body.json()["proposal_id"]
 
-            ballot = {
-                "ballot": f"export function vote (proposal, proposer_id) {{ return {direction} }}"
-            }
+            ballot = vote(f"return {direction}")
             r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == state, r.body.json()
@@ -242,9 +309,9 @@ def test_proposals_with_votes(network, args):
             proposal_id = r.body.json()["proposal_id"]
 
             member_id = network.consortium.get_member_by_local_id("member0").service_id
-            ballot = {
-                "ballot": f'export function vote (proposal, proposer_id) {{ if (proposer_id == "{member_id}") {{ return {direction} }} else {{ return {opposite(direction) } }} }}'
-            }
+            ballot = vote(
+                f'if (proposer_id == "{member_id}") {{ return {direction} }} else {{ return {opposite(direction) } }}'
+            )
             r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["state"] == state, r.body.json()
@@ -267,6 +334,35 @@ def test_proposals_with_votes(network, args):
                 r = oc.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
                 assert r.status_code == 200, r.body.text()
                 assert r.body.json()["state"] == state, r.body.json()
+
+    return network
+
+
+@reqs.description("Test vote failure reporting")
+def test_vote_failure_reporting(network, args):
+    node = network.find_random_node()
+    with node.client(None, "member0") as c:
+        r = c.post("/gov/proposals", always_accept_with_one_vote)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Open", r.body.json()
+        proposal_id = r.body.json()["proposal_id"]
+
+        ballot = vote('throw new Error("Sample error")')
+        r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["state"] == "Open", r.body.json()
+
+    with node.client(None, "member1") as c:
+        ballot = ballot_yes
+        r = c.post(f"/gov/proposals/{proposal_id}/ballots", ballot)
+        assert r.status_code == 200, r.body.text()
+        rj = r.body.json()
+        assert rj["state"] == "Accepted", r.body.json()
+        assert len(rj["vote_failures"]) == 1, rj["vote_failures"]
+        member_id = network.consortium.get_member_by_local_id("member0").service_id
+        assert rj["vote_failures"][member_id]["reason"] == "Error: Sample error", rj[
+            "vote_failures"
+        ]
 
     return network
 
@@ -412,7 +508,8 @@ def test_apply(network, args):
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Failed", r.body.json()
         assert (
-            r.body.json()["failure_reason"] == "Failed to apply(): Error: Error message"
+            r.body.json()["failure"]["reason"]
+            == "Failed to apply(): Error: Error message"
         ), r.body.json()
 
     with node.client(None, "member0") as c:
@@ -423,7 +520,7 @@ def test_apply(network, args):
         assert r.status_code == 200, r.body.text()
         assert r.body.json()["state"] == "Failed", r.body.json()
         assert (
-            r.body.json()["failure_reason"]
+            r.body.json()["failure"]["reason"]
             == "Failed to resolve(): Error: Resolve message"
         ), r.body.json()
 
@@ -523,6 +620,7 @@ def run(args):
         network = test_ballot_storage(network, args)
         network = test_pure_proposals(network, args)
         network = test_proposals_with_votes(network, args)
+        network = test_vote_failure_reporting(network, args)
         network = test_operator_proposals_and_votes(network, args)
         network = test_apply(network, args)
         network = test_actions(network, args)

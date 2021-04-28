@@ -166,14 +166,33 @@ namespace ccf
     {
       auto endpoints =
         tx.rw<ccf::endpoints::EndpointsMap>(ccf::Tables::ENDPOINTS);
-      endpoints->foreach([&endpoints](const auto& k, const auto&) {
-        endpoints->remove(k);
-        return true;
-      });
+      endpoints->clear();
     }
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
+
+    void remove_all_other_non_open_proposals(
+      kv::Tx& tx, const ProposalId& proposal_id)
+    {
+      auto p = tx.rw<ccf::jsgov::ProposalMap>(Tables::PROPOSALS);
+      auto pi = tx.rw<ccf::jsgov::ProposalInfoMap>(Tables::PROPOSALS_INFO);
+      std::vector<ProposalId> to_be_removed;
+      pi->foreach(
+        [&to_be_removed, &proposal_id](
+          const ProposalId& pid, const ccf::jsgov::ProposalInfo& pinfo) {
+          if (pid != proposal_id && pinfo.state != ProposalState::OPEN)
+          {
+            to_be_removed.push_back(pid);
+          }
+          return true;
+        });
+      for (const auto& pr : to_be_removed)
+      {
+        p->remove(pr);
+        pi->remove(pr);
+      }
+    }
 
     ccf::jsgov::ProposalInfoSummary resolve_proposal(
       kv::Tx& tx,
@@ -185,6 +204,8 @@ namespace ccf
       auto pi_ = pi->get(proposal_id);
 
       std::vector<std::pair<MemberId, bool>> votes;
+      std::optional<ccf::jsgov::Votes> final_votes = std::nullopt;
+      std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
       for (const auto& [mid, mb] : pi_->ballots)
       {
         js::Runtime rt;
@@ -193,7 +214,7 @@ namespace ccf
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_console(context);
         js::populate_global_ccf(
-          &txctx, std::nullopt, nullptr, nullptr, nullptr, context);
+          &txctx, nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
         auto ballot_func = context.function(
           mb,
           "vote",
@@ -214,6 +235,15 @@ namespace ccf
         {
           votes.emplace_back(mid, JS_ToBool(context, val));
         }
+        else
+        {
+          if (!vote_failures.has_value())
+          {
+            vote_failures = ccf::jsgov::VoteFailures();
+          }
+          auto [reason, trace] = js::js_error_message(context);
+          vote_failures.value()[mid] = ccf::jsgov::Failure{reason, trace};
+        }
         JS_FreeValue(context, ballot_func);
         JS_FreeValue(context, prop);
         JS_FreeValue(context, pid);
@@ -226,7 +256,7 @@ namespace ccf
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_ccf(
-          &txctx, std::nullopt, nullptr, nullptr, nullptr, js_context);
+          &txctx, nullptr, std::nullopt, nullptr, nullptr, nullptr, js_context);
         auto resolve_func = js_context.function(
           constitution, "resolve", "public:ccf.gov.constitution[0]");
         JSValue argv[3];
@@ -262,15 +292,13 @@ namespace ccf
         JS_FreeValue(js_context, prop_id);
         JS_FreeValue(js_context, vs);
 
-        std::optional<std::string> failure_reason = std::nullopt;
-        std::optional<std::string> failure_trace = std::nullopt;
-
+        std::optional<jsgov::Failure> failure = std::nullopt;
         if (JS_IsException(val))
         {
           pi_.value().state = ProposalState::FAILED;
           auto [reason, trace] = js::js_error_message(js_context);
-          failure_reason = fmt::format("Failed to resolve(): {}", reason);
-          failure_trace = trace;
+          failure = ccf::jsgov::Failure{
+            fmt::format("Failed to resolve(): {}", reason), trace};
         }
         else if (JS_IsString(val))
         {
@@ -304,19 +332,27 @@ namespace ccf
           else
           {
             pi_.value().state = ProposalState::FAILED;
-            failure_reason = fmt::format(
-              "resolve() returned invalid status value: \"{}\"", status);
+            failure = ccf::jsgov::Failure{
+              fmt::format(
+                "resolve() returned invalid status value: \"{}\"", status),
+              std::nullopt};
           }
         }
         else
         {
           pi_.value().state = ProposalState::FAILED;
-          failure_reason = "resolve() returned invalid status value";
+          failure = ccf::jsgov::Failure{
+            "resolve() returned invalid status value", std::nullopt};
         }
 
         if (pi_.value().state != ProposalState::OPEN)
         {
-          // Record votes and errors
+          remove_all_other_non_open_proposals(tx, proposal_id);
+          final_votes = std::unordered_map<ccf::MemberId, bool>();
+          for (auto& [mid, vote] : votes)
+          {
+            final_votes.value()[mid] = vote;
+          }
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
             js::Runtime rt;
@@ -326,6 +362,7 @@ namespace ccf
             js::TxContext txctx{&tx, js::TxAccess::GOV_RW};
             js::populate_global_ccf(
               &txctx,
+              nullptr,
               std::nullopt,
               nullptr,
               &context.get_node_state(),
@@ -354,8 +391,8 @@ namespace ccf
             {
               pi_.value().state = ProposalState::FAILED;
               auto [reason, trace] = js::js_error_message(js_context);
-              failure_reason = fmt::format("Failed to apply(): {}", reason);
-              failure_trace = trace;
+              failure = ccf::jsgov::Failure{
+                fmt::format("Failed to apply(): {}", reason), trace};
             }
           }
         }
@@ -364,8 +401,9 @@ namespace ccf
                                           pi_->proposer_id,
                                           pi_.value().state,
                                           pi_.value().ballots.size(),
-                                          failure_reason,
-                                          failure_trace};
+                                          final_votes,
+                                          vote_failures,
+                                          failure};
       }
     }
 
@@ -964,7 +1002,7 @@ namespace ccf
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::populate_global_ccf(
-          nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
+          nullptr, nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
 
         auto validate_func = context.function(
           validate_script, "validate", "public:ccf.gov.constitution[0]");
@@ -1054,8 +1092,9 @@ namespace ccf
           {caller_identity.member_id,
            rv.state,
            {},
-           rv.failure_reason,
-           rv.failure_trace});
+           {},
+           std::nullopt,
+           rv.failure});
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
@@ -1194,6 +1233,7 @@ namespace ccf
         pi_->state = ProposalState::WITHDRAWN;
         pi->put(proposal_id, pi_.value());
 
+        remove_all_other_non_open_proposals(ctx.tx, proposal_id);
         record_voting_history(
           ctx.tx, caller_identity.member_id, caller_identity.signed_request);
 
@@ -1352,8 +1392,9 @@ namespace ccf
         auto rv = resolve_proposal(
           ctx.tx, proposal_id, p.value(), constitution.value());
         pi_.value().state = rv.state;
-        pi_.value().failure_reason = rv.failure_reason;
-        pi_.value().failure_trace = rv.failure_trace;
+        pi_.value().final_votes = rv.votes;
+        pi_.value().vote_failures = rv.vote_failures;
+        pi_.value().failure = rv.failure;
         pi->put(proposal_id, pi_.value());
         return make_success(rv);
       };

@@ -119,9 +119,10 @@ namespace ccf
     StateMachine<State> sm;
     SpinLock lock;
 
+    CurveID curve_id;
     crypto::KeyPairPtr node_sign_kp;
     NodeId self;
-    std::shared_ptr<crypto::KeyPair_mbedTLS> node_encrypt_kp;
+    std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
     crypto::Pem node_cert;
     QuoteInfo quote_info;
     CodeDigest node_code_id;
@@ -284,10 +285,11 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
-      const CurveID& curve_id) :
+      CurveID curve_id_) :
       sm(State::uninitialized),
-      node_sign_kp(crypto::make_key_pair(curve_id)),
-      node_encrypt_kp(std::make_shared<crypto::KeyPair_mbedTLS>(curve_id)),
+      curve_id(curve_id_),
+      node_sign_kp(crypto::make_key_pair(curve_id_)),
+      node_encrypt_kp(crypto::make_rsa_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -363,7 +365,7 @@ namespace ccf
         case StartType::New:
         {
           network.identity =
-            std::make_unique<NetworkIdentity>("CN=CCF Network");
+            std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
 
           node_cert = create_endorsed_node_cert();
 
@@ -433,7 +435,7 @@ namespace ccf
           node_info_network = config.node_info_network;
 
           network.identity =
-            std::make_unique<NetworkIdentity>("CN=CCF Network");
+            std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
           node_cert = create_endorsed_node_cert();
 
           setup_history();
@@ -1317,7 +1319,7 @@ namespace ccf
       // Broadcast decrypted ledger secrets to other nodes for them to initiate
       // private recovery too
       LedgerSecretsBroadcast::broadcast_some(
-        network, node_encrypt_kp, self, tx, restored_ledger_secrets);
+        network, self, tx, restored_ledger_secrets);
 
       network.ledger_secrets->restore_historical(
         std::move(restored_ledger_secrets));
@@ -1479,7 +1481,7 @@ namespace ccf
       auto new_ledger_secret = make_ledger_secret();
       share_manager.issue_recovery_shares(tx, new_ledger_secret);
       LedgerSecretsBroadcast::broadcast_new(
-        network, node_encrypt_kp, tx, std::move(new_ledger_secret));
+        network, tx, std::move(new_ledger_secret));
 
       return true;
     }
@@ -1724,18 +1726,15 @@ namespace ccf
                 network.secrets.get_name()));
             }
 
-            auto encrypted_ledger_secrets = w.at(0);
-            if (!encrypted_ledger_secrets.has_value())
+            auto ledger_secrets_for_nodes = w.at(0);
+            if (!ledger_secrets_for_nodes.has_value())
             {
               throw std::logic_error(fmt::format(
                 "Removal from {} table", network.secrets.get_name()));
             }
 
-            auto primary_public_encryption_key =
-              encrypted_ledger_secrets->primary_public_encryption_key;
-
             for (const auto& [node_id, encrypted_ledger_secrets] :
-                 encrypted_ledger_secrets->secrets_for_nodes)
+                 ledger_secrets_for_nodes.value())
             {
               if (node_id != self)
               {
@@ -1747,10 +1746,7 @@ namespace ccf
                    encrypted_ledger_secrets)
               {
                 auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
-                  node_encrypt_kp,
-                  std::make_shared<PublicKey_mbedTLS>(
-                    primary_public_encryption_key),
-                  encrypted_ledger_secret.encrypted_secret);
+                  node_encrypt_kp, encrypted_ledger_secret.encrypted_secret);
 
                 // On rekey, the version is inferred from the version at which
                 // the hook is executed. Otherwise, on recovery, use the version

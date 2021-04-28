@@ -32,7 +32,7 @@ A member proposes to recover the network and other members can vote on the propo
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "ballot_count": 1,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
@@ -40,7 +40,7 @@ A member proposes to recover the network and other members can vote on the propo
         "state": "Open"
     }
 
-    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ scurl.sh https://<ccf-node-address>/gov/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "ballot_count": 2,
         "proposal_id": "1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377",
@@ -77,7 +77,7 @@ The recovery share retrieval, decryption and submission steps are conveniently p
     x-ccf-tx-view: 4
     2/2 recovery shares successfully submitted. End of recovery procedure initiated.
 
-When the recovery threshold is reached, the ``POST recovery_share`` RPC returns that the end of the recovery procedure is initiated and the private ledger is now being recovered.
+When the recovery threshold is reached, the ``POST /gov/recovery_share`` RPC returns that the end of the recovery procedure is initiated and the private ledger is now being recovered.
 
 .. note:: While all nodes are recovering the private ledger, no new transaction can be executed by the network.
 
@@ -99,22 +99,22 @@ Summary Diagram
 
         Note over Node 2, Node 3: Operators have restarted a public-only service
 
-        Member 0->>+Node 2: Propose accept_recovery
+        Member 0->>+Node 2: Propose transition_service_to_open
         Node 2-->>Member 0: Proposal ID
         Member 1->>+Node 2: Vote for Proposal ID
-        Node 2-->>Member 1: State: ACCEPTED
-        Note over Node 2, Node 3: accept_recovery proposal completes. Service is ready to accept recovery shares.
+        Node 2-->>Member 1: State: Accepted
+        Note over Node 2, Node 3: transition_service_to_open proposal completes. Service is ready to accept recovery shares.
 
-        Member 0->>+Node 2: GET recovery_share
+        Member 0->>+Node 2: GET /gov/recovery_share
         Node 2-->>Member 0: Encrypted recovery share for Member 0
         Note over Member 0: Decrypts recovery share
-        Member 0->>+Node 2: POST recovery_share: "<recovery_share_0>"
+        Member 0->>+Node 2: POST /gov/recovery_share: "<recovery_share_0>"
         Node 2-->>Member 0: False
 
-        Member 1->>+Node 2: GET recovery_share
+        Member 1->>+Node 2: POST /gov/recovery_share
         Node 2-->>Member 1: Encrypted recovery share for Member 1
         Note over Member 1: Decrypts recovery share
-        Member 1->>+Node 2: POST recovery_share: "<recovery_share_1>"
+        Member 1->>+Node 2: POST /gov/recovery_share: "<recovery_share_1>"
         Node 2-->>Member 1: True
 
         Note over Node 2, Node 3: Reading Private Ledger...

@@ -440,13 +440,7 @@ namespace ccf
           submitted_recovery_share,
           network.ledger_secrets->get_latest(tx).second));
 
-      size_t submitted_shares_count = 0;
-      submitted_shares->foreach(
-        [&submitted_shares_count](const MemberId, const std::vector<uint8_t>&) {
-          submitted_shares_count++;
-          return true;
-        });
-
+      const size_t submitted_shares_count = submitted_shares->size();
       return submitted_shares_count;
     }
 

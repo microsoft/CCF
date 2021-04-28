@@ -283,10 +283,9 @@ namespace ds
           nonstd::is_specialization<T, std::map>::value ||
           nonstd::is_specialization<T, std::unordered_map>::value)
         {
-          // Nlohmann serialises maps to an array of (K, V) pairs
-          if (std::is_same<typename T::key_type, std::string>::value)
+          if constexpr (nlohmann::detail::
+                          is_compatible_object_type<nlohmann::json, T>::value)
           {
-            // ...unless the keys are strings!
             schema["type"] = "object";
             schema["additionalProperties"] =
               add_schema_component<typename T::mapped_type>();

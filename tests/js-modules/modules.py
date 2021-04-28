@@ -70,7 +70,7 @@ def test_app_bundle(network, args):
 
         assert (
             raw_module_name
-            in primary.get_ledger_public_state_at(set_js_proposal.completed_seqno)[
+            in network.get_ledger_public_state_at(set_js_proposal.completed_seqno)[
                 "public:ccf.gov.modules"
             ]
         ), "Module was not added"
@@ -101,7 +101,7 @@ def test_app_bundle(network, args):
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     assert (
-        primary.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
+        network.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
             "public:ccf.gov.modules"
         ][raw_module_name]
         is None
@@ -321,6 +321,13 @@ def test_npm_app(network, args):
         assert {"id": 42, "msg": "Saluton!"} in body, body
         assert {"id": 43, "msg": "Bonjour!"} in body, body
 
+        r = c.post("/app/rpc/apply_writes")
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+        val = network.get_ledger_public_state_at(r.seqno)["public:apply_writes"][
+            "foo".encode()
+        ]
+        assert val == b"bar", val
+
         r = c.get("/app/jwt")
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         body = r.body.json()
@@ -340,6 +347,15 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         body = r.body.json()
         assert body["msg"].startswith("token signing key not found"), r.body
+
+        priv_key_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem = infra.crypto.generate_cert(priv_key_pem)
+        r = c.post("/app/isValidX509CertBundle", pem)
+        assert r.body.json(), r.body
+        r = c.post("/app/isValidX509CertBundle", pem + "\n" + pem)
+        assert r.body.json(), r.body
+        r = c.post("/app/isValidX509CertBundle", "garbage")
+        assert not r.body.json(), r.body
 
         validate_openapi(c)
 

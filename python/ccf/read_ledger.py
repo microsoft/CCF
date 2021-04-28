@@ -4,6 +4,8 @@
 import ccf.ledger
 import sys
 import json
+import re
+import argparse
 
 from loguru import logger as LOG
 
@@ -43,14 +45,18 @@ if __name__ == "__main__":
         format="<level>{message}</level>",
     )
 
-    if len(sys.argv) < 2:
-        LOG.error("First argument should be CCF ledger directory")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Read CCF ledger directories")
+    parser.add_argument("directory", help="a ledger directory", nargs="+")
+    parser.add_argument(
+        "-t", "--tables", help="regex filter for tables", type=str, default=".*"
+    )
+    args = parser.parse_args()
 
-    ledger_dir = sys.argv[1]
-    ledger = ccf.ledger.Ledger(ledger_dir)
+    ledger_dirs = args.directory
+    ledger = ccf.ledger.Ledger(ledger_dirs)
+    table_filter = re.compile(args.tables)
 
-    LOG.info(f"Reading ledger from {ledger_dir}")
+    LOG.info(f"Reading ledger from {ledger_dirs}")
     LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
 
     for chunk in ledger:
@@ -70,6 +76,9 @@ if __name__ == "__main__":
                 LOG.error(f"{indent(2)}-- private: {private_table_size} bytes")
 
             for table_name, records in public_tables.items():
+                if not table_filter.match(table_name):
+                    continue
+
                 LOG.warning(
                     f'{indent(4)}table "{table_name}" ({counted_string(records, "write")}):'
                 )

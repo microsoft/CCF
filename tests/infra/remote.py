@@ -577,7 +577,9 @@ class CCFRemote(object):
         domain=None,
         san=None,
         snapshot_tx_interval=None,
+        max_open_sessions=None,
         jwt_key_refresh_interval_s=None,
+        curve_id=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -667,6 +669,9 @@ class CCFRemote(object):
         if snapshot_tx_interval:
             cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
 
+        if max_open_sessions:
+            cmd += [f"--max-open-sessions={max_open_sessions}"]
+
         if jwt_key_refresh_interval_s:
             cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
 
@@ -678,6 +683,9 @@ class CCFRemote(object):
 
         if self.common_read_only_ledger_dir is not None:
             cmd += [f"--read-only-ledger-dir={self.common_read_only_ledger_dir}"]
+
+        if curve_id is not None:
+            cmd += [f"--curve-id={curve_id.name}"]
 
         if start_type == StartType.new:
             cmd += [
@@ -833,8 +841,11 @@ class CCFRemote(object):
     def log_path(self):
         return self.remote.out
 
-    def ledger_path(self):
-        return os.path.join(self.remote.root, self.ledger_dir_name)
+    def ledger_paths(self):
+        paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
+        if self.read_only_ledger_dir is not None:
+            paths += [os.path.join(self.remote.root, self.read_only_ledger_dir)]
+        return paths
 
 
 class StartType(Enum):

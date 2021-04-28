@@ -197,9 +197,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--participants-curve",
         help="Curve to use for member and user identities",
-        default=infra.network.ParticipantsCurve.secp384r1.name,
-        type=lambda curve: infra.network.ParticipantsCurve[curve],
-        choices=list(infra.network.ParticipantsCurve),
+        default=infra.network.EllipticCurve.secp384r1.name,
+        type=lambda curve: infra.network.EllipticCurve[curve],
+        choices=list(infra.network.EllipticCurve),
     )
     parser.add_argument(
         "--join-timer",
@@ -249,6 +249,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=10,
     )
     parser.add_argument(
+        "--max-open-sessions",
+        help="Max open TLS sessions on each node",
+        default=None,
+    )
+    parser.add_argument(
         "--jwt-key-refresh-interval-s",
         help="JWT key refresh interval in seconds",
         default=None,
@@ -263,6 +268,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Location of read-only ledger directory available to all nodes",
         type=str,
         default=None,
+    )
+    parser.add_argument(
+        "--curve-id",
+        help="Elliptic curve to use as for node and network identities",
+        default=None,
+        type=lambda curve: infra.network.EllipticCurve[curve],
+        choices=list(infra.network.EllipticCurve),
     )
 
     add(parser)

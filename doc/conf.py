@@ -118,7 +118,7 @@ html_static_path = ["_static"]
 # 'searchbox.html']``.
 #
 html_sidebars = {
-    "**": ["sidebar-search-bs.html", "sidebar-nav-bs.html"],
+    "**": ["sidebar-nav-bs.html", "search-field.html"]
 }
 
 html_css_files = [
@@ -237,6 +237,27 @@ spelling_word_list_filename = ["spelling_wordlist.txt"]
 js_language = "typescript"
 js_source_path = "../src/js"
 jsdoc_config_path = "../src/js/tsconfig.json"
+
+# sphinxcontrib-mermaid options
+# NB: The docs say the <script> tag will no longer be needed
+# from 0.7, but this is not yet released
+mermaid_init_js = """<script>
+mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);
+</script>"""
 
 def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]):
     """

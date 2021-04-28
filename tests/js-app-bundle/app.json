@@ -5,7 +5,6 @@
         "js_module": "math.js",
         "js_function": "compute",
         "forwarding_required": "never",
-        "execute_outside_consensus": "locally",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -78,7 +77,6 @@
         "js_module": "math.js",
         "js_function": "compute2",
         "forwarding_required": "never",
-        "execute_outside_consensus": "locally",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {

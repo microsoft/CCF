@@ -74,6 +74,20 @@ function checkNone(args) {
   }
 }
 
+function checkEntityId(value, field) {
+  checkType(value, "string", field);
+  // This should be the hex-encoding of a SHA256 digest. This is 32 bytes long, so
+  // produces 64 hex characters.
+  const digestLength = 64;
+  if (value.length !== digestLength) {
+    throw new Error(`${field} must contain exactly ${digestLength} characters`);
+  }
+  const re = new RegExp("^[a-fA-F0-9]*$");
+  if (!re.test(value)) {
+    throw new Error(`${field} contains non-hexadecimal character`);
+  }
+}
+
 function getSingletonKvKey() {
   // When a KV map only contains one value, this is the key at which
   // the value is recorded
@@ -110,15 +124,15 @@ function checkJwks(value, field) {
         "-----BEGIN CERTIFICATE-----\n" +
         b64der +
         "\n-----END CERTIFICATE-----";
-      checkX509CertChain(pem, `${field}.keys[${i}].x5c[${j}]`);
+      checkX509CertBundle(pem, `${field}.keys[${i}].x5c[${j}]`);
     }
   }
 }
 
-function checkX509CertChain(value, field) {
-  if (!ccf.isValidX509Chain(value)) {
+function checkX509CertBundle(value, field) {
+  if (!ccf.isValidX509CertBundle(value)) {
     throw new Error(
-      `${field} must be a valid X509 certificate (chain) in PEM format`
+      `${field} must be a valid X509 certificate (bundle) in PEM format`
     );
   }
 }
@@ -160,7 +174,7 @@ const actions = new Map([
     "set_member",
     new Action(
       function (args) {
-        checkX509CertChain(args.cert, "cert");
+        checkX509CertBundle(args.cert, "cert");
         checkType(args.member_data, "object?", "member_data");
         // Also check that public encryption key is well formed, if it exists
       },
@@ -214,7 +228,7 @@ const actions = new Map([
     "remove_member",
     new Action(
       function (args) {
-        checkType(args.member_id, "string", "member_id");
+        checkEntityId(args.member_id, "member_id");
       },
       function (args) {
         const rawMemberId = ccf.strToBuf(args.member_id);
@@ -276,7 +290,7 @@ const actions = new Map([
     "set_member_data",
     new Action(
       function (args) {
-        checkType(args.member_id, "string", "member_id");
+        checkEntityId(args.member_id, "member_id");
         checkType(args.member_data, "object", "member_data");
       },
 
@@ -297,7 +311,7 @@ const actions = new Map([
     "set_user",
     new Action(
       function (args) {
-        checkX509CertChain(args.cert, "cert");
+        checkX509CertBundle(args.cert, "cert");
         checkType(args.user_data, "object?", "user_data");
       },
       function (args) {
@@ -324,7 +338,7 @@ const actions = new Map([
     "remove_user",
     new Action(
       function (args) {
-        checkType(args.user_id, "string", "user_id");
+        checkEntityId(args.user_id, "user_id");
       },
       function (args) {
         const user_id = ccf.strToBuf(args.user_id);
@@ -337,7 +351,7 @@ const actions = new Map([
     "set_user_data",
     new Action(
       function (args) {
-        checkType(args.user_id, "string", "user_id");
+        checkEntityId(args.user_id, "user_id");
         checkType(args.user_data, "object?", "user_data");
       },
       function (args) {
@@ -557,7 +571,7 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.name, "string", "name");
-        checkX509CertChain(args.cert_bundle, "cert_bundle");
+        checkX509CertBundle(args.cert_bundle, "cert_bundle");
       },
       function (args) {
         const name = args.name;
@@ -715,7 +729,7 @@ const actions = new Map([
     "transition_node_to_trusted",
     new Action(
       function (args) {
-        checkType(args.node_id, "string", "node_id");
+        checkEntityId(args.node_id, "node_id");
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
@@ -752,7 +766,7 @@ const actions = new Map([
     "remove_node",
     new Action(
       function (args) {
-        checkType(args.node_id, "string", "node_id");
+        checkEntityId(args.node_id, "node_id");
       },
       function (args) {
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
@@ -766,34 +780,6 @@ const actions = new Map([
             ccf.jsonCompatibleToBuf(node_obj)
           );
         }
-      }
-    ),
-  ],
-  [
-    "set_service_principal",
-    new Action(
-      function (args) {
-        checkType(args.id, "string", "id");
-        checkType(args.data, "object", "data");
-      },
-      function (args) {
-        ccf.kv["public:ccf.gov.service_principals"].set(
-          ccf.strToBuf(args.id),
-          ccf.jsonCompatibleToBuf(args.data)
-        );
-      }
-    ),
-  ],
-  [
-    "remove_service_principal",
-    new Action(
-      function (args) {
-        checkType(args.id, "string", "id");
-      },
-      function (args) {
-        ccf.kv["public:ccf.gov.service_principals"].delete(
-          ccf.strToBuf(args.id)
-        );
       }
     ),
   ],

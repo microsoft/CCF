@@ -15,7 +15,7 @@ folder of the CCF git repository.
 
 .. note::
    tsoa currently focuses on JSON as content type.
-   Using other content types is possible but requires to :ref:`manually specify the OpenAPI definition <build_apps/js_app_tsoa>`.
+   Using other content types is possible but requires to :ref:`manually specify the OpenAPI definition <build_apps/js_app_tsoa:TypeScript Application using tsoa>`.
 
 Prerequisites
 -------------
@@ -89,7 +89,7 @@ One of them is the :typedoc:package:`ccf-app` package.
 This package is referenced locally using ``file:``.
 You should replace this with a reference to a published version (adjust the version number accordingly):
 
-.. code-block:: json
+.. code-block:: js
 
     "@microsoft/ccf-app": "~0.19.4",
 

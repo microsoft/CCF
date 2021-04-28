@@ -169,11 +169,11 @@ namespace kv::untyped
     {
       LOG_TRACE_FMT("KV[{}]::remove({})", map_name, key);
       auto write = tx_changes.writes.find(key);
-      auto search = tx_changes.state.get(key).has_value();
+      auto exists_in_state = tx_changes.state.getp(key) != nullptr;
 
       if (write != tx_changes.writes.end())
       {
-        if (!search)
+        if (!exists_in_state)
         {
           // this key only exists locally, there is no reason to maintain and
           // serialise it
@@ -189,7 +189,7 @@ namespace kv::untyped
       }
 
       // If the key doesn't exist, return false.
-      if (!search)
+      if (!exists_in_state)
       {
         return false;
       }
@@ -197,6 +197,14 @@ namespace kv::untyped
       // Record in the write set.
       tx_changes.writes[key] = std::nullopt;
       return true;
+    }
+
+    void clear()
+    {
+      foreach([this](const auto& k, const auto&) {
+        remove(k);
+        return true;
+      });
     }
 
     template <class F>
@@ -239,6 +247,18 @@ namespace kv::untyped
           }
         }
       }
+    }
+
+    size_t size()
+    {
+      size_t size_ = 0;
+
+      foreach([&size_](const auto&, const auto&) {
+        ++size_;
+        return true;
+      });
+
+      return size_;
     }
   };
 }

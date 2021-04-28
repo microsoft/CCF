@@ -168,6 +168,15 @@ int main(int argc, char** argv)
       "Number of transactions between snapshots")
     ->capture_default_str();
 
+  size_t max_open_sessions = 1'000;
+  app
+    .add_option(
+      "--max-open-sessions",
+      max_open_sessions,
+      "Number of TLS sessions which may be open at the same time. Additional "
+      "connections past this limit will be refused")
+    ->capture_default_str();
+
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
   for (int i = logger::MOST_VERBOSE; i < logger::MAX_LOG_LEVEL; i++)
@@ -338,6 +347,19 @@ int main(int argc, char** argv)
       )
     ->capture_default_str();
 
+  crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
+  std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
+    {"secp384r1", crypto::CurveID::SECP384R1},
+    {"secp256r1", crypto::CurveID::SECP256R1}};
+  app
+    .add_option(
+      "--curve-id",
+      curve_id,
+      "Elliptic curve to use as for node and network identities (used for TLS "
+      "and ledger signatures)")
+    ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
+    ->capture_default_str();
+
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
@@ -420,20 +442,6 @@ int main(int argc, char** argv)
       "Destination path to freshly created network certificate")
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
-
-  crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
-  std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
-    {"secp384r1", crypto::CurveID::SECP384R1},
-    {"secp256r1", crypto::CurveID::SECP256R1}};
-  app
-    .add_option(
-      "--curve-id",
-      curve_id,
-      "Elliptic curve to use as for node and network identities (used for TLS "
-      "and ledger "
-      "signatures")
-    ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
-    ->capture_default_str();
 
   CLI11_PARSE(app, argc, argv);
 
@@ -676,6 +684,7 @@ int main(int argc, char** argv)
                                     public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
+    ccf_config.max_open_sessions = max_open_sessions;
 
     ccf_config.subject_name = subject_name;
     ccf_config.subject_alternative_names = subject_alternative_names;
