@@ -6,9 +6,6 @@ from loguru import logger as LOG
 import json
 import random
 
-# Note: It is safer to run the ledger tutorial when the service has stopped
-# as all ledger files will have been written to.
-
 # Change default log format
 LOG.remove()
 LOG.add(
@@ -26,6 +23,9 @@ ledger_dirs = sys.argv[1:]
 import ccf.ledger
 
 # SNIPPET: create_ledger
+# Because all ledger files are closed and are no longer being
+# written to, it is safe to read all of them, even those that may
+# contain uncommitted transactions.
 ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=False)
 
 # SNIPPET: target_table
