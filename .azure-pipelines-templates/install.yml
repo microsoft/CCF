@@ -25,7 +25,8 @@ steps:
 
   - script: |
       set -ex
-      CCF_VERSION=$(<../../build/VERSION)
+      CCF_VERSION=$(<../../build/VERSION_LONG)
+      CCF_VERSION=${CCF_VERSION#ccf-}
       npm version $CCF_VERSION
       npm pack
       PKG=`ls *.tgz`
