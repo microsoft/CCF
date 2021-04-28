@@ -442,7 +442,7 @@ class Network:
         # If a common directory was passed in, initialise the consortium from it
         if common_dir is not None:
             self.consortium = infra.consortium.Consortium(
-                common_dir, self.key_generator, self.share_script, remote_node=primary
+                common_dir, self.key_generator, self.share_script, network=self
             )
 
         for node in self.get_joined_nodes():
