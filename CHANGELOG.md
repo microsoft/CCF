@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.0]
+
+### Changed
+
+- By default, CCF is now installed under `/opt/ccf` rather than `/opt/ccf-x.y.z`.
+
 ## [0.99.4]
 
 ### Fixed
@@ -823,6 +829,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[1.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0
 [0.99.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.4
 [0.99.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.3
 [0.99.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.2

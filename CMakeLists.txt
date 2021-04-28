@@ -27,7 +27,6 @@ include(${CCF_DIR}/cmake/cpack_settings.cmake)
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      # TODO: Should be mentioned in CHANGELOG
       "/opt/ccf"
       CACHE PATH "Default install prefix" FORCE
   )
