@@ -116,7 +116,7 @@ all_tests_suite = [
     governance_history.test_tables_doc,
     # curve migration:
     reconfiguration.test_change_curve,
-    recovery.test
+    recovery.test,
 ]
 suites["all"] = all_tests_suite
 
