@@ -430,8 +430,11 @@ class Network:
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
+        ledger_dirs = [ledger_dir]
+        if committed_ledger_dir:
+            ledger_dirs.append(committed_ledger_dir)
 
-        ledger = Ledger([ledger_dir], committed_only=False)
+        ledger = Ledger(ledger_dirs, committed_only=False)
         public_state, _ = ledger.get_latest_public_state()
 
         primary = self._start_all_nodes(
