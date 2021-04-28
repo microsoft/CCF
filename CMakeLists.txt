@@ -14,8 +14,9 @@ project(
 
 set(ENV{BETTER_EXCEPTIONS} 1)
 
-message(STATUS "CCF version=${CCF_VERSION}")
-message(STATUS "CCF release version=${CCF_RELEASE_VERSION}")
+message(STATUS "CCF version = ${CCF_VERSION}")
+message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
+message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
 include(${CCF_DIR}/cmake/cpack_settings.cmake)
 

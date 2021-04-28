@@ -3,13 +3,14 @@
 
 unset(CCF_VERSION)
 unset(CCF_RELEASE_VERSION)
+unset(CCF_VERSION_SUFFIX)
 
 # If possible, deduce project version from git environment
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   find_package(Git)
 
   execute_process(
-    COMMAND "bash" "-c" "${GIT_EXECUTABLE} describe --tags | grep ccf-"
+    COMMAND "bash" "-c" "${GIT_EXECUTABLE} describe --tags"
     OUTPUT_VARIABLE "CCF_VERSION"
     OUTPUT_STRIP_TRAILING_WHITESPACE
     RESULT_VARIABLE RETURN_CODE
@@ -17,15 +18,33 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   if(NOT RETURN_CODE STREQUAL "0")
     message(
       FATAL_ERROR
-        "Git repository does not appear to contain any tag starting with ccf- (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)"
+        "Error calling git describe"
     )
   endif()
-  execute_process(
-    COMMAND "bash" "-c"
-            "${GIT_EXECUTABLE} describe --tags --abbrev=0 | cut -d'-' -f2"
-    OUTPUT_VARIABLE "CCF_RELEASE_VERSION"
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
+
+  # Convert git description into cmake list, separated at '-'
+  string(REPLACE "-" ";" CCF_VERSION_COMPONENTS ${CCF_VERSION})
+
+  # Check that the first element equals "ccf"
+  list(GET CCF_VERSION_COMPONENTS 0 FIRST)
+  if(NOT FIRST STREQUAL "ccf")
+    message(FATAL_ERROR  "Git repository does not appear to contain any tag starting with ccf- (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)")
+  endif()
+
+  # Check that we have at least ccf-x.y.z
+  list(LENGTH CCF_VERSION_COMPONENTS CCF_VERSION_COMPONENTS_LENGTH)
+  if(NOT CCF_VERSION_COMPONENTS_LENGTH GREATER_EQUAL 2)
+    message(FATAL_ERROR  "Git tag does not contain expected ccf-x.y.z")
+  endif()
+
+  # Get the main version number
+  list(GET CCF_VERSION_COMPONENTS 1 CCF_RELEASE_VERSION)
+
+  # If there is any suffix, store it
+  if(CCF_VERSION_COMPONENTS_LENGTH GREATER 2)
+    list(SUBLIST CCF_VERSION_COMPONENTS 2 -1 CCF_VERSION_SUFFIX)
+    list(JOIN CCF_VERSION_SUFFIX "-" CCF_VERSION_SUFFIX)
+  endif()
 endif()
 
 if(NOT CCF_RELEASE_VERSION)
