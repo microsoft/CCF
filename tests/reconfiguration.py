@@ -82,7 +82,7 @@ def test_add_node_on_other_curve(network, args):
     return network
 
 
-@reqs.description("Changing network's curve")
+@reqs.description("Changing curve used for identity of new nodes and new services")
 def test_change_curve(network, args):
     # NB: This doesn't actually test things, it just changes the configuration
     # for future tests. Expects to be part of an interesting suite
