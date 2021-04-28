@@ -16,10 +16,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
     RESULT_VARIABLE RETURN_CODE
   )
   if(NOT RETURN_CODE STREQUAL "0")
-    message(
-      FATAL_ERROR
-        "Error calling git describe"
-    )
+    message(FATAL_ERROR "Error calling git describe")
   endif()
 
   # Convert git description into cmake list, separated at '-'
@@ -28,13 +25,16 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   # Check that the first element equals "ccf"
   list(GET CCF_VERSION_COMPONENTS 0 FIRST)
   if(NOT FIRST STREQUAL "ccf")
-    message(FATAL_ERROR  "Git repository does not appear to contain any tag starting with ccf- (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)")
+    message(
+      FATAL_ERROR
+        "Git repository does not appear to contain any tag starting with ccf- (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)"
+    )
   endif()
 
   # Check that we have at least ccf-x.y.z
   list(LENGTH CCF_VERSION_COMPONENTS CCF_VERSION_COMPONENTS_LENGTH)
   if(NOT CCF_VERSION_COMPONENTS_LENGTH GREATER_EQUAL 2)
-    message(FATAL_ERROR  "Git tag does not contain expected ccf-x.y.z")
+    message(FATAL_ERROR "Git tag does not contain expected ccf-x.y.z")
   endif()
 
   # Get the main version number

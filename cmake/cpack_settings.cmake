@@ -10,8 +10,12 @@ set(CPACK_PACKAGE_VERSION ${CCF_RELEASE_VERSION})
 set(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
 if(CCF_VERSION_SUFFIX)
-    set(CPACK_DEBIAN_PACKAGE_VERSION "${CCF_RELEASE_VERSION}~${CCF_VERSION_SUFFIX}")
-    message(STATUS "Debian package will include suffix: ${CPACK_DEBIAN_PACKAGE_VERSION}")
+  set(CPACK_DEBIAN_PACKAGE_VERSION
+      "${CCF_RELEASE_VERSION}~${CCF_VERSION_SUFFIX}"
+  )
+  message(
+    STATUS "Debian package will include suffix: ${CPACK_DEBIAN_PACKAGE_VERSION}"
+  )
 endif()
 
 # CPack variables for Debian packages
