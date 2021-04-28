@@ -12,6 +12,7 @@
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
+#include "node/rpc/error.h"
 #include "node_interface.h"
 
 namespace ccf
@@ -412,6 +413,86 @@ namespace ccf
       };
       make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto promote = [this](auto& args, const nlohmann::json& params) {
+        const auto in = params.get<PromoteNodeToTrusted::In>();
+
+        if (
+          !this->context.get_node_state().is_part_of_network() &&
+          !this->context.get_node_state().is_part_of_public_network() &&
+          !this->context.get_node_state().is_reading_private_ledger())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Target node should be part of network to promote nodes.");
+        }
+
+        if (!this->context.get_node_state().is_primary())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Only the primary can promote nodes.");
+        }
+
+        auto service = args.tx.ro(this->network.service);
+        auto active_service = service->get(0);
+
+        if (!active_service.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No service is available to promote node.");
+        }
+
+        if (active_service->status != ServiceStatus::OPEN)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::FrontendNotOpen,
+            "Service must be open to promote nodes.");
+        }
+
+        auto existing_node_info =
+          check_node_exists(args.tx, args.rpc_ctx->session->caller_cert);
+        if (!existing_node_info.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidNodeState,
+            "No such node.");
+        }
+        auto nodes = args.tx.rw(this->network.nodes);
+
+        auto node_status = nodes->get(existing_node_info->first)->status;
+        if (node_status != NodeStatus::CATCHING_UP)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidNodeState,
+            "Cannot promote a node that is not catching up.");
+        }
+
+        auto value = nodes->get(in.node_id);
+        if (!value.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Missing node state.");
+        }
+
+        value->status = NodeStatus::TRUSTED;
+        nodes->put(in.node_id, *value);
+        return make_success(true);
+      };
+
+      make_endpoint(
+        "promote", HTTP_POST, json_adapter(promote), no_auth_required)
         .set_openapi_hidden(true)
         .install();
 

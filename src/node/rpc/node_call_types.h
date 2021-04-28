@@ -115,6 +115,14 @@ namespace ccf
     };
   };
 
+  struct PromoteNodeToTrusted
+  {
+    struct In
+    {
+      NodeId node_id;
+    };
+  };
+
   struct MemoryUsage
   {
     using In = void;

@@ -6,6 +6,7 @@
 #include "enclave/interface.h"
 #include "node/code_id.h"
 #include "node/rpc/call_types.h"
+#include "node/rpc/node_call_types.h"
 
 namespace ccf
 {
@@ -36,6 +37,9 @@ namespace ccf
     public_encryption_key,
     consensus_type,
     startup_seqno)
+
+  DECLARE_JSON_TYPE(PromoteNodeToTrusted::In)
+  DECLARE_JSON_REQUIRED_FIELDS(PromoteNodeToTrusted::In, node_id);
 
   DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)

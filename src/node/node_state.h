@@ -1915,7 +1915,7 @@ namespace ccf
         snapshotter,
         rpcsessions,
         rpc_map,
-        node_cert.raw(),
+        node_cert,
         shared_state,
         std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,
@@ -1925,6 +1925,7 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
         sig_tx_interval,
         public_only,
+        node_sign_kp,
         network.tables);
 
       consensus = std::make_shared<RaftConsensusType>(

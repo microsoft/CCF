@@ -308,15 +308,9 @@ class Consortium:
             timeout=timeout,
         )
 
-        WITH_CATCHUP = True
-
-        if WITH_CATCHUP:
-            while not self.wait_for_node_to_exist_in_store(
-                remote_node, node_id, timeout, NodeStatus.TRUSTED
-            ):
-                pass
-        elif not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
-            raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
+        self.wait_for_node_to_exist_in_store(
+            remote_node, node_id, timeout, NodeStatus.TRUSTED
+        )
 
     def remove_member(self, remote_node, member_to_remove):
         LOG.info(f"Retiring member {member_to_remove.local_id}")
@@ -556,7 +550,6 @@ class Consortium:
                 f"Node {node_id} has not yet been recorded in the store"
                 + getattr(node_status, f" with status {node_status.value}", "")
             )
-        return True
 
     def wait_for_all_nodes_to_be_trusted(self, remote_node, nodes, timeout=3):
         for n in nodes:

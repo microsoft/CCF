@@ -4,11 +4,15 @@
 
 #include "ccf/app_interface.h"
 #include "consensus/aft/raft_types.h"
+#include "enclave/rpc_sessions.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "node/config.h"
 #include "node/entities.h"
 #include "node/nodes.h"
+#include "node/rpc/node_call_types.h"
+#include "node/rpc/serdes.h"
+#include "rpc/serialization.h"
 
 using namespace ccf;
 
@@ -43,6 +47,10 @@ namespace aft
   public:
     const NodeId& node_id;
     std::shared_ptr<kv::AbstractStore> store;
+    const std::shared_ptr<enclave::RPCSessions>& rpcsessions;
+    const std::shared_ptr<enclave::RPCMap>& rpc_map;
+    const crypto::KeyPairPtr& node_sign_kp;
+    const crypto::Pem& node_cert;
 
     typedef struct
     {
@@ -53,9 +61,18 @@ namespace aft
 
   public:
     ConfigurationTracker(
-      const NodeId& node_id_, std::shared_ptr<kv::AbstractStore> store_) :
+      const NodeId& node_id_,
+      std::shared_ptr<kv::AbstractStore> store_,
+      const std::shared_ptr<enclave::RPCSessions>& rpcsessions_,
+      const std::shared_ptr<enclave::RPCMap>& rpc_map_,
+      const crypto::KeyPairPtr& node_sign_kp_,
+      const crypto::Pem& node_cert_) :
       node_id(node_id_),
-      store(store_)
+      store(store_),
+      rpcsessions(rpcsessions_),
+      rpc_map(rpc_map_),
+      node_sign_kp(node_sign_kp_),
+      node_cert(node_cert_)
     {}
 
     ~ConfigurationTracker() {}
@@ -122,31 +139,21 @@ namespace aft
               configurations.back().passive};
     }
 
-    void promote_if_possible(
+    bool promote_if_possible(
       const NodeId& id, const TxID& txid, const TxID& primary_txid)
     {
       auto& last_config = configurations.back();
       if (last_config.passive.find(id) == last_config.passive.end())
-        return;
+        return true;
 
       if (!(txid < primary_txid) && store != nullptr)
       {
         LOG_INFO_FMT("Promoting {} to TRUSTED as it has caught up with us", id);
-
-        // TODO: Go through frontend
-
-        kv::CommittableTx tx(store.get());
-        auto nodes = tx.rw<Nodes>(Tables::NODES);
-        auto value = nodes->get(id);
-        if (value.has_value())
-        {
-          value->status = NodeStatus::TRUSTED;
-          nodes->put(id, *value);
-          if (tx.commit() != kv::CommitResult::SUCCESS)
-          {
-            throw std::logic_error("Promotion failed: error writing to store.");
-          }
-        }
+        return write_promotion_kv_entry(node_id);
+      }
+      else
+      {
+        return true;
       }
     }
 
@@ -302,6 +309,53 @@ namespace aft
         ss << "] ";
       }
       return ss.str();
+    }
+
+    bool write_promotion_kv_entry(const NodeId& node_id)
+    {
+      // Serialize request object
+      PromoteNodeToTrusted::In ps;
+
+      ps.node_id = node_id;
+
+      const auto body = serdes::pack(ps, serdes::Pack::Text);
+
+      http::Request request(fmt::format(
+        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "promote"));
+      request.set_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+
+      request.set_body(&body);
+
+      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
+      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
+
+      http::sign_request(request, node_sign_kp, key_id);
+
+      std::vector<uint8_t> packed = request.build_request();
+
+      // Submit request
+      auto node_session = std::make_shared<enclave::SessionContext>(
+        enclave::InvalidSessionId, node_cert.raw());
+      auto ctx = enclave::make_rpc_context(node_session, packed);
+
+      const auto actor_opt = http::extract_actor(*ctx);
+      if (!actor_opt.has_value())
+      {
+        throw std::logic_error("Unable to get actor");
+      }
+
+      const auto actor = rpc_map->resolve(actor_opt.value());
+      auto frontend_opt = this->rpc_map->find(actor);
+      if (!frontend_opt.has_value())
+      {
+        throw std::logic_error(
+          "RpcMap::find returned invalid (empty) frontend");
+      }
+      auto frontend = frontend_opt.value();
+      frontend->process(ctx);
+
+      return ctx->get_response_status() == HTTP_STATUS_OK;
     }
   };
 }

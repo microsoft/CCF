@@ -19,7 +19,7 @@ namespace threading
     std::atomic<ThreadMsg*> next = nullptr;
 
     ThreadMsg(void (*_cb)(std::unique_ptr<ThreadMsg>)) : cb(_cb) {}
-    ThreadMsg(std::function<void()> f) : f(f) {}
+    ThreadMsg(std::function<void()>&& f) : f(f) {}
 
     virtual ~ThreadMsg() = default;
   };
@@ -72,7 +72,11 @@ namespace threading
       if (current->cb)
         current->cb(std::unique_ptr<ThreadMsg>(current));
       else
+      {
         current->f();
+        current->f = nullptr;
+        delete (current);
+      }
       return true;
     }
 
@@ -289,18 +293,18 @@ namespace threading
       task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));
     }
 
-    void add_task(uint16_t tid, std::function<void()> f)
+    void add_task(uint16_t tid, std::function<void()>&& f)
     {
       Task& task = get_task(tid);
-      task.add_task(new ThreadMsg(f));
+      task.add_task(new ThreadMsg(std::move(f)));
     }
 
-    void add_task(std::function<void()> f)
+    void add_task(std::function<void()>&& f)
     {
       add_task(
         threading::ThreadMessaging::get_execution_thread(
           threading::MAIN_THREAD_ID),
-        f);
+        std::move(f));
     }
 
     template <typename Payload>

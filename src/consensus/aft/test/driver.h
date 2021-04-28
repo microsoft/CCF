@@ -21,7 +21,7 @@ using TRaft =
 using Store = aft::LoggingStubStore;
 using Adaptor = aft::Adaptor<Store>;
 
-std::vector<uint8_t> cert;
+Pem cert;
 
 class RaftDriver
 {

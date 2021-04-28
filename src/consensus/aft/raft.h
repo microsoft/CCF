@@ -25,6 +25,7 @@
 #include "async_execution.h"
 #include "async_executor.h"
 #include "ccf/tx_id.h"
+#include "crypto/pem.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "impl/execution.h"
@@ -167,7 +168,7 @@ namespace aft
       std::shared_ptr<SnapshotterProxy> snapshotter_,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      const std::vector<uint8_t>& /*cert*/,
+      const Pem& node_cert_,
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<Executor> executor_,
       std::shared_ptr<aft::RequestTracker> request_tracker_,
@@ -177,6 +178,7 @@ namespace aft
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
       bool public_only_ = false,
+      const crypto::KeyPairPtr node_sign_kp_ = nullptr,
       std::shared_ptr<kv::AbstractStore> kv_store_ = nullptr) :
       // TODO: Is there a way to get access to kv_store_ without explicitly
       // passing it?
@@ -197,7 +199,13 @@ namespace aft
       view_change_timeout(view_change_timeout_),
       sig_tx_interval(sig_tx_interval_),
 
-      configuration_tracker(state_->my_node_id, kv_store_),
+      configuration_tracker(
+        state_->my_node_id,
+        kv_store_,
+        rpc_sessions_,
+        rpc_map_,
+        node_sign_kp_,
+        node_cert_),
 
       public_only(public_only_),
 
@@ -2481,8 +2489,10 @@ namespace aft
 
           if (configuration_tracker.is_passive(it->first))
           {
-            LOG_FAIL_FMT(
+            LOG_INFO_FMT(
               "Not requesting a vote from passive node {}", it->first);
+            LOG_TRACE_FMT(
+              "Configurations: {}", configuration_tracker.to_string());
             continue;
           }
 

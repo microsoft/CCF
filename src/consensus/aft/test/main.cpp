@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include "consensus/aft/raft.h"
 #include "ds/logger.h"
 #include "kv/test/stub_consensus.h"
@@ -24,7 +24,7 @@ using Adaptor = aft::Adaptor<Store>;
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 
-std::vector<uint8_t> cert;
+crypto::Pem cert;
 
 DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
@@ -1213,4 +1213,17 @@ DOCTEST_TEST_CASE("Test Asynchronous Execution Coordinator")
     // the next transaction.
     DOCTEST_REQUIRE(aec.should_exec_next_append_entry(true, 1));
   }
+}
+
+int main(int argc, char** argv)
+{
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int cres = context.run();
+  int res = cres;
+  if (context.shouldExit())
+    res = cres;
+  // Aft<>::recv_append_entries_reponse may have scheduled tasks
+  threading::ThreadMessaging::thread_messaging.drop_tasks();
+  return res;
 }
