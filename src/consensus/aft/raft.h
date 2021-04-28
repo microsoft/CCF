@@ -2030,9 +2030,12 @@ namespace aft
       {
         // We are behind, convert to a follower.
         LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: more recent term",
+          "Recv append entries response to {} from {}: more recent term ({} "
+          "> {})",
           state->my_node_id,
-          from);
+          from,
+          r.term,
+          state->current_view);
         become_follower(r.term);
         return;
       }
@@ -2041,9 +2044,11 @@ namespace aft
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
         LOG_DEBUG_FMT(
-          "Recv append entries response to {} from {}: stale term",
+          "Recv append entries response to {} from {}: stale term ({} != {})",
           state->my_node_id,
-          from);
+          from,
+          r.term,
+          state->current_view);
         if (r.success == AppendEntriesResponseType::OK)
         {
           return;

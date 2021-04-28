@@ -83,7 +83,7 @@ def test_corrupted_signature(network, args):
     node = network.find_node_by_role()
 
     # Test each supported curve
-    for curve in infra.network.ParticipantsCurve:
+    for curve in infra.network.EllipticCurve:
         LOG.info(f"Testing curve: {curve.name}")
         # Add a member so we have at least one on this curve
         member = network.consortium.generate_and_add_new_member(
@@ -142,7 +142,7 @@ def test_governance(network, args):
         careful_vote,
     ) = network.consortium.generate_and_propose_new_member(
         remote_node=node,
-        curve=infra.network.ParticipantsCurve(args.participants_curve).next(),
+        curve=infra.network.EllipticCurve(args.participants_curve).next(),
     )
 
     LOG.info("Check proposal has been recorded in open state")
