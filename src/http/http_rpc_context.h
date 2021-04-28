@@ -303,6 +303,14 @@ namespace http
       return status_success(response_status);
     }
 
+    virtual void reset_response() override
+    {
+      response_headers.clear();
+      response_body.clear();
+      response_status = HTTP_STATUS_OK;
+      explicit_apply_writes.reset();
+    }
+
     virtual std::vector<uint8_t> serialise_response() const override
     {
       auto http_response = http::Response(response_status);
