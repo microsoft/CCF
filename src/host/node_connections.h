@@ -202,8 +202,7 @@ namespace asynchost
     ringbuffer::WriterPtr to_enclave;
     std::set<ccf::NodeId> reconnect_queue;
 
-    std::string client_host;
-    std::string client_service;
+    std::optional<std::string> client_host = std::nullopt;
 
   public:
     NodeConnections(
@@ -212,12 +211,10 @@ namespace asynchost
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
       std::string& service,
-      const std::string& client_host,
-      const std::string client_service) :
+      const std::optional<std::string>& client_host) :
       ledger(ledger),
       to_enclave(writer_factory.create_writer_to_inside()),
-      client_host(client_host),
-      client_service(client_service)
+      client_host(client_host)
     {
       listener->set_behaviour(std::make_unique<NodeServerBehaviour>(*this));
       listener->listen(host, service);
@@ -351,10 +348,13 @@ namespace asynchost
       TCP s;
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node));
 
-      if (!s->bind(client_host, client_service))
+      if (client_host.has_value())
       {
-        LOG_DEBUG_FMT("Could not bind!");
-        return false;
+        if (!s->bind(client_host.value()))
+        {
+          LOG_DEBUG_FMT("Could not bind!");
+          return false;
+        }
       }
 
       if (!s->connect(host, service))

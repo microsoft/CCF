@@ -14,6 +14,7 @@ import re
 import stat
 import shutil
 from collections import deque
+import ipaddress
 
 from loguru import logger as LOG
 
@@ -404,7 +405,7 @@ class LocalRemote(CmdMixin):
         self.exe_files = exe_files
         self.data_files = data_files
         self.cmd = cmd
-        self.root = os.path.join(workspace, label + "_" + name)
+        self.root = os.path.join(workspace, f"{label}_{name}")
         self.common_dir = common_dir
         self.proc = None
         self.stdout = None
@@ -632,7 +633,6 @@ class CCFRemote(object):
             f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
             f"--node-address={make_address(host, node_port)}",
-            f"--node-client-address=127.100.0.{local_node_id}",  # TODO: Only if local remote?
             f"--node-address-file={self.node_address_path}",
             f"--rpc-address={make_address(host, rpc_port)}",
             f"--rpc-address-file={self.rpc_address_path}",
@@ -645,6 +645,11 @@ class CCFRemote(object):
             f"--consensus={consensus}",
             f"--worker-threads={worker_threads}",
         ]
+
+        if remote_class is LocalRemote:
+            cmd += [
+                f'--node-client-host={str(ipaddress.ip_address("127.0.0.0") + local_node_id)}'
+            ]
 
         if log_format_json:
             cmd += ["--log-format-json"]

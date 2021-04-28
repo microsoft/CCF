@@ -110,14 +110,16 @@ int main(int argc, char** argv)
     "auto-assigned port) will be written. If empty (default), write nothing");
 
   // TODO: Does this really work with a port number != 0??
-  cli::ParsedAddress node_client_address;
-  cli::add_address_option(
-    app,
-    node_client_address,
-    "--node-client-address",
-    "Address on which to listen for TLS commands coming from other nodes (use "
-    "with caution)",
-    "0");
+  // Looks like it actually does... Because libuv uses SO_REUSEADDR under the
+  // hood
+  // (https://github.com/libuv/libuv/blob/47e0c5c575e92a25e0da10fc25b2732942c929f3/src/unix/tcp.c#L164)
+  // We should only accept 0 here
+  std::string node_client_host = {};
+  app.add_option(
+    "--node-client-host",
+    node_client_host,
+    "Host on which to connect to for commands sent to other nodes (use with "
+    "caution)");
 
   cli::ParsedAddress rpc_address;
   cli::add_address_option(
@@ -639,8 +641,7 @@ int main(int argc, char** argv)
       writer_factory,
       node_address.hostname,
       node_address.port,
-      node_client_address.hostname,
-      node_client_address.port);
+      node_client_host);
     if (!node_address_file.empty())
     {
       files::dump(

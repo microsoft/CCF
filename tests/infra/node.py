@@ -197,7 +197,7 @@ class Node:
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
-            str(self.local_node_id),
+            self.local_node_id,
             self.host,
             self.pubhost,
             self.node_port,
