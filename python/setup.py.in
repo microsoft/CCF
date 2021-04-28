@@ -17,7 +17,7 @@ with open('requirements.txt') as f:
 
 setup(
     name=PACKAGE_NAME,
-    version="@CCF_RELEASE_VERSION@",
+    version="@CCF_PYTHON_VERSION@",
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",
