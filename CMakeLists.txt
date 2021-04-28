@@ -442,6 +442,10 @@ if(BUILD_TESTS)
       APPEND
       PROPERTY LABELS unit_test
     )
+
+    add_test(NAME versionifier_test
+             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
+    )
   endif()
 
   # Picobench benchmarks
