@@ -865,7 +865,6 @@ namespace ccf
 
         if (ledger_idx == startup_snapshot_info->evidence_seqno)
         {
-          LOG_FAIL_FMT("here");
           auto evidence = snapshot_evidence->get(0);
           if (!evidence.has_value())
           {
