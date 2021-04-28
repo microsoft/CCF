@@ -69,7 +69,7 @@ extern "C"
 
     // Host and enclave versions must match. Otherwise the node may crash much
     // later (e.g. unhandled ring buffer message on either end)
-    if (strcmp(host_version, ccf::ccf_version) == 0)
+    if (std::string(host_version) != ccf::ccf_version)
     {
       return false;
     }
