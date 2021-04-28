@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+import * as ccfapp from "@microsoft/ccf-app";
 import { ValidateError as TsoaValidateError, FieldErrors } from "@tsoa/runtime";
-import * as ccf from "./types/ccf";
 
 export interface ErrorResponse {
   message: string;
@@ -14,7 +14,7 @@ export interface ValidateErrorResponse extends ErrorResponse {
 }
 
 export abstract class ValidateError {
-  static Status = 422;
+  static Status: 422 = 422;
 }
 
 class HttpError extends Error {
@@ -24,7 +24,7 @@ class HttpError extends Error {
 }
 
 export class BadRequestError extends HttpError {
-  static Status = 400;
+  static Status: 400 = 400;
 
   constructor(message: string) {
     super(BadRequestError.Status, message);
@@ -32,7 +32,7 @@ export class BadRequestError extends HttpError {
 }
 
 export class UnauthorizedError extends HttpError {
-  static Status = 401;
+  static Status: 401 = 401;
 
   constructor(message: string) {
     super(UnauthorizedError.Status, message);
@@ -40,7 +40,7 @@ export class UnauthorizedError extends HttpError {
 }
 
 export class ForbiddenError extends HttpError {
-  static Status = 403;
+  static Status: 403 = 403;
 
   constructor(message: string) {
     super(ForbiddenError.Status, message);
@@ -48,7 +48,7 @@ export class ForbiddenError extends HttpError {
 }
 
 export class NotFoundError extends HttpError {
-  static Status = 404;
+  static Status: 404 = 404;
 
   constructor(message: string) {
     super(NotFoundError.Status, message);
@@ -67,8 +67,8 @@ export class NotFoundError extends HttpError {
  */
 export function errorHandler(
   err: unknown,
-  req: ccf.Request
-): ccf.Response<ErrorResponse | ValidateErrorResponse> {
+  req: ccfapp.Request
+): ccfapp.Response<ErrorResponse | ValidateErrorResponse> {
   if (err instanceof TsoaValidateError) {
     return {
       body: {

@@ -7,6 +7,7 @@ namespace http
   namespace headers
   {
     // All HTTP headers are expected to be lowercase
+    static constexpr auto ACCEPT = "accept";
     static constexpr auto ALLOW = "allow";
     static constexpr auto AUTHORIZATION = "authorization";
     static constexpr auto CONTENT_LENGTH = "content-length";
@@ -18,11 +19,7 @@ namespace http
     static constexpr auto RETRY_AFTER = "retry-after";
     static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
 
-    static constexpr auto CCF_TX_SEQNO = "x-ccf-tx-seqno";
-    static constexpr auto CCF_TX_VIEW = "x-ccf-tx-view";
-
-    // Deprecated, will be removed in a later release
-    static constexpr auto CCF_GLOBAL_COMMIT = "x-ccf-global-commit";
+    static constexpr auto CCF_TX_ID = "x-ms-ccf-transaction-id";
   }
 
   namespace headervalues
@@ -52,6 +49,8 @@ namespace http
 
     static constexpr auto SIGN_PARAMS_DELIMITER = ",";
     static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
+
+    static constexpr auto BEARER_AUTH_SCHEME = "Bearer";
   }
 
   static constexpr char const* required_signature_headers[] = {

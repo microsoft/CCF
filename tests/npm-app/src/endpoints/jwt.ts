@@ -1,8 +1,8 @@
-import { KJUR, KEYUTIL, ArrayBuffertohex } from "jsrsasign";
+import { KJUR, KEYUTIL } from "jsrsasign";
 import jwt_decode from "jwt-decode";
 import { Base64 } from "js-base64";
 
-import * as ccf from "../types/ccf";
+import * as ccfapp from "@microsoft/ccf-app";
 
 interface JwtResponse {
   userId: string;
@@ -20,9 +20,12 @@ interface BodyClaims {
   sub: string;
 }
 
+// Rather than using the built-in JWT authenticator provided by the framework,
+// this is an unauthenticated endpoint which extracts, parses, and validates
+// the JWT itself directly in TS.
 export function jwt(
-  request: ccf.Request
-): ccf.Response<JwtResponse | ErrorResponse> {
+  request: ccfapp.Request
+): ccfapp.Response<JwtResponse | ErrorResponse> {
   const authHeader = request.headers["authorization"];
   if (!authHeader) {
     return unauthorized("authorization header missing");
@@ -47,10 +50,10 @@ export function jwt(
   }
 
   // Get the stored signing key to validate the token.
-  const keysMap = new ccf.TypedKVMap(
-    ccf.kv["public:ccf.gov.jwt_public_signing_keys"],
-    ccf.string,
-    ccf.typedArray(Uint8Array)
+  const keysMap = ccfapp.typedKv(
+    "public:ccf.gov.jwt.public_signing_keys",
+    ccfapp.string,
+    ccfapp.typedArray(Uint8Array)
   );
   const publicKeyDer = keysMap.get(signingKeyId);
   if (publicKeyDer === undefined) {
@@ -91,7 +94,7 @@ export function jwt(
   };
 }
 
-function unauthorized(msg: string): ccf.Response<ErrorResponse> {
+function unauthorized(msg: string): ccfapp.Response<ErrorResponse> {
   return {
     statusCode: 401,
     body: {

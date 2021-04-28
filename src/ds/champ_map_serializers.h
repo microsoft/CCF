@@ -5,22 +5,27 @@
 #include "ccf_assert.h"
 #include "serialized.h"
 
-#include <msgpack/msgpack.hpp>
-#include <nlohmann/json.hpp>
-#include <small_vector/SmallVector.h>
-
 namespace champ
 {
-  using Version = int64_t;
+  using Version = uint64_t;
+  using DeletableVersion = int64_t;
 
   template <typename V>
   struct VersionV
   {
-    Version version;
+    DeletableVersion version;
+    Version read_version;
     V value;
 
-    VersionV() = default;
-    VersionV(Version ver, V val) : version(ver), value(val) {}
+    VersionV() :
+      version(std::numeric_limits<decltype(version)>::min()),
+      read_version(std::numeric_limits<decltype(read_version)>::min())
+    {}
+    VersionV(DeletableVersion ver, Version read_ver, V val) :
+      version(ver),
+      read_version(read_ver),
+      value(val)
+    {}
   };
 
   namespace serialisers

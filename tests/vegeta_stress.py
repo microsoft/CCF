@@ -33,7 +33,7 @@ def run(args, additional_attack_args):
         network.start_and_join(args)
 
         primary, _ = network.find_primary()
-        primary_hostname = f"{primary.pubhost}:{primary.rpc_port}"
+        primary_hostname = f"{primary.pubhost}:{primary.pubport}"
 
         vegeta_targets = "vegeta_targets"
         with open(vegeta_targets, "w") as f:
@@ -67,10 +67,10 @@ def run(args, additional_attack_args):
         attack_cmd += ["--targets", vegeta_targets]
         attack_cmd += ["--format", "json"]
         attack_cmd += ["--duration", "10s"]
-        certs = primary.client_certs("user0")
-        attack_cmd += ["--cert", certs["cert"]]
-        attack_cmd += ["--key", certs["key"]]
-        attack_cmd += ["--root-certs", certs["ca"]]
+        sa = primary.session_auth("user0")
+        attack_cmd += ["--cert", sa["session_auth"].cert]
+        attack_cmd += ["--key", sa["session_auth"].key]
+        attack_cmd += ["--root-certs", sa["ca"]]
         attack_cmd += additional_attack_args
 
         attack_cmd_s = " ".join(attack_cmd)

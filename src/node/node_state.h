@@ -2,27 +2,33 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "call_types.h"
+#include "blit.h"
 #include "consensus/aft/raft_consensus.h"
 #include "consensus/ledger_enclave.h"
+#include "crypto/entropy.h"
+#include "crypto/pem.h"
+#include "crypto/symmetric_key.h"
+#include "crypto/verifier.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "entities.h"
 #include "genesis_gen.h"
 #include "history.h"
+#include "hooks.h"
+#include "js/wrap.h"
 #include "network_state.h"
+#include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "rpc/frontend.h"
-#include "rpc/member_frontend.h"
 #include "rpc/serialization.h"
+#include "secret_broadcast.h"
 #include "secret_share.h"
 #include "share_manager.h"
 #include "snapshotter.h"
 #include "tls/client.h"
-#include "tls/entropy.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -41,11 +47,6 @@
 #include <unordered_set>
 #include <vector>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 // Used by fmtlib to render ccf::State
 namespace std
 {
@@ -62,6 +63,12 @@ namespace ccf
   using RaftConsensusType =
     aft::Consensus<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
   using RaftType = aft::Aft<consensus::LedgerEnclave, NodeToNode, Snapshotter>;
+
+  struct NodeCreateInfo
+  {
+    crypto::Pem node_cert;
+    crypto::Pem network_cert;
+  };
 
   template <typename T>
   class StateMachine
@@ -97,50 +104,39 @@ namespace ccf
     }
   };
 
+  void reset_data(std::vector<uint8_t>& data)
+  {
+    data.clear();
+    data.shrink_to_fit();
+  }
+
   class NodeState : public ccf::AbstractNodeState
   {
   private:
-    template <typename T>
-    using Result = std::pair<T, bool>;
-
-    template <typename T>
-    static Result<T> Success(T&& v)
-    {
-      return {std::forward<T>(v), true};
-    }
-
-    template <typename T>
-    static Result<T> Fail()
-    {
-      return {{}, false};
-    }
-
-    template <typename T>
-    static Result<T> Fail(const char* s)
-    {
-      LOG_DEBUG_FMT(s);
-      return {{}, false};
-    }
-
     //
     // this node's core state
     //
     StateMachine<State> sm;
     SpinLock lock;
 
+    CurveID curve_id;
+    crypto::KeyPairPtr node_sign_kp;
     NodeId self;
-    tls::KeyPairPtr node_sign_kp;
-    tls::KeyPairPtr node_encrypt_kp;
-    tls::Pem node_cert;
-    std::vector<uint8_t> quote;
+    std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
+    crypto::Pem node_cert;
+    QuoteInfo quote_info;
     CodeDigest node_code_id;
+    CCFConfig config;
+#ifdef GET_QUOTE
+    EnclaveAttestationProvider enclave_attestation_provider;
+#endif
 
     //
     // kv store, replication, and I/O
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
-    consensus::Config consensus_config;
+    consensus::Configuration consensus_config;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -165,48 +161,168 @@ namespace ccf
     //
     NodeInfoNetwork node_info_network;
     std::shared_ptr<kv::Store> recovery_store;
-    std::shared_ptr<kv::TxHistory> recovery_history;
-    std::shared_ptr<kv::AbstractTxEncryptor> recovery_encryptor;
 
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> view_history;
-    kv::Version last_recovered_signed_idx = 1;
-    std::list<RecoveredLedgerSecret> recovery_ledger_secrets;
-
-    // This should really be a reference but because there are two ecalls,
-    // this is currently not possible:
-    // https://github.com/microsoft/CCF/issues/857
-    std::unique_ptr<std::vector<uint8_t>> recovery_snapshot = nullptr;
-    size_t recovery_snapshot_tx_interval = Snapshotter::max_tx_interval;
-
+    consensus::Index last_recovered_signed_idx = 1;
+    RecoveredEncryptedLedgerSecrets recovery_ledger_secrets;
     consensus::Index ledger_idx = 0;
+
+    //
+    // JWT key auto-refresh
+    //
+    std::shared_ptr<JwtKeyAutoRefresh> jwt_key_auto_refresh;
+
+    struct StartupSnapshotInfo
+    {
+      std::vector<uint8_t>& raw;
+      consensus::Index seqno;
+      consensus::Index evidence_seqno;
+
+      // Store used to verify a snapshot (either created fresh when a node joins
+      // from a snapshot or points to the main store when recovering from a
+      // snapshot)
+      std::shared_ptr<kv::Store> store = nullptr;
+
+      // The snapshot to startup from (on join or recovery) is only valid once a
+      // signature ledger entry confirms that the snapshot evidence was
+      // committed
+      bool has_evidence = false;
+      bool is_evidence_committed = false;
+
+      StartupSnapshotInfo(
+        const std::shared_ptr<kv::Store>& store_,
+        std::vector<uint8_t>& raw_,
+        consensus::Index seqno_,
+        consensus::Index evidence_seqno_) :
+        raw(raw_),
+        seqno(seqno_),
+        evidence_seqno(evidence_seqno_),
+        store(store_)
+      {}
+
+      bool is_snapshot_verified()
+      {
+        return has_evidence && is_evidence_committed;
+      }
+
+      ~StartupSnapshotInfo()
+      {
+        reset_data(raw);
+      }
+    };
+    std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
+    // Set to the snapshot seqno when a node starts from one and remembered for
+    // the lifetime of the node
+    std::optional<kv::Version> startup_seqno = std::nullopt;
+
+    std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
+    {
+#ifdef USE_NULL_ENCRYPTOR
+      return std::make_shared<kv::NullTxEncryptor>();
+#else
+      return std::make_shared<NodeEncryptor>(network.ledger_secrets);
+#endif
+    }
+
+    void initialise_startup_snapshot(bool recovery = false)
+    {
+      std::shared_ptr<kv::Store> snapshot_store;
+      if (!recovery)
+      {
+        // Create a new store to verify the snapshot only
+        snapshot_store = make_store(network.consensus_type);
+        auto snapshot_history = std::make_shared<MerkleTxHistory>(
+          *snapshot_store.get(),
+          self,
+          *node_sign_kp,
+          sig_tx_interval,
+          sig_ms_interval,
+          false /* No signature timer on snapshot_history */);
+
+        auto snapshot_encryptor = make_encryptor();
+
+        snapshot_store->set_history(snapshot_history);
+        snapshot_store->set_encryptor(snapshot_encryptor);
+      }
+      else
+      {
+        snapshot_store = network.tables;
+      }
+
+      LOG_INFO_FMT(
+        "Deserialising public snapshot ({})", config.startup_snapshot.size());
+
+      kv::ConsensusHookPtrs hooks;
+      auto rc = snapshot_store->deserialise_snapshot(
+        config.startup_snapshot, hooks, &view_history, true);
+      if (rc != kv::ApplyResult::PASS)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to apply public snapshot: {}", rc));
+      }
+
+      LOG_INFO_FMT(
+        "Public snapshot deserialised at seqno {}",
+        snapshot_store->current_version());
+
+      startup_seqno = snapshot_store->current_version();
+
+      ledger_idx = snapshot_store->current_version();
+      last_recovered_signed_idx = ledger_idx;
+
+      startup_snapshot_info = std::make_unique<StartupSnapshotInfo>(
+        snapshot_store,
+        config.startup_snapshot,
+        ledger_idx,
+        config.startup_snapshot_evidence_seqno);
+    }
 
   public:
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
-      ShareManager& share_manager) :
+      ShareManager& share_manager,
+      CurveID curve_id_) :
       sm(State::uninitialized),
-      self(INVALID_ID),
-      node_sign_kp(tls::make_key_pair()),
-      node_encrypt_kp(tls::make_key_pair()),
+      curve_id(curve_id_),
+      node_sign_kp(crypto::make_key_pair(curve_id_)),
+      node_encrypt_kp(crypto::make_rsa_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      share_manager(share_manager),
-      snapshotter(std::make_shared<Snapshotter>(writer_factory, network))
+      share_manager(share_manager)
     {
-      ::EverCrypt_AutoConfig2_init();
+      if (network.consensus_type == ConsensusType::CFT)
+      {
+        self = crypto::Sha256Hash(node_sign_kp->public_key_der()).hex_str();
+      }
+    }
+
+    QuoteVerificationResult verify_quote(
+      kv::ReadOnlyTx& tx,
+      const QuoteInfo& quote_info,
+      const std::vector<uint8_t>& expected_node_public_key_der) override
+    {
+#ifdef GET_QUOTE
+      return enclave_attestation_provider.verify_quote_against_store(
+        tx, quote_info, expected_node_public_key_der);
+#else
+      (void)tx;
+      (void)quote_info;
+      (void)expected_node_public_key_der;
+      return QuoteVerificationResult::Verified;
+#endif
     }
 
     //
     // funcs in state "uninitialized"
     //
     void initialize(
-      const consensus::Config& consensus_config_,
+      const consensus::Configuration& consensus_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_,
@@ -228,142 +344,130 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    auto create(const CreateNew::In& args)
+    NodeCreateInfo create(StartType start_type, CCFConfig&& config_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
-      create_node_cert(args.config);
-      open_node_frontend();
+      config = std::move(config_);
+
+      js::register_class_ids();
+      open_frontend(ActorsType::nodes);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::BFT)
-      {
-        auto quote_opt =
-          QuoteGenerator::get_quote(node_sign_kp->public_key_pem());
-        if (!quote_opt.has_value())
-        {
-          return Fail<CreateNew::Out>("Quote could not be retrieved");
-        }
-        quote = quote_opt.value();
-        auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
-        if (!node_code_id_opt.has_value())
-        {
-          return Fail<CreateNew::Out>(
-            "Code ID could not be retrieved from quote");
-        }
-        node_code_id = node_code_id_opt.value();
-      }
+      quote_info = enclave_attestation_provider.generate_quote(
+        node_sign_kp->public_key_der());
+      node_code_id = enclave_attestation_provider.get_code_id(quote_info);
 #endif
 
-      switch (args.start_type)
+      switch (start_type)
       {
         case StartType::New:
         {
           network.identity =
-            std::make_unique<NetworkIdentity>("CN=CCF Network");
+            std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
 
-          network.ledger_secrets = std::make_shared<LedgerSecrets>();
+          node_cert = create_endorsed_node_cert();
+
           network.ledger_secrets->init();
 
-          self = 0; // The first node id is always 0
+          if (network.consensus_type == ConsensusType::BFT)
+          {
+            // BFT consensus requires a stable order of node IDs so that the
+            // primary node in a given view can be computed deterministically by
+            // all nodes in the network
+            // See https://github.com/microsoft/CCF/issues/1852
 
-          setup_encryptor(network.consensus_type);
+            // Pad node id string to avoid memory alignment issues on
+            // node-to-node messages
+            self = NodeId(fmt::format("{:#08}", 0));
+          }
+
+          setup_snapshotter();
+          setup_encryptor();
           setup_consensus();
           setup_progress_tracker();
           setup_history();
-
-          snapshotter->set_tx_interval(args.config.snapshot_tx_interval);
 
           // Become the primary and force replication
           consensus->force_become_primary();
 
           // Open member frontend for members to configure and open the
           // network
-          open_member_frontend();
+          open_frontend(ActorsType::members);
 
-          if (!create_and_send_request(args, quote))
+          if (!create_and_send_request())
           {
-            return Fail<CreateNew::Out>(
+            throw std::runtime_error(
               "Genesis transaction could not be committed");
           }
 
-          accept_network_tls_connections(args.config);
+          accept_network_tls_connections();
+          auto_refresh_jwt_keys();
 
-          reset_data(quote);
+          reset_data(quote_info.quote);
+          reset_data(quote_info.endorsements);
           sm.advance(State::partOfNetwork);
 
-          return Success<CreateNew::Out>({node_cert, network.identity->cert});
+          LOG_INFO_FMT("Created new node {}", self);
+          return {node_cert, network.identity->cert};
         }
         case StartType::Join:
         {
-          // TLS connections are not endorsed by the network until the node
-          // has joined
+          node_cert = create_self_signed_node_cert();
           accept_node_tls_connections();
 
-          sm.advance(State::pending);
+          if (!config.startup_snapshot.empty())
+          {
+            initialise_startup_snapshot();
+            sm.advance(State::verifyingSnapshot);
+          }
+          else
+          {
+            sm.advance(State::pending);
+          }
 
-          return Success<CreateNew::Out>({node_cert, {}});
+          LOG_INFO_FMT("Created join node {}", self);
+          return {node_cert, {}};
         }
         case StartType::Recover:
         {
-          node_info_network = args.config.node_info_network;
+          node_info_network = config.node_info_network;
 
           network.identity =
-            std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets = std::make_shared<LedgerSecrets>();
+            std::make_unique<NetworkIdentity>("CN=CCF Network", curve_id);
+          node_cert = create_endorsed_node_cert();
 
           setup_history();
-          setup_consensus();
 
           // It is necessary to give an encryptor to the store for it to
           // deserialise the public domain when recovering the public ledger.
           // Once the public recovery is complete, the existing encryptor is
-          // replaced with a new one initialised with recovered ledger
+          // replaced with a new one initialised with the recovered ledger
           // secrets.
-          setup_encryptor(network.consensus_type);
+          setup_encryptor();
 
-          bool from_snapshot = !args.config.startup_snapshot.empty();
-
-          setup_recovery_hook(from_snapshot);
-
-          // Snapshot generation is disabled until private recovery is
-          // complete
-          recovery_snapshot_tx_interval = args.config.snapshot_tx_interval;
+          setup_snapshotter();
+          bool from_snapshot = !config.startup_snapshot.empty();
+          setup_recovery_hook();
 
           if (from_snapshot)
           {
-            // Keep a reference to snapshot for private recovery
-            recovery_snapshot = std::make_unique<std::vector<uint8_t>>(
-              args.config.startup_snapshot);
-
-            LOG_DEBUG_FMT(
-              "Deserialising public snapshot ({})", recovery_snapshot->size());
-            auto rc = network.tables->deserialise_snapshot(
-              *recovery_snapshot, &view_history, true);
-            if (rc != kv::DeserialiseSuccess::PASS)
-            {
-              throw std::logic_error(
-                fmt::format("Failed to apply public snapshot: {}", rc));
-            }
-
-            ledger_idx = network.tables->current_version();
-            last_recovered_signed_idx = ledger_idx;
+            initialise_startup_snapshot(true);
             snapshotter->set_last_snapshot_idx(ledger_idx);
-
-            LOG_DEBUG_FMT("Snapshot deserialised at seqno {}", ledger_idx);
           }
 
-          accept_network_tls_connections(args.config);
+          accept_network_tls_connections();
 
           sm.advance(State::readingPublicLedger);
 
-          return Success<CreateNew::Out>({node_cert, network.identity->cert});
+          LOG_INFO_FMT("Created recovery node {}", self);
+          return {node_cert, network.identity->cert};
         }
         default:
         {
-          throw std::logic_error(fmt::format(
-            "Node was started in unknown mode {}", args.start_type));
+          throw std::logic_error(
+            fmt::format("Node was started in unknown mode {}", start_type));
         }
       }
     }
@@ -371,7 +475,7 @@ namespace ccf
     //
     // funcs in state "pending"
     //
-    void initiate_join(CCFConfig& config)
+    void initiate_join()
     {
       auto network_ca = std::make_shared<tls::CA>(config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
@@ -384,7 +488,7 @@ namespace ccf
       join_client->connect(
         config.joining.target_host,
         config.joining.target_port,
-        [this, &config](
+        [this](
           http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
@@ -426,10 +530,11 @@ namespace ccf
           {
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
-            network.ledger_secrets =
-              std::make_shared<LedgerSecrets>(resp.network_info.ledger_secrets);
 
-            self = resp.node_id;
+            node_cert = create_endorsed_node_cert();
+
+            network.ledger_secrets->init_from_map(
+              std::move(resp.network_info.ledger_secrets));
 
             if (resp.network_info.consensus_type != network.consensus_type)
             {
@@ -440,33 +545,56 @@ namespace ccf
                 resp.network_info.consensus_type));
             }
 
-            setup_encryptor(resp.network_info.consensus_type);
+            if (network.consensus_type == ConsensusType::BFT)
+            {
+              // In CFT, the node id is computed at startup, as the hash of the
+              // node's public key
+              self = resp.node_id;
+            }
+
+            setup_snapshotter();
+            setup_encryptor();
             setup_consensus(resp.network_info.public_only);
             setup_progress_tracker();
             setup_history();
+            auto_refresh_jwt_keys();
 
-            bool from_snapshot = !config.startup_snapshot.empty();
-            if (from_snapshot)
+            if (resp.network_info.public_only)
             {
-              // It is only possible to deserialise the snapshot then, once
-              // the ledger secrets have been passed in by the network
+              last_recovered_signed_idx =
+                resp.network_info.last_recovered_signed_idx;
+              setup_recovery_hook();
+              snapshotter->set_snapshot_generation(false);
+            }
+
+            if (startup_snapshot_info)
+            {
+              // It is only possible to deserialise the entire snapshot then,
+              // once the ledger secrets have been passed in by the network
               LOG_DEBUG_FMT(
-                "Deserialising snapshot ({})", config.startup_snapshot.size());
+                "Deserialising snapshot ({})",
+                startup_snapshot_info->raw.size());
               std::vector<kv::Version> view_history;
+              kv::ConsensusHookPtrs hooks;
               auto rc = network.tables->deserialise_snapshot(
-                config.startup_snapshot,
+                startup_snapshot_info->raw,
+                hooks,
                 &view_history,
                 resp.network_info.public_only);
-
-              if (rc != kv::DeserialiseSuccess::PASS)
+              if (rc != kv::ApplyResult::PASS)
               {
                 throw std::logic_error(
                   fmt::format("Failed to apply snapshot on join: {}", rc));
               }
 
+              for (auto& hook : hooks)
+              {
+                hook->call(consensus.get());
+              }
+
               auto tx = network.tables->create_read_only_tx();
-              auto sig_view = tx.get_read_only_view(network.signatures);
-              auto sig = sig_view->get(0);
+              auto signatures = tx.ro(network.signatures);
+              auto sig = signatures->get(0);
               if (!sig.has_value())
               {
                 throw std::logic_error(
@@ -478,21 +606,12 @@ namespace ccf
 
               if (!resp.network_info.public_only)
               {
-                // Only clear snapshot if not recovering. On recovery, the
-                // snapshot is used later to initialise the recovery store.
-                reset_data(config.startup_snapshot);
-              }
-              else
-              {
-                recovery_snapshot = std::make_unique<std::vector<uint8_t>>(
-                  config.startup_snapshot);
-                recovery_snapshot_tx_interval = config.snapshot_tx_interval;
+                // Only clear snapshot if not recovering. When joining the
+                // public network the snapshot is used later to initialise the
+                // recovery store
+                startup_snapshot_info.reset();
               }
 
-              // For now, deserialising the snapshot is sufficient to resume
-              // from it. Instead, the evidence of the snapshot should be
-              // verified for the joiner to effectively join.
-              // https://github.com/microsoft/CCF/issues/1539
               LOG_INFO_FMT(
                 "Joiner successfully resumed from snapshot at seqno {} and "
                 "view {}",
@@ -500,21 +619,18 @@ namespace ccf
                 sig->view);
             }
 
-            open_member_frontend();
+            open_frontend(ActorsType::members);
 
-            accept_network_tls_connections(config);
+            accept_network_tls_connections();
 
             if (resp.network_info.public_only)
             {
-              last_recovered_signed_idx =
-                resp.network_info.last_recovered_signed_idx;
-              setup_recovery_hook(from_snapshot);
               sm.advance(State::partOfPublicNetwork);
             }
             else
             {
-              snapshotter->set_tx_interval(config.snapshot_tx_interval);
-              reset_data(quote);
+              reset_data(quote_info.quote);
+              reset_data(quote_info.endorsements);
               sm.advance(State::partOfNetwork);
             }
 
@@ -522,6 +638,10 @@ namespace ccf
               "Node has now joined the network as node {}: {}",
               self,
               (resp.network_info.public_only ? "public only" : "all domains"));
+
+            // The network identity is now known, the user frontend can be
+            // opened once the KV state catches up
+            open_user_frontend();
           }
           else if (resp.node_status == NodeStatus::PENDING)
           {
@@ -539,8 +659,9 @@ namespace ccf
       join_params.node_info_network = config.node_info_network;
       join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
-      join_params.quote = quote;
+      join_params.quote_info = quote_info;
       join_params.consensus_type = network.consensus_type;
+      join_params.startup_seqno = startup_seqno;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -558,135 +679,277 @@ namespace ccf
       join_client->send_request(r.build_request());
     }
 
-    void join(CCFConfig& config)
+    void start_join_timer()
     {
-      std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::pending);
-
-      initiate_join(config);
+      initiate_join();
 
       struct JoinTimeMsg
       {
-        JoinTimeMsg(NodeState& self_, CCFConfig& config_) :
-          self(self_),
-          config(config_)
-        {}
-
+        JoinTimeMsg(NodeState& self_) : self(self_) {}
         NodeState& self;
-        CCFConfig& config;
       };
 
       auto join_timer_msg = std::make_unique<threading::Tmsg<JoinTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<JoinTimeMsg>> msg) {
           if (msg->data.self.sm.check(State::pending))
           {
-            msg->data.self.initiate_join(msg->data.config);
-            auto delay =
-              std::chrono::milliseconds(msg->data.config.joining.join_timer);
+            msg->data.self.initiate_join();
+            auto delay = std::chrono::milliseconds(
+              msg->data.self.config.joining.join_timer);
 
             threading::ThreadMessaging::thread_messaging.add_task_after(
               std::move(msg), delay);
           }
         },
-        *this,
-        config);
+        *this);
 
       threading::ThreadMessaging::thread_messaging.add_task_after(
         std::move(join_timer_msg),
         std::chrono::milliseconds(config.joining.join_timer));
     }
 
+    void join()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      sm.expect(State::pending);
+      start_join_timer();
+    }
+
+    void auto_refresh_jwt_keys()
+    {
+      if (!consensus)
+      {
+        LOG_INFO_FMT(
+          "JWT key auto-refresh: consensus not initialized, not starting "
+          "auto-refresh");
+        return;
+      }
+      jwt_key_auto_refresh = std::make_shared<JwtKeyAutoRefresh>(
+        config.jwt_key_refresh_interval_s,
+        network,
+        consensus,
+        rpcsessions,
+        rpc_map,
+        node_sign_kp,
+        node_cert);
+      jwt_key_auto_refresh->start();
+
+      network.tables->set_map_hook(
+        network.jwt_issuers.get_name(),
+        [this](kv::Version, const kv::untyped::Write&) -> kv::ConsensusHookPtr {
+          jwt_key_auto_refresh->schedule_once();
+          return kv::ConsensusHookPtr(nullptr);
+        });
+    }
+
     //
-    // funcs in state "readingPublicLedger"
+    // funcs in state "readingPublicLedger" or "verifyingSnapshot"
     //
     void start_ledger_recovery()
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::readingPublicLedger);
-      LOG_INFO_FMT("Starting public recovery");
+      if (
+        !sm.check(State::readingPublicLedger) &&
+        !sm.check(State::verifyingSnapshot))
+      {
+        throw std::logic_error(fmt::format(
+          "Node should be in state {} or {} to start reading ledger",
+          State::readingPublicLedger,
+          State::verifyingSnapshot));
+      }
+
+      LOG_INFO_FMT("Starting to read public ledger");
       read_ledger_idx(++ledger_idx);
     }
 
     void recover_public_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::readingPublicLedger);
 
-      LOG_DEBUG_FMT(
+      std::shared_ptr<kv::Store> store;
+      if (sm.check(State::readingPublicLedger))
+      {
+        // In recovery, use the main store to deserialise public entries
+        store = network.tables;
+      }
+      else if (sm.check(State::verifyingSnapshot))
+      {
+        store = startup_snapshot_info->store;
+      }
+      else
+      {
+        LOG_FAIL_FMT(
+          "Node should be in state {} or {} to recover public ledger entry",
+          State::readingPublicLedger,
+          State::verifyingSnapshot);
+        return;
+      }
+
+      LOG_INFO_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
-      // When reading the public ledger, deserialise in the real store
-      auto result = network.tables->deserialise(ledger_entry, true);
-      if (result == kv::DeserialiseSuccess::FAILED)
+      auto r = store->deserialize(ledger_entry, ConsensusType::CFT, true);
+      auto result = r->apply();
+      if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
-        network.tables->rollback(ledger_idx - 1);
+        store->rollback(ledger_idx - 1);
         recover_public_ledger_end_unsafe();
         return;
       }
 
-      // If the ledger entry is a signature, it is safe to compact the store
-      if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+      // Not synchronised because consensus isn't effectively running then
+      for (auto& hook : r->get_hooks())
       {
-        network.tables->compact(ledger_idx);
-        auto tx = network.tables->create_tx();
+        hook->call(consensus.get());
+      }
+
+      // If the ledger entry is a signature, it is safe to compact the store
+      if (result == kv::ApplyResult::PASS_SIGNATURE)
+      {
+        // If the ledger entry is a signature, it is safe to compact the store
+        store->compact(ledger_idx);
+        auto tx = store->create_tx();
         GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
-        if (last_sig.has_value())
+
+        if (!last_sig.has_value())
         {
-          LOG_DEBUG_FMT(
-            "Read signature at {} for view {}", ledger_idx, last_sig->view);
-          // Initial transactions, before the first signature, must have
-          // happened in the first signature's view (eg - if the first
-          // signature is at seqno 20 in view 4, then transactions 1->19 must
-          // also have been in view 4). The brief justification is that while
-          // the first node may start in an arbitrarily high view (it does not
-          // necessarily start in view 1), it cannot _change_ view before a
-          // valid signature.
-          const auto view_start_idx =
-            view_history.empty() ? 1 : last_recovered_signed_idx + 1;
-          CCF_ASSERT_FMT(
-            last_sig->view >= 0,
-            "last_sig->view is invalid, {}",
-            last_sig->view);
-          for (auto i = view_history.size();
-               i < static_cast<size_t>(last_sig->view);
-               ++i)
-          {
-            view_history.push_back(view_start_idx);
-          }
-          last_recovered_signed_idx = ledger_idx;
+          throw std::logic_error("Signature missing");
         }
-        else
+
+        LOG_DEBUG_FMT(
+          "Read signature at {} for view {}", ledger_idx, last_sig->view);
+        // Initial transactions, before the first signature, must have
+        // happened in the first signature's view (eg - if the first
+        // signature is at seqno 20 in view 4, then transactions 1->19 must
+        // also have been in view 4). The brief justification is that while
+        // the first node may start in an arbitrarily high view (it does not
+        // necessarily start in view 1), it cannot _change_ view before a
+        // valid signature.
+        const auto view_start_idx =
+          view_history.empty() ? 1 : last_recovered_signed_idx + 1;
+        CCF_ASSERT_FMT(
+          last_sig->view >= 0, "last_sig->view is invalid, {}", last_sig->view);
+        for (auto i = view_history.size();
+             i < static_cast<size_t>(last_sig->view);
+             ++i)
         {
-          throw std::logic_error("Invalid signature");
+          view_history.push_back(view_start_idx);
+        }
+        last_recovered_signed_idx = ledger_idx;
+
+        if (
+          startup_snapshot_info && startup_snapshot_info->has_evidence &&
+          static_cast<consensus::Index>(last_sig->commit_seqno) >=
+            startup_snapshot_info->evidence_seqno)
+        {
+          startup_snapshot_info->is_evidence_committed = true;
+        }
+
+        if (sm.check(State::readingPublicLedger))
+        {
+          // Inform snapshotter of all signature entries so that this node can
+          // continue generating snapshots at the correct interval once the
+          // recovery is complete
+          snapshotter->record_committable(ledger_idx);
+          snapshotter->commit(ledger_idx);
+        }
+      }
+      else if (
+        result == kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE &&
+        startup_snapshot_info)
+      {
+        auto tx = store->create_read_only_tx();
+        auto snapshot_evidence = tx.ro(network.snapshot_evidence);
+
+        if (ledger_idx == startup_snapshot_info->evidence_seqno)
+        {
+          auto evidence = snapshot_evidence->get(0);
+          if (!evidence.has_value())
+          {
+            throw std::logic_error("Invalid snapshot evidence");
+          }
+
+          if (evidence->hash == crypto::Sha256Hash(startup_snapshot_info->raw))
+          {
+            LOG_DEBUG_FMT(
+              "Snapshot evidence for snapshot found at {}",
+              startup_snapshot_info->evidence_seqno);
+            startup_snapshot_info->has_evidence = true;
+          }
         }
       }
 
       read_ledger_idx(++ledger_idx);
     }
 
+    void verify_snapshot_end()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      if (!sm.check(State::verifyingSnapshot))
+      {
+        LOG_FAIL_FMT(
+          "Node in state {} cannot finalise snapshot verification", sm.value());
+        return;
+      }
+
+      if (startup_snapshot_info == nullptr)
+      {
+        // Node should shutdown if the startup snapshot cannot be verified
+        throw std::logic_error(
+          "No known startup snapshot to finalise snapshot verification");
+      }
+
+      if (!startup_snapshot_info->is_snapshot_verified())
+      {
+        // Node should shutdown if the startup snapshot cannot be verified
+        LOG_FAIL_FMT(
+          "Snapshot evidence at {} was not committed in ledger ending at {}. "
+          "Node should be shutdown by operator.",
+          startup_snapshot_info->evidence_seqno,
+          ledger_idx);
+        return;
+      }
+
+      ledger_truncate(startup_snapshot_info->seqno);
+
+      sm.advance(State::pending);
+      start_join_timer();
+    }
+
     void recover_public_ledger_end_unsafe()
     {
       sm.expect(State::readingPublicLedger);
 
-      // For now, we rollback at the latest signed idx. However, it is
-      // possible that the snapshot evidence is rolled back. This should be
-      // fixed in https://github.com/microsoft/CCF/issues/1539
+      if (startup_snapshot_info)
+      {
+        if (!startup_snapshot_info->is_snapshot_verified())
+        {
+          throw std::logic_error(
+            "Snapshot evidence was not committed in ledger");
+        }
+
+        if (last_recovered_signed_idx < startup_snapshot_info->evidence_seqno)
+        {
+          throw std::logic_error("Snapshot evidence would be rolled back");
+        }
+      }
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
       network.tables->rollback(last_recovered_signed_idx);
       ledger_truncate(last_recovered_signed_idx);
+      snapshotter->rollback(last_recovered_signed_idx);
+
       LOG_INFO_FMT(
         "End of public ledger recovery - Truncating ledger to last signed "
-        "index: {}",
+        "seqno: {}",
         last_recovered_signed_idx);
 
-      network.ledger_secrets->init(last_recovered_signed_idx + 1);
       // KV term must be set before the first Tx is committed
       auto new_term = view_history.size() + 2;
-      LOG_INFO_FMT("Setting term on public recovery KV to {}", new_term);
+      LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
       network.tables->set_term(new_term);
 
       auto tx = network.tables->create_tx();
@@ -694,15 +957,22 @@ namespace ccf
       g.create_service(network.identity->cert);
       g.retire_active_nodes();
 
-      self = g.add_node({node_info_network,
-                         node_cert,
-                         quote,
-                         node_encrypt_kp->public_key_pem().raw(),
-                         NodeStatus::PENDING});
-
-      setup_encryptor(network.consensus_type);
+      g.add_node(
+        self,
+        {node_info_network,
+         node_cert,
+         quote_info,
+         node_encrypt_kp->public_key_pem().raw(),
+         NodeStatus::PENDING});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
+
+      network.ledger_secrets->init(last_recovered_signed_idx + 1);
+      setup_encryptor();
+
+      // Initialise snapshotter after public recovery
+      snapshotter->init_after_public_recovery();
+      snapshotter->set_snapshot_generation(false);
 
       kv::Version index = 0;
       kv::Term view = 0;
@@ -728,7 +998,8 @@ namespace ccf
         progress_tracker->set_node_id(self);
       }
 
-      setup_raft(true);
+      setup_consensus(true);
+      auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT(
         "Restarting consensus at view: {} seqno: {} commit_seqno {}",
@@ -739,23 +1010,20 @@ namespace ccf
       consensus->force_become_primary(index, view, view_history, index);
 
       // Sets itself as trusted
-      g.trust_node(self);
+      g.trust_node(self, network.ledger_secrets->get_latest(tx).first);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::BFT)
-      {
-        g.trust_node_code_id(node_code_id);
-      }
+      g.trust_node_code_id(node_code_id);
 #endif
 
-      if (g.finalize() != kv::CommitSuccess::OK)
+      if (tx.commit() != kv::CommitResult::SUCCESS)
       {
         throw std::logic_error(
           "Could not commit transaction when starting recovered public "
           "network");
       }
 
-      open_member_frontend();
+      open_frontend(ActorsType::members);
 
       sm.advance(State::partOfPublicNetwork);
     }
@@ -766,14 +1034,20 @@ namespace ccf
     void recover_private_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::readingPrivateLedger);
+      if (!sm.check(State::readingPrivateLedger))
+      {
+        LOG_FAIL_FMT(
+          "Node is state {} cannot recover private ledger entry", sm.value());
+        return;
+      }
 
       LOG_INFO_FMT(
         "Deserialising private ledger entry ({})", ledger_entry.size());
 
       // When reading the private ledger, deserialise in the recovery store
-      auto result = recovery_store->deserialise(ledger_entry);
-      if (result == kv::DeserialiseSuccess::FAILED)
+      auto result =
+        recovery_store->deserialize(ledger_entry, ConsensusType::CFT)->apply();
+      if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
         recovery_store->rollback(ledger_idx - 1);
@@ -781,7 +1055,7 @@ namespace ccf
         return;
       }
 
-      if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+      if (result == kv::ApplyResult::PASS_SIGNATURE)
       {
         recovery_store->compact(ledger_idx);
       }
@@ -807,12 +1081,13 @@ namespace ccf
       if (recovery_v != recovery_store->current_version())
       {
         throw std::logic_error(fmt::format(
-          "Private recovery did not reach public ledger version: {}/{}",
+          "Private recovery did not reach public ledger seqno: {}/{}",
           recovery_store->current_version(),
           recovery_v));
       }
 
-      auto h = dynamic_cast<MerkleTxHistory*>(recovery_history.get());
+      auto h =
+        dynamic_cast<MerkleTxHistory*>(recovery_store->get_history().get());
       if (h->get_replicated_state_root() != recovery_root)
       {
         throw std::logic_error(fmt::format(
@@ -821,40 +1096,77 @@ namespace ccf
       }
 
       network.tables->swap_private_maps(*recovery_store.get());
-      recovery_history.reset();
       recovery_store.reset();
-      reset_recovery_hook();
 
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
 
       // Snapshots are only generated after recovery is complete
-      snapshotter->set_tx_interval(recovery_snapshot_tx_interval);
+      snapshotter->set_snapshot_generation(true);
 
       // Open the service
       if (consensus->is_primary())
       {
+        setup_one_off_secret_hook();
         auto tx = network.tables->create_tx();
 
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
-        share_manager.issue_shares_on_recovery(
-          tx, last_recovered_signed_idx + 1);
+        share_manager.issue_recovery_shares(tx);
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
           throw std::logic_error("Service could not be opened");
         }
 
-        if (g.finalize() != kv::CommitSuccess::OK)
+        if (tx.commit() != kv::CommitResult::SUCCESS)
         {
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
         }
       }
-
-      reset_data(quote);
+      open_user_frontend();
+      reset_data(quote_info.quote);
+      reset_data(quote_info.endorsements);
       sm.advance(State::partOfNetwork);
+    }
+
+    void setup_one_off_secret_hook()
+    {
+      // This hook is necessary to adjust the version at which the last ledger
+      // secret before recovery is recorded in the store. This can only be fired
+      // once, after the recovery shares for the post-recovery ledger secret are
+      // issued.
+      network.tables->set_map_hook(
+        network.encrypted_ledger_secrets.get_name(),
+        network.encrypted_ledger_secrets.wrap_map_hook(
+          [this](
+            kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
+            -> kv::ConsensusHookPtr {
+            if (w.size() > 1)
+            {
+              throw std::logic_error(fmt::format(
+                "Transaction contains {} writes to map {}, expected one",
+                w.size(),
+                network.encrypted_ledger_secrets.get_name()));
+            }
+
+            auto encrypted_ledger_secret_info = w.at(0);
+            if (!encrypted_ledger_secret_info.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Removal from {} table",
+                network.encrypted_ledger_secrets.get_name()));
+            }
+
+            network.ledger_secrets->adjust_previous_secret_stored_version(
+              version);
+
+            network.tables->unset_map_hook(
+              network.encrypted_ledger_secrets.get_name());
+
+            return kv::ConsensusHookPtr(nullptr);
+          }));
     }
 
     //
@@ -874,9 +1186,9 @@ namespace ccf
       }
       else
       {
-        throw std::logic_error(
-          "Cannot end ledger recovery if not reading public or private "
-          "ledger");
+        LOG_FAIL_FMT(
+          "Node in state {} cannot finalise ledger recovery", sm.value());
+        return;
       }
     }
 
@@ -885,36 +1197,18 @@ namespace ccf
     //
     void setup_private_recovery_store()
     {
-      // Setup recovery store by cloning tables of store
-      recovery_store = std::make_shared<kv::Store>();
-
-      recovery_history = std::make_shared<MerkleTxHistory>(
+      recovery_store = std::make_shared<kv::Store>(
+        true /* Check transactions in order */,
+        true /* Make use of historical secrets */);
+      auto recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
         self,
         *node_sign_kp,
         sig_tx_interval,
-        sig_ms_interval);
+        sig_ms_interval,
+        false /* No signature timer on recovery_history */);
 
-#ifdef USE_NULL_ENCRYPTOR
-      recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
-#else
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        recovery_encryptor =
-          std::make_shared<BftTxEncryptor>(network.ledger_secrets, true);
-      }
-      else if (network.consensus_type == ConsensusType::CFT)
-      {
-        recovery_encryptor =
-          std::make_shared<CftTxEncryptor>(network.ledger_secrets, true);
-        recovery_encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv
-      }
-      else
-      {
-        throw std::logic_error(
-          fmt::format("Unknown consensus type: {}", network.consensus_type));
-      }
-#endif
+      auto recovery_encryptor = make_encryptor();
 
       recovery_store->set_history(recovery_history);
       recovery_store->set_encryptor(recovery_encryptor);
@@ -924,34 +1218,93 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       recovery_root = h->get_replicated_state_root();
 
-      if (recovery_snapshot)
+      if (startup_snapshot_info)
       {
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Deserialising private snapshot for recovery ({})",
-          recovery_snapshot->size());
+          startup_snapshot_info->raw.size());
         std::vector<kv::Version> view_history;
+        kv::ConsensusHookPtrs hooks;
         auto rc = recovery_store->deserialise_snapshot(
-          *recovery_snapshot, &view_history);
-        if (rc != kv::DeserialiseSuccess::PASS)
+          startup_snapshot_info->raw, hooks, &view_history);
+        if (rc != kv::ApplyResult::PASS)
         {
           throw std::logic_error(fmt::format(
             "Could not deserialise snapshot in recovery store: {}", rc));
         }
 
-        reset_data(*recovery_snapshot);
+        startup_snapshot_info.reset();
       }
 
-      LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
+      LOG_DEBUG_FMT(
+        "Recovery store successfully setup at {}. Target recovery seqno: {}",
+        recovery_store->current_version(),
+        recovery_v);
     }
 
-    bool accept_recovery(kv::Tx& tx) override
+    void trigger_recovery_shares_refresh(kv::Tx& tx) override
+    {
+      share_manager.shuffle_recovery_shares(tx);
+    }
+
+    void transition_service_to_open(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::partOfPublicNetwork);
 
-      GenesisGenerator g(network, tx);
-      share_manager.clear_submitted_recovery_shares(tx);
-      return g.service_wait_for_shares();
+      auto service = tx.rw<Service>(Tables::SERVICE);
+      auto service_info = service->get(0);
+      if (!service_info.has_value())
+      {
+        throw std::logic_error(
+          "Service information cannot be found to transition service to open");
+      }
+
+      // Idempotence: if the service is already open or waiting for recovery
+      // shares, this function should succeed with no effect
+      if (
+        service_info->status == ServiceStatus::WAITING_FOR_RECOVERY_SHARES ||
+        service_info->status == ServiceStatus::OPEN)
+      {
+        LOG_DEBUG_FMT(
+          "Service in state {} is already open", service_info->status);
+        return;
+      }
+
+      if (is_part_of_public_network())
+      {
+        // If the node is in public mode, start accepting member recovery
+        // shares
+        share_manager.clear_submitted_recovery_shares(tx);
+        service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
+        service->put(0, service_info.value());
+        return;
+      }
+      else if (is_part_of_network())
+      {
+        // Otherwise, if the node is part of the network. Open the network
+        // straight away. Recovery shares are allocated to each recovery member.
+        try
+        {
+          share_manager.issue_recovery_shares(tx);
+        }
+        catch (const std::logic_error& e)
+        {
+          throw std::logic_error(
+            fmt::format("Failed to issue recovery shares: {}", e.what()));
+        }
+
+        GenesisGenerator g(network, tx);
+        if (g.open_service())
+        {
+          open_user_frontend();
+        }
+        return;
+      }
+      else
+      {
+        throw std::logic_error(
+          fmt::format("Node in state {} cannot open service", sm.value()));
+      }
     }
 
     void initiate_private_recovery(kv::Tx& tx) override
@@ -959,8 +1312,16 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      auto restored_versions =
-        share_manager.restore_recovery_shares_info(tx, recovery_ledger_secrets);
+      auto restored_ledger_secrets = share_manager.restore_recovery_shares_info(
+        tx, std::move(recovery_ledger_secrets));
+
+      // Broadcast decrypted ledger secrets to other nodes for them to initiate
+      // private recovery too
+      LedgerSecretsBroadcast::broadcast_some(
+        network, self, tx, restored_ledger_secrets);
+
+      network.ledger_secrets->restore_historical(
+        std::move(restored_ledger_secrets));
 
       LOG_INFO_FMT("Initiating end of recovery (primary)");
 
@@ -968,19 +1329,13 @@ namespace ccf
       // network
       history->emit_signature();
 
-      for (auto const& v : restored_versions)
-      {
-        broadcast_ledger_secret(
-          tx, network.ledger_secrets->get_secret(v).value(), v, true);
-      }
-
       setup_private_recovery_store();
+      reset_recovery_hook();
 
       // Start reading private security domain of ledger
       ledger_idx = recovery_store->current_version();
       read_ledger_idx(++ledger_idx);
 
-      recovery_ledger_secrets.clear();
       sm.advance(State::readingPrivateLedger);
     }
 
@@ -1027,22 +1382,25 @@ namespace ccf
       OArray oa(std::move(data));
       NodeMsgType msg_type =
         serialized::overlay<NodeMsgType>(oa.data(), oa.size());
+      NodeId from = serialized::read<NodeId::Value>(oa.data(), oa.size());
 
       switch (msg_type)
       {
         case channel_msg:
         {
-          n2n_channels->recv_message(std::move(oa));
+          n2n_channels->recv_message(from, std::move(oa));
           break;
         }
         case consensus_msg:
         {
-          consensus->recv_message(std::move(oa));
+          consensus->recv_message(from, std::move(oa));
           break;
         }
 
         default:
         {
+          LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
+          return;
         }
       }
     }
@@ -1074,6 +1432,11 @@ namespace ccf
       return sm.check(State::readingPrivateLedger);
     }
 
+    bool is_verifying_snapshot() const override
+    {
+      return sm.check(State::verifyingSnapshot);
+    }
+
     bool is_part_of_public_network() const override
     {
       return sm.check(State::partOfPublicNetwork);
@@ -1098,76 +1461,43 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
 
-      // Because submitted recovery shares are encrypted with the latest
-      // ledger secret, it is not possible to rekey the ledger if the service
-      // is in that state.
+      // The ledger should not be re-keyed when the service is not open because:
+      // - While waiting for recovery shares, the submitted shares are stored
+      // in a public table, encrypted with the ledger secret generated at
+      // startup of the first recovery node
+      // - On recovery, historical ledger secrets can only be looked up in the
+      // ledger once all ledger secrets have been restored
       GenesisGenerator g(network, tx);
-      if (
-        g.get_service_status().value() ==
-        ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+      if (g.get_service_status().value() != ServiceStatus::OPEN)
       {
-        LOG_FAIL_FMT(
-          "Cannot rekey ledger while the service is waiting for recovery "
-          "shares");
+        LOG_FAIL_FMT("Cannot rekey ledger while the service is not open");
         return false;
       }
 
       // Effects of ledger rekey are only observed from the next transaction,
       // once the local hook on the secrets table has been triggered.
 
-      auto new_ledger_secret = LedgerSecret();
-      share_manager.issue_shares_on_rekey(tx, new_ledger_secret);
-      broadcast_ledger_secret(tx, new_ledger_secret);
+      auto new_ledger_secret = make_ledger_secret();
+      share_manager.issue_recovery_shares(tx, new_ledger_secret);
+      LedgerSecretsBroadcast::broadcast_new(
+        network, tx, std::move(new_ledger_secret));
 
       return true;
     }
-
-    void node_quotes(
-      kv::ReadOnlyTx& tx,
-      GetQuotes::Out& result,
-      const std::optional<std::set<NodeId>>& filter) override
-    {
-      auto nodes_view = tx.get_read_only_view(network.nodes);
-
-      nodes_view->foreach([&result, &filter, this](
-                            const NodeId& nid, const NodeInfo& ni) {
-        if (!filter.has_value() || (filter->find(nid) != filter->end()))
-        {
-          if (ni.status == ccf::NodeStatus::TRUSTED)
-          {
-            GetQuotes::Quote q;
-            q.node_id = nid;
-            q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
-
-            if (this->network.consensus_type != ConsensusType::BFT)
-            {
-#ifdef GET_QUOTE
-              auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
-              if (!code_id_opt.has_value())
-              {
-                q.error = fmt::format("Failed to retrieve code ID from quote");
-              }
-              else
-              {
-                q.mrenclave =
-                  fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
-              }
-#endif
-            }
-            result.quotes.push_back(q);
-          }
-        }
-        return true;
-      });
-    };
 
     NodeId get_node_id() const override
     {
       return self;
     }
 
+    std::optional<kv::Version> get_startup_snapshot_seqno() override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      return startup_seqno;
+    }
+
   private:
-    tls::SubjectAltName get_subject_alt_name(const CCFConfig& config)
+    crypto::SubjectAltName get_subject_alt_name()
     {
       // If a domain is passed at node creation, record domain in SAN for node
       // hostname authentication over TLS. Otherwise, record IP in SAN.
@@ -1176,18 +1506,26 @@ namespace ccf
               san_is_ip};
     }
 
-    std::vector<tls::SubjectAltName> get_subject_alternative_names(
-      const CCFConfig& config)
+    std::vector<crypto::SubjectAltName> get_subject_alternative_names()
     {
-      std::vector<tls::SubjectAltName> sans = config.subject_alternative_names;
-      sans.push_back(get_subject_alt_name(config));
+      std::vector<crypto::SubjectAltName> sans =
+        config.subject_alternative_names;
+      sans.push_back(get_subject_alt_name());
       return sans;
     }
 
-    void create_node_cert(const CCFConfig& config)
+    Pem create_self_signed_node_cert()
     {
-      auto sans = get_subject_alternative_names(config);
-      node_cert = node_sign_kp->self_sign(config.subject_name, sans);
+      auto sans = get_subject_alternative_names();
+      return node_sign_kp->self_sign(config.subject_name, sans);
+    }
+
+    Pem create_endorsed_node_cert()
+    {
+      auto nw = crypto::make_key_pair(network.identity->priv_key);
+      auto csr = node_sign_kp->create_csr(config.subject_name);
+      auto sans = get_subject_alternative_names();
+      return nw->sign_csr(network.identity->cert, csr, sans);
     }
 
     void accept_node_tls_connections()
@@ -1195,28 +1533,25 @@ namespace ccf
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed)
       // node certificate. Once the node is part of the network, this
       // certificate should be replaced with network-endorsed counterpart
+
+      assert(!node_cert.empty());
       rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
 
-    void accept_network_tls_connections(const CCFConfig& config)
+    void accept_network_tls_connections()
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
-      auto nw = tls::make_key_pair({network.identity->priv_key});
 
-      auto sans = get_subject_alternative_names(config);
-      auto endorsed_node_cert = nw->sign_csr(
-        node_sign_kp->create_csr(config.subject_name),
-        fmt::format("CN={}", "CCF Network"),
-        sans);
-
-      rpcsessions->set_cert(
-        endorsed_node_cert, node_sign_kp->private_key_pem());
+      assert(!node_cert.empty() && !make_verifier(node_cert)->is_self_signed());
+      rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
-    void open_frontend(ccf::ActorsType actor)
+    void open_frontend(
+      ccf::ActorsType actor,
+      std::optional<crypto::Pem*> identity = std::nullopt)
     {
       auto fe = rpc_map->find(actor);
       if (!fe.has_value())
@@ -1224,86 +1559,33 @@ namespace ccf
         throw std::logic_error(
           fmt::format("Cannot open {} frontend", (int)actor));
       }
-      fe.value()->open();
+      fe.value()->open(identity);
     }
 
-    void open_node_frontend()
+    void open_user_frontend() override
     {
-      open_frontend(ActorsType::nodes);
+      open_frontend(ccf::ActorsType::users, &network.identity->cert);
     }
 
-    void open_member_frontend()
-    {
-      open_frontend(ActorsType::members);
-    }
-
-    void open_user_frontend()
-    {
-      open_frontend(ActorsType::users);
-    }
-
-    void broadcast_ledger_secret(
-      kv::Tx& tx,
-      const LedgerSecret& secret,
-      kv::Version version = kv::NoVersion,
-      bool exclude_self = false)
-    {
-      GenesisGenerator g(network, tx);
-      auto secrets_view = tx.get_view(network.secrets);
-
-      auto trusted_nodes = g.get_trusted_nodes(
-        exclude_self ? std::make_optional(self) : std::nullopt);
-
-      ccf::EncryptedLedgerSecrets secret_set;
-      secret_set.primary_public_encryption_key =
-        node_encrypt_kp->public_key_pem().raw();
-
-      for (auto [nid, ni] : trusted_nodes)
-      {
-        ccf::EncryptedLedgerSecret secret_for_node;
-        secret_for_node.node_id = nid;
-
-        // Encrypt secrets with a shared secret derived from backup public
-        // key
-        auto backup_pubk = tls::make_public_key(ni.encryption_pub_key);
-        crypto::KeyAesGcm backup_shared_secret(
-          tls::KeyExchangeContext(node_encrypt_kp, backup_pubk)
-            .compute_shared_secret());
-
-        crypto::GcmCipher gcmcipher(secret.master.size());
-        auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
-        std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
-
-        backup_shared_secret.encrypt(
-          iv, secret.master, nullb, gcmcipher.cipher.data(), gcmcipher.hdr.tag);
-
-        secret_for_node.encrypted_secret = gcmcipher.serialise();
-        secret_set.secrets.emplace_back(std::move(secret_for_node));
-      }
-
-      secrets_view->put(version, secret_set);
-    }
-
-    std::vector<uint8_t> serialize_create_request(
-      const CreateNew::In& args, const std::vector<uint8_t>& quote)
+    std::vector<uint8_t> serialize_create_request(const QuoteInfo& quote_info)
     {
       CreateNetworkNodeToNode::In create_params;
 
-      for (auto& m_info : args.config.genesis.members_info)
+      for (const auto& m_info : config.genesis.members_info)
       {
         create_params.members_info.push_back(m_info);
       }
 
-      create_params.gov_script = args.config.genesis.gov_script;
+      create_params.constitution = config.genesis.constitution;
+      create_params.node_id = self;
       create_params.node_cert = node_cert;
       create_params.network_cert = network.identity->cert;
-      create_params.quote = quote;
+      create_params.quote_info = quote_info;
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
-      create_params.code_digest =
-        std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
-      create_params.node_info_network = args.config.node_info_network;
-      create_params.consensus_type = network.consensus_type;
-      create_params.recovery_threshold = args.config.genesis.recovery_threshold;
+      create_params.code_digest = node_code_id;
+      create_params.node_info_network = config.node_info_network;
+      create_params.configuration = {config.genesis.recovery_threshold,
+                                     network.consensus_type};
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
@@ -1313,7 +1595,11 @@ namespace ccf
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
       request.set_body(&body);
-      http::sign_request(request, node_sign_kp);
+
+      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
+      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
+
+      http::sign_request(request, node_sign_kp, key_id);
 
       return request.build_request();
     }
@@ -1323,16 +1609,7 @@ namespace ccf
       http::SimpleResponseProcessor processor;
       http::ResponseParser parser(processor);
 
-      const auto parsed_count =
-        parser.execute(response.data(), response.size());
-      if (parsed_count != response.size())
-      {
-        LOG_FAIL_FMT(
-          "Tried to parse {} response bytes, actually parsed {}",
-          response.size(),
-          parsed_count);
-        return false;
-      }
+      parser.execute(response.data(), response.size());
 
       if (processor.received.size() != 1)
       {
@@ -1396,11 +1673,10 @@ namespace ccf
       return parse_create_response(response.value());
     }
 
-    bool create_and_send_request(
-      const CreateNew::In& args, const std::vector<uint8_t>& quote)
+    bool create_and_send_request()
     {
       const auto create_success =
-        send_create_request(serialize_create_request(args, quote));
+        send_create_request(serialize_create_request(quote_info));
       if (network.consensus_type == ConsensusType::BFT)
       {
         return true;
@@ -1411,13 +1687,7 @@ namespace ccf
       }
     }
 
-    void reset_data(std::vector<uint8_t>& data)
-    {
-      data.clear();
-      data.shrink_to_fit();
-    }
-
-    void backup_finish_recovery()
+    void backup_initiate_private_recovery()
     {
       if (!consensus->is_backup())
         return;
@@ -1428,6 +1698,9 @@ namespace ccf
 
       setup_private_recovery_store();
 
+      reset_recovery_hook();
+      setup_one_off_secret_hook();
+
       // Start reading private security domain of ledger
       ledger_idx = recovery_store->current_version();
       read_ledger_idx(++ledger_idx);
@@ -1437,112 +1710,81 @@ namespace ccf
 
     void setup_basic_hooks()
     {
-      network.tables->set_global_hook(
-        network.service.get_name(),
-        network.service.wrap_commit_hook(
-          [this](kv::Version, const Service::Write& w) {
-            const auto it = w.find(0);
-            if (it == w.end() || !it->second.has_value())
-            {
-              throw std::logic_error(
-                "Unexpected: write to service table does not include key 0");
-            }
-
-            // Only open service to users if the current service is opened (i.e.
-            // past services openings are ignored)
-            if (
-              it->second.value().status == ServiceStatus::OPEN &&
-              this->network.identity->cert == it->second->cert)
-            {
-              this->consensus->open_network();
-              open_user_frontend();
-              LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
-            }
-          }));
-
-      network.tables->set_local_hook(
+      network.tables->set_map_hook(
         network.secrets.get_name(),
-        network.secrets.wrap_commit_hook(
-          [this](kv::Version version, const Secrets::Write& w) {
-            bool has_secrets = false;
-            std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
+        network.secrets.wrap_map_hook(
+          [this](kv::Version hook_version, const Secrets::Write& w)
+            -> kv::ConsensusHookPtr {
+            LedgerSecretsMap restored_ledger_secrets;
 
-            for (const auto& [v, opt_secret_set] : w)
+            if (w.size() > 1)
             {
-              if (!opt_secret_set.has_value())
+              throw std::logic_error(fmt::format(
+                "Transaction contains {} writes to map {}, expected one",
+                w.size(),
+                network.secrets.get_name()));
+            }
+
+            auto ledger_secrets_for_nodes = w.at(0);
+            if (!ledger_secrets_for_nodes.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Removal from {} table", network.secrets.get_name()));
+            }
+
+            for (const auto& [node_id, encrypted_ledger_secrets] :
+                 ledger_secrets_for_nodes.value())
+            {
+              if (node_id != self)
               {
-                throw std::logic_error(fmt::format(
-                  "Unexpected: removal from secrets table ({})", v));
+                // Only consider ledger secrets for this node
+                continue;
               }
 
-              const auto& secret_set = opt_secret_set.value();
-
-              for (auto& encrypted_secret_for_node : secret_set.secrets)
+              for (const auto& encrypted_ledger_secret :
+                   encrypted_ledger_secrets)
               {
-                if (encrypted_secret_for_node.node_id == self)
+                auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
+                  node_encrypt_kp, encrypted_ledger_secret.encrypted_secret);
+
+                // On rekey, the version is inferred from the version at which
+                // the hook is executed. Otherwise, on recovery, use the version
+                // read from the write set.
+                kv::Version ledger_secret_version =
+                  encrypted_ledger_secret.version.value_or(hook_version);
+
+                if (is_part_of_public_network())
                 {
-                  crypto::GcmCipher gcmcipher;
-                  gcmcipher.deserialise(
-                    encrypted_secret_for_node.encrypted_secret);
-                  std::vector<uint8_t> plain_secret(gcmcipher.cipher.size());
-
-                  auto primary_pubk = tls::make_public_key(
-                    secret_set.primary_public_encryption_key);
-
-                  crypto::KeyAesGcm primary_shared_key(
-                    tls::KeyExchangeContext(node_encrypt_kp, primary_pubk)
-                      .compute_shared_secret());
-
-                  if (!primary_shared_key.decrypt(
-                        gcmcipher.hdr.get_iv(),
-                        gcmcipher.hdr.tag,
-                        gcmcipher.cipher,
-                        nullb,
-                        plain_secret.data()))
-                  {
-                    throw std::logic_error(
-                      "Decryption of past network secrets failed");
-                  }
-
-                  has_secrets = true;
-
-                  // If the version key is NoVersion, we are rekeying. Use the
-                  // version passed to the hook instead. For recovery, the
-                  // version of the past secrets is passed as the key.
-                  kv::Version secret_version =
-                    (v == kv::NoVersion) ? version : v;
-
-                  if (is_part_of_public_network())
-                  {
-                    restored_secrets.push_back(
-                      {secret_version, LedgerSecret(plain_secret)});
-                  }
-                  else
-                  {
-                    // When rekeying, set the encryption key for the next
-                    // version onward (for the backups to deserialise this
-                    // transaction with the old key). The encryptor is in charge
-                    // of updating the ledger secrets on global commit.
-                    encryptor->update_encryption_key(
-                      secret_version + 1, plain_secret);
-                  }
+                  // On recovery, accumulate restored ledger secrets
+                  restored_ledger_secrets.emplace(
+                    ledger_secret_version,
+                    std::make_shared<LedgerSecret>(
+                      std::move(plain_ledger_secret),
+                      encrypted_ledger_secret.previous_secret_stored_version));
+                }
+                else
+                {
+                  // When rekeying, set the encryption key for the next version
+                  // onward (backups deserialise this transaction with the
+                  // previous ledger secret)
+                  network.ledger_secrets->set_secret(
+                    ledger_secret_version + 1,
+                    std::make_shared<LedgerSecret>(
+                      std::move(plain_ledger_secret), hook_version));
                 }
               }
             }
 
-            // When recovering, trigger end of recovery protocol
-            if (has_secrets && is_part_of_public_network())
+            if (!restored_ledger_secrets.empty() && is_part_of_public_network())
             {
-              restored_secrets.sort(
-                [](
-                  const LedgerSecrets::VersionedLedgerSecret& a,
-                  const LedgerSecrets::VersionedLedgerSecret& b) {
-                  return a.version < b.version;
-                });
-
-              network.ledger_secrets->restore(std::move(restored_secrets));
-              backup_finish_recovery();
+              // When recovering, restore ledger secrets and trigger end of
+              // recovery protocol (backup only)
+              network.ledger_secrets->restore_historical(
+                std::move(restored_ledger_secrets));
+              backup_initiate_private_recovery();
             }
+
+            return kv::ConsensusHookPtr(nullptr);
           }));
     }
 
@@ -1557,70 +1799,62 @@ namespace ccf
       return last_recovered_signed_idx;
     }
 
-    void setup_recovery_hook(bool from_snapshot)
+    void setup_recovery_hook()
     {
-      // When recoverying from a snapshot, the first secret is valid from the
-      // version at which it was recorded
-      static bool is_first_secret = !from_snapshot;
-
-      network.tables->set_local_hook(
-        network.shares.get_name(),
-        network.shares.wrap_commit_hook(
-          [this](kv::Version version, const Shares::Write& w) {
-            for (const auto& [k, opt_v] : w)
+      network.tables->set_map_hook(
+        network.encrypted_ledger_secrets.get_name(),
+        network.encrypted_ledger_secrets.wrap_map_hook(
+          [this](
+            kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
+            -> kv::ConsensusHookPtr {
+            if (w.size() > 1)
             {
-              if (!opt_v.has_value())
-              {
-                throw std::logic_error(
-                  fmt::format("Unexpected: removal from shares table ({})", k));
-              }
-
-              const auto& v = opt_v.value();
-
-              kv::Version ledger_secret_version;
-              if (is_first_secret)
-              {
-                // Special case for the first recovery share issuing (at network
-                // open), which is applicable from the very first transaction.
-                ledger_secret_version = 1;
-                is_first_secret = false;
-              }
-              else
-              {
-                // If the version is not set (rekeying), use the version
-                // from the hook plus one. Otherwise (recovery), use the
-                // version specified.
-                ledger_secret_version =
-                  v.wrapped_latest_ledger_secret.version == kv::NoVersion ?
-                  (version + 1) :
-                  v.wrapped_latest_ledger_secret.version;
-              }
-
-              // No encrypted ledger secret are stored in the case of a pure
-              // re-share (i.e. no ledger rekey).
-              if (
-                !v.encrypted_previous_ledger_secret.empty() ||
-                ledger_secret_version == 1)
-              {
-                LOG_TRACE_FMT(
-                  "Adding one encrypted recovery ledger secret at {}",
-                  ledger_secret_version);
-
-                recovery_ledger_secrets.push_back(
-                  {ledger_secret_version, v.encrypted_previous_ledger_secret});
-              }
+              throw std::logic_error(fmt::format(
+                "Transaction contains {} writes to map {}, expected one",
+                w.size(),
+                network.encrypted_ledger_secrets.get_name()));
             }
+
+            auto encrypted_ledger_secret_info = w.at(0);
+            if (!encrypted_ledger_secret_info.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Removal from {} table",
+                network.encrypted_ledger_secrets.get_name()));
+            }
+
+            // If the version of the next ledger secret is not set, deduce it
+            // from the hook version (i.e. ledger rekey)
+            if (!encrypted_ledger_secret_info->next_version.has_value())
+            {
+              encrypted_ledger_secret_info->next_version = version + 1;
+            }
+
+            if (encrypted_ledger_secret_info->previous_ledger_secret
+                  .has_value())
+            {
+              LOG_DEBUG_FMT(
+                "Recovery encrypted ledger secret valid at seqno {}",
+                encrypted_ledger_secret_info->previous_ledger_secret->version);
+            }
+
+            recovery_ledger_secrets.emplace_back(
+              std::move(encrypted_ledger_secret_info.value()));
+
+            return kv::ConsensusHookPtr(nullptr);
           }));
     }
 
     void reset_recovery_hook()
     {
-      network.tables->unset_local_hook(network.shares.get_name());
+      network.tables->unset_map_hook(
+        network.encrypted_ledger_secrets.get_name());
     }
 
     void setup_n2n_channels()
     {
-      n2n_channels->initialize(self, {network.identity->priv_key});
+      n2n_channels->initialize(
+        self, network.identity->cert, node_sign_kp, node_cert);
     }
 
     void setup_cmd_forwarder()
@@ -1641,8 +1875,7 @@ namespace ccf
       auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
-        std::make_unique<aft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
-          network.tables),
+        std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         snapshotter,
@@ -1665,54 +1898,14 @@ namespace ccf
       network.tables->set_consensus(consensus);
       cmd_forwarder->set_request_tracker(request_tracker);
 
-      // When a node is added, even locally, inform raft so that it
+      // When a node is added, even locally, inform consensus so that it
       // can add a new active configuration.
-      network.tables->set_local_hook(
+      network.tables->set_map_hook(
         network.nodes.get_name(),
-        network.nodes.wrap_commit_hook(
-          [this](kv::Version version, const Nodes::Write& w) {
-            bool configure = false;
-            auto configuration = consensus->get_latest_configuration();
-
-            for (const auto& [node_id, opt_ni] : w)
-            {
-              if (!opt_ni.has_value())
-              {
-                throw std::logic_error(fmt::format(
-                  "Unexpected: removal from nodes table ({})", node_id));
-              }
-
-              const auto& ni = opt_ni.value();
-              switch (ni.status)
-              {
-                case NodeStatus::PENDING:
-                {
-                  // Pending nodes are not added to consensus until they are
-                  // trusted
-                  break;
-                }
-                case NodeStatus::TRUSTED:
-                {
-                  configuration.try_emplace(node_id, ni.nodehost, ni.nodeport);
-                  configure = true;
-                  break;
-                }
-                case NodeStatus::RETIRED:
-                {
-                  configuration.erase(node_id);
-                  configure = true;
-                  break;
-                }
-                default:
-                {
-                }
-              }
-            }
-
-            if (configure)
-            {
-              consensus->add_configuration(version, configuration);
-            }
+        network.nodes.wrap_map_hook(
+          [](kv::Version version, const Nodes::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<ConfigurationChangeHook>(version, w);
           }));
 
       setup_basic_hooks();
@@ -1720,42 +1913,22 @@ namespace ccf
 
     void setup_history()
     {
-      // This function can be called once the node has started up and before
-      // it has joined the service.
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
         *node_sign_kp,
         sig_tx_interval,
-        sig_ms_interval);
+        sig_ms_interval,
+        true);
 
       network.tables->set_history(history);
     }
 
-    void setup_encryptor(ConsensusType consensus_type)
+    void setup_encryptor()
     {
-      // This function makes use of network secrets and should be called once
-      // the node has joined the service (either via start_network() or
-      // join_network())
-#ifdef USE_NULL_ENCRYPTOR
-      encryptor = std::make_shared<kv::NullTxEncryptor>();
-#else
-      if (network.consensus_type == ConsensusType::BFT)
-      {
-        encryptor = std::make_shared<BftTxEncryptor>(network.ledger_secrets);
-      }
-      else if (network.consensus_type == ConsensusType::CFT)
-      {
-        encryptor = std::make_shared<CftTxEncryptor>(network.ledger_secrets);
-        encryptor->set_iv_id(self); // RaftEncryptor uses node ID in iv
-      }
-      else
-      {
-        throw std::logic_error(
-          "Unknown consensus type " + std::to_string(consensus_type));
-      }
-#endif
-
+      // This function makes use of ledger secrets and should be called once
+      // the node has joined the service
+      encryptor = make_encryptor();
       network.tables->set_encryptor(encryptor);
     }
 
@@ -1775,17 +1948,18 @@ namespace ccf
       }
     }
 
+    void setup_snapshotter()
+    {
+      snapshotter = std::make_shared<Snapshotter>(
+        writer_factory, network.tables, config.snapshot_tx_interval);
+    }
+
     void setup_tracker_store()
     {
       if (tracker_store == nullptr)
       {
         tracker_store = std::make_shared<ccf::ProgressTrackerStoreAdapter>(
-          *network.tables.get(),
-          *node_sign_kp,
-          network.nodes,
-          network.backup_signatures_map,
-          network.revealed_nonces_map,
-          network.new_views_map);
+          *network.tables.get(), *node_sign_kp);
       }
     }
 

@@ -5,9 +5,11 @@ parameters:
 
 steps:
   - script: |
+      set -ex
       ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
     env:
       METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+      CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
     displayName: CTest
     workingDirectory: build
 
@@ -28,6 +30,7 @@ steps:
     displayName: "Upload logs (only on failure)"
 
   - script: |
+      set -ex
       sed -i -r "s/\[NON-XML-CHAR-0x1B\]\[([0-9]*)m//g" Testing/*/Test.xml
     displayName: "Remove color codes"
     workingDirectory: build

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/tx_id.h"
 #include "enclave/tls_endpoint.h"
 #include "http_proc.h"
 #include "ws_consts.h"
@@ -115,16 +116,16 @@ namespace ws
           auto status = serialized::read<uint16_t>(data, s);
           auto seqno = serialized::read<size_t>(data, s);
           auto view = serialized::read<size_t>(data, s);
-          auto global_commit = serialized::read<size_t>(data, s);
+
+          ccf::TxID tx_id;
+          tx_id.view = view;
+          tx_id.seqno = seqno;
 
           std::vector<uint8_t> body(data, data + s);
 
           proc.handle_response(
             (http_status)status,
-            {{http::headers::CCF_TX_SEQNO, fmt::format("{}", seqno)},
-             {http::headers::CCF_TX_VIEW, fmt::format("{}", view)},
-             {http::headers::CCF_GLOBAL_COMMIT,
-              fmt::format("{}", global_commit)}},
+            {{http::headers::CCF_TX_ID, tx_id.to_str()}},
             std::move(body));
           state = INIT;
           return INITIAL_READ;
@@ -221,8 +222,9 @@ namespace ws
           std::vector<uint8_t> body(data, data + s);
 
           proc.handle_request(
-            http_method::HTTP_POST,
+            llhttp_method::HTTP_POST,
             path,
+            {},
             {},
             {{"Content-type", "application/json"}},
             std::move(body));

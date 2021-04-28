@@ -2,23 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/json.h"
-#include "entities.h"
-#include "kv/map.h"
-#include "script.h"
-
-#include <msgpack/msgpack.hpp>
-#include <unordered_map>
-#include <vector>
+#include "ccf/entity_id.h"
+#include "client_signatures.h"
+#include "service_map.h"
 
 namespace ccf
 {
-  struct GovernanceHistoryEntry
-  {
-    SignedReq signed_request;
-    MSGPACK_DEFINE(signed_request);
-  };
-  DECLARE_JSON_TYPE(GovernanceHistoryEntry)
-  DECLARE_JSON_REQUIRED_FIELDS(GovernanceHistoryEntry, signed_request)
-  using GovernanceHistory = kv::Map<MemberId, GovernanceHistoryEntry>;
+  using GovernanceHistory = ServiceMap<MemberId, SignedReq>;
 }

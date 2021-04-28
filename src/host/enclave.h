@@ -3,19 +3,32 @@
 #pragma once
 
 #include "crypto/hash.h"
+#include "crypto/key_pair.h"
 #include "ds/logger.h"
 #include "enclave/interface.h"
-#include "tls/key_pair.h"
 
 #include <dlfcn.h>
-#include <msgpack/msgpack.hpp>
 #ifdef VIRTUAL_ENCLAVE
 #  include "enclave/ccf_v.h"
 #else
 #  include <ccf_u.h>
 #  include <openenclave/bits/result.h>
 #  include <openenclave/host.h>
+#  include <openenclave/trace.h>
 #endif
+
+extern "C"
+{
+  void nop_oe_logger(
+    void* context,
+    bool is_enclave,
+    const struct tm* t,
+    long int usecs,
+    oe_log_level_t level,
+    uint64_t host_thread_id,
+    const char* message)
+  {}
+}
 
 // Marker to create virtual enclaves, should be distinct from any valid
 // OE_ENCLAVE_FLAG combinations
@@ -57,6 +70,10 @@ namespace host
       }
       else
       {
+#ifndef VERBOSE_LOGGING
+        oe_log_set_callback(nullptr, nop_oe_logger);
+#endif
+
         auto err = oe_create_ccf_enclave(
           path.c_str(), OE_ENCLAVE_TYPE_SGX, flags, nullptr, 0, &e);
 
@@ -83,15 +100,14 @@ namespace host
       size_t node_cert_len = 0;
       size_t network_cert_len = 0;
 
-      msgpack::sbuffer sbuf;
-      msgpack::pack(sbuf, ccf_config);
+      auto config = nlohmann::json(ccf_config).dump();
 
       auto err = enclave_create_node(
         e,
         &ret,
         (void*)&enclave_config,
-        sbuf.data(),
-        sbuf.size(),
+        config.data(),
+        config.size(),
         node_cert.data(),
         node_cert.size(),
         &node_cert_len,

@@ -1,9 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../ledger.h"
+#include "host/ledger.h"
 
-#include "../ds/serialized.h"
+#include "ds/serialized.h"
+#include "host/snapshot.h"
+#include "kv/serialised_entry_format.h"
 
 #include <doctest/doctest.h>
 #include <string>
@@ -14,6 +16,10 @@ using namespace asynchost;
 using frame_header_type = uint32_t;
 static constexpr size_t frame_header_size = sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
+static constexpr auto ledger_dir_read_only = "ledger_dir_ro";
+static constexpr auto snapshot_dir = "snapshot_dir";
+
+static const auto dummy_snapshot = std::vector<uint8_t>(128, 42);
 
 constexpr auto buffer_size = 1024;
 auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -22,16 +28,35 @@ ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
 
 auto wf = ringbuffer::WriterFactory(eio);
 
+void move_all_from_to(
+  const std::string& from, const std::string& to, const std::string& suffix)
+{
+  for (auto const& f : fs::directory_iterator(from))
+  {
+    if (nonstd::ends_with(f.path().filename(), suffix))
+    {
+      fs::copy_file(f.path(), fs::path(to) / f.path().filename());
+      fs::remove(f.path());
+    }
+  }
+}
+
+std::string get_snapshot_file_name(
+  size_t idx, size_t evidence_idx, size_t evidence_commit_idx)
+{
+  return fmt::format(
+    "{}/snapshot_{}_{}.committed_{}",
+    snapshot_dir,
+    idx,
+    evidence_idx,
+    evidence_commit_idx);
+}
+
 // Ledger entry type
 template <typename T>
 struct LedgerEntry
 {
   T value_ = 0;
-
-  uint8_t* data()
-  {
-    return reinterpret_cast<uint8_t*>(&value_);
-  }
 
   auto value() const
   {
@@ -45,10 +70,8 @@ struct LedgerEntry
 
   LedgerEntry() = default;
   LedgerEntry(T v) : value_(v) {}
-  LedgerEntry(const std::vector<uint8_t>& raw)
+  LedgerEntry(const uint8_t* data, size_t size)
   {
-    const uint8_t* data = raw.data();
-    size_t size = raw.size();
     value_ = serialized::read<T>(data, size);
   }
 };
@@ -82,15 +105,16 @@ void verify_framed_entries_range(
   const std::vector<uint8_t>& framed_entries, size_t from, size_t to)
 {
   size_t idx = from;
-  for (int i = 0; i < framed_entries.size();)
+  for (size_t pos = 0; pos < framed_entries.size();)
   {
-    const uint8_t* data = &framed_entries[i];
-    size_t size = framed_entries.size() - i;
+    const uint8_t* data = &framed_entries[pos];
+    size_t size = framed_entries.size() - pos;
 
-    auto frame = serialized::read<frame_header_type>(data, size);
-    auto entry = serialized::read(data, size, frame);
-    REQUIRE(TestLedgerEntry(entry).value() == idx);
-    i += frame_header_size + frame;
+    auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
+    REQUIRE(header.size == sizeof(TestLedgerEntry));
+
+    REQUIRE(TestLedgerEntry(data, size).value() == idx);
+    pos += kv::serialised_entry_header_size + sizeof(TestLedgerEntry);
     idx++;
   }
 
@@ -99,13 +123,27 @@ void verify_framed_entries_range(
 
 void read_entry_from_ledger(Ledger& ledger, size_t idx)
 {
-  REQUIRE(TestLedgerEntry(ledger.read_entry(idx).value()).value() == idx);
+  auto framed_entry = ledger.read_entry(idx);
+  REQUIRE(framed_entry.has_value());
+
+  auto& entry = framed_entry.value();
+  const uint8_t* data = entry.data();
+  auto size = entry.size();
+  auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
+  REQUIRE(header.size == sizeof(TestLedgerEntry));
+
+  REQUIRE(TestLedgerEntry(data, size).value() == idx);
 }
 
 void read_entries_range_from_ledger(Ledger& ledger, size_t from, size_t to)
 {
-  verify_framed_entries_range(
-    ledger.read_framed_entries(from, to).value(), from, to);
+  auto entries = ledger.read_framed_entries(from, to);
+  if (!entries.has_value())
+  {
+    throw std::logic_error(
+      fmt::format("Failed to read ledger entries from {} to {}", from, to));
+  }
+  verify_framed_entries_range(entries.value(), from, to);
 }
 
 // Keeps track of ledger entries written to the ledger.
@@ -131,10 +169,22 @@ public:
   void write(bool is_committable, bool force_chunk = false)
   {
     auto e = TestLedgerEntry(++last_idx);
+    std::vector<uint8_t> framed_entry(
+      kv::serialised_entry_header_size + sizeof(TestLedgerEntry));
+    auto data = framed_entry.data();
+    auto size = framed_entry.size();
+
+    kv::SerialisedEntryHeader header;
+    header.set_size(sizeof(TestLedgerEntry));
+
+    serialized::write(data, size, header);
+    serialized::write(data, size, e);
     REQUIRE(
       ledger.write_entry(
-        e.data(), sizeof(TestLedgerEntry), is_committable, force_chunk) ==
-      last_idx);
+        framed_entry.data(),
+        framed_entry.size(),
+        is_committable,
+        force_chunk) == last_idx);
   }
 
   void truncate(size_t idx)
@@ -159,10 +209,10 @@ size_t get_entries_per_chunk(size_t chunk_threshold)
 {
   // The number of entries per chunk is a function of the threshold (minus the
   // size of the fixes space for the offset at the size of each file) and the
-  // size of each _framed_ entry
+  // size of each entry
   return ceil(
     (static_cast<float>(chunk_threshold - sizeof(size_t))) /
-    (frame_header_size + sizeof(TestLedgerEntry)));
+    (kv::serialised_entry_header_size + sizeof(TestLedgerEntry)));
 }
 
 // Assumes that no entries have been written yet
@@ -709,6 +759,7 @@ TEST_CASE("Limit number of open files")
   {
     entry_submitter.write(true);
     entry_submitter.write(true);
+    entry_submitter.write(true);
     last_idx = entry_submitter.get_last_idx();
     ledger.commit(last_idx);
 
@@ -817,5 +868,255 @@ TEST_CASE("Multiple ledger paths")
     // Even though the ledger file for last_idx is in ledger_dir, the entry
     // cannot be read
     REQUIRE_FALSE(ledger.read_entry(last_idx).has_value());
+  }
+}
+
+TEST_CASE("Recover from read-only ledger directory only")
+{
+  static constexpr auto ledger_dir_2 = "ledger_dir_2";
+
+  fs::remove_all(ledger_dir);
+  fs::remove_all(ledger_dir_2);
+
+  size_t max_read_cache_size = 2;
+  size_t chunk_threshold = 30;
+  size_t chunk_count = 5;
+
+  size_t entries_per_chunk = 0;
+  size_t last_idx = 0;
+
+  INFO("Write many entries on first ledger");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
+
+    // Writing some committed chunks
+    entries_per_chunk =
+      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.commit(last_idx);
+  }
+
+  INFO("Recover from read-only ledger entry only");
+  {
+    Ledger ledger(
+      ledger_dir_2, wf, chunk_threshold, max_read_cache_size, {ledger_dir});
+
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+
+    TestEntrySubmitter entry_submitter(ledger, last_idx);
+
+    for (size_t i = 0; i < entries_per_chunk; i++)
+    {
+      entry_submitter.write(true);
+    }
+
+    read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
+  }
+}
+
+TEST_CASE("Invalid ledger file resilience")
+{
+  fs::remove_all(ledger_dir);
+
+  size_t max_read_cache_size = 2;
+  size_t chunk_threshold = 30;
+  size_t chunk_count = 5;
+
+  size_t entries_per_chunk = 0;
+  size_t last_idx = 0;
+
+  INFO("Write many entries on first ledger");
+  {
+    Ledger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
+
+    // Writing some committed chunks
+    entries_per_chunk =
+      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.commit(last_idx);
+  }
+
+  INFO("Restart with invalid ledger files");
+  {
+    std::vector<std::string> invalid_ledger_file_names = {
+      "invalid_file",
+      "invalid_ledger_file",
+      "ledger_invalid",
+      fmt::format("ledger_{}_invalid", last_idx + 1)};
+
+    // Valid file names but empty ledger files
+    invalid_ledger_file_names.emplace_back(
+      fmt::format("ledger_{}-{}", last_idx + 1, last_idx + 2));
+    invalid_ledger_file_names.emplace_back(fmt::format("ledger_{}", last_idx));
+
+    for (auto const& f : invalid_ledger_file_names)
+    {
+      std::ofstream output(fs::path(ledger_dir) / fs::path(f));
+      Ledger ledger(ledger_dir, wf, chunk_threshold, max_read_cache_size);
+
+      // Restarted ledger can read and write entries
+      read_entries_range_from_ledger(ledger, 1, last_idx);
+      TestEntrySubmitter entry_submitter(ledger, last_idx);
+      for (size_t i = 0; i < entries_per_chunk; i++)
+      {
+        entry_submitter.write(true);
+      }
+      last_idx = entry_submitter.get_last_idx();
+      ledger.commit(last_idx);
+      read_entries_range_from_ledger(ledger, 1, last_idx);
+    }
+  }
+}
+
+TEST_CASE("Delete committed file from main directory")
+{
+  // Used to temporarily copy committed ledger files
+  static constexpr auto ledger_dir_tmp = "ledger_dir_tmp";
+
+  fs::remove_all(ledger_dir);
+  fs::remove_all(ledger_dir_read_only);
+  fs::remove_all(ledger_dir_tmp);
+
+  size_t chunk_threshold = 30;
+  size_t chunk_count = 5;
+
+  // Worst-case scenario: do not keep any committed file in cache
+  size_t max_read_cache_size = 0;
+
+  size_t entries_per_chunk = 0;
+  size_t last_idx = 0;
+  size_t last_committed_idx = 0;
+
+  fs::create_directory(ledger_dir_read_only);
+  fs::create_directory(ledger_dir_tmp);
+
+  Ledger ledger(
+    ledger_dir,
+    wf,
+    chunk_threshold,
+    max_read_cache_size,
+    {ledger_dir_read_only});
+  TestEntrySubmitter entry_submitter(ledger);
+
+  INFO("Write many entries on ledger");
+  {
+    entries_per_chunk =
+      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    last_committed_idx = entry_submitter.get_last_idx();
+    ledger.commit(last_committed_idx);
+
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+    last_idx = entry_submitter.get_last_idx();
+
+    // Read all entries from ledger, filling up read cache
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+  }
+
+  // Move all committed files to temporary directory
+  move_all_from_to(ledger_dir, ledger_dir_tmp, ledger_committed_suffix);
+
+  INFO("Only non-committed entries can be read");
+  {
+    read_entries_range_from_ledger(ledger, last_idx - 1, last_idx);
+    REQUIRE_FALSE(
+      ledger.read_framed_entries(1, last_committed_idx).has_value());
+  }
+
+  INFO("Move committed files back to read-only ledger directory");
+  {
+    move_all_from_to(
+      ledger_dir_tmp, ledger_dir_read_only, ledger_committed_suffix);
+
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+  }
+}
+
+TEST_CASE("Find latest snapshot with corresponding ledger chunk")
+{
+  fs::remove_all(ledger_dir);
+  fs::remove_all(snapshot_dir);
+
+  size_t chunk_threshold = 30;
+  size_t chunk_count = 5;
+  size_t last_idx = 0;
+
+  Ledger ledger(ledger_dir, wf, chunk_threshold);
+  TestEntrySubmitter entry_submitter(ledger);
+
+  SnapshotManager snapshots(snapshot_dir, ledger);
+
+  INFO("Write many entries on first ledger");
+  {
+    // Writing some committed chunks
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.commit(last_idx);
+  }
+
+  INFO("Create, commit and retrieve latest snapshot");
+  {
+    size_t snapshot_idx = last_idx / 2;
+    // Assumes evidence idx and evidence commit idx as next indices
+    size_t snapshot_evidence_idx = snapshot_idx + 1;
+    size_t snapshot_evidence_commit_idx = snapshot_evidence_idx + 1;
+
+    snapshots.write_snapshot(
+      snapshot_idx,
+      snapshot_evidence_idx,
+      dummy_snapshot.data(),
+      dummy_snapshot.size());
+
+    // Snapshot is not yet committed
+    REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
+
+    snapshots.commit_snapshot(snapshot_idx, snapshot_evidence_commit_idx);
+
+    auto snapshot_file_name = get_snapshot_file_name(
+      snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx);
+
+    REQUIRE(
+      fmt::format(
+        "{}/{}",
+        snapshot_dir,
+        snapshots.find_latest_committed_snapshot().value()) ==
+      snapshot_file_name);
+
+    fs::remove(snapshot_file_name);
+  }
+
+  INFO("Snapshot evidence commit past last ledger index");
+  {
+    // Snapshot evidence commit idx is past last ledger idx
+    size_t snapshot_idx = last_idx - 1;
+    size_t snapshot_evidence_idx = snapshot_idx + 1; // Still covered by ledger
+    size_t snapshot_evidence_commit_idx = snapshot_evidence_idx + 1;
+
+    snapshots.write_snapshot(
+      snapshot_idx,
+      snapshot_evidence_idx,
+      dummy_snapshot.data(),
+      dummy_snapshot.size());
+
+    snapshots.commit_snapshot(snapshot_idx, snapshot_evidence_commit_idx);
+
+    // Even though snapshot is committed, evidence commit is past last ledger
+    // index
+    REQUIRE_FALSE(snapshots.find_latest_committed_snapshot().has_value());
+
+    // Add another entry to ledger, so that ledger's last idx ==
+    // snapshot_evidence_commit_idx
+    entry_submitter.write(true); // note: is_committable flag does not matter
+
+    // Snapshot is now valid
+    REQUIRE(
+      fmt::format(
+        "{}/{}",
+        snapshot_dir,
+        snapshots.find_latest_committed_snapshot().value()) ==
+      get_snapshot_file_name(
+        snapshot_idx, snapshot_evidence_idx, snapshot_evidence_commit_idx));
   }
 }

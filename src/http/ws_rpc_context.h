@@ -6,6 +6,8 @@
 #include "enclave/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
+#include "node/rpc/error.h"
+#include "node/rpc/tx_status.h"
 #include "ws_builder.h"
 
 namespace ws
@@ -14,17 +16,26 @@ namespace ws
     size_t code,
     const std::vector<uint8_t>& body,
     kv::Version seqno = kv::NoVersion,
-    kv::Consensus::View view = ccf::VIEW_UNKNOWN,
-    kv::Version global_commit = kv::NoVersion)
+    ccf::View view = ccf::VIEW_UNKNOWN)
   {
-    return make_out_frame(code, seqno, view, global_commit, body);
+    return make_out_frame(code, seqno, view, body);
   };
 
-  static std::vector<uint8_t> error(size_t code, const std::string& msg)
+  inline std::vector<uint8_t> error(ccf::ErrorDetails&& error)
   {
-    std::vector<uint8_t> ev(msg.begin(), msg.end());
-    return serialise(code, ev);
-  };
+    nlohmann::json body = ccf::ODataErrorResponse{
+      ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+    const auto s = body.dump();
+
+    std::vector<uint8_t> data(s.begin(), s.end());
+    return serialise(error.status, data);
+  }
+
+  inline std::vector<uint8_t> error(
+    http_status status, const std::string& code, std::string&& msg)
+  {
+    return error({status, code, std::move(msg)});
+  }
 
   class WsRpcContext : public enclave::RpcContext
   {
@@ -42,7 +53,6 @@ namespace ws
     enclave::PathParams path_params = {};
 
     std::vector<uint8_t> serialised_request = {};
-    std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
     std::string query = {};
 
@@ -52,7 +62,6 @@ namespace ws
 
     size_t seqno = 0;
     size_t view = 0;
-    size_t global_commit = 0;
 
   public:
     WsRpcContext(
@@ -100,6 +109,11 @@ namespace ws
       return verb;
     }
 
+    virtual std::string get_request_path() const override
+    {
+      return method;
+    }
+
     virtual const std::vector<uint8_t>& get_serialised_request() override
     {
       if (serialised_request.empty())
@@ -108,16 +122,6 @@ namespace ws
         serialised_request.swap(sr);
       }
       return serialised_request;
-    }
-
-    virtual std::optional<ccf::SignedReq> get_signed_request() override
-    {
-      if (!signed_request.has_value())
-      {
-        return std::nullopt;
-      }
-
-      return signed_request;
     }
 
     virtual std::string get_method() const override
@@ -170,19 +174,10 @@ namespace ws
       const std::string_view&, const std::string_view&) override
     {}
 
-    virtual void set_seqno(kv::Version sn) override
+    virtual void set_tx_id(const ccf::TxID& tx_id) override
     {
-      seqno = sn;
-    }
-
-    virtual void set_view(kv::Consensus::View t) override
-    {
-      view = t;
-    }
-
-    virtual void set_global_commit(kv::Version gc) override
-    {
-      global_commit = gc;
+      view = tx_id.view;
+      seqno = tx_id.seqno;
     }
 
     virtual void set_apply_writes(bool apply) override
@@ -201,16 +196,18 @@ namespace ws
       return http::status_success(response_status);
     }
 
-    virtual std::vector<uint8_t> serialise_response() const override
+    virtual void reset_response() override
     {
-      return serialise(
-        response_status, response_body, seqno, view, global_commit);
+      seqno = 0;
+      view = 0;
+      response_body.clear();
+      response_status = HTTP_STATUS_OK;
+      explicit_apply_writes.reset();
     }
 
-    virtual std::vector<uint8_t> serialise_error(
-      size_t code, const std::string& msg) const override
+    virtual std::vector<uint8_t> serialise_response() const override
     {
-      return error(code, msg);
+      return serialise(response_status, response_body, seqno, view);
     }
   };
 }

@@ -26,13 +26,17 @@ namespace logger
 {
   enum Level
   {
-    TRACE = 0,
+#ifdef VERBOSE_LOGGING
+    TRACE,
     DEBUG, // events useful for debugging
+#endif
     INFO, // important events that should be logged even in release mode
     FAIL, // important failures that should always be logged
     FATAL, // fatal errors that lead to a termination of the program/enclave
     MAX_LOG_LEVEL
   };
+
+  static constexpr Level MOST_VERBOSE = static_cast<Level>(0);
 
   static constexpr long int ns_per_s = 1'000'000'000;
 
@@ -206,22 +210,17 @@ namespace logger
   {
   public:
     static constexpr const char* LevelNames[] = {
-      "trace", "debug", "info", "fail", "fatal"};
+#ifdef VERBOSE_LOGGING
+      "trace",
+      "debug",
+#endif
+      "info",
+      "fail",
+      "fatal"};
 
     static const char* to_string(Level l)
     {
       return LevelNames[static_cast<int>(l)];
-    }
-
-    static std::optional<Level> to_level(const char* s)
-    {
-      for (int i = TRACE; i < MAX_LOG_LEVEL; i++)
-      {
-        if (std::strcmp(s, LevelNames[i]) == 0)
-          return (Level)i;
-      }
-
-      return {};
     }
 
     static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
@@ -246,13 +245,7 @@ namespace logger
 
     static inline Level& level()
     {
-      static Level the_level =
-#ifdef VERBOSE_LOGGING
-        Level::TRACE
-#else
-        Level::INFO
-#endif
-        ;
+      static Level the_level = MOST_VERBOSE;
 
       return the_level;
     }
@@ -274,9 +267,9 @@ namespace logger
     // offsets to host time when logging from inside the enclave
     static std::atomic<std::chrono::milliseconds> ms;
 
-    static void tick(std::chrono::milliseconds ms_)
+    static void set_time(std::chrono::milliseconds ms_)
     {
-      ms.exchange(ms.load() + ms_);
+      ms.exchange(ms_);
     }
 
     static std::chrono::milliseconds elapsed_ms()
@@ -508,28 +501,57 @@ namespace logger
   // This allows:
   // LOG_DEBUG << "info" << std::endl;
 
-#define LOG_TRACE \
-  logger::config::ok(logger::TRACE) && \
-    logger::Out() == logger::LogLine(logger::TRACE, __FILE__, __LINE__)
-#define LOG_TRACE_FMT(...) LOG_TRACE << fmt::format(__VA_ARGS__) << std::endl
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
-#define LOG_DEBUG \
-  logger::config::ok(logger::DEBUG) && \
-    logger::Out() == logger::LogLine(logger::DEBUG, __FILE__, __LINE__)
-#define LOG_DEBUG_FMT(...) LOG_DEBUG << fmt::format(__VA_ARGS__) << std::endl
+#ifdef VERBOSE_LOGGING
+#  define LOG_TRACE \
+    logger::config::ok(logger::TRACE) && \
+      logger::Out() == logger::LogLine(logger::TRACE, __FILE__, __LINE__)
+#  define LOG_TRACE_FMT(s, ...) \
+    LOG_TRACE << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
+
+#  define LOG_DEBUG \
+    logger::config::ok(logger::DEBUG) && \
+      logger::Out() == logger::LogLine(logger::DEBUG, __FILE__, __LINE__)
+#  define LOG_DEBUG_FMT(s, ...) \
+    LOG_DEBUG << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
+#else
+// Without compile-time VERBOSE_LOGGING option, these logging macros are
+// compile-time nops (and cannot be enabled by accident or malice)
+#  define LOG_TRACE
+#  define LOG_TRACE_FMT(...)
+
+#  define LOG_DEBUG
+#  define LOG_DEBUG_FMT(...)
+#endif
 
 #define LOG_INFO \
   logger::config::ok(logger::INFO) && \
     logger::Out() == logger::LogLine(logger::INFO, __FILE__, __LINE__)
-#define LOG_INFO_FMT(...) LOG_INFO << fmt::format(__VA_ARGS__) << std::endl
+#define LOG_INFO_FMT(s, ...) \
+  LOG_INFO << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
 
 #define LOG_FAIL \
   logger::config::ok(logger::FAIL) && \
     logger::Out() == logger::LogLine(logger::FAIL, __FILE__, __LINE__)
-#define LOG_FAIL_FMT(...) LOG_FAIL << fmt::format(__VA_ARGS__) << std::endl
+#define LOG_FAIL_FMT(s, ...) \
+  LOG_FAIL << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
 
 #define LOG_FATAL \
   logger::config::ok(logger::FATAL) && \
     logger::Out() == logger::LogLine(logger::FATAL, __FILE__, __LINE__)
-#define LOG_FATAL_FMT(...) LOG_FATAL << fmt::format(__VA_ARGS__) << std::endl
+#define LOG_FATAL_FMT(s, ...) \
+  LOG_FATAL << fmt::format(FMT_STRING(s), ##__VA_ARGS__) << std::endl
+
+// Convenient wrapper to report exception errors. Exception message is only
+// displayed in debug mode
+#define LOG_FAIL_EXC(msg) \
+  do \
+  { \
+    LOG_FAIL_FMT("Exception in {}", __PRETTY_FUNCTION__); \
+    LOG_DEBUG_FMT("Error: {}", msg); \
+  } while (0)
+
+#pragma clang diagnostic pop
 }

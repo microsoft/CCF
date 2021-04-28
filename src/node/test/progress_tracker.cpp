@@ -5,6 +5,7 @@
 
 #include "consensus/aft/impl/view_change_tracker.h"
 #include "kv/store.h"
+#include "kv/test/stub_consensus.h"
 #include "node/nodes.h"
 #include "node/request_tracker.h"
 
@@ -13,10 +14,16 @@
 #include <string>
 #include <trompeloeil/include/trompeloeil.hpp>
 
+std::vector<kv::NodeId> node_ids = {kv::test::PrimaryNodeId,
+                                    kv::test::FirstBackupNodeId,
+                                    kv::test::SecondBackupNodeId,
+                                    kv::test::ThirdBackupNodeId};
+
 class StoreMock : public ccf::ProgressTrackerStore
 {
 public:
-  MAKE_MOCK1(write_backup_signatures, void(ccf::BackupSignatures&), override);
+  MAKE_MOCK1(
+    write_backup_signatures, void(const ccf::BackupSignatures&), override);
   MAKE_MOCK0(
     get_backup_signatures, std::optional<ccf::BackupSignatures>(), override);
   MAKE_MOCK0(
@@ -25,42 +32,39 @@ public:
   MAKE_MOCK0(get_nonces, std::optional<aft::RevealedNonces>(), override);
   MAKE_MOCK4(
     verify_signature,
-    bool(kv::NodeId, crypto::Sha256Hash&, uint32_t, uint8_t*),
+    bool(const kv::NodeId&, crypto::Sha256Hash&, uint32_t, uint8_t*),
     override);
   MAKE_MOCK3(
     sign_view_change_request,
-    void(
-      ccf::ViewChangeRequest& view_change,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno),
+    void(ccf::ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno),
     override);
   MAKE_MOCK4(
     verify_view_change_request,
     bool(
       ccf::ViewChangeRequest& view_change,
-      kv::NodeId from,
-      kv::Consensus::View view,
-      kv::Consensus::SeqNo seqno),
+      const kv::NodeId& from,
+      ccf::View view,
+      ccf::SeqNo seqno),
     override);
   MAKE_MOCK2(
     verify_view_change_request_confirmation,
-    bool(ccf::ViewChangeConfirmation& new_view, kv::NodeId from),
+    bool(ccf::ViewChangeConfirmation& new_view, const kv::NodeId& from),
     override);
   MAKE_MOCK1(
     write_view_change_confirmation,
-    kv::Consensus::SeqNo(ccf::ViewChangeConfirmation& new_view),
+    ccf::SeqNo(ccf::ViewChangeConfirmation& new_view),
     override);
 };
 
 void ordered_execution(
-  uint32_t my_node_id, std::unique_ptr<ccf::ProgressTracker>& pt)
+  kv::NodeId my_node_id, std::unique_ptr<ccf::ProgressTracker>& pt)
 {
-  kv::Consensus::View view = 0;
-  kv::Consensus::SeqNo seqno = 42;
+  ccf::View view = 0;
+  ccf::SeqNo seqno = 42;
   uint32_t node_count = 4;
   uint32_t node_count_quorum =
     2; // Takes into account that counting starts at 0
-  bool am_i_primary = (my_node_id == 0);
+  bool am_i_primary = (my_node_id == kv::test::PrimaryNodeId);
 
   crypto::Sha256Hash root;
   std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
@@ -73,17 +77,23 @@ void ordered_execution(
   INFO("Adding signatures");
   {
     auto result = pt->record_primary(
-      {view, seqno}, 0, root, primary_sig, hashed_nonce, node_count);
+      {view, seqno},
+      kv::test::PrimaryNodeId,
+      root,
+      primary_sig,
+      hashed_nonce,
+      node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
     primary_sig = {1};
     result = pt->record_primary_signature({view, seqno}, primary_sig);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
-    for (uint32_t i = 1; i < node_count; ++i)
+    size_t i = 0;
+    for (auto const& node_id : node_ids)
     {
-      if (i == my_node_id)
+      if (node_id == my_node_id)
       {
-        auto h = pt->get_my_hashed_nonce({view, seqno});
+        auto h = pt->get_node_hashed_nonce({view, seqno});
         std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
       }
       else
@@ -93,7 +103,7 @@ void ordered_execution(
 
       auto result = pt->add_signature(
         {view, seqno},
-        i,
+        node_id,
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
         hashed_nonce,
@@ -103,37 +113,42 @@ void ordered_execution(
         ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
          (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK &&
           i == node_count_quorum)));
+      i++;
     }
   }
 
   INFO("Add signature acks");
   {
-    for (uint32_t i = 0; i < node_count; ++i)
+    size_t i = 0;
+    for (auto const& node_id : node_ids)
     {
-      auto result = pt->add_signature_ack({view, seqno}, i, node_count);
+      auto result = pt->add_signature_ack({view, seqno}, node_id, node_count);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
          (result == kv::TxHistory::Result::SEND_REPLY_AND_NONCE &&
           i == node_count_quorum)));
+      i++;
     }
   }
 
   INFO("Add nonces here");
   {
-    for (uint32_t i = 0; i < node_count; ++i)
+    size_t i = 0;
+    for (auto const& node_id : node_ids)
     {
-      if (my_node_id == i)
+      if (node_id == my_node_id)
       {
         pt->add_nonce_reveal(
           {view, seqno},
-          pt->get_my_nonce({view, seqno}),
-          i,
+          pt->get_node_nonce({view, seqno}),
+          node_id,
           node_count,
           am_i_primary);
       }
       else
       {
-        pt->add_nonce_reveal({view, seqno}, nonce, i, node_count, am_i_primary);
+        pt->add_nonce_reveal(
+          {view, seqno}, nonce, node_id, node_count, am_i_primary);
       }
 
       if (i < 2)
@@ -144,12 +159,13 @@ void ordered_execution(
       {
         REQUIRE(pt->get_highest_committed_nonce() == seqno);
       }
+      i++;
     }
   }
 }
 
 void ordered_execution_primary(
-  uint32_t my_node_id,
+  kv::NodeId my_node_id,
   std::unique_ptr<ccf::ProgressTracker> pt,
   StoreMock& store_mock)
 {
@@ -161,7 +177,7 @@ void ordered_execution_primary(
   ordered_execution(my_node_id, pt);
 }
 
-void run_ordered_execution(uint32_t my_node_id)
+void run_ordered_execution(kv::NodeId my_node_id)
 {
   using trompeloeil::_;
 
@@ -174,7 +190,7 @@ void run_ordered_execution(uint32_t my_node_id)
     .RETURN(true)
     .TIMES(AT_LEAST(2));
 
-  if (my_node_id == 0)
+  if (my_node_id == kv::test::PrimaryNodeId)
   {
     ordered_execution_primary(my_node_id, std::move(pt), store_mock);
   }
@@ -186,9 +202,9 @@ void run_ordered_execution(uint32_t my_node_id)
 
 TEST_CASE("Ordered Execution")
 {
-  for (uint32_t i = 0; i < 4; ++i)
+  for (auto const& node_id : node_ids)
   {
-    run_ordered_execution(i);
+    run_ordered_execution(node_id);
   }
 }
 
@@ -292,7 +308,7 @@ TEST_CASE("Request tracker")
     aft::RequestTracker t;
 
     auto r = t.get_seqno_time_last_request();
-    REQUIRE(std::get<0>(r) == -1);
+    REQUIRE(std::get<0>(r) == ccf::SEQNO_UNKNOWN);
     REQUIRE(std::get<1>(r) == std::chrono::milliseconds(0));
 
     t.insert_signed_request(2, std::chrono::milliseconds(2));
@@ -309,16 +325,17 @@ TEST_CASE("Request tracker")
 
 TEST_CASE("Record primary signature")
 {
-  uint32_t my_node_id = 0;
-  kv::Consensus::View view = 0;
-  kv::Consensus::SeqNo seqno = 42;
+  kv::NodeId my_node_id = kv::test::PrimaryNodeId;
+  ccf::View view = 0;
+  ccf::SeqNo seqno = 42;
   crypto::Sha256Hash root;
   ccf::Nonce nonce;
   std::vector<uint8_t> primary_sig;
 
   ccf::ProgressTracker pt(nullptr, my_node_id);
 
-  auto result = pt.record_primary({view, seqno}, 0, root, primary_sig, nonce);
+  auto result = pt.record_primary(
+    {view, seqno}, kv::test::PrimaryNodeId, root, primary_sig, nonce);
   REQUIRE(result == kv::TxHistory::Result::OK);
 
   primary_sig = {1};
@@ -332,13 +349,13 @@ TEST_CASE("View Changes")
 {
   using trompeloeil::_;
 
-  uint32_t my_node_id = 0;
+  kv::NodeId my_node_id = kv::test::PrimaryNodeId;
   auto store = std::make_unique<StoreMock>();
   StoreMock& store_mock = *store.get();
   ccf::ProgressTracker pt(std::move(store), my_node_id);
 
-  kv::Consensus::View view = 0;
-  kv::Consensus::SeqNo seqno = 42;
+  ccf::View view = 0;
+  ccf::SeqNo seqno = 42;
   uint32_t node_count = 4;
   uint32_t node_count_quorum =
     2; // Takes into account that counting starts at 0
@@ -349,7 +366,7 @@ TEST_CASE("View Changes")
   ccf::Nonce hashed_nonce;
   std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
   std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
-  std::vector<uint8_t> primary_sig;
+  std::vector<uint8_t> primary_sig = {1};
 
   INFO("find first view-change message");
   {
@@ -359,14 +376,25 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
-      {view, seqno}, 0, root, primary_sig, hashed_nonce, node_count);
+      {view, seqno},
+      kv::test::PrimaryNodeId,
+      root,
+      primary_sig,
+      hashed_nonce,
+      node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
-    for (uint32_t i = 1; i < node_count; ++i)
+    size_t i = 1;
+    for (auto const& node_id : node_ids)
     {
+      if (node_id == kv::test::PrimaryNodeId)
+      {
+        continue;
+      }
+
       auto result = pt.add_signature(
         {view, seqno},
-        i,
+        node_id,
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
         hashed_nonce,
@@ -386,12 +414,13 @@ TEST_CASE("View Changes")
         auto vc = pt.get_view_change_message(view);
         REQUIRE(std::get<0>(vc) != nullptr);
       }
+      i++;
     }
   }
 
   INFO("Update latest prepared");
   {
-    kv::Consensus::SeqNo new_seqno = 84;
+    ccf::SeqNo new_seqno = 84;
 
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
@@ -399,14 +428,25 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
-      {view, new_seqno}, 0, root, primary_sig, hashed_nonce, node_count);
+      {view, new_seqno},
+      kv::test::PrimaryNodeId,
+      root,
+      primary_sig,
+      hashed_nonce,
+      node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
-    for (uint32_t i = 1; i < node_count; ++i)
+    size_t i = 1;
+    for (auto const& node_id : node_ids)
     {
+      if (node_id == kv::test::PrimaryNodeId)
+      {
+        continue;
+      }
+
       auto result = pt.add_signature(
         {view, new_seqno},
-        i,
+        node_id,
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
         hashed_nonce,
@@ -427,13 +467,13 @@ TEST_CASE("View Changes")
         auto vc = pt.get_view_change_message(view);
         REQUIRE(std::get<0>(vc) != nullptr);
       }
+      i++;
     }
-    seqno = new_seqno;
   }
 
   INFO("Update older prepared");
   {
-    kv::Consensus::SeqNo new_seqno = 21;
+    ccf::SeqNo new_seqno = 21;
 
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
@@ -441,14 +481,25 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
-      {view, new_seqno}, 0, root, primary_sig, hashed_nonce, node_count);
+      {view, new_seqno},
+      kv::test::PrimaryNodeId,
+      root,
+      primary_sig,
+      hashed_nonce,
+      node_count);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
-    for (uint32_t i = 1; i < node_count; ++i)
+    size_t i = 1;
+    for (auto const& node_id : node_ids)
     {
+      if (node_id == kv::test::PrimaryNodeId)
+      {
+        continue;
+      }
+
       auto result = pt.add_signature(
         {view, new_seqno},
-        i,
+        node_id,
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
         hashed_nonce,
@@ -461,6 +512,7 @@ TEST_CASE("View Changes")
 
       auto vc = pt.get_view_change_message(view);
       REQUIRE(std::get<0>(vc) != nullptr);
+      i++;
     }
   }
 }
@@ -476,7 +528,8 @@ TEST_CASE("Serialization")
     {
       ccf::Nonce n;
       n.h.fill(i + 2);
-      v.signatures.push_back({{static_cast<uint8_t>(i)}, i + 1, n});
+      v.signatures.push_back(
+        {{static_cast<uint8_t>(i)}, std::to_string(i + 1), n});
     }
 
     v.signature = {5};
@@ -503,7 +556,7 @@ TEST_CASE("Serialization")
       ccf::NodeSignature& ns = v.signatures[i - 1];
       REQUIRE(ns.sig.size() == 1);
       REQUIRE(ns.sig[0] == i * 10);
-      REQUIRE(ns.node == i * 10 + 1);
+      REQUIRE(ns.node == std::to_string(i * 10 + 1));
       REQUIRE(ns.hashed_nonce.h == n.h);
     }
 
@@ -531,16 +584,17 @@ TEST_CASE("view-change-tracker timeout tests")
 TEST_CASE("view-change-tracker statemachine tests")
 {
   ccf::ViewChangeRequest v;
-  kv::Consensus::View view = 3;
-  kv::Consensus::SeqNo seqno = 1;
+  ccf::View view = 3;
+  ccf::SeqNo seqno = 1;
   uint32_t node_count = 4;
 
   INFO("Can trigger view change");
   {
     aft::ViewChangeTracker vct(nullptr, std::chrono::seconds(10));
-    for (uint32_t i = 0; i < node_count; ++i)
+    size_t i = 0;
+    for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, i, view, seqno, node_count);
+      auto r = vct.add_request_view_change(v, node_id, view, seqno, node_count);
       if (i == 2)
       {
         REQUIRE(
@@ -552,6 +606,7 @@ TEST_CASE("view-change-tracker statemachine tests")
       }
       REQUIRE((vct.check_evidence(view) == i >= 2));
       REQUIRE(!vct.check_evidence(view + 1));
+      i++;
     }
     vct.clear(true, view);
     REQUIRE(vct.check_evidence(view));
@@ -561,10 +616,12 @@ TEST_CASE("view-change-tracker statemachine tests")
   INFO("Can differentiate view change for different view");
   {
     aft::ViewChangeTracker vct(nullptr, std::chrono::seconds(10));
-    for (uint32_t i = 0; i < node_count; ++i)
+    size_t i = 0;
+    for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, i, i, seqno, node_count);
+      auto r = vct.add_request_view_change(v, node_id, i, seqno, node_count);
       REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
+      i++;
     }
   }
 }
@@ -573,7 +630,7 @@ TEST_CASE("test progress_tracker apply_view_change")
 {
   using trompeloeil::_;
 
-  uint32_t node_id = 1;
+  kv::NodeId node_id = kv::test::FirstBackupNodeId;
   auto store = std::make_unique<StoreMock>();
   StoreMock& store_mock = *store.get();
   auto pt = std::make_unique<ccf::ProgressTracker>(std::move(store), node_id);
@@ -591,7 +648,8 @@ TEST_CASE("test progress_tracker apply_view_change")
     REQUIRE_CALL(store_mock, verify_view_change_request(_, _, _, _))
       .RETURN(false);
     ccf::ViewChangeRequest v;
-    bool result = pt->apply_view_change_message(v, 1, 1, 1);
+    bool result =
+      pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 1);
     REQUIRE(result == false);
   }
 
@@ -600,7 +658,8 @@ TEST_CASE("test progress_tracker apply_view_change")
     REQUIRE_CALL(store_mock, verify_view_change_request(_, _, _, _))
       .RETURN(true);
     ccf::ViewChangeRequest v;
-    bool result = pt->apply_view_change_message(v, 1, 1, 999);
+    bool result =
+      pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 999);
     REQUIRE(result == false);
   }
 
@@ -610,9 +669,10 @@ TEST_CASE("test progress_tracker apply_view_change")
       .RETURN(true);
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(true);
     ccf::ViewChangeRequest v;
-    v.signatures.push_back(ccf::NodeSignature(0));
+    v.signatures.push_back(ccf::NodeSignature(kv::test::PrimaryNodeId));
 
-    bool result = pt->apply_view_change_message(v, 1, 1, 42);
+    bool result =
+      pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 42);
     REQUIRE(result);
   }
 
@@ -623,9 +683,10 @@ TEST_CASE("test progress_tracker apply_view_change")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(false);
 
     ccf::ViewChangeRequest v;
-    v.signatures.push_back(ccf::NodeSignature(5));
+    v.signatures.push_back(ccf::NodeSignature(kv::test::PrimaryNodeId));
 
-    bool result = pt->apply_view_change_message(v, 1, 1, 42);
+    bool result =
+      pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 42);
     REQUIRE(result == false);
   }
 }
@@ -635,16 +696,17 @@ TEST_CASE("Sending evidence out of band")
   using trompeloeil::_;
 
   ccf::ViewChangeRequest v;
-  kv::Consensus::View view = 3;
-  kv::Consensus::SeqNo seqno = 1;
+  ccf::View view = 3;
+  ccf::SeqNo seqno = 1;
   constexpr uint32_t node_count = 4;
 
   INFO("Can trigger view change");
   {
     aft::ViewChangeTracker vct(nullptr, std::chrono::seconds(10));
-    for (uint32_t i = 0; i < node_count; ++i)
+    size_t i = 0;
+    for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, i, view, seqno, node_count);
+      auto r = vct.add_request_view_change(v, node_id, view, seqno, node_count);
       if (i == 2)
       {
         REQUIRE(
@@ -679,6 +741,7 @@ TEST_CASE("Sending evidence out of band")
         REQUIRE(!vct_2.check_evidence(view));
       }
       REQUIRE(!vct_2.check_evidence(view + 1));
+      i++;
     }
   }
 }

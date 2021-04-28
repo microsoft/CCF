@@ -57,6 +57,11 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_truncate, consensus::Index);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_commit, consensus::Index);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::snapshot, consensus::Index, std::vector<uint8_t>);
+  consensus::snapshot,
+  consensus::Index /* snapshot idx */,
+  consensus::Index /* evidence idx */,
+  std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::snapshot_commit, consensus::Index);
+  consensus::snapshot_commit,
+  consensus::Index /* snapshot idx */,
+  consensus::Index /* evidence commit idx */);

@@ -6,53 +6,59 @@
 #include "kv/map.h"
 #include "node/entities.h"
 
-#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace aft
 {
   struct Request
   {
-    uint64_t caller_id;
     kv::TxHistory::RequestID rid;
     std::vector<uint8_t> caller_cert;
     std::vector<uint8_t> raw;
     uint8_t frame_format = enclave::FrameFormat::http;
 
-    MSGPACK_DEFINE(caller_id, rid, caller_cert, raw, frame_format);
-
-    std::vector<uint8_t> serialise()
+    size_t serialised_size() const
     {
-      bool include_caller = false;
-      size_t size = sizeof(caller_id) + sizeof(rid) + sizeof(include_caller) +
-        sizeof(size_t) + raw.size() + sizeof(enclave::FrameFormat);
+      size_t size = sizeof(rid) + sizeof(bool) + sizeof(size_t) + raw.size() +
+        sizeof(enclave::FrameFormat);
+
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
+      }
+      return size;
+    }
+
+    void serialise(uint8_t* data, size_t size) const
+    {
+      bool include_caller = false;
+      if (!caller_cert.empty())
+      {
         include_caller = true;
       }
 
-      std::vector<uint8_t> serialized_req(size);
-      auto data_ = serialized_req.data();
-      auto size_ = serialized_req.size();
-      serialized::write(data_, size_, caller_id);
-      serialized::write(data_, size_, rid);
-      serialized::write(data_, size_, include_caller);
+      serialized::write(data, size, rid);
+      serialized::write(data, size, include_caller);
       if (include_caller)
       {
-        serialized::write(data_, size_, caller_cert.size());
-        serialized::write(data_, size_, caller_cert.data(), caller_cert.size());
+        serialized::write(data, size, caller_cert.size());
+        serialized::write(data, size, caller_cert.data(), caller_cert.size());
       }
-      serialized::write(data_, size_, raw.size());
-      serialized::write(data_, size_, raw.data(), raw.size());
+      serialized::write(data, size, raw.size());
+      serialized::write(data, size, raw.data(), raw.size());
 
-      serialized::write(data_, size_, frame_format);
-      return serialized_req;
+      serialized::write(data, size, frame_format);
     }
 
-    void deserialise(const uint8_t* data_, size_t size_)
+    std::vector<uint8_t> serialise() const
     {
-      caller_id = serialized::read<uint64_t>(data_, size_);
+      std::vector<uint8_t> serialised_req(serialised_size());
+      serialise(serialised_req.data(), serialised_req.size());
+      return serialised_req;
+    }
+
+    void apply(const uint8_t* data_, size_t size_)
+    {
       rid = serialized::read<kv::TxHistory::RequestID>(data_, size_);
       auto includes_caller = serialized::read<bool>(data_, size_);
       if (includes_caller)
@@ -68,11 +74,31 @@ namespace aft
   };
 
   DECLARE_JSON_TYPE(Request);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    Request, caller_id, rid, caller_cert, raw, frame_format);
+  DECLARE_JSON_REQUIRED_FIELDS(Request, rid, caller_cert, raw, frame_format);
 
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the requests in the kv over time, we just want to get
   // them into the ledger
-  using RequestsMap = kv::Map<size_t, Request>;
+  using RequestsMap = kv::RawCopySerialisedMap<size_t, Request>;
+}
+
+namespace kv::serialisers
+{
+  template <>
+  struct BlitSerialiser<aft::Request>
+  {
+    static SerialisedEntry to_serialised(const aft::Request& request)
+    {
+      SerialisedEntry s(request.serialised_size());
+      request.serialise(s.data(), s.size());
+      return s;
+    }
+
+    static aft::Request from_serialised(const SerialisedEntry& data)
+    {
+      aft::Request r;
+      r.apply(data.data(), data.size());
+      return r;
+    }
+  };
 }

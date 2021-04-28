@@ -1,8 +1,7 @@
 Ansible
 auditability
 auditable
-blockchain
-boolean
+Boolean
 ccf
 cryptographic
 cryptographically
@@ -11,7 +10,7 @@ IPv
 js
 kv
 Lua
-mbedtls
+mbedTLS
 Merkle
 npm
 plaintext

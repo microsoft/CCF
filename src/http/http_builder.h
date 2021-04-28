@@ -3,12 +3,12 @@
 #pragma once
 
 #include "http_consts.h"
+#include "http_status.h"
 #include "tls/base64.h"
-#include "tls/hash.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-#include <http-parser/http_parser.h>
+#include <llhttp/llhttp.h>
 #include <map>
 #include <string>
 #include <vector>
@@ -31,12 +31,12 @@ namespace http
 // Most builder function are unused from enclave
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
-  static http_method http_method_from_str(const char* s)
+  static llhttp_method http_method_from_str(const char* s)
   {
 #define XX(num, name, string) \
   if (strcmp(s, #string) == 0) \
   { \
-    return http_method(num); \
+    return llhttp_method(num); \
   }
     HTTP_METHOD_MAP(XX)
 #undef XX
@@ -114,19 +114,19 @@ namespace http
   class Request : public Message
   {
   private:
-    http_method method;
+    llhttp_method method;
     std::string path = "/";
     std::map<std::string, std::string> query_params = {};
 
   public:
-    Request(const std::string_view& p = "/", http_method m = HTTP_POST) :
+    Request(const std::string_view& p = "/", llhttp_method m = HTTP_POST) :
       Message(),
       method(m)
     {
       set_path(p);
     }
 
-    http_method get_method() const
+    llhttp_method get_method() const
     {
       return method;
     }
@@ -151,14 +151,6 @@ namespace http
     void set_query_param(const std::string& k, const std::string& v)
     {
       query_params[k] = v;
-    }
-
-    void set_query_params(const nlohmann::json& j)
-    {
-      for (auto it = j.begin(); it != j.end(); ++it)
-      {
-        set_query_param(it.key(), it.value().dump());
-      }
     }
 
     std::string get_formatted_query() const
@@ -187,7 +179,7 @@ namespace http
         "{}"
         "\r\n"
         "{}",
-        http_method_str(method),
+        llhttp_method_name(method),
         uri,
         get_header_string(headers),
         body_view);
@@ -231,7 +223,7 @@ namespace http
 
   // Generic
   static std::vector<uint8_t> build_header(
-    http_method method, const std::vector<uint8_t>& body)
+    llhttp_method method, const std::vector<uint8_t>& body)
   {
     Request r("/", method);
     r.set_body(&body);
@@ -239,7 +231,7 @@ namespace http
   }
 
   static std::vector<uint8_t> build_request(
-    http_method method, const std::vector<uint8_t>& body)
+    llhttp_method method, const std::vector<uint8_t>& body)
   {
     Request r("/", method);
     r.set_body(&body);

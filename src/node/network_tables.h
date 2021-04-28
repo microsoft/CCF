@@ -2,19 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "backup_signatures.h"
-#include "call_types.h"
 #include "certs.h"
 #include "client_signatures.h"
 #include "code_id.h"
 #include "config.h"
-#include "consensus.h"
 #include "consensus/aft/raft_tables.h"
 #include "consensus/aft/request.h"
 #include "consensus/aft/revealed_nonces.h"
+#include "constitution.h"
 #include "entities.h"
 #include "governance_history.h"
 #include "jwt.h"
-#include "kv/map.h"
 #include "kv/store.h"
 #include "members.h"
 #include "modules.h"
@@ -23,19 +21,34 @@
 #include "scripts.h"
 #include "secrets.h"
 #include "service.h"
+#include "service_map.h"
 #include "shares.h"
 #include "signatures.h"
 #include "snapshot_evidence.h"
 #include "submitted_shares.h"
 #include "users.h"
 #include "values.h"
-#include "whitelists.h"
 
 #include <memory>
 #include <tuple>
 
 namespace ccf
 {
+  inline std::shared_ptr<kv::Store> make_store(
+    const ConsensusType& consensus_type)
+  {
+    if (consensus_type == ConsensusType::CFT)
+    {
+      return std::make_shared<kv::Store>(
+        aft::replicate_type_raft, aft::replicated_tables_raft);
+    }
+    else
+    {
+      return std::make_shared<kv::Store>(
+        aft::replicate_type_bft, aft::replicated_tables_bft);
+    }
+  }
+
   struct NetworkTables
   {
     std::shared_ptr<kv::Store> tables;
@@ -43,24 +56,20 @@ namespace ccf
     //
     // Governance tables
     //
-    // members, member_certs and member_digests tables should always be in sync
-    Members members;
-    CertDERs member_certs;
-    CertDigests member_digests;
+    MemberCerts member_certs;
+    MmeberPublicEncryptionKeys member_encryption_public_keys;
+    MemberInfo member_info;
 
-    Scripts gov_scripts;
     Modules modules;
-    Proposals proposals;
-    Whitelists whitelists;
     CodeIDs node_code_ids;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
-    ClientSignatures member_client_signatures;
-    Shares shares;
+    RecoveryShares shares;
+    EncryptedLedgerSecretsInfo encrypted_ledger_secrets;
     SubmittedShares submitted_shares;
     Configuration config;
 
-    CACertDERs ca_certs;
+    CACertBundlePEMs ca_cert_bundles;
 
     JwtIssuers jwt_issuers;
     JwtPublicSigningKeys jwt_public_signing_keys;
@@ -69,12 +78,8 @@ namespace ccf
     //
     // User tables
     //
-    // users, user_certs and user_digests tables should always be in sync
-    Users users;
-    CertDERs user_certs;
-    CertDigests user_digests;
-
-    ClientSignatures user_client_signatures;
+    UserCerts user_certs;
+    UserInfo user_info;
 
     //
     // Node table
@@ -82,19 +87,18 @@ namespace ccf
     Nodes nodes;
 
     //
-    // Lua application table
-    //
-    Scripts app_scripts;
-
-    //
     // Internal CCF tables
     //
     Service service;
     Values values;
     Secrets secrets;
-    Signatures signatures;
-    ConsensusTable consensus;
     SnapshotEvidence snapshot_evidence;
+
+    // The signatures and serialised_tree tables should always be written to at
+    // the same time so that the root of the tree in the signatures table
+    // matches the serialised Merkle tree.
+    Signatures signatures;
+    SerialisedMerkleTree serialise_tree;
 
     //
     // bft related tables
@@ -104,79 +108,40 @@ namespace ccf
     aft::RevealedNoncesMap revealed_nonces_map;
     NewViewsMap new_views_map;
 
+    // JS Constitution
+    Constitution constitution;
+
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::CFT) :
-      tables(
-        (consensus_type == ConsensusType::CFT) ?
-          std::make_shared<kv::Store>(
-            aft::replicate_type_raft, aft::replicated_tables_raft) :
-          std::make_shared<kv::Store>(
-            aft::replicate_type_bft, aft::replicated_tables_bft)),
-      members(Tables::MEMBERS),
-      member_certs(Tables::MEMBER_CERT_DERS),
-      member_digests(Tables::MEMBER_DIGESTS),
-      gov_scripts(Tables::GOV_SCRIPTS),
+      tables(make_store(consensus_type)),
+      member_certs(Tables::MEMBER_CERTS),
+      member_encryption_public_keys(Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS),
+      member_info(Tables::MEMBER_INFO),
       modules(Tables::MODULES),
-      proposals(Tables::PROPOSALS),
-      whitelists(Tables::WHITELISTS),
       node_code_ids(Tables::NODE_CODE_IDS),
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
-      member_client_signatures(Tables::MEMBER_CLIENT_SIGNATURES),
       shares(Tables::SHARES),
+      encrypted_ledger_secrets(Tables::ENCRYPTED_PAST_LEDGER_SECRET),
       submitted_shares(Tables::SUBMITTED_SHARES),
       config(Tables::CONFIGURATION),
-      ca_certs(Tables::CA_CERT_DERS),
+      ca_cert_bundles(Tables::CA_CERT_BUNDLE_PEMS),
       jwt_issuers(Tables::JWT_ISSUERS),
       jwt_public_signing_keys(Tables::JWT_PUBLIC_SIGNING_KEYS),
       jwt_public_signing_key_issuer(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER),
-      users(Tables::USERS),
-      user_certs(Tables::USER_CERT_DERS),
-      user_digests(Tables::USER_DIGESTS),
-      user_client_signatures(Tables::USER_CLIENT_SIGNATURES),
+      user_certs(Tables::USER_CERTS),
+      user_info(Tables::USER_INFO),
       nodes(Tables::NODES),
-      app_scripts(Tables::APP_SCRIPTS),
       service(Tables::SERVICE),
       values(Tables::VALUES),
-      secrets(Tables::SECRETS),
-      signatures(Tables::SIGNATURES),
-      consensus(Tables::CONSENSUS),
+      secrets(Tables::ENCRYPTED_LEDGER_SECRETS),
       snapshot_evidence(Tables::SNAPSHOT_EVIDENCE),
+      signatures(Tables::SIGNATURES),
+      serialise_tree(Tables::SERIALISED_MERKLE_TREE),
       bft_requests_map(Tables::AFT_REQUESTS),
       backup_signatures_map(Tables::BACKUP_SIGNATURES),
       revealed_nonces_map(Tables::NONCES),
-      new_views_map(Tables::NEW_VIEWS)
+      new_views_map(Tables::NEW_VIEWS),
+      constitution(Tables::CONSTITUTION)
     {}
-
-    /** Returns a tuple of all tables that are possibly accessible from scripts
-     * (app and gov). More fine-grained access control is applied via
-     * whitelists.
-     */
-    auto get_scriptable_tables() const
-    {
-      return std::make_tuple(
-        std::ref(members),
-        std::ref(member_certs),
-        std::ref(gov_scripts),
-        std::ref(modules),
-        std::ref(proposals),
-        std::ref(whitelists),
-        std::ref(node_code_ids),
-        std::ref(member_acks),
-        std::ref(governance_history),
-        std::ref(member_client_signatures),
-        std::ref(config),
-        std::ref(ca_certs),
-        std::ref(jwt_issuers),
-        std::ref(jwt_public_signing_keys),
-        std::ref(jwt_public_signing_key_issuer),
-        std::ref(users),
-        std::ref(user_certs),
-        std::ref(user_client_signatures),
-        std::ref(nodes),
-        std::ref(service),
-        std::ref(app_scripts),
-        std::ref(values),
-        std::ref(signatures));
-    }
   };
 }

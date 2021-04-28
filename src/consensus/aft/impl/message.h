@@ -14,8 +14,7 @@ namespace aft
     virtual ~AbstractMessage() = default;
 
     virtual bool should_encrypt() const = 0;
-    virtual void serialize_message(
-      aft::NodeId from_node, uint8_t* data, size_t size) const = 0;
+    virtual void serialize_message(uint8_t* data, size_t size) const = 0;
     virtual size_t size() const = 0;
   };
 }

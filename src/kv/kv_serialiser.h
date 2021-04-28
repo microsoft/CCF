@@ -6,5 +6,5 @@
 #ifdef USE_NLJSON_KV_SERIALISER
 #  include "kv/nljson_serialise.h"
 #else
-#  include "kv/msgpack_serialise.h"
+#  include "kv/raw_serialise.h"
 #endif

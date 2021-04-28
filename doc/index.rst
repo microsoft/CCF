@@ -1,63 +1,92 @@
 CCF Documentation
 =================
 
-.. image:: img/ccf.svg
-  :width: 330
-  :align: right
+.. panels::
 
-Start Here
-----------
+    :fa:`info-circle` :doc:`overview/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- :doc:`/concepts`
-- :doc:`/quickstart/install`
-- :doc:`Run a sample CCF application </quickstart/test_network>`
-- :doc:`Use CCF </users/index>`
-- :doc:`/quickstart/create_vm`
-- `What's new in the latest version of CCF? <https://github.com/microsoft/CCF/releases/latest>`_
+    .. image:: img/ccf.svg
+      :width: 75
+      :align: left
+      :target: concepts.html
 
+    Get started with CCF and its core concepts through a sample app.
 
-Build Applications
-------------------
+    ---
 
-- :doc:`quickstart/build_setup`
-- :doc:`developers/js_app`
-- :doc:`developers/example`
-- :doc:`developers/build_app`
-- :doc:`developers/run_app`
-- :doc:`developers/api`
+    :fa:`tools` :doc:`build_apps/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-CCF Roles
----------
+    .. image:: img/ts.svg
+      :width: 32
+      :target: build_apps/js_app.html
+      :alt: TypeScript
+      :align: left
 
-- :doc:`operators/index`
-- :doc:`members/index`
-- :doc:`users/index`
-- :doc:`Offline Audit <audit/index>`
+    .. image:: img/empty.svg
+      :height: 10
+      :align: left
 
-More Concepts
--------------
+    .. image:: img/cpp.svg
+      :width: 32
+      :target: build_apps/example.html
+      :alt: C++
+      :align: left
 
-- :doc:`design/constitution`
-- :doc:`design/consensus`
-- :doc:`design/cryptography`
-- :doc:`design/performance` and :doc:`design/threading`
+    Write application logic against the CCF Key-Value store.
 
-Contribute
-----------
+    ---
 
-- :doc:`quickstart/contribute`
-- `Contribution Guidelines <https://github.com/microsoft/CCF/blob/master/.github/CONTRIBUTING.md>`_
+    :fa:`user` :doc:`use_apps/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+    Interact with a CCF application, using HTTP or WebSockets over TLS.
+
+    ---
+
+    :fa:`tachometer-alt` :doc:`operations/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Provision and operate a network of CCF nodes hosting an application.
+
+    ---
+
+    :fa:`users` :doc:`governance/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Propose and vote changes to a CCF network, the rules that define it and the application it runs.
+
+    ---
+
+    :fa:`eye` :doc:`audit/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Audit a running CCF network and its complete history.
+
+    ---
+
+    :fa:`code-branch` :doc:`contribute/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Contribute to the CCF GitHub repository.
+
+    ---
+
+    :fa:`book` :doc:`glossary`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Common terms used throughout the documentation and their definitions.
 
 .. toctree::
     :maxdepth: 1
     :hidden:
-    :titlesonly:
 
-    concepts
-    developers/index.rst
-    users/index.rst
-    operators/index.rst
-    members/index.rst
+    overview/index.rst
+    build_apps/index.rst
+    use_apps/index.rst
+    operations/index.rst
+    governance/index.rst
     audit/index.rst
+    contribute/index.rst
     glossary

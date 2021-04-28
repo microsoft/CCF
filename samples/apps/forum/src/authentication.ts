@@ -1,19 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-import { KJUR, KEYUTIL } from "jsrsasign";
-import jwt_decode from "jwt-decode";
-import { Base64 } from "js-base64";
-import * as ccf from "./types/ccf";
+import * as ccfapp from "@microsoft/ccf-app";
 import { UnauthorizedError } from "./error_handler";
 
-export interface User {
-  claims: { [name: string]: any };
+export interface User extends ccfapp.JwtAuthnIdentity {
   userId: string;
-}
-
-interface HeaderClaims {
-  kid: string;
 }
 
 interface BodyClaims {
@@ -33,92 +25,23 @@ export const MS_APP_ID = "1773214f-72b8-48f9-ae18-81e30fab04db";
 export const MS_APP_ID_URI = "api://1773214f-72b8-48f9-ae18-81e30fab04db";
 
 export function authentication(
-  request: ccf.Request,
+  request: ccfapp.Request,
   securityName: string,
   scopes?: string[]
 ): void {
   if (securityName === "jwt") {
-    // Extract the token from the header.
-    const authHeader = request.headers["authorization"];
-    if (!authHeader) {
-      throw new UnauthorizedError("authorization header missing");
-    }
-    const parts = authHeader.split(" ", 2);
-    if (parts.length !== 2 || parts[0] !== "Bearer") {
-      throw new UnauthorizedError(
-        `unexpected authentication type ${parts[0]}, expected Bearer`
-      );
-    }
-    const token = parts[1];
-
-    // Extract header claims to select the correct signing key.
-    // We use jwt_decode() instead of jsrsasign's parse() as the latter does unnecessary work.
-    let headerClaims: HeaderClaims;
-    try {
-      headerClaims = jwt_decode(token, { header: true }) as HeaderClaims;
-    } catch (e) {
-      throw new UnauthorizedError(`malformed jwt: ${e.message}`);
-    }
-    const signingKeyId = headerClaims.kid;
-    if (!signingKeyId) {
-      throw new UnauthorizedError("kid missing in header claims");
+    const caller = request.caller as User;
+    if (!caller || caller.policy != "jwt") {
+      throw new Error("unexpected policy");
     }
 
-    // Get the stored signing key to validate the token.
-    const keysMap = new ccf.TypedKVMap(
-      ccf.kv["public:ccf.gov.jwt_public_signing_keys"],
-      ccf.string,
-      ccf.typedArray(Uint8Array)
-    );
-    const publicKeyDer = keysMap.get(signingKeyId);
-    if (publicKeyDer === undefined) {
-      throw new UnauthorizedError("token signing key not found");
-    }
-    // jsrsasign can only load X.509 certs from PEM strings
-    const publicKeyB64 = Base64.fromUint8Array(publicKeyDer);
-    const publicKeyPem =
-      "-----BEGIN CERTIFICATE-----\n" +
-      publicKeyB64 +
-      "\n-----END CERTIFICATE-----";
-    const publicKey = KEYUTIL.getKey(publicKeyPem);
-
-    // Validate the token signature.
-    const valid = KJUR.jws.JWS.verifyJWT(
-      token,
-      <any>publicKey,
-      <any>{
-        alg: ["RS256"],
-        // No trusted time, disable time validation.
-        verifyAt: Date.parse("2020-01-01T00:00:00") / 1000,
-        gracePeriod: 10 * 365 * 24 * 60 * 60,
-      }
-    );
-    if (!valid) {
-      throw new UnauthorizedError("jwt validation failed");
-    }
-
-    // Get the issuer associated to the signing key.
-    const keyIssuerMap = new ccf.TypedKVMap(
-      ccf.kv["public:ccf.gov.jwt_public_signing_key_issuer"],
-      ccf.string,
-      ccf.string
-    );
-    const keyIssuer = keyIssuerMap.get(signingKeyId);
-
-    // Validate token body claims.
-    let claims: BodyClaims;
-    try {
-      claims = jwt_decode(token) as BodyClaims;
-    } catch (e) {
-      // Shouldn't happen given earlier validation by jsrsasign.
-      throw new UnauthorizedError(`malformed jwt: ${e.message}`);
-    }
-
-    if (keyIssuer === "https://demo") {
+    if (caller.jwt.keyIssuer === "https://demo") {
       // no further validation
-    } else if (keyIssuer === "https://login.microsoftonline.com/common/v2.0") {
+    } else if (
+      caller.jwt.keyIssuer === "https://login.microsoftonline.com/common/v2.0"
+    ) {
       // Microsoft identity platform access tokens
-      const msClaims = claims as MSAccessTokenClaims;
+      const msClaims = caller.jwt.payload as MSAccessTokenClaims;
       if (msClaims.ver !== "1.0") {
         throw new UnauthorizedError(
           "unsupported access token version, must be 1.0"
@@ -133,13 +56,10 @@ export function authentication(
         );
       }
     } else {
-      throw new Error(`BUG: unknown key issuer: ${keyIssuer}`);
+      throw new Error(`BUG: unknown key issuer: ${caller.jwt.keyIssuer}`);
     }
 
-    request.user = {
-      claims: claims,
-      userId: claims.sub,
-    } as User;
+    caller.userId = caller.jwt.payload.sub;
   } else {
     throw new Error(`BUG: unknown securityName: ${securityName}`);
   }

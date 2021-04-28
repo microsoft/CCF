@@ -1,0 +1,31 @@
+{
+  "endpoints": {
+    "/jwt": {
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "jwt",
+        "forwarding_required": "always",
+        "authn_policies": ["jwt"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
+    "/multi_auth": {
+      "get": {
+        "js_module": "endpoints.js",
+        "js_function": "multi_auth",
+        "forwarding_required": "sometimes",
+        "authn_policies": [
+          "user_cert",
+          "user_signature",
+          "member_cert",
+          "member_signature",
+          "jwt",
+          "no_auth"
+        ],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    }
+  }
+}

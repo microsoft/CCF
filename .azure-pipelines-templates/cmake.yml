@@ -3,12 +3,14 @@ parameters:
 
 steps:
   - script: |
+      set -ex
       tests/sgxinfo.sh
       cat /proc/cpuinfo | grep flags | uniq
     displayName: Platform Info
     condition: succeededOrFailed()
 
   - script: |
+      set -ex
       mkdir build
       cd build
       cmake -L -GNinja .. ${{ parameters.cmake_args }}

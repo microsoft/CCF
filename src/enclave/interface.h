@@ -6,7 +6,10 @@
 
 #include "consensus/consensus_types.h"
 #include "consensus_type.h"
+#include "crypto/curve.h"
+#include "crypto/san.h"
 #include "ds/buffer.h"
+#include "ds/json.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
 #include "ds/ring_buffer_types.h"
@@ -14,7 +17,6 @@
 #include "node/members.h"
 #include "node/node_info_network.h"
 #include "start_type.h"
-#include "tls/san.h"
 #include "tls/tls.h"
 
 #include <chrono>
@@ -42,28 +44,28 @@ struct EnclaveConfig
 
 struct CCFConfig
 {
-  consensus::Config consensus_config = {};
+  consensus::Configuration consensus_config = {};
   ccf::NodeInfoNetwork node_info_network = {};
   std::string domain;
   size_t snapshot_tx_interval;
+  size_t max_open_sessions;
 
   // Only if joining or recovering
   std::vector<uint8_t> startup_snapshot;
+  size_t startup_snapshot_evidence_seqno;
 
   struct SignatureIntervals
   {
     size_t sig_tx_interval;
     size_t sig_ms_interval;
-    MSGPACK_DEFINE(sig_tx_interval, sig_ms_interval);
   };
   SignatureIntervals signature_intervals = {};
 
   struct Genesis
   {
-    std::vector<ccf::MemberPubInfo> members_info;
-    std::string gov_script;
+    std::vector<ccf::NewMember> members_info;
+    std::string constitution;
     size_t recovery_threshold;
-    MSGPACK_DEFINE(members_info, gov_script, recovery_threshold);
   };
   Genesis genesis = {};
 
@@ -73,25 +75,46 @@ struct CCFConfig
     std::string target_port;
     std::vector<uint8_t> network_cert;
     size_t join_timer;
-    MSGPACK_DEFINE(target_host, target_port, network_cert, join_timer);
   };
   Joining joining = {};
 
   std::string subject_name;
-  std::vector<tls::SubjectAltName> subject_alternative_names;
+  std::vector<crypto::SubjectAltName> subject_alternative_names;
 
-  MSGPACK_DEFINE(
-    consensus_config,
-    node_info_network,
-    domain,
-    snapshot_tx_interval,
-    startup_snapshot,
-    signature_intervals,
-    genesis,
-    joining,
-    subject_name,
-    subject_alternative_names);
+  size_t jwt_key_refresh_interval_s;
+
+  crypto::CurveID curve_id;
 };
+
+DECLARE_JSON_TYPE(CCFConfig::SignatureIntervals);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig::SignatureIntervals, sig_tx_interval, sig_ms_interval);
+
+DECLARE_JSON_TYPE(CCFConfig::Genesis);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig::Genesis, members_info, constitution, recovery_threshold);
+
+DECLARE_JSON_TYPE(CCFConfig::Joining);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig::Joining, target_host, target_port, network_cert, join_timer);
+
+DECLARE_JSON_TYPE(CCFConfig);
+DECLARE_JSON_REQUIRED_FIELDS(
+  CCFConfig,
+  consensus_config,
+  node_info_network,
+  domain,
+  snapshot_tx_interval,
+  max_open_sessions,
+  startup_snapshot,
+  startup_snapshot_evidence_seqno,
+  signature_intervals,
+  genesis,
+  joining,
+  subject_name,
+  subject_alternative_names,
+  jwt_key_refresh_interval_s,
+  curve_id);
 
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message
@@ -126,5 +149,5 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::tick, size_t);
+DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::tick);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::work_stats, std::string);

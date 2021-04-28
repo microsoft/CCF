@@ -48,6 +48,12 @@ option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
+option(LONG_TESTS "Enable long end-to-end tests" OFF)
+
+option(ENABLE_BFT "Enable experimental BFT consensus at compile time" ON)
+if(ENABLE_BFT)
+  add_compile_definitions(ENABLE_BFT)
+endif()
 
 option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
        OFF
@@ -64,9 +70,14 @@ endif()
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+include_directories(${CCF_DIR}/include)
 include_directories(${CCF_DIR}/src)
 
-include_directories(SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star)
+set(CCF_3RD_PARTY_EXPORTED_DIR "${CCF_DIR}/3rdparty/exported")
+set(CCF_3RD_PARTY_INTERNAL_DIR "${CCF_DIR}/3rdparty/internal")
+
+include_directories(SYSTEM ${CCF_3RD_PARTY_EXPORTED_DIR})
+include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
 
 find_package(MbedTLS REQUIRED)
 
@@ -140,59 +151,46 @@ else()
   set(DEFAULT_ENCLAVE_TYPE virtual)
 endif()
 
-# Lua module
-set(LUA_DIR ${CCF_DIR}/3rdparty/lua)
-set(LUA_SOURCES
-    ${LUA_DIR}/lapi.c
-    ${LUA_DIR}/lauxlib.c
-    ${LUA_DIR}/lbaselib.c
-    ${LUA_DIR}/lcode.c
-    ${LUA_DIR}/lcorolib.c
-    ${LUA_DIR}/lctype.c
-    ${LUA_DIR}/ldebug.c
-    ${LUA_DIR}/ldo.c
-    ${LUA_DIR}/ldump.c
-    ${LUA_DIR}/lfunc.c
-    ${LUA_DIR}/lgc.c
-    ${LUA_DIR}/llex.c
-    ${LUA_DIR}/lmathlib.c
-    ${LUA_DIR}/lmem.c
-    ${LUA_DIR}/lobject.c
-    ${LUA_DIR}/lopcodes.c
-    ${LUA_DIR}/lparser.c
-    ${LUA_DIR}/lstate.c
-    ${LUA_DIR}/lstring.c
-    ${LUA_DIR}/lstrlib.c
-    ${LUA_DIR}/ltable.c
-    ${LUA_DIR}/ltablib.c
-    ${LUA_DIR}/ltm.c
-    ${LUA_DIR}/lundump.c
-    ${LUA_DIR}/lutf8lib.c
-    ${LUA_DIR}/lvm.c
-    ${LUA_DIR}/lzio.c
+set(HTTP_PARSER_SOURCES
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/api.c
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/http.c
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/llhttp/llhttp.c
 )
 
-set(HTTP_PARSER_SOURCES ${CCF_DIR}/3rdparty/http-parser/http_parser.c)
+set(CCF_ENDPOINTS_SOURCES
+    ${CCF_DIR}/src/endpoints/endpoint.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+)
+
+set(CCF_ENDPOINTS_SOURCES
+    ${CCF_DIR}/src/endpoints/endpoint.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+)
 
 find_library(CRYPTO_LIBRARY crypto)
 
+list(APPEND COMPILE_LIBCXX -stdlib=libc++)
+list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
+
 include(${CCF_DIR}/cmake/crypto.cmake)
-include(${CCF_DIR}/cmake/secp256k1.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/sss.cmake)
-
-list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
 
 # Unit test wrapper
 function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE -stdlib=libc++)
-  target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
+  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
+  target_include_directories(
+    ${name} PRIVATE src ${CCFCRYPTO_INC} ${CCF_DIR}/3rdparty/test
+  )
   enable_coverage(${name})
   target_link_libraries(
-    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehostverify
+    ${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost
   )
-  use_client_mbedtls(${name})
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
@@ -206,11 +204,10 @@ endfunction()
 # Test binary wrapper
 function(add_test_bin name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE -stdlib=libc++)
+  target_compile_options(${name} PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
-  use_client_mbedtls(${name})
   add_san(${name})
 endfunction()
 
@@ -221,11 +218,9 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   add_warning_checks(cchost)
-  use_client_mbedtls(cchost)
-  target_compile_options(cchost PRIVATE -stdlib=libc++)
+  target_compile_options(cchost PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
   add_san(cchost)
-  add_lvi_mitigations(cchost)
 
   target_link_libraries(
     cchost
@@ -236,7 +231,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
             ${LINK_LIBCXX}
             openenclave::oehost
             ccfcrypto.host
-            evercrypt.host
   )
   enable_quote_code(cchost)
 
@@ -250,24 +244,25 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     set(SNMALLOC_LIB)
     set(SNMALLOC_CPP)
   else()
+
     set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
-    add_subdirectory(3rdparty/snmalloc EXCLUDE_FROM_ALL)
+    # Remove the following two lines once we upgrade to snmalloc 0.5.4
+    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+    set(USE_POSIX_COMMIT_CHECKS off)
+    add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
     set(SNMALLOC_LIB snmalloc_lib)
     set(SNMALLOC_CPP src/enclave/snmalloc.cpp)
   endif()
 
   # Virtual Host Executable
   add_executable(cchost.virtual ${SNMALLOC_CPP} ${CCF_DIR}/src/host/main.cpp)
-  use_client_mbedtls(cchost.virtual)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
-  target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
+  target_compile_options(cchost.virtual PRIVATE ${COMPILE_LIBCXX})
   target_include_directories(
     cchost.virtual PRIVATE ${OE_INCLUDEDIR} ${CCF_GENERATED_DIR}
   )
   add_warning_checks(cchost.virtual)
   add_san(cchost.virtual)
-  add_lvi_mitigations(cchost.virtual)
-  enable_coverage(cchost.virtual)
   target_link_libraries(
     cchost.virtual
     PRIVATE uv
@@ -277,7 +272,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
             ${CMAKE_THREAD_LIBS_INIT}
             ${LINK_LIBCXX}
             ccfcrypto.host
-            evercrypt.host
   )
 
   install(TARGETS cchost.virtual DESTINATION bin)
@@ -285,34 +279,13 @@ endif()
 
 # Perf scenario executable
 add_executable(
-  scenario_perf_client ${CCF_DIR}/samples/perf_client/scenario_perf_client.cpp
+  scenario_perf_client ${CCF_DIR}/src/perf_client/scenario_perf_client.cpp
 )
-use_client_mbedtls(scenario_perf_client)
 target_link_libraries(
-  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
-                               http_parser.host
+  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
+                               ccfcrypto.host c++fs
 )
 install(TARGETS scenario_perf_client DESTINATION bin)
-
-# Lua for host and enclave
-add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
-target_compile_options(lua.enclave PRIVATE -Wno-string-plus-int)
-target_compile_definitions(lua.enclave PRIVATE NO_IO)
-install(
-  TARGETS lua.enclave
-  EXPORT ccf
-  DESTINATION lib
-)
-
-add_library(lua.host STATIC ${LUA_SOURCES})
-target_compile_options(lua.host PRIVATE -Wno-string-plus-int)
-target_compile_definitions(lua.host PRIVATE NO_IO)
-set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-install(
-  TARGETS lua.host
-  EXPORT ccf
-  DESTINATION lib
-)
 
 # HTTP parser
 add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
@@ -330,21 +303,43 @@ install(
   DESTINATION lib
 )
 
+# CCF endpoints libs
+add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
+use_oe_mbedtls(ccf_endpoints.enclave)
+add_warning_checks(ccf_endpoints.enclave)
+install(
+  TARGETS ccf_endpoints.enclave
+  EXPORT ccf
+  DESTINATION lib
+)
+add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
+use_client_mbedtls(ccf_endpoints.host)
+add_san(ccf_endpoints.host)
+add_warning_checks(ccf_endpoints.host)
+install(
+  TARGETS ccf_endpoints.host
+  EXPORT ccf
+  DESTINATION lib
+)
+
 # Common test args for Python scripts starting up CCF networks
 set(WORKER_THREADS
     0
     CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
-set(CCF_NETWORK_TEST_DEFAULT_GOV ${CCF_DIR}/src/runtime_config/gov.lua)
+set(CCF_NETWORK_TEST_DEFAULT_CONSTITUTION
+    --constitution
+    ${CCF_DIR}/src/runtime_config/default/actions.js
+    --constitution
+    ${CCF_DIR}/src/runtime_config/default/validate.js
+    --constitution
+    ${CCF_DIR}/src/runtime_config/default/resolve.js
+    --constitution
+    ${CCF_DIR}/src/runtime_config/default/apply.js
+)
 set(CCF_NETWORK_TEST_ARGS -l ${TEST_HOST_LOGGING_LEVEL} --worker-threads
                           ${WORKER_THREADS}
-)
-
-add_ccf_app(lua_generic SRCS ${CCF_DIR}/src/apps/lua_generic/lua_generic.cpp)
-sign_app_library(
-  lua_generic.enclave ${CCF_DIR}/src/apps/lua_generic/oe_sign.conf
-  ${CCF_DIR}/src/apps/sample_key.pem
 )
 
 # SNIPPET_START: JS generic application
@@ -356,9 +351,13 @@ add_ccf_app(
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
-  ${CCF_DIR}/src/apps/sample_key.pem INSTALL_LIBS ON
+  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
+
+install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
+        DESTINATION samples/logging
+)
 
 # Samples
 
@@ -371,12 +370,12 @@ function(add_client_exe name)
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
 
-  target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-  target_include_directories(
-    ${name} PRIVATE ${CCF_DIR}/samples/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
+  target_link_libraries(
+    ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host
   )
-
-  use_client_mbedtls(${name})
+  target_include_directories(
+    ${name} PRIVATE ${CCF_DIR}/src/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
+  )
 
 endfunction()
 
@@ -384,12 +383,12 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
-    "ADDITIONAL_ARGS;CONFIGURATIONS"
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;"
+    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
-  if(NOT PARSED_ARGS_GOV_SCRIPT)
-    set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
+  if(NOT PARSED_ARGS_CONSTITUTION)
+    set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
   endif()
 
   if(BUILD_END_TO_END_TESTS)
@@ -397,7 +396,7 @@ function(add_e2e_test)
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} -g ${PARSED_ARGS_GOV_SCRIPT} --consensus
+        ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --consensus
         ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
@@ -508,13 +507,16 @@ endfunction()
 function(add_perf_test)
 
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;GOV_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
+    PARSE_ARGV
+    0
+    PARSED_ARGS
+    ""
+    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
     "ADDITIONAL_ARGS"
   )
 
-  if(NOT PARSED_ARGS_GOV_SCRIPT)
-    set(PARSED_ARGS_GOV_SCRIPT ${CCF_NETWORK_TEST_DEFAULT_GOV})
+  if(NOT PARSED_ARGS_CONSTITUTION)
+    set(PARSED_ARGS_CONSTITUTION ${CCF_NETWORK_TEST_DEFAULT_CONSTITUTION})
   endif()
 
   if(PARSED_ARGS_VERIFICATION_FILE)
@@ -525,51 +527,53 @@ function(add_perf_test)
 
   set(TESTS_SUFFIX "")
   if("sgx" IN_LIST COMPILE_TARGETS)
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_SGX")
-  endif()
-  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_CFT")
-  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
-    set(TESTS_SUFFIX "${TESTS_SUFFIX}_BFT")
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_sgx")
   endif()
 
+  if("cft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_cft")
+  elseif("bft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_bft")
+  endif()
+
+  set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
+
   if(PARSED_ARGS_LABEL)
-    set(LABEL_ARG "${PARSED_ARGS_LABEL}${TESTS_SUFFIX}^")
+    set(LABEL_ARG "${TEST_NAME}^")
   else()
-    set(LABEL_ARG "${PARSED_ARGS_NAME}${TESTS_SUFFIX}^")
+    set(LABEL_ARG "${TEST_NAME}^")
   endif()
 
   add_test(
-    NAME ${PARSED_ARGS_NAME}
+    NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS} -g
-      ${PARSED_ARGS_GOV_SCRIPT} --write-tx-times ${VERIFICATION_ARG} --label
-      ${LABEL_ARG} ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
+      ${PARSED_ARGS_CONSTITUTION} --write-tx-times ${VERIFICATION_ARG} --label
+      ${LABEL_ARG} --snapshot-tx-interval 10000 ${PARSED_ARGS_ADDITIONAL_ARGS}
+      ${NODES}
   )
 
   # Make python test client framework importable
   set_property(
-    TEST ${PARSED_ARGS_NAME}
+    TEST ${TEST_NAME}
     APPEND
-    PROPERTY
-      ENVIRONMENT
-      "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
+    PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
-      TEST ${PARSED_ARGS_NAME}
+      TEST ${TEST_NAME}
       APPEND
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
   set_property(
-    TEST ${PARSED_ARGS_NAME}
+    TEST ${TEST_NAME}
     APPEND
     PROPERTY LABELS perf
   )
   set_property(
-    TEST ${PARSED_ARGS_NAME}
+    TEST ${TEST_NAME}
     APPEND
     PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
   )
@@ -583,16 +587,15 @@ function(add_picobench name)
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
 
-  add_lvi_mitigations(${name})
-
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}
+                    ccfcrypto.host
   )
 
   # -Wall -Werror catches a number of warnings in picobench
-  target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
+  target_include_directories(${name} SYSTEM PRIVATE 3rdparty/test)
 
   add_test(
     NAME ${name}
@@ -600,8 +603,6 @@ function(add_picobench name)
       bash -c
       "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
   )
-
-  use_client_mbedtls(${name})
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
 endfunction()

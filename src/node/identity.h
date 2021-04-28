@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tls/key_pair.h"
+#include "crypto/curve.h"
+#include "crypto/key_pair.h"
 
 #include <string>
 #include <vector>
@@ -11,8 +12,8 @@ namespace ccf
 {
   struct NetworkIdentity
   {
-    tls::Pem cert;
-    tls::Pem priv_key;
+    crypto::Pem cert;
+    crypto::Pem priv_key;
 
     bool operator==(const NetworkIdentity& other) const
     {
@@ -21,9 +22,9 @@ namespace ccf
 
     NetworkIdentity() = default;
 
-    NetworkIdentity(const std::string& name)
+    NetworkIdentity(const std::string& name, crypto::CurveID curve_id)
     {
-      auto identity_key_pair = tls::make_key_pair();
+      auto identity_key_pair = crypto::make_key_pair(curve_id);
       cert = identity_key_pair->self_sign(name);
       priv_key = identity_key_pair->private_key_pem();
     }

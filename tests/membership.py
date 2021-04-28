@@ -23,7 +23,7 @@ def test_add_member(network, args, recovery_member=True):
 
     new_member = network.consortium.generate_and_add_new_member(
         primary,
-        curve=infra.network.ParticipantsCurve(args.participants_curve).next(),
+        curve=infra.network.EllipticCurve(args.participants_curve).next(),
         member_data=member_data,
         recovery_member=recovery_member,
     )
@@ -37,11 +37,19 @@ def test_add_member(network, args, recovery_member=True):
 
 @reqs.description("Retire existing member")
 @reqs.sufficient_recovery_member_count()
-def test_retire_member(network, args, member_to_retire=None, recovery_member=True):
+def test_remove_member(network, args, member_to_remove=None, recovery_member=True):
     primary, _ = network.find_primary()
-    if member_to_retire is None:
-        member_to_retire = network.consortium.get_any_active_member(recovery_member)
-    network.consortium.retire_member(primary, member_to_retire)
+    if member_to_remove is None:
+        member_to_remove = network.consortium.get_any_active_member(recovery_member)
+    network.consortium.remove_member(primary, member_to_remove)
+
+    # Check that remove member cannot be authenticated by the service
+    try:
+        member_to_remove.ack(primary)
+    except infra.member.UnauthenticatedMember:
+        pass
+    else:
+        assert False, "Member should have been removed"
 
     return network
 
@@ -49,7 +57,7 @@ def test_retire_member(network, args, member_to_retire=None, recovery_member=Tru
 @reqs.description("Issue new recovery shares (without re-key)")
 def test_update_recovery_shares(network, args):
     primary, _ = network.find_primary()
-    network.consortium.update_recovery_shares(primary)
+    network.consortium.trigger_recovery_shares_refresh(primary)
     return network
 
 
@@ -78,15 +86,15 @@ def assert_recovery_shares_update(are_shared_updated, func, network, args, **kwa
     for m in network.consortium.get_active_recovery_members():
         saved_recovery_shares[m] = m.get_and_decrypt_recovery_share(primary)
 
-    if func is test_retire_member:
+    if func is test_remove_member:
         recovery_member = kwargs.pop("recovery_member")
-        member_to_retire = network.consortium.get_any_active_member(
+        member_to_remove = network.consortium.get_any_active_member(
             recovery_member=recovery_member
         )
         if recovery_member:
-            saved_recovery_shares.pop(member_to_retire)
+            saved_recovery_shares.pop(member_to_remove)
 
-        func(network, args, member_to_retire)
+        func(network, args, member_to_remove)
     elif func is test_set_recovery_threshold and "recovery_threshold" in kwargs:
         func(network, args, recovery_threshold=kwargs["recovery_threshold"])
     else:
@@ -108,7 +116,11 @@ def service_startups(args):
         try:
             network.start_and_join(args)
             assert False, "Service cannot be opened with no recovery members"
-        except infra.proposal.ProposalNotAccepted:
+        except AssertionError:
+            primary, _ = network.find_primary()
+            network.consortium.check_for_service(
+                primary, infra.network.ServiceStatus.OPENING
+            )
             LOG.success(
                 "Service could not be opened with insufficient number of recovery mmebers"
             )
@@ -136,7 +148,7 @@ def recovery_shares_scenario(args):
     # Members 0 and 1 are recovery members, member 2 isn't
     args.initial_member_count = 3
     args.initial_recovery_member_count = 2
-    non_recovery_member_id = 2
+    non_recovery_member_id = "member2"
 
     # Recovery threshold is initially set to number of recovery members (2)
     with infra.network.network(
@@ -155,27 +167,32 @@ def recovery_shares_scenario(args):
 
         LOG.info("Non-recovery member does not have a recovery share")
         primary, _ = network.find_primary()
-        with primary.client(f"member{non_recovery_member_id}") as mc:
+        with primary.client(non_recovery_member_id) as mc:
             r = mc.get("/gov/recovery_share")
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value
             assert (
-                r.body.text()
-                == f"Recovery share not found for member {non_recovery_member_id}"
+                f"Recovery share not found for member {network.consortium.get_member_by_local_id(non_recovery_member_id).service_id}"
+                in r.body.json()["error"]["message"]
             )
 
-        # Retiring a recovery number is not possible as the number of recovery
+        # Removing a recovery number is not possible as the number of recovery
         # members would be under recovery threshold (2)
-        LOG.info("Retiring a recovery member should not be possible")
+        LOG.info("Removing a recovery member should not be possible")
         try:
-            test_retire_member(network, args, recovery_member=True)
-            assert False, "Retiring a recovery member should not be possible"
+            test_remove_member(network, args, recovery_member=True)
+            assert False, "Removing a recovery member should not be possible"
         except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.Failed
+            assert e.proposal.state == infra.proposal.ProposalState.FAILED
 
-        # However, retiring a non-recovery member is allowed
-        LOG.info("Retiring a non-recovery member is still possible")
-        member_to_retire = network.consortium.get_member_by_id(non_recovery_member_id)
-        test_retire_member(network, args, member_to_retire=member_to_retire)
+        # However, removing a non-recovery member is allowed
+        LOG.info("Removing a non-recovery member is still possible")
+        member_to_remove = network.consortium.get_member_by_local_id(
+            non_recovery_member_id
+        )
+        test_remove_member(network, args, member_to_remove=member_to_remove)
+
+        LOG.info("Removing an already-removed member succeeds with no effect")
+        test_remove_member(network, args, member_to_remove=member_to_remove)
 
         LOG.info("Adding one non-recovery member")
         assert_recovery_shares_update(
@@ -185,13 +202,13 @@ def recovery_shares_scenario(args):
         assert_recovery_shares_update(
             True, test_add_member, network, args, recovery_member=True
         )
-        LOG.info("Retiring one non-recovery member")
+        LOG.info("Removing one non-recovery member")
         assert_recovery_shares_update(
-            False, test_retire_member, network, args, recovery_member=False
+            False, test_remove_member, network, args, recovery_member=False
         )
-        LOG.info("Retiring one recovery member")
+        LOG.info("Removing one recovery member")
         assert_recovery_shares_update(
-            True, test_retire_member, network, args, recovery_member=True
+            True, test_remove_member, network, args, recovery_member=True
         )
 
         LOG.info("Reduce recovery threshold")
@@ -203,18 +220,23 @@ def recovery_shares_scenario(args):
             recovery_threshold=network.consortium.recovery_threshold - 1,
         )
 
-        # Retiring a recovery member now succeeds
-        LOG.info("Retiring one recovery member")
+        # Removing a recovery member now succeeds
+        LOG.info("Removing one recovery member")
         assert_recovery_shares_update(
-            True, test_retire_member, network, args, recovery_member=True
+            True, test_remove_member, network, args, recovery_member=True
         )
 
         LOG.info("Set recovery threshold to 0 is impossible")
+        exception = infra.proposal.ProposalNotCreated
         try:
             test_set_recovery_threshold(network, args, recovery_threshold=0)
             assert False, "Setting recovery threshold to 0 should not be possible"
-        except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.Failed
+        except exception as e:
+            assert (
+                e.response.status_code == 400
+                and e.response.body.json()["error"]["code"]
+                == "ProposalFailedToValidate"
+            ), e.response.body.text()
 
         LOG.info(
             "Set recovery threshold to more that number of active recovery members is impossible"
@@ -230,7 +252,27 @@ def recovery_shares_scenario(args):
                 False
             ), "Setting recovery threshold to more than number of active recovery members should not be possible"
         except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.Failed
+            assert e.proposal.state == infra.proposal.ProposalState.FAILED
+
+        try:
+            test_set_recovery_threshold(network, args, recovery_threshold=256)
+            assert False, "Recovery threshold cannot be set to > 255"
+        except exception as e:
+            assert (
+                e.response.status_code == 400
+                and e.response.body.json()["error"]["code"]
+                == "ProposalFailedToValidate"
+            ), e.response.body.text()
+
+        try:
+            network.consortium.set_recovery_threshold(primary, recovery_threshold=None)
+            assert False, "Recovery threshold value must be passed as proposal argument"
+        except exception as e:
+            assert (
+                e.response.status_code == 400
+                and e.response.body.json()["error"]["code"]
+                == "ProposalFailedToValidate"
+            ), e.response.body.text()
 
         LOG.info(
             "Setting recovery threshold to current threshold does not update shares"
@@ -251,7 +293,7 @@ def run(args):
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
-    args.package = args.app_script or "liblogging"
+    args.package = "liblogging"
 
     # Fast test
     args.nodes = infra.e2e_args.min_nodes(args, f=0)

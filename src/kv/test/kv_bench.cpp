@@ -4,7 +4,6 @@
 
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
-#include "kv/tx.h"
 #include "node/encryptor.h"
 
 #include <msgpack/msgpack.hpp>
@@ -42,9 +41,7 @@ ValueType gen_value(size_t i)
 std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 {
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  auto new_secret = ccf::LedgerSecret();
   secrets->init();
-
   return secrets;
 }
 
@@ -66,15 +63,15 @@ static void serialise(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
   auto map0 = build_map_name("map0", SD);
   auto map1 = build_map_name("map1", SD);
 
   auto tx = kv_store.create_tx();
-  auto [tx0, tx1] = tx.get_view<MapType, MapType>(map0, map1);
+  auto tx0 = tx.rw<MapType>(map0);
+  auto tx1 = tx.rw<MapType>(map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
@@ -86,7 +83,7 @@ static void serialise(picobench::state& s)
 
   s.start_timer();
   auto rc = tx.commit();
-  if (rc != kv::CommitSuccess::OK)
+  if (rc != kv::CommitResult::SUCCESS)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
   s.stop_timer();
 }
@@ -96,13 +93,12 @@ static void deserialise(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
-  auto consensus = std::make_shared<kv::StubConsensus>();
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
   kv::Store kv_store(consensus);
   kv::Store kv_store2;
 
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
@@ -110,7 +106,8 @@ static void deserialise(picobench::state& s)
   auto map1 = build_map_name("map1", SD);
 
   auto tx = kv_store.create_tx();
-  auto [tx0, tx1] = tx.get_view<MapType, MapType>(map0, map1);
+  auto tx0 = tx.rw<MapType>(map0);
+  auto tx1 = tx.rw<MapType>(map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
@@ -122,8 +119,11 @@ static void deserialise(picobench::state& s)
   tx.commit();
 
   s.start_timer();
-  auto rc = kv_store2.deserialise(consensus->get_latest_data().value());
-  if (rc != kv::DeserialiseSuccess::PASS)
+  auto rc =
+    kv_store2
+      .deserialize(consensus->get_latest_data().value(), ConsensusType::CFT)
+      ->apply();
+  if (rc != kv::ApplyResult::PASS)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));
   s.stop_timer();
@@ -136,8 +136,7 @@ static void commit_latency(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
   auto map0 = "map0";
@@ -146,7 +145,8 @@ static void commit_latency(picobench::state& s)
   for (int i = 0; i < s.iterations(); i++)
   {
     auto tx = kv_store.create_tx();
-    auto [tx0, tx1] = tx.get_view<MapType, MapType>(map0, map1);
+    auto tx0 = tx.rw<MapType>(map0);
+    auto tx1 = tx.rw<MapType>(map1);
     for (int iTx = 0; iTx < S; iTx++)
     {
       const auto key = gen_key(i, std::to_string(iTx));
@@ -156,7 +156,7 @@ static void commit_latency(picobench::state& s)
     }
 
     auto rc = tx.commit();
-    if (rc != kv::CommitSuccess::OK)
+    if (rc != kv::CommitResult::SUCCESS)
     {
       throw std::logic_error(
         "Transaction commit failed: " + std::to_string(rc));
@@ -174,25 +174,24 @@ static void ser_snap(picobench::state& s)
 
   kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
   auto tx = kv_store.create_tx();
   for (int i = 0; i < s.iterations(); i++)
   {
-    auto view = tx.get_view<MapType>(fmt::format("map{}", i));
+    auto handle = tx.rw<MapType>(fmt::format("map{}", i));
     for (int j = 0; j < KEY_COUNT; j++)
     {
       const auto key = gen_key(j);
       const auto value = gen_value(j);
 
-      view->put(key, value);
+      handle->put(key, value);
     }
   }
 
   auto rc = tx.commit();
-  if (rc != kv::CommitSuccess::OK)
+  if (rc != kv::CommitResult::SUCCESS)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
 
   s.start_timer();
@@ -209,33 +208,33 @@ static void des_snap(picobench::state& s)
   kv::Store kv_store;
   kv::Store kv_store2;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::CftTxEncryptor>(secrets);
-  encryptor->set_iv_id(1);
+  auto encryptor = std::make_shared<ccf::NodeEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
   auto tx = kv_store.create_tx();
   for (int i = 0; i < s.iterations(); i++)
   {
-    auto view = tx.get_view<MapType>(fmt::format("map{}", i));
+    auto handle = tx.rw<MapType>(fmt::format("map{}", i));
     for (int j = 0; j < KEY_COUNT; j++)
     {
       const auto key = gen_key(j);
       const auto value = gen_value(j);
 
-      view->put(key, value);
+      handle->put(key, value);
     }
   }
 
   auto rc = tx.commit();
-  if (rc != kv::CommitSuccess::OK)
+  if (rc != kv::CommitResult::SUCCESS)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
 
   auto snap = kv_store.snapshot(tx.commit_version());
   auto serialised_snap = kv_store.serialise_snapshot(std::move(snap));
 
+  kv::ConsensusHookPtrs hooks;
   s.start_timer();
-  kv_store2.deserialise_snapshot(serialised_snap);
+  kv_store2.deserialise_snapshot(serialised_snap, hooks);
   s.stop_timer();
 }
 

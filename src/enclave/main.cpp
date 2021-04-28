@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ds/json.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/stacktrace_utils.h"
@@ -9,7 +10,6 @@
 #include "version.h"
 
 #include <chrono>
-#include <msgpack/msgpack.hpp>
 #include <thread>
 
 // the central enclave object
@@ -57,6 +57,15 @@ extern "C"
     {
       return false;
     }
+
+#ifndef ENABLE_BFT
+    // As BFT consensus is currently experimental, disable it in release
+    // enclaves
+    if (consensus_type != ConsensusType::CFT)
+    {
+      return false;
+    }
+#endif
 
     num_pending_threads = (uint16_t)num_worker_threads + 1;
 
@@ -127,21 +136,23 @@ extern "C"
 
     oe_lfence();
 
-    msgpack::object_handle oh = msgpack::unpack(ccf_config, ccf_config_size);
-    msgpack::object obj = oh.get();
-    CCFConfig cc;
-    obj.convert(cc);
+    CCFConfig cc =
+      nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
 
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
 
     auto enclave = new enclave::Enclave(
-      ec, cc.signature_intervals, consensus_type, cc.consensus_config);
+      ec,
+      cc.signature_intervals,
+      consensus_type,
+      cc.consensus_config,
+      cc.curve_id);
 
     bool result = enclave->create_new_node(
       start_type,
-      cc,
+      std::move(cc),
       node_cert,
       node_cert_size,
       node_cert_len,

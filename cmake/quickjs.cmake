@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 set(QUICKJS_PREFIX
-    ${CCF_DIR}/3rdparty/quickjs
+    ${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs
     CACHE PATH "Prefix to the QuickJS library"
 )
 
@@ -25,25 +25,44 @@ message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
 if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(
-    quickjs.enclave STATIC ${QUICKJS_SRC} ${CCF_DIR}/3rdparty/stub/time.c
+    quickjs.enclave STATIC ${QUICKJS_SRC} ${CCF_DIR}/src/enclave/stub_time.c
   )
   target_compile_options(
-    quickjs.enclave PUBLIC -nostdinc -DCONFIG_VERSION="${QUICKJS_VERSION}"
-                           -DEMSCRIPTEN
+    quickjs.enclave
+    PUBLIC -nostdinc -DCONFIG_VERSION="${QUICKJS_VERSION}" -DEMSCRIPTEN
+           -DCONFIG_STACK_CHECK -DCONFIG_BIGNUM
+    PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
   )
   target_link_libraries(quickjs.enclave PUBLIC ${OE_TARGET_LIBC})
   set_property(TARGET quickjs.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
-  target_include_directories(quickjs.enclave PUBLIC ${QUICKJS_INC})
+  target_include_directories(
+    quickjs.enclave
+    PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
+           $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+  )
 
-  install(TARGETS quickjs.enclave DESTINATION lib)
+  install(
+    TARGETS quickjs.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 add_library(quickjs.host STATIC ${QUICKJS_SRC})
 target_compile_options(
-  quickjs.host PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}"
+  quickjs.host
+  PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DCONFIG_BIGNUM
+  PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
 )
 add_san(quickjs.host)
 set_property(TARGET quickjs.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_include_directories(quickjs.host PUBLIC ${QUICKJS_INC})
+target_include_directories(
+  quickjs.host PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
+                      $<INSTALL_INTERFACE:include/3rdparty/quickjs>
+)
 
-install(TARGETS quickjs.host DESTINATION lib)
+install(
+  TARGETS quickjs.host
+  EXPORT ccf
+  DESTINATION lib
+)

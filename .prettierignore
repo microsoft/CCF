@@ -30,3 +30,4 @@ python/setup.py
 *.html
 SECURITY.md
 doc/schemas/
+.venv_ccf_sandbox

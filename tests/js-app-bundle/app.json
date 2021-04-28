@@ -5,10 +5,8 @@
         "js_module": "math.js",
         "js_function": "compute",
         "forwarding_required": "never",
-        "execute_locally": true,
-        "require_client_signature": false,
-        "require_client_identity": true,
-        "readonly": true,
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
         "openapi": {
           "requestBody": {
             "required": true,
@@ -79,10 +77,8 @@
         "js_module": "math.js",
         "js_function": "compute2",
         "forwarding_required": "never",
-        "execute_locally": true,
-        "require_client_signature": false,
-        "require_client_identity": true,
-        "readonly": true,
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
         "openapi": {
           "parameters": [
             {
@@ -110,7 +106,8 @@
                 "type": "number"
               }
             }
-          ]
+          ],
+          "responses": { "default": { "description": "Default response" } }
         }
       }
     }

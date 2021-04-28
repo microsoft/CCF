@@ -2,17 +2,20 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/entity_id.h"
+#include "ccf/tx_id.h"
 #include "crypto/hash.h"
+#include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
 #include "serialiser_declare.h"
-#include "tls/pem.h"
 
 #include <array>
 #include <chrono>
 #include <functional>
 #include <limits>
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -22,14 +25,22 @@ namespace ccf
   struct PrimarySignature;
 }
 
+namespace aft
+{
+  struct Request;
+}
+
 namespace kv
 {
-  // Version indexes modifications to the local kv store. Negative values
-  // indicate deletion
-  using Version = int64_t;
-  static const Version NoVersion = std::numeric_limits<Version>::min();
+  // Version indexes modifications to the local kv store.
+  using Version = uint64_t;
+  static constexpr Version NoVersion = 0u;
 
-  static bool is_deleted(Version version)
+  // DeletableVersion describes the version of an individual key within each
+  // table, which may be negative to indicate a deletion
+  using DeletableVersion = int64_t;
+
+  static bool is_deleted(DeletableVersion version)
   {
     return version < 0;
   }
@@ -38,26 +49,80 @@ namespace kv
   // writer(s) changes. Term and Version combined give a unique identifier for
   // all accepted kv modifications. Terms are handled by Consensus via the
   // TermHistory
-  using Term = int64_t;
-  using NodeId = uint64_t;
+  using Term = uint64_t;
+  using NodeId = ccf::NodeId;
 
   struct TxID
   {
     Term term = 0;
     Version version = 0;
-    MSGPACK_DEFINE(term, version);
+
+    TxID() = default;
+    TxID(Term t, Version v) : term(t), version(v) {}
+
+    // Would like to remove these duplicate types, but for now we just do free
+    // conversion
+    TxID(const ccf::TxID& other) : term(other.view), version(other.seqno) {}
+
+    operator ccf::TxID() const
+    {
+      return {term, version};
+    }
   };
   DECLARE_JSON_TYPE(TxID);
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
 
-  using BatchVector = std::vector<
-    std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
-
-  enum CommitSuccess
+  struct Configuration
   {
-    OK,
-    CONFLICT,
-    NO_REPLICATE
+    struct NodeInfo
+    {
+      std::string hostname;
+      std::string port;
+
+      NodeInfo() = default;
+
+      NodeInfo(const std::string& hostname_, const std::string& port_) :
+        hostname(hostname_),
+        port(port_)
+      {}
+    };
+
+    using Nodes = std::unordered_map<NodeId, NodeInfo>;
+
+    ccf::SeqNo idx;
+    Nodes nodes;
+  };
+
+  class ConfigurableConsensus
+  {
+  public:
+    virtual void add_configuration(
+      ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
+    virtual Configuration::Nodes get_latest_configuration() = 0;
+    virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
+  };
+
+  class ConsensusHook
+  {
+  public:
+    virtual void call(ConfigurableConsensus*) = 0;
+    virtual ~ConsensusHook(){};
+  };
+
+  using ConsensusHookPtr = std::unique_ptr<ConsensusHook>;
+  using ConsensusHookPtrs = std::vector<ConsensusHookPtr>;
+
+  using BatchVector = std::vector<std::tuple<
+    Version,
+    std::shared_ptr<std::vector<uint8_t>>,
+    bool,
+    std::shared_ptr<ConsensusHookPtrs>>>;
+
+  enum CommitResult
+  {
+    SUCCESS = 1,
+    FAIL_CONFLICT = 2,
+    FAIL_NO_REPLICATE = 3
   };
 
   enum SecurityDomain
@@ -90,7 +155,7 @@ namespace kv
     const std::string& name)
   {
     constexpr auto internal_category_prefix = "ccf.internal.";
-    constexpr auto governance_category_prefix = "ccf.gov.";
+    constexpr auto governance_category_prefix = "public:ccf.gov.";
     constexpr auto reserved_category_prefix = "ccf.";
 
     auto security_domain = SecurityDomain::PRIVATE;
@@ -105,7 +170,7 @@ namespace kv
     {
       access_category = AccessCategory::INTERNAL;
     }
-    else if (nonstd::starts_with(core_name, governance_category_prefix))
+    else if (nonstd::starts_with(name, governance_category_prefix))
     {
       access_category = AccessCategory::GOVERNANCE;
     }
@@ -120,18 +185,17 @@ namespace kv
     return {security_domain, access_category};
   }
 
-  // Note that failed = 0, and all other values are variants of PASS, which
-  // allows DeserialiseSuccess to be used as a boolean in code that does not
-  // need any detail about what happened on success
-  enum DeserialiseSuccess
+  enum ApplyResult
   {
-    FAILED = 0,
     PASS = 1,
     PASS_SIGNATURE = 2,
     PASS_BACKUP_SIGNATURE = 3,
     PASS_BACKUP_SIGNATURE_SEND_ACK = 4,
     PASS_NONCES = 5,
-    NEW_VIEW = 6
+    PASS_NEW_VIEW = 6,
+    PASS_SNAPSHOT_EVIDENCE = 7,
+    PASS_ENCRYPTED_PAST_LEDGER_SECRET = 8,
+    FAIL = 9
   };
 
   enum ReplicateType
@@ -155,18 +219,10 @@ namespace kv
     }
   };
 
-  class Syncable
-  {
-  public:
-    virtual void rollback(Version v) = 0;
-    virtual void compact(Version v) = 0;
-  };
-
-  class TxHistory : public Syncable
+  class TxHistory
   {
   public:
     using RequestID = std::tuple<
-      size_t /* Caller ID */,
       size_t /* Client Session ID */,
       size_t /* Request sequence number */>;
 
@@ -174,7 +230,6 @@ namespace kv
     {
       RequestID rid;
       std::vector<uint8_t> request;
-      uint64_t caller_id;
       std::vector<uint8_t> caller_cert;
       uint8_t frame_format;
     };
@@ -200,12 +255,7 @@ namespace kv
       SEND_REPLY_AND_NONCE
     };
 
-    using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;
-    using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
-
     virtual ~TxHistory() {}
-    virtual void append(const std::vector<uint8_t>& replicated) = 0;
-    virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
     virtual Result verify_and_sign(
       ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
     virtual bool verify(
@@ -213,42 +263,27 @@ namespace kv
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
-    virtual std::vector<uint8_t> get_receipt(Version v) = 0;
-    virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
+    virtual std::pair<kv::TxID, crypto::Sha256Hash>
+    get_replicated_state_txid_and_root() = 0;
+    virtual std::vector<uint8_t> get_proof(Version v) = 0;
+    virtual bool verify_proof(const std::vector<uint8_t>& proof) = 0;
     virtual bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) = 0;
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
 
     virtual bool add_request(
-      kv::TxHistory::RequestID id,
-      uint64_t caller_id,
+      TxHistory::RequestID id,
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
-    virtual void add_result(
-      RequestID id,
-      kv::Version version,
-      const std::vector<uint8_t>& replicated) = 0;
-    virtual void add_pending(
-      RequestID id,
-      kv::Version version,
-      std::shared_ptr<std::vector<uint8_t>> replicated) = 0;
-    virtual void flush_pending() = 0;
-    virtual void add_result(
-      RequestID id,
-      kv::Version version,
-      const uint8_t* replicated,
-      size_t replicated_size) = 0;
-    virtual void add_result(RequestID id, kv::Version version) = 0;
-    virtual void add_response(
-      RequestID id, const std::vector<uint8_t>& response) = 0;
-    virtual void register_on_result(ResultCallbackHandler func) = 0;
-    virtual void register_on_response(ResponseCallbackHandler func) = 0;
-    virtual void clear_on_result() = 0;
-    virtual void clear_on_response() = 0;
+    virtual void append(const std::vector<uint8_t>& data) = 0;
+    virtual void rollback(Version v, kv::Term) = 0;
+    virtual void compact(Version v) = 0;
+    virtual void set_term(kv::Term) = 0;
+    virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;
   };
 
-  class Consensus
+  class Consensus : public ConfigurableConsensus
   {
   protected:
     enum State
@@ -262,40 +297,7 @@ namespace kv
     NodeId local_id;
 
   public:
-    // SeqNo indexes transactions processed by the consensus protocol providing
-    // ordering
-    using SeqNo = int64_t;
-    // View describes an epoch of SeqNos. View is incremented when Consensus's
-    // primary changes
-    using View = int64_t;
-
-    struct Configuration
-    {
-      struct NodeInfo
-      {
-        std::string hostname;
-        std::string port;
-        tls::Pem cert = {};
-
-        NodeInfo() = default;
-
-        NodeInfo(
-          const std::string& hostname_,
-          const std::string& port_,
-          const tls::Pem& cert_ = {}) :
-          hostname(hostname_),
-          port(port_),
-          cert(cert_)
-        {}
-      };
-
-      using Nodes = std::unordered_map<NodeId, NodeInfo>;
-
-      SeqNo idx;
-      Nodes nodes;
-    };
-
-    Consensus(NodeId id) : state(Backup), local_id(id) {}
+    Consensus(const NodeId& id) : state(Backup), local_id(id) {}
     virtual ~Consensus() {}
 
     virtual NodeId id()
@@ -319,34 +321,40 @@ namespace kv
     }
 
     virtual void force_become_primary(
-      SeqNo, View, const std::vector<SeqNo>&, SeqNo)
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&, ccf::SeqNo)
     {
       state = Primary;
     }
 
-    virtual void init_as_backup(SeqNo, View, const std::vector<SeqNo>&)
+    virtual void init_as_backup(
+      ccf::SeqNo, ccf::View, const std::vector<ccf::SeqNo>&)
     {
       state = Backup;
     }
 
-    virtual bool replicate(const BatchVector& entries, View view) = 0;
-    virtual std::pair<View, SeqNo> get_committed_txid() = 0;
-    virtual std::optional<std::pair<View, SeqNo>> get_signable_txid() = 0;
+    virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
+    virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
 
-    virtual View get_view(SeqNo seqno) = 0;
-    virtual View get_view() = 0;
-    virtual std::vector<SeqNo> get_view_history(SeqNo) = 0;
-    virtual void initialise_view_history(const std::vector<SeqNo>&) = 0;
-    virtual SeqNo get_committed_seqno() = 0;
-    virtual NodeId primary() = 0;
+    struct SignableTxIndices
+    {
+      Term term;
+      ccf::SeqNo version, previous_version;
+    };
+
+    virtual std::optional<SignableTxIndices> get_signable_txid() = 0;
+
+    virtual ccf::View get_view(ccf::SeqNo seqno) = 0;
+    virtual ccf::View get_view() = 0;
+    virtual std::vector<ccf::SeqNo> get_view_history(ccf::SeqNo) = 0;
+    virtual void initialise_view_history(const std::vector<ccf::SeqNo>&) = 0;
+    virtual ccf::SeqNo get_committed_seqno() = 0;
+    virtual std::optional<NodeId> primary() = 0;
+    virtual bool view_change_in_progress() = 0;
     virtual std::set<NodeId> active_nodes() = 0;
 
-    virtual void recv_message(OArray&& oa) = 0;
-    virtual void add_configuration(
-      SeqNo seqno, const Configuration::Nodes& conf) = 0;
-    virtual Configuration::Nodes get_latest_configuration() const = 0;
+    virtual void recv_message(const NodeId& from, OArray&& oa) = 0;
 
-    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs&)
+    virtual bool on_request(const TxHistory::RequestCallbackArgs&)
     {
       return true;
     }
@@ -354,83 +362,78 @@ namespace kv
     virtual void periodic(std::chrono::milliseconds) {}
     virtual void periodic_end() {}
 
-    struct Statistics
-    {
-      uint32_t time_spent = 0;
-      uint32_t count_num_samples = 0;
-      uint32_t tx_count = 0;
-    };
-    virtual Statistics get_statistics()
-    {
-      return Statistics();
-    }
     virtual void enable_all_domains() {}
 
     virtual uint32_t node_count() = 0;
-    virtual void open_network() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
 
   struct PendingTxInfo
   {
-    CommitSuccess success;
-    TxHistory::RequestID reqid;
+    CommitResult success;
     std::vector<uint8_t> data;
+    std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
-      CommitSuccess success_,
-      TxHistory::RequestID reqid_,
-      std::vector<uint8_t>&& data_) :
+      CommitResult success_,
+      std::vector<uint8_t>&& data_,
+      std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
-      reqid(std::move(reqid_)),
-      data(std::move(data_))
+      data(std::move(data_)),
+      hooks(std::move(hooks_))
     {}
   };
 
-  using PendingTx = std::function<PendingTxInfo()>;
+  class PendingTx
+  {
+  public:
+    virtual PendingTxInfo call() = 0;
+    virtual ~PendingTx() = default;
+  };
 
-  class MovePendingTx
+  class MovePendingTx : public PendingTx
   {
   private:
     std::vector<uint8_t> data;
-    kv::TxHistory::RequestID req_id;
+    ConsensusHookPtrs hooks;
 
   public:
-    MovePendingTx(
-      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID&& req_id_) :
+    MovePendingTx(std::vector<uint8_t>&& data_, ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
-      req_id(std::move(req_id_))
+      hooks(std::move(hooks_))
     {}
 
-    PendingTxInfo operator()()
+    PendingTxInfo call() override
     {
       return PendingTxInfo(
-        CommitSuccess::OK, std::move(req_id), std::move(data));
+        CommitResult::SUCCESS, std::move(data), std::move(hooks));
     }
   };
 
-  class AbstractTxEncryptor : public Syncable
+  class AbstractTxEncryptor
   {
   public:
     virtual ~AbstractTxEncryptor() {}
-    virtual void encrypt(
+
+    virtual bool encrypt(
       const std::vector<uint8_t>& plain,
       const std::vector<uint8_t>& additional_data,
       std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& cipher,
-      kv::Version version,
+      const TxID& tx_id,
       bool is_snapshot = false) = 0;
     virtual bool decrypt(
       const std::vector<uint8_t>& cipher,
       const std::vector<uint8_t>& additional_data,
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
-      kv::Version version) = 0;
-    virtual void set_iv_id(size_t id) = 0;
+      Version version,
+      bool historical_hint = false) = 0;
+
+    virtual void rollback(Version version) = 0;
+
     virtual size_t get_header_length() = 0;
-    virtual void update_encryption_key(
-      Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;
   };
 
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
@@ -449,15 +452,15 @@ namespace kv
     virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool prepare() = 0;
-    virtual void commit(Version v) = 0;
-    virtual void post_commit() = 0;
+    virtual bool prepare(bool track_commits, Version& max_conflict_version) = 0;
+    virtual void commit(Version v, bool track_read_versions) = 0;
+    virtual ConsensusHookPtr post_commit() = 0;
   };
 
-  class AbstractTxView
+  class AbstractMapHandle
   {
   public:
-    virtual ~AbstractTxView() = default;
+    virtual ~AbstractMapHandle() = default;
   };
 
   struct NamedMap
@@ -515,6 +518,23 @@ namespace kv
     virtual void swap(AbstractMap* map) = 0;
   };
 
+  class Tx;
+
+  class AbstractExecutionWrapper
+  {
+  public:
+    virtual ~AbstractExecutionWrapper() = default;
+    virtual kv::ApplyResult apply() = 0;
+    virtual kv::ConsensusHookPtrs& get_hooks() = 0;
+    virtual const std::vector<uint8_t>& get_entry() = 0;
+    virtual kv::Term get_term() = 0;
+    virtual kv::Version get_index() = 0;
+    virtual ccf::PrimarySignature& get_signature() = 0;
+    virtual aft::Request& get_request() = 0;
+    virtual kv::Version get_max_conflict_version() = 0;
+    virtual bool support_async_execution() = 0;
+  };
+
   class AbstractStore
   {
   public:
@@ -533,6 +553,7 @@ namespace kv
     virtual void unlock() = 0;
 
     virtual Version next_version() = 0;
+    virtual std::tuple<Version, Version> next_version(bool commit_new_map) = 0;
     virtual TxID next_txid() = 0;
 
     virtual Version current_version() = 0;
@@ -541,29 +562,33 @@ namespace kv
     virtual Version commit_version() = 0;
 
     virtual std::shared_ptr<AbstractMap> get_map(
-      kv::Version v, const std::string& map_name) = 0;
+      Version v, const std::string& map_name) = 0;
     virtual void add_dynamic_map(
-      kv::Version v, const std::shared_ptr<AbstractMap>& map) = 0;
+      Version v, const std::shared_ptr<AbstractMap>& map) = 0;
     virtual bool is_map_replicated(const std::string& map_name) = 0;
+    virtual bool should_track_dependencies(const std::string& name) = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual EncryptorPtr get_encryptor() = 0;
-    virtual DeserialiseSuccess deserialise(
+    virtual std::unique_ptr<AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
-      bool public_only = false,
-      kv::Term* term = nullptr) = 0;
+      ConsensusType consensus_type,
+      bool public_only = false) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
-    virtual CommitSuccess commit(
-      const TxID& txid, PendingTx&& pending_tx, bool globally_committable) = 0;
+    virtual CommitResult commit(
+      const TxID& txid,
+      std::unique_ptr<PendingTx> pending_tx,
+      bool globally_committable) = 0;
 
     virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
     virtual std::vector<uint8_t> serialise_snapshot(
       std::unique_ptr<AbstractSnapshot> snapshot) = 0;
-    virtual DeserialiseSuccess deserialise_snapshot(
+    virtual ApplyResult deserialise_snapshot(
       const std::vector<uint8_t>& data,
+      ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) = 0;
 

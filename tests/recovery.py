@@ -2,12 +2,12 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.network
+import infra.node
 import infra.logging_app as app
 import infra.checker
 import suite.test_requirements as reqs
 
 from loguru import logger as LOG
-import os
 
 
 @reqs.description("Recovering a network")
@@ -15,20 +15,23 @@ import os
 def test(network, args, from_snapshot=False):
     old_primary, _ = network.find_primary()
 
-    # Retrieve ledger and snapshots
     snapshot_dir = None
     if from_snapshot:
-        snapshot_dir = old_primary.get_committed_snapshots()
-        if not os.listdir(snapshot_dir):
-            raise RuntimeError(f"No snapshot found in {snapshot_dir}")
-    ledger_dir = old_primary.get_ledger()[0]
+        snapshot_dir = network.get_committed_snapshots(old_primary)
+    current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
+        include_read_only_dirs=True
+    )
+
+    network.stop_all_nodes()
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
-
     recovered_network.start_in_recovery(
-        args, ledger_dir=ledger_dir, snapshot_dir=snapshot_dir
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dir=committed_ledger_dir,
+        snapshot_dir=snapshot_dir,
     )
     recovered_network.recover(args)
     return recovered_network
@@ -41,17 +44,24 @@ def test_share_resilience(network, args, from_snapshot=False):
 
     snapshot_dir = None
     if from_snapshot:
-        snapshot_dir = old_primary.get_committed_snapshots()
-        if not os.listdir(snapshot_dir):
-            raise RuntimeError(f"No snapshot found in {snapshot_dir}")
-    ledger_dir = old_primary.get_ledger()[0]
+        snapshot_dir = network.get_committed_snapshots(old_primary)
+    current_ledger_dir, committed_ledger_dir = old_primary.get_ledger(
+        include_read_only_dirs=True
+    )
+
+    network.stop_all_nodes()
 
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
-    recovered_network.start_in_recovery(args, ledger_dir, snapshot_dir)
+    recovered_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dir=committed_ledger_dir,
+        snapshot_dir=snapshot_dir,
+    )
     primary, _ = recovered_network.find_primary()
-    recovered_network.consortium.accept_recovery(primary)
+    recovered_network.consortium.transition_service_to_open(primary)
 
     # Submit all required recovery shares minus one. Last recovery share is
     # submitted after a new primary is found.
@@ -69,9 +79,6 @@ def test_share_resilience(network, args, from_snapshot=False):
             check_commit(m.get_and_submit_recovery_share(primary))
             submitted_shares_count += 1
 
-    # Here, we kill the current primary instead of just suspending it.
-    # However, because of https://github.com/microsoft/CCF/issues/99#issuecomment-630875387,
-    # the new primary will most likely be the previous primary, which defies the point of this test.
     LOG.info(
         f"Shutting down node {primary.node_id} before submitting last recovery share"
     )
@@ -85,7 +92,9 @@ def test_share_resilience(network, args, from_snapshot=False):
 
     for node in recovered_network.get_joined_nodes():
         recovered_network.wait_for_state(
-            node, "partOfNetwork", timeout=args.ledger_recovery_timeout
+            node,
+            infra.node.State.PART_OF_NETWORK.value,
+            timeout=args.ledger_recovery_timeout,
         )
 
     recovered_network.consortium.check_for_service(
@@ -97,7 +106,6 @@ def test_share_resilience(network, args, from_snapshot=False):
 
 def run(args):
     txs = app.LoggingTxs()
-
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -109,14 +117,19 @@ def run(args):
         network.start_and_join(args)
 
         for i in range(args.recovery):
-            # Alternate between recovery with primary change and stable primary-ship
+            # Issue transactions which will required historical ledger queries recovery
+            # when the network is shutdown
+            network.txs.issue(network, number_txs=1)
+            network.txs.issue(network, number_txs=1, repeat=True)
+
+            # Alternate between recovery with primary change and stable primary-ship,
+            # with and without snapshots
             if i % 2 == 0:
                 recovered_network = test_share_resilience(
-                    network, args, args.use_snapshot
+                    network, args, from_snapshot=True
                 )
             else:
-                recovered_network = test(network, args, args.use_snapshot)
-            network.stop_all_nodes()
+                recovered_network = test(network, args, from_snapshot=False)
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
 
@@ -139,12 +152,6 @@ checked. Note that the key for each logging message is unique (per table).
             help="Number of public and private messages between two recoveries",
             type=int,
             default=5,
-        )
-        parser.add_argument(
-            "--use-snapshot",
-            help="Use latest snapshot for faster recovery procedure",
-            action="store_true",
-            default=False,
         )
 
     args = infra.e2e_args.cli_args(add)

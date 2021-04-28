@@ -10,24 +10,11 @@ NOTICE_LINES_CCF = [
     "Licensed under the Apache 2.0 License.",
 ]
 
-NOTICE_LINES_PBFT = [
-    "Copyright (c) Microsoft Corporation.",
-    "Copyright (c) 1999 Miguel Castro, Barbara Liskov.",
-    "Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.",
-    "Licensed under the MIT license.",
-]
-
 PREFIXES_CCF = [
     os.linesep.join([prefix + " " + line for line in NOTICE_LINES_CCF])
     for prefix in ["//", "--", "#"]
 ]
 PREFIXES_CCF.append("#!/bin/bash" + os.linesep + PREFIXES_CCF[-1])
-PREFIXES_CCF.append(os.linesep.join(["//" + " " + line for line in NOTICE_LINES_PBFT]))
-PREFIXES_CCF.append(
-    os.linesep.join(
-        ["//" + " " + line for line in [NOTICE_LINES_PBFT[0], NOTICE_LINES_PBFT[3]]]
-    )
-)
 
 
 def has_notice(path, prefixes):
@@ -40,7 +27,7 @@ def has_notice(path, prefixes):
 
 
 def is_src(name):
-    for suffix in [".c", ".cpp", ".h", ".hpp", ".py", ".sh", ".lua", ".cmake"]:
+    for suffix in [".c", ".cpp", ".h", ".hpp", ".py", ".sh", ".cmake"]:
         if name.endswith(suffix):
             return True
     return False

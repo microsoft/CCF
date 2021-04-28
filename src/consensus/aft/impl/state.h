@@ -3,12 +3,12 @@
 #pragma once
 
 #include "consensus/aft/raft_types.h"
+#include "crypto/key_pair.h"
+#include "crypto/verifier.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 #include "node/rpc/tx_status.h"
-#include "tls/key_pair.h"
-#include "tls/verifier.h"
 
 #include <map>
 #include <set>
@@ -21,7 +21,7 @@ namespace aft
     std::vector<kv::Version> views;
 
   public:
-    static constexpr kv::Consensus::View InvalidView = ccf::VIEW_UNKNOWN;
+    static constexpr ccf::View InvalidView = ccf::VIEW_UNKNOWN;
 
     void initialise(const std::vector<kv::Version>& terms_)
     {
@@ -33,7 +33,7 @@ namespace aft
       LOG_DEBUG_FMT("Initialised views: {}", fmt::join(views, ", "));
     }
 
-    void update(kv::Version idx, kv::Consensus::View view)
+    void update(kv::Version idx, ccf::View view)
     {
       LOG_DEBUG_FMT("Updating view to: {} at version: {}", view, idx);
       if (!views.empty())
@@ -48,14 +48,14 @@ namespace aft
         }
       }
 
-      for (int64_t i = views.size(); i < view; ++i)
+      for (ccf::View i = views.size(); i < view; ++i)
       {
         views.push_back(idx);
       }
       LOG_DEBUG_FMT("Resulting views: {}", fmt::join(views, ", "));
     }
 
-    kv::Consensus::View view_at(kv::Version idx)
+    ccf::View view_at(kv::Version idx)
     {
       auto it = upper_bound(views.begin(), views.end(), idx);
 
@@ -78,37 +78,36 @@ namespace aft
   class Replica
   {
   public:
-    Replica(kv::NodeId id_, const std::vector<uint8_t>& cert_) :
+    Replica(const ccf::NodeId& id_, const std::vector<uint8_t>& cert_) :
       id(id_),
-      verifier(tls::make_unique_verifier(cert_))
+      verifier(crypto::make_unique_verifier(cert_))
     {}
 
-    kv::NodeId get_id() const
+    ccf::NodeId get_id() const
     {
       return id;
     }
 
   private:
-    kv::NodeId id;
-    tls::VerifierUniquePtr verifier;
+    ccf::NodeId id;
+    crypto::VerifierUniquePtr verifier;
   };
 
   struct State
   {
-    State(kv::NodeId my_node_id_) :
+    State(const ccf::NodeId& my_node_id_) :
       my_node_id(my_node_id_),
       current_view(0),
       last_idx(0),
       commit_idx(0),
-      new_view_idx(0),
-      requested_evidence_from(NoNode)
+      new_view_idx(0)
     {}
 
     SpinLock lock;
-    std::map<kv::NodeId, std::shared_ptr<Replica>> configuration;
+    std::map<ccf::NodeId, std::shared_ptr<Replica>> configuration;
 
-    kv::NodeId my_node_id;
-    kv::Consensus::View current_view;
+    ccf::NodeId my_node_id;
+    ccf::View current_view;
     kv::Version last_idx;
     kv::Version commit_idx;
 
@@ -117,6 +116,6 @@ namespace aft
 
     ViewHistory view_history;
     kv::Version new_view_idx;
-    kv::NodeId requested_evidence_from;
+    std::optional<ccf::NodeId> requested_evidence_from = std::nullopt;
   };
 }

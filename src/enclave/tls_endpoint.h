@@ -6,7 +6,7 @@
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
 #include "ds/thread_messaging.h"
-#include "endpoint.h"
+#include "enclave/endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
 
@@ -438,7 +438,9 @@ namespace enclave
           if (r > 0)
           {
             buf.resize(r);
-            LOG_TRACE_FMT(std::string(buf.data(), buf.size()));
+            LOG_TRACE_FMT(
+              "Certificate verify failed: {}",
+              std::string(buf.data(), buf.size()));
           }
 
           LOG_TRACE_FMT(

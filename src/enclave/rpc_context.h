@@ -2,13 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/tx_id.h"
 #include "http/http_builder.h"
 #include "http/http_consts.h"
 #include "http/ws_consts.h"
 #include "node/client_signatures.h"
 #include "node/entities.h"
+#include "node/rpc/error.h"
 
-#include <http-parser/http_parser.h>
+#include <llhttp/llhttp.h>
 #include <variant>
 #include <vector>
 
@@ -16,9 +18,9 @@ namespace ccf
 {
   static_assert(
     static_cast<int>(ws::Verb::WEBSOCKET) <
-    static_cast<int>(http_method::HTTP_DELETE));
+    static_cast<int>(llhttp_method::HTTP_DELETE));
   /*!
-    Extension of http_method including a special "WEBSOCKET" method,
+    Extension of llhttp_method including a special "WEBSOCKET" method,
     to allow make_*_endpoint() to be a single uniform interface to define
     handlers for either use cases.
 
@@ -33,17 +35,29 @@ namespace ccf
 
   public:
     RESTVerb() : verb(std::numeric_limits<int>::min()) {}
-    RESTVerb(const http_method& hm) : verb(hm) {}
+    RESTVerb(const llhttp_method& hm) : verb(hm) {}
     RESTVerb(const ws::Verb& wv) : verb(wv) {}
+    RESTVerb(const std::string& s)
+    {
+#define HTTP_METHOD_GEN(NUM, NAME, STRING) \
+  if (s == #STRING) \
+  { \
+    verb = static_cast<llhttp_method>(NUM); \
+    return; \
+  }
+      HTTP_METHOD_MAP(HTTP_METHOD_GEN)
+#undef HTTP_METHOD_GEN
+      throw std::logic_error(fmt::format("unknown method {}", s));
+    }
 
-    std::optional<http_method> get_http_method() const
+    std::optional<llhttp_method> get_http_method() const
     {
       if (verb == ws::WEBSOCKET)
       {
         return std::nullopt;
       }
 
-      return static_cast<http_method>(verb);
+      return static_cast<llhttp_method>(verb);
     }
 
     const char* c_str() const
@@ -54,7 +68,7 @@ namespace ccf
       }
       else
       {
-        return http_method_str(static_cast<http_method>(verb));
+        return llhttp_method_name(static_cast<llhttp_method>(verb));
       }
     }
 
@@ -72,8 +86,6 @@ namespace ccf
     {
       return !(*this == o);
     }
-
-    MSGPACK_DEFINE(verb);
   };
 
   // Custom to_json and from_json specializations which encode RESTVerb in a
@@ -121,34 +133,12 @@ namespace enclave
     //
     // Only set in the case of a forwarded RPC
     //
-    struct Forwarded
-    {
-      // Initialised when forwarded context is created
-      const size_t client_session_id;
-      const ccf::CallerId caller_id;
+    bool is_forwarded = false;
 
-      Forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
-        client_session_id(client_session_id_),
-        caller_id(caller_id_)
-      {}
-    };
-    std::optional<Forwarded> original_caller = std::nullopt;
-
-    // Constructor used for non-forwarded RPC
     SessionContext(
       size_t client_session_id_, const std::vector<uint8_t>& caller_cert_) :
       client_session_id(client_session_id_),
       caller_cert(caller_cert_)
-    {}
-
-    // Constructor used for forwarded and BFT RPC
-    SessionContext(
-      size_t fwd_session_id_,
-      ccf::CallerId caller_id_,
-      const std::vector<uint8_t>& caller_cert_ = {}) :
-      caller_cert(caller_cert_),
-      original_caller(
-        std::make_optional<Forwarded>(fwd_session_id_, caller_id_))
     {}
   };
 
@@ -184,6 +174,7 @@ namespace enclave
     virtual const std::string& get_request_query() const = 0;
     virtual PathParams& get_request_path_params() = 0;
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
+    virtual std::string get_request_path() const = 0;
 
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
@@ -193,7 +184,6 @@ namespace enclave
       const std::string_view& name) = 0;
 
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
-    virtual std::optional<ccf::SignedReq> get_signed_request() = 0;
 
     /// Response details
     virtual void set_response_body(const std::vector<uint8_t>& body) = 0;
@@ -203,9 +193,7 @@ namespace enclave
     virtual void set_response_status(int status) = 0;
     virtual int get_response_status() const = 0;
 
-    virtual void set_seqno(kv::Version) = 0;
-    virtual void set_view(kv::Consensus::View) = 0;
-    virtual void set_global_commit(kv::Version) = 0;
+    virtual void set_tx_id(const ccf::TxID& tx_id) = 0;
 
     virtual void set_response_header(
       const std::string_view& name, const std::string_view& value) = 0;
@@ -214,12 +202,28 @@ namespace enclave
       set_response_header(name, fmt::format("{}", n));
     }
 
+    virtual void set_error(
+      http_status status, const std::string& code, std::string&& msg)
+    {
+      set_error({status, code, std::move(msg)});
+    }
+
+    virtual void set_error(ccf::ErrorDetails&& error)
+    {
+      nlohmann::json body = ccf::ODataErrorResponse{
+        ccf::ODataError{std::move(error.code), std::move(error.msg)}};
+      const auto s = body.dump();
+      set_response_status(error.status);
+      set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
+      set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+    }
+
     virtual void set_apply_writes(bool apply) = 0;
     virtual bool should_apply_writes() const = 0;
 
-    virtual std::vector<uint8_t> serialise_response() const = 0;
+    virtual void reset_response() = 0;
 
-    virtual std::vector<uint8_t> serialise_error(
-      size_t code, const std::string& msg) const = 0;
+    virtual std::vector<uint8_t> serialise_response() const = 0;
   };
 }

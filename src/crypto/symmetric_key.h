@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "../ds/buffer.h"
-#include "../ds/serialized.h"
-#include "ds/thread_messaging.h"
 
-struct mbedtls_gcm_context;
+#include "ds/buffer.h"
+#include "ds/serialized.h"
+#include "ds/thread_messaging.h"
 
 namespace crypto
 {
@@ -20,7 +19,7 @@ namespace crypto
     uint8_t iv[SIZE_IV] = {};
 
     // 12 bytes IV with 8 LSB are unique sequence number
-    // and 4 MSB are 4 LSB of unique id (Node id or View)
+    // and 4 MSB are 4 LSB of term (with last bit indicating a snapshot)
     constexpr static uint8_t IV_DELIMITER = 8;
     constexpr static size_t RAW_DATA_SIZE = sizeof(tag) + sizeof(iv);
 
@@ -41,16 +40,16 @@ namespace crypto
       *reinterpret_cast<uint64_t*>(iv) = seq;
     }
 
-    void set_iv_id(uint64_t id)
+    void set_iv_term(uint64_t term)
     {
-      if (id > 0x7FFFFFFF)
+      if (term > 0x7FFFFFFF)
       {
-        throw std::logic_error(
-          fmt::format("id should fit in 31 bits of IV. Value is: 0x{0:x}", id));
+        throw std::logic_error(fmt::format(
+          "term should fit in 31 bits of IV. Value is: 0x{0:x}", term));
       }
 
       *reinterpret_cast<uint32_t*>(iv + IV_DELIMITER) =
-        static_cast<uint32_t>(id);
+        static_cast<uint32_t>(term);
     }
 
     void set_iv_snapshot(bool is_snapshot)
@@ -128,7 +127,6 @@ namespace crypto
     void deserialise(const std::vector<uint8_t>& serial)
     {
       auto size = serial.size();
-
       auto data_ = serial.data();
       hdr = serialized::read(data_, size, GcmHeader<>::RAW_DATA_SIZE);
       cipher = serialized::read(data_, size, size);
@@ -137,29 +135,64 @@ namespace crypto
 
   class KeyAesGcm
   {
-  private:
-    mutable std::
-      array<mbedtls_gcm_context*, threading::ThreadMessaging::max_num_threads>
-        ctxs;
-
   public:
-    KeyAesGcm(CBuffer rawKey);
-    KeyAesGcm(const KeyAesGcm& that) = delete;
-    KeyAesGcm(KeyAesGcm&& that);
-    ~KeyAesGcm();
+    KeyAesGcm() = default;
+    virtual ~KeyAesGcm() = default;
 
-    void encrypt(
+    // AES-GCM encryption
+    virtual void encrypt(
       CBuffer iv,
       CBuffer plain,
       CBuffer aad,
       uint8_t* cipher,
-      uint8_t tag[GCM_SIZE_TAG]) const;
+      uint8_t tag[GCM_SIZE_TAG]) const = 0;
 
-    bool decrypt(
+    // AES-GCM decryption
+    virtual bool decrypt(
       CBuffer iv,
       const uint8_t tag[GCM_SIZE_TAG],
       CBuffer cipher,
       CBuffer aad,
-      uint8_t* plain) const;
+      uint8_t* plain) const = 0;
+
+    virtual size_t key_size() const = 0;
   };
+
+  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey);
+
+  /** Check for unsupported AES key sizes
+   * @p num_bits Key size in bits
+   */
+  inline void check_supported_aes_key_size(size_t num_bits)
+  {
+    if (num_bits != 128 && num_bits != 192 && num_bits != 256)
+      throw std::runtime_error("unsupported key size");
+  }
+
+  /** Default initialization vector for AES-GCM (12 zeroes) */
+  static std::vector<uint8_t> default_iv(12, 0);
+
+  /// AES-GCM Encryption with @p key of @p data
+  /// @param key The key
+  /// @param plaintext The data
+  /// @param iv Intialization vector
+  /// @param aad Additional authenticated data
+  /// @return ciphertext
+  std::vector<uint8_t> aes_gcm_encrypt(
+    const std::vector<uint8_t>& key,
+    std::vector<uint8_t>& plaintext,
+    const std::vector<uint8_t>& iv = default_iv,
+    const std::vector<uint8_t>& aad = {});
+
+  /// AES-GCM Decryption with @p key of @p data
+  /// @param key The key
+  /// @param ciphertext The (encrypted) data
+  /// @param iv Initialization vector
+  /// @param aad Additional authenticated data
+  /// @return plaintext
+  std::vector<uint8_t> aes_gcm_decrypt(
+    const std::vector<uint8_t>& key,
+    std::vector<uint8_t>& ciphertext,
+    const std::vector<uint8_t>& iv = default_iv,
+    const std::vector<uint8_t>& aad = {});
 }

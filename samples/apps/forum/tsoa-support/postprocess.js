@@ -1,14 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
 import SwaggerParser from "@apidevtools/swagger-parser";
+import jsonmergepatch from "json-merge-patch";
 
 // endpoint metadata defaults when first added to endpoints.json
-const metadataDefaults = (readonly) => ({
+const metadataDefaults = (mode) => ({
   forwarding_required: "always",
-  execute_locally: false,
-  require_client_identity: true,
-  require_client_signature: false,
-  readonly: readonly,
+  authn_policies: ["user_cert"],
+  mode: mode,
 });
 
 const distDir = "./dist";
@@ -116,8 +115,8 @@ const oldEndpoints = oldMetadata["endpoints"];
 const newEndpoints = newMetadata["endpoints"];
 for (const url in newEndpoints) {
   for (const method in newEndpoints[url]) {
-    const readonly = method == "get";
-    Object.assign(newEndpoints[url][method], metadataDefaults(readonly));
+    const mode = method == "get" ? "readonly" : "readwrite";
+    Object.assign(newEndpoints[url][method], metadataDefaults(mode));
   }
 }
 console.log(`Updating ${metadataPath} (if needed)`);
@@ -186,8 +185,22 @@ SwaggerParser.dereference(openapiPath)
           );
           operation = null;
         }
-        if (!newEndpoints[url][method]["openapi"])
+        const patch = newEndpoints[url][method]["openapi_merge_patch"];
+        const replacement = newEndpoints[url][method]["openapi"];
+        if (patch && replacement) {
+          throw new Error(
+            `only one of "openapi" or "openapi_merge_patch" can be defined`
+          );
+        }
+        if (patch) {
+          newEndpoints[url][method]["openapi"] = jsonmergepatch.apply(
+            operation,
+            patch
+          );
+          delete newEndpoints[url][method]["openapi_merge_patch"];
+        } else if (!replacement) {
           newEndpoints[url][method]["openapi"] = operation;
+        }
       }
     }
     fs.mkdirSync(distDir, { recursive: true });

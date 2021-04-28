@@ -72,7 +72,18 @@ namespace http
           }
           else
           {
-            ws_next_read = wp.consume(buf.data(), r);
+            try
+            {
+              ws_next_read = wp.consume(buf.data(), r);
+            }
+            catch (const std::exception& e)
+            {
+              LOG_FAIL_FMT("Error parsing WebSocket request");
+              LOG_DEBUG_FMT("Error parsing WebSocket request: {}", e.what());
+              close();
+              return;
+            }
+
             if (!ws_next_read)
             {
               close();
@@ -99,39 +110,15 @@ namespace http
 
           try
           {
-            const auto used = p.execute(data, n_read);
-            if (used == 0)
-            {
-              // Parsing error
-              LOG_FAIL_FMT("Failed to parse request");
-              return;
-            }
-            else if (used > n_read)
-            {
-              // Something has gone very wrong
-              LOG_FAIL_FMT(
-                "Unexpected return result - tried to parse {} bytes, actually "
-                "parsed {}",
-                n_read,
-                used);
-              return;
-            }
-            else if (used == n_read)
-            {
-              // Used all provided bytes - check if more are available
-              n_read = read(buf.data(), buf.size(), false);
-            }
-            else
-            {
-              // Used some bytes - pass over these and retry with remainder
-              data += used;
-              n_read -= used;
-            }
+            p.execute(data, n_read);
+
+            // Used all provided bytes - check if more are available
+            n_read = read(buf.data(), buf.size(), false);
           }
           catch (const std::exception& e)
           {
-            LOG_FAIL_FMT("Error parsing request");
-            LOG_DEBUG_FMT("Error parsing request: {}", e.what());
+            LOG_FAIL_FMT("Error parsing HTTP request");
+            LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
             close();
             break;
           }
@@ -176,15 +163,16 @@ namespace http
     }
 
     void handle_request(
-      http_method verb,
+      llhttp_method verb,
       const std::string_view& path,
       const std::string& query,
+      const std::string&,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {}, {}, [{} bytes])",
-        http_method_str(verb),
+        llhttp_method_name(verb),
         path,
         query,
         body.size());
@@ -233,23 +221,31 @@ namespace http
         {
           if (is_websocket)
           {
-            send_raw(ws::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+            send_raw(ws::error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              e.what()));
           }
           else
           {
-            send_raw(http::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+            send_raw(http::error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              e.what()));
           }
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
         if (!actor_opt.has_value())
         {
-          send_raw(rpc_ctx->serialise_error(
+          rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
             fmt::format(
               "Request path must contain '/[actor]/[method]'. Unable to parse "
-              "'{}'.\n",
-              rpc_ctx->get_method())));
+              "'{}'.",
+              rpc_ctx->get_method()));
+          send_raw(rpc_ctx->serialise_response());
           return;
         }
 
@@ -258,17 +254,11 @@ namespace http
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
-          send_raw(rpc_ctx->serialise_error(
+          rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
-            fmt::format("Unknown session '{}'.\n", actor_s)));
-          return;
-        }
-
-        if (!search.value()->is_open())
-        {
-          send_raw(rpc_ctx->serialise_error(
-            HTTP_STATUS_NOT_FOUND,
-            fmt::format("Session '{}' is not open.\n", actor_s)));
+            ccf::errors::ResourceNotFound,
+            fmt::format("Unknown actor '{}'.", actor_s));
+          send_raw(rpc_ctx->serialise_response());
           return;
         }
 
@@ -292,13 +282,15 @@ namespace http
         {
           send_raw(ws::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            fmt::format("Exception:\n{}\n", e.what())));
+            ccf::errors::InternalError,
+            fmt::format("Exception: {}", e.what())));
         }
         else
         {
           send_raw(http::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            fmt::format("Exception:\n{}\n", e.what())));
+            ccf::errors::InternalError,
+            fmt::format("Exception: {}", e.what())));
         }
 
         // On any exception, close the connection.

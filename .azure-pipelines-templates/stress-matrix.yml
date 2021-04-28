@@ -5,8 +5,9 @@ jobs:
       env:
         container: sgx
         pool: Ubuntu-1804-DC8_v2
+        timeoutInMinutes: 120 # Trying to run 2 45-minute tests; these must complete in < 2 hours
       cmake_args: "-DCOMPILE_TARGETS=sgx"
       suffix: "StressTest"
-      artifact_name: "NoSGX_Instrumented"
+      artifact_name: "StressTest"
       ctest_filter: '-L "vegeta" -C "long_stress"'
       ctest_timeout: "0" # No timeout

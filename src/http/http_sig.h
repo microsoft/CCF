@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/hash.h"
+#include "crypto/key_pair.h"
 #include "http_consts.h"
 #include "http_parser.h"
 #include "node/client_signatures.h"
 #include "tls/base64.h"
-#include "tls/hash.h"
-#include "tls/key_pair.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -67,39 +67,29 @@ namespace http
     return ret;
   }
 
-  struct SigningDetails
-  {
-    std::vector<uint8_t> to_sign;
-    std::vector<uint8_t> signature;
-  };
-
   inline void add_digest_header(http::Request& request)
   {
     // Ensure digest is present and up-to-date
-    tls::HashBytes body_digest;
-    tls::do_hash(
-      request.get_content_data(),
-      request.get_content_length(),
-      body_digest,
-      MBEDTLS_MD_SHA256);
+    crypto::Sha256Hash body_digest(
+      {request.get_content_data(), request.get_content_length()});
     request.set_header(
       headers::DIGEST,
       fmt::format(
         "{}={}",
         "SHA-256",
-        tls::b64_from_raw(body_digest.data(), body_digest.size())));
+        tls::b64_from_raw(body_digest.h.data(), body_digest.SIZE)));
   }
 
   inline void sign_request(
     http::Request& request,
-    const tls::KeyPairPtr& kp,
-    const std::vector<std::string_view>& headers_to_sign,
-    SigningDetails* details = nullptr)
+    const crypto::KeyPairPtr& kp,
+    const std::string& key_id,
+    const std::vector<std::string_view>& headers_to_sign)
   {
     add_digest_header(request);
 
     const auto to_sign = construct_raw_signed_string(
-      http_method_str(request.get_method()),
+      llhttp_method_name(request.get_method()),
       request.get_path(),
       request.get_formatted_query(),
       request.get_headers(),
@@ -114,32 +104,27 @@ namespace http
 
     auto auth_value = fmt::format(
       "Signature "
-      "keyId=\"ignored\",algorithm=\"{}\",headers=\"{}\",signature="
+      "keyId=\"{}\",algorithm=\"{}\",headers=\"{}\",signature="
       "\"{}\"",
+      key_id,
       auth::SIGN_ALGORITHM_HS_2019,
       fmt::format("{}", fmt::join(headers_to_sign, " ")),
       tls::b64_from_raw(signature.data(), signature.size()));
 
     request.set_header(headers::AUTHORIZATION, auth_value);
-
-    if (details != nullptr)
-    {
-      details->to_sign = to_sign.value();
-      details->signature = signature;
-    }
   }
 
   inline void sign_request(
     http::Request& request,
-    const tls::KeyPairPtr& kp,
-    SigningDetails* details = nullptr)
+    const crypto::KeyPairPtr& kp,
+    const std::string& key_id)
   {
     std::vector<std::string_view> headers_to_sign;
     headers_to_sign.emplace_back(auth::SIGN_HEADER_REQUEST_TARGET);
     headers_to_sign.emplace_back(headers::DIGEST);
     headers_to_sign.emplace_back(headers::CONTENT_LENGTH);
 
-    sign_request(request, kp, headers_to_sign, details);
+    sign_request(request, kp, key_id, headers_to_sign);
   }
 
   // Implements verification of "Signature" scheme from
@@ -211,16 +196,19 @@ namespace http
       auto raw_digest = tls::raw_from_b64(digest->second.substr(equal_pos + 1));
 
       // Then, hash the request body
-      tls::HashBytes body_digest;
-      tls::do_hash(body.data(), body.size(), body_digest, MBEDTLS_MD_SHA256);
+      crypto::Sha256Hash body_digest({body.data(), body.size()});
 
-      if (raw_digest != body_digest)
+      if (!std::equal(
+            raw_digest.begin(),
+            raw_digest.end(),
+            body_digest.h.begin(),
+            body_digest.h.end()))
       {
         error_reason = fmt::format(
           "Request body does not match {} header, calculated body "
           "digest = {:02x}",
           headers::DIGEST,
-          fmt::join(body_digest, ""));
+          fmt::join(body_digest.h, ""));
         return false;
       }
 
@@ -331,6 +319,31 @@ namespace http
         }
       }
 
+      // If any sig params were not found, this is invalid
+      if (sig_params.key_id.empty())
+      {
+        LOG_TRACE_FMT("Signature params: Missing {}", auth::SIGN_PARAMS_KEYID);
+        return std::nullopt;
+      }
+      if (sig_params.signature_algorithm.empty())
+      {
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_ALGORITHM);
+        return std::nullopt;
+      }
+      if (sig_params.signature.empty())
+      {
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_SIGNATURE);
+        return std::nullopt;
+      }
+      if (sig_params.signed_headers.empty())
+      {
+        LOG_TRACE_FMT(
+          "Signature params: Missing {}", auth::SIGN_PARAMS_HEADERS);
+        return std::nullopt;
+      }
+
       return sig_params;
     }
 
@@ -355,17 +368,21 @@ namespace http
         std::string verify_error_reason;
         if (!verify_digest(headers, body, verify_error_reason))
         {
-          throw std::logic_error(fmt::format(
+          LOG_TRACE_FMT(
             "Error verifying HTTP {} header: {}",
             headers::DIGEST,
-            verify_error_reason));
+            verify_error_reason);
+          return std::nullopt;
         }
 
         auto parsed_sign_params = parse_signature_params(authz_header);
         if (!parsed_sign_params.has_value())
         {
-          throw std::logic_error(
-            fmt::format("Error parsing {} fields", headers::AUTHORIZATION));
+          LOG_TRACE_FMT(
+            "Error parsing elements in {} header: {}",
+            headers::AUTHORIZATION,
+            authz_header);
+          return std::nullopt;
         }
 
         const auto& signed_headers = parsed_sign_params->signed_headers;
@@ -382,33 +399,34 @@ namespace http
 
         if (!missing_required_headers.empty())
         {
-          throw std::logic_error(fmt::format(
+          LOG_TRACE_FMT(
             "HTTP signature does not cover required fields: {}",
-            fmt::join(missing_required_headers, ", ")));
+            fmt::join(missing_required_headers, ", "));
+          return std::nullopt;
         }
 
         auto signed_raw = construct_raw_signed_string(
           verb, path, query, headers, signed_headers);
         if (!signed_raw.has_value())
         {
-          throw std::logic_error(
-            fmt::format("Error constructing signed string"));
+          LOG_TRACE_FMT("Error constructing signed string");
+          return std::nullopt;
         }
 
         auto sig_raw = tls::raw_from_b64(parsed_sign_params->signature);
 
-        mbedtls_md_type_t signature_digest = MBEDTLS_MD_NONE;
+        crypto::MDType md_type = crypto::MDType::NONE;
         if (
           parsed_sign_params->signature_algorithm ==
           auth::SIGN_ALGORITHM_ECDSA_SHA256)
         {
-          signature_digest = MBEDTLS_MD_SHA256;
+          md_type = crypto::MDType::SHA256;
         }
 
         ccf::SignedReq ret = {sig_raw,
                               signed_raw.value(),
                               body,
-                              signature_digest,
+                              md_type,
                               parsed_sign_params->key_id};
         return ret;
       }

@@ -7,7 +7,6 @@
 #include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
 #include "http/http_rpc_context.h"
-#include "kv/tx.h"
 #include "request_message.h"
 
 namespace aft
@@ -16,7 +15,7 @@ namespace aft
     uint8_t* req_start, size_t req_size)
   {
     Request request;
-    request.deserialise(req_start, req_size);
+    request.apply(req_start, req_size);
     return create_request_ctx(request);
   }
 
@@ -25,7 +24,7 @@ namespace aft
     auto r_ctx = std::make_unique<RequestCtx>();
 
     auto session = std::make_shared<enclave::SessionContext>(
-      enclave::InvalidSessionId, request.caller_id, request.caller_cert);
+      enclave::InvalidSessionId, request.caller_cert);
 
     r_ctx->ctx = enclave::make_fwd_rpc_context(
       session, request.raw, (enclave::FrameFormat)request.frame_format);
@@ -52,15 +51,16 @@ namespace aft
   kv::Version ExecutorImpl::execute_request(
     std::unique_ptr<RequestMessage> request,
     bool is_create_request,
-    std::shared_ptr<aft::RequestTracker> request_tracker)
+    ccf::SeqNo prescribed_commit_version,
+    std::shared_ptr<aft::RequestTracker> request_tracker,
+    ccf::SeqNo max_conflict_version)
   {
     std::shared_ptr<enclave::RpcContext>& ctx = request->get_request_ctx().ctx;
     std::shared_ptr<enclave::RpcHandler>& frontend =
       request->get_request_ctx().frontend;
 
     ctx->bft_raw.resize(request->size());
-    request->serialize_message(
-      NoNode, ctx->bft_raw.data(), ctx->bft_raw.size());
+    request->serialize_message(ctx->bft_raw.data(), ctx->bft_raw.size());
 
     if (request_tracker != nullptr)
     {
@@ -68,8 +68,7 @@ namespace aft
       auto data_ = raw_request.data();
       auto size_ = raw_request.size();
 
-      crypto::Sha256Hash hash;
-      tls::do_hash(data_, size_, hash.h, MBEDTLS_MD_SHA256);
+      crypto::Sha256Hash hash({data_, size_});
 
       if (!request_tracker->remove(hash))
       {
@@ -82,11 +81,9 @@ namespace aft
 
     ctx->is_create_request = is_create_request;
     ctx->execute_on_node = true;
-    ctx->set_apply_writes(true);
 
-    enclave::RpcHandler::ProcessBftResp rep = frontend->process_bft(ctx);
-
-    frontend->update_merkle_tree();
+    enclave::RpcHandler::ProcessBftResp rep = frontend->process_bft(
+      ctx, prescribed_commit_version, max_conflict_version);
 
     request->callback(std::move(rep.result));
 
@@ -94,13 +91,10 @@ namespace aft
   }
 
   std::unique_ptr<aft::RequestMessage> ExecutorImpl::create_request_message(
-    const kv::TxHistory::RequestCallbackArgs& args)
+    const kv::TxHistory::RequestCallbackArgs& args, ccf::SeqNo committed_seqno)
   {
-    Request request = {args.caller_id,
-                       args.rid,
-                       args.caller_cert,
-                       args.request,
-                       args.frame_format};
+    Request request = {
+      args.rid, args.caller_cert, args.request, args.frame_format};
     auto serialized_req = request.serialise();
 
     auto rep_cb = [=](
@@ -111,7 +105,7 @@ namespace aft
       LOG_DEBUG_FMT("AFT reply callback status {}", status);
 
       return rpc_sessions->reply_async(
-        std::get<1>(caller_rid), std::move(data));
+        std::get<0>(caller_rid), std::move(data));
     };
 
     auto ctx = create_request_ctx(serialized_req.data(), serialized_req.size());
@@ -120,22 +114,22 @@ namespace aft
       std::move(serialized_req), args.rid, std::move(ctx), rep_cb);
   }
 
-  kv::Version ExecutorImpl::commit_replayed_request(
-    kv::Tx& tx, std::shared_ptr<aft::RequestTracker> request_tracker)
+  kv::Version ExecutorImpl::execute_request(
+    aft::Request& request,
+    std::shared_ptr<aft::RequestTracker> request_tracker,
+    ccf::SeqNo prescribed_commit_version,
+    ccf::SeqNo max_conflict_version)
   {
-    auto tx_view = tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-    auto req_v = tx_view->get(0);
-    CCF_ASSERT(
-      req_v.has_value(),
-      "Deserialised request but it was not found in the requests map");
-    Request request = req_v.value();
-
     auto ctx = create_request_ctx(request);
 
     auto request_message = RequestMessage::deserialize(
       std::move(request.raw), request.rid, std::move(ctx), nullptr);
 
     return execute_request(
-      std::move(request_message), state->commit_idx == 0, request_tracker);
+      std::move(request_message),
+      state->commit_idx == 0,
+      prescribed_commit_version,
+      request_tracker,
+      max_conflict_version);
   }
 }

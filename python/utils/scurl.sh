@@ -11,6 +11,8 @@ next_is_data=false
 next_is_command=false
 next_is_privk=false
 next_is_cert=false
+next_is_signing_privk=false
+next_is_signing_cert=false
 
 url=$1
 command="post"
@@ -31,18 +33,20 @@ for item in "$@" ; do
         next_is_command=false
     fi
     if [ "$next_is_privk" == true ]; then
-        privk=$item
         next_is_privk=false
-        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
-            continue
-        fi
     fi
     if [ "$next_is_cert" == true ]; then
-        cert=$item
         next_is_cert=false
-        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
-            continue
-        fi
+    fi
+    if [ "$next_is_signing_privk" == true ]; then
+        signing_privk=$item
+        next_is_signing_privk=false
+        continue
+    fi
+    if [ "$next_is_signing_cert" == true ]; then
+        signing_cert=$item
+        next_is_signing_cert=false
+        continue
     fi
     if [ "$item" == "--url" ]; then
         next_is_url=true
@@ -55,15 +59,17 @@ for item in "$@" ; do
     fi
     if [ "$item" == "--key" ]; then
         next_is_privk=true
-        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
-            continue
-        fi
     fi
     if [ "$item" == "--cert" ]; then
         next_is_cert=true
-        if [ -n "$DISABLE_CLIENT_AUTH" ]; then
-            continue
-        fi
+    fi
+    if [ "$item" == "--signing-key" ]; then
+        next_is_signing_privk=true
+        continue
+    fi
+    if [ "$item" == "--signing-cert" ]; then
+        next_is_signing_cert=true
+        continue
     fi
     if [ "$item" == "--print-digest-to-sign" ]; then
         is_print_digest_to_sign=true
@@ -72,12 +78,12 @@ for item in "$@" ; do
     fwd_args+=("$item")
 done
 
-if [ -z "$cert" ]; then
-    echo "Error: No certificate found in arguments (--cert)"
+if [ -z "$signing_cert" ]; then
+    echo "Error: No signing certificate found in arguments (--signing-cert)"
     exit 1
 fi
-if [ -z "$privk" ] && [ "$is_print_digest_to_sign" == false ]; then
-    echo "Error: No private key found in arguments (--key)"
+if [ -z "$signing_privk" ] && [ "$is_print_digest_to_sign" == false ]; then
+    echo "Error: No signing private key found in arguments (--signing-key)"
     exit 1
 fi
 
@@ -113,8 +119,8 @@ content-length: $content_length"
 # https://tools.ietf.org/html/draft-cavage-http-signatures-12#appendix-E.2
 signature_algorithm="hs2019"
 
-# Compute key ID
-key_id=$(openssl dgst -sha256 "$cert" | cut -d ' ' -f 2)
+# Compute key ID, as the SHA-256 fingerprint of the signing certificate
+key_id=$(openssl x509 -in "$signing_cert" -noout -fingerprint -sha256 | cut -d "=" -f 2 | sed 's/://g' | awk '{print tolower($0)}')
 
 if [ "$is_print_digest_to_sign" == true ]; then
     hash_to_sign=$(echo -n "$string_to_sign" | openssl dgst -binary -sha384 | openssl base64 -A)
@@ -127,10 +133,10 @@ if [ "$is_print_digest_to_sign" == true ]; then
 fi
 
 # Compute signature
-signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha384 -sign "$privk" | openssl base64 -A)
+signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha384 -sign "$signing_privk" | openssl base64 -A)
 
 curl \
 -H "Digest: SHA-256=$req_digest" \
--H "Authorization: Signature keyId=\"$key_id\",signature_algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
+-H "Authorization: Signature keyId=\"$key_id\",algorithm=\"$signature_algorithm\",headers=\"(request-target) digest content-length\",signature=\"$signed_raw\"" \
 "${additional_curl_args[@]}" \
 "${fwd_args[@]}"

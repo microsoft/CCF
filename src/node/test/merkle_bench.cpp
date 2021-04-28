@@ -9,11 +9,6 @@
 #include <picobench/picobench.hpp>
 #include <random>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 using namespace std;
 
 template <class A>
@@ -90,7 +85,7 @@ static void append_flush(picobench::state& s)
   s.stop_timer();
 }
 
-static void append_get_receipt_verify(picobench::state& s)
+static void append_get_proof_verify(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<crypto::Sha256Hash> hashes;
@@ -112,7 +107,7 @@ static void append_get_receipt_verify(picobench::state& s)
     (void)_;
     t.append(hashes[index++]);
 
-    auto p = t.get_receipt(index);
+    auto p = t.get_proof(index);
     if (!t.verify(p))
       throw std::runtime_error("Bad path");
 
@@ -122,7 +117,7 @@ static void append_get_receipt_verify(picobench::state& s)
   s.stop_timer();
 }
 
-static void append_get_receipt_verify_v(picobench::state& s)
+static void append_get_proof_verify_v(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<crypto::Sha256Hash> hashes;
@@ -144,9 +139,9 @@ static void append_get_receipt_verify_v(picobench::state& s)
     (void)_;
     t.append(hashes[index++]);
 
-    auto v = t.get_receipt(index).to_v();
-    ccf::Receipt r(v);
-    if (!t.verify(r))
+    auto v = t.get_proof(index).to_v();
+    ccf::Proof proof(v);
+    if (!t.verify(proof))
       throw std::runtime_error("Bad path");
 
     // do_not_optimize();
@@ -207,10 +202,10 @@ PICOBENCH_SUITE("append_retract");
 PICOBENCH(append_retract).iterations(sizes).samples(10).baseline();
 PICOBENCH_SUITE("append_flush");
 PICOBENCH(append_flush).iterations(sizes).samples(10).baseline();
-PICOBENCH_SUITE("append_get_receipt_verify");
-PICOBENCH(append_get_receipt_verify).iterations(sizes).samples(10).baseline();
-PICOBENCH_SUITE("append_get_receipt_verify_v");
-PICOBENCH(append_get_receipt_verify_v).iterations(sizes).samples(10).baseline();
+PICOBENCH_SUITE("append_get_proof_verify");
+PICOBENCH(append_get_proof_verify).iterations(sizes).samples(10).baseline();
+PICOBENCH_SUITE("append_get_proof_verify_v");
+PICOBENCH(append_get_proof_verify_v).iterations(sizes).samples(10).baseline();
 PICOBENCH_SUITE("serialise_deserialise");
 PICOBENCH(serialise_deserialise).iterations(sizes).samples(10).baseline();
 // Checks the size of serialised tree, timing results are irrelevant here
@@ -221,10 +216,8 @@ PICOBENCH(serialised_size)
   .samples(1)
   .baseline();
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char* argv[])
 {
-  ::EverCrypt_AutoConfig2_init();
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
   return runner.run();

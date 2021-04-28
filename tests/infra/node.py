@@ -2,29 +2,35 @@
 # Licensed under the Apache 2.0 License.
 
 from contextlib import contextmanager, closing
-from enum import Enum
+from enum import Enum, auto
+import infra.crypto
 import infra.remote
 import infra.net
 import infra.path
 import ccf.clients
+import ccf.ledger
 import os
 import socket
-import time
 import re
 
 from loguru import logger as LOG
 
 
 class NodeNetworkState(Enum):
-    stopped = 0
-    started = 1
-    joined = 2
+    stopped = auto()
+    started = auto()
+    joined = auto()
 
 
-class NodeStatus(Enum):
-    PENDING = 0
-    TRUSTED = 1
-    RETIRED = 2
+class State(Enum):
+    UNINITIALIZED = "Uninitialized"
+    INITIALIZED = "Initialized"
+    PENDING = "Pending"
+    PART_OF_PUBLIC_NETWORK = "PartOfPublicNetwork"
+    PART_OF_NETWORK = "PartOfNetwork"
+    READING_PUBLIC_LEDGER = "ReadingPublicLedger"
+    READING_PRIVATE_LEDGER = "ReadingPrivateLedger"
+    VERIFYING_SNAPSHOT = "VerifyingSnapshot"
 
 
 def is_addr_local(host, port):
@@ -36,19 +42,37 @@ def is_addr_local(host, port):
             return False
 
 
-def is_snapshot_committed(file_name):
-    return file_name.endswith(".committed")
+def is_file_committed(file_name):
+    return ".committed" in file_name
 
 
-def get_snapshot_seqno(file_name):
-    return int(re.findall(r"\d+", file_name)[0])
+def is_ledger_file(file_name):
+    return file_name.startswith("ledger_")
+
+
+def get_committed_ledger_end_seqno(file_name):
+    if not is_ledger_file(file_name) or not is_file_committed(file_name):
+        raise ValueError(f"{file_name} ledger file is not a committed ledger file")
+    return int(re.findall(r"\d+", file_name)[1])
+
+
+def get_snapshot_seqnos(file_name):
+    # Returns the tuple (snapshot_seqno, evidence_seqno)
+    seqnos = re.findall(r"\d+", file_name)
+    return int(seqnos[0]), int(seqnos[1])
 
 
 class Node:
     def __init__(
-        self, node_id, host, binary_dir=".", library_dir=".", debug=False, perf=False
+        self,
+        local_node_id,
+        host,
+        binary_dir=".",
+        library_dir=".",
+        debug=False,
+        perf=False,
     ):
-        self.node_id = node_id
+        self.local_node_id = local_node_id
         self.binary_dir = binary_dir
         self.library_dir = library_dir
         self.debug = debug
@@ -56,6 +80,8 @@ class Node:
         self.remote = None
         self.network_state = NodeNetworkState.stopped
         self.common_dir = None
+        self.suspended = False
+        self.node_id = None
 
         if host.startswith("local://"):
             self.remote_impl = infra.remote.LocalRemote
@@ -64,21 +90,26 @@ class Node:
         else:
             assert False, f"{host} does not start with 'local://' or 'ssh://'"
 
-        hosts, *port = host[host.find("/") + 2 :].split(":")
-        self.host, *self.pubhost = hosts.split(",")
-        self.rpc_port = int(port[0]) if port else None
-        self.node_port = None
+        host_, *pubhost_ = host.split(",")
 
+        self.host, *port = host_[host_.find("/") + 2 :].split(":")
+        self.rpc_port = int(port[0]) if port else None
         if self.host == "localhost":
             self.host = infra.net.expand_localhost()
 
-        self.pubhost = self.pubhost[0] if self.pubhost else self.host
+        if pubhost_:
+            self.pubhost, *pubport = pubhost_[0].split(":")
+            self.pubport = int(pubport[0]) if pubport else self.rpc_port
+        else:
+            self.pubhost = self.host
+            self.pubport = self.rpc_port
+        self.node_port = None
 
     def __hash__(self):
-        return self.node_id
+        return self.local_node_id
 
     def __eq__(self, other):
-        return self.node_id == other.node_id
+        return self.local_node_id == other.local_node_id
 
     def start(
         self,
@@ -164,7 +195,7 @@ class Node:
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
-            str(self.node_id),
+            str(self.local_node_id),
             self.host,
             self.pubhost,
             self.node_port,
@@ -204,8 +235,19 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
         self.remote.get_startup_files(self.common_dir)
+
+        if kwargs.get("consensus") == "cft":
+            with open(os.path.join(self.common_dir, f"{self.local_node_id}.pem")) as f:
+                self.node_id = infra.crypto.compute_public_key_der_hash_hex_from_pem(
+                    f.read()
+                )
+        else:
+            # BFT consensus should deterministically compute the primary id from the
+            # consensus view, so node ids are monotonic in this case
+            self.node_id = "{:0>8}".format(self.local_node_id)
+
         self._read_ports()
-        LOG.info("Node {} started".format(self.node_id))
+        LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
 
     def _read_ports(self):
         node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
@@ -233,9 +275,13 @@ class Node:
                     rpc_port == self.rpc_port
                 ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
             self.rpc_port = rpc_port
+            if self.pubport is None:
+                self.pubport = self.rpc_port
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
+            if self.suspended:
+                self.resume()
             self.network_state = NodeNetworkState.stopped
             return self.remote.stop()
         return [], []
@@ -259,72 +305,104 @@ class Node:
                 rep = nc.get("/node/commit")
                 assert (
                     rep.status_code == 200
-                ), f"An error occured after node {self.node_id} joined the network: {rep.body}"
+                ), f"An error occured after node {self.local_node_id} joined the network: {rep.body}"
         except ccf.clients.CCFConnectionException as e:
-            raise TimeoutError(f"Node {self.node_id} failed to join the network") from e
+            raise TimeoutError(
+                f"Node {self.local_node_id} failed to join the network"
+            ) from e
 
-    def get_ledger(self, **kwargs):
-        return self.remote.get_ledger(**kwargs)
+    def get_ledger_public_tables_at(self, seqno):
+        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+        assert ledger.last_committed_chunk_range[1] >= seqno
+        tx = ledger.get_transaction(seqno)
+        return tx.get_public_domain().get_tables()
 
-    def get_committed_snapshots(self):
-        # Wait for all available snapshot files to be committed before
-        # copying snapshot directory
-        def wait_for_snapshots_to_be_committed(src_dir, list_src_dir_func, timeout=3):
-            end_time = time.time() + timeout
-            committed = True
-            uncommitted_snapshots = []
-            while time.time() < end_time:
-                committed = True
-                uncommitted_snapshots = []
-                for f in list_src_dir_func(src_dir):
-                    is_committed = is_snapshot_committed(f)
-                    if not is_committed:
-                        uncommitted_snapshots.append(f)
-                    committed &= is_committed
-                if committed:
-                    break
-                time.sleep(0.1)
-            if not committed:
-                LOG.error(
-                    f"Error: Not all snapshots were committed after {timeout}s in {src_dir}: {uncommitted_snapshots}"
-                )
-            return committed
+    def get_ledger_public_state_at(self, seqno):
+        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+        assert ledger.last_committed_chunk_range[1] >= seqno
+        return ledger.get_latest_public_state()
 
-        return self.remote.get_committed_snapshots(wait_for_snapshots_to_be_committed)
+    def get_ledger(self, include_read_only_dirs=False):
+        """
+        Triage committed and un-committed (i.e. current) ledger files
+        """
+        main_ledger_dir, read_only_ledger_dirs = self.remote.get_ledger(
+            f"{self.local_node_id}.ledger", include_read_only_dirs
+        )
 
-    def client_certs(self, identity=None):
+        current_ledger_dir = os.path.join(
+            self.common_dir, f"{self.local_node_id}.ledger.current"
+        )
+        committed_ledger_dir = os.path.join(
+            self.common_dir, f"{self.local_node_id}.ledger.committed"
+        )
+        infra.path.create_dir(current_ledger_dir)
+        infra.path.create_dir(committed_ledger_dir)
+
+        for f in os.listdir(main_ledger_dir):
+            infra.path.copy_dir(
+                os.path.join(main_ledger_dir, f),
+                committed_ledger_dir if is_file_committed(f) else current_ledger_dir,
+            )
+
+        for ro_dir in read_only_ledger_dirs:
+            for f in os.listdir(ro_dir):
+                # Uncommitted ledger files from r/o ledger directory are ignored by CCF
+                if is_file_committed(f):
+                    infra.path.copy_dir(os.path.join(ro_dir, f), committed_ledger_dir)
+
+        return current_ledger_dir, committed_ledger_dir
+
+    def get_snapshots(self):
+        return self.remote.get_snapshots()
+
+    def get_committed_snapshots(self, pre_condition_func=lambda src_dir, _: True):
+        return self.remote.get_committed_snapshots(pre_condition_func)
+
+    def identity(self, name=None):
+        if name is not None:
+            return ccf.clients.Identity(
+                os.path.join(self.common_dir, f"{name}_privk.pem"),
+                os.path.join(self.common_dir, f"{name}_cert.pem"),
+                name,
+            )
+
+    def session_auth(self, name=None):
         return {
-            "cert": os.path.join(self.common_dir, f"{identity}_cert.pem")
-            if identity
-            else None,
-            "key": os.path.join(self.common_dir, f"{identity}_privk.pem")
-            if identity
-            else None,
+            "session_auth": self.identity(name),
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
         }
 
-    def client(self, identity=None, **kwargs):
-        akwargs = self.client_certs(identity)
-        akwargs.update(
-            {
-                "description": f"[{self.node_id}{'|' + identity if identity is not None else ''}]",
-            }
-        )
+    def signing_auth(self, name=None):
+        return {
+            "signing_auth": self.identity(name),
+        }
+
+    def client(self, identity=None, signing_identity=None, **kwargs):
+        akwargs = self.session_auth(identity)
+        akwargs.update(self.signing_auth(signing_identity))
+        akwargs[
+            "description"
+        ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
-        return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)
+        return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
 
     def suspend(self):
+        assert not self.suspended
+        self.suspended = True
         self.remote.suspend()
-        LOG.info(f"Node {self.node_id} suspended...")
+        LOG.info(f"Node {self.local_node_id} suspended...")
 
     def resume(self):
+        assert self.suspended
+        self.suspended = False
         self.remote.resume()
-        LOG.info(f"Node {self.node_id} has resumed from suspension.")
+        LOG.info(f"Node {self.local_node_id} has resumed from suspension.")
 
 
 @contextmanager
 def node(
-    node_id,
+    local_node_id,
     host,
     binary_directory,
     library_directory,
@@ -334,7 +412,7 @@ def node(
 ):
     """
     Context manager for Node class.
-    :param node_id: unique ID of node
+    :param local_node_id: infra-specific unique ID
     :param binary_directory: the directory where CCF's binaries are located
     :param library_directory: the directory where CCF's libraries are located
     :param host: node's hostname
@@ -343,7 +421,7 @@ def node(
     :return: a Node instance that can be used to build a CCF network
     """
     this_node = Node(
-        node_id=node_id,
+        local_node_id=local_node_id,
         host=host,
         binary_dir=binary_directory,
         library_dir=library_directory,

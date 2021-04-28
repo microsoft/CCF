@@ -13,8 +13,6 @@ namespace ccf
 {
   using Node2NodeMsg = uint64_t;
 
-  static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
-
   // Type of messages exchanged between nodes
   enum NodeMsgType : uint64_t
   {
@@ -26,9 +24,9 @@ namespace ccf
   // Types of channel messages
   enum ChannelMsg : Node2NodeMsg
   {
-    key_exchange = 0,
+    key_exchange_init = 0,
     key_exchange_response,
-    encrypted_msg
+    key_exchange_final
   };
 
   // Types of frontend messages
@@ -40,13 +38,6 @@ namespace ccf
   };
 
 #pragma pack(push, 1)
-  // Header for every message exchange between nodes
-  struct Header
-  {
-    Node2NodeMsg msg;
-    NodeId from_node;
-  };
-
   // Channel-specific header for key exchange
   struct ChannelHeader
   {
@@ -58,20 +49,18 @@ namespace ccf
   struct ForwardedHeader
   {
     ForwardedMsg msg;
-    NodeId from_node;
     enclave::FrameFormat frame_format = enclave::FrameFormat::http;
   };
 
   struct MessageHash
   {
     MessageHash() = default;
-    MessageHash(ForwardedMsg msg_, NodeId from_node_) :
+    MessageHash(ForwardedMsg msg_, crypto::Sha256Hash&& hash_) :
       msg(msg_),
-      from_node(from_node_)
+      hash(std::move(hash_))
     {}
 
     ForwardedMsg msg;
-    NodeId from_node;
     crypto::Sha256Hash hash;
   };
 #pragma pack(pop)
@@ -94,6 +83,6 @@ namespace ccf
 }
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ccf::add_node, ccf::NodeId, std::string, std::string);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::remove_node, ccf::NodeId);
+  ccf::add_node, ccf::NodeId::Value, std::string, std::string);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::remove_node, ccf::NodeId::Value);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::node_inbound, std::vector<uint8_t>);

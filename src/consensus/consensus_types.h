@@ -2,44 +2,41 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/entities.h"
+#include "node/nodes.h"
 
-#include <msgpack/msgpack.hpp>
 #include <stdint.h>
 
 namespace consensus
 {
-  struct Config
+  struct Configuration
   {
     size_t raft_request_timeout;
     size_t raft_election_timeout;
     size_t bft_view_change_timeout;
     size_t bft_status_interval;
-    MSGPACK_DEFINE(
-      raft_request_timeout,
-      raft_election_timeout,
-      bft_view_change_timeout,
-      bft_status_interval);
   };
+  DECLARE_JSON_TYPE(Configuration);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    Configuration,
+    raft_request_timeout,
+    raft_election_timeout,
+    bft_view_change_timeout,
+    bft_status_interval);
 
 #pragma pack(push, 1)
   template <typename T>
   struct ConsensusHeader
   {
     ConsensusHeader() = default;
-    ConsensusHeader(T msg_, ccf::NodeId from_node_) :
-      msg(msg_),
-      from_node(from_node_)
-    {}
+    ConsensusHeader(T msg_) : msg(msg_) {}
 
     T msg;
-    ccf::NodeId from_node;
   };
 
   struct AppendEntriesIndex
   {
-    ccf::Index idx;
-    ccf::Index prev_idx;
+    ccf::SeqNo idx;
+    ccf::SeqNo prev_idx;
   };
 #pragma pack(pop)
 }

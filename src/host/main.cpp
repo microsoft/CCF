@@ -160,18 +160,26 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
-  size_t snapshot_tx_interval = std::numeric_limits<std::size_t>::max();
+  size_t snapshot_tx_interval = 10'000;
   app
     .add_option(
       "--snapshot-tx-interval",
       snapshot_tx_interval,
-      "Number of transactions between snapshots (experimental). "
-      "Defaults to no snapshot.")
+      "Number of transactions between snapshots")
+    ->capture_default_str();
+
+  size_t max_open_sessions = 1'000;
+  app
+    .add_option(
+      "--max-open-sessions",
+      max_open_sessions,
+      "Number of TLS sessions which may be open at the same time. Additional "
+      "connections past this limit will be refused")
     ->capture_default_str();
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
-  for (int i = logger::TRACE; i < logger::MAX_LOG_LEVEL; i++)
+  for (int i = logger::MOST_VERBOSE; i < logger::MAX_LOG_LEVEL; i++)
   {
     level_map.emplace_back(
       logger::config::LevelNames[i], static_cast<logger::Level>(i));
@@ -251,7 +259,7 @@ int main(int argc, char** argv)
   size_t bft_view_change_timeout = 5000;
   app
     .add_option(
-      "--bft_view-change-timeout-ms",
+      "--bft-view-change-timeout-ms",
       bft_view_change_timeout,
       "bft view change timeout in milliseconds. If a backup does not receive "
       "the pre-prepare message for a request forwarded to the primary after "
@@ -310,13 +318,21 @@ int main(int argc, char** argv)
       "--sn", subject_name, "Subject Name in node certificate, eg. CN=CCF Node")
     ->capture_default_str();
 
-  std::vector<tls::SubjectAltName> subject_alternative_names;
+  std::vector<crypto::SubjectAltName> subject_alternative_names;
   cli::add_subject_alternative_name_option(
     app,
     subject_alternative_names,
     "--san",
     "Subject Alternative Name in node certificate. Can be either "
     "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
+
+  size_t jwt_key_refresh_interval_s = 1800;
+  app
+    .add_option(
+      "--jwt-key-refresh-interval-s",
+      jwt_key_refresh_interval_s,
+      "Interval in seconds for JWT public signing key refresh.")
+    ->capture_default_str();
 
   size_t memory_reserve_startup = 0;
   app
@@ -329,6 +345,19 @@ int main(int argc, char** argv)
       "Unused"
 #endif
       )
+    ->capture_default_str();
+
+  crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
+  std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
+    {"secp384r1", crypto::CurveID::SECP384R1},
+    {"secp256r1", crypto::CurveID::SECP256R1}};
+  app
+    .add_option(
+      "--curve-id",
+      curve_id,
+      "Elliptic curve to use as for node and network identities (used for TLS "
+      "and ledger signatures)")
+    ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
     ->capture_default_str();
 
   // The network certificate file can either be an input or output parameter,
@@ -346,16 +375,15 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
-  std::string gov_script = "gov.lua";
+  std::vector<std::string> constitution_paths;
   start
     ->add_option(
-      "--gov-script",
-      gov_script,
-      "Path to Lua file that defines the contents of the "
-      "public:ccf.gov.governance.scripts table")
-    ->capture_default_str()
-    ->check(CLI::ExistingFile)
-    ->required();
+      "--constitution",
+      constitution_paths,
+      "Path to one or more JS file that are concatenated to define the "
+      "contents of the "
+      "public:ccf.gov.constitution table")
+    ->type_size(-1);
 
   std::vector<cli::ParsedMemberInfo> members_info;
   cli::add_member_info_option(
@@ -428,6 +456,9 @@ int main(int argc, char** argv)
     logger::config::initialize_with_json_console();
   }
 
+  const auto cli_config = app.config_to_str(true, false);
+  LOG_INFO_FMT("Run with following options:\n{}", cli_config);
+
   uint32_t oe_flags = 0;
   try
   {
@@ -439,11 +470,10 @@ int main(int argc, char** argv)
         rpc_address.hostname));
     }
 
-    if ((*start || *join) && files::exists(ledger_dir))
+    if (*start && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On start and join, ledger directory should not exist ({})",
-        ledger_dir));
+        "On start, ledger directory should not exist ({})", ledger_dir));
     }
     else if (*recover && !files::exists(ledger_dir))
     {
@@ -585,7 +615,7 @@ int main(int argc, char** argv)
       read_only_ledger_dirs);
     ledger.register_message_handlers(bp.get_dispatcher());
 
-    asynchost::SnapshotManager snapshots(snapshot_dir);
+    asynchost::SnapshotManager snapshots(snapshot_dir, ledger);
     snapshots.register_message_handlers(bp.get_dispatcher());
 
     // Begin listening for node-to-node and RPC messages.
@@ -614,6 +644,10 @@ int main(int argc, char** argv)
       files::dump(
         fmt::format("{}\n{}", rpc_address.hostname, rpc_address.port),
         rpc_address_file);
+    }
+    if (public_rpc_address.port == "0")
+    {
+      public_rpc_address.port = rpc_address.port;
     }
 
     // Initialise the enclave and create a CCF node in it
@@ -646,12 +680,18 @@ int main(int argc, char** argv)
                                     public_rpc_address.hostname,
                                     node_address.hostname,
                                     node_address.port,
-                                    rpc_address.port};
+                                    rpc_address.port,
+                                    public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
+    ccf_config.max_open_sessions = max_open_sessions;
 
     ccf_config.subject_name = subject_name;
     ccf_config.subject_alternative_names = subject_alternative_names;
+
+    ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
+
+    ccf_config.curve_id = curve_id;
 
     if (*start)
     {
@@ -677,7 +717,18 @@ int main(int argc, char** argv)
         ccf_config.genesis.members_info.emplace_back(
           files::slurp(m_info.cert_file), public_encryption_key_file, md);
       }
-      ccf_config.genesis.gov_script = files::slurp_string(gov_script);
+      ccf_config.genesis.constitution = "";
+      for (const auto& constitution_path : constitution_paths)
+      {
+        // Separate with single newlines
+        if (!ccf_config.genesis.constitution.empty())
+        {
+          ccf_config.genesis.constitution += '\n';
+        }
+
+        ccf_config.genesis.constitution +=
+          files::slurp_string(constitution_path);
+      }
       ccf_config.genesis.recovery_threshold = recovery_threshold.value();
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
@@ -709,17 +760,30 @@ int main(int argc, char** argv)
       auto snapshot_file = snapshots.find_latest_committed_snapshot();
       if (snapshot_file.has_value())
       {
-        ccf_config.startup_snapshot = files::slurp(snapshot_file.value());
+        auto& snapshot = snapshot_file.value();
+        auto snapshot_evidence_idx =
+          asynchost::get_snapshot_evidence_idx_from_file_name(snapshot);
+        if (!snapshot_evidence_idx.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Snapshot file \"{}\" does not include snapshot evidence seqno",
+            snapshot));
+        }
+
+        ccf_config.startup_snapshot = snapshots.read_snapshot(snapshot);
+        ccf_config.startup_snapshot_evidence_seqno =
+          snapshot_evidence_idx->first;
+
         LOG_INFO_FMT(
-          "Found latest snapshot file: {} (size: {})",
-          snapshot_file.value(),
-          ccf_config.startup_snapshot.size());
+          "Found latest snapshot file: {} (size: {}, evidence seqno: {})",
+          snapshot,
+          ccf_config.startup_snapshot.size(),
+          ccf_config.startup_snapshot_evidence_seqno);
       }
       else
       {
         LOG_INFO_FMT(
-          "No snapshot found, node will request transactions from the "
-          "beginning");
+          "No snapshot found: Node will replay all historical transactions");
       }
     }
 
@@ -729,6 +793,17 @@ int main(int argc, char** argv)
     }
 
     char* enclave_version;
+
+    if (consensus == ConsensusType::BFT)
+    {
+#ifdef ENABLE_BFT
+      LOG_INFO_FMT(
+        "Selected consensus BFT is experimental in {}", ccf::ccf_version);
+#else
+      LOG_FAIL_FMT(
+        "Selected consensus BFT is not supported in {}", ccf::ccf_version);
+#endif
+    }
 
     enclave.create_node(
       enclave_config,

@@ -2,24 +2,26 @@ trigger:
   batch: true
   branches:
     include:
-      - master
+      - main
       - "refs/tags/ccf-*"
 
 jobs:
   - job: build_and_publish_docs
-    container: ccfciteam/ccf-ci:oe0.12.0
+    container: ccfciteam/ccf-ci:oe0.15.0
     pool:
       vmImage: ubuntu-18.04
 
     steps:
       - checkout: self
         clean: true
+        fetchDepth: 10000
 
       - script: |
+          set -ex
           env
           git status
           git rev-parse HEAD
-          git checkout -b master $(git rev-parse HEAD)
+          git checkout -b main $(git rev-parse HEAD)
         displayName: Prepare repo
 
       # Used to generate setup.py
@@ -28,6 +30,7 @@ jobs:
           cmake_args: ""
 
       - script: |
+          set -ex
           python3.8 -m venv env
           source env/bin/activate
           pip install wheel
@@ -37,6 +40,7 @@ jobs:
         displayName: Sphinx
 
       - script: |
+          set -ex
           git init
           git config --local user.name "Azure Pipelines"
           git config --local user.email "azuredevops@microsoft.com"
@@ -55,6 +59,7 @@ jobs:
         displayName: "Get the deploy key"
 
       - script: |
+          set -ex
           mv $DOWNLOADSECUREFILE_SECUREFILEPATH deploy_key
           chmod 600 deploy_key
           mkdir ~/.ssh
@@ -64,8 +69,13 @@ jobs:
           GIT_SSH_COMMAND="ssh -i deploy_key" git push -f origin HEAD:gh-pages
         displayName: "Publish GitHub Pages"
         condition: |
-          and(not(eq(variables['Build.Reason'], 'PullRequest')),
-              eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+          and(
+            not(eq(variables['Build.Reason'], 'PullRequest')),
+            or(
+                eq(variables['Build.SourceBranch'], 'refs/heads/main'),
+                startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')
+            )
+          )
         workingDirectory: build/html
 
       - script: rm deploy_key || true

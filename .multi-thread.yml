@@ -1,0 +1,34 @@
+trigger:
+  batch: true
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - .multi-thread.yml
+      - .threading_canary
+
+resources:
+  containers:
+    - container: sgx
+      image: ccfciteam/ccf-ci:oe0.15.0
+      options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
+
+jobs:
+  - template: .azure-pipelines-templates/common.yml
+    parameters:
+      target: SGX
+      env:
+        container: sgx
+        pool: Ubuntu-1804-DC8_v2
+      cmake_args: "-DCOMPILE_TARGETS=sgx -DWORKER_THREADS=2"
+      suffix: "MultiThread"
+      artifact_name: "MultiThread"
+      ctest_filter: '-LE "perf"'
+      ctest_timeout: "0" # No timeout
+

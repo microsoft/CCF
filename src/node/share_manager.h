@@ -2,14 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/entropy.h"
+#include "crypto/rsa_key_pair.h"
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "genesis_gen.h"
+#include "kv/encryptor.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
 #include "secret_share.h"
-#include "tls/entropy.h"
-#include "tls/rsa_key_pair.h"
 
 #include <vector>
 
@@ -23,7 +24,8 @@ namespace ccf
     bool has_wrapped = false;
 
   public:
-    LedgerSecretWrappingKey() : data(tls::create_entropy()->random(KZ_KEY_SIZE))
+    LedgerSecretWrappingKey() :
+      data(crypto::create_entropy()->random(KZ_KEY_SIZE))
     {}
 
     template <typename T>
@@ -41,20 +43,20 @@ namespace ccf
       return ret;
     }
 
-    std::vector<uint8_t> wrap(const LedgerSecret& ledger_secret)
+    std::vector<uint8_t> wrap(const LedgerSecretPtr& ledger_secret)
     {
       if (has_wrapped)
       {
         throw std::logic_error(
-          "Ledger Secret wrapping key has already wrapped once");
+          "Ledger secret wrapping key has already wrapped once");
       }
 
-      crypto::GcmCipher encrypted_ls(ledger_secret.master.size());
+      crypto::GcmCipher encrypted_ls(ledger_secret->raw_key.size());
 
-      crypto::KeyAesGcm(data).encrypt(
+      crypto::make_key_aes_gcm(data)->encrypt(
         encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
                                    // key is never re-used for encryption
-        ledger_secret.master,
+        ledger_secret->raw_key,
         nullb,
         encrypted_ls.cipher.data(),
         encrypted_ls.hdr.tag);
@@ -64,14 +66,14 @@ namespace ccf
       return encrypted_ls.serialise();
     }
 
-    LedgerSecret unwrap(
+    LedgerSecretPtr unwrap(
       const std::vector<uint8_t>& wrapped_latest_ledger_secret)
     {
       crypto::GcmCipher encrypted_ls;
       encrypted_ls.deserialise(wrapped_latest_ledger_secret);
       std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
-      if (!crypto::KeyAesGcm(data).decrypt(
+      if (!crypto::make_key_aes_gcm(data)->decrypt(
             encrypted_ls.hdr.get_iv(),
             encrypted_ls.hdr.tag,
             encrypted_ls.cipher,
@@ -81,24 +83,17 @@ namespace ccf
         throw std::logic_error("Unwrapping latest ledger secret failed");
       }
 
-      return LedgerSecret(decrypted_ls);
+      return std::make_shared<LedgerSecret>(std::move(decrypted_ls));
     }
   };
 
-  // During recovery, a list of RecoveredLedgerSecret is constructed from a
-  // local hook.
-  struct RecoveredLedgerSecret
-  {
-    // Version at which the next ledger secret is applicable from
-    kv::Version next_version;
+  // During recovery, a list of EncryptedLedgerSecretInfo is constructed
+  // from the local hook on the encrypted ledger secrets table.
+  using RecoveredEncryptedLedgerSecrets = std::list<EncryptedLedgerSecretInfo>;
 
-    // Previous ledger secret, encrypted with the current ledger secret
-    std::vector<uint8_t> encrypted_ledger_secret;
-  };
-
-  // The ShareManager class provides the interface between the ledger secrets,
-  // the ccf.shares and ccf.submitted_shares KV tables and the rest of the
-  // service. In particular, it is used to:
+  // The ShareManager class provides the interface between the ledger secrets
+  // object and the shares, ledger secrets and submitted shares KV tables. In
+  // particular, it is used to:
   //  - Issue new recovery shares whenever required (e.g. on startup, rekey and
   //  membership updates)
   //  - Re-assemble the ledger secrets on recovery, once a threshold of members
@@ -142,115 +137,137 @@ namespace ccf
       size_t share_index = 0;
       for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
       {
-        auto member_enc_pubk = tls::make_rsa_public_key(enc_pub_key);
+        auto member_enc_pubk = crypto::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
-        encrypted_shares[member_id] = member_enc_pubk->wrap(raw_share);
+        encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
         share_index++;
       }
 
       return encrypted_shares;
     }
 
+    void shuffle_recovery_shares(
+      kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
+    {
+      auto ls_wrapping_key = LedgerSecretWrappingKey();
+      auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
+      auto recovery_shares = tx.rw(network.shares);
+      recovery_shares->put(
+        0,
+        {wrapped_latest_ls,
+         compute_encrypted_shares(tx, ls_wrapping_key),
+         latest_ledger_secret->previous_secret_stored_version});
+    }
+
     void set_recovery_shares_info(
       kv::Tx& tx,
-      const LedgerSecret& latest_ledger_secret,
-      const std::optional<LedgerSecret>& previous_ledger_secret = std::nullopt,
-      kv::Version latest_ls_version = kv::NoVersion)
+      const LedgerSecretPtr& latest_ledger_secret,
+      const std::optional<VersionedLedgerSecret>& previous_ledger_secret =
+        std::nullopt,
+      std::optional<kv::Version> latest_ls_version = std::nullopt)
     {
       // First, generate a fresh ledger secrets wrapping key and wrap the
       // latest ledger secret with it. Then, encrypt the penultimate ledger
       // secret with the latest ledger secret and split the ledger secret
-      // wrapping key, allocating a new share for each active member. Finally,
-      // encrypt each share with the public key of each member and record it in
-      // the shares table.
+      // wrapping key, allocating a new share for each active recovery member.
+      // Finally, encrypt each share with the public key of each member and
+      // record it in the shares table.
 
-      auto ls_wrapping_key = LedgerSecretWrappingKey();
-      auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
+      shuffle_recovery_shares(tx, latest_ledger_secret);
+
+      auto encrypted_ls = tx.rw(network.encrypted_ledger_secrets);
 
       std::vector<uint8_t> encrypted_previous_secret = {};
+      kv::Version version_previous_secret = kv::NoVersion;
       if (previous_ledger_secret.has_value())
       {
+        version_previous_secret = previous_ledger_secret->first;
+
         crypto::GcmCipher encrypted_previous_ls(
-          previous_ledger_secret->master.size());
-        auto iv = tls::create_entropy()->random(crypto::GCM_SIZE_IV);
+          previous_ledger_secret->second->raw_key.size());
+        auto iv = crypto::create_entropy()->random(crypto::GCM_SIZE_IV);
         encrypted_previous_ls.hdr.set_iv(iv.data(), iv.size());
 
-        crypto::KeyAesGcm(latest_ledger_secret.master)
-          .encrypt(
-            encrypted_previous_ls.hdr.get_iv(),
-            previous_ledger_secret->master,
-            nullb,
-            encrypted_previous_ls.cipher.data(),
-            encrypted_previous_ls.hdr.tag);
+        latest_ledger_secret->key->encrypt(
+          encrypted_previous_ls.hdr.get_iv(),
+          previous_ledger_secret->second->raw_key,
+          nullb,
+          encrypted_previous_ls.cipher.data(),
+          encrypted_previous_ls.hdr.tag);
 
         encrypted_previous_secret = encrypted_previous_ls.serialise();
+        encrypted_ls->put(
+          0,
+          {PreviousLedgerSecretInfo(
+             std::move(encrypted_previous_secret),
+             version_previous_secret,
+             encrypted_ls->get_version_of_previous_write(0)),
+           latest_ls_version});
       }
-
-      GenesisGenerator g(network, tx);
-      g.add_key_share_info({{latest_ls_version, wrapped_latest_ls},
-                            encrypted_previous_secret,
-                            compute_encrypted_shares(tx, ls_wrapping_key)});
+      else
+      {
+        encrypted_ls->put(0, {std::nullopt, latest_ls_version});
+      }
     }
 
     std::vector<uint8_t> encrypt_submitted_share(
-      const std::vector<uint8_t>& submitted_share)
+      const std::vector<uint8_t>& submitted_share,
+      const LedgerSecretPtr& current_ledger_secret)
     {
       // Submitted recovery shares are encrypted with the latest ledger secret.
       crypto::GcmCipher encrypted_submitted_share(submitted_share.size());
 
-      auto iv = tls::create_entropy()->random(crypto::GCM_SIZE_IV);
+      auto iv = crypto::create_entropy()->random(crypto::GCM_SIZE_IV);
       encrypted_submitted_share.hdr.set_iv(iv.data(), iv.size());
 
-      crypto::KeyAesGcm(network.ledger_secrets->get_latest().master)
-        .encrypt(
-          encrypted_submitted_share.hdr.get_iv(),
-          submitted_share,
-          nullb,
-          encrypted_submitted_share.cipher.data(),
-          encrypted_submitted_share.hdr.tag);
+      current_ledger_secret->key->encrypt(
+        encrypted_submitted_share.hdr.get_iv(),
+        submitted_share,
+        nullb,
+        encrypted_submitted_share.cipher.data(),
+        encrypted_submitted_share.hdr.tag);
 
       return encrypted_submitted_share.serialise();
     }
 
     std::vector<uint8_t> decrypt_submitted_share(
-      const std::vector<uint8_t>& encrypted_submitted_share)
+      const std::vector<uint8_t>& encrypted_submitted_share,
+      LedgerSecretPtr&& current_ledger_secret)
     {
       crypto::GcmCipher encrypted_share;
       encrypted_share.deserialise(encrypted_submitted_share);
       std::vector<uint8_t> decrypted_share(encrypted_share.cipher.size());
 
-      crypto::KeyAesGcm(network.ledger_secrets->get_latest().master)
-        .decrypt(
-          encrypted_share.hdr.get_iv(),
-          encrypted_share.hdr.tag,
-          encrypted_share.cipher,
-          nullb,
-          decrypted_share.data());
+      current_ledger_secret->key->decrypt(
+        encrypted_share.hdr.get_iv(),
+        encrypted_share.hdr.tag,
+        encrypted_share.cipher,
+        nullb,
+        decrypted_share.data());
 
       return decrypted_share;
     }
 
     LedgerSecretWrappingKey combine_from_submitted_shares(kv::Tx& tx)
     {
-      auto [submitted_shares_view, config_view] =
-        tx.get_view(network.submitted_shares, network.config);
+      auto submitted_shares = tx.rw(network.submitted_shares);
+      auto config = tx.rw(network.config);
 
       std::vector<SecretSharing::Share> shares;
-      submitted_shares_view->foreach(
-        [&shares,
-         this](const MemberId, const std::vector<uint8_t>& encrypted_share) {
-          SecretSharing::Share share;
-          auto decrypted_share = decrypt_submitted_share(encrypted_share);
-          std::copy_n(
-            decrypted_share.begin(),
-            SecretSharing::SHARE_LENGTH,
-            share.begin());
-          shares.emplace_back(share);
-          return true;
-        });
+      submitted_shares->foreach([&shares, &tx, this](
+                                  const MemberId,
+                                  const std::vector<uint8_t>& encrypted_share) {
+        SecretSharing::Share share;
+        auto decrypted_share = decrypt_submitted_share(
+          encrypted_share, network.ledger_secrets->get_latest(tx).second);
+        std::copy_n(
+          decrypted_share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+        shares.emplace_back(share);
+        return true;
+      });
 
-      auto recovery_threshold = config_view->get(0)->recovery_threshold;
+      auto recovery_threshold = config->get(0)->recovery_threshold;
       if (recovery_threshold > shares.size())
       {
         throw std::logic_error(fmt::format(
@@ -267,120 +284,141 @@ namespace ccf
   public:
     ShareManager(NetworkState& network_) : network(network_) {}
 
-    void issue_shares(kv::Tx& tx)
+    /** Issue new recovery shares for the current ledger secret, recording the
+     * wrapped new ledger secret and encrypted previous ledger secret in the
+     * store.
+     *
+     * @param tx Store transaction object
+     */
+    void issue_recovery_shares(kv::Tx& tx)
     {
-      // Assumes that the ledger secrets have not been updated since the
-      // last time shares have been issued (i.e. genesis or re-sharing only)
-      set_recovery_shares_info(tx, network.ledger_secrets->get_latest());
+      auto [latest, penultimate] =
+        network.ledger_secrets->get_latest_and_penultimate(tx);
+
+      set_recovery_shares_info(tx, latest.second, penultimate, latest.first);
     }
 
-    void issue_shares_on_recovery(kv::Tx& tx, kv::Version latest_ls_version)
+    /** Issue new recovery shares of the new ledger secret, recording the
+     * wrapped new ledger secret and encrypted current (now previous) ledger
+     * secret in the store.
+     *
+     * @param tx Store transaction object
+     * @param new_ledger_secret Pointer to new ledger secret
+     *
+     * Note: The version at which the new ledger secret is applicable from is
+     * derived from the hook at which the ledger secret is applied to the
+     * store.
+     */
+    void issue_recovery_shares(kv::Tx& tx, LedgerSecretPtr new_ledger_secret)
     {
       set_recovery_shares_info(
-        tx,
-        network.ledger_secrets->get_latest(),
-        network.ledger_secrets->get_penultimate(),
-        latest_ls_version);
+        tx, new_ledger_secret, network.ledger_secrets->get_latest(tx));
     }
 
-    void issue_shares_on_rekey(
-      kv::Tx& tx, const LedgerSecret& new_ledger_secret)
+    /** Issue new recovery shares of the same current ledger secret to all
+     * active recovery members. The encrypted ledger secrets recorded in the
+     * store are not updated.
+     *
+     * @param tx Store transaction object
+     */
+    void shuffle_recovery_shares(kv::Tx& tx)
     {
-      set_recovery_shares_info(
-        tx, new_ledger_secret, network.ledger_secrets->get_latest());
+      shuffle_recovery_shares(
+        tx, network.ledger_secrets->get_latest(tx).second);
     }
 
     std::optional<EncryptedShare> get_encrypted_share(
-      kv::Tx& tx, MemberId member_id)
+      kv::Tx& tx, const MemberId& member_id)
     {
-      std::optional<EncryptedShare> encrypted_share = std::nullopt;
-      auto recovery_shares_info = tx.get_view(network.shares)->get(0);
+      auto recovery_shares_info = tx.rw(network.shares)->get(0);
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
           "Failed to retrieve current recovery shares info");
       }
 
-      for (auto const& s : recovery_shares_info->encrypted_shares)
+      auto search = recovery_shares_info->encrypted_shares.find(member_id);
+      if (search == recovery_shares_info->encrypted_shares.end())
       {
-        if (s.first == member_id)
-        {
-          encrypted_share = s.second;
-        }
+        return std::nullopt;
       }
-      return encrypted_share;
+
+      return search->second;
     }
 
-    std::vector<kv::Version> restore_recovery_shares_info(
-      kv::Tx& tx,
-      const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
+    LedgerSecretsMap restore_recovery_shares_info(
+      kv::Tx& tx, RecoveredEncryptedLedgerSecrets&& recovery_ledger_secrets)
     {
       // First, re-assemble the ledger secret wrapping key from the submitted
       // encrypted shares. Then, unwrap the latest ledger secret and use it to
-      // decrypt the previous ledger secret and so on.
+      // decrypt the sequence of recovered ledger secrets, from the last one.
 
-      auto ls_wrapping_key = combine_from_submitted_shares(tx);
+      if (recovery_ledger_secrets.empty())
+      {
+        throw std::logic_error(
+          "Could not find any ledger secrets in the ledger");
+      }
 
-      auto recovery_shares_info = tx.get_view(network.shares)->get(0);
+      auto recovery_shares_info = tx.ro(network.shares)->get(0);
       if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
           "Failed to retrieve current recovery shares info");
       }
 
-      std::list<LedgerSecrets::VersionedLedgerSecret> restored_ledger_secrets;
+      LedgerSecretsMap restored_ledger_secrets;
 
-      // We keep track of the restored versions so that the recovered ledger
-      // secrets can be broadcast to backups
-      std::vector<kv::Version> restored_versions;
-      restored_versions.push_back(
-        encrypted_recovery_secrets.back().next_version);
+      auto restored_ls = combine_from_submitted_shares(tx).unwrap(
+        recovery_shares_info->wrapped_latest_ledger_secret);
+      auto decryption_key = restored_ls->raw_key;
 
-      auto restored_ls = ls_wrapping_key.unwrap(
-        recovery_shares_info->wrapped_latest_ledger_secret.encrypted_data);
+      LOG_DEBUG_FMT(
+        "Recovering {} encrypted ledger secrets",
+        recovery_ledger_secrets.size());
 
-      restored_ledger_secrets.push_back(
-        {encrypted_recovery_secrets.back().next_version, restored_ls});
-
-      auto decryption_key = restored_ls.master;
-      for (auto i = encrypted_recovery_secrets.rbegin();
-           i != encrypted_recovery_secrets.rend();
-           i++)
+      auto& current_ledger_secret_version =
+        recovery_ledger_secrets.back().next_version;
+      if (!current_ledger_secret_version.has_value())
       {
-        if (i->encrypted_ledger_secret.size() == 0)
+        // This should always be set by the recovery hook, which sets this to
+        // the version at which it is called if unset in the store
+        throw std::logic_error("Current ledger secret version should be set");
+      }
+
+      auto encrypted_previous_ledger_secret =
+        tx.ro(network.encrypted_ledger_secrets);
+
+      auto s = restored_ledger_secrets.emplace(
+        current_ledger_secret_version.value(),
+        std::make_shared<LedgerSecret>(
+          std::move(restored_ls->raw_key),
+          encrypted_previous_ledger_secret->get_version_of_previous_write(0)));
+      auto latest_ls = s.first->second;
+
+      for (auto it = recovery_ledger_secrets.rbegin();
+           it != recovery_ledger_secrets.rend();
+           it++)
+      {
+        if (!it->previous_ledger_secret.has_value())
         {
-          // First entry does not encrypt any other ledger secret (i.e. genesis)
+          // Very first entry does not encrypt any other ledger secret
           break;
         }
 
-        crypto::GcmCipher encrypted_ls;
-        encrypted_ls.deserialise(i->encrypted_ledger_secret);
-        std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
+        auto decrypted_ls_raw = decrypt_previous_ledger_secret_raw(
+          latest_ls, std::move(it->previous_ledger_secret->encrypted_data));
 
-        if (!crypto::KeyAesGcm(decryption_key)
-               .decrypt(
-                 encrypted_ls.hdr.get_iv(),
-                 encrypted_ls.hdr.tag,
-                 encrypted_ls.cipher,
-                 nullb,
-                 decrypted_ls.data()))
-        {
-          throw std::logic_error(fmt::format(
-            "Decryption of ledger secret at {} failed",
-            std::next(i)->next_version));
-        }
-
-        restored_ledger_secrets.push_back(
-          {std::next(i)->next_version, LedgerSecret(decrypted_ls)});
-
-        restored_versions.push_back(std::next(i)->next_version);
-        decryption_key = decrypted_ls;
+        auto s = restored_ledger_secrets.emplace(
+          it->previous_ledger_secret->version,
+          std::make_shared<LedgerSecret>(
+            std::move(decrypted_ls_raw),
+            it->previous_ledger_secret->previous_secret_stored_version));
+        latest_ls = s.first->second;
       }
 
-      restored_ledger_secrets.reverse();
-      network.ledger_secrets->restore(std::move(restored_ledger_secrets));
+      recovery_ledger_secrets.clear();
 
-      return restored_versions;
+      return restored_ledger_secrets;
     }
 
     size_t submit_recovery_share(
@@ -388,43 +426,40 @@ namespace ccf
       MemberId member_id,
       const std::vector<uint8_t>& submitted_recovery_share)
     {
-      auto [service_view, submitted_shares_view] =
-        tx.get_view(network.service, network.submitted_shares);
-      auto active_service = service_view->get(0);
+      auto service = tx.rw(network.service);
+      auto submitted_shares = tx.rw(network.submitted_shares);
+      auto active_service = service->get(0);
       if (!active_service.has_value())
       {
         throw std::logic_error("Failed to get active service");
       }
 
-      submitted_shares_view->put(
-        member_id, encrypt_submitted_share(submitted_recovery_share));
+      submitted_shares->put(
+        member_id,
+        encrypt_submitted_share(
+          submitted_recovery_share,
+          network.ledger_secrets->get_latest(tx).second));
 
-      size_t submitted_shares_count = 0;
-      submitted_shares_view->foreach(
-        [&submitted_shares_count](const MemberId, const std::vector<uint8_t>&) {
-          submitted_shares_count++;
-          return true;
-        });
-
+      const size_t submitted_shares_count = submitted_shares->size();
       return submitted_shares_count;
     }
 
     void clear_submitted_recovery_shares(kv::Tx& tx)
     {
-      auto submitted_shares_view = tx.get_view(network.submitted_shares);
+      auto submitted_shares = tx.rw(network.submitted_shares);
 
-      std::vector<uint8_t> submitted_share_ids = {};
+      std::vector<MemberId> submitted_share_ids = {};
 
-      submitted_shares_view->foreach(
+      submitted_shares->foreach(
         [&submitted_share_ids](
-          const MemberId member_id, const std::vector<uint8_t>&) {
+          const MemberId& member_id, const std::vector<uint8_t>&) {
           submitted_share_ids.push_back(member_id);
           return true;
         });
 
       for (auto const& id : submitted_share_ids)
       {
-        submitted_shares_view->remove(id);
+        submitted_shares->remove(id);
       }
     }
   };

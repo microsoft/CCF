@@ -1,7 +1,5 @@
 jobs:
   - job: ${{ parameters.target }}_${{ parameters.suffix }}
-    variables:
-      skipComponentGovernanceDetection: true
     displayName: "${{ parameters.target }} ${{ parameters.suffix }}"
     dependsOn: ${{ parameters.depends_on }}
 
@@ -10,6 +8,7 @@ jobs:
     steps:
       - checkout: self
         clean: true
+        fetchDepth: 10000
 
       - template: cmake.yml
         parameters:
@@ -26,14 +25,14 @@ jobs:
           ctest_timeout: ${{ parameters.ctest_timeout }}
 
       - ${{ if eq(parameters.suffix, 'Instrumented') }}:
-          - template: coverage.yml
-
-      - ${{ if eq(parameters.suffix, 'Instrumented') }}:
           - template: scan_build.yml
 
       - ${{ if eq(parameters.suffix, 'Perf') }}:
           - template: push_perf_data.yml
           - template: metrics.yml
+
+      - ${{ if eq(parameters.suffix, 'Fuzz') }}:
+          - template: publish_zap_report.yml
 
       - ${{ if eq(parameters.suffix, 'Release') }}:
           - template: publish_tls_report.yml

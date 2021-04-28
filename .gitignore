@@ -1,5 +1,6 @@
 build*/
 _build/
+!doc/build_apps/
 Debug*/
 Release*/
 CMakeFiles/
@@ -27,3 +28,4 @@ env/
 python/setup.py
 node_modules
 package-lock.json
+.cache

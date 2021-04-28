@@ -23,7 +23,7 @@ namespace enclave
   class RPCSessions : public AbstractRPCResponder
   {
   private:
-    static constexpr size_t max_open_sessions = 1000;
+    size_t max_open_sessions = 1000;
 
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host = nullptr;
@@ -48,7 +48,14 @@ namespace enclave
       to_host = writer_factory.create_writer_to_outside();
     }
 
-    void set_cert(const tls::Pem& cert_, const tls::Pem& pk)
+    void set_max_open_sessions(size_t n)
+    {
+      max_open_sessions = n;
+
+      LOG_INFO_FMT("Setting max open sessions to {}", n);
+    }
+
+    void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -97,7 +104,7 @@ namespace enclave
       auto search = sessions.find(id);
       if (search == sessions.end())
       {
-        LOG_FAIL_FMT("Replying to unknown session {}", id);
+        LOG_DEBUG_FMT("Refusing to reply to unknown session {}", id);
         return false;
       }
 

@@ -9,12 +9,6 @@
 
 using namespace ds;
 
-void print_doc(const std::string& title, const nlohmann::json& doc)
-{
-  std::cout << title << std::endl;
-  std::cout << doc.dump(2) << std::endl;
-}
-
 #define REQUIRE_ELEMENT(j, name, type_fn) \
   { \
     const auto name##_it = j.find(#name); \
@@ -32,14 +26,6 @@ void required_doc_elements(const nlohmann::json& j)
   REQUIRE_ELEMENT(j, info, is_object);
   REQUIRE_ELEMENT(j, paths, is_object);
 }
-
-// TEST_CASE("Required elements")
-// {
-//   openapi::Document doc;
-
-//   const nlohmann::json j = doc;
-//   required_doc_elements(j);
-// }
 
 TEST_CASE("Manual construction")
 {
@@ -157,9 +143,9 @@ struct Buzz : public Baz
 };
 DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Buzz, Baz);
 DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
-  Buzz, required_and_only_in_c, RequiredJsonField);
+  Buzz, required_and_only_in_c, "RequiredJsonField");
 DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
-  Buzz, optional_and_only_in_c, OptionalJsonField);
+  Buzz, optional_and_only_in_c, "OptionalJsonField");
 
 TEST_CASE("Complex custom types")
 {
@@ -211,4 +197,118 @@ TEST_CASE("Complex custom types")
     http::headervalues::contenttype::JSON);
 
   required_doc_elements(doc);
+}
+
+// Required functions may be implemented manually, allowing the type to be used
+// in macro for a containing type
+namespace aaa
+{
+  struct FriendlyName
+  {
+    std::string forename;
+    std::string nickname;
+    std::string surname;
+  };
+
+  void to_json(nlohmann::json& j, const FriendlyName& fn)
+  {
+    j = fmt::format("{} \"{}\" {}", fn.forename, fn.nickname, fn.surname);
+  }
+
+  void from_json(const nlohmann::json& j, FriendlyName& fn)
+  {
+    const auto s = j.get<std::string>();
+    const auto nickname_start = s.find('"');
+    const auto nickname_end = s.find('"', nickname_start + 1);
+    fn.forename = s.substr(0, nickname_start - 1);
+    fn.nickname =
+      s.substr(nickname_start + 1, nickname_end - nickname_start - 1);
+    fn.surname = s.substr(nickname_end + 2);
+  }
+
+  std::string schema_name(const FriendlyName&)
+  {
+    return "FriendlyName";
+  }
+
+  template <typename T>
+  void add_schema_components(T& doc, nlohmann::json& j, const FriendlyName&)
+  {
+    j["type"] = "string";
+    j["pattern"] = "^.* \".*\" .*$";
+  }
+}
+
+namespace bbb
+{
+  struct Person
+  {
+    aaa::FriendlyName name;
+    size_t age;
+  };
+  DECLARE_JSON_TYPE(Person);
+  DECLARE_JSON_REQUIRED_FIELDS(Person, name, age);
+}
+
+TEST_CASE("Manual function definitions")
+{
+  {
+    INFO("FriendlyName roundtrip");
+    aaa::FriendlyName fn;
+    fn.forename = "Dwayne";
+    fn.nickname = "The Rock";
+    fn.surname = "Johnson";
+    const nlohmann::json j = fn;
+    const auto fn2 = j.get<aaa::FriendlyName>();
+    CHECK(fn.forename == fn2.forename);
+    CHECK(fn.nickname == fn2.nickname);
+    CHECK(fn.surname == fn2.surname);
+
+    bbb::Person p;
+    p.name = fn;
+    p.age = 42;
+    const nlohmann::json j2 = p;
+    const auto p2 = j2.get<bbb::Person>();
+    CHECK(p.name.forename == p2.name.forename);
+    CHECK(p.name.nickname == p2.name.nickname);
+    CHECK(p.name.surname == p2.name.surname);
+    CHECK(p.age == p2.age);
+  }
+
+  {
+    INFO("OpenAPI generation");
+    auto doc = openapi::create_document(
+      "Test generated API",
+      "Some longer description enhanced with **Markdown**",
+      "0.1.42");
+
+    openapi::add_request_body_schema<bbb::Person>(
+      doc, "/person", HTTP_POST, http::headervalues::contenttype::JSON);
+
+    const auto components_schemas = doc["components"]["schemas"];
+    REQUIRE(components_schemas.find("Person") != components_schemas.end());
+    REQUIRE(
+      components_schemas.find(aaa::schema_name(aaa::FriendlyName())) !=
+      components_schemas.end());
+  }
+}
+
+TEST_CASE("sanitise_components_key")
+{
+  using namespace ds::openapi;
+
+  CHECK(sanitise_components_key("User") == "User");
+  CHECK(sanitise_components_key("User_1") == "User_1");
+  CHECK(sanitise_components_key("User_Name") == "User_Name");
+  CHECK(sanitise_components_key("user-name") == "user-name");
+  CHECK(sanitise_components_key("my.org.User") == "my.org.User");
+
+  CHECK(
+    sanitise_components_key(
+      "abdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789") ==
+    "abdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789");
+  CHECK(sanitise_components_key("!\"$%^&*()") == "_________");
+  CHECK(
+    sanitise_components_key(";:'@#~[{]}-_=+/?.>,<\\|") ==
+    "__________-_____._____");
 }

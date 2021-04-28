@@ -47,18 +47,12 @@ benchmark_specs = {
             "D": "2048",
         },
     ],
-    "tls_bench.csv": [
+    "digest_bench.csv": [
         {
-            "_name": "secp256k1 verify (/s)^",
-            "Suite": "verify",
-            "Benchmark": "verify_256k1_bitc_1k",
-            "D": "1",
-        },
-        {
-            "_name": "secp256k1 sign (/s)^",
-            "Suite": "sign",
-            "Benchmark": "sign_256k1_bitc_1k",
-            "D": "1",
+            "_name": "mbedtls sha256 (/s)^",
+            "Suite": "mbedtls_digest_sha256",
+            "Benchmark": "SHA-256",
+            "D": "524288",
         },
     ],
 }

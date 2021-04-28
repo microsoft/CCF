@@ -13,6 +13,11 @@ namespace kv::serialisers
   {
     static SerialisedEntry to_serialised(const T& t)
     {
+      static_assert(
+        std::is_convertible_v<T, nlohmann::json>,
+        "Cannot convert this type to JSON - either define to_json or use "
+        "DECLARE_JSON... macros");
+
       const nlohmann::json j = t;
       const auto dumped = j.dump();
       return SerialisedEntry(dumped.begin(), dumped.end());

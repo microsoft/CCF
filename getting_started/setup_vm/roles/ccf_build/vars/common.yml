@@ -23,6 +23,6 @@ debs:
   - curl
   - shellcheck
 
-mbedtls_ver: "2.16.6"
+mbedtls_ver: "2.16.8"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"
 mbedtls_src: "{{ mbedtls_dir }}.tar.gz"

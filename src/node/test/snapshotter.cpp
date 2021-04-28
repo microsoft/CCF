@@ -14,6 +14,7 @@
 // snapshots asynchronously.
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 1;
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+constexpr auto buffer_size = 1024 * 16;
 
 using StringString = kv::Map<std::string, std::string>;
 using rb_msg = std::pair<ringbuffer::Message, size_t>;
@@ -47,19 +48,16 @@ void issue_transactions(ccf::NetworkState& network, size_t tx_count)
   for (size_t i = 0; i < tx_count; i++)
   {
     auto tx = network.tables->create_tx();
-    auto view = tx.get_view<StringString>("map");
-    view->put("foo", "bar");
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    auto map = tx.rw<StringString>("public:map");
+    map->put("foo", "bar");
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 }
 
 TEST_CASE("Regular snapshotting")
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   ccf::NetworkState network;
-  network.tables->set_encryptor(encryptor);
 
-  constexpr auto buffer_size = 1024 * 16;
   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
@@ -72,23 +70,22 @@ TEST_CASE("Regular snapshotting")
 
   issue_transactions(network, snapshot_tx_interval * interval_count);
 
-  auto snapshotter =
-    std::make_shared<ccf::Snapshotter>(*writer_factory, network);
-  snapshotter->set_tx_interval(snapshot_tx_interval);
+  auto snapshotter = std::make_shared<ccf::Snapshotter>(
+    *writer_factory, network.tables, snapshot_tx_interval);
 
-  REQUIRE_FALSE(snapshotter->requires_snapshot(snapshot_tx_interval - 1));
-  REQUIRE(snapshotter->requires_snapshot(snapshot_tx_interval));
+  REQUIRE_FALSE(snapshotter->record_committable(snapshot_tx_interval - 1));
+  REQUIRE(snapshotter->record_committable(snapshot_tx_interval));
 
-  INFO("Generated snapshots at regular intervals");
+  INFO("Generate snapshots at regular intervals");
   {
     for (size_t i = 1; i <= interval_count; i++)
     {
       // No snapshot generated if < interval
-      snapshotter->snapshot(i * (snapshot_tx_interval - 1));
+      snapshotter->update(i * (snapshot_tx_interval - 1), true);
       threading::ThreadMessaging::thread_messaging.run_one();
       REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
 
-      snapshotter->snapshot(i * snapshot_tx_interval);
+      snapshotter->update(i * snapshot_tx_interval, true);
       threading::ThreadMessaging::thread_messaging.run_one();
       REQUIRE(
         read_ringbuffer_out(eio) ==
@@ -99,17 +96,14 @@ TEST_CASE("Regular snapshotting")
   INFO("Cannot snapshot before latest snapshot");
   {
     REQUIRE_THROWS_AS(
-      snapshotter->snapshot(snapshot_tx_interval - 1), std::logic_error);
+      snapshotter->update(snapshot_tx_interval - 1, true), std::logic_error);
   }
 }
 
 TEST_CASE("Commit snapshot evidence")
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   ccf::NetworkState network;
-  network.tables->set_encryptor(encryptor);
 
-  constexpr auto buffer_size = 1024 * 16;
   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
@@ -120,13 +114,12 @@ TEST_CASE("Commit snapshot evidence")
   size_t snapshot_tx_interval = 10;
   issue_transactions(network, snapshot_tx_interval);
 
-  auto snapshotter =
-    std::make_shared<ccf::Snapshotter>(*writer_factory, network);
-  snapshotter->set_tx_interval(snapshot_tx_interval);
+  auto snapshotter = std::make_shared<ccf::Snapshotter>(
+    *writer_factory, network.tables, snapshot_tx_interval);
 
   INFO("Generate snapshot");
   {
-    snapshotter->snapshot(snapshot_tx_interval);
+    snapshotter->update(snapshot_tx_interval, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -137,7 +130,15 @@ TEST_CASE("Commit snapshot evidence")
   {
     // This assumes that the evidence was committed just after the snasphot, at
     // idx = (snapshot_tx_interval + 1)
-    snapshotter->compact(snapshot_tx_interval + 1);
+
+    // First commit marks evidence as committed but no commit message is emitted
+    // yet
+    snapshotter->commit(snapshot_tx_interval + 1);
+    threading::ThreadMessaging::thread_messaging.run_one();
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+
+    // Second commit passed evidence commit, snapshot is committed
+    snapshotter->commit(snapshot_tx_interval + 2);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -147,11 +148,8 @@ TEST_CASE("Commit snapshot evidence")
 
 TEST_CASE("Rollback before evidence is committed")
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   ccf::NetworkState network;
-  network.tables->set_encryptor(encryptor);
 
-  constexpr auto buffer_size = 1024 * 16;
   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   auto out_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
   ringbuffer::Circuit eio(in_buffer->bd, out_buffer->bd);
@@ -162,13 +160,12 @@ TEST_CASE("Rollback before evidence is committed")
   size_t snapshot_tx_interval = 10;
   issue_transactions(network, snapshot_tx_interval);
 
-  auto snapshotter =
-    std::make_shared<ccf::Snapshotter>(*writer_factory, network);
-  snapshotter->set_tx_interval(snapshot_tx_interval);
+  auto snapshotter = std::make_shared<ccf::Snapshotter>(
+    *writer_factory, network.tables, snapshot_tx_interval);
 
   INFO("Generate snapshot");
   {
-    snapshotter->snapshot(snapshot_tx_interval);
+    snapshotter->update(snapshot_tx_interval, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -182,7 +179,7 @@ TEST_CASE("Rollback before evidence is committed")
     // ... More transactions are committed, passing the idx at which the
     // evidence was originally committed
 
-    snapshotter->compact(snapshot_tx_interval + 1);
+    snapshotter->commit(snapshot_tx_interval + 1);
 
     // Snapshot previously generated is not committed
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
@@ -193,12 +190,17 @@ TEST_CASE("Rollback before evidence is committed")
     issue_transactions(network, snapshot_tx_interval);
 
     size_t snapshot_idx = network.tables->current_version();
-    snapshotter->snapshot(snapshot_idx);
+    snapshotter->update(snapshot_idx, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) == rb_msg({consensus::snapshot, snapshot_idx}));
 
-    snapshotter->compact(snapshot_idx + 1);
+    // Commit evidence
+    snapshotter->commit(snapshot_idx + 1);
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+
+    // Evidence proof is committed
+    snapshotter->commit(snapshot_idx + 2);
     REQUIRE(
       read_ringbuffer_out(eio) ==
       rb_msg({consensus::snapshot_commit, snapshot_idx}));

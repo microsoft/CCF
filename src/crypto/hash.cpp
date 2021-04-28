@@ -2,107 +2,56 @@
 // Licensed under the Apache 2.0 License.
 #include "hash.h"
 
-#include <mbedtls/sha256.h>
-#include <stdexcept>
+#include "mbedtls/hash.h"
+#include "openssl/hash.h"
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_Hash.h>
-}
-
-using namespace std;
+#include <openssl/sha.h>
 
 namespace crypto
 {
-  constexpr auto block_size = 64u; // No way to ask evercrypt for this
-
-  void Sha256Hash::mbedtls_sha256(const CBuffer& data, uint8_t* h)
+  void default_sha256(const CBuffer& data, uint8_t* h)
   {
-    mbedtls_sha256_context ctx;
-    mbedtls_sha256_starts_ret(&ctx, 0);
-
-    mbedtls_sha256_update_ret(&ctx, data.p, data.rawSize());
-
-    mbedtls_sha256_finish_ret(&ctx, h);
-    mbedtls_sha256_free(&ctx);
+    return openssl_sha256(data, h);
   }
 
-  Sha256Hash::Sha256Hash() : h{0} {}
-
-  Sha256Hash::Sha256Hash(const CBuffer& data) : h{0}
+  std::vector<uint8_t> SHA256(const std::vector<uint8_t>& data)
   {
-    evercrypt_sha256(data, h.data());
+    size_t hash_size = EVP_MD_size(OpenSSL::get_md_type(MDType::SHA256));
+    std::vector<uint8_t> r(hash_size);
+    openssl_sha256(data, r.data());
+    return r;
   }
 
-  class CSha256HashImpl
+  std::vector<uint8_t> SHA256(const uint8_t* data, size_t len)
   {
-  public:
-    CSha256HashImpl()
-    {
-      state = EverCrypt_Hash_create(Spec_Hash_Definitions_SHA2_256);
-      EverCrypt_Hash_init(state);
-    }
-
-    void finalize(std::array<uint8_t, Sha256Hash::SIZE>& h)
-    {
-      EverCrypt_Hash_finish(state, h.data());
-    }
-
-    void update(const CBuffer& data)
-    {
-      const auto data_begin = const_cast<uint8_t*>(data.p);
-      const auto size = data.rawSize();
-      const auto full_blocks = size / block_size;
-
-      const auto full_blocks_size = full_blocks * block_size;
-      const auto full_blocks_end = data_begin + full_blocks_size;
-
-      // update_multi takes complete blocks
-      EverCrypt_Hash_update_multi(state, data_begin, full_blocks_size);
-
-      // update_last takes start of last chunk (NOT a full block!), and _total
-      // size_
-      EverCrypt_Hash_update_last(state, full_blocks_end, size);
-    }
-
-    ~CSha256HashImpl()
-    {
-      EverCrypt_Hash_free(state);
-    }
-
-  private:
-    EverCrypt_Hash_state_s* state;
-  };
-
-  void Sha256Hash::evercrypt_sha256(const CBuffer& data, uint8_t* h)
-  {
-    CSha256HashImpl csha;
-    csha.update(data);
-    csha.finalize(reinterpret_cast<std::array<uint8_t, Sha256Hash::SIZE>&>(*h));
+    CBuffer buf(data, len);
+    size_t hash_size = EVP_MD_size(OpenSSL::get_md_type(MDType::SHA256));
+    std::vector<uint8_t> r(hash_size);
+    openssl_sha256(buf, r.data());
+    return r;
   }
 
-  CSha256Hash::CSha256Hash() : p(std::make_unique<CSha256HashImpl>()) {}
-  CSha256Hash::~CSha256Hash() {}
-
-  void CSha256Hash::update_hash(CBuffer data)
+  std::shared_ptr<HashProvider> make_hash_provider()
   {
-    if (p == nullptr)
-    {
-      throw std::logic_error("Attempting to use hash after it was finalized");
-    }
-    p->update(data);
+    return std::make_shared<OpenSSLHashProvider>();
   }
 
-  Sha256Hash CSha256Hash::finalize()
+  std::shared_ptr<ISha256Hash> make_incremental_sha256()
   {
-    if (p == nullptr)
-    {
-      throw std::logic_error("Attempting to use hash after it was finalized");
-    }
+    return std::make_shared<ISha256OpenSSL>();
+  }
 
-    Sha256Hash h;
-    p->finalize(h.h);
-    p = nullptr;
-    return h;
+  std::vector<uint8_t> hkdf(
+    MDType md_type,
+    size_t length,
+    const std::vector<uint8_t>& ikm,
+    const std::vector<uint8_t>& salt,
+    const std::vector<uint8_t>& info)
+  {
+#if defined(CRYPTO_PROVIDER_IS_MBEDTLS)
+    return mbedtls::hkdf(md_type, length, ikm, salt, info);
+#else
+    return OpenSSL::hkdf(md_type, length, ikm, salt, info);
+#endif
   }
 }

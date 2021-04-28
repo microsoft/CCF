@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 set(SSS_PREFIX
-    ${CCF_DIR}/3rdparty/sss
+    ${CCF_3RD_PARTY_INTERNAL_DIR}/sss
     CACHE PATH "Prefix to the Shamir Secret Sharing (sss) library"
 )
 message(STATUS "Using sss at ${SSS_PREFIX}")

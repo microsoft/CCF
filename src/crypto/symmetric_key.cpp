@@ -1,122 +1,61 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
+#include "crypto/mbedtls/symmetric_key.h"
+
+#include "crypto/openssl/symmetric_key.h"
+#include "crypto/rsa_key_pair.h"
 #include "symmetric_key.h"
-
-#include "ds/logger.h"
-#include "ds/thread_messaging.h"
-#include "error.h"
-#include "tls/error_string.h"
-
-#include <mbedtls/aes.h>
-#include <mbedtls/error.h>
-#include <mbedtls/gcm.h>
 
 namespace crypto
 {
-  KeyAesGcm::KeyAesGcm(CBuffer rawKey)
+  using namespace mbedtls;
+
+  std::unique_ptr<KeyAesGcm> make_key_aes_gcm(CBuffer rawKey)
   {
-    for (uint32_t i = 0; i < ctxs.size(); ++i)
-    {
-      ctxs[i] = new mbedtls_gcm_context;
-      mbedtls_gcm_init(ctxs[i]);
-
-      size_t n_bits;
-      const auto n = static_cast<unsigned int>(rawKey.rawSize() * 8);
-      if (n >= 256)
-      {
-        n_bits = 256;
-      }
-      else if (n >= 192)
-      {
-        n_bits = 192;
-      }
-      else if (n >= 128)
-      {
-        n_bits = 128;
-      }
-      else
-      {
-        throw std::logic_error(
-          fmt::format("Need at least {} bits, only have {}", 128, n));
-      }
-
-      int rc =
-        mbedtls_gcm_setkey(ctxs[i], MBEDTLS_CIPHER_ID_AES, rawKey.p, n_bits);
-
-      if (rc != 0)
-      {
-        throw std::logic_error(tls::error_string(rc));
-      }
-    }
+#ifdef CRYPTO_PROVIDER_IS_MBEDTLS
+    return std::make_unique<KeyAesGcm_mbedTLS>(rawKey);
+#else
+    return std::make_unique<KeyAesGcm_OpenSSL>(rawKey);
+#endif
   }
 
-  KeyAesGcm::KeyAesGcm(KeyAesGcm&& that)
+  std::vector<uint8_t> aes_gcm_encrypt(
+    const std::vector<uint8_t>& key,
+    std::vector<uint8_t>& plaintext,
+    const std::vector<uint8_t>& iv,
+    const std::vector<uint8_t>& aad)
   {
-    ctxs = that.ctxs;
+    check_supported_aes_key_size(key.size() * 8);
 
-    for (uint32_t i = 0; i < that.ctxs.size(); ++i)
-    {
-      that.ctxs[i] = nullptr;
-    }
+    std::vector<uint8_t> r(plaintext.size());
+    std::vector<uint8_t> tag(GCM_SIZE_TAG);
+    auto k = make_key_aes_gcm(key);
+    k->encrypt(iv, plaintext, aad, r.data(), tag.data());
+    r.insert(r.end(), tag.begin(), tag.end());
+    return r;
   }
 
-  KeyAesGcm::~KeyAesGcm()
+  std::vector<uint8_t> aes_gcm_decrypt(
+    const std::vector<uint8_t>& key,
+    std::vector<uint8_t>& ciphertext,
+    const std::vector<uint8_t>& iv,
+    const std::vector<uint8_t>& aad)
   {
-    for (auto ctx : ctxs)
-    {
-      if (ctx != nullptr)
-      {
-        mbedtls_gcm_free(ctx);
-        delete ctx;
-      }
-    }
-  }
+    check_supported_aes_key_size(key.size() * 8);
 
-  void KeyAesGcm::encrypt(
-    CBuffer iv,
-    CBuffer plain,
-    CBuffer aad,
-    uint8_t* cipher,
-    uint8_t tag[GCM_SIZE_TAG]) const
-  {
-    auto ctx = ctxs[threading::get_current_thread_id()];
-    int rc = mbedtls_gcm_crypt_and_tag(
-      ctx,
-      MBEDTLS_GCM_ENCRYPT,
-      plain.n,
-      iv.p,
-      iv.n,
-      aad.p,
-      aad.n,
-      plain.p,
-      cipher,
-      GCM_SIZE_TAG,
-      tag);
+    if (ciphertext.size() <= GCM_SIZE_TAG)
+      throw std::runtime_error("Not enough ciphertext");
 
-    if (rc != 0)
-    {
-      throw std::logic_error(tls::error_string(rc));
-    }
-  }
-
-  bool KeyAesGcm::decrypt(
-    CBuffer iv,
-    const uint8_t tag[GCM_SIZE_TAG],
-    CBuffer cipher,
-    CBuffer aad,
-    uint8_t* plain) const
-  {
-    auto ctx = ctxs[threading::get_current_thread_id()];
-    return !mbedtls_gcm_auth_decrypt(
-      ctx,
-      cipher.n,
-      iv.p,
-      iv.n,
-      aad.p,
-      aad.n,
-      tag,
-      GCM_SIZE_TAG,
-      cipher.p,
-      plain);
+    size_t ciphertext_length = ciphertext.size() - GCM_SIZE_TAG;
+    std::vector<uint8_t> r(ciphertext_length);
+    auto k = make_key_aes_gcm(key);
+    k->decrypt(
+      iv,
+      ciphertext.data() + ciphertext_length,
+      {ciphertext.data(), ciphertext_length},
+      aad,
+      r.data());
+    return r;
   }
 }

@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <msgpack/msgpack.hpp>
+#include "service_map.h"
+
 #include <optional>
 #include <stdint.h>
 #include <string>
@@ -10,18 +11,6 @@
 
 namespace ccf
 {
-  struct Module
-  {
-    std::string js;
-
-    Module() = default;
-
-    Module(const std::string& js_) : js(js_) {}
-
-    MSGPACK_DEFINE(js);
-  };
-  DECLARE_JSON_TYPE(Module)
-  DECLARE_JSON_REQUIRED_FIELDS(Module, js)
-
-  using Modules = kv::Map<std::string, Module>;
+  using Module = std::string;
+  using Modules = kv::RawCopySerialisedMap<std::string, Module>;
 }

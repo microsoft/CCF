@@ -3,11 +3,11 @@
     "schemas": {
       "CodeStatus": {
         "enum": [
-          "ACCEPTED",
-          "RETIRED"
-        ]
+          "AllowedToJoin"
+        ],
+        "type": "string"
       },
-      "EndpointMetrics__Metric": {
+      "EndpointMetrics__Entry": {
         "properties": {
           "calls": {
             "$ref": "#/components/schemas/uint64"
@@ -17,25 +17,48 @@
           },
           "failures": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "method": {
+            "$ref": "#/components/schemas/string"
+          },
+          "path": {
+            "$ref": "#/components/schemas/string"
+          },
+          "retries": {
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
+          "path",
+          "method",
           "calls",
           "errors",
-          "failures"
+          "failures",
+          "retries"
         ],
         "type": "object"
+      },
+      "EndpointMetrics__Entry_array": {
+        "items": {
+          "$ref": "#/components/schemas/EndpointMetrics__Entry"
+        },
+        "type": "array"
       },
       "EndpointMetrics__Out": {
         "properties": {
           "metrics": {
-            "$ref": "#/components/schemas/named_named_EndpointMetrics__Metric"
+            "$ref": "#/components/schemas/EndpointMetrics__Entry_array"
           }
         },
         "required": [
           "metrics"
         ],
         "type": "object"
+      },
+      "EntityId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
       },
       "GetCode__Out": {
         "properties": {
@@ -71,105 +94,57 @@
       },
       "GetCommit__Out": {
         "properties": {
-          "seqno": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "view": {
-            "$ref": "#/components/schemas/int64"
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
           }
         },
         "required": [
-          "view",
-          "seqno"
+          "transaction_id"
         ],
         "type": "object"
-      },
-      "GetMetrics__HistogramResults": {
-        "properties": {
-          "buckets": {
-            "$ref": "#/components/schemas/json"
-          },
-          "high": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "low": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "overflow": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "underflow": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "low",
-          "high",
-          "overflow",
-          "underflow",
-          "buckets"
-        ],
-        "type": "object"
-      },
-      "GetMetrics__Out": {
-        "properties": {
-          "histogram": {
-            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
-          },
-          "tx_rates": {
-            "$ref": "#/components/schemas/json"
-          }
-        },
-        "required": [
-          "histogram",
-          "tx_rates"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo": {
-        "properties": {
-          "host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "port": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "node_id",
-          "host",
-          "port"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo"
-        },
-        "type": "array"
       },
       "GetNetworkInfo__Out": {
         "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo_array"
+          "current_view": {
+            "$ref": "#/components/schemas/uint64"
           },
           "primary_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "service_certificate": {
+            "$ref": "#/components/schemas/Pem"
+          },
+          "service_status": {
+            "$ref": "#/components/schemas/ServiceStatus"
           }
         },
         "required": [
-          "nodes",
+          "service_status",
+          "service_certificate",
+          "current_view",
           "primary_id"
         ],
         "type": "object"
       },
-      "GetNodesByRPCAddress__NodeInfo": {
+      "GetNode__NodeInfo": {
         "properties": {
+          "host": {
+            "$ref": "#/components/schemas/string"
+          },
+          "local_host": {
+            "$ref": "#/components/schemas/string"
+          },
+          "local_port": {
+            "$ref": "#/components/schemas/string"
+          },
           "node_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "port": {
+            "$ref": "#/components/schemas/string"
+          },
+          "primary": {
+            "$ref": "#/components/schemas/boolean"
           },
           "status": {
             "$ref": "#/components/schemas/NodeStatus"
@@ -177,20 +152,25 @@
         },
         "required": [
           "node_id",
-          "status"
+          "status",
+          "host",
+          "port",
+          "local_host",
+          "local_port",
+          "primary"
         ],
         "type": "object"
       },
-      "GetNodesByRPCAddress__NodeInfo_array": {
+      "GetNode__NodeInfo_array": {
         "items": {
-          "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo"
+          "$ref": "#/components/schemas/GetNode__NodeInfo"
         },
         "type": "array"
       },
-      "GetNodesByRPCAddress__Out": {
+      "GetNodes__Out": {
         "properties": {
           "nodes": {
-            "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo_array"
+            "$ref": "#/components/schemas/GetNode__NodeInfo_array"
           }
         },
         "required": [
@@ -198,33 +178,10 @@
         ],
         "type": "object"
       },
-      "GetPrimaryInfo__Out": {
-        "properties": {
-          "current_view": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "primary_host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "primary_port": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "primary_id",
-          "primary_host",
-          "primary_port",
-          "current_view"
-        ],
-        "type": "object"
-      },
       "GetQuotes__Out": {
         "properties": {
           "quotes": {
-            "$ref": "#/components/schemas/GetQuotes__Quote_array"
+            "$ref": "#/components/schemas/Quote_array"
           }
         },
         "required": [
@@ -232,66 +189,32 @@
         ],
         "type": "object"
       },
-      "GetQuotes__Quote": {
-        "properties": {
-          "error": {
-            "$ref": "#/components/schemas/string"
-          },
-          "mrenclave": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "raw": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "node_id",
-          "raw"
-        ],
-        "type": "object"
-      },
-      "GetQuotes__Quote_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetQuotes__Quote"
-        },
-        "type": "array"
-      },
-      "GetReceipt__Out": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
-        ],
-        "type": "object"
-      },
       "GetState__Out": {
         "properties": {
-          "id": {
+          "last_recovered_seqno": {
             "$ref": "#/components/schemas/uint64"
           },
-          "last_recovered_seqno": {
-            "$ref": "#/components/schemas/int64"
-          },
           "last_signed_seqno": {
-            "$ref": "#/components/schemas/int64"
+            "$ref": "#/components/schemas/uint64"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/EntityId"
           },
           "recovery_target_seqno": {
-            "$ref": "#/components/schemas/int64"
+            "$ref": "#/components/schemas/uint64"
+          },
+          "startup_seqno": {
+            "$ref": "#/components/schemas/uint64"
           },
           "state": {
             "$ref": "#/components/schemas/ccf__State"
           }
         },
         "required": [
-          "id",
+          "node_id",
           "state",
-          "last_signed_seqno"
+          "last_signed_seqno",
+          "startup_seqno"
         ],
         "type": "object"
       },
@@ -299,9 +222,13 @@
         "properties": {
           "status": {
             "$ref": "#/components/schemas/TxStatus"
+          },
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
           }
         },
         "required": [
+          "transaction_id",
           "status"
         ],
         "type": "object"
@@ -327,78 +254,140 @@
       },
       "NodeStatus": {
         "enum": [
-          "PENDING",
-          "TRUSTED",
-          "RETIRED"
-        ]
+          "Pending",
+          "Trusted",
+          "Retired"
+        ],
+        "type": "string"
+      },
+      "Pem": {
+        "type": "string"
+      },
+      "Quote": {
+        "properties": {
+          "endorsements": {
+            "$ref": "#/components/schemas/base64string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/QuoteFormat"
+          },
+          "mrenclave": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/base64string"
+          }
+        },
+        "required": [
+          "node_id",
+          "raw",
+          "endorsements",
+          "format"
+        ],
+        "type": "object"
+      },
+      "QuoteFormat": {
+        "enum": [
+          "OE_SGX_v1"
+        ],
+        "type": "string"
+      },
+      "Quote_array": {
+        "items": {
+          "$ref": "#/components/schemas/Quote"
+        },
+        "type": "array"
+      },
+      "Receipt": {
+        "properties": {
+          "leaf": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/Receipt__Element_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "signature",
+          "root",
+          "proof",
+          "leaf",
+          "node_id"
+        ],
+        "type": "object"
+      },
+      "Receipt__Element": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/string"
+          },
+          "right": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "Receipt__Element_array": {
+        "items": {
+          "$ref": "#/components/schemas/Receipt__Element"
+        },
+        "type": "array"
+      },
+      "ServiceStatus": {
+        "enum": [
+          "Opening",
+          "Open",
+          "WaitingForRecoveryShares",
+          "Closed"
+        ],
+        "type": "string"
+      },
+      "TransactionId": {
+        "pattern": "^[0-9]+\\.[0-9]+$",
+        "type": "string"
       },
       "TxStatus": {
         "enum": [
-          "UNKNOWN",
-          "PENDING",
-          "COMMITTED",
-          "INVALID"
-        ]
-      },
-      "VerifyReceipt__In": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
+          "Unknown",
+          "Pending",
+          "Committed",
+          "Invalid"
         ],
-        "type": "object"
+        "type": "string"
       },
-      "VerifyReceipt__Out": {
-        "properties": {
-          "valid": {
-            "$ref": "#/components/schemas/boolean"
-          }
-        },
-        "required": [
-          "valid"
-        ],
-        "type": "object"
+      "base64string": {
+        "format": "base64",
+        "type": "string"
       },
       "boolean": {
         "type": "boolean"
       },
       "ccf__State": {
         "enum": [
-          "uninitialized",
-          "initialized",
-          "pending",
-          "partOfPublicNetwork",
-          "partOfNetwork",
-          "readingPublicLedger",
-          "readingPrivateLedger"
-        ]
-      },
-      "int32": {
-        "maximum": 2147483647,
-        "minimum": -2147483648,
-        "type": "integer"
-      },
-      "int64": {
-        "maximum": 9223372036854775807,
-        "minimum": -9223372036854775808,
-        "type": "integer"
+          "Uninitialized",
+          "Initialized",
+          "Pending",
+          "PartOfPublicNetwork",
+          "PartOfNetwork",
+          "ReadingPublicLedger",
+          "ReadingPrivateLedger",
+          "VerifyingSnapshot"
+        ],
+        "type": "string"
       },
       "json": {},
-      "named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
-      "named_named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/named_EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
       "string": {
         "type": "string"
       },
@@ -406,17 +395,6 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
-      },
-      "uint8": {
-        "maximum": 255,
-        "minimum": 0,
-        "type": "integer"
-      },
-      "uint8_array": {
-        "items": {
-          "$ref": "#/components/schemas/uint8"
-        },
-        "type": "array"
       }
     }
   },
@@ -435,6 +413,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/api/metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointMetrics__Out"
                 }
               }
             },
@@ -484,52 +478,15 @@
         }
       }
     },
-    "/endpoint_metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EndpointMetrics__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/join": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/local_tx": {
       "get": {
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "transaction_id",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "view",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -563,32 +520,7 @@
         }
       }
     },
-    "/metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetMetrics__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/network": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/network_info": {
       "get": {
         "responses": {
           "200": {
@@ -604,7 +536,7 @@
         }
       }
     },
-    "/node/ids": {
+    "/network/nodes": {
       "get": {
         "parameters": [
           {
@@ -612,7 +544,7 @@
             "name": "host",
             "required": false,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/string"
             }
           },
           {
@@ -620,7 +552,15 @@
             "name": "port",
             "required": false,
             "schema": {
-              "type": "string"
+              "$ref": "#/components/schemas/string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/string"
             }
           }
         ],
@@ -629,7 +569,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetNodesByRPCAddress__Out"
+                  "$ref": "#/components/schemas/GetNodes__Out"
                 }
               }
             },
@@ -637,43 +577,55 @@
           }
         }
       }
+    },
+    "/network/nodes/primary": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/network/nodes/self": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/network/nodes/{node_id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetNode__NodeInfo"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      },
+      "parameters": [
+        {
+          "in": "path",
+          "name": "node_id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
     },
     "/primary": {
       "head": {
         "responses": {
           "200": {
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/primary_info": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetPrimaryInfo__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/quote": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetQuotes__Quote"
-                }
-              }
-            },
             "description": "Default response description"
           }
         }
@@ -695,26 +647,14 @@
         }
       }
     },
-    "/receipt": {
+    "/quotes/self": {
       "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "commit",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetReceipt__Out"
+                  "$ref": "#/components/schemas/Quote"
                 }
               }
             },
@@ -723,24 +663,24 @@
         }
       }
     },
-    "/receipt/verify": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyReceipt__In"
-              }
+    "/receipt": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/TransactionId"
             }
-          },
-          "description": "Auto-generated request body schema"
-        },
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VerifyReceipt__Out"
+                  "$ref": "#/components/schemas/Receipt"
                 }
               }
             },
@@ -770,22 +710,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "transaction_id",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "view",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],

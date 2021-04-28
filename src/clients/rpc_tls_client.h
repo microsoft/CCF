@@ -11,12 +11,12 @@
 #include "tls_client.h"
 
 #define FMT_HEADER_ONLY
+#include <crypto/key_pair.h>
 #include <fmt/format.h>
 #include <http/http_sig.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <thread>
-#include <tls/key_pair.h>
 
 class HttpRpcTlsClient : public TlsClient, public http::ResponseProcessor
 {
@@ -39,7 +39,8 @@ protected:
   http::ResponseParser parser;
   ws::ResponseParser ws_parser;
   std::optional<std::string> prefix;
-  tls::KeyPairPtr key_pair = nullptr;
+  crypto::KeyPairPtr key_pair = nullptr;
+  std::string key_id = "Invalid";
   bool is_ws = false;
 
   size_t next_send_id = 0;
@@ -60,7 +61,8 @@ protected:
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
-    http_method verb)
+    llhttp_method verb,
+    const char* auth_token = nullptr)
   {
     auto path = method;
     if (prefix.has_value())
@@ -71,10 +73,15 @@ protected:
     auto r = http::Request(path, verb);
     r.set_body(params.p, params.n);
     r.set_header(http::headers::CONTENT_TYPE, content_type);
+    if (auth_token != nullptr)
+    {
+      r.set_header(
+        http::headers::AUTHORIZATION, fmt::format("Bearer {}", auth_token));
+    }
 
     if (key_pair != nullptr)
     {
-      http::sign_request(r, key_pair);
+      http::sign_request(r, key_pair, key_id);
     }
 
     return r.build_request();
@@ -96,12 +103,14 @@ protected:
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
-    http_method verb)
+    llhttp_method verb,
+    const char* auth_token = nullptr)
   {
     if (is_ws)
       return gen_ws_request_internal(method, params);
     else
-      return gen_http_request_internal(method, params, content_type, verb);
+      return gen_http_request_internal(
+        method, params, content_type, verb, auth_token);
   }
 
   Response call_raw(const std::vector<uint8_t>& raw)
@@ -125,8 +134,17 @@ public:
     const std::string& host,
     const std::string& port,
     std::shared_ptr<tls::CA> node_ca = nullptr,
-    std::shared_ptr<tls::Cert> cert = nullptr) :
+    std::shared_ptr<tls::Cert> cert = nullptr,
+    const std::string& key_id_ = "Invalid") :
     TlsClient(host, port, node_ca, cert),
+    key_id(key_id_),
+    parser(*this),
+    ws_parser(*this)
+  {}
+
+  HttpRpcTlsClient(const HttpRpcTlsClient& c) :
+    TlsClient(c),
+    key_id(c.key_id),
     parser(*this),
     ws_parser(*this)
   {}
@@ -140,25 +158,28 @@ public:
     is_ws = true;
   }
 
-  void create_key_pair(const tls::Pem priv_key)
+  void create_key_pair(const crypto::Pem priv_key)
   {
-    key_pair = tls::make_key_pair(priv_key);
+    key_pair = crypto::make_key_pair(priv_key);
   }
 
   PreparedRpc gen_request(
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
-    http_method verb = HTTP_POST)
+    llhttp_method verb = HTTP_POST,
+    const char* auth_token = nullptr)
   {
-    return {gen_request_internal(method, params, content_type, verb),
-            next_send_id++};
+    return {
+      gen_request_internal(method, params, content_type, verb, auth_token),
+      next_send_id++};
   }
 
   PreparedRpc gen_request(
     const std::string& method,
     const nlohmann::json& params = nullptr,
-    http_method verb = HTTP_POST)
+    llhttp_method verb = HTTP_POST,
+    const char* auth_token = nullptr)
   {
     std::vector<uint8_t> body;
     if (!params.is_null())
@@ -169,24 +190,25 @@ public:
       method,
       {body.data(), body.size()},
       http::headervalues::contenttype::MSGPACK,
-      verb);
+      verb,
+      auth_token);
   }
 
   Response call(
     const std::string& method,
     const nlohmann::json& params = nullptr,
-    http_method verb = HTTP_POST)
+    llhttp_method verb = HTTP_POST)
   {
-    return call_raw(gen_request(method, params, verb));
+    return call_raw(gen_request(method, params, verb, nullptr));
   }
 
   Response call(
     const std::string& method,
     const CBuffer& params,
-    http_method verb = HTTP_POST)
+    llhttp_method verb = HTTP_POST)
   {
-    return call_raw(gen_request(
-      method, params, http::headervalues::contenttype::OCTET_STREAM, verb));
+    return call_raw(
+      gen_request(method, params, http::headervalues::contenttype::JSON, verb));
   }
 
   Response post(const std::string& method, const nlohmann::json& params)
@@ -207,7 +229,8 @@ public:
           "{}{}={}",
           it == params.begin() ? "?" : "&",
           it.key(),
-          it.value().dump());
+          it.value().is_string() ? it.value().get<std::string>() :
+                                   it.value().dump());
       }
     }
     return call(full_path, nullptr, HTTP_GET);

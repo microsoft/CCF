@@ -1,10 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+
+#include "ccf/tx.h"
+
 #define DOCTEST_CONFIG_IMPLEMENT
+#include "ccf/app_interface.h"
+#include "ccf/json_handler.h"
+#include "ccf/user_frontend.h"
 #include "consensus/aft/request.h"
 #include "ds/files.h"
 #include "ds/logger.h"
-#include "enclave/app_interface.h"
 #include "kv/map.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
@@ -12,11 +17,9 @@
 #include "node/genesis_gen.h"
 #include "node/history.h"
 #include "node/network_state.h"
-#include "node/rpc/json_handler.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
 #include "node/rpc/serdes.h"
-#include "node/rpc/user_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 
@@ -24,108 +27,126 @@
 #include <iostream>
 #include <string>
 
-extern "C"
-{
-#include <evercrypt/EverCrypt_AutoConfig2.h>
-}
-
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
-using namespace ccfapp;
 using namespace ccf;
 using namespace std;
 
 static constexpr auto default_pack = serdes::Pack::MsgPack;
 
-class TestUserFrontend : public SimpleUserRpcFrontend
+class BaseTestFrontend : public SimpleUserRpcFrontend
 {
 public:
-  TestUserFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  ccf::StubNodeContext context;
+
+  BaseTestFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables, context)
+  {}
+
+  // For testing only, we don't need to specify auth policies everywhere and
+  // default to no auth
+  ccf::endpoints::Endpoint make_endpoint(
+    const std::string& method,
+    RESTVerb verb,
+    const ccf::endpoints::EndpointFunction& f,
+    const ccf::AuthnPolicies& ap = no_auth_required)
+  {
+    return endpoints.make_endpoint(method, verb, f, ap);
+  }
+};
+
+class TestUserFrontend : public BaseTestFrontend
+{
+public:
+  TestUserFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("empty_function", HTTP_POST, empty_function)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
+    make_endpoint(
+      "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
+      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
 
     auto empty_function_signed = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("empty_function_signed", HTTP_POST, empty_function_signed)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_require_client_signature(true)
+    make_endpoint(
+      "empty_function_signed",
+      HTTP_POST,
+      empty_function_signed,
+      {user_signature_auth_policy})
+      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
 
     auto empty_function_no_auth = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
-      .set_require_client_identity(false)
+    make_endpoint(
+      "empty_function_no_auth",
+      HTTP_POST,
+      empty_function_no_auth,
+      no_auth_required)
+      .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
   }
 };
 
-class TestReqNotStoredFrontend : public SimpleUserRpcFrontend
+class TestJsonWrappedEndpointFunction : public BaseTestFrontend
 {
 public:
-  TestReqNotStoredFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestJsonWrappedEndpointFunction(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
-    auto empty_function = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-    };
-    make_endpoint("empty_function", HTTP_POST, empty_function).install();
-    disable_request_storing();
-  }
-};
-
-class TestMinimalEndpointFunction : public SimpleUserRpcFrontend
-{
-public:
-  TestMinimalEndpointFunction(kv::Store& tables) : SimpleUserRpcFrontend(tables)
-  {
-    open();
-
-    auto echo_function = [this](kv::Tx& tx, nlohmann::json&& params) {
+    auto echo_function = [this](auto& ctx, nlohmann::json&& params) {
       return make_success(std::move(params));
     };
     make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
 
-    auto get_caller_function =
-      [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
-        return make_success(caller_id);
-      };
-    make_endpoint("get_caller", HTTP_POST, json_adapter(get_caller_function))
+    auto echo_query_function = [this](auto& ctx, nlohmann::json&&) {
+      const auto parsed_query =
+        http::parse_query(ctx.rpc_ctx->get_request_query());
+      return make_success(std::move(parsed_query));
+    };
+    make_endpoint(
+      "echo_parsed_query", HTTP_POST, json_adapter(echo_query_function))
       .install();
 
-    auto failable_function =
-      [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
-        const auto it = params.find("error");
-        if (it != params.end())
-        {
-          const http_status error_code = (*it)["code"];
-          const std::string error_msg = (*it)["message"];
+    auto get_caller_function = [this](auto& ctx, nlohmann::json&&) {
+      const auto& ident = ctx.template get_caller<UserCertAuthnIdentity>();
+      return make_success(ident.user_id);
+    };
+    make_endpoint(
+      "get_caller",
+      HTTP_POST,
+      json_adapter(get_caller_function),
+      {user_cert_auth_policy})
+      .install();
 
-          return make_error((http_status)error_code, error_msg);
-        }
+    auto failable_function = [this](auto& ctx, nlohmann::json&& params) {
+      const auto it = params.find("error");
+      if (it != params.end())
+      {
+        const http_status error_code = (*it)["code"];
+        const std::string error_msg = (*it)["message"];
 
-        return make_success(true);
-      };
+        return make_error((http_status)error_code, "Error", error_msg);
+      }
+
+      return make_success(true);
+    };
     make_endpoint("failable", HTTP_POST, json_adapter(failable_function))
       .install();
   }
 };
 
-class TestRestrictedVerbsFrontend : public SimpleUserRpcFrontend
+class TestRestrictedVerbsFrontend : public BaseTestFrontend
 {
 public:
-  TestRestrictedVerbsFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestRestrictedVerbsFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -147,24 +168,24 @@ public:
   }
 };
 
-class TestExplicitCommitability : public SimpleUserRpcFrontend
+class TestExplicitCommitability : public BaseTestFrontend
 {
 public:
   kv::Map<size_t, size_t> values;
 
   TestExplicitCommitability(kv::Store& tables) :
-    SimpleUserRpcFrontend(tables),
+    BaseTestFrontend(tables),
     values("test_values")
   {
     open();
 
-    auto maybe_commit = [this](EndpointContext& args) {
+    auto maybe_commit = [this](ccf::endpoints::EndpointContext& args) {
       const auto parsed =
         serdes::unpack(args.rpc_ctx->get_request_body(), default_pack);
 
       const auto new_value = parsed["value"].get<size_t>();
-      auto view = args.tx.get_view(values);
-      view->put(0, new_value);
+      auto vs = args.tx.rw(values);
+      vs->put(0, new_value);
 
       const auto apply_it = parsed.find("apply");
       if (apply_it != parsed.end())
@@ -180,30 +201,38 @@ public:
   }
 };
 
-class TestAlternativeHandlerTypes : public SimpleUserRpcFrontend
+class TestAlternativeHandlerTypes : public BaseTestFrontend
 {
 public:
-  TestAlternativeHandlerTypes(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestAlternativeHandlerTypes(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
-    auto command = [this](CommandEndpointContext& args) {
+    auto command = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_command_endpoint("command", HTTP_POST, command).install();
+    endpoints
+      .make_command_endpoint("command", HTTP_POST, command, no_auth_required)
+      .install();
 
-    auto read_only = [this](ReadOnlyEndpointContext& args) {
+    auto read_only = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_read_only_endpoint("read_only", HTTP_POST, read_only).install();
-    make_read_only_endpoint("read_only", HTTP_GET, read_only).install();
+    endpoints
+      .make_read_only_endpoint(
+        "read_only", HTTP_POST, read_only, no_auth_required)
+      .install();
+    endpoints
+      .make_read_only_endpoint(
+        "read_only", HTTP_GET, read_only, no_auth_required)
+      .install();
   }
 };
 
-class TestTemplatedPaths : public SimpleUserRpcFrontend
+class TestTemplatedPaths : public BaseTestFrontend
 {
 public:
-  TestTemplatedPaths(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestTemplatedPaths(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -221,37 +250,41 @@ class TestMemberFrontend : public MemberRpcFrontend
 public:
   TestMemberFrontend(
     ccf::NetworkState& network,
-    ccf::StubNodeState& node,
+    ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, node, share_manager)
+    MemberRpcFrontend(network, context, share_manager)
   {
     open();
 
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    member_endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
+    member_endpoints
+      .make_endpoint(
+        "empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
+      .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
       .install();
   }
 };
 
 class TestNoCertsFrontend : public RpcFrontend
 {
-  EndpointRegistry endpoints;
+  ccf::endpoints::EndpointRegistry endpoints;
 
 public:
   TestNoCertsFrontend(kv::Store& tables) :
     RpcFrontend(tables, endpoints),
-    endpoints("test", tables)
+    endpoints("test")
   {
     open();
 
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
-      .set_forwarding_required(ForwardingRequired::Sometimes)
+    endpoints
+      .make_endpoint(
+        "empty_function", HTTP_POST, empty_function, no_auth_required)
+      .set_forwarding_required(endpoints::ForwardingRequired::Sometimes)
       .install();
   }
 };
@@ -264,21 +297,33 @@ class RpcContextRecorder
 {
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
-  tls::Pem last_caller_cert;
-  CallerId last_caller_id = INVALID_ID;
+  crypto::Pem last_caller_cert;
+  std::optional<EntityId> last_caller_id = std::nullopt;
 
-  void record_ctx(EndpointContext& args)
+  void record_ctx(ccf::endpoints::EndpointContext& ctx)
   {
-    last_caller_cert = tls::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
-    last_caller_id = args.caller_id;
+    last_caller_cert =
+      crypto::cert_der_to_pem(ctx.rpc_ctx->session->caller_cert);
+    if (const auto uci = ctx.try_get_caller<UserCertAuthnIdentity>())
+    {
+      last_caller_id = uci->user_id;
+    }
+    else if (const auto mci = ctx.try_get_caller<MemberCertAuthnIdentity>())
+    {
+      last_caller_id = mci->member_id;
+    }
+    else
+    {
+      last_caller_id.reset();
+    }
   }
 };
 
-class TestForwardingUserFrontEnd : public SimpleUserRpcFrontend,
+class TestForwardingUserFrontEnd : public BaseTestFrontend,
                                    public RpcContextRecorder
 {
 public:
-  TestForwardingUserFrontEnd(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestForwardingUserFrontEnd(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -288,14 +333,15 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    make_endpoint("empty_function", HTTP_POST, empty_function).install();
+    make_endpoint(
+      "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
+      .install();
 
     auto empty_function_no_auth = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
-      .set_require_client_identity(false)
       .install();
   }
 };
@@ -305,8 +351,8 @@ class TestForwardingNodeFrontEnd : public NodeRpcFrontend,
 {
 public:
   TestForwardingNodeFrontEnd(
-    ccf::NetworkState& network, ccf::StubNodeState& node) :
-    NodeRpcFrontend(network, node)
+    ccf::NetworkState& network, ccf::StubNodeContext& context) :
+    NodeRpcFrontend(network, context)
   {
     open();
 
@@ -316,7 +362,9 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+    endpoints
+      .make_endpoint(
+        "empty_function", HTTP_POST, empty_function, no_auth_required)
       .install();
   }
 };
@@ -328,9 +376,9 @@ public:
   TestForwardingMemberFrontEnd(
     kv::Store& tables,
     ccf::NetworkState& network,
-    ccf::StubNodeState& node,
+    ccf::StubNodeContext& context,
     ccf::ShareManager& share_manager) :
-    MemberRpcFrontend(network, node, share_manager)
+    MemberRpcFrontend(network, context, share_manager)
   {
     open();
 
@@ -340,20 +388,22 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+    endpoints
+      .make_endpoint(
+        "empty_function", HTTP_POST, empty_function, {member_cert_auth_policy})
       .install();
   }
 };
 
 // used throughout
-auto kp = tls::make_key_pair();
+auto kp = crypto::make_key_pair();
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 NetworkState bft_network(ConsensusType::BFT);
-auto history_kp = tls::make_key_pair();
+auto history_kp = crypto::make_key_pair();
 
-auto history =
-  std::make_shared<NullTxHistory>(*bft_network.tables, 0, *history_kp);
+auto history = std::make_shared<NullTxHistory>(
+  *bft_network.tables, kv::test::PrimaryNodeId, *history_kp);
 
 auto create_simple_request(
   const std::string& method = "empty_function",
@@ -365,7 +415,8 @@ auto create_simple_request(
   return request;
 }
 
-std::pair<http::Request, ccf::SignedReq> create_signed_request(
+http::Request create_signed_request(
+  const crypto::Pem& caller_cert,
   const http::Request& r = create_simple_request(),
   const std::vector<uint8_t>* body = nullptr)
 {
@@ -373,13 +424,12 @@ std::pair<http::Request, ccf::SignedReq> create_signed_request(
 
   s.set_body(body);
 
-  http::SigningDetails details;
-  http::sign_request(s, kp, &details);
+  auto caller_cert_der = crypto::cert_pem_to_der(caller_cert);
+  const auto key_id = crypto::Sha256Hash(caller_cert_der).hex_str();
 
-  ccf::SignedReq signed_req{details.signature,
-                            details.to_sign,
-                            body == nullptr ? std::vector<uint8_t>() : *body};
-  return {s, signed_req};
+  http::sign_request(s, kp, key_id);
+
+  return s;
 }
 
 http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
@@ -387,8 +437,7 @@ http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
   http::SimpleResponseProcessor processor;
   http::ResponseParser parser(processor);
 
-  const auto parsed_count = parser.execute(v.data(), v.size());
-  REQUIRE(parsed_count == v.size());
+  parser.execute(v.data(), v.size());
   REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();
@@ -400,30 +449,19 @@ nlohmann::json parse_response_body(
   return serdes::unpack(body, pack);
 }
 
-std::optional<SignedReq> get_signed_req(
-  NetworkState& network, CallerId caller_id)
-{
-  auto tx = network.tables->create_tx();
-  auto client_sig_view = tx.get_view(network.user_client_signatures);
-  return client_sig_view->get(caller_id);
-}
-
 // callers used throughout
 auto user_caller = kp -> self_sign("CN=name");
-auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
+auto user_caller_der = crypto::make_verifier(user_caller) -> cert_der();
 
 auto member_caller = kp -> self_sign("CN=name_member");
-auto member_caller_der = tls::make_verifier(member_caller) -> der_cert_data();
+auto member_caller_der = crypto::make_verifier(member_caller) -> cert_der();
 
 auto node_caller = kp -> self_sign("CN=node");
-auto node_caller_der = tls::make_verifier(node_caller) -> der_cert_data();
+auto node_caller_der = crypto::make_verifier(node_caller) -> cert_der();
 
-auto nos_caller = kp -> self_sign("CN=nostore_user");
-auto nos_caller_der = tls::make_verifier(nos_caller) -> der_cert_data();
-
-auto kp_other = tls::make_key_pair();
+auto kp_other = crypto::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name");
-auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
+auto invalid_caller_der = crypto::make_verifier(invalid_caller) -> cert_der();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
 
@@ -438,19 +476,17 @@ auto member_session = make_shared<enclave::SessionContext>(
 auto anonymous_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, anonymous_caller_der);
 
-UserId user_id = INVALID_ID;
-UserId invalid_user_id = INVALID_ID;
-UserId nos_id = INVALID_ID;
+UserId user_id;
 
-MemberId member_id = INVALID_ID;
-MemberId invalid_member_id = INVALID_ID;
+MemberId member_id;
+MemberId invalid_member_id;
 
 void prepare_callers(NetworkState& network)
 {
   // It is necessary to set a consensus before committing the first transaction,
   // so that the KV batching done before calling into replicate() stays in
   // order.
-  auto backup_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
   auto tx = network.tables->create_tx();
@@ -460,10 +496,9 @@ void prepare_callers(NetworkState& network)
   g.init_values();
   g.create_service({});
   user_id = g.add_user({user_caller});
-  nos_id = g.add_user({nos_caller});
   member_id = g.add_member(member_caller);
   invalid_member_id = g.add_member(invalid_caller);
-  CHECK(g.finalize() == kv::CommitSuccess::OK);
+  CHECK(tx.commit() == kv::CommitResult::SUCCESS);
 }
 
 void add_callers_bft_store()
@@ -472,14 +507,14 @@ void add_callers_bft_store()
   bft_network.tables->set_encryptor(encryptor);
   bft_network.tables->set_history(history);
   auto backup_consensus =
-    std::make_shared<kv::PrimaryStubConsensus>(ConsensusType::BFT);
+    std::make_shared<kv::test::PrimaryStubConsensus>(ConsensusType::BFT);
   bft_network.tables->set_consensus(backup_consensus);
 
   GenesisGenerator g(bft_network, gen_tx);
   g.init_values();
   g.create_service({});
   user_id = g.add_user({user_caller});
-  CHECK(g.finalize() == kv::CommitSuccess::OK);
+  CHECK(gen_tx.commit() == kv::CommitResult::SUCCESS);
 }
 
 TEST_CASE("process_bft")
@@ -492,28 +527,29 @@ TEST_CASE("process_bft")
   const auto serialized_body = serdes::pack(call_body, default_pack);
   simple_call.set_body(&serialized_body);
 
-  kv::TxHistory::RequestID rid = {1, 1, 1};
+  kv::TxHistory::RequestID rid = {1, 1};
 
   const auto serialized_call = simple_call.build_request();
   aft::Request request = {
-    user_id, rid, user_caller_der, serialized_call, enclave::FrameFormat::http};
+    rid, user_caller_der, serialized_call, enclave::FrameFormat::http};
 
   auto session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, user_id, user_caller_der);
+    enclave::InvalidSessionId, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
   ctx->execute_on_node = true;
-  frontend.process_bft(ctx);
+  const auto prescribed_commit_version =
+    bft_network.tables->current_version() + 1;
+  const auto max_conflict_version = kv::NoVersion;
+  frontend.process_bft(ctx, prescribed_commit_version, max_conflict_version);
 
   auto tx = bft_network.tables->create_tx();
-  auto bft_requests_view =
-    tx.get_view<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-  auto request_value = bft_requests_view->get(0);
+  auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+  auto request_value = aft_requests->get(0);
   REQUIRE(request_value.has_value());
 
   aft::Request deserialised_req = request_value.value();
 
-  REQUIRE(deserialised_req.caller_id == user_id);
-  REQUIRE(deserialised_req.caller_cert == user_caller.raw());
+  REQUIRE(deserialised_req.caller_cert == user_caller_der);
   REQUIRE(deserialised_req.raw == serialized_call);
   REQUIRE(deserialised_req.frame_format == enclave::FrameFormat::http);
 }
@@ -552,7 +588,7 @@ TEST_CASE("process with signatures")
   SUBCASE("endpoint does not require signature")
   {
     const auto simple_call = create_simple_request();
-    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto signed_call = create_signed_request(user_caller, simple_call);
     const auto serialized_simple_call = simple_call.build_request();
     const auto serialized_signed_call = signed_call.build_request();
 
@@ -566,9 +602,6 @@ TEST_CASE("process with signatures")
       const auto serialized_response = frontend.process(simple_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      CHECK(!signed_resp.has_value());
     }
 
     INFO("Signed RPC");
@@ -576,18 +609,13 @@ TEST_CASE("process with signatures")
       const auto serialized_response = frontend.process(signed_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      REQUIRE(signed_resp.has_value());
-      auto value = signed_resp.value();
-      CHECK(value == signed_req);
     }
   }
 
   SUBCASE("endpoint requires signature")
   {
     const auto simple_call = create_simple_request("empty_function_signed");
-    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto signed_call = create_signed_request(user_caller, simple_call);
     const auto serialized_simple_call = simple_call.build_request();
     const auto serialized_signed_call = signed_call.build_request();
 
@@ -603,10 +631,7 @@ TEST_CASE("process with signatures")
 
       CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
-      CHECK(error_msg.find("RPC must be signed") != std::string::npos);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      CHECK(!signed_resp.has_value());
+      CHECK(error_msg.find("Missing signature") != std::string::npos);
     }
 
     INFO("Signed RPC");
@@ -614,33 +639,7 @@ TEST_CASE("process with signatures")
       const auto serialized_response = frontend.process(signed_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
-
-      auto signed_resp = get_signed_req(network, user_id);
-      REQUIRE(signed_resp.has_value());
-      auto value = signed_resp.value();
-      CHECK(value == signed_req);
     }
-  }
-
-  SUBCASE("request with signature but do not store")
-  {
-    TestReqNotStoredFrontend frontend_nostore(*network.tables);
-    const auto simple_call = create_simple_request("empty_function");
-    const auto [signed_call, signed_req] = create_signed_request(simple_call);
-    const auto serialized_signed_call = signed_call.build_request();
-    auto signed_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_signed_call);
-
-    const auto serialized_response =
-      frontend_nostore.process(signed_rpc_ctx).value();
-    const auto response = parse_response(serialized_response);
-    REQUIRE(response.status == HTTP_STATUS_OK);
-
-    auto signed_resp = get_signed_req(network, user_id);
-    REQUIRE(signed_resp.has_value());
-    auto value = signed_resp.value();
-    CHECK(value.req.empty());
-    CHECK(value.sig == signed_req.sig);
   }
 }
 
@@ -713,7 +712,7 @@ TEST_CASE("process with caller")
       const auto serialized_response =
         frontend.process(invalid_rpc_ctx).value();
       auto response = parse_response(serialized_response);
-      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
       CHECK(
         error_msg.find("Could not find matching user certificate") !=
@@ -725,7 +724,7 @@ TEST_CASE("process with caller")
       const auto serialized_response =
         frontend.process(anonymous_rpc_ctx).value();
       auto response = parse_response(serialized_response);
-      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      REQUIRE(response.status == HTTP_STATUS_UNAUTHORIZED);
       const std::string error_msg(response.body.begin(), response.body.end());
       CHECK(
         error_msg.find("Could not find matching user certificate") !=
@@ -768,11 +767,11 @@ TEST_CASE("Member caller")
   prepare_callers(network);
 
   ShareManager share_manager(network);
-  StubNodeState stub_node(share_manager);
+  StubNodeContext context;
 
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestMemberFrontend frontend(network, stub_node, share_manager);
+  TestMemberFrontend frontend(network, context, share_manager);
 
   SUBCASE("valid caller")
   {
@@ -790,15 +789,15 @@ TEST_CASE("Member caller")
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_FORBIDDEN);
+    CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
   }
 }
 
-TEST_CASE("MinimalEndpointFunction")
+TEST_CASE("JsonWrappedEndpointFunction")
 {
   NetworkState network;
   prepare_callers(network);
-  TestMinimalEndpointFunction frontend(*network.tables);
+  TestJsonWrappedEndpointFunction frontend(*network.tables);
   for (const auto pack_type : {serdes::Pack::Text, serdes::Pack::MsgPack})
   {
     {
@@ -807,10 +806,8 @@ TEST_CASE("MinimalEndpointFunction")
       const nlohmann::json j_body = {{"data", {"nested", "Some string"}},
                                      {"other", "Another string"}};
       const auto serialized_body = serdes::pack(j_body, pack_type);
-
-      auto [signed_call, signed_req] =
-        create_signed_request(echo_call, &serialized_body);
-      const auto serialized_call = signed_call.build_request();
+      echo_call.set_body(serialized_body.data(), serialized_body.size());
+      const auto serialized_call = echo_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
@@ -821,13 +818,18 @@ TEST_CASE("MinimalEndpointFunction")
     }
 
     {
-      INFO("Calling echo, with params in query");
-      auto echo_call = create_simple_request("echo", pack_type);
-      const nlohmann::json j_params = {{"foo", "helloworld"},
-                                       {"bar", 1},
-                                       {"fooz", "2"},
-                                       {"baz", "\"awkward\"\"escapes"}};
-      echo_call.set_query_params(j_params);
+      INFO("Calling echo_query, with params in query");
+      auto echo_call = create_simple_request("echo_parsed_query", pack_type);
+      const std::map<std::string, std::string> query_params = {
+        {"foo", "helloworld"},
+        {"bar", "1"},
+        {"fooz", "\"2\""},
+        {"baz", "\"awkward\"\"escapes"}};
+      for (const auto& [k, v] : query_params)
+      {
+        echo_call.set_query_param(k, v);
+      }
+
       const auto serialized_call = echo_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -835,15 +837,14 @@ TEST_CASE("MinimalEndpointFunction")
       CHECK(response.status == HTTP_STATUS_OK);
 
       const auto response_body = parse_response_body(response.body, pack_type);
-      CHECK(response_body == j_params);
+      const auto response_map = response_body.get<decltype(query_params)>();
+      CHECK(response_map == query_params);
     }
 
     {
       INFO("Calling get_caller");
-      auto get_caller = create_simple_request("get_caller", pack_type);
-
-      const auto [signed_call, signed_req] = create_signed_request(get_caller);
-      const auto serialized_call = signed_call.build_request();
+      const auto get_caller = create_simple_request("get_caller", pack_type);
+      const auto serialized_call = get_caller.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
@@ -857,9 +858,7 @@ TEST_CASE("MinimalEndpointFunction")
   {
     INFO("Calling failable, without failing");
     auto dont_fail = create_simple_request("failable");
-
-    const auto [signed_call, signed_req] = create_signed_request(dont_fail);
-    const auto serialized_call = signed_call.build_request();
+    const auto serialized_call = dont_fail.build_request();
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
     auto response = parse_response(frontend.process(rpc_ctx).value());
@@ -879,19 +878,18 @@ TEST_CASE("MinimalEndpointFunction")
       const nlohmann::json j_body = {
         {"error", {{"code", err}, {"message", msg}}}};
       const auto serialized_body = serdes::pack(j_body, default_pack);
-
-      const auto [signed_call, signed_req] =
-        create_signed_request(fail, &serialized_body);
-      const auto serialized_call = signed_call.build_request();
+      fail.set_body(serialized_body.data(), serialized_body.size());
+      const auto serialized_call = fail.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
       CHECK(response.status == err);
       CHECK(
         response.headers[http::headers::CONTENT_TYPE] ==
-        http::headervalues::contenttype::TEXT);
+        http::headervalues::contenttype::JSON);
       const std::string body_s(response.body.begin(), response.body.end());
-      CHECK(body_s == msg);
+      auto body_j = nlohmann::json::parse(body_s);
+      CHECK(body_j["error"]["message"] == msg);
     }
   }
 }
@@ -903,9 +901,9 @@ TEST_CASE("Restricted verbs")
   TestRestrictedVerbsFrontend frontend(*network.tables);
 
   for (auto verb = HTTP_DELETE; verb <= HTTP_SOURCE;
-       verb = (http_method)(size_t(verb) + 1))
+       verb = (llhttp_method)(size_t(verb) + 1))
   {
-    INFO(http_method_str(verb));
+    INFO(llhttp_method_name(verb));
 
     {
       http::Request get("get_only", verb);
@@ -923,7 +921,7 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(http_method_str(HTTP_GET)) != std::string::npos);
+        CHECK(v.find(llhttp_method_name(HTTP_GET)) != std::string::npos);
       }
     }
 
@@ -943,7 +941,7 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(http_method_str(HTTP_POST)) != std::string::npos);
+        CHECK(v.find(llhttp_method_name(HTTP_POST)) != std::string::npos);
       }
     }
 
@@ -964,9 +962,9 @@ TEST_CASE("Restricted verbs")
         const auto it = response.headers.find(http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
-        CHECK(v.find(http_method_str(HTTP_PUT)) != std::string::npos);
-        CHECK(v.find(http_method_str(HTTP_DELETE)) != std::string::npos);
-        CHECK(v.find(http_method_str(verb)) == std::string::npos);
+        CHECK(v.find(llhttp_method_name(HTTP_PUT)) != std::string::npos);
+        CHECK(v.find(llhttp_method_name(HTTP_DELETE)) != std::string::npos);
+        CHECK(v.find(llhttp_method_name(verb)) == std::string::npos);
       }
     }
   }
@@ -986,16 +984,16 @@ TEST_CASE("Explicit commitability")
 
   auto get_value = [&]() {
     auto tx = network.tables->create_tx();
-    auto view = tx.get_view(frontend.values);
-    auto actual_v = view->get(0).value();
+    auto values = tx.rw(frontend.values);
+    auto actual_v = values->get(0).value();
     return actual_v;
   };
 
   // Set initial value
   {
     auto tx = network.tables->create_tx();
-    tx.get_view(frontend.values)->put(0, next_value);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    tx.rw(frontend.values)->put(0, next_value);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
   for (const auto status : all_statuses)
@@ -1152,22 +1150,14 @@ TEST_CASE("Signed read requests can be executed on backup")
   prepare_callers(network);
   TestUserFrontend frontend(*network.tables);
 
-  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
-  auto [signed_call, signed_req] = create_signed_request();
+  auto signed_call = create_signed_request(user_caller);
   auto serialized_signed_call = signed_call.build_request();
   auto rpc_ctx =
     enclave::make_rpc_context(user_session, serialized_signed_call);
   auto response = parse_response(frontend.process(rpc_ctx).value());
-  if (response.status != HTTP_STATUS_OK)
-  {
-    std::cout << std::string(
-                   serialized_signed_call.begin(), serialized_signed_call.end())
-              << std::endl;
-    std::cout << std::string(response.body.begin(), response.body.end())
-              << std::endl;
-  }
   CHECK(response.status == HTTP_STATUS_OK);
 }
 
@@ -1181,13 +1171,13 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   TestForwardingUserFrontEnd user_frontend_primary(*network_primary.tables);
   TestForwardingUserFrontEnd user_frontend_backup(*network_backup.tables);
 
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr, ConsensusType::CFT);
-  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto simple_call = create_simple_request();
@@ -1234,16 +1224,14 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
-    auto [fwd_ctx, node_id] =
-      backup_forwarder
-        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-        .value();
+    auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
     {
       INFO("Invalid caller");
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(response.status == HTTP_STATUS_FORBIDDEN);
+      CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
     };
 
     prepare_callers(network_primary);
@@ -1257,60 +1245,6 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   {
-    INFO("Unauthenticated endpoint");
-    auto simple_call_no_auth = create_simple_request("empty_function_no_auth");
-    auto serialized_call_no_auth = simple_call_no_auth.build_request();
-
-    REQUIRE(channel_stub->is_empty());
-
-    {
-      INFO("Known caller");
-      auto ctx =
-        enclave::make_rpc_context(user_session, serialized_call_no_auth);
-
-      const auto r = user_frontend_backup.process(ctx);
-      REQUIRE(!r.has_value());
-      REQUIRE(channel_stub->size() == 1);
-      auto forwarded_msg = channel_stub->get_pop_back();
-
-      auto [fwd_ctx, node_id] =
-        backup_forwarder
-          ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-          .value();
-
-      auto response =
-        parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      CHECK(user_frontend_primary.last_caller_cert == user_caller);
-      CHECK(user_frontend_primary.last_caller_id == 0);
-    }
-
-    {
-      INFO("Unknown caller");
-      auto ctx =
-        enclave::make_rpc_context(invalid_session, serialized_call_no_auth);
-
-      const auto r = user_frontend_backup.process(ctx);
-      REQUIRE(!r.has_value());
-      REQUIRE(channel_stub->size() == 1);
-      auto forwarded_msg = channel_stub->get_pop_back();
-
-      auto [fwd_ctx, node_id] =
-        backup_forwarder
-          ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-          .value();
-
-      auto response =
-        parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      CHECK(user_frontend_primary.last_caller_cert == invalid_caller);
-      CHECK(user_frontend_primary.last_caller_id == INVALID_ID);
-    }
-  }
-
-  {
     INFO("Forwarding write command to a backup returns error");
     REQUIRE(channel_stub->is_empty());
 
@@ -1319,10 +1253,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
-    auto [fwd_ctx, node_id] =
-      backup_forwarder
-        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-        .value();
+    auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
     // Processing forwarded response by a backup frontend (here, the same
     // frontend that the command was originally issued to)
@@ -1351,7 +1283,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Client signature on forwarded RPC is recorded by primary");
 
     REQUIRE(channel_stub->is_empty());
-    auto [signed_call, signed_req] = create_signed_request();
+    auto signed_call = create_signed_request(user_caller);
     auto serialized_signed_call = signed_call.build_request();
     auto signed_ctx =
       enclave::make_rpc_context(user_session, serialized_signed_call);
@@ -1360,18 +1292,12 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
-    auto [fwd_ctx, node_id] =
-      backup_forwarder
-        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-        .value();
+    auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
-    user_frontend_primary.process_forwarded(fwd_ctx);
-
-    auto tx = network_primary.tables->create_tx();
-    auto client_sig_view = tx.get_view(network_primary.user_client_signatures);
-    auto client_sig = client_sig_view->get(user_id);
-    REQUIRE(client_sig.has_value());
-    REQUIRE(client_sig.value() == signed_req);
+    auto response =
+      parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 
   // On a session that was previously forwarded, and is now primary,
@@ -1397,20 +1323,20 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   prepare_callers(network_backup);
 
   ShareManager share_manager(network_primary);
-  StubNodeState stub_node(share_manager);
+  StubNodeContext context;
 
-  TestForwardingNodeFrontEnd node_frontend_primary(network_primary, stub_node);
-  TestForwardingNodeFrontEnd node_frontend_backup(network_backup, stub_node);
+  TestForwardingNodeFrontEnd node_frontend_primary(network_primary, context);
+  TestForwardingNodeFrontEnd node_frontend_backup(network_backup, context);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr, ConsensusType::CFT);
   node_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1424,17 +1350,15 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
-  auto [fwd_ctx, node_id] =
-    backup_forwarder
-      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-      .value();
+  auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+    kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(node_frontend_primary.process_forwarded(fwd_ctx));
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(node_frontend_primary.last_caller_cert == node_caller);
-  CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
+  CHECK(!node_frontend_primary.last_caller_id.has_value());
 }
 
 TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
@@ -1450,13 +1374,13 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr, ConsensusType::CFT);
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1468,17 +1392,15 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
-  auto [fwd_ctx, node_id] =
-    backup_forwarder
-      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-      .value();
+  auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+    kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(user_frontend_primary.last_caller_cert == user_caller);
-  CHECK(user_frontend_primary.last_caller_id == 0);
+  CHECK(user_frontend_primary.last_caller_id.value() == user_id);
 }
 
 TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
@@ -1490,21 +1412,21 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   prepare_callers(network_backup);
 
   ShareManager share_manager(network_primary);
-  StubNodeState stub_node(share_manager);
+  StubNodeContext context;
 
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network_primary.tables, network_primary, stub_node, share_manager);
+    *network_primary.tables, network_primary, context, share_manager);
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network_backup.tables, network_backup, stub_node, share_manager);
+    *network_backup.tables, network_backup, context, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     nullptr, channel_stub, nullptr, ConsensusType::CFT);
   member_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1516,90 +1438,113 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
-  auto [fwd_ctx, node_id] =
-    backup_forwarder
-      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-      .value();
+  auto fwd_ctx = backup_forwarder->recv_forwarded_command(
+    kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
 
   auto response =
     parse_response(member_frontend_primary.process_forwarded(fwd_ctx));
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(member_frontend_primary.last_caller_cert == member_caller);
-  CHECK(member_frontend_primary.last_caller_id == 0);
+  CHECK(member_frontend_primary.last_caller_id.value() == member_id);
 }
 
-class TestConflictFrontend : public SimpleUserRpcFrontend
+class TestConflictFrontend : public BaseTestFrontend
 {
 public:
   using Values = kv::Map<size_t, size_t>;
 
-  TestConflictFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestConflictFrontend(kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
-    auto conflict_once = [this](auto& args) {
-      static bool conflict_next = true;
-      if (conflict_next)
+    auto conflict = [this](auto& args) {
+      size_t retry_count =
+        std::stoi(args.rpc_ctx->get_request_header("test-retry-count")
+                    .value()); // This header only exists in the context of
+                               // this test
+
+      static size_t execution_count = 0;
+
+      auto conflict_map = args.tx.template rw<Values>("test_values_conflict");
+      conflict_map->get(0); // Record a read dependency
+
+      if (execution_count++ < retry_count)
       {
         // Warning: Never do this in a real application!
         // Create another transaction that conflicts with the frontend one
         auto tx = this->tables.create_tx();
-        auto view = tx.template get_view<Values>("test_values_conflict");
-        view->put(0, 42);
-        REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-        conflict_next = false;
+        auto conflict_map = tx.template rw<Values>("test_values_conflict");
+        conflict_map->put(0, 42);
+        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+        // Indicate that the execution conflicted
+        args.rpc_ctx->set_response_header("test-has-conflicted", "true");
+      }
+      else
+      {
+        // No response header if no conflict
+        execution_count = 0;
       }
 
-      auto view = args.tx.template get_view<Values>("test_values_conflict");
-      view->get(0); // Record a read dependency
-      view->put(0, 0);
+      args.rpc_ctx->set_response_header(
+        "test-execution-count", execution_count);
+
+      conflict_map->put(0, 0);
 
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("conflict_once", HTTP_POST, conflict_once).install();
+    make_endpoint("conflict", HTTP_POST, conflict).install();
   }
 };
 
-TEST_CASE("Signature is stored even after conflicts")
+TEST_CASE("Retry on conflict")
 {
   NetworkState network;
   prepare_callers(network);
-
   TestConflictFrontend frontend(*network.tables);
 
-  INFO("Check that no client signatures have been recorded");
+  auto req = create_simple_request("conflict");
+
+  constexpr size_t ccf_max_attempts = 30; // Defined by CCF (frontend.h)
+
+  INFO("Does not each execution limit");
   {
-    auto tx = network.tables->create_tx();
-    auto client_signatures_view = tx.get_view(network.user_client_signatures);
-    REQUIRE_FALSE(client_signatures_view->get(0).has_value());
+    size_t retry_count = ccf_max_attempts - 1;
+    req.set_header("test-retry-count", fmt::format("{}", retry_count));
+    auto serialized_call = req.build_request();
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+
+    // Response headers are cleared once conflict is resolved
+    CHECK(
+      response.headers.find("test-has-conflicted") == response.headers.end());
+    CHECK(response.headers["test-execution-count"] == "0");
   }
 
-  const auto unsigned_call = create_simple_request("conflict_once");
-  const auto [signed_call, signed_req] = create_signed_request(unsigned_call);
-  const auto serialized_signed_call = signed_call.build_request();
-
-  auto rpc_ctx =
-    enclave::make_rpc_context(user_session, serialized_signed_call);
-
-  const auto serialized_response = frontend.process(rpc_ctx).value();
-  auto response = parse_response(serialized_response);
-  REQUIRE(response.status == HTTP_STATUS_OK);
-
-  INFO("Check that a client signatures have been recorded");
+  INFO("Reaches execution limit");
   {
-    auto tx = network.tables->create_tx();
-    auto client_signatures_view = tx.get_view(network.user_client_signatures);
-    REQUIRE(client_signatures_view->get(0).has_value());
+    size_t retry_count = ccf_max_attempts + 1;
+    req.set_header("test-retry-count", fmt::format("{}", retry_count));
+    auto serialized_call = req.build_request();
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+
+    CHECK(response.headers["test-has-conflicted"] == "true");
+    CHECK(
+      response.headers["test-execution-count"] ==
+      fmt::format("{}", ccf_max_attempts));
   }
 }
 
-// We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {
   doctest::Context context;
   context.applyCommandLine(argc, argv);
-  ::EverCrypt_AutoConfig2_init();
   int res = context.run();
   if (context.shouldExit())
     return res;

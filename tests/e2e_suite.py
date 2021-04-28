@@ -9,21 +9,33 @@ import infra.logging_app as app
 import time
 import json
 import sys
-from enum import Enum
+from enum import Enum, auto
 import random
 import os
+import re
 
 from loguru import logger as LOG
 
 
 class TestStatus(Enum):
-    success = 1
-    failure = 2
-    skipped = 3
+    success = auto()
+    failure = auto()
+    skipped = auto()
+
+
+def mem_stats(network):
+    mem = {}
+    for node in network.get_joined_nodes():
+        try:
+            with node.client() as c:
+                r = c.get("/node/memory", 0.1)
+                mem[node.node_id] = r.body.json()
+        except Exception:
+            pass
+    return mem
 
 
 def run(args):
-
     chosen_suite = []
 
     if not args.test_suite:
@@ -61,7 +73,17 @@ def run(args):
     success = True
     elapsed = args.test_duration
 
-    for i, test in enumerate(chosen_suite):
+    if args.filter is not None:
+        filter_re = re.compile(args.filter)
+
+        def filter_fun(x):
+            return filter_re is None or filter_re.match(x[1].__name__)
+
+        tests_to_run = filter(filter_fun, enumerate(chosen_suite))
+    else:
+        tests_to_run = enumerate(chosen_suite)
+
+    for i, test in tests_to_run:
         status = None
         reason = None
 
@@ -95,6 +117,7 @@ def run(args):
             "name": s.test_name(test),
             "status": status.name,
             "elapsed (s)": round(test_elapsed, 2),
+            "memory": mem_stats(new_network),
         }
 
         if reason is not None:
@@ -104,10 +127,8 @@ def run(args):
         if new_network is None:
             raise ValueError(f"Network returned by {s.test_name(test)} is None")
 
-        # If the network was changed (e.g. recovery test), stop the previous network
-        # and use the new network from now on
+        # If the network was changed (e.g. recovery test), use the new network from now on
         if new_network != network:
-            network.stop_all_nodes()
             network = new_network
 
         LOG.debug(f"Test {s.test_name(test)} took {test_elapsed:.2f} secs")
@@ -155,9 +176,15 @@ if __name__ == "__main__":
             action="append",
             choices=s.suites.keys(),
         )
+        parser.add_argument(
+            "--filter",
+            help="Regular expression specifying which tests of a test suite to run",
+            type=str,
+            default=None,
+        )
 
     args = infra.e2e_args.cli_args(add)
-    args.package = args.app_script and "liblua_generic" or "liblogging"
+    args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
-
+    args.initial_user_count = 3
     run(args)

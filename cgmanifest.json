@@ -13,17 +13,8 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/lua/lua.git",
-          "commitHash": "88ff582fd8f94dd8ba751142f12bc048815ae20e"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "1c8da00c978c19e00a434b2b1f854fcffc9fba35"
+          "commitHash": "97d5a9447e66cd5e107b7a6c463be4a468a40496"
         }
       }
     },
@@ -68,7 +59,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "cd4af11efc9c622896a3e4cb599fa28668ca3d05"
+          "commitHash": "7bdf0628b1276379886c7f6dda2cef2b3b374f0b"
         }
       }
     },
@@ -76,27 +67,8 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/nodejs/http-parser",
-          "commitHash": "2343fd6b5214b2ded2cdcf76de2bf60903bb90cd"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/project-everest/hacl-star",
-          "commitHash": "983baba407d2c91134ee270656a3d2c35683e1ff"
-        }
-      }
-    },
-    {
-      "Component": {
-        "Type": "other",
-        "Other": {
-          "Name": "QuickJS",
-          "Version": "2020-09-06",
-          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-09-06.tar.xz"
+          "repositoryUrl": "https://github.com/bellard/quickjs",
+          "commitHash": "b5e62895c619d4ffc75c9d822c8d85f1ece77e5b"
         }
       }
     },
@@ -105,7 +77,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/snmalloc",
-          "commitHash": "4e1f5829a754ab9c170ec090979d3a670d2d5d1a"
+          "commitHash": "a3660c40690252e6bab884108f82e1ca822bc458"
         }
       }
     },
@@ -142,6 +114,33 @@
         "git": {
           "repositoryUrl": "https://github.com/rollbear/trompeloeil",
           "commitHash": "08cba57ed7207c8ad5c94fd2a20dc0bfecabe878"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/nodejs/llhttp",
+          "commitHash": "3523423483a61179f47cc7ff0da012fb6f81ec1b"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/microsoft/merklecpp",
+          "commitHash": "5b2be3862f29f13412bffa5f210658adbf0456e2"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/evanj/tpccbench",
+          "commitHash": "715f394ade83e545ffc0aa79c14fefc1c0987f21"
         }
       }
     }

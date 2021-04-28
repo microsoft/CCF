@@ -1,24 +1,45 @@
 {
   "components": {
     "schemas": {
-      "CallerInfo": {
+      "Action": {
         "properties": {
-          "caller_id": {
-            "$ref": "#/components/schemas/uint64"
+          "args": {
+            "$ref": "#/components/schemas/json"
+          },
+          "name": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
-          "caller_id"
+          "name",
+          "args"
+        ],
+        "type": "object"
+      },
+      "Action_array": {
+        "items": {
+          "$ref": "#/components/schemas/Action"
+        },
+        "type": "array"
+      },
+      "Ballot": {
+        "properties": {
+          "ballot": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "ballot"
         ],
         "type": "object"
       },
       "CodeStatus": {
         "enum": [
-          "ACCEPTED",
-          "RETIRED"
-        ]
+          "AllowedToJoin"
+        ],
+        "type": "string"
       },
-      "EndpointMetrics__Metric": {
+      "EndpointMetrics__Entry": {
         "properties": {
           "calls": {
             "$ref": "#/components/schemas/uint64"
@@ -28,23 +49,78 @@
           },
           "failures": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "method": {
+            "$ref": "#/components/schemas/string"
+          },
+          "path": {
+            "$ref": "#/components/schemas/string"
+          },
+          "retries": {
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
+          "path",
+          "method",
           "calls",
           "errors",
-          "failures"
+          "failures",
+          "retries"
         ],
         "type": "object"
+      },
+      "EndpointMetrics__Entry_array": {
+        "items": {
+          "$ref": "#/components/schemas/EndpointMetrics__Entry"
+        },
+        "type": "array"
       },
       "EndpointMetrics__Out": {
         "properties": {
           "metrics": {
-            "$ref": "#/components/schemas/named_named_EndpointMetrics__Metric"
+            "$ref": "#/components/schemas/EndpointMetrics__Entry_array"
           }
         },
         "required": [
           "metrics"
+        ],
+        "type": "object"
+      },
+      "EntityId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "EntityId_to_Failure": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Failure"
+        },
+        "type": "object"
+      },
+      "EntityId_to_boolean": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/boolean"
+        },
+        "type": "object"
+      },
+      "EntityId_to_string": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/string"
+        },
+        "type": "object"
+      },
+      "Failure": {
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/string"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "reason"
         ],
         "type": "object"
       },
@@ -82,164 +158,23 @@
       },
       "GetCommit__Out": {
         "properties": {
-          "seqno": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "view": {
-            "$ref": "#/components/schemas/int64"
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
           }
         },
         "required": [
-          "view",
-          "seqno"
+          "transaction_id"
         ],
         "type": "object"
       },
-      "GetMetrics__HistogramResults": {
+      "GetRecoveryShare__Out": {
         "properties": {
-          "buckets": {
-            "$ref": "#/components/schemas/json"
-          },
-          "high": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "low": {
-            "$ref": "#/components/schemas/int32"
-          },
-          "overflow": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "underflow": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "low",
-          "high",
-          "overflow",
-          "underflow",
-          "buckets"
-        ],
-        "type": "object"
-      },
-      "GetMetrics__Out": {
-        "properties": {
-          "histogram": {
-            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
-          },
-          "tx_rates": {
-            "$ref": "#/components/schemas/json"
-          }
-        },
-        "required": [
-          "histogram",
-          "tx_rates"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo": {
-        "properties": {
-          "host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "port": {
+          "encrypted_share": {
             "$ref": "#/components/schemas/string"
           }
         },
         "required": [
-          "node_id",
-          "host",
-          "port"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo"
-        },
-        "type": "array"
-      },
-      "GetNetworkInfo__Out": {
-        "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo_array"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "nodes",
-          "primary_id"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo": {
-        "properties": {
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "status": {
-            "$ref": "#/components/schemas/NodeStatus"
-          }
-        },
-        "required": [
-          "node_id",
-          "status"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo"
-        },
-        "type": "array"
-      },
-      "GetNodesByRPCAddress__Out": {
-        "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo_array"
-          }
-        },
-        "required": [
-          "nodes"
-        ],
-        "type": "object"
-      },
-      "GetPrimaryInfo__Out": {
-        "properties": {
-          "current_view": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "primary_host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "primary_port": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "primary_id",
-          "primary_host",
-          "primary_port",
-          "current_view"
-        ],
-        "type": "object"
-      },
-      "GetReceipt__Out": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
+          "encrypted_share"
         ],
         "type": "object"
       },
@@ -247,114 +182,142 @@
         "properties": {
           "status": {
             "$ref": "#/components/schemas/TxStatus"
+          },
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
           }
         },
         "required": [
+          "transaction_id",
           "status"
         ],
         "type": "object"
       },
-      "KVRead__In": {
-        "properties": {
-          "key": {
-            "$ref": "#/components/schemas/json"
-          },
-          "table": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "table",
-          "key"
-        ],
-        "type": "object"
-      },
-      "NodeStatus": {
-        "enum": [
-          "PENDING",
-          "TRUSTED",
-          "RETIRED"
-        ]
-      },
       "Proposal": {
         "properties": {
-          "parameter": {
-            "$ref": "#/components/schemas/json"
-          },
-          "proposer": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "script": {
-            "$ref": "#/components/schemas/Script"
-          },
-          "state": {
-            "$ref": "#/components/schemas/ProposalState"
-          },
-          "votes": {
-            "$ref": "#/components/schemas/uint64_to_Script"
+          "actions": {
+            "$ref": "#/components/schemas/Action_array"
           }
         },
         "required": [
-          "script",
-          "parameter",
-          "proposer",
-          "state",
-          "votes"
+          "actions"
         ],
         "type": "object"
       },
       "ProposalInfo": {
         "properties": {
-          "proposal_id": {
-            "$ref": "#/components/schemas/uint64"
+          "ballots": {
+            "$ref": "#/components/schemas/EntityId_to_string"
+          },
+          "failure": {
+            "$ref": "#/components/schemas/Failure"
+          },
+          "final_votes": {
+            "$ref": "#/components/schemas/EntityId_to_boolean"
           },
           "proposer_id": {
-            "$ref": "#/components/schemas/uint64"
+            "$ref": "#/components/schemas/EntityId"
           },
           "state": {
             "$ref": "#/components/schemas/ProposalState"
+          },
+          "vote_failures": {
+            "$ref": "#/components/schemas/EntityId_to_Failure"
+          }
+        },
+        "required": [
+          "proposer_id",
+          "state",
+          "ballots"
+        ],
+        "type": "object"
+      },
+      "ProposalInfoSummary": {
+        "properties": {
+          "ballot_count": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "failure": {
+            "$ref": "#/components/schemas/Failure"
+          },
+          "proposal_id": {
+            "$ref": "#/components/schemas/string"
+          },
+          "proposer_id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProposalState"
+          },
+          "vote_failures": {
+            "$ref": "#/components/schemas/EntityId_to_Failure"
+          },
+          "votes": {
+            "$ref": "#/components/schemas/EntityId_to_boolean"
           }
         },
         "required": [
           "proposal_id",
           "proposer_id",
-          "state"
+          "state",
+          "ballot_count"
         ],
         "type": "object"
       },
       "ProposalState": {
         "enum": [
-          "OPEN",
-          "ACCEPTED",
-          "WITHDRAWN",
-          "REJECTED",
-          "FAILED"
-        ]
+          "Open",
+          "Accepted",
+          "Withdrawn",
+          "Rejected",
+          "Failed",
+          "Dropped"
+        ],
+        "type": "string"
       },
-      "Propose__In": {
+      "Receipt": {
         "properties": {
-          "parameter": {
-            "$ref": "#/components/schemas/json"
+          "leaf": {
+            "$ref": "#/components/schemas/string"
           },
-          "script": {
-            "$ref": "#/components/schemas/Script"
+          "node_id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/Receipt__Element_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
-          "script"
+          "signature",
+          "root",
+          "proof",
+          "leaf",
+          "node_id"
         ],
         "type": "object"
       },
-      "Script": {
+      "Receipt__Element": {
         "properties": {
-          "bytecode": {
-            "$ref": "#/components/schemas/uint8_array"
+          "left": {
+            "$ref": "#/components/schemas/string"
           },
-          "text": {
+          "right": {
             "$ref": "#/components/schemas/string"
           }
         },
         "type": "object"
+      },
+      "Receipt__Element_array": {
+        "items": {
+          "$ref": "#/components/schemas/Receipt__Element"
+        },
+        "type": "array"
       },
       "StateDigest": {
         "properties": {
@@ -367,73 +330,45 @@
         ],
         "type": "object"
       },
+      "SubmitRecoveryShare__In": {
+        "properties": {
+          "share": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "share"
+        ],
+        "type": "object"
+      },
+      "SubmitRecoveryShare__Out": {
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "TransactionId": {
+        "pattern": "^[0-9]+\\.[0-9]+$",
+        "type": "string"
+      },
       "TxStatus": {
         "enum": [
-          "UNKNOWN",
-          "PENDING",
-          "COMMITTED",
-          "INVALID"
-        ]
-      },
-      "VerifyReceipt__In": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
+          "Unknown",
+          "Pending",
+          "Committed",
+          "Invalid"
         ],
-        "type": "object"
-      },
-      "VerifyReceipt__Out": {
-        "properties": {
-          "valid": {
-            "$ref": "#/components/schemas/boolean"
-          }
-        },
-        "required": [
-          "valid"
-        ],
-        "type": "object"
-      },
-      "Vote": {
-        "properties": {
-          "ballot": {
-            "$ref": "#/components/schemas/Script"
-          }
-        },
-        "required": [
-          "ballot"
-        ],
-        "type": "object"
+        "type": "string"
       },
       "boolean": {
         "type": "boolean"
       },
-      "int32": {
-        "maximum": 2147483647,
-        "minimum": -2147483648,
-        "type": "integer"
-      },
-      "int64": {
-        "maximum": 9223372036854775807,
-        "minimum": -9223372036854775808,
-        "type": "integer"
-      },
       "json": {},
-      "named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
-      "named_named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/named_EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
       "string": {
         "type": "string"
       },
@@ -441,35 +376,13 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
-      },
-      "uint64_to_Script": {
-        "items": {
-          "items": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/uint64"
-              },
-              {
-                "$ref": "#/components/schemas/Script"
-              }
-            ]
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
-        },
-        "type": "array"
-      },
-      "uint8": {
-        "maximum": 255,
-        "minimum": 0,
-        "type": "integer"
-      },
-      "uint8_array": {
-        "items": {
-          "$ref": "#/components/schemas/uint8"
-        },
-        "type": "array"
+      }
+    },
+    "securitySchemes": {
+      "member_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
       }
     }
   },
@@ -493,17 +406,15 @@
           "description": "Auto-generated request body schema"
         },
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/boolean"
-                }
-              }
-            },
+          "204": {
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/ack/update_state_digest": {
@@ -519,7 +430,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/api": {
@@ -530,6 +446,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/api/metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointMetrics__Out"
                 }
               }
             },
@@ -570,52 +502,15 @@
         }
       }
     },
-    "/create": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/endpoint_metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EndpointMetrics__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/local_tx": {
       "get": {
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "transaction_id",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "view",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -633,100 +528,39 @@
         }
       }
     },
-    "/metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetMetrics__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/network_info": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetNetworkInfo__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/node/ids": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "host",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "port",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetNodesByRPCAddress__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/primary_info": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetPrimaryInfo__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
     "/proposals": {
       "post": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Propose__In"
+                "$ref": "#/components/schemas/Proposal"
               }
             }
           },
           "description": "Auto-generated request body schema"
         },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalInfoSummary"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
+      }
+    },
+    "/proposals/{proposal_id}": {
+      "get": {
         "responses": {
           "200": {
             "content": {
@@ -738,23 +572,12 @@
             },
             "description": "Default response description"
           }
-        }
-      }
-    },
-    "/proposals/{proposal_id}": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Proposal"
-                }
-              }
-            },
-            "description": "Default response description"
+        },
+        "security": [
+          {
+            "member_signature": []
           }
-        }
+        ]
       },
       "parameters": [
         {
@@ -767,7 +590,26 @@
         }
       ]
     },
-    "/proposals/{proposal_id}/complete": {
+    "/proposals/{proposal_id}/actions": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proposal"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
+      },
       "parameters": [
         {
           "in": "path",
@@ -777,23 +619,9 @@
             "type": "string"
           }
         }
-      ],
-      "post": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProposalInfo"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
+      ]
     },
-    "/proposals/{proposal_id}/votes": {
+    "/proposals/{proposal_id}/ballots": {
       "parameters": [
         {
           "in": "path",
@@ -809,7 +637,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Vote"
+                "$ref": "#/components/schemas/Ballot"
               }
             }
           },
@@ -820,29 +648,39 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProposalInfo"
+                  "$ref": "#/components/schemas/ProposalInfoSummary"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
-    "/proposals/{proposal_id}/votes/{member_id}": {
+    "/proposals/{proposal_id}/ballots/{member_id}": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Vote"
+                  "$ref": "#/components/schemas/Ballot"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       },
       "parameters": [
         {
@@ -886,59 +724,12 @@
             },
             "description": "Default response description"
           }
-        }
-      }
-    },
-    "/query": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Script"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
         },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
-              }
-            },
-            "description": "Default response description"
+        "security": [
+          {
+            "member_signature": []
           }
-        }
-      }
-    },
-    "/read": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/KVRead__In"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/json"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
+        ]
       }
     },
     "/receipt": {
@@ -946,12 +737,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "commit",
-            "required": false,
+            "name": "transaction_id",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -960,33 +749,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetReceipt__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/receipt/verify": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyReceipt__In"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VerifyReceipt__Out"
+                  "$ref": "#/components/schemas/Receipt"
                 }
               }
             },
@@ -1002,20 +765,25 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "$ref": "#/components/schemas/GetRecoveryShare__Out"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       },
       "post": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/string"
+                "$ref": "#/components/schemas/SubmitRecoveryShare__In"
               }
             }
           },
@@ -1026,13 +794,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string"
+                  "$ref": "#/components/schemas/SubmitRecoveryShare__Out"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "member_signature": []
+          }
+        ]
       }
     },
     "/tx": {
@@ -1040,22 +813,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "transaction_id",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "view",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -1065,32 +826,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetTxStatus__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/user_id": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "cert",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallerInfo"
                 }
               }
             },

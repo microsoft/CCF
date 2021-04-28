@@ -21,7 +21,7 @@ setup(
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/microsoft/CCF/tree/master/python",
+    url="https://github.com/microsoft/CCF/tree/main/python",
     license="Apache License 2.0",
     author="CCF Team",
     classifiers=[
@@ -34,6 +34,7 @@ setup(
     install_requires=requirements,
     scripts=[
         path.join(PACKAGE_NAME, "proposal_generator.py"),
+        path.join(PACKAGE_NAME, "read_ledger.py"),
         path.join(UTILITIES_PATH, "keygenerator.sh"),
         path.join(UTILITIES_PATH, "scurl.sh"),
         path.join(UTILITIES_PATH, "submit_recovery_share.sh"),

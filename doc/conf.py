@@ -16,6 +16,10 @@
 #
 import os
 import sys
+import subprocess
+import pathlib
+
+from docutils import nodes
 
 sys.path.insert(0, os.path.abspath("../python"))
 
@@ -54,6 +58,7 @@ extensions = [
     "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinxcontrib.openapi",
+    "sphinx_panels"
 ]
 
 autosectionlabel_prefix_document = True
@@ -113,8 +118,12 @@ html_static_path = ["_static"]
 # 'searchbox.html']``.
 #
 html_sidebars = {
-    "**": ["sidebar-search-bs.html", "sidebar-nav-bs.html"],
+    "**": ["sidebar-nav-bs.html", "search-field.html"]
 }
+
+html_css_files = [
+    "css/custom.css",
+]
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
@@ -188,8 +197,9 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-smv_tag_whitelist = r"^ccf-.*$"
-smv_branch_whitelist = r"^master$"
+# Build tags from ccf-0.16.3 onwards
+smv_tag_whitelist = r"^ccf-(0\.(1([6-9]\.[3-9]|[7-9].*)|[2-9].*)|[1-9].*)$"
+smv_branch_whitelist = r"^main$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
@@ -206,7 +216,7 @@ html_theme_options = {
 html_context = {
     "github_user": "Microsoft",
     "github_repo": "CCF",
-    "github_version": "master",
+    "github_version": "main",
     "doc_path": "doc/",
 }
 
@@ -221,13 +231,141 @@ spelling_lang = "en_UK"
 tokenizer_lang = "en_UK"
 spelling_word_list_filename = ["spelling_wordlist.txt"]
 
+# sphinx_js options (CCF 0.19.1 - 0.19.3)
+# From 0.19.4 onwards, typedoc is used to generate HTML.
+# Note that sphinx_js is enabled dynamically in setup().
+js_language = "typescript"
+js_source_path = "../src/js"
+jsdoc_config_path = "../src/js/tsconfig.json"
 
-def setup(self):
-    import subprocess
-    import pathlib
+# sphinxcontrib-mermaid options
+# NB: The docs say the <script> tag will no longer be needed
+# from 0.7, but this is not yet released
+mermaid_init_js = """<script>
+mermaid.initialize({startOnLoad:true});
 
-    srcdir = pathlib.Path(self.srcdir)
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);
+</script>"""
 
+def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]):
+    """
+    Supported syntaxes:
+    :typedoc:package:`ccf-app`
+    :typedoc:module:`ccf-app/global`
+    :typedoc:function:`ccf-app/crypto#wrapKey`
+    :typedoc:interface:`ccf-app/endpoints/Body`
+    :typedoc:class:`ccf-app/kv/TypedKvMap`
+    :typedoc:classmethod:`ccf-app/kv/TypedKvMap#delete`
+    :typedoc:interfacemethod:`ccf-app/endpoints/Body#json`
+    :typedoc:interface:`Body <ccf-app/endpoints/Body>`
+    """
+    # check for custom label
+    if '<' in text:
+        label, text = text.split(' <')
+        text = text[:-1]
+    else:
+        label = text
+    
+    # extract hash if any, has to be appended after .html later on
+    text_without_hash, *hash_name = text.split('#')
+    url_hash = f'#{hash_name[0].lower()}' if hash_name else ''
+    
+    # translate role kind into typedoc subfolder
+    # and add '()' for functions/methods
+    kind_name = name.replace('typedoc:', '')
+    is_kind_package = False
+    if kind_name == 'package':
+        is_kind_package = True
+    elif kind_name in ['module', 'interface']:
+        kind_name += 's'
+    elif kind_name == 'class':
+        kind_name += 'es'
+    elif kind_name == 'function':
+        kind_name = 'modules'
+        label += '()'
+    elif kind_name == 'classmethod':
+        kind_name = 'classes'
+        label += '()'
+    elif kind_name == 'interfacemethod':
+        kind_name = 'interfaces'
+        label += '()'
+    else:
+        raise ValueError(f'unknown typedoc kind: {kind_name}')
+
+    # build typedoc url relative to doc root
+    pkg_name, *element_path = text_without_hash.split('/')
+    typedoc_path = f'js/{pkg_name}'
+    if not is_kind_package:
+        element_path = '.'.join(element_path).lower()
+        typedoc_path += f'/{kind_name}/{element_path}.html{url_hash}'
+
+    # construct final url relative to current page
+    source = inliner.document.attributes['source']
+    rel_source = source.split('/doc/', 1)[1]
+    levels = rel_source.count('/')
+    refuri = '../' * levels + typedoc_path
+
+    # build docutils node
+    text_node = nodes.literal(label, label, classes=['xref'])
+    ref_node = nodes.reference('', '', refuri=refuri)
+    ref_node += text_node
+    
+    return [ref_node], []
+
+
+def config_inited(app, config):
+    # anything that needs to access app.config goes here
+
+    srcdir = pathlib.Path(app.srcdir)
+    outdir = pathlib.Path(app.outdir)
+
+    # typedoc (CCF 0.19.4 onwards)
+    js_pkg_dir = srcdir / ".." / "js" / "ccf-app"
+    js_docs_dir = outdir / "js" / "ccf-app"
+    if js_pkg_dir.exists():
+        # make versions.json from sphinx-multiversion available
+        if app.config.smv_metadata_path:
+            os.environ['SMV_METADATA_PATH'] = app.config.smv_metadata_path
+            os.environ['SMV_CURRENT_VERSION'] = app.config.smv_current_version
+        subprocess.run(["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
+                       cwd=js_pkg_dir, check=True)
+        subprocess.run(["npm", "run", "docs", "--", "--out", str(js_docs_dir)],
+                       cwd=js_pkg_dir, check=True)    
+        # allow to link to typedoc pages
+        for kind in ['package', 'module', 'interface', 'class', 'function',
+                     'interfacemethod', 'classmethod']:
+            app.add_role(f'typedoc:{kind}', typedoc_role)
+
+def setup(app):
+    app.connect("config-inited", config_inited)
+
+    srcdir = pathlib.Path(app.srcdir)
+
+    # doxygen
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
         subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
+
+    # sphinx_js (CCF 0.19.1 - 0.19.3)
+    global js_source_path
+    global jsdoc_config_path
+    js_source_path = str(srcdir / js_source_path)
+    jsdoc_config_path = str(srcdir / jsdoc_config_path)
+    if os.path.exists(jsdoc_config_path):
+        subprocess.run(["npm", "install", "--no-package-lock", "--no-audit", "--no-fund",
+                        "typescript@4.0.7", "typedoc@0.19.2"],
+                       cwd=srcdir / "..", check=True)
+        os.environ['PATH'] += os.pathsep + str(srcdir / ".." / "node_modules" / ".bin")
+        app.setup_extension("sphinx_js")

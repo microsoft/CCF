@@ -2,10 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
+#include "node/config.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
+#include "tls/base64.h"
 
 #include <nlohmann/json.hpp>
 #include <openenclave/advanced/mallinfo.h>
@@ -20,7 +22,8 @@ namespace ccf
     partOfPublicNetwork,
     partOfNetwork,
     readingPublicLedger,
-    readingPrivateLedger
+    readingPrivateLedger,
+    verifyingSnapshot
   };
 
   struct GetState
@@ -29,9 +32,10 @@ namespace ccf
 
     struct Out
     {
-      ccf::NodeId id;
+      ccf::NodeId node_id;
       ccf::State state;
       kv::Version last_signed_seqno;
+      kv::Version startup_seqno;
 
       // Only on recovery
       std::optional<kv::Version> recovery_target_seqno;
@@ -39,39 +43,20 @@ namespace ccf
     };
   };
 
-  struct GetQuotes
-  {
-    using In = void;
-
-    struct Quote
-    {
-      NodeId node_id = {};
-      std::string raw = {}; // < Hex-encoded
-
-      std::string error = {};
-      std::string mrenclave = {}; // < Hex-encoded
-    };
-
-    struct Out
-    {
-      std::vector<Quote> quotes;
-    };
-  };
-
   struct CreateNetworkNodeToNode
   {
     struct In
     {
-      std::vector<MemberPubInfo> members_info;
-      std::string gov_script;
-      tls::Pem node_cert;
-      tls::Pem network_cert;
-      std::vector<uint8_t> quote;
-      tls::Pem public_encryption_key;
-      std::vector<uint8_t> code_digest;
+      std::vector<NewMember> members_info;
+      std::string constitution;
+      NodeId node_id;
+      crypto::Pem node_cert;
+      crypto::Pem network_cert;
+      QuoteInfo quote_info;
+      crypto::Pem public_encryption_key;
+      CodeDigest code_digest;
       NodeInfoNetwork node_info_network;
-      ConsensusType consensus_type = ConsensusType::CFT;
-      size_t recovery_threshold;
+      ServiceConfiguration configuration;
     };
   };
 
@@ -80,15 +65,16 @@ namespace ccf
     struct In
     {
       NodeInfoNetwork node_info_network;
-      std::vector<uint8_t> quote;
-      tls::Pem public_encryption_key;
+      QuoteInfo quote_info;
+      crypto::Pem public_encryption_key;
       ConsensusType consensus_type = ConsensusType::CFT;
+      std::optional<kv::Version> startup_seqno = std::nullopt;
     };
 
     struct Out
     {
       NodeStatus node_status;
-      NodeId node_id;
+      NodeId node_id; // Only used in BFT
 
       // Only if the caller node is trusted
       struct NetworkInfo
@@ -97,7 +83,7 @@ namespace ccf
         kv::Version last_recovered_signed_idx = kv::NoVersion;
         ConsensusType consensus_type = ConsensusType::CFT;
 
-        LedgerSecrets ledger_secrets;
+        LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;
 
         bool operator==(const NetworkInfo& other) const

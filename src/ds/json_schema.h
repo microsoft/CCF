@@ -96,24 +96,24 @@ namespace ds
       }
       else if constexpr (nonstd::is_specialization<T, std::vector>::value)
       {
-        return fmt::format("{}_array", schema_name<typename T::value_type>());
+        if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
+        {
+          // Byte vectors are always base64 encoded
+          return "base64string";
+        }
+        else
+        {
+          return fmt::format("{}_array", schema_name<typename T::value_type>());
+        }
       }
       else if constexpr (
         nonstd::is_specialization<T, std::map>::value ||
         nonstd::is_specialization<T, std::unordered_map>::value)
       {
-        if (std::is_same<typename T::key_type, std::string>::value)
-        {
-          return fmt::format(
-            "named_{}", schema_name<typename T::mapped_type>());
-        }
-        else
-        {
-          return fmt::format(
-            "{}_to_{}",
-            schema_name<typename T::key_type>(),
-            schema_name<typename T::mapped_type>());
-        }
+        return fmt::format(
+          "{}_to_{}",
+          schema_name<typename T::key_type>(),
+          schema_name<typename T::mapped_type>());
       }
       else if constexpr (nonstd::is_specialization<T, std::pair>::value)
       {
@@ -193,17 +193,28 @@ namespace ds
       }
       else if constexpr (nonstd::is_specialization<T, std::vector>::value)
       {
-        schema["type"] = "array";
-        schema["items"] = schema_element<typename T::value_type>();
+        if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
+        {
+          // Byte vectors are always base64 encoded
+          schema["type"] = "string";
+          schema["format"] = "base64";
+        }
+        else
+        {
+          schema["type"] = "array";
+          schema["items"] = schema_element<typename T::value_type>();
+        }
       }
       else if constexpr (
         nonstd::is_specialization<T, std::map>::value ||
         nonstd::is_specialization<T, std::unordered_map>::value)
       {
-        // Nlohmann serialises maps to an array of (K, V) pairs...
-        if (std::is_same<typename T::key_type, std::string>::value)
+        // Nlohmann JSON serialises some maps as objects, if the keys can be
+        // converted to strings. This should detect those cases. The others are
+        // serialised as list-of-pairs
+        if constexpr (nlohmann::detail::
+                        is_compatible_object_type<nlohmann::json, T>::value)
         {
-          // ...unless the keys are strings!
           schema["type"] = "object";
           schema["additionalProperties"] =
             schema_element<typename T::mapped_type>();
@@ -264,10 +275,14 @@ namespace ds
     }
 
     template <typename T>
-    inline nlohmann::json build_schema(const std::string& title)
+    inline nlohmann::json build_schema(const std::string& title = "")
     {
-      nlohmann::json schema;
-      schema["title"] = title;
+      auto schema = nlohmann::json::object();
+
+      if (!title.empty())
+      {
+        schema["title"] = title;
+      }
 
       fill_schema<T>(schema);
 

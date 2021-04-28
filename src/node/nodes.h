@@ -1,11 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
+#include "ccf/entity_id.h"
 #include "entities.h"
 #include "kv/map.h"
 #include "node_info_network.h"
+#include "quote_info.h"
+#include "service_map.h"
 
-#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
@@ -19,30 +22,34 @@ namespace ccf
   };
   DECLARE_JSON_ENUM(
     NodeStatus,
-    {{NodeStatus::PENDING, "PENDING"},
-     {NodeStatus::TRUSTED, "TRUSTED"},
-     {NodeStatus::RETIRED, "RETIRED"}});
+    {{NodeStatus::PENDING, "Pending"},
+     {NodeStatus::TRUSTED, "Trusted"},
+     {NodeStatus::RETIRED, "Retired"}});
 }
-
-MSGPACK_ADD_ENUM(ccf::NodeStatus);
 
 namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
   {
-    tls::Pem cert;
-    std::vector<uint8_t> quote;
-    tls::Pem encryption_pub_key;
+    /// Node certificate
+    crypto::Pem cert;
+    /// Node enclave quote
+    QuoteInfo quote_info;
+    /// Node encryption public key, used to distribute ledger re-keys.
+    crypto::Pem encryption_pub_key;
+    /// Node status
     NodeStatus status = NodeStatus::PENDING;
 
-    MSGPACK_DEFINE(
-      MSGPACK_BASE(NodeInfoNetwork), cert, quote, encryption_pub_key, status);
+    /** Set to the seqno of the latest ledger secret at the time the node is
+        trusted */
+    std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(NodeInfo, NodeInfoNetwork);
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfo, cert, quote, encryption_pub_key, status);
+    NodeInfo, cert, quote_info, encryption_pub_key, status);
+  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno);
 
-  using Nodes = kv::Map<NodeId, NodeInfo>;
+  using Nodes = ServiceMap<NodeId, NodeInfo>;
 }
 
 FMT_BEGIN_NAMESPACE

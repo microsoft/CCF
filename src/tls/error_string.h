@@ -12,6 +12,12 @@ namespace tls
     constexpr size_t len = 256;
     char buf[len];
     mbedtls_strerror(err, buf, len);
+
+    if (strlen(buf) == 0)
+    {
+      return std::to_string(err);
+    }
+
     return std::string(buf);
   }
 }

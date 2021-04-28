@@ -1,10 +1,11 @@
 pr:
   branches:
     include:
-      - master
+      - main
   paths:
     include:
       - .stress.yml
+      - .stress-matrix.yml
       - .azure-pipelines-templates/*
 
 trigger: none
@@ -14,13 +15,13 @@ schedules:
     displayName: Stress test build
     branches:
       include:
-        - master
+        - main
     always: true
 
 resources:
   containers:
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.12.0
+      image: ccfciteam/ccf-ci:oe0.15.0
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:

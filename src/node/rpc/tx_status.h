@@ -2,15 +2,32 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/tx_id.h"
 #include "ds/json.h"
 
 namespace ccf
 {
+  /** Describes the status of a transaction, as seen by this node.
+   */
   enum class TxStatus
   {
+    /** This node has not received this transaction, and knows nothing about it
+     */
     Unknown,
+
+    /** This node has this transaction locally, but has not yet heard that the
+       transaction has been committed by the distributed consensus */
     Pending,
+
+    /** This node has seen that this transaction is committed, it is an
+       irrevocable and durable part of the service's transaction history */
     Committed,
+
+    /** This node knows that the given transaction cannot be committed. This may
+       mean there has been a view change, and a previously pending transaction
+       has been lost (the original request should be resubmitted and will be
+       given a new Transaction ID). This also describes IDs which are known to
+       be impossible given the currently committed IDs */
     Invalid,
   };
 
@@ -20,19 +37,19 @@ namespace ccf
     {
       case TxStatus::Unknown:
       {
-        return "UNKNOWN";
+        return "Unknown";
       }
       case TxStatus::Pending:
       {
-        return "PENDING";
+        return "Pending";
       }
       case TxStatus::Committed:
       {
-        return "COMMITTED";
+        return "Committed";
       }
       case TxStatus::Invalid:
       {
-        return "INVALID";
+        return "Invalid";
       }
       default:
       {
@@ -48,14 +65,12 @@ namespace ccf
      {TxStatus::Committed, tx_status_to_str(TxStatus::Committed)},
      {TxStatus::Invalid, tx_status_to_str(TxStatus::Invalid)}});
 
-  constexpr int64_t VIEW_UNKNOWN = std::numeric_limits<int64_t>::min();
-
-  static TxStatus get_tx_status(
-    int64_t target_view,
-    int64_t target_seqno,
-    int64_t local_view,
-    int64_t committed_view,
-    int64_t committed_seqno)
+  [[maybe_unused]] static TxStatus evaluate_tx_status(
+    View target_view,
+    SeqNo target_seqno,
+    View local_view,
+    View committed_view,
+    SeqNo committed_seqno)
   {
     const bool is_committed = committed_seqno >= target_seqno;
     const bool views_match = local_view == target_view;

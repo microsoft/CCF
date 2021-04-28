@@ -11,7 +11,7 @@
 
 namespace kv
 {
-  class Tx;
+  class CommittableTx;
 }
 
 namespace enclave
@@ -27,8 +27,8 @@ namespace enclave
     virtual void set_cmd_forwarder(
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) = 0;
     virtual void tick(std::chrono::milliseconds) {}
-    virtual void open() = 0;
-    virtual bool is_open() = 0;
+    virtual void open(std::optional<crypto::Pem*> identity = std::nullopt) = 0;
+    virtual bool is_open(kv::Tx& tx) = 0;
 
     // Used by rpcendpoint to process incoming client RPCs
     virtual std::optional<std::vector<uint8_t>> process(
@@ -41,10 +41,14 @@ namespace enclave
       kv::Version version;
     };
 
-    virtual bool is_members_frontend() = 0;
     virtual ProcessBftResp process_bft(
-      std::shared_ptr<enclave::RpcContext> ctx) = 0;
-    virtual crypto::Sha256Hash get_merkle_root() = 0;
-    virtual void update_merkle_tree() = 0;
+      std::shared_ptr<enclave::RpcContext> ctx,
+      ccf::SeqNo prescribed_commit_version,
+      ccf::SeqNo max_conflict_version) = 0;
+    virtual ProcessBftResp process_bft(
+      std::shared_ptr<enclave::RpcContext> ctx,
+      kv::CommittableTx& tx,
+      ccf::SeqNo prescribed_commit_version = kv::NoVersion,
+      ccf::SeqNo max_conflict_version = kv::NoVersion) = 0;
   };
 }

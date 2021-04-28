@@ -1,9 +1,8 @@
-// Copyright (c) Microsoft Corporation.
-// Copyright (c) 1999 Miguel Castro, Barbara Liskov.
-// Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
-// Licensed under the MIT license.
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "logger.h"
 #ifndef INSIDE_ENCLAVE
 // #  pragma clang diagnostic push
 // #  pragma clang diagnostic ignored "-Wundef"
@@ -36,12 +35,12 @@ namespace stacktrace
     char** symbols = backtrace_symbols(frames, num_frames);
     if (symbols != NULL)
     {
-      auto s = fmt::format("Printing {} stack frames:\n", num_frames);
+      std::string s;
       for (int i = 0; i < num_frames; ++i)
       {
         s += fmt::format(" [{:>2}]: {}\n", i, symbols[i]);
       }
-      LOG_INFO_FMT(s);
+      LOG_INFO_FMT("Printing {} stack frames:\n {}", num_frames, s);
     }
     free(symbols);
 #endif

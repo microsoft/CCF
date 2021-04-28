@@ -10,7 +10,7 @@ class Checker:
         self.notified_commit = 0
 
     # TODO: that API's not right!
-    def __call__(self, rpc_result, result=None, error=None, timeout=2):
+    def __call__(self, rpc_result, result=None, error=None):
         if error is not None:
             if callable(error):
                 assert error(
@@ -30,7 +30,7 @@ class Checker:
                     result, rpc_result.body
                 )
 
-            assert rpc_result.seqno >= 0 and rpc_result.view >= 0, rpc_result
+            assert rpc_result.seqno >= 0 and rpc_result.view >= 0
 
         if self.client:
             wait_for_commit(self.client, rpc_result.seqno, rpc_result.view)

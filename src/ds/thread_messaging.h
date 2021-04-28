@@ -33,6 +33,11 @@ namespace threading
       data(std::forward<Args>(args)...)
     {}
 
+    void reset_cb(void (*_cb)(std::unique_ptr<Tmsg<Payload>>))
+    {
+      cb = reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(_cb);
+    }
+
     virtual ~Tmsg() = default;
   };
 
@@ -250,7 +255,8 @@ namespace threading
     {
       CCF_ASSERT_FMT(
         tid < thread_count || tid == 0,
-        "Attempting to add task to tid > thread_count, tid:{}, thread_count:{}",
+        "Attempting to add task to tid >= thread_count, tid:{}, "
+        "thread_count:{}",
         tid,
         thread_count);
       return tasks[tid];

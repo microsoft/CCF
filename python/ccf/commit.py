@@ -25,11 +25,14 @@ def wait_for_commit(
 
     A TimeoutError exception is raised if the commit index is not committed within the given timeout.
     """
+    if view is None or seqno is None:
+        raise ValueError(f"{view}.{seqno} is not a valid transaction ID")
+
     logs: List[str] = []
     end_time = time.time() + timeout
     while time.time() < end_time:
         logs = []
-        r = client.get(f"/node/tx?view={view}&seqno={seqno}", log_capture=logs)
+        r = client.get(f"/node/tx?transaction_id={view}.{seqno}", log_capture=logs)
         assert (
             r.status_code == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status_code}"

@@ -1,6 +1,0 @@
-steps:
-  - script: ../tests/coverage/generate_coverage.sh ${{ parameters.consensus }}
-    displayName: "Push coverage"
-    workingDirectory: build
-    env:
-      CODECOV_TOKEN: $(codecov.token)

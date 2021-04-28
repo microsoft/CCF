@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "json_schema.h"
+#include "tls/base64.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -61,19 +62,48 @@ namespace std
   template <typename T>
   inline void to_json(nlohmann::json& j, const std::vector<T>& t)
   {
-    j = nlohmann::json::array();
-    for (const auto& e : t)
+    if constexpr (std::is_same_v<T, uint8_t>)
     {
-      j.push_back(e);
+      j = tls::b64_from_raw(t);
+    }
+    else
+    {
+      j = nlohmann::json::array();
+      for (const auto& e : t)
+      {
+        j.push_back(e);
+      }
     }
   }
 
   template <typename T>
   inline void from_json(const nlohmann::json& j, std::vector<T>& t)
   {
+    if constexpr (std::is_same_v<T, uint8_t>)
+    {
+      if (j.is_string())
+      {
+        try
+        {
+          t = tls::raw_from_b64(j.get<std::string>());
+          return;
+        }
+        catch (const std::exception& e)
+        {
+          throw JsonParseError(fmt::format(
+            "Vector of bytes object \"{}\" is not valid base64", j.dump()));
+        }
+      }
+    }
+
+    // Fall-through. So we can convert _from_ [1,2,3] to
+    // std::vector<uint8_t>, but would prefer (and will produce in to_json) a
+    // base64 string
+
     if (!j.is_array())
     {
-      throw JsonParseError("Expected array, found: " + j.dump());
+      throw JsonParseError(
+        fmt::format("Vector object \"{}\" is not an array", j.dump()));
     }
 
     for (auto i = 0u; i < j.size(); ++i)
@@ -119,12 +149,32 @@ namespace std
   _18, \
   _19, \
   _20, \
+  _21, \
+  _22, \
+  _23, \
+  _24, \
+  _25, \
+  _26, \
+  _27, \
+  _28, \
+  _29, \
+  _30, \
   N, \
   ...) \
   _FOR_JSON_##N
 #define _FOR_JSON_COUNT_NN_WITH_0(...) \
   __FOR_JSON_COUNT_NN( \
     __VA_ARGS__, \
+    30, \
+    29, \
+    28, \
+    27, \
+    26, \
+    25, \
+    24, \
+    23, \
+    22, \
+    21, \
     20, \
     19, \
     18, \
@@ -169,6 +219,16 @@ namespace std
 #define _FOR_JSON_18(POP_N) _FOR_JSON_18_##POP_N
 #define _FOR_JSON_19(POP_N) _FOR_JSON_19_##POP_N
 #define _FOR_JSON_20(POP_N) _FOR_JSON_20_##POP_N
+#define _FOR_JSON_21(POP_N) _FOR_JSON_21_##POP_N
+#define _FOR_JSON_22(POP_N) _FOR_JSON_22_##POP_N
+#define _FOR_JSON_23(POP_N) _FOR_JSON_23_##POP_N
+#define _FOR_JSON_24(POP_N) _FOR_JSON_24_##POP_N
+#define _FOR_JSON_25(POP_N) _FOR_JSON_25_##POP_N
+#define _FOR_JSON_26(POP_N) _FOR_JSON_26_##POP_N
+#define _FOR_JSON_27(POP_N) _FOR_JSON_27_##POP_N
+#define _FOR_JSON_28(POP_N) _FOR_JSON_28_##POP_N
+#define _FOR_JSON_29(POP_N) _FOR_JSON_29_##POP_N
+#define _FOR_JSON_30(POP_N) _FOR_JSON_30_##POP_N
 
 // FOREACH macro machinery for forwarding to single arg macros
 #define _FOR_JSON_0_POP1(FUNC, TYPE)
@@ -230,6 +290,36 @@ namespace std
 #define _FOR_JSON_20_POP1(FUNC, TYPE, ARG1, ...) \
   _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
   _FOR_JSON_19_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_21_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_20_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_22_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_21_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_23_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_22_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_24_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_23_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_25_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_24_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_26_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_25_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_27_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_26_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_28_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_27_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_29_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_28_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_30_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_29_POP1(FUNC, TYPE, ##__VA_ARGS__)
 
 // FOREACH macro machinery for forwarding to double arg macros
 #define _FOR_JSON_0_POP2(FUNC, TYPE)
@@ -279,38 +369,38 @@ namespace std
 
 #define WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD) \
   { \
-    j[#JSON_FIELD] = t.C_FIELD; \
+    j[JSON_FIELD] = t.C_FIELD; \
   }
 #define WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, C_FIELD, JSON_FIELD) \
   WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
 #define WRITE_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
-  WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+  WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, #FIELD)
 #define WRITE_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
-  WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+  WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, #FIELD)
 
 #define WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD) \
   { \
     if (t.C_FIELD != t_default.C_FIELD) \
     { \
-      j[#JSON_FIELD] = t.C_FIELD; \
+      j[JSON_FIELD] = t.C_FIELD; \
     } \
   }
 #define WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, C_FIELD, JSON_FIELD) \
   WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
 #define WRITE_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
-  WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+  WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, #FIELD)
 #define WRITE_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
-  WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+  WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, #FIELD)
 
 #define READ_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD) \
   { \
-    const auto it = j.find(#JSON_FIELD); \
+    const auto it = j.find(JSON_FIELD); \
     if (it == j.end()) \
     { \
       throw JsonParseError( \
-        "Missing required field '" #JSON_FIELD "' in object: " + j.dump()); \
+        "Missing required field '" JSON_FIELD "' in object: " + j.dump()); \
     } \
     try \
     { \
@@ -318,7 +408,7 @@ namespace std
     } \
     catch (JsonParseError & jpe) \
     { \
-      jpe.pointer_elements.push_back(#JSON_FIELD); \
+      jpe.pointer_elements.push_back(JSON_FIELD); \
       throw; \
     } \
   }
@@ -326,13 +416,13 @@ namespace std
   READ_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
 #define READ_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
-  READ_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+  READ_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, #FIELD)
 #define READ_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
-  READ_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+  READ_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, #FIELD)
 
 #define READ_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD) \
   { \
-    const auto it = j.find(#JSON_FIELD); \
+    const auto it = j.find(JSON_FIELD); \
     if (it != j.end()) \
     { \
       t.C_FIELD = it->get<decltype(TYPE::C_FIELD)>(); \
@@ -342,55 +432,56 @@ namespace std
   READ_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
 #define READ_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
-  READ_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+  READ_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, #FIELD)
 #define READ_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
-  READ_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+  READ_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, #FIELD)
 
 #define FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
   TYPE, C_FIELD, JSON_FIELD) \
-  j["properties"][#JSON_FIELD] = \
+  j["properties"][JSON_FIELD] = \
     ::ds::json::schema_element<decltype(TYPE::C_FIELD)>(); \
-  j["required"].push_back(#JSON_FIELD);
+  j["required"].push_back(JSON_FIELD);
 #define FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL( \
   TYPE, C_FIELD, JSON_FIELD) \
   FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
 #define FILL_SCHEMA_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
-  FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+  FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, #FIELD)
 #define FILL_SCHEMA_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
-  FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+  FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, #FIELD)
 
 #define FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT( \
   TYPE, C_FIELD, JSON_FIELD) \
-  j["properties"][#JSON_FIELD] = \
+  j["properties"][JSON_FIELD] = \
     ::ds::json::schema_element<decltype(TYPE::C_FIELD)>();
 #define FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL( \
   TYPE, C_FIELD, JSON_FIELD) \
   FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
 #define FILL_SCHEMA_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
-  FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+  FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, #FIELD)
 #define FILL_SCHEMA_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
-  FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+  FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, #FIELD)
 
 #define ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
   TYPE, C_FIELD, JSON_FIELD) \
-  j["properties"][#JSON_FIELD] = \
+  j["properties"][JSON_FIELD] = \
     doc.template add_schema_component<decltype(TYPE::C_FIELD)>(); \
-  j["required"].push_back(#JSON_FIELD);
+  j["required"].push_back(JSON_FIELD);
 #define ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL( \
   TYPE, C_FIELD, JSON_FIELD) \
   ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
     TYPE, C_FIELD, JSON_FIELD)
 
 #define ADD_SCHEMA_COMPONENTS_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
-  ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+  ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, #FIELD)
 #define ADD_SCHEMA_COMPONENTS_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
-  ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+  ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL( \
+    TYPE, FIELD, #FIELD)
 
 #define ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT( \
   TYPE, C_FIELD, JSON_FIELD) \
-  j["properties"][#JSON_FIELD] = \
+  j["properties"][JSON_FIELD] = \
     doc.template add_schema_component<decltype(TYPE::C_FIELD)>();
 #define ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL( \
   TYPE, C_FIELD, JSON_FIELD) \
@@ -398,9 +489,10 @@ namespace std
     TYPE, C_FIELD, JSON_FIELD)
 
 #define ADD_SCHEMA_COMPONENTS_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
-  ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+  ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, #FIELD)
 #define ADD_SCHEMA_COMPONENTS_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
-  ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+  ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL( \
+    TYPE, FIELD, #FIELD)
 
 #define JSON_FIELD_FOR_JSON_NEXT(TYPE, FIELD) \
   JsonField<decltype(TYPE::FIELD)>{#FIELD},
@@ -410,11 +502,14 @@ namespace std
 #    FIELD \
   }
 
-/** Defines from_json, to_json, fill_json_schema, and schema_name functions for
- * struct/class types, converting member fields to JSON elements. Missing
- * elements will cause errors to be raised. This assumes that from_json,
- * to_json, and fill_json_schema are implemented for each member field type,
- * either manually or through these macros.
+/** Defines from_json, to_json, fill_json_schema, schema_name and
+ * add_schema_components functions for struct/class types, converting member
+ * fields to JSON elements and populating schema documents describing this
+ * transformation. Missing elements will cause errors to be raised. This assumes
+ * that from_json, to_json, are implemented for each member
+ * field type, either manually or through these macros. Additionally, you will
+ * need schema_name, fill_json_schema, and add_schema_components to be defined
+ * for OpenAPI schema generation.
  * // clang-format off
  *  ie, the following must compile, for each foo in T:
  *    T t; nlohmann::json j, schema;
@@ -500,7 +595,7 @@ namespace std
  *   std::string s;
  *  };
  *  DECLARE_JSON_TYPE(Z);
- *  DECLARE_JSON_REQUIRE_FIELDS_WITH_RENAMES(
+ *  DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
  *    Z, snake_case, camelCase, s, msg);
  *
  *  Valid JSON:
@@ -599,6 +694,8 @@ namespace std
     add_schema_components_optional_fields(doc, j, t))
 
 #define DECLARE_JSON_REQUIRED_FIELDS(TYPE, ...) \
+  _Pragma("clang diagnostic push"); \
+  _Pragma("clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\""); \
   inline void to_json_required_fields( \
     nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
@@ -633,7 +730,8 @@ namespace std
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP1)(ADD_SCHEMA_COMPONENTS_REQUIRED, TYPE, ##__VA_ARGS__); \
-  }
+  } \
+  _Pragma("clang diagnostic pop");
 
 #define DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(TYPE, ...) \
   inline void to_json_required_fields(nlohmann::json& j, const TYPE& t) \
@@ -705,21 +803,59 @@ namespace std
     (POP2)(READ_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
   } \
   inline void fill_json_schema_optional_fields( \
-    nlohmann::json& j, const TYPE& t) \
+    nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(FILL_SCHEMA_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
   } \
   template <typename T> \
   void add_schema_components_optional_fields( \
-    T& doc, nlohmann::json& j, const TYPE& t) \
+    T& doc, nlohmann::json& j, [[maybe_unused]] const TYPE& t) \
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
   }
 
+// Enum conversion, based on NLOHMANN_JSON_SERIALIZE_ENUM, but less permissive
+// (throws on unknown JSON values)
 #define DECLARE_JSON_ENUM(TYPE, ...) \
-  NLOHMANN_JSON_SERIALIZE_ENUM(TYPE, __VA_ARGS__) \
+  template <typename BasicJsonType> \
+  inline void to_json(BasicJsonType& j, const TYPE& e) \
+  { \
+    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
+    static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
+    auto it = std::find_if( \
+      std::begin(m), \
+      std::end(m), \
+      [e](const std::pair<TYPE, BasicJsonType>& ej_pair) -> bool { \
+        return ej_pair.first == e; \
+      }); \
+    if (it == std::end(m)) \
+    { \
+      throw JsonParseError(fmt::format( \
+        "Value {} in enum " #TYPE " has no specified JSON conversion", \
+        (size_t)e)); \
+    } \
+    j = it->second; \
+  } \
+  template <typename BasicJsonType> \
+  inline void from_json(const BasicJsonType& j, TYPE& e) \
+  { \
+    static_assert(std::is_enum<TYPE>::value, #TYPE " must be an enum!"); \
+    static const std::pair<TYPE, BasicJsonType> m[] = __VA_ARGS__; \
+    auto it = std::find_if( \
+      std::begin(m), \
+      std::end(m), \
+      [&j](const std::pair<TYPE, BasicJsonType>& ej_pair) -> bool { \
+        return ej_pair.second == j; \
+      }); \
+    if (it == std::end(m)) \
+    { \
+      throw JsonParseError( \
+        fmt::format("{} is not convertible to " #TYPE, j.dump())); \
+    } \
+    e = it->first; \
+  } \
   inline std::string schema_name(const TYPE&) \
   { \
     return #TYPE; \
@@ -733,6 +869,7 @@ namespace std
       enums.push_back(p.second); \
     } \
     j["enum"] = enums; \
+    j["type"] = "string"; \
   }
 
 #pragma clang diagnostic pop

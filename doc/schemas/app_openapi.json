@@ -1,24 +1,13 @@
 {
   "components": {
     "schemas": {
-      "CallerInfo": {
-        "properties": {
-          "caller_id": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "caller_id"
-        ],
-        "type": "object"
-      },
       "CodeStatus": {
         "enum": [
-          "ACCEPTED",
-          "RETIRED"
-        ]
+          "AllowedToJoin"
+        ],
+        "type": "string"
       },
-      "EndpointMetrics__Metric": {
+      "EndpointMetrics__Entry": {
         "properties": {
           "calls": {
             "$ref": "#/components/schemas/uint64"
@@ -28,25 +17,48 @@
           },
           "failures": {
             "$ref": "#/components/schemas/uint64"
+          },
+          "method": {
+            "$ref": "#/components/schemas/string"
+          },
+          "path": {
+            "$ref": "#/components/schemas/string"
+          },
+          "retries": {
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
+          "path",
+          "method",
           "calls",
           "errors",
-          "failures"
+          "failures",
+          "retries"
         ],
         "type": "object"
+      },
+      "EndpointMetrics__Entry_array": {
+        "items": {
+          "$ref": "#/components/schemas/EndpointMetrics__Entry"
+        },
+        "type": "array"
       },
       "EndpointMetrics__Out": {
         "properties": {
           "metrics": {
-            "$ref": "#/components/schemas/named_named_EndpointMetrics__Metric"
+            "$ref": "#/components/schemas/EndpointMetrics__Entry_array"
           }
         },
         "required": [
           "metrics"
         ],
         "type": "object"
+      },
+      "EntityId": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
       },
       "GetCode__Out": {
         "properties": {
@@ -82,20 +94,31 @@
       },
       "GetCommit__Out": {
         "properties": {
-          "seqno": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "view": {
-            "$ref": "#/components/schemas/int64"
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
           }
         },
         "required": [
-          "view",
-          "seqno"
+          "transaction_id"
         ],
         "type": "object"
       },
-      "GetMetrics__HistogramResults": {
+      "GetTxStatus__Out": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TxStatus"
+          },
+          "transaction_id": {
+            "$ref": "#/components/schemas/TransactionId"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "HistogramResults": {
         "properties": {
           "buckets": {
             "$ref": "#/components/schemas/json"
@@ -122,135 +145,57 @@
         ],
         "type": "object"
       },
-      "GetMetrics__Out": {
+      "LoggingGetHistoricalRange__Entry": {
         "properties": {
-          "histogram": {
-            "$ref": "#/components/schemas/GetMetrics__HistogramResults"
-          },
-          "tx_rates": {
-            "$ref": "#/components/schemas/json"
-          }
-        },
-        "required": [
-          "histogram",
-          "tx_rates"
-        ],
-        "type": "object"
-      },
-      "GetNetworkInfo__NodeInfo": {
-        "properties": {
-          "host": {
-            "$ref": "#/components/schemas/string"
-          },
-          "node_id": {
+          "id": {
             "$ref": "#/components/schemas/uint64"
           },
-          "port": {
+          "msg": {
             "$ref": "#/components/schemas/string"
+          },
+          "seqno": {
+            "$ref": "#/components/schemas/uint64"
           }
         },
         "required": [
-          "node_id",
-          "host",
-          "port"
+          "seqno",
+          "id",
+          "msg"
         ],
         "type": "object"
       },
-      "GetNetworkInfo__NodeInfo_array": {
+      "LoggingGetHistoricalRange__Entry_array": {
         "items": {
-          "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo"
+          "$ref": "#/components/schemas/LoggingGetHistoricalRange__Entry"
         },
         "type": "array"
       },
-      "GetNetworkInfo__Out": {
+      "LoggingGetHistoricalRange__Out": {
         "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNetworkInfo__NodeInfo_array"
-          },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "nodes",
-          "primary_id"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo": {
-        "properties": {
-          "node_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "status": {
-            "$ref": "#/components/schemas/NodeStatus"
-          }
-        },
-        "required": [
-          "node_id",
-          "status"
-        ],
-        "type": "object"
-      },
-      "GetNodesByRPCAddress__NodeInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo"
-        },
-        "type": "array"
-      },
-      "GetNodesByRPCAddress__Out": {
-        "properties": {
-          "nodes": {
-            "$ref": "#/components/schemas/GetNodesByRPCAddress__NodeInfo_array"
-          }
-        },
-        "required": [
-          "nodes"
-        ],
-        "type": "object"
-      },
-      "GetPrimaryInfo__Out": {
-        "properties": {
-          "current_view": {
-            "$ref": "#/components/schemas/int64"
-          },
-          "primary_host": {
+          "@nextLink": {
             "$ref": "#/components/schemas/string"
           },
-          "primary_id": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "primary_port": {
-            "$ref": "#/components/schemas/string"
+          "entries": {
+            "$ref": "#/components/schemas/LoggingGetHistoricalRange__Entry_array"
           }
         },
         "required": [
-          "primary_id",
-          "primary_host",
-          "primary_port",
-          "current_view"
+          "entries"
         ],
         "type": "object"
       },
-      "GetReceipt__Out": {
+      "LoggingGetReceipt__Out": {
         "properties": {
+          "msg": {
+            "$ref": "#/components/schemas/string"
+          },
           "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
+            "$ref": "#/components/schemas/Receipt"
           }
         },
         "required": [
+          "msg",
           "receipt"
-        ],
-        "type": "object"
-      },
-      "GetTxStatus__Out": {
-        "properties": {
-          "status": {
-            "$ref": "#/components/schemas/TxStatus"
-          }
-        },
-        "required": [
-          "status"
         ],
         "type": "object"
       },
@@ -280,42 +225,77 @@
         ],
         "type": "object"
       },
-      "NodeStatus": {
-        "enum": [
-          "PENDING",
-          "TRUSTED",
-          "RETIRED"
-        ]
+      "Receipt": {
+        "properties": {
+          "leaf": {
+            "$ref": "#/components/schemas/string"
+          },
+          "node_id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "proof": {
+            "$ref": "#/components/schemas/Receipt__Element_array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/string"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "signature",
+          "root",
+          "proof",
+          "leaf",
+          "node_id"
+        ],
+        "type": "object"
+      },
+      "Receipt__Element": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/string"
+          },
+          "right": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "type": "object"
+      },
+      "Receipt__Element_array": {
+        "items": {
+          "$ref": "#/components/schemas/Receipt__Element"
+        },
+        "type": "array"
+      },
+      "Report": {
+        "properties": {
+          "histogram": {
+            "$ref": "#/components/schemas/HistogramResults"
+          },
+          "tx_rates": {
+            "$ref": "#/components/schemas/json"
+          }
+        },
+        "required": [
+          "histogram",
+          "tx_rates"
+        ],
+        "type": "object"
+      },
+      "TransactionId": {
+        "pattern": "^[0-9]+\\.[0-9]+$",
+        "type": "string"
       },
       "TxStatus": {
         "enum": [
-          "UNKNOWN",
-          "PENDING",
-          "COMMITTED",
-          "INVALID"
-        ]
-      },
-      "VerifyReceipt__In": {
-        "properties": {
-          "receipt": {
-            "$ref": "#/components/schemas/uint8_array"
-          }
-        },
-        "required": [
-          "receipt"
+          "Unknown",
+          "Pending",
+          "Committed",
+          "Invalid"
         ],
-        "type": "object"
-      },
-      "VerifyReceipt__Out": {
-        "properties": {
-          "valid": {
-            "$ref": "#/components/schemas/boolean"
-          }
-        },
-        "required": [
-          "valid"
-        ],
-        "type": "object"
+        "type": "string"
       },
       "boolean": {
         "type": "boolean"
@@ -325,24 +305,7 @@
         "minimum": -2147483648,
         "type": "integer"
       },
-      "int64": {
-        "maximum": 9223372036854775807,
-        "minimum": -9223372036854775808,
-        "type": "integer"
-      },
       "json": {},
-      "named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
-      "named_named_EndpointMetrics__Metric": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/named_EndpointMetrics__Metric"
-        },
-        "type": "object"
-      },
       "string": {
         "type": "string"
       },
@@ -350,17 +313,23 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
+      }
+    },
+    "securitySchemes": {
+      "jwt": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
       },
-      "uint8": {
-        "maximum": 255,
-        "minimum": 0,
-        "type": "integer"
+      "member_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a member identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
       },
-      "uint8_array": {
-        "items": {
-          "$ref": "#/components/schemas/uint8"
-        },
-        "type": "array"
+      "user_signature": {
+        "description": "Request must be signed according to the HTTP Signature scheme. The signer must be a user identity registered with this service.",
+        "scheme": "signature",
+        "type": "http"
       }
     }
   },
@@ -379,6 +348,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/json"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/api/metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointMetrics__Out"
                 }
               }
             },
@@ -419,14 +404,14 @@
         }
       }
     },
-    "/endpoint_metrics": {
+    "/custom_auth": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EndpointMetrics__Out"
+                  "$ref": "#/components/schemas/json"
                 }
               }
             },
@@ -440,22 +425,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "transaction_id",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "view",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -479,11 +452,9 @@
           {
             "in": "query",
             "name": "id",
-            "required": false,
+            "required": true,
             "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
+              "$ref": "#/components/schemas/uint64"
             }
           }
         ],
@@ -498,18 +469,21 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "get": {
         "parameters": [
           {
             "in": "query",
             "name": "id",
-            "required": false,
+            "required": true,
             "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
+              "$ref": "#/components/schemas/uint64"
             }
           }
         ],
@@ -524,7 +498,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "post": {
         "requestBody": {
@@ -548,7 +527,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/admin_only": {
@@ -574,7 +558,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/anonymous": {
@@ -609,11 +598,9 @@
           {
             "in": "query",
             "name": "id",
-            "required": false,
+            "required": true,
             "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
+              "$ref": "#/components/schemas/uint64"
             }
           }
         ],
@@ -628,7 +615,90 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
+    "/log/private/historical/range": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from_seqno",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_seqno",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGetHistoricalRange__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
+    "/log/private/historical_receipt": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/uint64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGetReceipt__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/prefix_cert": {
@@ -654,7 +724,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/raw_text/{id}": {
@@ -673,7 +748,12 @@
           "200": {
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/public": {
@@ -682,11 +762,9 @@
           {
             "in": "query",
             "name": "id",
-            "required": false,
+            "required": true,
             "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
+              "$ref": "#/components/schemas/uint64"
             }
           }
         ],
@@ -701,18 +779,21 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "get": {
         "parameters": [
           {
             "in": "query",
             "name": "id",
-            "required": false,
+            "required": true,
             "schema": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
+              "$ref": "#/components/schemas/uint64"
             }
           }
         ],
@@ -727,7 +808,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       },
       "post": {
         "requestBody": {
@@ -751,7 +837,12 @@
             },
             "description": "Default response description"
           }
-        }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/metrics": {
@@ -761,7 +852,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetMetrics__Out"
+                  "$ref": "#/components/schemas/Report"
                 }
               }
             },
@@ -770,70 +861,32 @@
         }
       }
     },
-    "/network_info": {
+    "/multi_auth": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetNetworkInfo__Out"
+                  "$ref": "#/components/schemas/string"
                 }
               }
             },
             "description": "Default response description"
           }
-        }
-      }
-    },
-    "/node/ids": {
-      "get": {
-        "parameters": [
+        },
+        "security": [
           {
-            "in": "query",
-            "name": "host",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
+            "user_signature": []
           },
           {
-            "in": "query",
-            "name": "port",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetNodesByRPCAddress__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/primary_info": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetPrimaryInfo__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
+            "member_signature": []
+          },
+          {
+            "jwt": []
+          },
+          {}
+        ]
       }
     },
     "/receipt": {
@@ -841,12 +894,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "commit",
-            "required": false,
+            "name": "transaction_id",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -855,33 +906,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetReceipt__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/receipt/verify": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyReceipt__In"
-              }
-            }
-          },
-          "description": "Auto-generated request body schema"
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VerifyReceipt__Out"
+                  "$ref": "#/components/schemas/Receipt"
                 }
               }
             },
@@ -895,22 +920,10 @@
         "parameters": [
           {
             "in": "query",
-            "name": "seqno",
-            "required": false,
+            "name": "transaction_id",
+            "required": true,
             "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "view",
-            "required": false,
-            "schema": {
-              "maximum": 9223372036854775807,
-              "minimum": -9223372036854775808,
-              "type": "integer"
+              "$ref": "#/components/schemas/TransactionId"
             }
           }
         ],
@@ -920,32 +933,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetTxStatus__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          }
-        }
-      }
-    },
-    "/user_id": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "cert",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallerInfo"
                 }
               }
             },

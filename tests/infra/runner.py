@@ -4,6 +4,9 @@ import getpass
 import time
 import http
 import logging
+import tempfile
+import base64
+import json
 from random import seed
 import infra.network
 import infra.proc
@@ -80,6 +83,8 @@ def run(get_command, args):
     if not hosts:
         hosts = ["local://localhost"] * minimum_number_of_local_nodes(args)
 
+    args.initial_user_count = 3
+
     LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.network.network(
@@ -89,6 +94,28 @@ def run(get_command, args):
         primary, backups = network.find_nodes()
 
         command_args = get_command_args(args, get_command)
+
+        if args.use_jwt:
+            jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+            jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
+            jwt_kid = "my_key_id"
+            jwt_issuer = "https://example.issuer"
+            # Add JWT issuer
+            with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+                jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
+                der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+                data = {
+                    "issuer": jwt_issuer,
+                    "jwks": {
+                        "keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]
+                    },
+                }
+                json.dump(data, metadata_fp)
+                metadata_fp.flush()
+                network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+            jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
+
+            command_args += ["--bearer-token", jwt]
 
         nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
         clients = []
@@ -172,9 +199,10 @@ def run(get_command, args):
                         tx_rates.insert_metrics(**results)
 
                         # Construct name for heap metric, removing ^ suffix if present
-                        heap_peak_metric = f"Mem_{args.label}"
+                        heap_peak_metric = args.label
                         if heap_peak_metric.endswith("^"):
                             heap_peak_metric = heap_peak_metric[:-1]
+                        heap_peak_metric += "_mem"
 
                         peak_value = results["peak_allocated_heap_size"]
                         metrics.put(heap_peak_metric, peak_value)

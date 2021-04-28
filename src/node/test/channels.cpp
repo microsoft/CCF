@@ -1,11 +1,19 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-
 #include "../channels.h"
 
-#include <doctest/doctest.h>
+#include "crypto/verifier.h"
+#include "ds/hex.h"
+#include "node/entities.h"
+#include "node/node_to_node.h"
+#include "node/node_types.h"
+
+#include <algorithm>
+#include <cstring>
 #include <queue>
+
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <doctest/doctest.h>
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
@@ -30,12 +38,35 @@ using namespace ccf;
 static constexpr auto msg_size = 64;
 using MsgType = std::array<uint8_t, msg_size>;
 
+static NodeId self = std::string("self");
+static NodeId peer = std::string("peer");
+
 template <typename T>
 struct NodeOutboundMsg
 {
+  NodeId from;
   NodeMsgType type;
   T authenticated_hdr;
   std::vector<uint8_t> payload;
+
+  std::vector<uint8_t> data() const
+  {
+    std::vector<uint8_t> r;
+    r.insert(r.end(), authenticated_hdr.begin(), authenticated_hdr.end());
+    r.insert(r.end(), payload.begin(), payload.end());
+    return r;
+  }
+
+  std::vector<uint8_t> unauthenticated_data() const
+  {
+    auto r = data();
+    auto type_hdr_bytes = std::vector<uint8_t>(r.begin(), r.begin() + 8);
+    CBuffer type_hdr(type_hdr_bytes.data(), type_hdr_bytes.size());
+    ChannelMsg channel_msg_type =
+      serialized::read<ChannelMsg>(type_hdr.p, type_hdr.n);
+    auto data = std::vector<uint8_t>(r.begin() + 8, r.end());
+    return data;
+  }
 };
 
 template <typename T>
@@ -49,11 +80,15 @@ auto read_outbound_msgs(ringbuffer::Circuit& circuit)
       {
         case node_outbound:
         {
-          serialized::read<NodeId>(data, size); // Ignore destination node id
+          serialized::read<NodeId::Value>(
+            data, size); // Ignore destination node id
           auto msg_type = serialized::read<NodeMsgType>(data, size);
-          auto aad = serialized::read<T>(data, size);
+          NodeId from = serialized::read<NodeId::Value>(data, size);
+          T aad;
+          if (size > sizeof(T))
+            aad = serialized::read<T>(data, size);
           auto payload = serialized::read(data, size, size);
-          msgs.push_back(NodeOutboundMsg<T>{msg_type, aad, payload});
+          msgs.push_back(NodeOutboundMsg<T>{from, msg_type, aad, payload});
           break;
         }
         case add_node:
@@ -106,49 +141,133 @@ auto read_node_msgs(ringbuffer::Circuit& circuit)
   return std::make_pair(add_node_msgs, remove_node_msgs);
 }
 
+NodeOutboundMsg<MsgType> get_first(
+  ringbuffer::Circuit& circuit, NodeMsgType msg_type)
+{
+  auto outbound_msgs = read_outbound_msgs<MsgType>(circuit);
+  REQUIRE(outbound_msgs.size() == 1);
+  auto msg = outbound_msgs[0];
+  const auto* data_ = msg.payload.data();
+  auto size_ = msg.payload.size();
+  REQUIRE(msg.type == msg_type);
+  return msg;
+}
+
 TEST_CASE("Client/Server key exchange")
 {
-  auto network_kp = tls::make_key_pair();
-  auto channel1 = Channel(wf1, network_kp, 1, 2);
-  auto channel2 = Channel(wf2, network_kp, 2, 1);
+  auto network_kp = crypto::make_key_pair();
+  auto network_cert = network_kp->self_sign("CN=Network");
+
+  auto channel1_kp = crypto::make_key_pair();
+  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
+  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+
+  auto channel2_kp = crypto::make_key_pair();
+  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
+  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+
+  auto v = crypto::make_verifier(channel1_cert);
+  REQUIRE(v->verify_certificate({&network_cert}));
+  v = crypto::make_verifier(channel2_cert);
+  REQUIRE(v->verify_certificate({&network_cert}));
+
+  REQUIRE(!make_verifier(channel2_cert)->is_self_signed());
+
+  auto channel1 =
+    Channel(wf1, network_cert, channel1_kp, channel1_cert, self, peer);
+  auto channel2 =
+    Channel(wf2, network_cert, channel2_kp, channel2_cert, peer, self);
 
   MsgType msg;
   msg.fill(0x42);
 
   INFO("Trying to tag/verify before channel establishment");
   {
+    // Try sending on channel1 twice
     REQUIRE_FALSE(
       channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
     REQUIRE_FALSE(
       channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
-
-    // Every send is replaced with a new channel establishment message
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(outbound_msgs.size() == 2);
-    REQUIRE(outbound_msgs[0].type == channel_msg);
-    REQUIRE(outbound_msgs[1].type == channel_msg);
   }
 
-  INFO("Establish channels");
+  std::vector<uint8_t> channel1_signed_key_share;
+
+  INFO("Extract key share, signature, certificate from messages");
   {
-    auto channel1_signed_public = channel1.get_signed_public();
-    auto channel2_signed_public = channel2.get_signed_public();
+    // Every send has been replaced with a new channel establishment message
+    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 2);
+    REQUIRE(msgs[0].type == channel_msg);
+    REQUIRE(msgs[1].type == channel_msg);
+    REQUIRE(read_outbound_msgs<MsgType>(eio2).size() == 0);
 
-    REQUIRE(channel1.load_peer_signed_public(
-      true, channel2_signed_public.data(), channel2_signed_public.size()));
+#ifndef DETERMINISTIC_ECDSA
+    // Signing twice should have produced different signatures
+    REQUIRE(msgs[0].unauthenticated_data() != msgs[1].unauthenticated_data());
+#endif
 
-    // Messages sent before channel was established are flushed
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(outbound_msgs.size() == 1);
-    REQUIRE(outbound_msgs[0].type == NodeMsgType::consensus_msg);
-    REQUIRE(outbound_msgs[0].authenticated_hdr == msg);
+    channel1_signed_key_share = msgs[0].unauthenticated_data();
+  }
 
-    REQUIRE(channel2.load_peer_signed_public(
-      true, channel1_signed_public.data(), channel1_signed_public.size()));
+  INFO("Load peer key share and check signature");
+  {
+    REQUIRE(channel2.consume_initiator_key_share(channel1_signed_key_share));
+    REQUIRE(channel1.get_status() == INITIATED);
+    REQUIRE(channel2.get_status() == WAITING_FOR_FINAL);
+  }
 
-    // Second channel had no pending messages
-    outbound_msgs = read_outbound_msgs<MsgType>(eio2);
-    REQUIRE(outbound_msgs.size() == 0);
+  std::vector<uint8_t> channel2_signed_key_share;
+
+  INFO("Extract responder signature over both key shares from messages");
+  {
+    // Messages sent before channel was established are flushed, so only 1 each.
+    auto msgs = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs[0].type == channel_msg);
+    channel2_signed_key_share = msgs[0].unauthenticated_data();
+    REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 0);
+  }
+
+  INFO("Load responder key share and check signature");
+  {
+    REQUIRE(channel1.consume_responder_key_share(channel2_signed_key_share));
+    REQUIRE(channel1.get_status() == ESTABLISHED);
+    REQUIRE(channel2.get_status() == WAITING_FOR_FINAL);
+  }
+
+  std::vector<uint8_t> initiator_signature;
+  NodeOutboundMsg<MsgType> queued_msg;
+
+  INFO("Extract responder signature from message");
+  {
+    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 2);
+    REQUIRE(msgs[0].type == channel_msg);
+    REQUIRE(msgs[1].type == consensus_msg);
+    initiator_signature = msgs[0].unauthenticated_data();
+
+    auto md = msgs[1].data();
+    REQUIRE(md.size() == msg.size() + sizeof(GcmHdr));
+    REQUIRE(memcmp(md.data(), msg.data(), msg.size()) == 0);
+
+    queued_msg = msgs[1]; // save for later
+  }
+
+  INFO("Cross-check responder signature and establish channels");
+  {
+    REQUIRE(channel2.check_peer_key_share_signature(initiator_signature));
+    REQUIRE(channel1.get_status() == ESTABLISHED);
+    REQUIRE(channel2.get_status() == ESTABLISHED);
+  }
+
+  INFO("Receive queued message");
+  {
+    // Receive the queued message to ensure the sequence numbers are contiguous.
+    auto hdr = queued_msg.authenticated_hdr;
+    auto payload = queued_msg.payload;
+    const auto* data = payload.data();
+    auto size = payload.size();
+    channel2.recv_authenticated({hdr.begin(), hdr.size()}, data, size);
   }
 
   INFO("Protect integrity of message (peer1 -> peer2)");
@@ -250,22 +369,50 @@ TEST_CASE("Client/Server key exchange")
 
 TEST_CASE("Replay and out-of-order")
 {
-  auto network_kp = tls::make_key_pair();
-  auto channel1 = Channel(wf1, network_kp, 1, 2);
-  auto channel2 = Channel(wf2, network_kp, 2, 1);
+  auto network_kp = crypto::make_key_pair();
+  auto network_cert = network_kp->self_sign("CN=Network");
+
+  auto channel1_kp = crypto::make_key_pair();
+  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
+  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+
+  auto channel2_kp = crypto::make_key_pair();
+  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
+  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+
+  auto channel1 =
+    Channel(wf1, network_cert, channel1_kp, channel1_cert, self, peer);
+  auto channel2 =
+    Channel(wf2, network_cert, channel2_kp, channel2_cert, peer, self);
 
   MsgType msg;
   msg.fill(0x42);
 
   INFO("Establish channels");
   {
-    auto channel1_signed_public = channel1.get_signed_public();
-    auto channel2_signed_public = channel2.get_signed_public();
+    channel1.initiate();
 
-    REQUIRE(channel1.load_peer_signed_public(
-      true, channel2_signed_public.data(), channel2_signed_public.size()));
-    REQUIRE(channel2.load_peer_signed_public(
-      true, channel1_signed_public.data(), channel1_signed_public.size()));
+    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs[0].type == channel_msg);
+    auto channel1_signed_key_share = msgs[0].unauthenticated_data();
+
+    REQUIRE(channel2.consume_initiator_key_share(channel1_signed_key_share));
+
+    msgs = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs[0].type == channel_msg);
+    auto channel2_signed_key_share = msgs[0].unauthenticated_data();
+    REQUIRE(channel1.consume_responder_key_share(channel2_signed_key_share));
+
+    msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs[0].type == channel_msg);
+    auto initiator_signature = msgs[0].unauthenticated_data();
+
+    REQUIRE(channel2.check_peer_key_share_signature(initiator_signature));
+    REQUIRE(channel1.get_status() == ESTABLISHED);
+    REQUIRE(channel2.get_status() == ESTABLISHED);
   }
 
   NodeOutboundMsg<MsgType> first_msg, first_msg_copy;
@@ -277,6 +424,7 @@ TEST_CASE("Replay and out-of-order")
     auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
     REQUIRE(outbound_msgs.size() == 1);
     first_msg = outbound_msgs[0];
+    REQUIRE(first_msg.from == self);
     auto msg_copy = first_msg;
     first_msg_copy = first_msg;
     const auto* data_ = first_msg.payload.data();
@@ -329,30 +477,59 @@ TEST_CASE("Replay and out-of-order")
       first_msg_data_,
       first_msg_size_));
   }
+
+  INFO("Trigger new key exchange");
+  {
+    auto n = read_outbound_msgs<MsgType>(eio1).size() +
+      read_outbound_msgs<MsgType>(eio2).size();
+    REQUIRE(n == 0);
+
+    channel1.initiate();
+    REQUIRE(channel1.get_status() == ESTABLISHED);
+    REQUIRE(channel2.get_status() == ESTABLISHED);
+
+    auto fst = get_first(eio1, NodeMsgType::channel_msg);
+    REQUIRE(
+      channel2.consume_initiator_key_share(fst.unauthenticated_data(), true));
+    REQUIRE(channel2.get_status() == ESTABLISHED);
+    fst = get_first(eio2, NodeMsgType::channel_msg);
+    REQUIRE(channel1.consume_responder_key_share(fst.unauthenticated_data()));
+    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(
+      channel2.check_peer_key_share_signature(msgs[0].unauthenticated_data()));
+    REQUIRE(channel1.get_status() == ESTABLISHED);
+    REQUIRE(channel2.get_status() == ESTABLISHED);
+
+    REQUIRE(
+      channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
+    fst = get_first(eio1, NodeMsgType::consensus_msg);
+  }
 }
 
 TEST_CASE("Host connections")
 {
-  NodeId self = 1;
-  auto network_kp = tls::make_key_pair();
+  auto network_kp = crypto::make_key_pair();
+  auto network_cert = network_kp->self_sign("CN=Network");
+  auto channel_kp = crypto::make_key_pair();
+  auto channel_cert = channel_kp->self_sign("CN=Node");
   auto channel_manager =
-    ChannelManager(wf1, network_kp->private_key_pem(), self);
-  NodeId peer_id = 2;
+    ChannelManager(wf1, network_cert, channel_kp, channel_cert, self);
 
   INFO("New channel creates host connection");
   {
-    channel_manager.create_channel(peer_id, "hostname", "port");
+    channel_manager.create_channel(peer, "hostname", "port");
     auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 1);
     REQUIRE(remove_node_msgs.size() == 0);
-    REQUIRE(std::get<0>(add_node_msgs[0]) == peer_id);
+    REQUIRE(std::get<0>(add_node_msgs[0]) == peer);
     REQUIRE(std::get<1>(add_node_msgs[0]) == "hostname");
     REQUIRE(std::get<2>(add_node_msgs[0]) == "port");
   }
 
   INFO("Retrieving unknown channel does not create host connection");
   {
-    NodeId unknown_peer_id = 3;
+    NodeId unknown_peer_id = std::string("unknown_peer");
     channel_manager.get(unknown_peer_id);
     auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 0);
@@ -361,9 +538,202 @@ TEST_CASE("Host connections")
 
   INFO("Destroying channel closes host connection");
   {
-    channel_manager.destroy_channel(peer_id);
+    channel_manager.destroy_channel(peer);
     auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 0);
     REQUIRE(remove_node_msgs.size() == 1);
+  }
+}
+
+TEST_CASE("Concurrent key exchange init")
+{
+  auto network_kp = crypto::make_key_pair();
+  auto network_cert = network_kp->self_sign("CN=Network");
+
+  auto channel1_kp = crypto::make_key_pair();
+  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
+  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+
+  auto channel2_kp = crypto::make_key_pair();
+  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
+  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+
+  auto channel1 =
+    Channel(wf1, network_cert, channel1_kp, channel1_cert, self, peer);
+  auto channel2 =
+    Channel(wf2, network_cert, channel2_kp, channel2_cert, peer, self);
+
+  MsgType msg;
+  msg.fill(0x42);
+
+  INFO("Channel 1 wins");
+  {
+    channel1.initiate();
+    channel2.initiate();
+
+    REQUIRE(channel1.get_status() == INITIATED);
+    REQUIRE(channel2.get_status() == INITIATED);
+
+    auto fst1 = get_first(eio1, NodeMsgType::channel_msg);
+    auto fst2 = get_first(eio2, NodeMsgType::channel_msg);
+
+    REQUIRE(
+      channel1.consume_initiator_key_share(fst2.unauthenticated_data(), true));
+    REQUIRE(
+      channel2.consume_initiator_key_share(fst1.unauthenticated_data(), false));
+
+    REQUIRE(channel1.get_status() == WAITING_FOR_FINAL);
+    REQUIRE(channel2.get_status() == INITIATED);
+
+    fst1 = get_first(eio1, NodeMsgType::channel_msg);
+
+    REQUIRE(channel2.consume_responder_key_share(fst1.unauthenticated_data()));
+
+    fst2 = get_first(eio2, NodeMsgType::channel_msg);
+
+    REQUIRE(
+      channel1.check_peer_key_share_signature(fst2.unauthenticated_data()));
+
+    REQUIRE(channel1.get_status() == ESTABLISHED);
+    REQUIRE(channel2.get_status() == ESTABLISHED);
+  }
+
+  channel1.reset();
+  channel2.reset();
+
+  INFO("Channel 2 wins");
+  {
+    channel1.initiate();
+    channel2.initiate();
+
+    REQUIRE(channel1.get_status() == INITIATED);
+    REQUIRE(channel2.get_status() == INITIATED);
+
+    auto fst1 = get_first(eio1, NodeMsgType::channel_msg);
+    auto fst2 = get_first(eio2, NodeMsgType::channel_msg);
+
+    REQUIRE(
+      channel1.consume_initiator_key_share(fst2.unauthenticated_data(), false));
+    REQUIRE(
+      channel2.consume_initiator_key_share(fst1.unauthenticated_data(), true));
+
+    REQUIRE(channel1.get_status() == INITIATED);
+    REQUIRE(channel2.get_status() == WAITING_FOR_FINAL);
+
+    fst2 = get_first(eio2, NodeMsgType::channel_msg);
+
+    REQUIRE(channel1.consume_responder_key_share(fst2.unauthenticated_data()));
+
+    fst1 = get_first(eio1, NodeMsgType::channel_msg);
+
+    REQUIRE(
+      channel2.check_peer_key_share_signature(fst1.unauthenticated_data()));
+
+    REQUIRE(channel1.get_status() == ESTABLISHED);
+    REQUIRE(channel2.get_status() == ESTABLISHED);
+  }
+}
+
+static std::vector<NodeOutboundMsg<MsgType>> get_all_msgs(
+  std::set<ringbuffer::Circuit*> eios)
+{
+  std::vector<NodeOutboundMsg<MsgType>> res;
+  for (auto& eio : eios)
+  {
+    auto msgs = read_outbound_msgs<MsgType>(*eio);
+    res.insert(res.end(), msgs.begin(), msgs.end());
+  }
+  return res;
+}
+
+TEST_CASE("Full NodeToNode test ")
+{
+  auto network_kp = crypto::make_key_pair();
+  auto network_cert = network_kp->self_sign("CN=Network");
+
+  auto ni1 = std::string("N1");
+  auto channel1_kp = crypto::make_key_pair();
+  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
+  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+
+  auto ni2 = std::string("N2");
+  auto channel2_kp = crypto::make_key_pair();
+  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
+  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+
+  size_t message_limit = 32;
+
+  MsgType msg;
+  msg.fill(0x42);
+
+  INFO("Set up channels");
+  NodeToNodeImpl n2n1(wf1), n2n2(wf2);
+
+  n2n1.initialize(ni1, network_cert, channel1_kp, channel1_cert);
+  n2n1.create_channel(ni2, "", "", message_limit);
+  n2n2.initialize(ni2, network_cert, channel2_kp, channel2_cert);
+  n2n2.create_channel(ni1, "", "", message_limit);
+
+  srand(0); // keep it deterministic
+
+  INFO("Send/receive a number of messages");
+  {
+    size_t desired_rollovers = 5;
+    size_t actual_rollovers = 0;
+
+    for (size_t i = 0; i < message_limit * desired_rollovers; i++)
+    {
+      if (rand() % 2 == 0)
+      {
+        n2n1.send_authenticated(
+          ni2, NodeMsgType::consensus_msg, msg.data(), msg.size());
+      }
+      else
+      {
+        n2n2.send_authenticated(
+          ni1, NodeMsgType::consensus_msg, msg.data(), msg.size());
+      }
+
+      auto msgs = get_all_msgs({&eio1, &eio2});
+      do
+      {
+        for (auto msg : msgs)
+        {
+          auto& n2n = (msg.from == ni2) ? n2n1 : n2n2;
+
+          switch (msg.type)
+          {
+            case NodeMsgType::channel_msg:
+            {
+              n2n.recv_message(msg.from, msg.data());
+
+              auto d = msg.data();
+              const uint8_t* data = d.data();
+              size_t sz = d.size();
+              auto type = serialized::read<ChannelMsg>(data, sz);
+              if (type == key_exchange_final)
+                actual_rollovers++;
+              break;
+            }
+            case NodeMsgType::consensus_msg:
+            {
+              auto hdr = msg.authenticated_hdr;
+              const auto* data = msg.payload.data();
+              auto size = msg.payload.size();
+
+              REQUIRE(n2n.recv_authenticated(
+                msg.from, {hdr.data(), hdr.size()}, data, size));
+              break;
+            }
+            default:
+              REQUIRE(false);
+          }
+        }
+
+        msgs = get_all_msgs({&eio1, &eio2});
+      } while (msgs.size() > 0);
+    }
+
+    REQUIRE(actual_rollovers >= desired_rollovers);
   }
 }

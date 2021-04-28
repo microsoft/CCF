@@ -20,8 +20,8 @@ TEST_CASE("Test custom log format")
   std::streambuf* coutbuf = std::cout.rdbuf();
   std::cout.rdbuf(out.rdbuf());
 
-  LOG_DEBUG_FMT(log_msg_dbg);
-  LOG_TRACE_FMT(log_msg_fail);
+  LOG_DEBUG_FMT("{}", log_msg_dbg);
+  LOG_TRACE_FMT("{}", log_msg_fail);
 
   out.flush();
   out.close();

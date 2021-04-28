@@ -103,13 +103,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="The enclave package to load (e.g., liblogging)",
     )
     parser.add_argument(
-        "-g",
-        "--gov-script",
-        help="Path to governance script",
-        type=absolute_path_to_existing_file,
+        "--constitution",
+        help="One or more paths to constitution script fragments",
+        action="append",
+        default=[],
     )
-    parser.add_argument("-s", "--app-script", help="Path to app script")
-    parser.add_argument("-j", "--js-app-script", help="Path to js app script")
     parser.add_argument("--js-app-bundle", help="Path to js app bundle")
     parser.add_argument(
         "--jwt-issuer",
@@ -141,13 +139,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=int,
     )
     parser.add_argument(
-        "--raft-election-timeout",
+        "--raft-election-timeout-ms",
         help="Raft maximum election timeout for each node in the network",
         type=int,
-        default=100000,
+        default=4000,
     )
     parser.add_argument(
-        "--bft-view-change-timeout",
+        "--bft-view-change-timeout-ms",
         help="bft maximum view change timeout for each node in the network",
         type=int,
         default=5000,
@@ -199,9 +197,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--participants-curve",
         help="Curve to use for member and user identities",
-        default=infra.network.ParticipantsCurve.secp384r1.name,
-        type=lambda curve: infra.network.ParticipantsCurve[curve],
-        choices=list(infra.network.ParticipantsCurve),
+        default=infra.network.EllipticCurve.secp384r1.name,
+        type=lambda curve: infra.network.EllipticCurve[curve],
+        choices=list(infra.network.EllipticCurve),
     )
     parser.add_argument(
         "--join-timer",
@@ -225,7 +223,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--initial-user-count",
         help="Number of users when initializing the network",
         type=int,
-        default=3,
+        default=1,
     )
     parser.add_argument(
         "--initial-recovery-member-count",
@@ -247,7 +245,36 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--snapshot-tx-interval",
         help="Number of transactions between two snapshots",
+        type=int,
+        default=10,
+    )
+    parser.add_argument(
+        "--max-open-sessions",
+        help="Max open TLS sessions on each node",
         default=None,
+    )
+    parser.add_argument(
+        "--jwt-key-refresh-interval-s",
+        help="JWT key refresh interval in seconds",
+        default=None,
+    )
+    parser.add_argument(
+        "--disable-member-session-auth",
+        help="Disable session auth for members",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--common-read-only-ledger-dir",
+        help="Location of read-only ledger directory available to all nodes",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--curve-id",
+        help="Elliptic curve to use as for node and network identities",
+        default=None,
+        type=lambda curve: infra.network.EllipticCurve[curve],
+        choices=list(infra.network.EllipticCurve),
     )
 
     add(parser)
@@ -265,7 +292,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         else:
             args.library_dir = args.binary_dir
 
-    if not args.package and (args.js_app_script or args.js_app_bundle):
+    if not args.package and args.js_app_bundle:
         args.package = "libjs_generic"
 
     if accept_unknown:

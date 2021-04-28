@@ -3,11 +3,14 @@
 #pragma once
 
 #include "ca.h"
+#include "crypto/mbedtls/mbedtls_wrappers.h"
 #include "error_string.h"
 
 #include <cstring>
 #include <memory>
 #include <optional>
+
+using namespace crypto;
 
 namespace tls
 {
@@ -30,8 +33,8 @@ namespace tls
     std::shared_ptr<CA> peer_ca;
     std::optional<std::string> peer_hostname;
 
-    mbedtls_x509_crt own_cert;
-    mbedtls_pk_context own_pkey;
+    mbedtls::X509Crt own_cert = nullptr;
+    mbedtls::PKContext own_pkey = nullptr;
     bool has_own_cert;
 
     Auth auth;
@@ -39,8 +42,8 @@ namespace tls
   public:
     Cert(
       std::shared_ptr<CA> peer_ca_,
-      const std::optional<tls::Pem>& own_cert_ = std::nullopt,
-      const std::optional<tls::Pem>& own_pkey_ = std::nullopt,
+      const std::optional<crypto::Pem>& own_cert_ = std::nullopt,
+      const std::optional<crypto::Pem>& own_pkey_ = std::nullopt,
       CBuffer pw = nullb,
       Auth auth_ = auth_default,
       const std::optional<std::string>& peer_hostname_ = std::nullopt) :
@@ -49,13 +52,13 @@ namespace tls
       has_own_cert(false),
       auth(auth_)
     {
-      mbedtls_x509_crt_init(&own_cert);
-      mbedtls_pk_init(&own_pkey);
+      auto tmp_cert = mbedtls::make_unique<mbedtls::X509Crt>();
+      auto tmp_pkey = mbedtls::make_unique<mbedtls::PKContext>();
 
       if (own_cert_.has_value() && own_pkey_.has_value())
       {
         int rc = mbedtls_x509_crt_parse(
-          &own_cert, own_cert_->data(), own_cert_->size());
+          tmp_cert.get(), own_cert_->data(), own_cert_->size());
 
         if (rc != 0)
         {
@@ -64,7 +67,7 @@ namespace tls
         }
 
         rc = mbedtls_pk_parse_key(
-          &own_pkey, own_pkey_->data(), own_pkey_->size(), pw.p, pw.n);
+          tmp_pkey.get(), own_pkey_->data(), own_pkey_->size(), pw.p, pw.n);
         if (rc != 0)
         {
           throw std::logic_error("Could not parse key: " + error_string(rc));
@@ -72,13 +75,12 @@ namespace tls
 
         has_own_cert = true;
       }
+
+      own_cert = std::move(tmp_cert);
+      own_pkey = std::move(tmp_pkey);
     }
 
-    ~Cert()
-    {
-      mbedtls_x509_crt_free(&own_cert);
-      mbedtls_pk_free(&own_pkey);
-    }
+    ~Cert() {}
 
     void use(mbedtls_ssl_context* ssl, mbedtls_ssl_config* cfg)
     {
@@ -104,13 +106,13 @@ namespace tls
 
       if (has_own_cert)
       {
-        mbedtls_ssl_conf_own_cert(cfg, &own_cert, &own_pkey);
+        mbedtls_ssl_conf_own_cert(cfg, own_cert.get(), own_pkey.get());
       }
     }
 
     const mbedtls_x509_crt* raw()
     {
-      return &own_cert;
+      return own_cert.get();
     }
 
   private:
