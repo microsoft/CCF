@@ -10,7 +10,7 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-from ccf.ledger import NodeStatus
+from ccf.ledger import NodeStatus, Ledger
 from ccf.tx_status import TxStatus
 from ccf.tx_id import TxID
 import random
@@ -431,6 +431,9 @@ class Network:
             args.workspace, args.label
         )
 
+        ledger = Ledger([ledger_dir], committed_only=False)
+        public_state, _ = ledger.get_latest_public_state()
+
         primary = self._start_all_nodes(
             args,
             recovery=True,
@@ -442,7 +445,10 @@ class Network:
         # If a common directory was passed in, initialise the consortium from it
         if common_dir is not None:
             self.consortium = infra.consortium.Consortium(
-                common_dir, self.key_generator, self.share_script, network=self
+                common_dir,
+                self.key_generator,
+                self.share_script,
+                public_state=public_state,
             )
 
         for node in self.get_joined_nodes():
