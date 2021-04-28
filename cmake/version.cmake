@@ -75,36 +75,6 @@ execute_process(
   RESULT_VARIABLE "VERSION_IS_SEMVER"
 )
 
-# Produce a valid version for the Python package
-set(CCF_PYTHON_VERSION "${CCF_RELEASE_VERSION}")
-if(CCF_VERSION_COMPONENTS_LENGTH GREATER 2)
-  # Look at the first suffix, if it begins with "rc" or "dev" then keep it
-  # verbatim
-  list(GET CCF_VERSION_COMPONENTS 2 FIRST_SUFFIX)
-  set(FIRST_SUFFIX_IS_PYTHON_FRIENDLY "FALSE")
-  string(SUBSTRING "${FIRST_SUFFIX}" 0 2 FIRST_SUFFIX_INIT)
-  if(FIRST_SUFFIX_INIT STREQUAL "rc")
-    set(FIRST_SUFFIX_IS_PYTHON_FRIENDLY TRUE)
-  else()
-    string(SUBSTRING "${FIRST_SUFFIX}" 0 3 FIRST_SUFFIX_INIT)
-    if(FIRST_SUFFIX_INIT STREQUAL "dev")
-      set(FIRST_SUFFIX_IS_PYTHON_FRIENDLY TRUE)
-    endif()
-  endif()
-
-  if(FIRST_SUFFIX_IS_PYTHON_FRIENDLY)
-    set(CCF_PYTHON_VERSION "${CCF_PYTHON_VERSION}.${FIRST_SUFFIX}")
-  endif()
-
-  # If that didn't work, or we have any other components (ie - we're not on a
-  # tag), add the precise description as a local version after "+"
-  if(NOT FIRST_SUFFIX_IS_PYTHON_FRIENDLY OR CCF_VERSION_COMPONENTS_LENGTH
-                                            GREATER 3
-  )
-    set(CCF_PYTHON_VERSION "${CCF_PYTHON_VERSION}+${CCF_VERSION_SUFFIX}")
-  endif()
-endif()
-
 if(NOT ${VERSION_IS_SEMVER} STREQUAL "0")
   message(
     WARNING
