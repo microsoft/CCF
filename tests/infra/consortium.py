@@ -29,7 +29,7 @@ class Consortium:
         share_script,
         members_info=None,
         curve=None,
-        remote_node=None,
+        network=None,
         authenticate_session=True,
     ):
         self.common_dir = common_dir
@@ -78,7 +78,7 @@ class Consortium:
                     )
 
             # Retrieve state of service directly from ledger
-            latest_public_state, _ = remote_node.get_latest_ledger_public_state()
+            latest_public_state, _ = network.get_latest_ledger_public_state()
             self.recovery_threshold = json.loads(
                 latest_public_state["public:ccf.gov.service.config"][
                     ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
