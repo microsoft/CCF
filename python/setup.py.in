@@ -3,6 +3,7 @@
 
 from setuptools import setup  # type: ignore
 from os import path
+import versionifier
 
 PACKAGE_NAME = "ccf"
 UTILITIES_PATH = "utils"
@@ -17,7 +18,7 @@ with open('requirements.txt') as f:
 
 setup(
     name=PACKAGE_NAME,
-    version="@CCF_RELEASE_VERSION@",
+    version=str(versionifier.to_python_version("@CCF_VERSION@")),
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",

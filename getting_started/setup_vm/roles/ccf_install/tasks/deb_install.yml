@@ -7,7 +7,7 @@
       if [ "{{ ccf_ver }}" = "latest" ]; then
         curl -s https://api.github.com/repos/microsoft/ccf/releases/latest | egrep 'https://.*\.deb' | cut -d\" -f4
       else
-        echo "https://github.com/microsoft/CCF/releases/{{ ccf_suffix }}/ccf_{{ ccf_ver }}_amd64.deb"
+        echo "https://github.com/microsoft/CCF/releases/{{ ccf_suffix }}/ccf_{{ ccf_ver | replace('-', '_') }}_amd64.deb"
       fi
   register: ccf_deb_url
 
@@ -18,7 +18,7 @@
 
 - name: Copy cchost
   copy:
-    src: "/opt/ccf-{{ ccf_ver }}/bin/cchost"
+    src: "/opt/ccf/bin/cchost"
     dest: "/usr/bin/cchost"
     remote_src: true
     mode: a=rx

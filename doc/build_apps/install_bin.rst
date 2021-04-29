@@ -42,10 +42,10 @@ Assuming that CCF was installed under ``/opt``, the following commands can be ru
 
 .. code-block:: bash
 
-    $ /opt/ccf-${CCF_VERSION}/bin/cchost --version
+    $ /opt/ccf/bin/cchost --version
     CCF host: ccf-<version>
 
-    $ /opt/ccf-${CCF_VERSION}/bin/sandbox.sh
+    $ /opt/ccf/bin/sandbox.sh
     No package/app specified. Defaulting to installed JS logging app
     Setting up Python environment...
     Python environment successfully setup
