@@ -25,7 +25,11 @@ def run(args):
         network.start_and_join(args)
 
         nodes = network.get_joined_nodes()
-        partitioner.isolate_node(nodes[0])
+        # partitioner.isolate_node(nodes[0])
+        partitioner.isolate_node_from_other(nodes[0], nodes[1])
+
+        input("")
+        # partitioner.create_partition(network, [nodes[0], nodes[1]])
         # nodes[0].n2n_isolate_from_service()
 
         # try:
