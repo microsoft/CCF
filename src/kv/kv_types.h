@@ -559,7 +559,7 @@ namespace kv
     virtual Version current_version() = 0;
     virtual TxID current_txid() = 0;
 
-    virtual Version commit_version() = 0;
+    virtual Version compacted_version() = 0;
 
     virtual std::shared_ptr<AbstractMap> get_map(
       Version v, const std::string& map_name) = 0;

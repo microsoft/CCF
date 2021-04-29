@@ -3,52 +3,69 @@
 
 unset(CCF_VERSION)
 unset(CCF_RELEASE_VERSION)
+unset(CCF_VERSION_SUFFIX)
 
 # If possible, deduce project version from git environment
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   find_package(Git)
 
   execute_process(
-    COMMAND "bash" "-c" "${GIT_EXECUTABLE} describe --tags | grep ccf-"
+    COMMAND "bash" "-c" "${GIT_EXECUTABLE} describe --tags"
     OUTPUT_VARIABLE "CCF_VERSION"
     OUTPUT_STRIP_TRAILING_WHITESPACE
     RESULT_VARIABLE RETURN_CODE
   )
   if(NOT RETURN_CODE STREQUAL "0")
+    message(FATAL_ERROR "Error calling git describe")
+  endif()
+
+  # Convert git description into cmake list, separated at '-'
+  string(REPLACE "-" ";" CCF_VERSION_COMPONENTS ${CCF_VERSION})
+
+  # Check that the first element equals "ccf"
+  list(GET CCF_VERSION_COMPONENTS 0 FIRST)
+  if(NOT FIRST STREQUAL "ccf")
     message(
       FATAL_ERROR
         "Git repository does not appear to contain any tag starting with ccf- (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)"
     )
   endif()
-  execute_process(
-    COMMAND "bash" "-c"
-            "${GIT_EXECUTABLE} describe --tags --abbrev=0 | tr -d ccf-"
-    OUTPUT_VARIABLE "CCF_RELEASE_VERSION"
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-endif()
-
-if(NOT CCF_RELEASE_VERSION)
+else()
   # If not in a git environment (e.g. release tarball), deduce version from the
   # source directory name
   execute_process(
-    COMMAND "bash" "-c"
-            "[[ $(basename ${CMAKE_CURRENT_SOURCE_DIR}) =~ ^CCF-.* ]]"
-    RESULT_VARIABLE "IS_CCF_FOLDER"
-  )
-
-  if(NOT ${IS_CCF_FOLDER} STREQUAL "0")
-    message(FATAL_ERROR "Sources directory is not in \"CCF-...\" folder")
-  endif()
-
-  execute_process(
-    COMMAND "bash" "-c" "basename ${CMAKE_CURRENT_SOURCE_DIR} | cut -d'-' -f2"
+    COMMAND "bash" "-c" "basename ${CMAKE_CURRENT_SOURCE_DIR}"
     OUTPUT_VARIABLE "CCF_VERSION"
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
 
-  set(CCF_RELEASE_VERSION ${CCF_VERSION})
-  message(STATUS "CCF version deduced from sources directory: ${CCF_VERSION}")
+  # Convert directory name into cmake list, separated at '-'
+  string(REPLACE "-" ";" CCF_VERSION_COMPONENTS ${CCF_VERSION})
+
+  # Check that the first element equals "ccf"
+  list(GET CCF_VERSION_COMPONENTS 0 FIRST)
+  if(NOT FIRST STREQUAL "ccf")
+    message(FATAL_ERROR "Sources directory is not in \"ccf-...\" folder")
+  endif()
+
+  message(
+    STATUS "Extracting CCF version from sources directory: ${CCF_VERSION}"
+  )
+endif()
+
+# Check that we have at least ccf-x.y.z
+list(LENGTH CCF_VERSION_COMPONENTS CCF_VERSION_COMPONENTS_LENGTH)
+if(NOT CCF_VERSION_COMPONENTS_LENGTH GREATER_EQUAL 2)
+  message(FATAL_ERROR "Version does not contain expected ccf-x.y.z")
+endif()
+
+# Get the main version number
+list(GET CCF_VERSION_COMPONENTS 1 CCF_RELEASE_VERSION)
+
+# If there is any suffix, store it
+if(CCF_VERSION_COMPONENTS_LENGTH GREATER 2)
+  list(SUBLIST CCF_VERSION_COMPONENTS 2 -1 CCF_VERSION_SUFFIX)
+  list(JOIN CCF_VERSION_SUFFIX "-" CCF_VERSION_SUFFIX)
 endif()
 
 # Check that release version is semver
@@ -68,3 +85,6 @@ endif()
 
 file(WRITE ${CMAKE_BINARY_DIR}/VERSION "${CCF_RELEASE_VERSION}")
 install(FILES ${CMAKE_BINARY_DIR}/VERSION DESTINATION share)
+
+file(WRITE ${CMAKE_BINARY_DIR}/VERSION_LONG "${CCF_VERSION}")
+install(FILES ${CMAKE_BINARY_DIR}/VERSION_LONG DESTINATION share)
