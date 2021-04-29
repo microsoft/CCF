@@ -578,8 +578,6 @@ class Ledger:
 
     @property
     def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
-        print("FILENAMES")
-        print(self._filenames)
         last_chunk_name = self._filenames[-1]
         return Ledger._range_from_filename(last_chunk_name)
 
