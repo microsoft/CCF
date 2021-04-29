@@ -1494,7 +1494,7 @@ TEST_CASE("Private recovery map swap")
       REQUIRE(val.has_value());
       REQUIRE(val.value() == "45");
 
-      REQUIRE(s1.commit_version() == 3);
+      REQUIRE(s1.compacted_version() == 3);
     }
     {
       for (size_t i : {12, 13, 14, 15})
@@ -1972,7 +1972,7 @@ TEST_CASE("Store clear")
     REQUIRE(kv_store.get_map(current_version, map_b_name) != nullptr);
 
     REQUIRE(kv_store.current_version() != 0);
-    REQUIRE(kv_store.commit_version() != 0);
+    REQUIRE(kv_store.compacted_version() != 0);
     auto tx_id = kv_store.current_txid();
     REQUIRE(tx_id.term != 0);
     REQUIRE(tx_id.version != 0);
@@ -1987,7 +1987,7 @@ TEST_CASE("Store clear")
     REQUIRE(kv_store.get_map(current_version, map_b_name) == nullptr);
 
     REQUIRE(kv_store.current_version() == 0);
-    REQUIRE(kv_store.commit_version() == 0);
+    REQUIRE(kv_store.compacted_version() == 0);
     auto tx_id = kv_store.current_txid();
     REQUIRE(tx_id.term == 0);
     REQUIRE(tx_id.version == 0);

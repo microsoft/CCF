@@ -19,7 +19,7 @@ npm install
 To run the demo and end-to-end tests, define the following environment variable:
 
 ```sh
-export CCF_BINARY_DIR=/opt/ccf-x.y.z/bin
+export CCF_BINARY_DIR=/opt/ccf/bin
 ```
 
 If not defined, it assumes you built CCF from source and defaults to `CCF_BINARY_DIR=<repo_root>/build`.
