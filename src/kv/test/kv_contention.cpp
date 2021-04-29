@@ -160,7 +160,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
       &ca);
   }
 
-  const auto initial_version = kv_store.commit_version();
+  const auto initial_version = kv_store.compacted_version();
 
   // Start tx threads
   for (size_t i = 0u; i < thread_count; ++i)
@@ -192,7 +192,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   DOCTEST_REQUIRE(compact_state.load() == Done);
 
   // Sanity check that all transactions were compacted
-  const auto now_compacted = kv_store.commit_version();
+  const auto now_compacted = kv_store.compacted_version();
   DOCTEST_REQUIRE(now_compacted > initial_version);
   const auto expected = initial_version + (tx_count * thread_count);
   DOCTEST_REQUIRE(now_compacted == expected);
