@@ -551,6 +551,7 @@ class CCFRemote(object):
         pubhost,
         node_port,
         rpc_port,
+        node_client_host,
         remote_class,
         enclave_type,
         workspace,
@@ -646,10 +647,8 @@ class CCFRemote(object):
             f"--worker-threads={worker_threads}",
         ]
 
-        if remote_class is LocalRemote:
-            cmd += [
-                f'--node-client-host={str(ipaddress.ip_address("127.100.0.0") + local_node_id)}'
-            ]
+        if node_client_host:
+            cmd += [f"--node-client-host={node_client_host}"]
 
         if log_format_json:
             cmd += ["--log-format-json"]

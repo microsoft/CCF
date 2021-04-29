@@ -13,9 +13,11 @@ import os
 import socket
 import re
 import time
-import iptc
+import ipaddress
 
 from loguru import logger as LOG
+
+BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
 
 class NodeNetworkState(Enum):
@@ -84,9 +86,13 @@ class Node:
         self.common_dir = None
         self.suspended = False
         self.node_id = None
+        self.node_client_host = None
 
         if host.startswith("local://"):
             self.remote_impl = infra.remote.LocalRemote
+            self.node_client_host = str(
+                ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
+            )
         elif host.startswith("ssh://"):
             self.remote_impl = infra.remote.SSHRemote
         else:
@@ -202,6 +208,7 @@ class Node:
             self.pubhost,
             self.node_port,
             self.rpc_port,
+            self.node_client_host,
             self.remote_impl,
             enclave_type,
             workspace,
@@ -413,41 +420,51 @@ class Node:
 
         LOG.error(f"https://{self.host}:{self.rpc_port}")
 
-        if iptc.easy.has_rule("filter", "TestChain", rule):
-            iptc.easy.delete_rule("filter", "TestChain", rule)
-            # iptc.easy.delete_chain("filter", "TestChain")
+        if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, rule):
+            iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, rule)
+            # iptc.easy.delete_chain("filter", CCF_IPTABLES_CHAIN)
 
-        # iptc.easy.add_chain("filter", "TestChain")
-        iptc.easy.insert_rule("filter", "TestChain", rule)
+        # iptc.easy.add_chain("filter", CCF_IPTABLES_CHAIN)
+        iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, rule)
 
-        input_rule = {"protocol": "tcp", "target": "TestChain", "tcp": {}}
+        input_rule = {"protocol": "tcp", "target": CCF_IPTABLES_CHAIN, "tcp": {}}
         iptc.easy.insert_rule("filter", "INPUT", input_rule)
 
         while True:
-            LOG.warning(iptc.easy.dump_chain("filter", "TestChain"))
+            LOG.warning(iptc.easy.dump_chain("filter", CCF_IPTABLES_CHAIN))
             time.sleep(10)
 
     def n2n_isolate_from_service(self):
-        rule = {
+        # Isolates node server socket
+        server_rule = {
             "protocol": "tcp",
             "target": "DROP",
             "dst": str(self.host),
             "tcp": {"dport": str(self.node_port)},
         }
 
+        # Isolates all node client sockets
+        client_rule = {
+            "protocol": "tcp",
+            "target": "DROP",
+            "src": str(self.node_client_host),
+        }
+
         LOG.error(f"Isolating from service https://{self.host}:{self.node_port}")
 
-        if not iptc.easy.has_chain("filter", "TestChain"):
-            iptc.easy.add_chain("filter", "TestChain")
+        if not iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
+            iptc.easy.add_chain("filter", CCF_IPTABLES_CHAIN)
 
-        if iptc.easy.has_rule("filter", "TestChain", rule):
-            iptc.easy.delete_rule("filter", "TestChain", rule)
-            # iptc.easy.delete_chain("filter", "TestChain")
+        if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, server_rule):
+            iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
 
-        # iptc.easy.add_chain("filter", "TestChain")
-        iptc.easy.insert_rule("filter", "TestChain", rule)
+        if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, client_rule):
+            iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
 
-        input_rule = {"protocol": "tcp", "target": "TestChain", "tcp": {}}
+        iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
+        iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
+
+        input_rule = {"protocol": "tcp", "target": CCF_IPTABLES_CHAIN, "tcp": {}}
         iptc.easy.insert_rule("filter", "INPUT", input_rule)
 
 
