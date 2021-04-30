@@ -2,6 +2,7 @@ pr:
   branches:
     include:
       - main
+      - "release/*"
   paths:
     include:
       - .daily.yml
@@ -16,6 +17,7 @@ schedules:
     branches:
       include:
         - main
+        - "release/*"
     always: true
 
 resources:
