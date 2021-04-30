@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The curve-id selected for the identity of joining nodes no longer needs to match that of the network (#2525).
 
+## [1.0.0]
+
+The Confidential Consortium Framework CCF is an open-source framework for building a new category of secure, highly available, and performant applications that focus on multi-party compute and data.
+
+This is the first long term support release for CCF. The 1.0 branch will only receive security and critical bug fixes, please see our [release policy](https://microsoft.github.io/CCF/main/overview/release_policy.html) for more detail.
+
+Active development will continue on the `main` branch, and regular development snapshots including new features will continue to be published.
+
+Browse our [documentation](https://microsoft.github.io/CCF/main/index.html) to get started with CCF, or [open a discussion on GitHub](https://github.com/microsoft/CCF/discussions) if you have any questions.
+
 ## [1.0.0-rc3]
 
 ### Changed
