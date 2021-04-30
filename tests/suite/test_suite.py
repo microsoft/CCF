@@ -15,16 +15,24 @@ from inspect import signature, Parameter
 suites = {}
 
 
-# This suite tests that rekeying, network configuration changes
-# and recoveries can be interleaved
+# This suite tests that rekeying, network configuration changes, recoveries and
+# curve changes can be interleaved
 suite_rekey_recovery = [
     recovery.test,
     reconfiguration.test_add_node,
+    reconfiguration.test_add_node_on_other_curve,
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
+    reconfiguration.test_add_node_on_other_curve,
     recovery.test,
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
+    reconfiguration.test_change_curve,
+    reconfiguration.test_add_node,
+    reconfiguration.test_add_node_on_other_curve,
+    e2e_logging.test_rekey,
+    recovery.test,
+    e2e_logging.test_rekey,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
 
@@ -57,21 +65,6 @@ suite_reconfiguration = [
     e2e_logging.test_view_history,
 ]
 suites["reconfiguration"] = suite_reconfiguration
-
-# This suite tests that the service supports nodes on different curves, and
-# recoveries on different curves
-suite_mixed_curves = [
-    reconfiguration.test_add_node_on_other_curve,
-    election.test_kill_primary,
-    recovery.test,
-    reconfiguration.test_change_curve,
-    reconfiguration.test_add_node_on_other_curve,
-    election.test_kill_primary,
-    recovery.test,
-    reconfiguration.test_change_curve,
-    recovery.test,
-]
-suites["mixed_curves"] = suite_mixed_curves
 
 
 all_tests_suite = [
