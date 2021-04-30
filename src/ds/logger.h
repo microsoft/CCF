@@ -68,7 +68,7 @@ namespace logger
       const std::tm& host_tm,
       const ::timespec& host_ts,
       uint16_t thread_id,
-      const std::optional<::timespec>& enclave_ts = std::nullopt) = 0;
+      const std::optional<float>& enclave_offset = std::nullopt) = 0;
 
     virtual void write(const std::string& log_line) = 0;
 
@@ -94,17 +94,26 @@ namespace logger
       const std::tm& host_tm,
       const ::timespec& host_ts,
       uint16_t thread_id,
-      const std::optional<::timespec>& enclave_ts = std::nullopt) override
+      const std::optional<float>& enclave_offset = std::nullopt) override
     {
       nlohmann::json j;
       j["m"] = msg;
 
-      if (enclave_ts.has_value())
+      if (enclave_offset.has_value())
       {
+        ::timespec enc_ts = host_ts;
+        enc_ts.tv_sec += (size_t)enclave_offset.value();
+        enc_ts.tv_nsec +=
+          (long long)(enclave_offset.value() * ns_per_s) % ns_per_s;
+
+        if (enc_ts.tv_nsec > ns_per_s)
+        {
+          enc_ts.tv_sec += 1;
+          enc_ts.tv_nsec -= ns_per_s;
+        }
+
         std::tm enclave_tm;
-        auto enc_ts = enclave_ts.value();
-        ::timespec_get(&enc_ts, TIME_UTC);
-        ::gmtime_r(&enc_ts.tv_sec, &enclave_tm);
+        gmtime_r(&enc_ts.tv_sec, &enclave_tm);
 
         return fmt::format(
           "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{"
@@ -154,7 +163,7 @@ namespace logger
       const std::tm& host_tm,
       const ::timespec& host_ts,
       uint16_t thread_id,
-      const std::optional<::timespec>& enclave_ts = std::nullopt) override
+      const std::optional<float>& enclave_offset = std::nullopt) override
     {
       auto file_line = fmt::format("{}:{}", file_name, line_number);
       auto file_line_data = file_line.data();
@@ -166,16 +175,15 @@ namespace logger
       if (len > max_len)
         file_line_data += len - max_len;
 
-      if (enclave_ts.has_value())
+      if (enclave_offset.has_value())
       {
         // Sample: "2019-07-19 18:53:25.690183 -0.130 " where -0.130 indicates
         // that the time inside the enclave was 130 milliseconds earlier than
         // the host timestamp printed on the line
         return fmt::format(
-          "{} -{}.{:0>3} {:<3} [{:<5}] {:<36} | {}",
+          "{} {:+01.3f} {:<3} [{:<5}] {:<36} | {}",
           get_timestamp(host_tm, host_ts),
-          enclave_ts.value().tv_sec,
-          enclave_ts.value().tv_nsec / 1000000,
+          enclave_offset.value(),
           thread_id,
           log_level,
           file_line_data,
@@ -263,37 +271,18 @@ namespace logger
       return the_writer;
     }
 
-    // Count of milliseconds elapsed since enclave started, used to produce
-    // offsets to host time when logging from inside the enclave
-    static std::atomic<std::chrono::milliseconds> ms;
+    // Current time, as us duration since epoch (from system_clock). Used to
+    // produce offsets to host time when logging from inside the enclave
+    static std::atomic<std::chrono::microseconds> us;
 
-    static void set_time(std::chrono::milliseconds ms_)
+    static void set_time(std::chrono::microseconds us_)
     {
-      ms.exchange(ms_);
+      us.exchange(us_);
     }
 
-    static std::chrono::milliseconds elapsed_ms()
+    static std::chrono::microseconds elapsed_us()
     {
-      return ms;
-    }
-#else
-    // Timestamp of first tick. Used by the host when receiving log messages
-    // from the enclave. Combined with the elapsed ms reported by the enclave,
-    // and used to compute the offset between time inside the enclave, and time
-    // on the host when the log message is received.
-    static ::timespec start;
-
-    static void set_start(
-      const std::chrono::time_point<std::chrono::system_clock>& start_)
-    {
-      start.tv_sec = std::chrono::time_point_cast<std::chrono::seconds>(start_)
-                       .time_since_epoch()
-                       .count();
-      start.tv_nsec =
-        std::chrono::time_point_cast<std::chrono::nanoseconds>(start_)
-          .time_since_epoch()
-          .count() -
-        start.tv_sec * ns_per_s;
+      return us;
     }
 #endif
 
@@ -370,7 +359,7 @@ namespace logger
       line.finalize();
       config::writer()->write(
         config::msg(),
-        config::elapsed_ms(),
+        config::elapsed_us(),
         line.file_name,
         line.line_number,
         line.log_level,
@@ -428,7 +417,7 @@ namespace logger
       const Level& log_level,
       uint16_t thread_id,
       const std::string& msg,
-      size_t ms_offset_from_start)
+      size_t enclave_time_us)
     {
       // When logging messages received from the enclave, print local time,
       // and the offset to time inside the enclave at the time the message
@@ -438,30 +427,24 @@ namespace logger
       ::timespec_get(&ts, TIME_UTC);
       std::tm now;
       ::gmtime_r(&ts.tv_sec, &now);
-      time_t elapsed_s = ms_offset_from_start / 1000;
-      ssize_t elapsed_ns = (ms_offset_from_start % 1000) * 1000000;
 
-      // Enclave time is recomputed every time. If multiple threads
-      // log inside the enclave, offsets may not always increase
-      ::timespec enclave_ts{logger::config::start.tv_sec + elapsed_s,
-                            logger::config::start.tv_nsec + elapsed_ns};
+      // Represent offset as a real (counting seconds) to handle both small
+      // negative _and_ positive numbers. Since the system clock used is not
+      // monotonic, the offset we calculate could go in either direction, and tm
+      // can't represent small negative values.
+      std::optional<double> offset_time = std::nullopt;
 
-      if (enclave_ts.tv_nsec > ns_per_s)
+      // If enclave doesn't know the
+      // current time yet, don't try to produce an offset, just give them the
+      // host's time (producing offset of 0)
+      if (enclave_time_us != 0)
       {
-        enclave_ts.tv_sec++;
-        enclave_ts.tv_nsec -= ns_per_s;
-      }
+        // Enclave time is recomputed every time. If multiple threads
+        // log inside the enclave, offsets may not always increase
+        const double enclave_time_s = enclave_time_us / 1'000'000.0;
+        const double host_time_s = ts.tv_sec + (ts.tv_nsec / (double)ns_per_s);
 
-      // We assume time in the enclave is behind (less than) time on the host.
-      // This would reliably be the case if we used a monotonic clock,
-      // but we want human-readable wall-clock time. Inaccurate offsets may
-      // occasionally occur as a result.
-      enclave_ts.tv_sec = ts.tv_sec - enclave_ts.tv_sec;
-      enclave_ts.tv_nsec = ts.tv_nsec - enclave_ts.tv_nsec;
-      if (enclave_ts.tv_nsec < 0)
-      {
-        enclave_ts.tv_sec--;
-        enclave_ts.tv_nsec += ns_per_s;
+        offset_time = enclave_time_s - host_time_s;
       }
 
       for (auto const& logger : config::loggers())
@@ -474,7 +457,7 @@ namespace logger
           now,
           ts,
           thread_id,
-          enclave_ts));
+          offset_time));
       }
 
       if (log_level == Level::FATAL)
@@ -488,7 +471,7 @@ namespace logger
             now,
             ts,
             thread_id,
-            enclave_ts));
+            offset_time));
     }
   };
 #endif
