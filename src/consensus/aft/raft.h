@@ -1022,6 +1022,13 @@ namespace aft
       const ccf::NodeId& to, Index start_idx, Index end_idx)
     {
       const auto prev_idx = start_idx - 1;
+
+      if (replica_state == Retired && start_idx >= end_idx)
+      {
+        channels->destroy_channel(to);
+        return;
+      }
+
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
       const bool contains_new_view =
@@ -2304,6 +2311,11 @@ namespace aft
 
     void become_candidate()
     {
+      if (replica_state == Retired)
+      {
+        return;
+      }
+
       replica_state = Candidate;
       leader_id.reset();
       voted_for = state->my_node_id;
@@ -2331,6 +2343,11 @@ namespace aft
 
     void become_leader()
     {
+      if (replica_state == Retired)
+      {
+        return;
+      }
+
       election_index = last_committable_index();
       LOG_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);
@@ -2378,6 +2395,11 @@ namespace aft
 
     void become_follower(Term term)
     {
+      if (replica_state == Retired)
+      {
+        return;
+      }
+
       replica_state = Follower;
       leader_id.reset();
       restart_election_timeout();
@@ -2406,7 +2428,6 @@ namespace aft
 
       LOG_INFO_FMT(
         "Becoming retired {}: {}", state->my_node_id, state->current_view);
-      channels->destroy_all_channels();
     }
 
     void add_vote_for_me(const ccf::NodeId& from)
