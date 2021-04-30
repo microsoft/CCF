@@ -31,8 +31,6 @@
 using namespace std::string_literals;
 using namespace std::chrono_literals;
 
-::timespec logger::config::start{0, 0};
-
 size_t asynchost::TCPImpl::remaining_read_quota;
 
 void print_version(size_t)
@@ -587,9 +585,7 @@ int main(int argc, char** argv)
   {
     // provide regular ticks to the enclave
     const std::chrono::milliseconds tick_period(tick_period_ms);
-    asynchost::Ticker ticker(tick_period, writer_factory, [](auto s) {
-      logger::config::set_start(s);
-    });
+    asynchost::Ticker ticker(tick_period, writer_factory);
 
     // reset the inbound-TCP processing quota each iteration
     asynchost::ResetTCPReadQuota reset_tcp_quota;
