@@ -37,6 +37,14 @@ namespace nobuiltins
   DECLARE_JSON_TYPE(TransactionIDResponse)
   DECLARE_JSON_REQUIRED_FIELDS(TransactionIDResponse, transaction_id)
 
+  struct TimeResponse
+  {
+    std::string timestamp;
+  };
+
+  DECLARE_JSON_TYPE(TimeResponse)
+  DECLARE_JSON_REQUIRED_FIELDS(TimeResponse, timestamp)
+
   // SNIPPET: registry_inheritance
   class NoBuiltinsRegistry : public ccf::BaseEndpointRegistry
   {
@@ -226,6 +234,43 @@ namespace nobuiltins
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, TransactionIDResponse>()
+        .install();
+
+      auto get_time = [this](auto& ctx, nlohmann::json&&) {
+        std::tm time;
+        ccf::ApiResult result = get_untrusted_time_v1(time);
+        if (result != ccf::ApiResult::OK)
+        {
+          return ccf::make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Unable to get time: {}", ccf::api_result_to_str(result)));
+        }
+
+        // 25 characters for an ISO 8601 datetime, plus a terminating null
+        constexpr size_t buf_size = 26;
+        char buf[buf_size];
+        if (strftime(buf, buf_size, "%Y-%m-%dT%H:%M:%S+00:00", &time) == 0)
+        {
+          return ccf::make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Unable to format timestamp"));
+        }
+
+        TimeResponse response;
+        response.timestamp = buf;
+        return ccf::make_success(response);
+      };
+      make_command_endpoint(
+        "current_time",
+        HTTP_GET,
+        ccf::json_command_adapter(get_time),
+        ccf::no_auth_required)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .set_auto_schema<void, TimeResponse>()
         .install();
     }
   };

@@ -3,6 +3,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 
+#include "enclave/enclave_time.h"
 #include "node/members.h"
 #include "node/users.h"
 
@@ -242,5 +243,16 @@ namespace ccf
       LOG_TRACE_FMT("{}", e.what());
       return ApiResult::InternalError;
     }
+  }
+  
+  ApiResult BaseEndpointRegistry::get_untrusted_time_v1(std::tm& time)
+  {
+    const auto now_us = enclave::get_enclave_time();
+    const auto now_s = std::chrono::duration_cast<std::chrono::seconds>(now_us);
+
+    const time_t now = (time_t)now_s.count();
+    ::gmtime_r(&now, &time);
+
+    return ApiResult::OK;
   }
 }
