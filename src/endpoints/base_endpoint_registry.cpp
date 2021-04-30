@@ -244,14 +244,17 @@ namespace ccf
       return ApiResult::InternalError;
     }
   }
-  
-  ApiResult BaseEndpointRegistry::get_untrusted_time_v1(std::tm& time)
-  {
-    const auto now_us = enclave::get_enclave_time();
-    const auto now_s = std::chrono::duration_cast<std::chrono::seconds>(now_us);
 
-    const time_t now = (time_t)now_s.count();
-    ::gmtime_r(&now, &time);
+  ApiResult BaseEndpointRegistry::get_untrusted_host_time_v1(::timespec& time)
+  {
+    const std::chrono::microseconds now_us = enclave::get_enclave_time();
+
+    constexpr auto us_per_s = 1'000'000;
+    time.tv_sec = now_us.count() / us_per_s;
+    time.tv_nsec = (now_us.count() % us_per_s) * 1'000;
+
+    LOG_INFO_FMT(
+      "{} -> {{ {}, {} }}", now_us.count(), time.tv_sec, time.tv_nsec);
 
     return ApiResult::OK;
   }

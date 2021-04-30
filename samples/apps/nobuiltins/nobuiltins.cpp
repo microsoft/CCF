@@ -237,8 +237,8 @@ namespace nobuiltins
         .install();
 
       auto get_time = [this](auto& ctx, nlohmann::json&&) {
-        std::tm time;
-        ccf::ApiResult result = get_untrusted_time_v1(time);
+        ::timespec time;
+        ccf::ApiResult result = get_untrusted_host_time_v1(time);
         if (result != ccf::ApiResult::OK)
         {
           return ccf::make_error(
@@ -248,10 +248,14 @@ namespace nobuiltins
               "Unable to get time: {}", ccf::api_result_to_str(result)));
         }
 
-        // 25 characters for an ISO 8601 datetime, plus a terminating null
-        constexpr size_t buf_size = 26;
+        std::tm calendar_time;
+        gmtime_r(&time.tv_sec, &calendar_time);
+
+        // 20 characters for a (timezoneless) ISO 8601 datetime, plus a
+        // terminating null
+        constexpr size_t buf_size = 21;
         char buf[buf_size];
-        if (strftime(buf, buf_size, "%Y-%m-%dT%H:%M:%S+00:00", &time) == 0)
+        if (strftime(buf, buf_size, "%Y-%m-%dT%H:%M:%S", &calendar_time) == 0)
         {
           return ccf::make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -259,8 +263,11 @@ namespace nobuiltins
             fmt::format("Unable to format timestamp"));
         }
 
+        // Build full time, with 6 decimals of sub-second precision, and a
+        // Python-friendly +00:00 UTC offset
         TimeResponse response;
-        response.timestamp = buf;
+        response.timestamp =
+          fmt::format("{}.{:06}+00:00", buf, time.tv_nsec / 1'000);
         return ccf::make_success(response);
       };
       make_command_endpoint(

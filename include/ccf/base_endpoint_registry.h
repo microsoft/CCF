@@ -149,6 +149,6 @@ namespace ccf
 
     /** Get untrusted time from the host of the currently executing node.
      */
-    ApiResult get_untrusted_time_v1(std::tm& time);
+    ApiResult get_untrusted_host_time_v1(::timespec& time);
   };
 }
