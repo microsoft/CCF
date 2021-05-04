@@ -49,7 +49,6 @@ namespace crypto
 
     int mdnid, pknid, secbits;
     X509_get_signature_info(cert, &mdnid, &pknid, &secbits, 0);
-    md_type = get_md_type(mdnid);
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
