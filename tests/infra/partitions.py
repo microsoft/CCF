@@ -38,7 +38,7 @@ class Partitioner:
             iptc.easy.flush_chain("filter", CCF_IPTABLES_CHAIN)
             iptc.easy.delete_rule("filter", "INPUT", CCF_INPUT_RULE)
             iptc.easy.delete_chain("filter", CCF_IPTABLES_CHAIN)
-        LOG.info(f"Successfully cleanup iptables chain {CCF_IPTABLES_CHAIN}")
+        LOG.info(f"{CCF_IPTABLES_CHAIN} iptables chain cleaned up")
 
     def __init__(self, network):
         self.network = network
@@ -142,6 +142,7 @@ class Partitioner:
 
         partitions_name.append(self._get_partition_name(other_nodes))
 
+        # TODO: name contains trailing comma
         LOG.success(f'Created new partition {",".join(partitions_name)}')
 
         return Rules(

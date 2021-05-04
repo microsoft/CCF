@@ -5,9 +5,75 @@ import infra.network
 import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
+import suite.test_requirements as reqs
 import time
 
 from loguru import logger as LOG
+
+
+@reqs.description("Invalid partitions are not allowed")
+def test_invalid_partitions(network, args):
+    nodes = network.get_joined_nodes()
+
+    try:
+        network.partitioner.partition(
+            [nodes[0], nodes[2]],
+            [nodes[1], nodes[2]],
+        )
+        assert False, "Node should not appear in two or more partitions"
+    except ValueError:
+        pass
+
+    try:
+        network.partitioner.partition()
+        assert False, "At least one partition should be specified"
+    except ValueError:
+        pass
+
+    try:
+        invalid_local_node_id = -1
+        new_node = infra.node.Node(invalid_local_node_id, "local://localhost")
+        network.partitioner.partition([new_node])
+        assert False, "All nodes should belong to network"
+    except ValueError:
+        pass
+
+    return network
+
+
+@reqs.description("Partition primary + f nodes")
+def test_partition_majority(network, args):
+    primary, backups = network.find_nodes()
+
+    # Create a partition with primary + half remaining nodes (i.e. majority)
+    partition = [primary]
+    partition.extend(backups[len(backups) // 2 :])
+    rules = network.partitioner.partition(partition)
+
+    try:
+        network.wait_for_new_primary(primary.node_id)
+        assert False, "No new primary should be elected when partitioning majority"
+    except TimeoutError:
+        pass
+
+    # Drop rules before continuing
+    rules.drop()
+
+    return network
+
+
+@reqs.description("Isolate primary")
+def test_isolate_primary(network, args):
+    primary, backups = network.find_nodes()
+
+    rules = network.partitioner.isolate_node_from_other(primary, backups[0])
+
+    network.wait_for_new_primary(backups[0].node_id)
+
+    # Drop rules before continuing
+    rules.drop()
+
+    return network
 
 
 def run(args):
@@ -24,56 +90,9 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        nodes = network.get_joined_nodes()
-
-        # rule = network.partitioner.isolate_node_from_other(nodes[0], nodes[1])
-        rule = network.partitioner.partition(
-            [nodes[0]],
-            [nodes[1], nodes[2]],
-        )
-
-        LOG.error(rule)
-        time.sleep(10)
-
-        rule.drop()
-
-        time.sleep(10)
-
-        # input("")
-
-        # # Test impossible partition cases
-        # try:
-        #     partitioner.partition(
-        #         [nodes[0], nodes[2]],
-        #         [nodes[1], nodes[2]],
-        #     )
-        #     assert False, "Node should not appear in two or more partitions"
-        # except ValueError:
-        #     pass
-
-        # try:
-        #     partitioner.partition()
-        #     assert False, "At least one partition should be specified"
-        # except ValueError:
-        #     pass
-
-        # try:
-        #     new_node = infra.node.Node(-1, "local://localhost")
-        #     partitioner.partition([new_node])
-        #     assert False, "All nodes should belong to network"
-        # except ValueError:
-        #     pass
-
-        # input("")
-        # partitioner.partition(network, [nodes[0], nodes[1]])
-        # nodes[0].n2n_isolate_from_service()
-
-        # try:
-        #     while True:
-        #         time.sleep(60)
-
-        # except KeyboardInterrupt:
-        #     LOG.info("Stopping all CCF nodes...")
+        test_invalid_partitions(network, args)
+        test_partition_majority(network, args)
+        test_isolate_primary(network, args)
 
 
 if __name__ == "__main__":
