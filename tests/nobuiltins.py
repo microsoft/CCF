@@ -5,6 +5,8 @@ import infra.network
 from ccf.tx_id import TxID
 from http import HTTPStatus
 import openapi_spec_validator
+from datetime import datetime, timezone
+import time
 
 
 def test_nobuiltins_endpoints(network, args):
@@ -31,6 +33,22 @@ def test_nobuiltins_endpoints(network, args):
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
         assert body_j["transaction_id"] == f"{tx_id}"
+
+        for i in range(3):
+            if i != 0:
+                time.sleep(1.5)
+            r = c.get("/app/current_time")
+            local_time = datetime.now(timezone.utc)
+            assert r.status_code == HTTPStatus.OK
+            body_j = r.body.json()
+            service_time = datetime.fromisoformat(body_j["timestamp"])
+            diff = (local_time - service_time).total_seconds()
+            # This intends to test that the reported time is "close enough"
+            # to the real current time. This is dependent on the skew between
+            # clocks on this executor and the target node, and the request
+            # latency (including Python IO and parsing). It may need to be
+            # more lenient
+            assert abs(diff) < 1, diff
 
 
 def run(args):

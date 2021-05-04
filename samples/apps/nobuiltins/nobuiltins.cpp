@@ -37,6 +37,14 @@ namespace nobuiltins
   DECLARE_JSON_TYPE(TransactionIDResponse)
   DECLARE_JSON_REQUIRED_FIELDS(TransactionIDResponse, transaction_id)
 
+  struct TimeResponse
+  {
+    std::string timestamp;
+  };
+
+  DECLARE_JSON_TYPE(TimeResponse)
+  DECLARE_JSON_REQUIRED_FIELDS(TimeResponse, timestamp)
+
   // SNIPPET: registry_inheritance
   class NoBuiltinsRegistry : public ccf::BaseEndpointRegistry
   {
@@ -226,6 +234,50 @@ namespace nobuiltins
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, TransactionIDResponse>()
+        .install();
+
+      auto get_time = [this](auto& ctx, nlohmann::json&&) {
+        ::timespec time;
+        ccf::ApiResult result = get_untrusted_host_time_v1(time);
+        if (result != ccf::ApiResult::OK)
+        {
+          return ccf::make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Unable to get time: {}", ccf::api_result_to_str(result)));
+        }
+
+        std::tm calendar_time;
+        gmtime_r(&time.tv_sec, &calendar_time);
+
+        // 20 characters for a (timezoneless) ISO 8601 datetime, plus a
+        // terminating null
+        constexpr size_t buf_size = 21;
+        char buf[buf_size];
+        if (strftime(buf, buf_size, "%Y-%m-%dT%H:%M:%S", &calendar_time) == 0)
+        {
+          return ccf::make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format("Unable to format timestamp"));
+        }
+
+        // Build full time, with 6 decimals of sub-second precision, and a
+        // Python-friendly +00:00 UTC offset
+        TimeResponse response;
+        response.timestamp =
+          fmt::format("{}.{:06}+00:00", buf, time.tv_nsec / 1'000);
+        return ccf::make_success(response);
+      };
+      make_command_endpoint(
+        "current_time",
+        HTTP_GET,
+        ccf::json_command_adapter(get_time),
+        ccf::no_auth_required)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .set_auto_schema<void, TimeResponse>()
         .install();
     }
   };
