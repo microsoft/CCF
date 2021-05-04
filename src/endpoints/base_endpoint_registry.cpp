@@ -253,9 +253,6 @@ namespace ccf
     time.tv_sec = now_us.count() / us_per_s;
     time.tv_nsec = (now_us.count() % us_per_s) * 1'000;
 
-    LOG_INFO_FMT(
-      "{} -> {{ {}, {} }}", now_us.count(), time.tv_sec, time.tv_nsec);
-
     return ApiResult::OK;
   }
 }
