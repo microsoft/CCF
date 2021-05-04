@@ -126,7 +126,7 @@ namespace ccf
     }
   }
 
-  ApiResult BaseEndpointRegistry::get_quotes_for_all_nodes_v1(
+  ApiResult BaseEndpointRegistry::get_quotes_for_all_trusted_nodes_v1(
     kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes)
   {
     try
@@ -134,7 +134,10 @@ namespace ccf
       std::map<NodeId, QuoteInfo> tmp;
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
       nodes->foreach([&tmp](const NodeId& node_id, const NodeInfo& ni) {
-        tmp[node_id] = ni.quote_info;
+        if (ni.status == ccf::NodeStatus::TRUSTED)
+        {
+          tmp[node_id] = ni.quote_info;
+        }
         return true;
       });
 

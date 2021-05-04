@@ -123,7 +123,7 @@ namespace nobuiltins
         ccf::ApiResult result;
 
         std::map<ccf::NodeId, ccf::QuoteInfo> node_id_to_quote_info;
-        result = get_quotes_for_all_nodes_v1(ctx.tx, node_id_to_quote_info);
+        result = get_quotes_for_all_trusted_nodes_v1(ctx.tx, node_id_to_quote_info);
         if (result != ccf::ApiResult::OK)
         {
           ctx.rpc_ctx->set_error(

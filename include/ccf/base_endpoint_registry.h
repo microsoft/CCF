@@ -122,7 +122,7 @@ namespace ccf
     /** Get quotes attesting to the hardware that each node in the service is
      * running on.
      */
-    ApiResult get_quotes_for_all_nodes_v1(
+    ApiResult get_quotes_for_all_trusted_nodes_v1(
       kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes);
 
     /** Get the view associated with a given seqno, to construct a valid TxID.
