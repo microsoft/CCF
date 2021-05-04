@@ -50,7 +50,7 @@ def test_nobuiltins_endpoints(network, args):
             # more lenient
             assert abs(diff) < 1, diff
 
-        r = c.get(f"/app/all_nodes")
+        r = c.get("/app/all_nodes")
         assert r.status_code == HTTPStatus.OK
         body_j = r.body.json()
         known_node_ids = [node.node_id for node in (primary, *backups)]
