@@ -3,8 +3,10 @@
 import infra.node
 import infra.network
 import iptc
-import atexit
+from contextlib import contextmanager
 from typing import List
+import signal
+import sys
 
 from loguru import logger as LOG
 
@@ -18,16 +20,23 @@ CCF_INPUT_RULE = {
 }
 
 
+def cleanup_(sig, frame):
+    LOG.error("cleanup")
+    sys.exit(0)
+
+
 class Partitioner:
     @staticmethod
-    def cleanup():
+    def cleanup(sig=None, frame=None):
         if iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
             iptc.easy.flush_chain("filter", CCF_IPTABLES_CHAIN)
             iptc.easy.delete_rule("filter", "INPUT", CCF_INPUT_RULE)
             iptc.easy.delete_chain("filter", CCF_IPTABLES_CHAIN)
         LOG.success(f"Successfully cleanup chain {CCF_IPTABLES_CHAIN}")
+        sys.exit(0)
 
-    def __init__(self):
+    def __init__(self, network=None):
+        self.network = network
         # Create iptables chain
         if not iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
             iptc.easy.add_chain("filter", CCF_IPTABLES_CHAIN)
@@ -36,13 +45,15 @@ class Partitioner:
         if not iptc.easy.has_rule("filter", "INPUT", CCF_INPUT_RULE):
             iptc.easy.insert_rule("filter", "INPUT", CCF_INPUT_RULE)
 
-        # TODO:
-        # Handle normal process termination + signals
-        # atexit.register(Partitioner.cleanup)
+        # Register termination signal handlers
+        # TODO: Signals are not passed down by ctest :(, even on timeout
+        # Perhaps have a CI step that captures the current iptables and reverts it unconditionally after the test step completes?
+        signal.signal(signal.SIGTERM, Partitioner.cleanup)
+        signal.signal(signal.SIGINT, Partitioner.cleanup)
 
-    def __del__(self):
-        Partitioner.cleanup()
+        LOG.info("Signal handlers set")
 
+    # TODO: Merge this with isolate_node_from_other?
     def isolate_node(self, node: infra.node.Node):
         base_rule = {"protocol": "tcp", "target": "DROP"}
 
@@ -101,9 +112,8 @@ class Partitioner:
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
 
-    def create_partition(
+    def partition(
         self,
-        network: infra.network.Network,
         *args: List[infra.node.Node],
     ):
         if not args:
@@ -139,3 +149,15 @@ class Partitioner:
                 for other_node in other_nodes:
                     self.isolate_node_from_other(node, other_node)
             i += 1
+
+
+@contextmanager
+def partitioner(network):
+    p = Partitioner(network)
+
+    try:
+        yield p
+    except Exception:
+        raise
+    finally:
+        p.cleanup()

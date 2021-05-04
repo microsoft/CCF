@@ -12,7 +12,6 @@ from loguru import logger as LOG
 
 def run(args):
     txs = app.LoggingTxs()
-    partitioner = infra.partitions.Partitioner()
 
     with infra.network.network(
         args.nodes,
@@ -24,42 +23,49 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # TODO:
-        # 1. Add partition capability
-        # 2. Test bi-directions
-        # 3. Cleanup rules as much as possible
+        with infra.partitions.partitioner(network) as partitioner:
 
-        nodes = network.get_joined_nodes()
-        # partitioner.isolate_node(nodes[0])
-        # partitioner.isolate_node_from_other(nodes[0], nodes[1])
-        # partitioner.create_partition(network, [nodes[1], nodes[2]])
+            # TODO:
+            # 1. Add partition capability: DONE
+            # 2. Test bi-directions
+            # 3. Cleanup rules as much as possible: DONE
 
-        # Test impossible partition cases
-        try:
-            partitioner.create_partition(
-                network,
-                [nodes[0], nodes[2]],
-                [nodes[1], nodes[2]],
-            )
-            assert False, "Node should not appear in two or more partitions"
-        except ValueError:
-            pass
+            nodes = network.get_joined_nodes()
+            # partitioner.isolate_node(nodes[0])
+            # partitioner.isolate_node_from_other(nodes[0], nodes[1])
+            # partitioner.partition(network, [nodes[1], nodes[2]])
 
-        try:
-            partitioner.create_partition(network)
-            assert False, "At least one partition should be specified"
-        except ValueError:
-            pass
+            # Test impossible partition cases
+            try:
+                partitioner.partition(
+                    [nodes[0], nodes[2]],
+                    [nodes[1], nodes[2]],
+                )
+                assert False, "Node should not appear in two or more partitions"
+            except ValueError:
+                pass
 
-        try:
-            new_node = infra.node.Node(-1, "local://localhost")
-            partitioner.create_partition(network, [new_node])
-            assert False, "All nodes should belong to network"
-        except ValueError:
-            pass
+            try:
+                partitioner.partition()
+                assert False, "At least one partition should be specified"
+            except ValueError:
+                pass
 
-        input("")
-        # partitioner.create_partition(network, [nodes[0], nodes[1]])
+            try:
+                new_node = infra.node.Node(-1, "local://localhost")
+                partitioner.partition([new_node])
+                assert False, "All nodes should belong to network"
+            except ValueError:
+                pass
+
+            import time
+
+            time.sleep(20)
+
+            raise RuntimeError("Closing this program unexpectedly")
+
+        # input("")
+        # partitioner.partition(network, [nodes[0], nodes[1]])
         # nodes[0].n2n_isolate_from_service()
 
         # try:
