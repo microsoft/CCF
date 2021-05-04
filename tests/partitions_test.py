@@ -28,7 +28,8 @@ def run(args):
 
         # rule = network.partitioner.isolate_node_from_other(nodes[0], nodes[1])
         rule = network.partitioner.partition(
-            [nodes[0]], [nodes[1]], name="my partition"
+            [nodes[0]],
+            [nodes[1], nodes[2]],
         )
 
         LOG.error(rule)

@@ -3,7 +3,7 @@
 import infra.node
 import infra.network
 import iptc
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from contextlib import contextmanager
 from typing import List, Optional
 
@@ -15,13 +15,12 @@ CCF_IPTABLES_CHAIN = "CCF-TEST"
 CCF_INPUT_RULE = {
     "protocol": "tcp",
     "target": CCF_IPTABLES_CHAIN,
-    "tcp": {},
 }
 
 
 @dataclass
 class Rules:
-    rules: List[dict] = []
+    rules: List[dict] = field(default_factory=list)
 
     name: Optional[str] = None
 
@@ -51,67 +50,35 @@ class Partitioner:
         if not iptc.easy.has_rule("filter", "INPUT", CCF_INPUT_RULE):
             iptc.easy.insert_rule("filter", "INPUT", CCF_INPUT_RULE)
 
-    # TODO: Merge this with isolate_node_from_other?
-    def isolate_node(
-        self,
-        node: infra.node.Node,
-        **kwargs,
-    ):
-        base_rule = {"protocol": "tcp", "target": "DROP"}
-
-        # Isolates node server socket
-        server_rule = {
-            **base_rule,
-            "dst": str(node.host),
-            "tcp": {"dport": str(node.node_port)},
-        }
-
-        # Isolates all node client sockets
-        client_rule = {
-            **base_rule,
-            "src": str(node.node_client_host),
-        }
-
-        LOG.info(f"Isolating node {node.host}:{node.node_port}")
-
-        if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, server_rule):
-            iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
-
-        if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, client_rule):
-            iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
-
-        iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
-        iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
-
-        return Rules(
-            [server_rule, client_rule],
-            kwargs.get("name", f"Isolate {node.local_node_id}"),
-        )
-
     def isolate_node_from_other(
         self,
         node: infra.node.Node,
-        other: infra.node.Node,
-        **kwargs,
+        other: Optional[infra.node.Node],
     ):
-        LOG.info(f"Isolating node {node.local_node_id} from node {other.local_node_id}")
+        if node is other:
+            return None
 
         base_rule = {"protocol": "tcp", "target": "DROP"}
+        msg = f"Isolate node {node.local_node_id}"
 
         # Isolates node server socket
         server_rule = {
             **base_rule,
-            "dst": str(node.host),
-            "src": str(other.node_client_host),
+            "dst": node.host,
             "tcp": {"dport": str(node.node_port)},
         }
 
         # Isolates all node client sockets
         client_rule = {
             **base_rule,
-            "dst": str(other.host),
-            "src": str(node.node_client_host),
+            "src": node.node_client_host,
         }
+
+        # If there is one, only isolate from specific node
+        if other:
+            server_rule["src"] = other.node_client_host
+            client_rule["dst"] = other.host
+            msg += f" from node {other.local_node_id}"
 
         if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, server_rule):
             iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
@@ -122,12 +89,15 @@ class Partitioner:
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
 
-        return Rules(
-            [server_rule, client_rule],
-            kwargs.get(
-                "name", f"Isolate {node.local_node_id} from {other.local_node_id}"
-            ),
-        )
+        LOG.info(msg)
+
+        return Rules([server_rule, client_rule], msg)
+
+    @staticmethod
+    def _get_partition_name(partition: List[infra.node.Node]):
+        if not partition:
+            return ""
+        return f'[{",".join(str(node.local_node_id) for node in partition)}]'
 
     def partition(
         self,
@@ -154,16 +124,13 @@ class Partitioner:
         ]
 
         rules = []
-        i = 1
-        for partition in args:
-            LOG.warning(f"Partitioning: {partition}")
-            # Rules are bi-directional so only consider partitions that haven't yet been ruled out
-            other_partitions = args[i:]
-            LOG.info(f"Other partitions: {other_partitions}")
+        partitions_name = []
+        for i, partition in enumerate(args):
+            partitions_name.append(f"{self._get_partition_name(partition)}")
+            # Rules are bi-directional so skip partitions that have already been enforced
+            other_partitions = args[i + 1 :]
 
             for node in partition:
-                LOG.success(f"Partitioning node: {node.local_node_id}")
-
                 for other_partition in other_partitions:
                     for other_node in other_partition:
                         rules.extend(
@@ -172,10 +139,15 @@ class Partitioner:
 
                 for other_node in other_nodes:
                     rules.extend(self.isolate_node_from_other(node, other_node).rules)
-            i += 1
 
-        LOG.error(rules)
-        return Rules(rules, kwargs.get("name", "partition"))
+        partitions_name.append(self._get_partition_name(other_nodes))
+
+        LOG.success(f'Created new partition {",".join(partitions_name)}')
+
+        return Rules(
+            rules,
+            kwargs.get("name", f'partition {",".join(partitions_name)}'),
+        )
 
 
 @contextmanager
