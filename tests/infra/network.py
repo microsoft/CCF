@@ -148,6 +148,7 @@ class Network:
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
 
+        # Requires admin privileges
         self.partitioner = (
             infra.partitions.Partitioner(self) if init_partitioner else None
         )

@@ -6,8 +6,6 @@ import iptc
 from dataclasses import dataclass
 from contextlib import contextmanager
 from typing import List, Optional
-import signal
-import sys
 
 from loguru import logger as LOG
 
@@ -23,7 +21,7 @@ CCF_INPUT_RULE = {
 
 @dataclass
 class Rules:
-    rules: List[dict]
+    rules: List[dict] = []
 
     name: Optional[str] = None
 
@@ -41,8 +39,7 @@ class Partitioner:
             iptc.easy.flush_chain("filter", CCF_IPTABLES_CHAIN)
             iptc.easy.delete_rule("filter", "INPUT", CCF_INPUT_RULE)
             iptc.easy.delete_chain("filter", CCF_IPTABLES_CHAIN)
-        LOG.success(f"Successfully cleanup chain {CCF_IPTABLES_CHAIN}")
-        # sys.exit(0)
+        LOG.info(f"Successfully cleanup iptables chain {CCF_IPTABLES_CHAIN}")
 
     def __init__(self, network):
         self.network = network
@@ -53,15 +50,6 @@ class Partitioner:
         # TODO: Check it hasn't got the rule already
         if not iptc.easy.has_rule("filter", "INPUT", CCF_INPUT_RULE):
             iptc.easy.insert_rule("filter", "INPUT", CCF_INPUT_RULE)
-
-        # Remove signals altogether?
-        # Register termination signal handlers
-        # TODO: Signals are not passed down by ctest :(, even on timeout
-        # Perhaps have a CI step that captures the current iptables and reverts it unconditionally after the test step completes?
-        # signal.signal(signal.SIGTERM, Partitioner.cleanup)
-        # signal.signal(signal.SIGINT, Partitioner.cleanup)
-
-        LOG.info("Signal handlers set")
 
     # TODO: Merge this with isolate_node_from_other?
     def isolate_node(

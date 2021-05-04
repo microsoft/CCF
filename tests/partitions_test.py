@@ -24,11 +24,6 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # TODO:
-        # 1. Add partition capability: DONE
-        # 2. Test bi-directions
-        # 3. Cleanup rules as much as possible: DONE
-
         nodes = network.get_joined_nodes()
 
         # rule = network.partitioner.isolate_node_from_other(nodes[0], nodes[1])
