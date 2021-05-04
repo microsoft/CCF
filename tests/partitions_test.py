@@ -31,7 +31,15 @@ def run(args):
 
         nodes = network.get_joined_nodes()
 
-        network.partitioner.isolate_node_from_other(nodes[0], nodes[1])
+        # rule = network.partitioner.isolate_node_from_other(nodes[0], nodes[1])
+        rule = network.partitioner.partition(
+            [nodes[0]], [nodes[1]], name="my partition"
+        )
+
+        LOG.error(rule)
+        time.sleep(10)
+
+        rule.drop()
 
         time.sleep(10)
 

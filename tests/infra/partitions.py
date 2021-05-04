@@ -3,8 +3,9 @@
 import infra.node
 import infra.network
 import iptc
+from dataclasses import dataclass
 from contextlib import contextmanager
-from typing import List
+from typing import List, Optional
 import signal
 import sys
 
@@ -20,9 +21,17 @@ CCF_INPUT_RULE = {
 }
 
 
-def cleanup_(sig, frame):
-    LOG.error("cleanup")
-    sys.exit(0)
+@dataclass
+class Rules:
+    rules: List[dict]
+
+    name: Optional[str] = None
+
+    def drop(self):
+        LOG.info(f'Dropping rules "{self.name or "[unamed]"}"')
+        for rule in self.rules:
+            if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, rule):
+                iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, rule)
 
 
 class Partitioner:
@@ -33,9 +42,9 @@ class Partitioner:
             iptc.easy.delete_rule("filter", "INPUT", CCF_INPUT_RULE)
             iptc.easy.delete_chain("filter", CCF_IPTABLES_CHAIN)
         LOG.success(f"Successfully cleanup chain {CCF_IPTABLES_CHAIN}")
-        sys.exit(0)
+        # sys.exit(0)
 
-    def __init__(self, network=None):
+    def __init__(self, network):
         self.network = network
         # Create iptables chain
         if not iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
@@ -45,19 +54,22 @@ class Partitioner:
         if not iptc.easy.has_rule("filter", "INPUT", CCF_INPUT_RULE):
             iptc.easy.insert_rule("filter", "INPUT", CCF_INPUT_RULE)
 
+        # Remove signals altogether?
         # Register termination signal handlers
         # TODO: Signals are not passed down by ctest :(, even on timeout
         # Perhaps have a CI step that captures the current iptables and reverts it unconditionally after the test step completes?
-        signal.signal(signal.SIGTERM, Partitioner.cleanup)
-        signal.signal(signal.SIGINT, Partitioner.cleanup)
+        # signal.signal(signal.SIGTERM, Partitioner.cleanup)
+        # signal.signal(signal.SIGINT, Partitioner.cleanup)
 
         LOG.info("Signal handlers set")
 
     # TODO: Merge this with isolate_node_from_other?
-    def isolate_node(self, node: infra.node.Node):
+    def isolate_node(
+        self,
+        node: infra.node.Node,
+        **kwargs,
+    ):
         base_rule = {"protocol": "tcp", "target": "DROP"}
-
-        # TODO: Full duplex?
 
         # Isolates node server socket
         server_rule = {
@@ -83,7 +95,17 @@ class Partitioner:
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
 
-    def isolate_node_from_other(self, node: infra.node.Node, other: infra.node.Node):
+        return Rules(
+            [server_rule, client_rule],
+            kwargs.get("name", f"Isolate {node.local_node_id}"),
+        )
+
+    def isolate_node_from_other(
+        self,
+        node: infra.node.Node,
+        other: infra.node.Node,
+        **kwargs,
+    ):
         LOG.info(f"Isolating node {node.local_node_id} from node {other.local_node_id}")
 
         base_rule = {"protocol": "tcp", "target": "DROP"}
@@ -112,9 +134,17 @@ class Partitioner:
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
 
+        return Rules(
+            [server_rule, client_rule],
+            kwargs.get(
+                "name", f"Isolate {node.local_node_id} from {other.local_node_id}"
+            ),
+        )
+
     def partition(
         self,
         *args: List[infra.node.Node],
+        **kwargs,
     ):
         if not args:
             raise ValueError("At least one partition should be specified")
@@ -135,9 +165,11 @@ class Partitioner:
             node for node in self.network.get_joined_nodes() if node not in nodes
         ]
 
+        rules = []
         i = 1
         for partition in args:
             LOG.warning(f"Partitioning: {partition}")
+            # Rules are bi-directional so only consider partitions that haven't yet been ruled out
             other_partitions = args[i:]
             LOG.info(f"Other partitions: {other_partitions}")
 
@@ -146,11 +178,16 @@ class Partitioner:
 
                 for other_partition in other_partitions:
                     for other_node in other_partition:
-                        self.isolate_node_from_other(node, other_node)
+                        rules.extend(
+                            self.isolate_node_from_other(node, other_node).rules
+                        )
 
                 for other_node in other_nodes:
-                    self.isolate_node_from_other(node, other_node)
+                    rules.extend(self.isolate_node_from_other(node, other_node).rules)
             i += 1
+
+        LOG.error(rules)
+        return Rules(rules, kwargs.get("name", "partition"))
 
 
 @contextmanager
