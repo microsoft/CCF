@@ -5,18 +5,13 @@ trigger:
       - main
       - "refs/tags/ccf-*"
 
-pr:
-  autoCancel: true
-  branches:
-    include:
-      - main
-
 schedules:
   - cron: "0 3 * * Mon-Fri"
     displayName: Daily Component Governance Check
     branches:
       include:
         - main
+        - "release/*"
     always: true
 
 jobs:

@@ -37,7 +37,8 @@ class Proposal:
         self.proposer_id = proposer_id
         self.proposal_id = proposal_id
         self.state = state
-        self.votes_for = 0
+
+        self.voters = []
         self.view = view
         self.seqno = seqno
 
@@ -48,5 +49,9 @@ class Proposal:
         self.completed_seqno = seqno
         self.completed_view = view
 
-    def increment_votes_for(self):
-        self.votes_for += 1
+    def increment_votes_for(self, member_id):
+        self.voters.append(member_id)
+
+    @property
+    def votes_for(self):
+        return len(self.voters)

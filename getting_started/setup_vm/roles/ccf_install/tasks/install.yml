@@ -8,21 +8,21 @@
 
 - name: Create directory
   file:
-    path: "/opt/ccf-{{ ccf_ver }}"
+    path: "/opt/ccf"
     state: directory
   become: true
 
 - name: Expand CCF release
   unarchive:
     src: "/tmp/{{ ccf_tarball }}"
-    dest: "/opt/ccf-{{ ccf_ver }}"
+    dest: "/opt/ccf"
     extra_opts:
       - --strip-components=1
   become: true
 
 - name: Copy cchost
   copy:
-    src: "/opt/ccf-{{ ccf_ver }}/bin/cchost"
+    src: "/opt/ccf/bin/cchost"
     dest: "/usr/bin/cchost"
     remote_src: true
     mode: a=rx
@@ -31,7 +31,7 @@
 
 - name: Remove release
   file:
-    path: "/opt/ccf-{{ ccf_ver }}"
+    path: "/opt/ccf"
     state: absent
   become: true
   when: run_only|bool

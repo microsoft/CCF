@@ -539,13 +539,30 @@ class Ledger:
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
 
-    def __init__(self, directories: List[str]):
+    @classmethod
+    def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
+        elements = (
+            os.path.basename(filename)
+            .replace(".committed", "")
+            .replace("ledger_", "")
+            .split("-")
+        )
+        if len(elements) == 2:
+            return (int(elements[0]), int(elements[1]))
+        elif len(elements) == 1:
+            return (int(elements[0]), None)
+        else:
+            assert False, elements
+
+    def __init__(self, directories: List[str], committed_only: bool = True):
 
         self._filenames = []
 
         ledger_files = []
         for directory in directories:
             for path in os.listdir(directory):
+                if committed_only and not path.endswith(".committed"):
+                    continue
                 chunk = os.path.join(directory, path)
                 if os.path.isfile(chunk):
                     ledger_files.append(chunk)
@@ -554,15 +571,15 @@ class Ledger:
         # the ledger is verified in sequence
         self._filenames = sorted(
             ledger_files,
-            key=lambda x: int(
-                os.path.basename(x)
-                .replace(".committed", "")
-                .replace("ledger_", "")
-                .split("-")[0]
-            ),
+            key=lambda x: Ledger._range_from_filename(x)[0],
         )
 
         self._reset_iterators()
+
+    @property
+    def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
+        last_chunk_name = self._filenames[-1]
+        return Ledger._range_from_filename(last_chunk_name)
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1

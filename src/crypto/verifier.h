@@ -13,7 +13,6 @@ namespace crypto
   {
   protected:
     std::shared_ptr<PublicKey> public_key;
-    MDType md_type = MDType::NONE;
 
   public:
     Verifier() : public_key(nullptr) {}
@@ -37,11 +36,6 @@ namespace crypto
       size_t sig_size,
       MDType md_type = MDType::NONE) const
     {
-      if (md_type == MDType::NONE)
-      {
-        md_type = this->md_type;
-      }
-
       return public_key->verify(
         contents, contents_size, sig, sig_size, md_type);
     }
@@ -75,9 +69,6 @@ namespace crypto
       MDType md_type,
       HashBytes& hash_bytes) const
     {
-      if (md_type == MDType::NONE)
-        md_type = this->md_type;
-
       return public_key->verify(
         contents, contents_size, sig, sig_size, md_type, hash_bytes);
     }
@@ -138,9 +129,6 @@ namespace crypto
       size_t sig_size,
       MDType md_type = MDType::NONE)
     {
-      if (md_type == MDType::NONE)
-        md_type = this->md_type;
-
       return public_key->verify_hash(hash, hash_size, sig, sig_size, md_type);
     }
 

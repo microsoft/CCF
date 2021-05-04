@@ -10,7 +10,7 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-from ccf.ledger import NodeStatus
+from ccf.ledger import NodeStatus, Ledger
 from ccf.tx_status import TxStatus
 from ccf.tx_id import TxID
 import random
@@ -40,12 +40,12 @@ class ServiceStatus(Enum):
     CLOSED = "Closed"
 
 
-class ParticipantsCurve(IntEnum):
+class EllipticCurve(IntEnum):
     secp384r1 = 0
     secp256r1 = 1
 
     def next(self):
-        return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
+        return EllipticCurve((self.value + 1) % len(EllipticCurve))
 
 
 class PrimaryNotFound(Exception):
@@ -97,6 +97,7 @@ class Network:
         "max_open_sessions",
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",
+        "curve_id",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -429,6 +430,12 @@ class Network:
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
+        ledger_dirs = [ledger_dir]
+        if committed_ledger_dir:
+            ledger_dirs.append(committed_ledger_dir)
+
+        ledger = Ledger(ledger_dirs, committed_only=False)
+        public_state, _ = ledger.get_latest_public_state()
 
         primary = self._start_all_nodes(
             args,
@@ -441,7 +448,10 @@ class Network:
         # If a common directory was passed in, initialise the consortium from it
         if common_dir is not None:
             self.consortium = infra.consortium.Consortium(
-                common_dir, self.key_generator, self.share_script, remote_node=primary
+                common_dir,
+                self.key_generator,
+                self.share_script,
+                public_state=public_state,
             )
 
         for node in self.get_joined_nodes():
@@ -936,6 +946,34 @@ class Network:
             return committed
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
+
+    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            try:
+                return call(seqno)
+            except Exception:
+                self.consortium.create_and_withdraw_large_proposal(node)
+
+        raise TimeoutError(
+            f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()}"
+        )
+
+    def get_ledger_public_state_at(self, seqno, timeout=5):
+        primary, _ = self.find_primary()
+        return self._get_ledger_public_view_at(
+            primary, primary.get_ledger_public_tables_at, seqno, timeout
+        )
+
+    def get_latest_ledger_public_state(self, timeout=5):
+        primary, _ = self.find_primary()
+        with primary.client() as nc:
+            resp = nc.get("/node/commit")
+            body = resp.body.json()
+            tx_id = TxID.from_str(body["transaction_id"])
+        return self._get_ledger_public_view_at(
+            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout
+        )
 
 
 @contextmanager
