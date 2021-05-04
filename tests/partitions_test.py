@@ -24,9 +24,39 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        # TODO:
+        # 1. Add partition capability
+        # 2. Test bi-directions
+        # 3. Cleanup rules as much as possible
+
         nodes = network.get_joined_nodes()
         # partitioner.isolate_node(nodes[0])
-        partitioner.isolate_node_from_other(nodes[0], nodes[1])
+        # partitioner.isolate_node_from_other(nodes[0], nodes[1])
+        # partitioner.create_partition(network, [nodes[1], nodes[2]])
+
+        # Test impossible partition cases
+        try:
+            partitioner.create_partition(
+                network,
+                [nodes[0], nodes[2]],
+                [nodes[1], nodes[2]],
+            )
+            assert False, "Node should not appear in two or more partitions"
+        except ValueError:
+            pass
+
+        try:
+            partitioner.create_partition(network)
+            assert False, "At least one partition should be specified"
+        except ValueError:
+            pass
+
+        try:
+            new_node = infra.node.Node(-1, "local://localhost")
+            partitioner.create_partition(network, [new_node])
+            assert False, "All nodes should belong to network"
+        except ValueError:
+            pass
 
         input("")
         # partitioner.create_partition(network, [nodes[0], nodes[1]])

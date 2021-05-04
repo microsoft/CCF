@@ -102,16 +102,40 @@ class Partitioner:
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
 
     def create_partition(
-        self, network: infra.network.Network, nodes: List[infra.node.Node]
+        self,
+        network: infra.network.Network,
+        *args: List[infra.node.Node],
     ):
-        LOG.info(f"Partitioning nodes: [{[n.local_node_id for n in nodes]}]")
+        if not args:
+            raise ValueError("At least one partition should be specified")
 
-        # TODO: Check that union of partitions is less than or equal to network.get_joined_nodes()
+        # Check that nodes only appear in one partition
+        nodes = []
+        for partition in args:
+            nodes += partition
+        if len(nodes) != len(set(nodes)):
+            raise ValueError(f"Some nodes are repeated in multiple partitions")
 
-        # TODO:
-        # 1. Create
+        # Check that all nodes belong to network
+        if not set(nodes).issubset(set(network.get_joined_nodes())):
+            raise ValueError("Some nodes do not belong to network")
 
-        for node in nodes:
-            # TODO: Isolate node from all other nodes in the network
-            for other in network.other_nodes:
-                self.isolate_node_from_other(node, other)
+        # Also partition from nodes that are not explicitly passed in in a partition
+        other_nodes = [node for node in network.get_joined_nodes() if node not in nodes]
+
+        i = 1
+        for partition in args:
+            LOG.warning(f"Partitioning: {partition}")
+            other_partitions = args[i:]
+            LOG.info(f"Other partitions: {other_partitions}")
+
+            for node in partition:
+                LOG.success(f"Partitioning node: {node.local_node_id}")
+
+                for other_partition in other_partitions:
+                    for other_node in other_partition:
+                        self.isolate_node_from_other(node, other_node)
+
+                for other_node in other_nodes:
+                    self.isolate_node_from_other(node, other_node)
+            i += 1
