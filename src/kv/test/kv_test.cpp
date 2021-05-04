@@ -1278,7 +1278,8 @@ TEST_CASE("Deserialise return status")
   ccf::Nodes nodes(ccf::Tables::NODES);
   MapTypes::NumNum data("public:data");
 
-  auto kp = crypto::make_key_pair();
+  constexpr auto default_curve = crypto::CurveID::SECP384R1;
+  auto kp = crypto::make_key_pair(default_curve);
 
   auto history =
     std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
