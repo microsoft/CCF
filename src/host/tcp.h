@@ -449,6 +449,7 @@ namespace asynchost
           status));
       }
 
+      LOG_DEBUG_FMT("Status {} -> {}", from, to);
       status = to;
     }
 

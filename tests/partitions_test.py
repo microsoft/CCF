@@ -20,49 +20,45 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
+        init_partitioner=True,
     ) as network:
         network.start_and_join(args)
 
-        with infra.partitions.partitioner(network) as partitioner:
+        # TODO:
+        # 1. Add partition capability: DONE
+        # 2. Test bi-directions
+        # 3. Cleanup rules as much as possible: DONE
 
-            # TODO:
-            # 1. Add partition capability: DONE
-            # 2. Test bi-directions
-            # 3. Cleanup rules as much as possible: DONE
+        nodes = network.get_joined_nodes()
 
-            nodes = network.get_joined_nodes()
-            # partitioner.isolate_node(nodes[0])
-            # partitioner.isolate_node_from_other(nodes[0], nodes[1])
-            # partitioner.partition(network, [nodes[1], nodes[2]])
+        network.partitioner.isolate_node_from_other(nodes[0], nodes[1])
 
-            # Test impossible partition cases
-            try:
-                partitioner.partition(
-                    [nodes[0], nodes[2]],
-                    [nodes[1], nodes[2]],
-                )
-                assert False, "Node should not appear in two or more partitions"
-            except ValueError:
-                pass
+        time.sleep(10)
 
-            try:
-                partitioner.partition()
-                assert False, "At least one partition should be specified"
-            except ValueError:
-                pass
+        # input("")
 
-            try:
-                new_node = infra.node.Node(-1, "local://localhost")
-                partitioner.partition([new_node])
-                assert False, "All nodes should belong to network"
-            except ValueError:
-                pass
+        # # Test impossible partition cases
+        # try:
+        #     partitioner.partition(
+        #         [nodes[0], nodes[2]],
+        #         [nodes[1], nodes[2]],
+        #     )
+        #     assert False, "Node should not appear in two or more partitions"
+        # except ValueError:
+        #     pass
 
-            import time
+        # try:
+        #     partitioner.partition()
+        #     assert False, "At least one partition should be specified"
+        # except ValueError:
+        #     pass
 
-            time.sleep(20)
-
-            raise RuntimeError("Closing this program unexpectedly")
+        # try:
+        #     new_node = infra.node.Node(-1, "local://localhost")
+        #     partitioner.partition([new_node])
+        #     assert False, "All nodes should belong to network"
+        # except ValueError:
+        #     pass
 
         # input("")
         # partitioner.partition(network, [nodes[0], nodes[1]])

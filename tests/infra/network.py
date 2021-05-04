@@ -112,6 +112,7 @@ class Network:
         existing_network=None,
         txs=None,
         library_dir=".",
+        init_partitioner=False,
     ):
         if existing_network is None:
             self.consortium = None
@@ -146,6 +147,10 @@ class Network:
             )
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
+
+        self.partitioner = (
+            infra.partitions.Partitioner(self) if init_partitioner else None
+        )
 
         try:
             os.remove("/tmp/vscode-gdb.sh")
@@ -976,6 +981,7 @@ def network(
     pdb=False,
     txs=None,
     library_directory=".",
+    init_partitioner=False,
 ):
     """
     Context manager for Network class.
@@ -1001,6 +1007,7 @@ def network(
         dbg_nodes=dbg_nodes,
         perf_nodes=perf_nodes,
         txs=txs,
+        init_partitioner=init_partitioner,
     )
     try:
         yield net
@@ -1016,3 +1023,5 @@ def network(
             raise
     finally:
         net.stop_all_nodes(skip_verification=True)
+        if init_partitioner:
+            net.partitioner.cleanup()

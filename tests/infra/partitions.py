@@ -83,8 +83,8 @@ class Partitioner:
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
 
-    def isolate_node_from_other(self, node, other):
-        LOG.info(f"Isolating node {node.local_node_id} from {other.local_node_id}")
+    def isolate_node_from_other(self, node: infra.node.Node, other: infra.node.Node):
+        LOG.info(f"Isolating node {node.local_node_id} from node {other.local_node_id}")
 
         base_rule = {"protocol": "tcp", "target": "DROP"}
 
@@ -127,11 +127,13 @@ class Partitioner:
             raise ValueError(f"Some nodes are repeated in multiple partitions")
 
         # Check that all nodes belong to network
-        if not set(nodes).issubset(set(network.get_joined_nodes())):
+        if not set(nodes).issubset(set(self.network.get_joined_nodes())):
             raise ValueError("Some nodes do not belong to network")
 
         # Also partition from nodes that are not explicitly passed in in a partition
-        other_nodes = [node for node in network.get_joined_nodes() if node not in nodes]
+        other_nodes = [
+            node for node in self.network.get_joined_nodes() if node not in nodes
+        ]
 
         i = 1
         for partition in args:
