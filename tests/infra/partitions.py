@@ -3,8 +3,7 @@
 import infra.node
 import infra.network
 import iptc
-from dataclasses import dataclass, field
-from contextlib import contextmanager
+from dataclasses import field
 from typing import List, Optional
 
 from loguru import logger as LOG
@@ -18,11 +17,20 @@ CCF_INPUT_RULE = {
 }
 
 
-@dataclass
 class Rules:
     rules: List[dict] = field(default_factory=list)
 
     name: Optional[str] = None
+
+    def __init__(self, rules, name=None):
+        self.rules = rules
+        self.name = name
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.drop()
 
     def drop(self):
         LOG.info(f'Dropping rules "{self.name or "[unamed]"}"')
@@ -32,8 +40,13 @@ class Rules:
 
 
 class Partitioner:
+    """
+    TODO: docstrings
+    """
+
+    # TODO: Call this when the program is interrupted?
     @staticmethod
-    def cleanup(sig=None, frame=None):
+    def cleanup():
         if iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
             iptc.easy.flush_chain("filter", CCF_IPTABLES_CHAIN)
             iptc.easy.delete_rule("filter", "INPUT", CCF_INPUT_RULE)
@@ -149,15 +162,3 @@ class Partitioner:
             rules,
             kwargs.get("name", f'partition {",".join(partitions_name)}'),
         )
-
-
-@contextmanager
-def partitioner(network):
-    p = Partitioner(network)
-
-    try:
-        yield p
-    except Exception:
-        raise
-    finally:
-        p.cleanup()

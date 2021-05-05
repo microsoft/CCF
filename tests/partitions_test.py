@@ -6,7 +6,6 @@ import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
 import suite.test_requirements as reqs
-import time
 
 from loguru import logger as LOG
 
@@ -48,16 +47,14 @@ def test_partition_majority(network, args):
     # Create a partition with primary + half remaining nodes (i.e. majority)
     partition = [primary]
     partition.extend(backups[len(backups) // 2 :])
-    rules = network.partitioner.partition(partition)
 
-    try:
-        network.wait_for_new_primary(primary.node_id)
-        assert False, "No new primary should be elected when partitioning majority"
-    except TimeoutError:
-        pass
-
-    # Drop rules before continuing
-    rules.drop()
+    # Note: Context manager
+    with network.partitioner.partition(partition):
+        try:
+            network.wait_for_new_primary(primary.node_id)
+            assert False, "No new primary should be elected when partitioning majority"
+        except TimeoutError:
+            pass
 
     return network
 
@@ -66,11 +63,14 @@ def test_partition_majority(network, args):
 def test_isolate_primary(network, args):
     primary, backups = network.find_nodes()
 
+    # Isolate first backup from primary so that first backup becomes candidate
+    # in a new term and wins the election
+    # Note: Manually managed
     rules = network.partitioner.isolate_node_from_other(primary, backups[0])
 
     network.wait_for_new_primary(backups[0].node_id)
 
-    # Drop rules before continuing
+    # Explicitly drop rules before continuing
     rules.drop()
 
     return network
@@ -90,9 +90,9 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        test_invalid_partitions(network, args)
+        # test_invalid_partitions(network, args)
         test_partition_majority(network, args)
-        test_isolate_primary(network, args)
+        # test_isolate_primary(network, args)
 
 
 if __name__ == "__main__":

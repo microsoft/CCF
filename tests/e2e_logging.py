@@ -1058,7 +1058,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # network = test(
+        network = test(
             network,
             args,
             verify=args.package != "libjs_generic",
