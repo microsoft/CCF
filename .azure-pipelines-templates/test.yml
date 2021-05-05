@@ -6,11 +6,28 @@ parameters:
 steps:
   - script: |
       set -ex
-      sudo ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
+      ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
     env:
       METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
       CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
     displayName: CTest
+    workingDirectory: build
+
+  - script: |
+      set -ex
+      sudo bash -c "source env/bin/activate && sudo ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -R partitions_cft"
+    env:
+      METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+      CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+    displayName: CTest Partitions
+    workingDirectory: build
+
+  - script: |
+      set -ex
+      ci_user=$(whoami)
+      sudo chown -R $ci_user: workspace
+    condition: succeededOrFailed()
+    displayName: "Change root files ownership to ci user"
     workingDirectory: build
 
   # If a test fails, crudely upload nodes' logs for all tests

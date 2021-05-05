@@ -20,5 +20,4 @@ echo "Python environment successfully setup"
 VENV_DIR=$(realpath env)
 export VENV_DIR="$VENV_DIR"
 
-whoami
 ctest "$@"
