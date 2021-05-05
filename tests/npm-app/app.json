@@ -336,6 +336,59 @@
         }
       }
     },
+    "/verifyOpenEnclaveEvidence": {
+      "post": {
+        "js_module": "endpoints/oe.js",
+        "js_function": "verifyOpenEnclaveEvidence",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "format": {
+                      "type": "string"
+                    },
+                    "evidence": {
+                      "type": "string"
+                    },
+                    "endorsements": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "claims": {
+                        "type": "object"
+                      },
+                      "customClaims": {
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/log": {
       "get": {
         "js_module": "endpoints/log.js",

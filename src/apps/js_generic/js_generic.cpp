@@ -339,6 +339,7 @@ namespace ccfapp
         nullptr,
         nullptr,
         ctx);
+      js::populate_global_openenclave(ctx);
 
       // Compile module
       std::string code = handler_script.value();

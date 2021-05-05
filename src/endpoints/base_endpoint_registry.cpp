@@ -3,6 +3,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 
+#include "enclave/enclave_time.h"
 #include "node/members.h"
 #include "node/users.h"
 
@@ -117,6 +118,31 @@ namespace ccf
     try
     {
       node_id = context.get_node_state().get_node_id();
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_TRACE_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ApiResult BaseEndpointRegistry::get_quotes_for_all_trusted_nodes_v1(
+    kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes)
+  {
+    try
+    {
+      std::map<NodeId, QuoteInfo> tmp;
+      auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
+      nodes->foreach([&tmp](const NodeId& node_id, const NodeInfo& ni) {
+        if (ni.status == ccf::NodeStatus::TRUSTED)
+        {
+          tmp[node_id] = ni.quote_info;
+        }
+        return true;
+      });
+
+      quotes = std::move(tmp);
       return ApiResult::OK;
     }
     catch (const std::exception& e)
@@ -242,5 +268,16 @@ namespace ccf
       LOG_TRACE_FMT("{}", e.what());
       return ApiResult::InternalError;
     }
+  }
+
+  ApiResult BaseEndpointRegistry::get_untrusted_host_time_v1(::timespec& time)
+  {
+    const std::chrono::microseconds now_us = enclave::get_enclave_time();
+
+    constexpr auto us_per_s = 1'000'000;
+    time.tv_sec = now_us.count() / us_per_s;
+    time.tv_nsec = (now_us.count() % us_per_s) * 1'000;
+
+    return ApiResult::OK;
   }
 }

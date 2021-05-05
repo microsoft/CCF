@@ -58,7 +58,6 @@ def test_illegal(network, args, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
     cafile = os.path.join(network.common_dir, "networkcert.pem")
     context = ssl.create_default_context(cafile=cafile)
-    context.set_ecdh_curve(ccf.clients.get_curve(cafile).name)
     context.load_cert_chain(
         certfile=os.path.join(network.common_dir, "user0_cert.pem"),
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
