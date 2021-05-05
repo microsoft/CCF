@@ -746,12 +746,10 @@ namespace loggingapp
 
         std::string error_reason;
 
-        size_t from_seqno;
+        // TODO: Make to_seqno optional, use last_written to find range
         size_t to_seqno;
         size_t id;
         if (
-          !http::get_query_value(
-            parsed_query, "from_seqno", from_seqno, error_reason) ||
           !http::get_query_value(
             parsed_query, "to_seqno", to_seqno, error_reason) ||
           !http::get_query_value(parsed_query, "id", id, error_reason))
@@ -761,6 +759,16 @@ namespace loggingapp
             ccf::errors::InvalidQueryParameterValue,
             std::move(error_reason));
           return;
+        }
+
+        size_t from_seqno;
+        if (!http::get_query_value(
+              parsed_query, "from_seqno", from_seqno, error_reason))
+        {
+          // If no start point is specified, use the first time this ID was
+          // written to
+          // TODO: Get from last written table, or last_write_version
+          from_seqno = 1;
         }
 
         // Range must be in order
@@ -919,7 +927,8 @@ namespace loggingapp
         get_historical_range,
         auth_policies)
         .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
-        .add_query_parameter<size_t>("from_seqno")
+        .add_query_parameter<size_t>(
+          "from_seqno", ccf::endpoints::QueryParamPresence::OptionalParameter)
         .add_query_parameter<size_t>("to_seqno")
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
