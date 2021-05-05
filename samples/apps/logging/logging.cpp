@@ -22,7 +22,7 @@ using namespace nlohmann;
 namespace loggingapp
 {
   // SNIPPET: table_definition
-  using Table = kv::Map<size_t, string>;
+  using RecordsTable = kv::Map<size_t, string>;
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
@@ -117,9 +117,6 @@ namespace loggingapp
   class LoggerHandlers : public ccf::UserEndpointRegistry
   {
   private:
-    Table records;
-    Table public_records;
-
     const nlohmann::json record_public_params_schema;
     const nlohmann::json record_public_result_schema;
 
@@ -129,12 +126,8 @@ namespace loggingapp
     metrics::Tracker metrics_tracker;
 
   public:
-    // SNIPPET_START: constructor
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
-      records("records"),
-      public_records("public:records"),
-      // SNIPPET_END: constructor
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
@@ -157,7 +150,8 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto records_handle = ctx.tx.rw(records);
+        // SNIPPET: private_table_access
+        auto records_handle = ctx.tx.template rw<RecordsTable>("records");
         records_handle->put(in.id, in.msg);
         return ccf::make_success(true);
       };
@@ -194,7 +188,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = args.tx.ro(records);
+        auto records_handle = args.tx.template ro<RecordsTable>("records");
         auto record = records_handle->get(id);
 
         if (record.has_value())
@@ -235,7 +229,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.rw(records);
+        auto records_handle = ctx.tx.template rw<RecordsTable>("records");
         auto removed = records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
@@ -258,7 +252,9 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto records_handle = ctx.tx.rw(public_records);
+        // SNIPPET: public_table_access
+        auto records_handle =
+          ctx.tx.template rw<RecordsTable>("public:records");
         records_handle->put(params["id"], in.msg);
         return ccf::make_success(true);
       };
@@ -287,7 +283,8 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto public_records_handle = args.tx.ro(public_records);
+        auto public_records_handle =
+          args.tx.template ro<RecordsTable>("public:records");
         auto record = public_records_handle->get(id);
 
         if (record.has_value())
@@ -323,7 +320,8 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.rw(public_records);
+        auto records_handle =
+          ctx.tx.template rw<RecordsTable>("public:records");
         auto removed = records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
@@ -367,7 +365,7 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("{}: {}", cert->subject, in.msg);
-        auto records_handle = args.tx.rw(records);
+        auto records_handle = args.tx.template rw<RecordsTable>("records");
         records_handle->put(in.id, log_line);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
@@ -395,7 +393,7 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("Anonymous: {}", in.msg);
-        auto records_handle = args.tx.rw(records);
+        auto records_handle = args.tx.template rw<RecordsTable>("records");
         records_handle->put(in.id, log_line);
         return ccf::make_success(true);
       };
@@ -619,7 +617,7 @@ namespace loggingapp
         const std::vector<uint8_t>& content = args.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
 
-        auto records_handle = args.tx.rw(records);
+        auto records_handle = args.tx.template rw<RecordsTable>("records");
         records_handle->put(id, log_line);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
@@ -651,7 +649,8 @@ namespace loggingapp
         }
 
         auto historical_tx = historical_state->store->create_read_only_tx();
-        auto records_handle = historical_tx.ro(records);
+        auto records_handle =
+          historical_tx.template ro<RecordsTable>("records");
         const auto v = records_handle->get(id);
 
         if (v.has_value())
@@ -707,7 +706,8 @@ namespace loggingapp
           }
 
           auto historical_tx = historical_state->store->create_read_only_tx();
-          auto records_handle = historical_tx.ro(records);
+          auto records_handle =
+            historical_tx.template ro<RecordsTable>("records");
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -869,7 +869,8 @@ namespace loggingapp
           auto& store = stores[i];
 
           auto historical_tx = store->create_read_only_tx();
-          auto records_handle = historical_tx.ro(records);
+          auto records_handle =
+            historical_tx.template ro<RecordsTable>("records");
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -978,7 +979,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto view = ctx.tx.rw(records);
+        auto view = ctx.tx.template rw<RecordsTable>("records");
         view->put(in.id, in.msg);
         return ccf::make_success(true);
       };
