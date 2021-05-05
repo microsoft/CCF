@@ -8,8 +8,8 @@
 #include <wchar.h>
 
 #ifdef VIRTUAL_ENCLAVE
+#  include "common/enclave_interface_types.h"
 #  include "consensus_type.h"
-#  include "start_type.h"
 #else
 #  include <ccf_args.h>
 #endif
@@ -64,7 +64,7 @@ extern "C"
     size_t output_buffer_size,
     size_t* output_bytes_written);
 
-  using create_node_func_t = bool (*)(
+  using create_node_func_t = CreateNodeStatus (*)(
     void*,
     char*,
     size_t,
@@ -105,7 +105,7 @@ extern "C"
 
   inline oe_result_t enclave_create_node(
     oe_enclave_t*,
-    bool* _retval,
+    CreateNodeStatus* status,
     void* enclave_config,
     char* ccf_config,
     size_t ccf_config_size,
@@ -124,7 +124,7 @@ extern "C"
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
 
-    *_retval = create_node_func(
+    *status = create_node_func(
       enclave_config,
       ccf_config,
       ccf_config_size,
@@ -139,7 +139,7 @@ extern "C"
       num_worker_thread,
       time_location,
       host_version);
-    return *_retval ? OE_OK : OE_FAILURE;
+    return OE_OK;
   }
 
   inline oe_result_t enclave_run(oe_enclave_t*, bool* _retval)
