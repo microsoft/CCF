@@ -101,9 +101,10 @@ namespace aft
     //
     // Follower -> Candidate, when election timeout expires
     // Follower -> Retired, when commit advances past the last config containing
-    // the node 
-    // Candidate -> Leader, upon collecting enough votes 
-    // Leader -> Retired, when commit advances past the last config containing the node
+    // the node
+    // Candidate -> Leader, upon collecting enough votes
+    // Leader -> Retired, when commit advances past the last config containing
+    // the node
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
     ReplicaState replica_state;
