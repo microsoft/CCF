@@ -155,7 +155,7 @@ class SSHRemote(CmdMixin):
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.proc_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.common_dir = common_dir
-        self.root = os.path.join(workspace, label + "_" + name)
+        self.root = os.path.join(workspace, f"{label}_{name}")
         self.name = name
         self.env = env or {}
         self.out = os.path.join(self.root, "out")
