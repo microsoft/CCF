@@ -107,17 +107,12 @@ int main(int argc, char** argv)
     "Path to which the node's node-to-node address (including potentially "
     "auto-assigned port) will be written. If empty (default), write nothing");
 
-  // TODO: Does this really work with a port number != 0??
-  // Looks like it actually does... Because libuv uses SO_REUSEADDR under the
-  // hood
-  // (https://github.com/libuv/libuv/blob/47e0c5c575e92a25e0da10fc25b2732942c929f3/src/unix/tcp.c#L164)
-  // We should only accept 0 here
   std::string node_client_host = {};
   app.add_option(
     "--node-client-host",
     node_client_host,
-    "Host on which to connect to for commands sent to other nodes (use with "
-    "caution)");
+    "Host on which to connect to for commands sent to other nodes. If "
+    "unspecified (default), this is automatically assigned by the OS");
 
   cli::ParsedAddress rpc_address;
   cli::add_address_option(

@@ -177,9 +177,7 @@ namespace asynchost
     {
       if ((rc = uv_tcp_bind(&uv_handle, req->addrinfo->ai_addr, 0)) < 0)
       {
-        // TODO: Retrieve client host/port
-        LOG_FAIL_FMT(
-          "uv_tcp_bind failed on {}: {}", "127.0.0.3", uv_strerror(rc));
+        LOG_FAIL_FMT("uv_tcp_bind failed: {}", uv_strerror(rc));
       }
 
       uv_freeaddrinfo(req->addrinfo);
@@ -446,7 +444,6 @@ namespace asynchost
           status));
       }
 
-      LOG_DEBUG_FMT("Status {} -> {}", from, to);
       status = to;
     }
 

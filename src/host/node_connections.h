@@ -352,7 +352,7 @@ namespace asynchost
       {
         if (!s->bind(client_host.value()))
         {
-          LOG_DEBUG_FMT("Could not bind!");
+          LOG_FAIL_FMT("Could not bind to client {}", client_host.value());
           return false;
         }
       }
@@ -362,9 +362,6 @@ namespace asynchost
         LOG_DEBUG_FMT("Node failed initial connect {}", node);
         return false;
       }
-
-      LOG_FAIL_FMT("Client host: {}", s->get_host());
-      LOG_FAIL_FMT("Client port: {}", s->get_service());
 
       outgoing.emplace(node, s);
 
