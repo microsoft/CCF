@@ -16,8 +16,20 @@ CCF_INPUT_RULE = {
     "target": CCF_IPTABLES_CHAIN,
 }
 
+# Note: When playing with iptables rules on a remote VM, you may want to:
+#   1. Save the current iptable rules: $ sudo iptables-save > /etc/iptables.conf
+#   2. Setup a cron job to revert the iptables rules regularly, so that you cannot be
+#      logged out of the VM, e.g.:
+#      $ echo "* * * * * root /sbin/iptables-restore /etc/iptables.conf" | sudo tee -a /etc/cron.d/iptables-restore
+# Warning: depending on the cron interval, this may cause partitions test to fail randomly as the iptables rules are
+# deleted under the infra's feet.
+
 
 class Rules:
+    """
+    Set of iptables rules created by the :py:class:`infra.partitions.Partitioner`
+    """
+
     rules: List[dict] = field(default_factory=list)
 
     name: Optional[str] = None
