@@ -191,7 +191,6 @@ namespace ccf
         issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX ||
         has_key_policy_sgx_claims)
       {
-        oe_verifier_initialize();
         oe_verify_attestation_certificate_with_evidence(
           der.data(),
           der.size(),
