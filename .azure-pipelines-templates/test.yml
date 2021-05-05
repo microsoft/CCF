@@ -15,7 +15,7 @@ steps:
 
   - script: |
       set -ex
-      sudo bash -c "source env/bin/activate && sudo ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -L partitions"
+      sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -L partitions"
     env:
       CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
     condition: succeededOrFailed()
