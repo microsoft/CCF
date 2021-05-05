@@ -737,6 +737,7 @@ if(BUILD_TESTS)
     NAME partitions_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     CONSENSUS cft
+    LABEL partitions
   )
 
   if(NOT SAN)

@@ -15,13 +15,15 @@ steps:
 
   - script: |
       set -ex
-      sudo bash -c "source env/bin/activate && sudo ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -R partitions_cft"
+      sudo bash -c "source env/bin/activate && sudo ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -L partitions"
     env:
-      METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
       CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
-    displayName: CTest Partitions
+    condition: succeededOrFailed()
+    displayName: "CTest partitions"
     workingDirectory: build
 
+  # This unconditional step is necessary as workspace files survive the container
+  # in which they are created
   - script: |
       set -ex
       ci_user=$(whoami)
