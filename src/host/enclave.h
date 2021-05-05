@@ -85,7 +85,7 @@ namespace host
       }
     }
 
-    bool create_node(
+    void create_node(
       const EnclaveConfig& enclave_config,
       const CCFConfig& ccf_config,
       std::vector<uint8_t>& node_cert,
@@ -96,7 +96,7 @@ namespace host
       void* time_location,
       const std::string& host_version)
     {
-      bool ret;
+      CreateNodeStatus status;
       size_t node_cert_len = 0;
       size_t network_cert_len = 0;
 
@@ -104,7 +104,7 @@ namespace host
 
       auto err = enclave_create_node(
         e,
-        &ret,
+        &status,
         (void*)&enclave_config,
         config.data(),
         config.size(),
@@ -126,15 +126,15 @@ namespace host
           "Failed to call in enclave_create_node: {}", oe_result_str(err)));
       }
 
-      if (!ret)
+      if (status != CreateNodeStatus::OK)
       {
-        throw std::logic_error("An error occurred when creating CCF node");
+        throw std::logic_error(fmt::format(
+          "An error occurred when creating CCF node: {}",
+          create_node_result_to_str(status)));
       }
 
       node_cert.resize(node_cert_len);
       network_cert.resize(network_cert_len);
-
-      return ret;
     }
 
     // Run a processor over this circuit inside the enclave - should be called

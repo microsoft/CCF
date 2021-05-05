@@ -10,7 +10,7 @@ enclave {
 
     trusted {
 
-        public bool enclave_create_node(
+        public CreateNodeStatus enclave_create_node(
             [user_check] void* enclave_config,
             [user_check] char* ccf_config,
             size_t ccf_config_size,
