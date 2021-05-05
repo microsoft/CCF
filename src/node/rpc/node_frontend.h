@@ -468,7 +468,15 @@ namespace ccf
             "Missing node state.");
         }
 
-        // TODO: Check that the node has indeed caught up with us?
+        if (
+          consensus->get_confirmed_matching_index(in.node_id) !=
+          consensus->get_committed_seqno())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Node has not caught up with primary.");
+        }
 
         node_info->status = NodeStatus::TRUSTED;
         nodes->put(in.node_id, *node_info);

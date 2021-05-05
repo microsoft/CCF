@@ -176,6 +176,11 @@ namespace kv::test
     {
       return consensus_type;
     }
+
+    ccf::SeqNo get_confirmed_matching_index(const NodeId& id) const override
+    {
+      return 0;
+    }
   };
 
   class BackupStubConsensus : public StubConsensus

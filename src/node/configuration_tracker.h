@@ -85,8 +85,10 @@ namespace aft
 
     // Examine all configurations that are followed by a globally committed
     // configuration.
-    bool examine_committed_configurations(Index idx)
+    bool commit(Index idx)
     {
+      LOG_INFO_FMT("Config commit {}!", idx);
+
       bool r = false;
       while (true)
       {
@@ -105,6 +107,8 @@ namespace aft
         r = true;
       }
 
+      LOG_INFO_FMT("Configurations now: {}", to_string());
+
       return r;
     }
 
@@ -117,6 +121,9 @@ namespace aft
         configurations.pop_back();
         r = true;
       }
+
+      LOG_INFO_FMT("Configurations now: {}", to_string());
+
       return r;
     }
 
@@ -125,7 +132,7 @@ namespace aft
       configurations.push_back(
         {{idx, std::move(config.active)}, std::move(config.passive)});
 
-      LOG_INFO_FMT("New configurations: {}", to_string());
+      LOG_INFO_FMT("Configurations now: {}", to_string());
     }
 
     bool empty() const
@@ -193,38 +200,22 @@ namespace aft
 
     bool is_active(const NodeId& id)
     {
-      for (auto& conf : configurations)
-      {
-        if (conf.active.nodes.find(id) != conf.active.nodes.end())
-        {
-          return true;
-        }
-      }
-
-      return false;
+      return configurations.back().active.nodes.find(id) !=
+        configurations.back().active.nodes.end();
     }
 
     bool is_passive(const NodeId& id)
     {
-      if (is_active(id))
-      {
-        return false;
-      }
-
-      for (auto& conf : configurations)
-      {
-        if (conf.passive.find(id) != conf.passive.end())
-        {
-          return true;
-        }
-      }
-
-      return false;
+      return !is_active(id) &&
+        configurations.back().passive.find(id) !=
+        configurations.back().passive.end();
     }
 
     size_t num_active_nodes()
     {
-      return active_nodes().size();
+      return configurations.size() == 0 ?
+        0 :
+        configurations.back().active.nodes.size();
     }
 
     kv::Configuration::Nodes passive_nodes() const
@@ -273,24 +264,30 @@ namespace aft
         std::vector<Index> match;
         match.reserve(c.active.nodes.size() + 1);
 
-        // In CFT mode, the passive nodes count toward the majority.
-        for (const auto& cnodes : {c.active.nodes, c.passive})
+        for (const auto& node : c.active.nodes)
         {
-          for (const auto& node : cnodes)
+          if (node.first == node_id)
           {
-            if (node.first == node_id)
-            {
-              match.push_back(last_idx);
-            }
-            else
-            {
-              match.push_back(nodes.at(node.first).match_idx);
-            }
+            match.push_back(last_idx);
           }
+          else
+          {
+            match.push_back(nodes.at(node.first).match_idx);
+          }
+
+          LOG_INFO_FMT("Check: {} = {}", node.first, match.back());
         }
 
         sort(match.begin(), match.end());
+
         auto confirmed = match.at((match.size() - 1) / 2);
+
+        LOG_INFO_FMT(
+          "last_idx: {} confirmed: {} Matches: {}",
+          last_idx,
+          confirmed,
+          ds::to_hex(match));
+
         r = std::min(confirmed, r);
       }
 
@@ -309,7 +306,7 @@ namespace aft
         ss << " passive:";
         for (const auto& [node_id, _] : c.passive)
           ss << " " << node_id;
-        ss << "] ";
+        ss << "]{" << c.active.idx << "} ";
       }
       return ss.str();
     }

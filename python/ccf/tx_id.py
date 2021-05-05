@@ -29,3 +29,8 @@ class TxID:
         except (AttributeError, ValueError):
             pass
         return None, None
+
+    def __lt__(self, other):
+        return self.view < other.view or (
+            self.view == other.view and self.seqno < other.seqno
+        )

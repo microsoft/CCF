@@ -168,5 +168,10 @@ namespace aft
     {
       return consensus_type;
     }
+
+    ccf::SeqNo get_confirmed_matching_index(const NodeId& id) const override
+    {
+      return aft->get_confirmed_matching_index(id);
+    }
   };
 }

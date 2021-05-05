@@ -180,8 +180,6 @@ namespace aft
       bool public_only_ = false,
       const crypto::KeyPairPtr node_sign_kp_ = nullptr,
       std::shared_ptr<kv::AbstractStore> kv_store_ = nullptr) :
-      // TODO: Is there a way to get access to kv_store_ without explicitly
-      // passing it?
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
@@ -471,6 +469,12 @@ namespace aft
     uint32_t node_count() const
     {
       return get_latest_configuration_unsafe().active.size();
+    }
+
+    ccf::SeqNo get_confirmed_matching_index(const NodeId& id) const
+    {
+      auto it = nodes.find(id);
+      return it == nodes.end() ? SEQNO_UNKNOWN : it->second.match_idx;
     }
 
     template <typename T>
@@ -1878,6 +1882,7 @@ namespace aft
 
       // After entries have been deserialised, try to commit the leader's
       // commit index and update our term history accordingly
+      LOG_DEBUG_FMT("Leader's commit index: {}", r.leader_commit_idx);
       commit_if_possible(r.leader_commit_idx);
 
       // The term may have changed, and we have not have seen a signature yet.
@@ -2231,7 +2236,6 @@ namespace aft
         state->my_node_id.trim(),
         from.trim(),
         r.last_log_idx);
-      update_commit();
 
       switch (consensus_type)
       {
@@ -2244,8 +2248,8 @@ namespace aft
                 configuration_tracker.promote_if_possible(
                   from,
                   {r.term, r.last_log_idx},
-                  {state->current_view, state->last_idx});
-                // TODO: Retry on failure
+                  {state->current_view, state->commit_idx});
+                // TODO: Retry on failure?
               });
           }
           break;
@@ -2258,6 +2262,8 @@ namespace aft
         default:
           LOG_FAIL_FMT("Unknown consensus type: {}", consensus_type);
       }
+
+      update_commit();
     }
 
     void send_request_vote(const ccf::NodeId& to)
@@ -2488,20 +2494,22 @@ namespace aft
           if (it->first == state->my_node_id)
             continue;
 
-          if (configuration_tracker.is_passive(it->first))
+          channels->create_channel(
+            it->first,
+            it->second.node_info.hostname,
+            it->second.node_info.port);
+
+          if (!configuration_tracker.is_passive(it->first))
+          {
+            send_request_vote(it->first);
+          }
+          else
           {
             LOG_INFO_FMT(
               "Not requesting a vote from passive node {}", it->first);
             LOG_TRACE_FMT(
               "Configurations: {}", configuration_tracker.to_string());
-            continue;
           }
-
-          channels->create_channel(
-            it->first,
-            it->second.node_info.hostname,
-            it->second.node_info.port);
-          send_request_vote(it->first);
         }
       }
     }
@@ -2536,10 +2544,14 @@ namespace aft
       timeout_elapsed = 0ms;
 
       LOG_INFO_FMT(
-        "Becoming leader {}: {}", state->my_node_id, state->current_view);
+        "Becoming leader {}: {}.{}/{}",
+        state->my_node_id,
+        state->current_view,
+        state->commit_idx,
+        state->last_idx);
 
       for (const auto& [node_id, info] : nodes)
-        LOG_TRACE_FMT("Node: {} ()", node_id, info.match_idx);
+        LOG_TRACE_FMT("Node: {} {}", node_id, info.match_idx);
 
       LOG_TRACE_FMT("Configurations: {}", configuration_tracker.to_string());
 
@@ -2729,7 +2741,7 @@ namespace aft
 
       LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id.trim(), idx);
 
-      if (configuration_tracker.examine_committed_configurations(idx))
+      if (configuration_tracker.commit(idx))
       {
         backup_nodes.clear();
         create_and_remove_node_state();

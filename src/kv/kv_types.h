@@ -414,6 +414,8 @@ namespace kv
     virtual uint32_t node_count() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
+
+    virtual ccf::SeqNo get_confirmed_matching_index(const NodeId& id) const = 0;
   };
 
   struct PendingTxInfo
