@@ -140,7 +140,7 @@ enum AdminMessage : ringbuffer::Message
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::log_msg,
-  std::chrono::milliseconds,
+  std::chrono::microseconds,
   std::string,
   size_t,
   logger::Level,

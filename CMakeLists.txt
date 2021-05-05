@@ -14,8 +14,9 @@ project(
 
 set(ENV{BETTER_EXCEPTIONS} 1)
 
-message(STATUS "CCF version=${CCF_VERSION}")
-message(STATUS "CCF release version=${CCF_RELEASE_VERSION}")
+message(STATUS "CCF version = ${CCF_VERSION}")
+message(STATUS "CCF release version = ${CCF_RELEASE_VERSION}")
+message(STATUS "CCF version suffix = ${CCF_VERSION_SUFFIX}")
 
 include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
@@ -26,7 +27,7 @@ include(${CCF_DIR}/cmake/cpack_settings.cmake)
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      "/opt/${CCF_VERSION}"
+      "/opt/ccf"
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
@@ -66,8 +67,8 @@ option(BUILD_TPCC "Build TPPC sample app and clients" ON)
 add_custom_target(ccf ALL)
 
 set(CCF_IMPL_SOURCE
-    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/thread_local.cpp
-    ${CCF_DIR}/src/js/wrap.cpp
+    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/js/wrap.cpp
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -377,6 +378,7 @@ if(BUILD_TESTS)
     add_unit_test(
       frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host sss.host
@@ -440,6 +442,10 @@ if(BUILD_TESTS)
       TEST csr_test
       APPEND
       PROPERTY LABELS unit_test
+    )
+
+    add_test(NAME versionifier_test
+             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/python/versionifier.py
     )
   endif()
 

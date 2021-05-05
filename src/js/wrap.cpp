@@ -7,6 +7,7 @@
 #include "enclave/rpc_context.h"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
+#include "js/oe.cpp"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"
@@ -862,6 +863,28 @@ namespace js
   {
     auto global_obj = JS_GetGlobalObject(ctx);
     JS_SetPropertyStr(ctx, global_obj, "console", create_console_obj(ctx));
+    JS_FreeValue(ctx, global_obj);
+  }
+
+  static JSValue create_openenclave_obj(JSContext* ctx)
+  {
+    auto openenclave = JS_NewObject(ctx);
+
+    JS_SetPropertyStr(
+      ctx,
+      openenclave,
+      "verifyOpenEnclaveEvidence",
+      JS_NewCFunction(
+        ctx, js_verify_open_enclave_evidence, "verifyOpenEnclaveEvidence", 3));
+
+    return openenclave;
+  }
+
+  void populate_global_openenclave(JSContext* ctx)
+  {
+    auto global_obj = JS_GetGlobalObject(ctx);
+    JS_SetPropertyStr(
+      ctx, global_obj, "openenclave", create_openenclave_obj(ctx));
     JS_FreeValue(ctx, global_obj);
   }
 
