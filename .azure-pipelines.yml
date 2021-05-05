@@ -10,6 +10,7 @@ pr:
   branches:
     include:
       - main
+      - "release/*"
   paths:
     include:
       - "*"
@@ -20,6 +21,7 @@ schedules:
     branches:
       include:
         - main
+        - "release/*"
     always: true
 
 resources:

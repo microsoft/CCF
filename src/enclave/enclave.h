@@ -36,7 +36,7 @@ namespace enclave
     std::unique_ptr<ccf::NodeState> node;
     std::shared_ptr<ccf::Forwarder<ccf::NodeToNode>> cmd_forwarder;
     ringbuffer::WriterPtr to_host = nullptr;
-    std::chrono::milliseconds last_tick_time;
+    std::chrono::microseconds last_tick_time;
     ENGINE* rdrand_engine = nullptr;
 
     StartType start_type;
@@ -231,8 +231,7 @@ namespace enclave
             threading::ThreadMessaging::thread_messaging.set_finished();
           });
 
-        last_tick_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-          enclave::get_enclave_time());
+        last_tick_time = enclave::get_enclave_time();
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, AdminMessage::tick, [this, &bp](const uint8_t*, size_t) {
@@ -243,12 +242,12 @@ namespace enclave
             RINGBUFFER_WRITE_MESSAGE(
               AdminMessage::work_stats, to_host, j.dump());
 
-            const auto time_now =
-              std::chrono::duration_cast<std::chrono::milliseconds>(
-                enclave::get_enclave_time());
+            const auto time_now = enclave::get_enclave_time();
             logger::config::set_time(time_now);
 
-            std::chrono::milliseconds elapsed_ms = time_now - last_tick_time;
+            const auto elapsed_ms =
+              std::chrono::duration_cast<std::chrono::milliseconds>(
+                time_now - last_tick_time);
             if (elapsed_ms.count() > 0)
             {
               last_tick_time = time_now;
