@@ -90,8 +90,6 @@ def run(args):
         )
         LOG.warning("Press Ctrl+C to shutdown the network")
 
-        nodes[0].n2n_drop_all_incoming()
-
         try:
             while True:
                 time.sleep(60)

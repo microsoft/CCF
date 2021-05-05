@@ -292,6 +292,7 @@ class Node:
             if self.suspended:
                 self.resume()
             self.network_state = NodeNetworkState.stopped
+            LOG.info(f"Stopping node {self.local_node_id}")
             return self.remote.stop()
         return [], []
 
@@ -407,65 +408,6 @@ class Node:
         self.suspended = False
         self.remote.resume()
         LOG.info(f"Node {self.local_node_id} has resumed from suspension.")
-
-    def n2n_drop_all_incoming(self):
-        # iptables-save the current config and copy the following line to /etc/cron.d/iptables-restore so that you're not locked in the account
-        # * * * * * root /sbin/iptables-restore /etc/iptables.conf
-        rule = {
-            "protocol": "tcp",
-            "target": "DROP",
-            "dst": str(self.host),
-            "tcp": {"dport": str(self.rpc_port)},
-        }
-
-        LOG.error(f"https://{self.host}:{self.rpc_port}")
-
-        if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, rule):
-            iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, rule)
-            # iptc.easy.delete_chain("filter", CCF_IPTABLES_CHAIN)
-
-        # iptc.easy.add_chain("filter", CCF_IPTABLES_CHAIN)
-        iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, rule)
-
-        input_rule = {"protocol": "tcp", "target": CCF_IPTABLES_CHAIN, "tcp": {}}
-        iptc.easy.insert_rule("filter", "INPUT", input_rule)
-
-        while True:
-            LOG.warning(iptc.easy.dump_chain("filter", CCF_IPTABLES_CHAIN))
-            time.sleep(10)
-
-    def n2n_isolate_from_service(self):
-        # Isolates node server socket
-        server_rule = {
-            "protocol": "tcp",
-            "target": "DROP",
-            "dst": str(self.host),
-            "tcp": {"dport": str(self.node_port)},
-        }
-
-        # Isolates all node client sockets
-        client_rule = {
-            "protocol": "tcp",
-            "target": "DROP",
-            "src": str(self.node_client_host),
-        }
-
-        LOG.error(f"Isolating from service https://{self.host}:{self.node_port}")
-
-        if not iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
-            iptc.easy.add_chain("filter", CCF_IPTABLES_CHAIN)
-
-        if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, server_rule):
-            iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
-
-        if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, client_rule):
-            iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
-
-        iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
-        iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
-
-        input_rule = {"protocol": "tcp", "target": CCF_IPTABLES_CHAIN, "tcp": {}}
-        iptc.easy.insert_rule("filter", "INPUT", input_rule)
 
 
 @contextmanager

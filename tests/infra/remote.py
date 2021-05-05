@@ -14,7 +14,6 @@ import re
 import stat
 import shutil
 from collections import deque
-import ipaddress
 
 from loguru import logger as LOG
 
