@@ -1036,6 +1036,9 @@ namespace aft
 
       if (replica_state == Retired && start_idx >= end_idx)
       {
+        // When the local node is retired and the remote node has
+        // acked all entries that the local node wanted to replicate,
+        // the channel is no longer useful and can be closed.
         channels->destroy_channel(to);
         return;
       }
