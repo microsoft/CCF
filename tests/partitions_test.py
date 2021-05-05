@@ -45,7 +45,7 @@ def test_partition_majority(network, args):
     primary, backups = network.find_nodes()
 
     # Create a partition with primary + half remaining nodes (i.e. majority)
-    partition = [primary]
+    partition = [backups[0]]
     partition.extend(backups[len(backups) // 2 :])
 
     # Note: Context manager
@@ -65,8 +65,8 @@ def test_isolate_primary(network, args):
 
     # Isolate first backup from primary so that first backup becomes candidate
     # in a new term and wins the election
-    # Note: Manually managed
-    rules = network.partitioner.isolate_node_from_other(primary, backups[0])
+    # Note: Managed manually
+    rules = network.partitioner.isolate_node(primary, backups[0])
 
     network.wait_for_new_primary(backups[0].node_id)
 
@@ -90,9 +90,9 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # test_invalid_partitions(network, args)
+        test_invalid_partitions(network, args)
         test_partition_majority(network, args)
-        # test_isolate_primary(network, args)
+        test_isolate_primary(network, args)
 
 
 if __name__ == "__main__":

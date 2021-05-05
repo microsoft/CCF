@@ -41,10 +41,18 @@ class Rules:
 
 class Partitioner:
     """
-    TODO: docstrings
+    The :py:class:`infra.partitions.Partitioner` provides a convenient way to isolate and
+    create partitions of :py:class:`infra.node.Node` objects. As it relies on iptables,
+    using this class requires admin privileges.
+
+    All member functions return a :py:class:`infra.partitions.Rules` object that can be used
+    in a context manager and which will be automatically dropped when the object goes out of
+    scope.
+
+    Note: It should be managed by a :py:class:`infra.network.Network` instance so that rules
+    outlive nodes to avoid spurious log messages when the network is shutdown.
     """
 
-    # TODO: Call this when the program is interrupted?
     @staticmethod
     def cleanup():
         if iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
@@ -59,20 +67,28 @@ class Partitioner:
         if not iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
             iptc.easy.add_chain("filter", CCF_IPTABLES_CHAIN)
 
-        # TODO: Check it hasn't got the rule already
+        # Create iptables rule in INPUT chain
         if not iptc.easy.has_rule("filter", "INPUT", CCF_INPUT_RULE):
             iptc.easy.insert_rule("filter", "INPUT", CCF_INPUT_RULE)
 
-    def isolate_node_from_other(
+    def isolate_node(
         self,
         node: infra.node.Node,
-        other: Optional[infra.node.Node],
+        other: Optional[infra.node.Node] = None,
     ):
+        """
+        Isolates a single :py:class:`infra.node.Node` from the network, or from a specific other node if specified.
+
+        :param infra.node.Node node: The :py:class:`infra.node.Node` to isolate.
+        :param Optional[infra.node.Node] other: The other node to isolate node from (optional).
+
+        :return: :py:class:`infra.partitions.Rules`
+        """
         if node is other:
             return None
 
         base_rule = {"protocol": "tcp", "target": "DROP"}
-        msg = f"Isolate node {node.local_node_id}"
+        name = f"Isolate node {node.local_node_id}"
 
         # Isolates node server socket
         server_rule = {
@@ -91,7 +107,7 @@ class Partitioner:
         if other:
             server_rule["src"] = other.node_client_host
             client_rule["dst"] = other.host
-            msg += f" from node {other.local_node_id}"
+            name += f" from node {other.local_node_id}"
 
         if iptc.easy.has_rule("filter", CCF_IPTABLES_CHAIN, server_rule):
             iptc.easy.delete_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
@@ -102,9 +118,7 @@ class Partitioner:
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
 
-        LOG.info(msg)
-
-        return Rules([server_rule, client_rule], msg)
+        return Rules([server_rule, client_rule], name)
 
     @staticmethod
     def _get_partition_name(partition: List[infra.node.Node]):
@@ -117,6 +131,15 @@ class Partitioner:
         *args: List[infra.node.Node],
         **kwargs,
     ):
+        """
+        Creates an arbitrary number of partitions of :py:class:`infra.node.Node`. All other joined nodes in the
+        :py:class:`infra.network.Network` are also isolated in their own partition.
+
+        :param List[infra.node.Node] *args: A variable length argument list of :py:class:`infra.node.Node` (i.e. partitions) to isolate.
+        :param str **name: Name of the partition (optional).
+
+        :return: :py:class:`infra.partitions.Rules`
+        """
         if not args:
             raise ValueError("At least one partition should be specified")
 
@@ -146,16 +169,13 @@ class Partitioner:
             for node in partition:
                 for other_partition in other_partitions:
                     for other_node in other_partition:
-                        rules.extend(
-                            self.isolate_node_from_other(node, other_node).rules
-                        )
+                        rules.extend(self.isolate_node(node, other_node).rules)
 
                 for other_node in other_nodes:
-                    rules.extend(self.isolate_node_from_other(node, other_node).rules)
+                    rules.extend(self.isolate_node(node, other_node).rules)
 
         partitions_name.append(self._get_partition_name(other_nodes))
 
-        # TODO: name contains trailing comma
         LOG.success(f'Created new partition {",".join(partitions_name)}')
 
         return Rules(

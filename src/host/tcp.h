@@ -154,16 +154,13 @@ namespace asynchost
       return service;
     }
 
-    // TODO: Could this be refactored in the existing flow?
     bool bind(const std::string& client_host)
     {
       assert_status(FRESH, FRESH);
 
-      LOG_FAIL_FMT("Binding to {}...", client_host);
-
       if (!DNS::resolve(client_host, "0", this, on_client_resolved, false))
       {
-        LOG_FAIL_FMT("Resolved failed");
+        LOG_FAIL_FMT("Could not resolve {}", client_host);
         return false;
       }
 
