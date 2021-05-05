@@ -24,6 +24,10 @@ namespace loggingapp
   // SNIPPET: table_definition
   using RecordsTable = kv::Map<size_t, string>;
 
+  // Stores the index at which each key was first written to. Must be written by
+  // the _next_ write transaction to that key.
+  using FirstWritesTable = kv::Map<size_t, ccf::SeqNo>;
+
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
   {
@@ -125,6 +129,21 @@ namespace loggingapp
 
     metrics::Tracker metrics_tracker;
 
+    void update_first_write(kv::Tx& tx, size_t id)
+    {
+      auto first_writes = tx.rw<FirstWritesTable>("first_write_version");
+      if (!first_writes->has(id))
+      {
+        auto private_records = tx.ro<RecordsTable>("records");
+        const auto prev_version =
+          private_records->get_version_of_previous_write(id);
+        if (prev_version.has_value())
+        {
+          first_writes->put(id, prev_version.value());
+        }
+      }
+    }
+
   public:
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
@@ -153,6 +172,7 @@ namespace loggingapp
         // SNIPPET: private_table_access
         auto records_handle = ctx.tx.template rw<RecordsTable>("records");
         records_handle->put(in.id, in.msg);
+        update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record
@@ -231,6 +251,7 @@ namespace loggingapp
 
         auto records_handle = ctx.tx.template rw<RecordsTable>("records");
         auto removed = records_handle->remove(id);
+        update_first_write(ctx.tx, id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -367,6 +388,7 @@ namespace loggingapp
         const auto log_line = fmt::format("{}: {}", cert->subject, in.msg);
         auto records_handle = args.tx.template rw<RecordsTable>("records");
         records_handle->put(in.id, log_line);
+        update_first_write(args.tx, in.id);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_header(
@@ -395,6 +417,7 @@ namespace loggingapp
         const auto log_line = fmt::format("Anonymous: {}", in.msg);
         auto records_handle = args.tx.template rw<RecordsTable>("records");
         records_handle->put(in.id, log_line);
+        update_first_write(args.tx, in.id);
         return ccf::make_success(true);
       };
       make_endpoint(
@@ -619,6 +642,7 @@ namespace loggingapp
 
         auto records_handle = args.tx.template rw<RecordsTable>("records");
         records_handle->put(id, log_line);
+        update_first_write(args.tx, id);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -981,6 +1005,7 @@ namespace loggingapp
 
         auto view = ctx.tx.template rw<RecordsTable>("records");
         view->put(in.id, in.msg);
+        update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
       };
       make_endpoint(
