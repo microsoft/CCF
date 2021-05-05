@@ -16,7 +16,7 @@ pr:
 resources:
   containers:
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.15.0
+      image: ccfciteam/ccf-ci:oe0.15.0-iptables
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
