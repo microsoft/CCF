@@ -95,6 +95,16 @@ namespace aft
     std::optional<ccf::NodeId> leader_id = std::nullopt;
     std::unordered_set<ccf::NodeId> votes_for_me;
 
+    // Replicas start in state Follower. Apart from a single forced
+    // transition from Follower to Leader on the initial node at startup,
+    // the state machine is made up of the following transitions:
+    //
+    // Follower -> Candidate, when election timeout expires
+    // Follower -> Retired, when commit advances past the last config containing
+    // the node Candidate -> Leader, upon collecting enough votes Leader ->
+    // Retired, when commit advances past the last config containing the node
+    // Leader -> Follower, when receiving entries for a newer term
+    // Candidate -> Follower, when receiving entries for a newer term
     ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
     // Last (committable) index preceding the node's election, this is
