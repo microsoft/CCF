@@ -107,11 +107,11 @@ int main(int argc, char** argv)
     "Path to which the node's node-to-node address (including potentially "
     "auto-assigned port) will be written. If empty (default), write nothing");
 
-  std::string node_client_host = {};
+  std::string node_client_interface = {};
   app.add_option(
-    "--node-client-host",
-    node_client_host,
-    "Host on which to connect to for commands sent to other nodes. If "
+    "--node-client-interface",
+    node_client_interface,
+    "Interface on which to bind to for commands sent to other nodes. If "
     "unspecified (default), this is automatically assigned by the OS");
 
   cli::ParsedAddress rpc_address;
@@ -632,7 +632,7 @@ int main(int argc, char** argv)
       writer_factory,
       node_address.hostname,
       node_address.port,
-      node_client_host);
+      node_client_interface);
     if (!node_address_file.empty())
     {
       files::dump(

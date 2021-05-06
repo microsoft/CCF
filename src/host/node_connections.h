@@ -142,6 +142,12 @@ namespace asynchost
         ConnectionBehaviour(parent, node)
       {}
 
+      void on_binding_failed()
+      {
+        LOG_DEBUG_FMT("node client binding failed: {}", "lala");
+        // TODO: Try to reconnect!
+      }
+
       void on_resolve_failed()
       {
         LOG_DEBUG_FMT("node resolve failed {}", node.value());
@@ -202,7 +208,7 @@ namespace asynchost
     ringbuffer::WriterPtr to_enclave;
     std::set<ccf::NodeId> reconnect_queue;
 
-    std::optional<std::string> client_host = std::nullopt;
+    std::optional<std::string> client_interface = std::nullopt;
 
   public:
     NodeConnections(
@@ -211,10 +217,10 @@ namespace asynchost
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
       std::string& service,
-      const std::optional<std::string>& client_host) :
+      const std::optional<std::string>& client_interface) :
       ledger(ledger),
       to_enclave(writer_factory.create_writer_to_inside()),
-      client_host(client_host)
+      client_interface(client_interface)
     {
       listener->set_behaviour(std::make_unique<NodeServerBehaviour>(*this));
       listener->listen(host, service);
@@ -348,16 +354,17 @@ namespace asynchost
       TCP s;
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node));
 
-      if (client_host.has_value())
-      {
-        if (!s->bind(client_host.value()))
-        {
-          LOG_FAIL_FMT("Could not bind to client {}", client_host.value());
-          return false;
-        }
-      }
+      // if (client_interface.has_value())
+      // {
+      //   if (!s->bind(client_interface.value()))
+      //   {
+      //     LOG_FAIL_FMT(
+      //       "Could not bind to interface {}", client_interface.value());
+      //     return false;
+      //   }
+      // }
 
-      if (!s->connect(host, service))
+      if (!s->connect(host, service, client_interface))
       {
         LOG_DEBUG_FMT("Node failed initial connect {}", node);
         return false;

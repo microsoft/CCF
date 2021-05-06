@@ -25,6 +25,8 @@ namespace asynchost
       LOG_INFO_FMT("Listening on {}:{}", host, service);
     }
     virtual void on_accept(TCP&) {}
+    virtual void on_binding_resolving_failed() {}
+    virtual void on_binding_failed() {}
     virtual void on_connect() {}
     virtual void on_connect_failed() {}
     virtual void on_read(size_t, uint8_t*&) {}
@@ -62,6 +64,9 @@ namespace asynchost
       FRESH,
       LISTENING_RESOLVING,
       LISTENING,
+      BINDING_RESOLVING,
+      BINDING_RESOLVING_FAILED,
+      BINDING_FAILED,
       CONNECTING_RESOLVING,
       CONNECTING,
       CONNECTED,
@@ -154,18 +159,18 @@ namespace asynchost
       return service;
     }
 
-    bool bind(const std::string& client_host)
-    {
-      assert_status(FRESH, FRESH);
+    // bool bind(const std::string& client_host)
+    // {
+    //   assert_status(FRESH, FRESH);
 
-      if (!DNS::resolve(client_host, "0", this, on_client_resolved, false))
-      {
-        LOG_FAIL_FMT("Could not resolve {}", client_host);
-        return false;
-      }
+    //   if (!DNS::resolve(client_host, "0", this, on_client_resolved, false))
+    //   {
+    //     LOG_FAIL_FMT("Could not resolve {}", client_host);
+    //     return false;
+    //   }
 
-      return true;
-    }
+    //   return true;
+    // }
 
     static void on_client_resolved(
       uv_getaddrinfo_t* req, int rc, struct addrinfo*)
@@ -175,17 +180,46 @@ namespace asynchost
 
     void on_client_resolved(uv_getaddrinfo_t* req, int rc)
     {
-      if ((rc = uv_tcp_bind(&uv_handle, req->addrinfo->ai_addr, 0)) < 0)
+      if (rc < 0)
       {
-        LOG_FAIL_FMT("uv_tcp_bind failed: {}", uv_strerror(rc));
+        status = BINDING_RESOLVING_FAILED;
+        behaviour->on_binding_resolving_failed();
+      }
+      else
+      {
+        if ((rc = uv_tcp_bind(&uv_handle, req->addrinfo->ai_addr, 0)) < 0)
+        {
+          status = BINDING_FAILED;
+          LOG_FAIL_FMT("uv_tcp_bind failed: {}", uv_strerror(rc));
+
+          // TODO: Try to re-bind
+          behaviour->on_binding_failed();
+        }
       }
 
       uv_freeaddrinfo(req->addrinfo);
       delete req;
     }
 
-    bool connect(const std::string& host, const std::string& service)
+    bool connect(
+      const std::string& host,
+      const std::string& service,
+      const std::optional<std::string>& client_host = std::nullopt)
     {
+      if (client_host.has_value())
+      {
+        assert_status(FRESH, BINDING_RESOLVING);
+
+        if (!DNS::resolve(
+              client_host.value(), "0", this, on_client_resolved, false))
+        {
+          status = BINDING_RESOLVING_FAILED;
+          LOG_FAIL_FMT(
+            "Could not resolve client interface {}", client_host.value());
+          return false;
+        }
+      }
+
       assert_status(FRESH, CONNECTING_RESOLVING);
       return resolve(host, service, false);
     }
