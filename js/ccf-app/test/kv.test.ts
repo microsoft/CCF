@@ -29,5 +29,14 @@ describe("typedKv", function () {
     foo.delete(key);
     assert.isNotTrue(foo.has(key));
     assert.equal(foo.get(key), undefined);
+
+    const key2 = "baz";
+    foo.set(key, val);
+    foo.set(key2, val);
+    assert.isTrue(foo.has(key));
+    assert.isTrue(foo.has(key2));
+    foo.clear();
+    assert.isNotTrue(foo.has(key));
+    assert.isNotTrue(foo.has(key2));
   });
 });

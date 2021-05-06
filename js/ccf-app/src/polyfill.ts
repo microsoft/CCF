@@ -52,6 +52,10 @@ class KvMapPolyfill implements KvMap {
   delete(key: ArrayBuffer): boolean {
     return this.map.delete(base64(key));
   }
+  clear(): undefined {
+    this.map.clear();
+    return undefined;
+  }
   forEach(
     callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void
   ): void {

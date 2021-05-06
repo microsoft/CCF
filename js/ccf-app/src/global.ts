@@ -41,6 +41,7 @@ export interface KvMap {
   get(key: ArrayBuffer): ArrayBuffer | undefined;
   set(key: ArrayBuffer, value: ArrayBuffer): KvMap;
   delete(key: ArrayBuffer): boolean;
+  clear(): undefined;
   forEach(
     callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void
   ): void;
