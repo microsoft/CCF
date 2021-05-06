@@ -81,3 +81,14 @@ export function clear_public(request) {
   ccf.kv["public:records"].clear();
   return { body: true };
 }
+
+export function count_private(request) {
+  const count = ccf.kv["records"].size;
+  return { body: count };
+}
+
+export function count_public(request) {
+  const count = ccf.kv["public:records"].size;
+  return { body: count };
+}
+
