@@ -523,8 +523,8 @@ def test_historical_query_range(network, args):
 
     primary, _ = network.find_primary()
 
-    id_a = 100
-    id_b = 101
+    id_a = 142
+    id_b = 143
 
     first_seqno = None
     last_seqno = None
