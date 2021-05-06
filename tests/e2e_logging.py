@@ -156,7 +156,7 @@ def test_remove(network, args):
 
 
 @reqs.description("Write/Read/Clear messages on primary")
-@reqs.supports_methods("log/private", "log/public")
+@reqs.supports_methods("log/private/all", "log/public/all")
 def test_clear(network, args):
     supported_packages = ["libjs_generic", "liblogging"]
     if args.package in supported_packages:

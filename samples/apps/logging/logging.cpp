@@ -246,6 +246,16 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
 
+      auto clear = [this](auto& ctx, nlohmann::json&&) {
+        auto records_handle = ctx.tx.rw(records);
+        records_handle->clear();
+        return ccf::make_success(true);
+      };
+      make_endpoint(
+        "log/private/all", HTTP_DELETE, ccf::json_adapter(clear), auth_policies)
+        .set_auto_schema<void, bool>()
+        .install();
+
       // SNIPPET_START: record_public
       auto record_public = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
@@ -335,6 +345,19 @@ namespace loggingapp
         auth_policies)
         .set_auto_schema<void, LoggingRemove::Out>()
         .add_query_parameter<size_t>("id")
+        .install();
+
+      auto clear_public = [this](auto& ctx, nlohmann::json&&) {
+        auto records_handle = ctx.tx.rw(public_records);
+        records_handle->clear();
+        return ccf::make_success(true);
+      };
+      make_endpoint(
+        "log/public/all",
+        HTTP_DELETE,
+        ccf::json_adapter(clear_public),
+        auth_policies)
+        .set_auto_schema<void, bool>()
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
