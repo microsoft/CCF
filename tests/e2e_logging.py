@@ -577,7 +577,9 @@ def test_historical_query_range(network, args):
         n_entries = 100
         for i in range(n_entries):
             idx = id_b if i % 3 == 0 else id_a
-            network.txs.issue(network, repeat=True, idx=idx, wait_for_sync=False)
+            network.txs.issue(
+                network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
+            )
             _, tx = network.txs.get_last_tx(idx=idx)
             msg = tx["msg"]
             seqno = tx["seqno"]
