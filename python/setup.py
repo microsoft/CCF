@@ -3,7 +3,7 @@
 
 from setuptools import setup  # type: ignore
 from os import path
-import version
+import version  # pylint: disable=import-error
 import versionifier
 
 PACKAGE_NAME = "ccf"
