@@ -11,6 +11,7 @@
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/user_frontend.h"
+#include "ccf/version.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY

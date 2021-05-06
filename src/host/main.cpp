@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/version.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -16,7 +17,6 @@
 #include "snapshot.h"
 #include "ticker.h"
 #include "time_updater.h"
-#include "version.h"
 
 #include <CLI11/CLI11.hpp>
 #include <codecvt>
