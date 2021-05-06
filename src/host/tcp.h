@@ -7,6 +7,8 @@
 #include "dns.h"
 #include "proxy.h"
 
+#include <optional>
+
 namespace asynchost
 {
   class TCPImpl;
@@ -25,8 +27,7 @@ namespace asynchost
       LOG_INFO_FMT("Listening on {}:{}", host, service);
     }
     virtual void on_accept(TCP&) {}
-    virtual void on_binding_resolving_failed() {}
-    virtual void on_binding_failed() {}
+    virtual void on_bind_failed() {}
     virtual void on_connect() {}
     virtual void on_connect_failed() {}
     virtual void on_read(size_t, uint8_t*&) {}
@@ -64,8 +65,7 @@ namespace asynchost
       FRESH,
       LISTENING_RESOLVING,
       LISTENING,
-      BINDING_RESOLVING,
-      BINDING_RESOLVING_FAILED,
+      BINDING,
       BINDING_FAILED,
       CONNECTING_RESOLVING,
       CONNECTING,
@@ -101,6 +101,8 @@ namespace asynchost
 
     std::string host;
     std::string service;
+    std::optional<std::string> client_host = std::nullopt;
+
     addrinfo* addr_base = nullptr;
     addrinfo* addr_current = nullptr;
 
@@ -159,19 +161,6 @@ namespace asynchost
       return service;
     }
 
-    // bool bind(const std::string& client_host)
-    // {
-    //   assert_status(FRESH, FRESH);
-
-    //   if (!DNS::resolve(client_host, "0", this, on_client_resolved, false))
-    //   {
-    //     LOG_FAIL_FMT("Could not resolve {}", client_host);
-    //     return false;
-    //   }
-
-    //   return true;
-    // }
-
     static void on_client_resolved(
       uv_getaddrinfo_t* req, int rc, struct addrinfo*)
     {
@@ -180,20 +169,23 @@ namespace asynchost
 
     void on_client_resolved(uv_getaddrinfo_t* req, int rc)
     {
-      if (rc < 0)
+      if (!uv_is_closing((uv_handle_t*)&uv_handle))
       {
-        status = BINDING_RESOLVING_FAILED;
-        behaviour->on_binding_resolving_failed();
-      }
-      else
-      {
-        if ((rc = uv_tcp_bind(&uv_handle, req->addrinfo->ai_addr, 0)) < 0)
+        if (rc < 0)
         {
           status = BINDING_FAILED;
-          LOG_FAIL_FMT("uv_tcp_bind failed: {}", uv_strerror(rc));
-
-          // TODO: Try to re-bind
-          behaviour->on_binding_failed();
+          LOG_TRACE_FMT("TCP client resolve failed: {}", uv_strerror(rc));
+          behaviour->on_bind_failed();
+        }
+        else
+        {
+          if ((rc = uv_tcp_bind(&uv_handle, req->addrinfo->ai_addr, 0)) < 0)
+          {
+            status = BINDING_FAILED;
+            LOG_FAIL_FMT("uv_tcp_bind failed: {}", uv_strerror(rc));
+            behaviour->on_bind_failed();
+          }
+          status = CONNECTING_RESOLVING;
         }
       }
 
@@ -208,26 +200,36 @@ namespace asynchost
     {
       if (client_host.has_value())
       {
-        assert_status(FRESH, BINDING_RESOLVING);
+        this->client_host = client_host;
+        status = BINDING;
 
         if (!DNS::resolve(
               client_host.value(), "0", this, on_client_resolved, false))
         {
-          status = BINDING_RESOLVING_FAILED;
-          LOG_FAIL_FMT(
-            "Could not resolve client interface {}", client_host.value());
+          status = BINDING_FAILED;
           return false;
         }
       }
 
-      assert_status(FRESH, CONNECTING_RESOLVING);
-      return resolve(host, service, false);
+      if (status == FRESH || status == CONNECTING_RESOLVING)
+      {
+        return resolve(host, service, false);
+      }
+
+      return true;
     }
 
     bool reconnect()
     {
       switch (status)
       {
+        case BINDING:
+        {
+          // Try again, from the start
+          LOG_DEBUG_FMT("Reconnect from initial state");
+          status = BINDING;
+          return connect(host, service, client_host);
+        }
         case RESOLVING_FAILED:
         case CONNECTING_FAILED:
         {

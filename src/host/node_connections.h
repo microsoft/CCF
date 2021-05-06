@@ -142,10 +142,10 @@ namespace asynchost
         ConnectionBehaviour(parent, node)
       {}
 
-      void on_binding_failed()
+      void on_bind_failed()
       {
-        LOG_DEBUG_FMT("node client binding failed: {}", "lala");
-        // TODO: Try to reconnect!
+        LOG_DEBUG_FMT("node bind failed: {}", node.value());
+        reconnect();
       }
 
       void on_resolve_failed()
@@ -353,16 +353,6 @@ namespace asynchost
 
       TCP s;
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node));
-
-      // if (client_interface.has_value())
-      // {
-      //   if (!s->bind(client_interface.value()))
-      //   {
-      //     LOG_FAIL_FMT(
-      //       "Could not bind to interface {}", client_interface.value());
-      //     return false;
-      //   }
-      // }
 
       if (!s->connect(host, service, client_interface))
       {

@@ -647,7 +647,7 @@ class CCFRemote(object):
         ]
 
         if node_client_host:
-            cmd += [f"--node-client-host={node_client_host}"]
+            cmd += [f"--node-client-interface={node_client_host}"]
 
         if log_format_json:
             cmd += ["--log-format-json"]
