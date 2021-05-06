@@ -26,6 +26,16 @@
         "openapi": {}
       }
     },
+    "/log/private/all": {
+      "delete": {
+        "js_module": "logging.js",
+        "js_function": "clear_private",
+        "forwarding_required": "always",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
     "/log/private/historical": {
       "get": {
         "js_module": "logging.js",
@@ -66,6 +76,16 @@
       "delete": {
         "js_module": "logging.js",
         "js_function": "delete_public",
+        "forwarding_required": "always",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
+    "/log/public/all": {
+      "delete": {
+        "js_module": "logging.js",
+        "js_function": "clear_public",
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",

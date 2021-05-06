@@ -148,6 +148,29 @@ namespace js
     return JS_ThrowTypeError(ctx, "Cannot call set on read-only map");
   }
 
+  static JSValue js_kv_map_clear(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
+
+    if (argc != 0)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 0", argc);
+    }
+
+    handle->clear();
+
+    return JS_UNDEFINED;
+  }
+
+  static JSValue js_kv_map_clear_read_only(
+    JSContext* ctx, JSValueConst, int, JSValueConst*)
+  {
+    return JS_ThrowTypeError(ctx, "Cannot call clear on read-only map");
+  }
+
   static JSValue js_kv_map_foreach(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -267,17 +290,21 @@ namespace js
 
     auto setter = js_kv_map_set;
     auto deleter = js_kv_map_delete;
+    auto clearer = js_kv_map_clear;
 
     if (read_only)
     {
       setter = js_kv_map_set_read_only;
       deleter = js_kv_map_delete_read_only;
+      clearer = js_kv_map_clear_read_only;
     }
 
     JS_SetPropertyStr(
       ctx, view_val, "set", JS_NewCFunction(ctx, setter, "set", 2));
     JS_SetPropertyStr(
       ctx, view_val, "delete", JS_NewCFunction(ctx, deleter, "delete", 1));
+    JS_SetPropertyStr(
+      ctx, view_val, "clear", JS_NewCFunction(ctx, clearer, "clear", 0));
 
     JS_SetPropertyStr(
       ctx,

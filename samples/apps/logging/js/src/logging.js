@@ -71,3 +71,13 @@ export function delete_public(request) {
   const id = get_id_from_request_query(request);
   return delete_record(ccf.kv["public:records"], id);
 }
+
+export function clear_private(request) {
+  ccf.kv["records"].clear();
+  return { body: true };
+}
+
+export function clear_public(request) {
+  ccf.kv["public:records"].clear();
+  return { body: true };
+}

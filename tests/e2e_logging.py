@@ -155,6 +155,59 @@ def test_remove(network, args):
     return network
 
 
+@reqs.description("Write/Read/Clear messages on primary")
+@reqs.supports_methods("log/private", "log/public")
+def test_clear(network, args):
+    supported_packages = ["libjs_generic", "liblogging"]
+    if args.package in supported_packages:
+        primary, _ = network.find_primary()
+
+        with primary.client() as nc:
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
+
+            with primary.client("user0") as c:
+                log_ids = list(range(40, 50))
+                msg = "Will be deleted"
+                log_id = 44
+
+                for table in ["private", "public"]:
+                    resource = f"/app/log/{table}"
+                    for log_id in log_ids:
+                        check_commit(
+                            c.post(resource, {"id": log_id, "msg": msg}),
+                            result=True,
+                        )
+                        check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
+                    check(
+                        c.delete(f"{resource}/all"),
+                        result=None,
+                    )
+                    for log_id in log_ids:
+                        get_r = c.get(f"{resource}?id={log_id}")
+                        if args.package == "libjs_generic":
+                            check(
+                                get_r,
+                                result={"error": "No such key"},
+                            )
+                        else:
+                            check(
+                                get_r,
+                                error=lambda status, msg: status
+                                == http.HTTPStatus.BAD_REQUEST.value,
+                            )
+
+        # Make sure no-one else is still looking for these
+        network.txs.clear()
+
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application ({args.package}) is not in supported packages: {supported_packages}"
+        )
+
+    return network
+
+
 @reqs.description("Write/Read with cert prefix")
 @reqs.supports_methods("log/private/prefix_cert", "log/private")
 def test_cert_prefix(network, args):
@@ -1065,6 +1118,7 @@ def run(args):
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)
+        network = test_clear(network, args)
         network = test_forwarding_frontends(network, args)
         network = test_user_data_ACL(network, args)
         network = test_cert_prefix(network, args)
