@@ -25,7 +25,8 @@ latex/
 env/
 *.egg-info
 **/dist
-python/setup.py
 node_modules
 package-lock.json
 .cache
+include/ccf/version.h
+python/version.py
