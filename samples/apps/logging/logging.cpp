@@ -770,13 +770,8 @@ namespace loggingapp
 
         std::string error_reason;
 
-        // TODO: Make to_seqno optional, use last_written to find range
-        size_t to_seqno;
         size_t id;
-        if (
-          !http::get_query_value(
-            parsed_query, "to_seqno", to_seqno, error_reason) ||
-          !http::get_query_value(parsed_query, "id", id, error_reason))
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
         {
           args.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -823,6 +818,40 @@ namespace loggingapp
               args.rpc_ctx->set_response_body(j_response.dump());
               return;
             }
+          }
+        }
+
+        size_t to_seqno;
+        if (!http::get_query_value(
+              parsed_query, "to_seqno", to_seqno, error_reason))
+        {
+          // If no end point is specified, use the last time this ID was
+          // written to
+          auto records = args.tx.ro<RecordsTable>("records");
+          const auto last_written_version =
+            records->get_version_of_previous_write(id);
+          if (last_written_version.has_value())
+          {
+            to_seqno = last_written_version.value();
+          }
+          else
+          {
+            // If there's no last written version, it may have never been
+            // written but may simply be currently deleted. Use current commit
+            // index as end point to ensure we include any deleted entries.
+            ccf::View view;
+            ccf::SeqNo seqno;
+            const auto result = get_last_committed_txid_v1(view, seqno);
+            if (result != ccf::ApiResult::OK)
+            {
+              args.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format(
+                  "Failed to get committed transaction: {}",
+                  ccf::api_result_to_str(result)));
+            }
+            to_seqno = seqno;
           }
         }
 
@@ -984,7 +1013,8 @@ namespace loggingapp
         .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
         .add_query_parameter<size_t>(
           "from_seqno", ccf::endpoints::QueryParamPresence::OptionalParameter)
-        .add_query_parameter<size_t>("to_seqno")
+        .add_query_parameter<size_t>(
+          "to_seqno", ccf::endpoints::QueryParamPresence::OptionalParameter)
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
