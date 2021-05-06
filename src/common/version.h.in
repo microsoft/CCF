@@ -7,9 +7,12 @@
 namespace ccf
 {
   // clang-format off
+
   //
   // @CMAKE_GENERATED_COMMENT@
   //
-  // clang-format on
+
   static constexpr auto ccf_version = "@CCF_VERSION@";
+
+  // clang-format on
 }

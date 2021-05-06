@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/version.h"
 #include "common/enclave_interface_types.h"
 #include "ds/json.h"
 #include "ds/logger.h"
@@ -8,7 +9,6 @@
 #include "enclave.h"
 #include "enclave_time.h"
 #include "oe_shim.h"
-#include "version.h"
 
 #include <chrono>
 #include <thread>
