@@ -1,9 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from setuptools import setup  # type: ignore
 from os import path
-import version  # pylint: disable=import-error
+from setuptools import setup  # type: ignore
+
+# pylint: disable=import-error
+import version  # type: ignore
+
 import versionifier
 
 PACKAGE_NAME = "ccf"
