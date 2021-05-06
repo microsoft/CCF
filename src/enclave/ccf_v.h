@@ -74,11 +74,13 @@ extern "C"
     uint8_t*,
     size_t,
     size_t*,
+    uint8_t*,
+    size_t,
+    size_t*,
     StartType,
     ConsensusType,
     size_t,
-    void*,
-    const char*);
+    void*);
 
   using run_func_t = bool (*)();
 
@@ -115,11 +117,13 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
+    uint8_t* enclave_version,
+    size_t enclave_version_size,
+    size_t* enclave_version_len,
     StartType start_type,
     ConsensusType consensus_type,
     size_t num_worker_thread,
-    void* time_location,
-    const char* host_version)
+    void* time_location)
   {
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
@@ -134,11 +138,13 @@ extern "C"
       network_cert,
       network_cert_size,
       network_cert_len,
+      enclave_version,
+      enclave_version_size,
+      enclave_version_len,
       start_type,
       consensus_type,
       num_worker_thread,
-      time_location,
-      host_version);
+      time_location);
     return OE_OK;
   }
 

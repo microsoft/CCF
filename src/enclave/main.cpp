@@ -40,11 +40,13 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
+    uint8_t* enclave_version,
+    size_t enclave_version_size,
+    size_t* enclave_version_len,
     StartType start_type,
     ConsensusType consensus_type,
     size_t num_worker_threads,
-    void* time_location,
-    const char* host_version)
+    void* time_location)
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
@@ -62,12 +64,16 @@ extern "C"
     }
 #endif
 
-    // Host and enclave versions must match. Otherwise the node may crash much
-    // later (e.g. unhandled ring buffer message on either end)
-    if (std::string(host_version) != ccf::ccf_version)
+    // Report enclave version to host
+    auto ccf_version_string = std::string(ccf::ccf_version);
+    if (ccf_version_string.size() > enclave_version_size)
     {
-      return CreateNodeStatus::VersionMismatch;
+      return CreateNodeStatus::InternalError;
     }
+
+    ::memcpy(
+      enclave_version, ccf_version_string.data(), ccf_version_string.size());
+    *enclave_version_len = ccf_version_string.size();
 
     num_pending_threads = (uint16_t)num_worker_threads + 1;
 
@@ -145,15 +151,19 @@ extern "C"
       cc.consensus_config,
       cc.curve_id);
 
-    bool result = enclave->create_new_node(
-      start_type,
-      std::move(cc),
-      node_cert,
-      node_cert_size,
-      node_cert_len,
-      network_cert,
-      network_cert_size,
-      network_cert_len);
+    if (!enclave->create_new_node(
+          start_type,
+          std::move(cc),
+          node_cert,
+          node_cert_size,
+          node_cert_len,
+          network_cert,
+          network_cert_size,
+          network_cert_len))
+    {
+      return CreateNodeStatus::InternalError;
+    }
+
     e.store(enclave);
 
     return CreateNodeStatus::OK;

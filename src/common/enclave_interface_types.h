@@ -7,10 +7,9 @@ enum CreateNodeStatus
   OK = 0,
   InternalError = 1,
   NodeAlreadyCreated = 2,
-  VersionMismatch = 3,
-  ConsensusNotAllowed = 4,
-  TooManyThreads = 5,
-  MemoryNotInEnclave = 6,
+  ConsensusNotAllowed = 3,
+  TooManyThreads = 4,
+  MemoryNotInEnclave = 5,
 };
 
 constexpr char const* create_node_result_to_str(CreateNodeStatus result)
@@ -28,10 +27,6 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     case CreateNodeStatus::NodeAlreadyCreated:
     {
       return "NodeAlreadyCreated";
-    }
-    case CreateNodeStatus::VersionMismatch:
-    {
-      return "VersionMismatch";
     }
     case CreateNodeStatus::ConsensusNotAllowed:
     {
@@ -57,5 +52,4 @@ enum StartType
   New = 1,
   Join = 2,
   Recover = 3,
-  Unknown = 100
 };
