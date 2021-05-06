@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/base_endpoint_registry.h"
-
 #include "enclave/enclave_time.h"
 #include "node/members.h"
 #include "node/users.h"
@@ -51,6 +50,30 @@ namespace ccf
       try
       {
         const auto [v, s] = consensus->get_committed_txid();
+        view = v;
+        seqno = s;
+        return ApiResult::OK;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_TRACE_FMT("{}", e.what());
+        return ApiResult::InternalError;
+      }
+    }
+    else
+    {
+      return ApiResult::Uninitialised;
+    }
+  }
+
+  ApiResult BaseEndpointRegistry::get_current_txid(
+    ccf::View& view, ccf::SeqNo& seqno)
+  {
+    if (consensus != nullptr)
+    {
+      try
+      {
+        const auto [v, s] = consensus->get_current_txid();
         view = v;
         seqno = s;
         return ApiResult::OK;

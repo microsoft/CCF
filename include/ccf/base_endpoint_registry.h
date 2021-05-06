@@ -92,7 +92,10 @@ namespace ccf
 
     /** Get the ID of latest transaction known to be committed.
      */
+
     ApiResult get_last_committed_txid_v1(ccf::View& view, ccf::SeqNo& seqno);
+
+    ApiResult get_current_txid(ccf::View& view, ccf::SeqNo& seqno);
 
     /** Generate an OpenAPI document describing the currently installed
      * endpoints.
@@ -100,8 +103,8 @@ namespace ccf
      * The document is compatible with OpenAPI version 3.0.0 - the _v1 suffix
      * describes the version of this API, not the returned document format.
      * Similarly, the document_version argument should be used to version the
-     * returned document itself as the set of endpoints or their APIs change, it
-     * does not affect the OpenAPI version of the format of the document.
+     * returned document itself as the set of endpoints or their APIs change,
+     * it does not affect the OpenAPI version of the format of the document.
      */
     ApiResult generate_openapi_document_v1(
       kv::ReadOnlyTx& tx,

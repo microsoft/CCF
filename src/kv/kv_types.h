@@ -381,6 +381,7 @@ namespace kv
 
     virtual bool replicate(const BatchVector& entries, ccf::View view) = 0;
     virtual std::pair<ccf::View, ccf::SeqNo> get_committed_txid() = 0;
+    virtual std::pair<ccf::View, ccf::SeqNo> get_current_txid() = 0;
 
     struct SignableTxIndices
     {

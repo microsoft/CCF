@@ -13,7 +13,6 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-
         # Replace primary repeatedly and check the network still operates
         if args.consensus != "bft":
             LOG.info(f"Retiring primary {args.rotation_retirements} times")
