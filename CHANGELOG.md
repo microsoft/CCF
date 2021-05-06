@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Added
+
+- Added node start-up check for `cchost` and enclave compatibility, which should both always be from the same release for a single node (#2532).
+- Added more precise error codes for node startup failures (#2532).
+
 ### Fixed
 
 - Fixed issue with ledger inconsistency when starting a new joiner node without a snapshot but with an existing ledger prefix (#3064).
