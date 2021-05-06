@@ -659,7 +659,7 @@ int main(int argc, char** argv)
     std::vector<uint8_t> node_cert(certificate_size);
     std::vector<uint8_t> network_cert(certificate_size);
 
-    StartType start_type = StartType::Unknown;
+    StartType start_type = StartType::New;
 
     EnclaveConfig enclave_config;
     enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
@@ -790,8 +790,7 @@ int main(int argc, char** argv)
           "No snapshot found: Node will replay all historical transactions");
       }
     }
-
-    if (start_type == StartType::Unknown)
+    else
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }
