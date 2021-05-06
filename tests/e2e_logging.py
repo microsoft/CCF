@@ -169,7 +169,6 @@ def test_clear(network, args):
             with primary.client("user0") as c:
                 log_ids = list(range(40, 50))
                 msg = "Will be deleted"
-                log_id = 44
 
                 for table in ["private", "public"]:
                     resource = f"/app/log/{table}"
@@ -196,6 +195,64 @@ def test_clear(network, args):
                                 error=lambda status, msg: status
                                 == http.HTTPStatus.BAD_REQUEST.value,
                             )
+
+        # Make sure no-one else is still looking for these
+        network.txs.clear()
+
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application ({args.package}) is not in supported packages: {supported_packages}"
+        )
+
+    return network
+
+
+@reqs.description("Count messages on primary")
+@reqs.supports_methods("log/private/count", "log/public/count")
+def test_record_count(network, args):
+    supported_packages = ["libjs_generic", "liblogging"]
+    if args.package in supported_packages:
+        primary, _ = network.find_primary()
+
+        with primary.client() as nc:
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
+
+            with primary.client("user0") as c:
+                msg = "Will be deleted"
+
+                for table in ["private", "public"]:
+                    resource = f"/app/log/{table}"
+
+                    def get_count():
+                        r = c.get(f"{resource}/count")
+                        assert r.status_code == http.HTTPStatus.OK
+                        return int(r.body.json())
+
+                    count = get_count()
+
+                    # Add several new IDs
+                    for i in range(10):
+                        log_id = 234 + i
+                        check_commit(
+                            c.post(resource, {"id": log_id, "msg": msg}),
+                            result=True,
+                        )
+                        new_count = get_count()
+                        assert (
+                            new_count == count + 1
+                        ), f"Added one ID after {count}, but found {new_count} resulting IDs"
+                        count = new_count
+
+                    # Clear all IDs
+                    check(
+                        c.delete(f"{resource}/all"),
+                        result=None,
+                    )
+                    new_count = get_count()
+                    assert (
+                        new_count == 0
+                    ), f"Found {new_count} remaining IDs after clear"
 
         # Make sure no-one else is still looking for these
         network.txs.clear()
@@ -1110,39 +1167,40 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = test(
-            network,
-            args,
-            verify=args.package != "libjs_generic",
-        )
-        network = test_illegal(network, args, verify=args.package != "libjs_generic")
-        network = test_large_messages(network, args)
-        network = test_remove(network, args)
-        network = test_clear(network, args)
-        network = test_forwarding_frontends(network, args)
-        network = test_user_data_ACL(network, args)
-        network = test_cert_prefix(network, args)
-        network = test_anonymous_caller(network, args)
-        network = test_multi_auth(network, args)
-        network = test_custom_auth(network, args)
-        network = test_custom_auth_safety(network, args)
-        network = test_raw_text(network, args)
-        network = test_historical_query(network, args)
-        network = test_historical_query_range(network, args)
-        network = test_view_history(network, args)
-        network = test_primary(network, args)
-        network = test_network_node_info(network, args)
-        network = test_metrics(network, args)
-        network = test_memory(network, args)
-        # BFT does not handle re-keying yet
-        if args.consensus == "cft":
-            network = test_liveness(network, args)
-            network = test_rekey(network, args)
-            network = test_liveness(network, args)
-        if args.package == "liblogging":
-            network = test_ws(network, args)
-            network = test_receipts(network, args)
-        network = test_historical_receipts(network, args)
+        # network = test(
+        #     network,
+        #     args,
+        #     verify=args.package != "libjs_generic",
+        # )
+        # network = test_illegal(network, args, verify=args.package != "libjs_generic")
+        # network = test_large_messages(network, args)
+        # network = test_remove(network, args)
+        # network = test_clear(network, args)
+        network = test_record_count(network, args)
+        # network = test_forwarding_frontends(network, args)
+        # network = test_user_data_ACL(network, args)
+        # network = test_cert_prefix(network, args)
+        # network = test_anonymous_caller(network, args)
+        # network = test_multi_auth(network, args)
+        # network = test_custom_auth(network, args)
+        # network = test_custom_auth_safety(network, args)
+        # network = test_raw_text(network, args)
+        # network = test_historical_query(network, args)
+        # network = test_historical_query_range(network, args)
+        # network = test_view_history(network, args)
+        # network = test_primary(network, args)
+        # network = test_network_node_info(network, args)
+        # network = test_metrics(network, args)
+        # network = test_memory(network, args)
+        # # BFT does not handle re-keying yet
+        # if args.consensus == "cft":
+        #     network = test_liveness(network, args)
+        #     network = test_rekey(network, args)
+        #     network = test_liveness(network, args)
+        # if args.package == "liblogging":
+        #     network = test_ws(network, args)
+        #     network = test_receipts(network, args)
+        # network = test_historical_receipts(network, args)
 
 
 if __name__ == "__main__":

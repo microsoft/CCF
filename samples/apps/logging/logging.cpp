@@ -256,6 +256,15 @@ namespace loggingapp
         .set_auto_schema<void, bool>()
         .install();
 
+      auto count = [this](auto& ctx, nlohmann::json&&) {
+        auto records_handle = ctx.tx.rw(records);
+        return ccf::make_success(records_handle->size());
+      };
+      make_endpoint(
+        "log/private/count", HTTP_GET, ccf::json_adapter(count), auth_policies)
+        .set_auto_schema<void, size_t>()
+        .install();
+
       // SNIPPET_START: record_public
       auto record_public = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
@@ -348,8 +357,8 @@ namespace loggingapp
         .install();
 
       auto clear_public = [this](auto& ctx, nlohmann::json&&) {
-        auto records_handle = ctx.tx.rw(public_records);
-        records_handle->clear();
+        auto public_records_handle = ctx.tx.rw(public_records);
+        public_records_handle->clear();
         return ccf::make_success(true);
       };
       make_endpoint(
@@ -358,6 +367,18 @@ namespace loggingapp
         ccf::json_adapter(clear_public),
         auth_policies)
         .set_auto_schema<void, bool>()
+        .install();
+
+      auto count_public = [this](auto& ctx, nlohmann::json&&) {
+        auto public_records_handle = ctx.tx.rw(public_records);
+        return ccf::make_success(public_records_handle->size());
+      };
+      make_endpoint(
+        "log/public/count",
+        HTTP_GET,
+        ccf::json_adapter(count_public),
+        auth_policies)
+        .set_auto_schema<void, size_t>()
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
