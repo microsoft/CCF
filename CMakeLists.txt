@@ -43,11 +43,12 @@ include(GNUInstallDirs)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/aft.cmake)
 
+set(CMAKE_GENERATED_COMMENT "This file was auto-generated. DO NOT EDIT")
 configure_file(
   ${CCF_DIR}/src/host/version.h.in ${CCF_DIR}/include/ccf/version.h @ONLY
 )
-install(FILES ${CCF_GENERATED_DIR}/version.h DESTINATION include/ccf)
 configure_file(${CCF_DIR}/python/setup.py.in ${CCF_DIR}/python/setup.py @ONLY)
+install(FILES ${CCF_GENERATED_DIR}/version.h DESTINATION include/ccf)
 
 if(ENABLE_BFT)
   set(CONSENSUSES cft bft)
