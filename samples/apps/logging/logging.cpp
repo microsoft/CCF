@@ -791,8 +791,39 @@ namespace loggingapp
         {
           // If no start point is specified, use the first time this ID was
           // written to
-          // TODO: Get from last written table, or last_write_version
-          from_seqno = 1;
+          auto first_writes =
+            args.tx.ro<FirstWritesTable>("first_write_version");
+          const auto first_write_version = first_writes->get(id);
+          if (first_write_version.has_value())
+          {
+            from_seqno = first_write_version.value();
+          }
+          else
+          {
+            // It's possible there's been a single write but no subsequent
+            // transaction to write this to the FirstWritesTable - check version
+            // of previous write
+            auto records = args.tx.ro<RecordsTable>("records");
+            const auto last_written_version =
+              records->get_version_of_previous_write(id);
+            if (last_written_version.has_value())
+            {
+              from_seqno = last_written_version.value();
+            }
+            else
+            {
+              // This key has never been written to. Return the empty response
+              // now
+              LoggingGetHistoricalRange::Out response;
+              nlohmann::json j_response = response;
+              args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+              args.rpc_ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::JSON);
+              args.rpc_ctx->set_response_body(j_response.dump());
+              return;
+            }
+          }
         }
 
         // Range must be in order
@@ -834,8 +865,7 @@ namespace loggingapp
             ccf::errors::InvalidInput,
             fmt::format(
               "Only committed transactions can be queried. Transaction {}.{} "
-              "is "
-              "{}",
+              "is {}",
               view_of_final_seqno,
               to_seqno,
               ccf::tx_status_to_str(tx_status)));
@@ -938,7 +968,7 @@ namespace loggingapp
         nlohmann::json j_response = response;
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         args.rpc_ctx->set_response_body(j_response.dump());
 
         // ALSO: Assume this response makes it all the way to the client, and
