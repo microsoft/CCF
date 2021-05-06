@@ -88,7 +88,7 @@ extern "C"
     // are. lfence after these checks to prevent speculative execution
     if (!oe_is_outside_enclave(time_location, sizeof(enclave::host_time)))
     {
-      return CreateNodeStatus::MemoryNotInEnclave;
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
     enclave::host_time =
@@ -96,7 +96,7 @@ extern "C"
 
     if (!oe_is_outside_enclave(enclave_config, sizeof(EnclaveConfig)))
     {
-      return CreateNodeStatus::MemoryNotInEnclave;
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
@@ -106,25 +106,25 @@ extern "C"
       if (!oe_is_outside_enclave(
             ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
       {
-        return CreateNodeStatus::MemoryNotInEnclave;
+        return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       if (!oe_is_outside_enclave(
             ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
       {
-        return CreateNodeStatus::MemoryNotInEnclave;
+        return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       if (!oe_is_outside_enclave(
             ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
       {
-        return CreateNodeStatus::MemoryNotInEnclave;
+        return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       if (!oe_is_outside_enclave(
             ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
       {
-        return CreateNodeStatus::MemoryNotInEnclave;
+        return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       oe_lfence();
@@ -132,7 +132,7 @@ extern "C"
 
     if (!oe_is_outside_enclave(ccf_config, ccf_config_size))
     {
-      return CreateNodeStatus::MemoryNotInEnclave;
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
     oe_lfence();

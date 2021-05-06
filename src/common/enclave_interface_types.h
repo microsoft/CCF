@@ -4,12 +4,23 @@
 
 enum CreateNodeStatus
 {
+  /** Call was successful and the node was successfully created */
   OK = 0,
+
+  /** The node could not be created because of an internal error */
   InternalError = 1,
+
+  /** The node has already been created */
   NodeAlreadyCreated = 2,
+
+  /** The selected consensus is not valid */
   ConsensusNotAllowed = 3,
+
+  /** The number of worker threads created is too high */
   TooManyThreads = 4,
-  MemoryNotInEnclave = 5,
+
+  /** One of the input buffers is not located outside of the enclave memory */
+  MemoryNotOutsideEnclave = 5,
 };
 
 constexpr char const* create_node_result_to_str(CreateNodeStatus result)
@@ -36,9 +47,9 @@ constexpr char const* create_node_result_to_str(CreateNodeStatus result)
     {
       return "TooManyThreads";
     }
-    case CreateNodeStatus::MemoryNotInEnclave:
+    case CreateNodeStatus::MemoryNotOutsideEnclave:
     {
-      return "MemoryNodeInEnclave";
+      return "MemoryNotOutsideEnclave";
     }
     default:
     {
