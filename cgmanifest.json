@@ -40,15 +40,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/rpavlik/jenkins-ctest-plugin.git",
-          "commitHash": "22265f5786dd26e47c46329f1fc76fc08de777c5"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/msgpack/msgpack-c.git",
           "commitHash": "6e7deb809120881634b3ca895e66b2a946084f34"
         }
