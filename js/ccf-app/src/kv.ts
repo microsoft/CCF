@@ -34,7 +34,7 @@ export class TypedKvMap<K, V> {
     private kv: KvMap,
     private kt: DataConverter<K>,
     private vt: DataConverter<V>
-  ) {}
+  ) { }
 
   has(key: K): boolean {
     return this.kv.has(this.kt.encode(key));
@@ -70,6 +70,8 @@ export class TypedKvMap<K, V> {
       callback(vt.decode(raw_v), kt.decode(raw_k), typedMap);
     });
   }
+
+  get size(): number { return this.kv.size; }
 }
 
 /**

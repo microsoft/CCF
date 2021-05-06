@@ -45,6 +45,7 @@ export interface KvMap {
   forEach(
     callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void
   ): void;
+  size: number;
 }
 
 /**

@@ -11,10 +11,12 @@ beforeEach(function () {
 });
 
 describe("typedKv", function () {
+  const foo = kv.typedKv("foo", conv.string, conv.uint16);
+  const key = "bar";
+  const key2 = "baz";
+  const val = 65535;
+
   it("basic", function () {
-    const foo = kv.typedKv("foo", conv.string, conv.uint16);
-    const key = "bar";
-    const val = 65535;
     assert.equal(foo.get(key), undefined);
     foo.set(key, val);
     assert.equal(foo.get(key), val);
@@ -29,8 +31,9 @@ describe("typedKv", function () {
     foo.delete(key);
     assert.isNotTrue(foo.has(key));
     assert.equal(foo.get(key), undefined);
+  });
 
-    const key2 = "baz";
+  it("clear", function () {
     foo.set(key, val);
     foo.set(key2, val);
     assert.isTrue(foo.has(key));
@@ -38,5 +41,21 @@ describe("typedKv", function () {
     foo.clear();
     assert.isNotTrue(foo.has(key));
     assert.isNotTrue(foo.has(key2));
+  });
+
+  it("size", function () {
+    assert.equal(foo.size, 0);
+    foo.set(key, val);
+    assert.equal(foo.size, 1);
+    foo.set(key2, val);
+    assert.equal(foo.size, 2);
+    foo.set(key2, val);
+    assert.equal(foo.size, 2);
+    foo.delete(key);
+    assert.equal(foo.size, 1);
+    foo.set(key, val);
+    assert.equal(foo.size, 2);
+    foo.clear();
+    assert.equal(foo.size, 0);
   });
 });

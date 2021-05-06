@@ -63,6 +63,7 @@ class KvMapPolyfill implements KvMap {
       callback(value, unbase64(key), this);
     });
   }
+  get size(): number { return this.map.size; }
 }
 
 class CCFPolyfill implements CCF {
