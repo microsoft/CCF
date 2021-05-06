@@ -48,7 +48,7 @@ configure_file(
   ${CCF_DIR}/src/host/version.h.in ${CCF_DIR}/include/ccf/version.h @ONLY
 )
 configure_file(${CCF_DIR}/python/version.py.in ${CCF_DIR}/python/version.py @ONLY)
-install(FILES ${CCF_GENERATED_DIR}/version.h DESTINATION include/ccf)
+install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 if(ENABLE_BFT)
   set(CONSENSUSES cft bft)
