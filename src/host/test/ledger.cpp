@@ -111,7 +111,8 @@ void verify_framed_entries_range(
     size_t size = framed_entries.size() - pos;
 
     auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
-    REQUIRE(header.size == sizeof(TestLedgerEntry));
+    auto header_size = header.size;
+    REQUIRE(header_size == sizeof(TestLedgerEntry));
 
     REQUIRE(TestLedgerEntry(data, size).value() == idx);
     pos += kv::serialised_entry_header_size + sizeof(TestLedgerEntry);
@@ -130,7 +131,8 @@ void read_entry_from_ledger(Ledger& ledger, size_t idx)
   const uint8_t* data = entry.data();
   auto size = entry.size();
   auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
-  REQUIRE(header.size == sizeof(TestLedgerEntry));
+  auto header_size = header.size;
+  REQUIRE(header_size == sizeof(TestLedgerEntry));
 
   REQUIRE(TestLedgerEntry(data, size).value() == idx);
 }
