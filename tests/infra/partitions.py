@@ -144,14 +144,14 @@ class Partitioner:
     def partition(
         self,
         *args: List[infra.node.Node],
-        **kwargs,
+        name=None,
     ):
         """
         Creates an arbitrary number of partitions of :py:class:`infra.node.Node`. All other joined nodes in the
         :py:class:`infra.network.Network` are also isolated in their own partition.
 
         :param List[infra.node.Node] *args: A variable length argument list of :py:class:`infra.node.Node` (i.e. partitions) to isolate.
-        :param str **name: Name of the partition (optional).
+        :param str name: Name of the partition rules (optional, otherwise constructed by the test).
 
         :return: :py:class:`infra.partitions.Rules`
         """
@@ -191,9 +191,9 @@ class Partitioner:
 
         partitions_name.append(self._get_partition_name(other_nodes))
 
-        LOG.success(f'Created new partition {",".join(partitions_name)}')
+        # Override partition name if it is specified by the caller
+        partition_name = name or ",".join(partitions_name)
 
-        return Rules(
-            rules,
-            kwargs.get("name", f'partition {",".join(partitions_name)}'),
-        )
+        LOG.success(f"Created new partition {partition_name}")
+
+        return Rules(rules, partition_name)

@@ -45,9 +45,10 @@ def test_partition_majority(network, args):
     primary, backups = network.find_nodes()
 
     # Create a partition with primary + half remaining nodes (i.e. majority)
-    partition = [backups[0]]
+    partition = [primary]
     partition.extend(backups[len(backups) // 2 :])
 
+    # The primary should remain the same while the partition is active
     # Note: Context manager
     with network.partitioner.partition(partition):
         try:
@@ -55,6 +56,9 @@ def test_partition_majority(network, args):
             assert False, "No new primary should be elected when partitioning majority"
         except TimeoutError:
             pass
+
+    # A new leadger should be elected once the partition is dropped
+    network.wait_for_new_primary(primary.node_id)
 
     return network
 
@@ -68,7 +72,7 @@ def test_isolate_primary(network, args):
     # Note: Managed manually
     rules = network.partitioner.isolate_node(primary, backups[0])
 
-    network.wait_for_new_primary(backups[0].node_id)
+    network.wait_for_new_primary(primary.node_id, nodes=backups)
 
     # Explicitly drop rules before continuing
     rules.drop()

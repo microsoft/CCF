@@ -725,7 +725,7 @@ class Network:
     def _get_node_by_service_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, timeout=3, log_capture=None):
+    def find_primary(self, nodes=None, timeout=3, log_capture=None):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
@@ -735,9 +735,11 @@ class Network:
 
         logs = []
 
+        asked_nodes = nodes or self.get_joined_nodes()
+
         end_time = time.time() + timeout
         while time.time() < end_time:
-            for node in self.get_joined_nodes():
+            for node in asked_nodes:
                 with node.client() as c:
                     try:
                         logs = []
@@ -862,7 +864,7 @@ class Network:
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"Multiple commit values: {commits}"
 
-    def wait_for_new_primary(self, old_primary_id, timeout_multiplier=2):
+    def wait_for_new_primary(self, old_primary_id, nodes=None, timeout_multiplier=2):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
         timeout = self.election_duration * timeout_multiplier
@@ -875,7 +877,7 @@ class Network:
         while time.time() < end_time:
             try:
                 logs = []
-                new_primary, new_term = self.find_primary(log_capture=logs)
+                new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id != old_primary_id:
                     flush_info(logs, None)
                     return (new_primary, new_term)
