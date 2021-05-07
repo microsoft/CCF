@@ -22,25 +22,25 @@ namespace ccfapp
     metrics::Tracker metrics_tracker;
 
     void set_error_status(
-      ccf::endpoints::EndpointContext& args, int status, std::string&& message)
+      ccf::endpoints::EndpointContext& ctx, int status, std::string&& message)
     {
-      args.rpc_ctx->set_response_status(status);
-      args.rpc_ctx->set_response_header(
+      ctx.rpc_ctx->set_response_status(status);
+      ctx.rpc_ctx->set_response_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-      args.rpc_ctx->set_response_body(std::move(message));
+      ctx.rpc_ctx->set_response_body(std::move(message));
     }
 
-    void set_ok_status(ccf::endpoints::EndpointContext& args)
+    void set_ok_status(ccf::endpoints::EndpointContext& ctx)
     {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-      args.rpc_ctx->set_response_header(
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+      ctx.rpc_ctx->set_response_header(
         http::headers::CONTENT_TYPE,
         http::headervalues::contenttype::OCTET_STREAM);
     }
 
-    void set_no_content_status(ccf::endpoints::EndpointContext& args)
+    void set_no_content_status(ccf::endpoints::EndpointContext& ctx)
     {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
     }
 
   public:
@@ -51,70 +51,70 @@ namespace ccfapp
     {
       UserEndpointRegistry::init_handlers();
 
-      auto create = [this](auto& args) {
+      auto create = [this](auto& ctx) {
         LOG_DEBUG_FMT("Creating tpcc database");
-        const auto& body = args.rpc_ctx->get_request_body();
+        const auto& body = ctx.rpc_ctx->get_request_body();
         auto db = tpcc::DbCreation::deserialize(body.data(), body.size());
-        tpcc::SetupDb setup_db(args, db.new_orders_per_district, db.seed);
+        tpcc::SetupDb setup_db(ctx, db.new_orders_per_district, db.seed);
         setup_db.run();
         LOG_DEBUG_FMT("Creating tpcc database - end");
 
-        set_no_content_status(args);
+        set_no_content_status(ctx);
       };
 
-      auto do_stock_level = [this](auto& args) {
+      auto do_stock_level = [this](auto& ctx) {
         LOG_DEBUG_FMT("stock level");
-        const auto& body = args.rpc_ctx->get_request_body();
+        const auto& body = ctx.rpc_ctx->get_request_body();
         auto info = tpcc::StockLevel::deserialize(body.data(), body.size());
-        tpcc::TpccTransactions tx(args, info.seed);
+        tpcc::TpccTransactions tx(ctx, info.seed);
         tx.stock_level(info.warehouse_id, info.district_id, info.threshold);
         LOG_DEBUG_FMT("stock level - end");
 
-        set_no_content_status(args);
+        set_no_content_status(ctx);
       };
 
-      auto do_order_status = [this](auto& args) {
+      auto do_order_status = [this](auto& ctx) {
         LOG_DEBUG_FMT("order status");
-        const auto& body = args.rpc_ctx->get_request_body();
+        const auto& body = ctx.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
-        tpcc::TpccTransactions tx(args, info.seed);
+        tpcc::TpccTransactions tx(ctx, info.seed);
         tx.order_status();
         LOG_DEBUG_FMT("order status - end");
 
-        set_no_content_status(args);
+        set_no_content_status(ctx);
       };
 
-      auto do_delivery = [this](auto& args) {
+      auto do_delivery = [this](auto& ctx) {
         LOG_DEBUG_FMT("delivery");
-        const auto& body = args.rpc_ctx->get_request_body();
+        const auto& body = ctx.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
-        tpcc::TpccTransactions tx(args, info.seed);
+        tpcc::TpccTransactions tx(ctx, info.seed);
         tx.delivery();
         LOG_DEBUG_FMT("delivery - end");
 
-        set_no_content_status(args);
+        set_no_content_status(ctx);
       };
 
-      auto do_payment = [this](auto& args) {
+      auto do_payment = [this](auto& ctx) {
         LOG_DEBUG_FMT("payment");
-        const auto& body = args.rpc_ctx->get_request_body();
+        const auto& body = ctx.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
-        tpcc::TpccTransactions tx(args, info.seed);
+        tpcc::TpccTransactions tx(ctx, info.seed);
         tx.payment();
         LOG_DEBUG_FMT("payment - end");
 
-        set_no_content_status(args);
+        set_no_content_status(ctx);
       };
 
-      auto do_new_order = [this](auto& args) {
+      auto do_new_order = [this](auto& ctx) {
         LOG_DEBUG_FMT("new order");
-        const auto& body = args.rpc_ctx->get_request_body();
+        const auto& body = ctx.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
-        tpcc::TpccTransactions tx(args, info.seed);
+        tpcc::TpccTransactions tx(ctx, info.seed);
         tx.new_order();
         LOG_DEBUG_FMT("new order - end");
 
-        set_no_content_status(args);
+        set_no_content_status(ctx);
       };
 
       const ccf::AuthnPolicies user_sig_or_cert = {user_signature_auth_policy,
