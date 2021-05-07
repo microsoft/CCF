@@ -743,7 +743,7 @@ class Network:
                 with node.client() as c:
                     try:
                         logs = []
-                        res = c.get("/node/network")  # , log_capture=logs) TODO: Revert
+                        res = c.get("/node/network", log_capture=logs)
                         assert res.status_code == http.HTTPStatus.OK.value, res
 
                         body = res.body.json()

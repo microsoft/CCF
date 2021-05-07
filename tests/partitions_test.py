@@ -52,7 +52,7 @@ def test_partition_majority(network, args):
     # nodes outside of partition can become primary after this one is dropped
     network.wait_for_node_commit_sync()
 
-    # The primary should remain the same while the partition is active
+    # The primary should remain stable while the partition is active
     # Note: Context manager
     with network.partitioner.partition(partition):
         try:
@@ -67,7 +67,7 @@ def test_partition_majority(network, args):
     return network
 
 
-@reqs.description("Isolate primary")
+@reqs.description("Isolate primary from one backup")
 def test_isolate_primary(network, args):
     primary, backups = network.find_nodes()
 
@@ -76,7 +76,7 @@ def test_isolate_primary(network, args):
     # Note: Managed manually
     rules = network.partitioner.isolate_node(primary, backups[0])
 
-    network.wait_for_new_primary(primary.node_id, nodes=backups)
+    network.wait_for_new_primary(primary.node_id, nodes=backups, timeout_multiplier=4)
 
     # Explicitly drop rules before continuing
     rules.drop()
