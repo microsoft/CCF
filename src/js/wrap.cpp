@@ -91,6 +91,20 @@ namespace js
     return buf;
   }
 
+  static JSValue js_kv_map_size_getter(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst*)
+  {
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
+    const uint64_t size = handle->size();
+    if (size > INT64_MAX)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Map size (%lu) is too large to represent in int64", size);
+    }
+    return JS_NewInt64(ctx, (int64_t)size);
+  }
+
   static JSValue js_kv_map_delete(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -287,6 +301,20 @@ namespace js
 
     JS_SetPropertyStr(
       ctx, view_val, "get", JS_NewCFunction(ctx, js_kv_map_get, "get", 1));
+
+    JS_DefinePropertyGetSet(
+      ctx,
+      view_val,
+      JS_NewAtom(ctx, "size"),
+      JS_NewCFunction2(
+        ctx,
+        js_kv_map_size_getter,
+        "size",
+        0,
+        JS_CFUNC_getter,
+        JS_CFUNC_getter_magic),
+      JS_UNDEFINED,
+      0);
 
     auto setter = js_kv_map_set;
     auto deleter = js_kv_map_delete;
