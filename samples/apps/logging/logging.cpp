@@ -24,10 +24,13 @@ namespace loggingapp
 {
   // SNIPPET: table_definition
   using RecordsTable = kv::Map<size_t, string>;
+  static constexpr auto PUBLIC_RECORDS = "public:records";
+  static constexpr auto PRIVATE_RECORDS = "records";
 
   // Stores the index at which each key was first written to. Must be written by
   // the _next_ write transaction to that key.
   using FirstWritesTable = kv::Map<size_t, ccf::SeqNo>;
+  static constexpr auto FIRST_WRITES = "first_write_version";
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
@@ -135,7 +138,7 @@ namespace loggingapp
       auto first_writes = tx.rw<FirstWritesTable>("first_write_version");
       if (!first_writes->has(id))
       {
-        auto private_records = tx.ro<RecordsTable>("records");
+        auto private_records = tx.ro<RecordsTable>(PRIVATE_RECORDS);
         const auto prev_version =
           private_records->get_version_of_previous_write(id);
         if (prev_version.has_value())
@@ -171,7 +174,7 @@ namespace loggingapp
         }
 
         // SNIPPET: private_table_access
-        auto records_handle = ctx.tx.template rw<RecordsTable>("records");
+        auto records_handle = ctx.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
         records_handle->put(in.id, in.msg);
         update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
@@ -209,7 +212,8 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = args.tx.template ro<RecordsTable>("records");
+        auto records_handle =
+          args.tx.template ro<RecordsTable>(PRIVATE_RECORDS);
         auto record = records_handle->get(id);
 
         if (record.has_value())
@@ -250,7 +254,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template rw<RecordsTable>("records");
+        auto records_handle = ctx.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
         auto removed = records_handle->remove(id);
         update_first_write(ctx.tx, id);
 
@@ -275,8 +279,7 @@ namespace loggingapp
         }
 
         // SNIPPET: public_table_access
-        auto records_handle =
-          ctx.tx.template rw<RecordsTable>("public:records");
+        auto records_handle = ctx.tx.template rw<RecordsTable>(PUBLIC_RECORDS);
         records_handle->put(params["id"], in.msg);
         return ccf::make_success(true);
       };
@@ -306,7 +309,7 @@ namespace loggingapp
         }
 
         auto public_records_handle =
-          args.tx.template ro<RecordsTable>("public:records");
+          args.tx.template ro<RecordsTable>(PUBLIC_RECORDS);
         auto record = public_records_handle->get(id);
 
         if (record.has_value())
@@ -342,8 +345,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle =
-          ctx.tx.template rw<RecordsTable>("public:records");
+        auto records_handle = ctx.tx.template rw<RecordsTable>(PUBLIC_RECORDS);
         auto removed = records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
@@ -387,7 +389,8 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("{}: {}", cert->subject, in.msg);
-        auto records_handle = args.tx.template rw<RecordsTable>("records");
+        auto records_handle =
+          args.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
         records_handle->put(in.id, log_line);
         update_first_write(args.tx, in.id);
 
@@ -416,7 +419,8 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("Anonymous: {}", in.msg);
-        auto records_handle = args.tx.template rw<RecordsTable>("records");
+        auto records_handle =
+          args.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
         records_handle->put(in.id, log_line);
         update_first_write(args.tx, in.id);
         return ccf::make_success(true);
@@ -641,7 +645,8 @@ namespace loggingapp
         const std::vector<uint8_t>& content = args.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
 
-        auto records_handle = args.tx.template rw<RecordsTable>("records");
+        auto records_handle =
+          args.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
         records_handle->put(id, log_line);
         update_first_write(args.tx, id);
 
@@ -675,7 +680,7 @@ namespace loggingapp
 
         auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle =
-          historical_tx.template ro<RecordsTable>("records");
+          historical_tx.template ro<RecordsTable>(PRIVATE_RECORDS);
         const auto v = records_handle->get(id);
 
         if (v.has_value())
@@ -732,7 +737,7 @@ namespace loggingapp
 
           auto historical_tx = historical_state->store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsTable>("records");
+            historical_tx.template ro<RecordsTable>(PRIVATE_RECORDS);
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -799,7 +804,7 @@ namespace loggingapp
             // It's possible there's been a single write but no subsequent
             // transaction to write this to the FirstWritesTable - check version
             // of previous write
-            auto records = args.tx.ro<RecordsTable>("records");
+            auto records = args.tx.ro<RecordsTable>(PRIVATE_RECORDS);
             const auto last_written_version =
               records->get_version_of_previous_write(id);
             if (last_written_version.has_value())
@@ -828,7 +833,7 @@ namespace loggingapp
         {
           // If no end point is specified, use the last time this ID was
           // written to
-          auto records = args.tx.ro<RecordsTable>("records");
+          auto records = args.tx.ro<RecordsTable>(PRIVATE_RECORDS);
           const auto last_written_version =
             records->get_version_of_previous_write(id);
           if (last_written_version.has_value())
@@ -954,7 +959,7 @@ namespace loggingapp
 
           auto historical_tx = store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsTable>("records");
+            historical_tx.template ro<RecordsTable>(PRIVATE_RECORDS);
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -1064,7 +1069,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto view = ctx.tx.template rw<RecordsTable>("records");
+        auto view = ctx.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
         view->put(in.id, in.msg);
         update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
