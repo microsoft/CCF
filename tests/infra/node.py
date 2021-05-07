@@ -71,6 +71,7 @@ class Node:
         library_dir=".",
         debug=False,
         perf=False,
+        node_port=None
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -103,7 +104,7 @@ class Node:
         else:
             self.pubhost = self.host
             self.pubport = self.rpc_port
-        self.node_port = None
+        self.node_port = node_port
 
     def __hash__(self):
         return self.local_node_id
