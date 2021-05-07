@@ -1,0 +1,12 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
+# fmt: off
+
+#
+#   @CMAKE_GENERATED_COMMENT@
+#
+
+CCF_VERSION = "@CCF_VERSION@"
+
+# fmt: on
