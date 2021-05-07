@@ -576,12 +576,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME replacement_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replacement.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
     NAME committable_suffix_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
     CONSENSUS cft
