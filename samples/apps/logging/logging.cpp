@@ -23,11 +23,14 @@ using namespace nlohmann;
 namespace loggingapp
 {
   // SNIPPET: table_definition
-  using RecordsTable = kv::Map<size_t, string>;
+  using RecordsMap = kv::Map<size_t, string>;
+  static constexpr auto PUBLIC_RECORDS = "public:records";
+  static constexpr auto PRIVATE_RECORDS = "records";
 
   // Stores the index at which each key was first written to. Must be written by
   // the _next_ write transaction to that key.
-  using FirstWritesTable = kv::Map<size_t, ccf::SeqNo>;
+  using FirstWritesMap = kv::Map<size_t, ccf::SeqNo>;
+  static constexpr auto FIRST_WRITES = "first_write_version";
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
@@ -132,10 +135,10 @@ namespace loggingapp
 
     void update_first_write(kv::Tx& tx, size_t id)
     {
-      auto first_writes = tx.rw<FirstWritesTable>("first_write_version");
+      auto first_writes = tx.rw<FirstWritesMap>("first_write_version");
       if (!first_writes->has(id))
       {
-        auto private_records = tx.ro<RecordsTable>("records");
+        auto private_records = tx.ro<RecordsMap>(PRIVATE_RECORDS);
         const auto prev_version =
           private_records->get_version_of_previous_write(id);
         if (prev_version.has_value())
@@ -171,7 +174,7 @@ namespace loggingapp
         }
 
         // SNIPPET: private_table_access
-        auto records_handle = ctx.tx.template rw<RecordsTable>("records");
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(in.id, in.msg);
         update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
@@ -194,10 +197,10 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: get
-      auto get = [this](auto& args, nlohmann::json&&) {
+      auto get = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
-          http::parse_query(args.rpc_ctx->get_request_query());
+          http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
         size_t id;
@@ -209,7 +212,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = args.tx.template ro<RecordsTable>("records");
+        auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
         auto record = records_handle->get(id);
 
         if (record.has_value())
@@ -250,7 +253,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template rw<RecordsTable>("records");
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         auto removed = records_handle->remove(id);
         update_first_write(ctx.tx, id);
 
@@ -275,8 +278,7 @@ namespace loggingapp
         }
 
         // SNIPPET: public_table_access
-        auto records_handle =
-          ctx.tx.template rw<RecordsTable>("public:records");
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
         records_handle->put(params["id"], in.msg);
         return ccf::make_success(true);
       };
@@ -290,10 +292,10 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: get_public
-      auto get_public = [this](auto& args, nlohmann::json&&) {
+      auto get_public = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
-          http::parse_query(args.rpc_ctx->get_request_query());
+          http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
         size_t id;
@@ -306,7 +308,7 @@ namespace loggingapp
         }
 
         auto public_records_handle =
-          args.tx.template ro<RecordsTable>("public:records");
+          ctx.tx.template ro<RecordsMap>(PUBLIC_RECORDS);
         auto record = public_records_handle->get(id);
 
         if (record.has_value())
@@ -342,8 +344,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle =
-          ctx.tx.template rw<RecordsTable>("public:records");
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
         auto removed = records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
@@ -358,14 +359,14 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
-      auto log_record_prefix_cert = [this](auto& args) {
+      auto log_record_prefix_cert = [this](auto& ctx) {
         const nlohmann::json body_j =
-          nlohmann::json::parse(args.rpc_ctx->get_request_body());
+          nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 
         const auto in = body_j.get<LoggingRecord::In>();
         if (in.msg.empty())
         {
-          args.rpc_ctx->set_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             "Cannot record an empty log message");
@@ -374,12 +375,12 @@ namespace loggingapp
 
         auto cert = mbedtls::make_unique<mbedtls::X509Crt>();
 
-        const auto& cert_data = args.rpc_ctx->session->caller_cert;
+        const auto& cert_data = ctx.rpc_ctx->session->caller_cert;
         const auto ret = mbedtls_x509_crt_parse(
           cert.get(), cert_data.data(), cert_data.size());
         if (ret != 0)
         {
-          args.rpc_ctx->set_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "Cannot parse x509 caller certificate");
@@ -387,14 +388,14 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("{}: {}", cert->subject, in.msg);
-        auto records_handle = args.tx.template rw<RecordsTable>("records");
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(in.id, log_line);
-        update_first_write(args.tx, in.id);
+        update_first_write(ctx.tx, in.id);
 
-        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        args.rpc_ctx->set_response_header(
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-        args.rpc_ctx->set_response_body(nlohmann::json(true).dump());
+        ctx.rpc_ctx->set_response_body(nlohmann::json(true).dump());
       };
       make_endpoint(
         "log/private/prefix_cert",
@@ -405,7 +406,7 @@ namespace loggingapp
         .install();
       // SNIPPET_END: log_record_prefix_cert
 
-      auto log_record_anonymous = [this](auto& args, nlohmann::json&& params) {
+      auto log_record_anonymous = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
         if (in.msg.empty())
         {
@@ -416,9 +417,9 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("Anonymous: {}", in.msg);
-        auto records_handle = args.tx.template rw<RecordsTable>("records");
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(in.id, log_line);
-        update_first_write(args.tx, in.id);
+        update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
       };
       make_endpoint(
@@ -610,14 +611,14 @@ namespace loggingapp
       // SNIPPET_END: custom_auth_endpoint
 
       // SNIPPET_START: log_record_text
-      auto log_record_text = [this](auto& args) {
+      auto log_record_text = [this](auto& ctx) {
         const auto expected = http::headervalues::contenttype::TEXT;
         const auto actual =
-          args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
+          ctx.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
             .value_or("");
         if (expected != actual)
         {
-          args.rpc_ctx->set_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE,
             ccf::errors::InvalidHeaderValue,
             fmt::format(
@@ -625,11 +626,11 @@ namespace loggingapp
           return;
         }
 
-        const auto& path_params = args.rpc_ctx->get_request_path_params();
+        const auto& path_params = ctx.rpc_ctx->get_request_path_params();
         const auto id_it = path_params.find("id");
         if (id_it == path_params.end())
         {
-          args.rpc_ctx->set_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             "Missing ID component in request path");
@@ -638,14 +639,14 @@ namespace loggingapp
 
         const auto id = strtoul(id_it->second.c_str(), nullptr, 10);
 
-        const std::vector<uint8_t>& content = args.rpc_ctx->get_request_body();
+        const std::vector<uint8_t>& content = ctx.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
 
-        auto records_handle = args.tx.template rw<RecordsTable>("records");
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(id, log_line);
-        update_first_write(args.tx, id);
+        update_first_write(ctx.tx, id);
 
-        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
       make_endpoint(
         "log/private/raw_text/{id}", HTTP_POST, log_record_text, auth_policies)
@@ -654,19 +655,19 @@ namespace loggingapp
 
       // SNIPPET_START: get_historical
       auto get_historical = [this](
-                              ccf::endpoints::EndpointContext& args,
+                              ccf::endpoints::EndpointContext& ctx,
                               ccf::historical::StatePtr historical_state) {
-        const auto pack = ccf::jsonhandler::detect_json_pack(args.rpc_ctx);
+        const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
 
         // Parse id from query
         const auto parsed_query =
-          http::parse_query(args.rpc_ctx->get_request_query());
+          http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
         size_t id;
         if (!http::get_query_value(parsed_query, "id", id, error_reason))
         {
-          args.rpc_ctx->set_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
             std::move(error_reason));
@@ -675,7 +676,7 @@ namespace loggingapp
 
         auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle =
-          historical_tx.template ro<RecordsTable>("records");
+          historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
         const auto v = records_handle->get(id);
 
         if (v.has_value())
@@ -683,11 +684,11 @@ namespace loggingapp
           LoggingGetHistorical::Out out;
           out.msg = v.value();
           nlohmann::json j = out;
-          ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
+          ccf::jsonhandler::set_response(std::move(j), ctx.rpc_ctx, pack);
         }
         else
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
         }
       };
 
@@ -711,19 +712,19 @@ namespace loggingapp
       // SNIPPET_START: get_historical_with_receipt
       auto get_historical_with_receipt =
         [this](
-          ccf::endpoints::EndpointContext& args,
+          ccf::endpoints::EndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
-          const auto pack = ccf::jsonhandler::detect_json_pack(args.rpc_ctx);
+          const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
 
           // Parse id from query
           const auto parsed_query =
-            http::parse_query(args.rpc_ctx->get_request_query());
+            http::parse_query(ctx.rpc_ctx->get_request_query());
 
           std::string error_reason;
           size_t id;
           if (!http::get_query_value(parsed_query, "id", id, error_reason))
           {
-            args.rpc_ctx->set_error(
+            ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
               ccf::errors::InvalidQueryParameterValue,
               std::move(error_reason));
@@ -732,7 +733,7 @@ namespace loggingapp
 
           auto historical_tx = historical_state->store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsTable>("records");
+            historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -740,11 +741,11 @@ namespace loggingapp
             LoggingGetReceipt::Out out;
             out.msg = v.value();
             historical_state->receipt->describe(out.receipt);
-            ccf::jsonhandler::set_response(std::move(out), args.rpc_ctx, pack);
+            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
           else
           {
-            args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
           }
         };
       make_endpoint(
@@ -763,18 +764,18 @@ namespace loggingapp
 
       static constexpr auto get_historical_range_path =
         "log/private/historical/range";
-      auto get_historical_range = [&, this](
-                                    ccf::endpoints::EndpointContext& args) {
+      auto get_historical_range = [&,
+                                   this](ccf::endpoints::EndpointContext& ctx) {
         // Parse arguments from query
         const auto parsed_query =
-          http::parse_query(args.rpc_ctx->get_request_query());
+          http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
 
         size_t id;
         if (!http::get_query_value(parsed_query, "id", id, error_reason))
         {
-          args.rpc_ctx->set_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
             std::move(error_reason));
@@ -787,8 +788,7 @@ namespace loggingapp
         {
           // If no start point is specified, use the first time this ID was
           // written to
-          auto first_writes =
-            args.tx.ro<FirstWritesTable>("first_write_version");
+          auto first_writes = ctx.tx.ro<FirstWritesMap>("first_write_version");
           const auto first_write_version = first_writes->get(id);
           if (first_write_version.has_value())
           {
@@ -797,9 +797,9 @@ namespace loggingapp
           else
           {
             // It's possible there's been a single write but no subsequent
-            // transaction to write this to the FirstWritesTable - check version
+            // transaction to write this to the FirstWritesMap - check version
             // of previous write
-            auto records = args.tx.ro<RecordsTable>("records");
+            auto records = ctx.tx.ro<RecordsMap>(PRIVATE_RECORDS);
             const auto last_written_version =
               records->get_version_of_previous_write(id);
             if (last_written_version.has_value())
@@ -812,11 +812,11 @@ namespace loggingapp
               // now
               LoggingGetHistoricalRange::Out response;
               nlohmann::json j_response = response;
-              args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-              args.rpc_ctx->set_response_header(
+              ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+              ctx.rpc_ctx->set_response_header(
                 http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::JSON);
-              args.rpc_ctx->set_response_body(j_response.dump());
+              ctx.rpc_ctx->set_response_body(j_response.dump());
               return;
             }
           }
@@ -828,7 +828,7 @@ namespace loggingapp
         {
           // If no end point is specified, use the last time this ID was
           // written to
-          auto records = args.tx.ro<RecordsTable>("records");
+          auto records = ctx.tx.ro<RecordsMap>(PRIVATE_RECORDS);
           const auto last_written_version =
             records->get_version_of_previous_write(id);
           if (last_written_version.has_value())
@@ -845,7 +845,7 @@ namespace loggingapp
             const auto result = get_last_committed_txid_v1(view, seqno);
             if (result != ccf::ApiResult::OK)
             {
-              args.rpc_ctx->set_error(
+              ctx.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 fmt::format(
@@ -859,7 +859,7 @@ namespace loggingapp
         // Range must be in order
         if (to_seqno < from_seqno)
         {
-          args.rpc_ctx->set_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format(
@@ -872,7 +872,7 @@ namespace loggingapp
         // End of range must be committed
         if (consensus == nullptr)
         {
-          args.rpc_ctx->set_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             "Node is not fully operational");
@@ -890,7 +890,7 @@ namespace loggingapp
           committed_seqno);
         if (tx_status != ccf::TxStatus::Committed)
         {
-          args.rpc_ctx->set_error(
+          ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
             fmt::format(
@@ -931,13 +931,13 @@ namespace loggingapp
           historical_cache.get_store_range(handle, range_begin, range_end);
         if (stores.empty())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
           static constexpr size_t retry_after_seconds = 3;
-          args.rpc_ctx->set_response_header(
+          ctx.rpc_ctx->set_response_header(
             http::headers::RETRY_AFTER, retry_after_seconds);
-          args.rpc_ctx->set_response_header(
+          ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(fmt::format(
+          ctx.rpc_ctx->set_response_body(fmt::format(
             "Historical transactions from {} to {} are not yet "
             "available, fetching now",
             range_begin,
@@ -954,7 +954,7 @@ namespace loggingapp
 
           auto historical_tx = store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsTable>("records");
+            historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -996,10 +996,10 @@ namespace loggingapp
 
         // Construct the HTTP response
         nlohmann::json j_response = response;
-        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        args.rpc_ctx->set_response_header(
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-        args.rpc_ctx->set_response_body(j_response.dump());
+        ctx.rpc_ctx->set_response_body(j_response.dump());
 
         // ALSO: Assume this response makes it all the way to the client, and
         // they're finished with it, so we can drop the retrieved state. In a
@@ -1064,7 +1064,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto view = ctx.tx.template rw<RecordsTable>("records");
+        auto view = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         view->put(in.id, in.msg);
         update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
