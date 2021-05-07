@@ -1,5 +1,5 @@
 parameters:
-  target: ["NoSGX"]
+  target: ["NoSGX", "SGX"]
 
   env:
     Hosted:
@@ -50,15 +50,15 @@ jobs:
           ctest_filter: "${{ parameters.test[target].ctest_args }}"
 
   # Performance
-  # - ${{ if eq(parameters.perf_tests, 'run') }}:
-  #     - template: common.yml
-  #       parameters:
-  #         target: SGX
-  #         env: ${{ parameters.env.Perf }}
-  #         cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
-  #         suffix: "Perf"
-  #         artifact_name: "SGX_Perf"
-  #         ctest_filter: "${{ parameters.test.perf.ctest_args }}"
+  - ${{ if eq(parameters.perf_tests, 'run') }}:
+      - template: common.yml
+        parameters:
+          target: SGX
+          env: ${{ parameters.env.Perf }}
+          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
+          suffix: "Perf"
+          artifact_name: "SGX_Perf"
+          ctest_filter: "${{ parameters.test.perf.ctest_args }}"
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
