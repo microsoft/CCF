@@ -23,13 +23,13 @@ using namespace nlohmann;
 namespace loggingapp
 {
   // SNIPPET: table_definition
-  using RecordsTable = kv::Map<size_t, string>;
+  using RecordsMap = kv::Map<size_t, string>;
   static constexpr auto PUBLIC_RECORDS = "public:records";
   static constexpr auto PRIVATE_RECORDS = "records";
 
   // Stores the index at which each key was first written to. Must be written by
   // the _next_ write transaction to that key.
-  using FirstWritesTable = kv::Map<size_t, ccf::SeqNo>;
+  using FirstWritesMap = kv::Map<size_t, ccf::SeqNo>;
   static constexpr auto FIRST_WRITES = "first_write_version";
 
   // SNIPPET_START: custom_identity
@@ -135,10 +135,10 @@ namespace loggingapp
 
     void update_first_write(kv::Tx& tx, size_t id)
     {
-      auto first_writes = tx.rw<FirstWritesTable>("first_write_version");
+      auto first_writes = tx.rw<FirstWritesMap>("first_write_version");
       if (!first_writes->has(id))
       {
-        auto private_records = tx.ro<RecordsTable>(PRIVATE_RECORDS);
+        auto private_records = tx.ro<RecordsMap>(PRIVATE_RECORDS);
         const auto prev_version =
           private_records->get_version_of_previous_write(id);
         if (prev_version.has_value())
@@ -174,7 +174,7 @@ namespace loggingapp
         }
 
         // SNIPPET: private_table_access
-        auto records_handle = ctx.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(in.id, in.msg);
         update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
@@ -212,7 +212,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template ro<RecordsTable>(PRIVATE_RECORDS);
+        auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
         auto record = records_handle->get(id);
 
         if (record.has_value())
@@ -253,7 +253,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         auto removed = records_handle->remove(id);
         update_first_write(ctx.tx, id);
 
@@ -278,7 +278,7 @@ namespace loggingapp
         }
 
         // SNIPPET: public_table_access
-        auto records_handle = ctx.tx.template rw<RecordsTable>(PUBLIC_RECORDS);
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
         records_handle->put(params["id"], in.msg);
         return ccf::make_success(true);
       };
@@ -308,7 +308,7 @@ namespace loggingapp
         }
 
         auto public_records_handle =
-          ctx.tx.template ro<RecordsTable>(PUBLIC_RECORDS);
+          ctx.tx.template ro<RecordsMap>(PUBLIC_RECORDS);
         auto record = public_records_handle->get(id);
 
         if (record.has_value())
@@ -344,7 +344,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.template rw<RecordsTable>(PUBLIC_RECORDS);
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
         auto removed = records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
@@ -388,7 +388,7 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("{}: {}", cert->subject, in.msg);
-        auto records_handle = ctx.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(in.id, log_line);
         update_first_write(ctx.tx, in.id);
 
@@ -417,7 +417,7 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("Anonymous: {}", in.msg);
-        auto records_handle = ctx.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(in.id, log_line);
         update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
@@ -642,7 +642,7 @@ namespace loggingapp
         const std::vector<uint8_t>& content = ctx.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
 
-        auto records_handle = ctx.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->put(id, log_line);
         update_first_write(ctx.tx, id);
 
@@ -676,7 +676,7 @@ namespace loggingapp
 
         auto historical_tx = historical_state->store->create_read_only_tx();
         auto records_handle =
-          historical_tx.template ro<RecordsTable>(PRIVATE_RECORDS);
+          historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
         const auto v = records_handle->get(id);
 
         if (v.has_value())
@@ -733,7 +733,7 @@ namespace loggingapp
 
           auto historical_tx = historical_state->store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsTable>(PRIVATE_RECORDS);
+            historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -789,7 +789,7 @@ namespace loggingapp
           // If no start point is specified, use the first time this ID was
           // written to
           auto first_writes =
-            ctx.tx.ro<FirstWritesTable>("first_write_version");
+            ctx.tx.ro<FirstWritesMap>("first_write_version");
           const auto first_write_version = first_writes->get(id);
           if (first_write_version.has_value())
           {
@@ -798,9 +798,9 @@ namespace loggingapp
           else
           {
             // It's possible there's been a single write but no subsequent
-            // transaction to write this to the FirstWritesTable - check version
+            // transaction to write this to the FirstWritesMap - check version
             // of previous write
-            auto records = ctx.tx.ro<RecordsTable>(PRIVATE_RECORDS);
+            auto records = ctx.tx.ro<RecordsMap>(PRIVATE_RECORDS);
             const auto last_written_version =
               records->get_version_of_previous_write(id);
             if (last_written_version.has_value())
@@ -829,7 +829,7 @@ namespace loggingapp
         {
           // If no end point is specified, use the last time this ID was
           // written to
-          auto records = ctx.tx.ro<RecordsTable>(PRIVATE_RECORDS);
+          auto records = ctx.tx.ro<RecordsMap>(PRIVATE_RECORDS);
           const auto last_written_version =
             records->get_version_of_previous_write(id);
           if (last_written_version.has_value())
@@ -955,7 +955,7 @@ namespace loggingapp
 
           auto historical_tx = store->create_read_only_tx();
           auto records_handle =
-            historical_tx.template ro<RecordsTable>(PRIVATE_RECORDS);
+            historical_tx.template ro<RecordsMap>(PRIVATE_RECORDS);
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -1065,7 +1065,7 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto view = ctx.tx.template rw<RecordsTable>(PRIVATE_RECORDS);
+        auto view = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         view->put(in.id, in.msg);
         update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
