@@ -71,7 +71,7 @@ class Node:
         library_dir=".",
         debug=False,
         perf=False,
-        node_port=None
+        node_port=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir

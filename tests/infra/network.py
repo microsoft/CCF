@@ -169,7 +169,13 @@ class Network:
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
         node = infra.node.Node(
-            node_id, host, self.binary_dir, self.library_dir, debug, perf, node_port=node_port
+            node_id,
+            host,
+            self.binary_dir,
+            self.library_dir,
+            debug,
+            perf,
+            node_port=node_port,
         )
         self.nodes.append(node)
         return node
