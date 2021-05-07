@@ -743,7 +743,7 @@ class Network:
                 with node.client() as c:
                     try:
                         logs = []
-                        res = c.get("/node/network", log_capture=logs)
+                        res = c.get("/node/network")  # , log_capture=logs) TODO: Revert
                         assert res.status_code == http.HTTPStatus.OK.value, res
 
                         body = res.body.json()
@@ -1034,6 +1034,8 @@ def network(
         else:
             raise
     finally:
-        net.stop_all_nodes(skip_verification=True)
+        # To prevent https://github.com/microsoft/CCF/issues/2571, at
+        # the cost of additional messages in the node logs
         if init_partitioner:
             net.partitioner.cleanup()
+        net.stop_all_nodes(skip_verification=True)
