@@ -107,7 +107,7 @@ int main(int argc, char** argv)
     "Path to which the node's node-to-node address (including potentially "
     "auto-assigned port) will be written. If empty (default), write nothing");
 
-  std::string node_client_interface = {};
+  std::optional<std::string> node_client_interface = std::nullopt;
   app.add_option(
     "--node-client-interface",
     node_client_interface,
