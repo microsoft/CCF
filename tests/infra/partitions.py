@@ -3,6 +3,7 @@
 import infra.node
 import infra.network
 import iptc
+import json
 from dataclasses import field
 from typing import List, Optional
 
@@ -66,8 +67,21 @@ class Partitioner:
     """
 
     @staticmethod
+    def dump():
+        if iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
+            chain_status = (
+                "active"
+                if iptc.easy.has_rule("filter", "INPUT", CCF_INPUT_RULE)
+                else "inactive"
+            )
+            LOG.info(
+                f'Dumping {chain_status} chain {CCF_IPTABLES_CHAIN}:\n{json.dumps(iptc.easy.dump_chain("filter", CCF_IPTABLES_CHAIN), indent=2)}'
+            )
+        else:
+            LOG.info(f"Chain {CCF_IPTABLES_CHAIN} does not exist")
+
+    @staticmethod
     def cleanup():
-        # TODO: Write equivalent CLI
         if iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
             iptc.easy.flush_chain("filter", CCF_IPTABLES_CHAIN)
             iptc.easy.delete_rule("filter", "INPUT", CCF_INPUT_RULE)
