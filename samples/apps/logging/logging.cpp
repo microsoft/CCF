@@ -788,8 +788,7 @@ namespace loggingapp
         {
           // If no start point is specified, use the first time this ID was
           // written to
-          auto first_writes =
-            ctx.tx.ro<FirstWritesMap>("first_write_version");
+          auto first_writes = ctx.tx.ro<FirstWritesMap>("first_write_version");
           const auto first_write_version = first_writes->get(id);
           if (first_write_version.has_value())
           {
