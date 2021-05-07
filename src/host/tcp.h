@@ -229,14 +229,12 @@ namespace asynchost
 
     bool reconnect()
     {
-      LOG_FAIL_FMT("Reconnect: {}", status);
       switch (status)
       {
         case BINDING_FAILED:
         {
           // Try again, from the start
-          LOG_DEBUG_FMT(
-            "Reconnect from initial state: {}", client_host.value());
+          LOG_DEBUG_FMT("Reconnect from initial state");
           status = BINDING;
           return connect(host, service, client_host);
         }
