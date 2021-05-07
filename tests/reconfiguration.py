@@ -273,9 +273,11 @@ def test_node_replacement(network, args):
         f"Stopping {len(f_backups)} other nodes to make progress depend on the replacement"
     )
     for other_backup in f_backups:
-        other_backup.stop()
+        other_backup.suspend()
     # Confirm the network can make progress
     check_can_progress(primary)
+    for other_backup in f_backups:
+        other_backup.resume()
 
 
 def run(args):
