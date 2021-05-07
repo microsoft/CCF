@@ -629,7 +629,7 @@
           {
             "in": "query",
             "name": "from_seqno",
-            "required": true,
+            "required": false,
             "schema": {
               "$ref": "#/components/schemas/uint64"
             }
@@ -637,7 +637,7 @@
           {
             "in": "query",
             "name": "to_seqno",
-            "required": true,
+            "required": false,
             "schema": {
               "$ref": "#/components/schemas/uint64"
             }
