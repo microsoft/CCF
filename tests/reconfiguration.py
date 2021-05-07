@@ -176,6 +176,7 @@ def test_add_as_many_pending_nodes(network, args):
 
     for new_node in new_nodes:
         network.consortium.retire_node(primary, new_node)
+        network.nodes.remove(new_node)
     return network
 
 
