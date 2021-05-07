@@ -147,6 +147,7 @@ class Partitioner:
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, server_rule)
         iptc.easy.insert_rule("filter", CCF_IPTABLES_CHAIN, client_rule)
 
+        LOG.trace(name)
         return Rules([server_rule, client_rule], name)
 
     @staticmethod

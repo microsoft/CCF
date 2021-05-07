@@ -48,6 +48,10 @@ def test_partition_majority(network, args):
     partition = [primary]
     partition.extend(backups[len(backups) // 2 :])
 
+    # Wait for all nodes to be have reached the same level of commit, so that
+    # nodes outside of partition can become primary after this one is dropped
+    network.wait_for_node_commit_sync()
+
     # The primary should remain the same while the partition is active
     # Note: Context manager
     with network.partitioner.partition(partition):
@@ -57,7 +61,7 @@ def test_partition_majority(network, args):
         except TimeoutError:
             pass
 
-    # A new leadger should be elected once the partition is dropped
+    # A new leader should be elected once the partition is dropped
     network.wait_for_new_primary(primary.node_id)
 
     return network
