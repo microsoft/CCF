@@ -185,7 +185,11 @@ namespace asynchost
             LOG_FAIL_FMT("uv_tcp_bind failed: {}", uv_strerror(rc));
             behaviour->on_bind_failed();
           }
-          status = CONNECTING_RESOLVING;
+          else
+          {
+            status = CONNECTING_RESOLVING;
+            resolve(this->host, this->service, false);
+          }
         }
       }
 
@@ -198,11 +202,15 @@ namespace asynchost
       const std::string& service,
       const std::optional<std::string>& client_host = std::nullopt)
     {
+      // If a client host is set, bind to this first. Otherwise, connect
+      // straight away.
       if (client_host.has_value())
       {
         this->client_host = client_host;
-        status = BINDING;
+        this->host = host;
+        this->service = service;
 
+        status = BINDING;
         if (!DNS::resolve(
               client_host.value(), "0", this, on_client_resolved, false))
         {
@@ -210,9 +218,9 @@ namespace asynchost
           return false;
         }
       }
-
-      if (status == FRESH || status == CONNECTING_RESOLVING)
+      else
       {
+        assert_status(FRESH, CONNECTING_RESOLVING);
         return resolve(host, service, false);
       }
 
@@ -221,12 +229,14 @@ namespace asynchost
 
     bool reconnect()
     {
+      LOG_FAIL_FMT("Reconnect: {}", status);
       switch (status)
       {
-        case BINDING:
+        case BINDING_FAILED:
         {
           // Try again, from the start
-          LOG_DEBUG_FMT("Reconnect from initial state");
+          LOG_DEBUG_FMT(
+            "Reconnect from initial state: {}", client_host.value());
           status = BINDING;
           return connect(host, service, client_host);
         }
@@ -280,6 +290,8 @@ namespace asynchost
 
       switch (status)
       {
+        case BINDING:
+        case BINDING_FAILED:
         case CONNECTING_RESOLVING:
         case CONNECTING:
         case RESOLVING_FAILED:

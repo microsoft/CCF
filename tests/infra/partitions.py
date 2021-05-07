@@ -67,6 +67,7 @@ class Partitioner:
 
     @staticmethod
     def cleanup():
+        # TODO: Write equivalent CLI
         if iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
             iptc.easy.flush_chain("filter", CCF_IPTABLES_CHAIN)
             iptc.easy.delete_rule("filter", "INPUT", CCF_INPUT_RULE)
@@ -75,13 +76,15 @@ class Partitioner:
 
     def __init__(self, network):
         self.network = network
+
+        # Cleanup any leftover rules
+        self.cleanup()
+
         # Create iptables chain
-        if not iptc.easy.has_chain("filter", CCF_IPTABLES_CHAIN):
-            iptc.easy.add_chain("filter", CCF_IPTABLES_CHAIN)
+        iptc.easy.add_chain("filter", CCF_IPTABLES_CHAIN)
 
         # Create iptables rule in INPUT chain
-        if not iptc.easy.has_rule("filter", "INPUT", CCF_INPUT_RULE):
-            iptc.easy.insert_rule("filter", "INPUT", CCF_INPUT_RULE)
+        iptc.easy.insert_rule("filter", "INPUT", CCF_INPUT_RULE)
 
     def isolate_node(
         self,
