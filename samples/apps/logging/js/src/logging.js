@@ -91,4 +91,3 @@ export function count_public(request) {
   const count = ccf.kv["public:records"].size;
   return { body: count };
 }
-

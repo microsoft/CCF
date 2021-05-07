@@ -221,15 +221,15 @@ def test_record_count(network, args):
             with primary.client("user0") as c:
                 msg = "Will be deleted"
 
+                def get_count(resource):
+                    r_get = c.get(f"{resource}/count")
+                    assert r_get.status_code == http.HTTPStatus.OK
+                    return int(r_get.body.json())
+
                 for table in ["private", "public"]:
                     resource = f"/app/log/{table}"
 
-                    def get_count():
-                        r = c.get(f"{resource}/count")
-                        assert r.status_code == http.HTTPStatus.OK
-                        return int(r.body.json())
-
-                    count = get_count()
+                    count = get_count(resource)
 
                     # Add several new IDs
                     for i in range(10):
@@ -238,7 +238,7 @@ def test_record_count(network, args):
                             c.post(resource, {"id": log_id, "msg": msg}),
                             result=True,
                         )
-                        new_count = get_count()
+                        new_count = get_count(resource)
                         assert (
                             new_count == count + 1
                         ), f"Added one ID after {count}, but found {new_count} resulting IDs"
@@ -249,7 +249,7 @@ def test_record_count(network, args):
                         c.delete(f"{resource}/all"),
                         result=None,
                     )
-                    new_count = get_count()
+                    new_count = get_count(resource)
                     assert (
                         new_count == 0
                     ), f"Found {new_count} remaining IDs after clear"
