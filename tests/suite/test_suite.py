@@ -9,6 +9,7 @@ import election
 import code_update
 import membership
 import governance_history
+import replacement
 
 from inspect import signature, Parameter
 
@@ -89,6 +90,8 @@ all_tests_suite = [
     # memberclient:
     memberclient.test_missing_signature_header,
     memberclient.test_corrupted_signature,
+    # replacement
+    replacement.test_node_replacement,
     # reconfiguration:
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_on_other_curve,
