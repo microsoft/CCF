@@ -7,8 +7,6 @@ import infra.partitions
 import infra.logging_app as app
 import suite.test_requirements as reqs
 
-from loguru import logger as LOG
-
 
 @reqs.description("Invalid partitions are not allowed")
 def test_invalid_partitions(network, args):
@@ -76,7 +74,7 @@ def test_isolate_primary(network, args):
     # Note: Managed manually
     rules = network.partitioner.isolate_node(primary, backups[0])
 
-    network.wait_for_new_primary(primary.node_id, nodes=backups, timeout_multiplier=4)
+    network.wait_for_new_primary(primary.node_id, nodes=backups, timeout_multiplier=6)
 
     # Explicitly drop rules before continuing
     rules.drop()

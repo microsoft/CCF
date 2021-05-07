@@ -42,7 +42,7 @@ class Rules:
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, type_, value, traceback):
         self.drop()
 
     def drop(self):
@@ -178,7 +178,7 @@ class Partitioner:
         for partition in args:
             nodes += partition
         if len(nodes) != len(set(nodes)):
-            raise ValueError(f"Some nodes are repeated in multiple partitions")
+            raise ValueError("Some nodes are repeated in multiple partitions")
 
         # Check that all nodes belong to network
         if not set(nodes).issubset(set(self.network.get_joined_nodes())):

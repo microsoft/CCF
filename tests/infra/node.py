@@ -12,7 +12,6 @@ import ccf.ledger
 import os
 import socket
 import re
-import time
 import ipaddress
 
 from loguru import logger as LOG
