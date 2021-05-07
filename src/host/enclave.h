@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/version.h"
 #include "crypto/hash.h"
 #include "crypto/key_pair.h"
 #include "ds/logger.h"
@@ -85,7 +86,7 @@ namespace host
       }
     }
 
-    bool create_node(
+    void create_node(
       const EnclaveConfig& enclave_config,
       const CCFConfig& ccf_config,
       std::vector<uint8_t>& node_cert,
@@ -95,15 +96,19 @@ namespace host
       size_t num_worker_thread,
       void* time_location)
     {
-      bool ret;
+      CreateNodeStatus status;
+      constexpr size_t enclave_version_size = 256;
+      std::vector<uint8_t> enclave_version_buf(enclave_version_size);
+
       size_t node_cert_len = 0;
       size_t network_cert_len = 0;
+      size_t enclave_version_len = 0;
 
       auto config = nlohmann::json(ccf_config).dump();
 
       auto err = enclave_create_node(
         e,
-        &ret,
+        &status,
         (void*)&enclave_config,
         config.data(),
         config.size(),
@@ -113,6 +118,9 @@ namespace host
         network_cert.data(),
         network_cert.size(),
         &network_cert_len,
+        enclave_version_buf.data(),
+        enclave_version_buf.size(),
+        &enclave_version_len,
         start_type,
         consensus_type,
         num_worker_thread,
@@ -124,15 +132,28 @@ namespace host
           "Failed to call in enclave_create_node: {}", oe_result_str(err)));
       }
 
-      if (!ret)
+      if (status != CreateNodeStatus::OK)
       {
-        throw std::logic_error("An error occurred when creating CCF node");
+        throw std::logic_error(fmt::format(
+          "An error occurred when creating CCF node: {}",
+          create_node_result_to_str(status)));
+      }
+
+      // Host and enclave versions must match. Otherwise the node may crash much
+      // later (e.g. unhandled ring buffer message on either end)
+      auto enclave_version = std::string(
+        enclave_version_buf.begin(),
+        enclave_version_buf.begin() + enclave_version_len);
+      if (ccf::ccf_version != enclave_version)
+      {
+        throw std::logic_error(fmt::format(
+          "Host/Enclave versions mismatch: {} != {}",
+          ccf::ccf_version,
+          enclave_version));
       }
 
       node_cert.resize(node_cert_len);
       network_cert.resize(network_cert_len);
-
-      return ret;
     }
 
     // Run a processor over this circuit inside the enclave - should be called

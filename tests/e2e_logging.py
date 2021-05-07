@@ -633,22 +633,26 @@ def test_historical_query_range(network, args):
 
     primary, _ = network.find_primary()
 
-    id_a = 100
-    id_b = 101
+    id_a = 142
+    id_b = 143
 
     first_seqno = None
     last_seqno = None
 
-    def get_all_entries(target_id):
+    def get_all_entries(target_id, from_seqno=None, to_seqno=None):
         LOG.info(
-            f"Getting historical entries from {first_seqno} to {last_seqno} for id {target_id}"
+            f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {last_seqno}' if to_seqno is not None else ''} for id {target_id}"
         )
         logs = []
         with primary.client("user0") as c:
             timeout = 5
             end_time = time.time() + timeout
             entries = []
-            path = f"/app/log/private/historical/range?from_seqno={first_seqno}&to_seqno={last_seqno}&id={target_id}"
+            path = f"/app/log/private/historical/range?id={target_id}"
+            if from_seqno is not None:
+                path += f"&from_seqno={first_seqno}"
+            if to_seqno is not None:
+                path += f"&to_seqno={to_seqno}"
             while time.time() < end_time:
                 r = c.get(path, log_capture=logs)
                 if r.status_code == http.HTTPStatus.OK:
@@ -683,7 +687,9 @@ def test_historical_query_range(network, args):
         n_entries = 100
         for i in range(n_entries):
             idx = id_b if i % 3 == 0 else id_a
-            network.txs.issue(network, repeat=True, idx=idx, wait_for_sync=False)
+            network.txs.issue(
+                network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
+            )
             _, tx = network.txs.get_last_tx(idx=idx)
             msg = tx["msg"]
             seqno = tx["seqno"]
@@ -699,6 +705,15 @@ def test_historical_query_range(network, args):
 
         entries_a = get_all_entries(id_a)
         entries_b = get_all_entries(id_b)
+
+        # Confirm that we can retrieve these with more specific queries, and we end up with the same result
+        alt_a = get_all_entries(id_a, from_seqno=first_seqno)
+        assert alt_a == entries_a
+        alt_a = get_all_entries(id_a, to_seqno=last_seqno)
+        assert alt_a == entries_a
+        alt_a = get_all_entries(id_a, from_seqno=first_seqno, to_seqno=last_seqno)
+        assert alt_a == entries_a
+
         actual_len = len(entries_a) + len(entries_b)
         assert (
             n_entries == actual_len

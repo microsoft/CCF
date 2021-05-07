@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/version.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -16,7 +17,6 @@
 #include "snapshot.h"
 #include "ticker.h"
 #include "time_updater.h"
-#include "version.h"
 
 #include <CLI11/CLI11.hpp>
 #include <codecvt>
@@ -651,7 +651,7 @@ int main(int argc, char** argv)
     std::vector<uint8_t> node_cert(certificate_size);
     std::vector<uint8_t> network_cert(certificate_size);
 
-    StartType start_type = StartType::Unknown;
+    StartType start_type = StartType::New;
 
     EnclaveConfig enclave_config;
     enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
@@ -782,8 +782,7 @@ int main(int argc, char** argv)
           "No snapshot found: Node will replay all historical transactions");
       }
     }
-
-    if (start_type == StartType::Unknown)
+    else
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }

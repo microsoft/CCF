@@ -11,6 +11,7 @@
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/user_frontend.h"
+#include "ccf/version.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -22,7 +23,11 @@ using namespace nlohmann;
 namespace loggingapp
 {
   // SNIPPET: table_definition
-  using Table = kv::Map<size_t, string>;
+  using RecordsTable = kv::Map<size_t, string>;
+
+  // Stores the index at which each key was first written to. Must be written by
+  // the _next_ write transaction to that key.
+  using FirstWritesTable = kv::Map<size_t, ccf::SeqNo>;
 
   // SNIPPET_START: custom_identity
   struct CustomIdentity : public ccf::AuthnIdentity
@@ -117,9 +122,6 @@ namespace loggingapp
   class LoggerHandlers : public ccf::UserEndpointRegistry
   {
   private:
-    Table records;
-    Table public_records;
-
     const nlohmann::json record_public_params_schema;
     const nlohmann::json record_public_result_schema;
 
@@ -128,13 +130,24 @@ namespace loggingapp
 
     metrics::Tracker metrics_tracker;
 
+    void update_first_write(kv::Tx& tx, size_t id)
+    {
+      auto first_writes = tx.rw<FirstWritesTable>("first_write_version");
+      if (!first_writes->has(id))
+      {
+        auto private_records = tx.ro<RecordsTable>("records");
+        const auto prev_version =
+          private_records->get_version_of_previous_write(id);
+        if (prev_version.has_value())
+        {
+          first_writes->put(id, prev_version.value());
+        }
+      }
+    }
+
   public:
-    // SNIPPET_START: constructor
     LoggerHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
-      records("records"),
-      public_records("public:records"),
-      // SNIPPET_END: constructor
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
@@ -157,8 +170,10 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto records_handle = ctx.tx.rw(records);
+        // SNIPPET: private_table_access
+        auto records_handle = ctx.tx.template rw<RecordsTable>("records");
         records_handle->put(in.id, in.msg);
+        update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
       };
       // SNIPPET_END: record
@@ -194,7 +209,7 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = args.tx.ro(records);
+        auto records_handle = args.tx.template ro<RecordsTable>("records");
         auto record = records_handle->get(id);
 
         if (record.has_value())
@@ -235,8 +250,9 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.rw(records);
+        auto records_handle = ctx.tx.template rw<RecordsTable>("records");
         auto removed = records_handle->remove(id);
+        update_first_write(ctx.tx, id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
@@ -277,7 +293,9 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto records_handle = ctx.tx.rw(public_records);
+        // SNIPPET: public_table_access
+        auto records_handle =
+          ctx.tx.template rw<RecordsTable>("public:records");
         records_handle->put(params["id"], in.msg);
         return ccf::make_success(true);
       };
@@ -306,7 +324,8 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto public_records_handle = args.tx.ro(public_records);
+        auto public_records_handle =
+          args.tx.template ro<RecordsTable>("public:records");
         auto record = public_records_handle->get(id);
 
         if (record.has_value())
@@ -342,7 +361,8 @@ namespace loggingapp
             std::move(error_reason));
         }
 
-        auto records_handle = ctx.tx.rw(public_records);
+        auto records_handle =
+          ctx.tx.template rw<RecordsTable>("public:records");
         auto removed = records_handle->remove(id);
 
         return ccf::make_success(LoggingRemove::Out{removed});
@@ -411,8 +431,9 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("{}: {}", cert->subject, in.msg);
-        auto records_handle = args.tx.rw(records);
+        auto records_handle = args.tx.template rw<RecordsTable>("records");
         records_handle->put(in.id, log_line);
+        update_first_write(args.tx, in.id);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_header(
@@ -439,8 +460,9 @@ namespace loggingapp
         }
 
         const auto log_line = fmt::format("Anonymous: {}", in.msg);
-        auto records_handle = args.tx.rw(records);
+        auto records_handle = args.tx.template rw<RecordsTable>("records");
         records_handle->put(in.id, log_line);
+        update_first_write(args.tx, in.id);
         return ccf::make_success(true);
       };
       make_endpoint(
@@ -663,8 +685,9 @@ namespace loggingapp
         const std::vector<uint8_t>& content = args.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
 
-        auto records_handle = args.tx.rw(records);
+        auto records_handle = args.tx.template rw<RecordsTable>("records");
         records_handle->put(id, log_line);
+        update_first_write(args.tx, id);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -695,7 +718,8 @@ namespace loggingapp
         }
 
         auto historical_tx = historical_state->store->create_read_only_tx();
-        auto records_handle = historical_tx.ro(records);
+        auto records_handle =
+          historical_tx.template ro<RecordsTable>("records");
         const auto v = records_handle->get(id);
 
         if (v.has_value())
@@ -751,7 +775,8 @@ namespace loggingapp
           }
 
           auto historical_tx = historical_state->store->create_read_only_tx();
-          auto records_handle = historical_tx.ro(records);
+          auto records_handle =
+            historical_tx.template ro<RecordsTable>("records");
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -790,21 +815,89 @@ namespace loggingapp
 
         std::string error_reason;
 
-        size_t from_seqno;
-        size_t to_seqno;
         size_t id;
-        if (
-          !http::get_query_value(
-            parsed_query, "from_seqno", from_seqno, error_reason) ||
-          !http::get_query_value(
-            parsed_query, "to_seqno", to_seqno, error_reason) ||
-          !http::get_query_value(parsed_query, "id", id, error_reason))
+        if (!http::get_query_value(parsed_query, "id", id, error_reason))
         {
           args.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidQueryParameterValue,
             std::move(error_reason));
           return;
+        }
+
+        size_t from_seqno;
+        if (!http::get_query_value(
+              parsed_query, "from_seqno", from_seqno, error_reason))
+        {
+          // If no start point is specified, use the first time this ID was
+          // written to
+          auto first_writes =
+            args.tx.ro<FirstWritesTable>("first_write_version");
+          const auto first_write_version = first_writes->get(id);
+          if (first_write_version.has_value())
+          {
+            from_seqno = first_write_version.value();
+          }
+          else
+          {
+            // It's possible there's been a single write but no subsequent
+            // transaction to write this to the FirstWritesTable - check version
+            // of previous write
+            auto records = args.tx.ro<RecordsTable>("records");
+            const auto last_written_version =
+              records->get_version_of_previous_write(id);
+            if (last_written_version.has_value())
+            {
+              from_seqno = last_written_version.value();
+            }
+            else
+            {
+              // This key has never been written to. Return the empty response
+              // now
+              LoggingGetHistoricalRange::Out response;
+              nlohmann::json j_response = response;
+              args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+              args.rpc_ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::JSON);
+              args.rpc_ctx->set_response_body(j_response.dump());
+              return;
+            }
+          }
+        }
+
+        size_t to_seqno;
+        if (!http::get_query_value(
+              parsed_query, "to_seqno", to_seqno, error_reason))
+        {
+          // If no end point is specified, use the last time this ID was
+          // written to
+          auto records = args.tx.ro<RecordsTable>("records");
+          const auto last_written_version =
+            records->get_version_of_previous_write(id);
+          if (last_written_version.has_value())
+          {
+            to_seqno = last_written_version.value();
+          }
+          else
+          {
+            // If there's no last written version, it may have never been
+            // written but may simply be currently deleted. Use current commit
+            // index as end point to ensure we include any deleted entries.
+            ccf::View view;
+            ccf::SeqNo seqno;
+            const auto result = get_last_committed_txid_v1(view, seqno);
+            if (result != ccf::ApiResult::OK)
+            {
+              args.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format(
+                  "Failed to get committed transaction: {}",
+                  ccf::api_result_to_str(result)));
+            }
+            to_seqno = seqno;
+          }
         }
 
         // Range must be in order
@@ -846,8 +939,7 @@ namespace loggingapp
             ccf::errors::InvalidInput,
             fmt::format(
               "Only committed transactions can be queried. Transaction {}.{} "
-              "is "
-              "{}",
+              "is {}",
               view_of_final_seqno,
               to_seqno,
               ccf::tx_status_to_str(tx_status)));
@@ -905,7 +997,8 @@ namespace loggingapp
           auto& store = stores[i];
 
           auto historical_tx = store->create_read_only_tx();
-          auto records_handle = historical_tx.ro(records);
+          auto records_handle =
+            historical_tx.template ro<RecordsTable>("records");
           const auto v = records_handle->get(id);
 
           if (v.has_value())
@@ -949,7 +1042,7 @@ namespace loggingapp
         nlohmann::json j_response = response;
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         args.rpc_ctx->set_response_body(j_response.dump());
 
         // ALSO: Assume this response makes it all the way to the client, and
@@ -963,8 +1056,10 @@ namespace loggingapp
         get_historical_range,
         auth_policies)
         .set_auto_schema<void, LoggingGetHistoricalRange::Out>()
-        .add_query_parameter<size_t>("from_seqno")
-        .add_query_parameter<size_t>("to_seqno")
+        .add_query_parameter<size_t>(
+          "from_seqno", ccf::endpoints::QueryParamPresence::OptionalParameter)
+        .add_query_parameter<size_t>(
+          "to_seqno", ccf::endpoints::QueryParamPresence::OptionalParameter)
         .add_query_parameter<size_t>("id")
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
@@ -1013,8 +1108,9 @@ namespace loggingapp
             "Cannot record an empty log message.");
         }
 
-        auto view = ctx.tx.rw(records);
+        auto view = ctx.tx.template rw<RecordsTable>("records");
         view->put(in.id, in.msg);
+        update_first_write(ctx.tx, in.id);
         return ccf::make_success(true);
       };
       make_endpoint(

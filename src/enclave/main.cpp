@@ -1,5 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/version.h"
+#include "common/enclave_interface_types.h"
 #include "ds/json.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
@@ -28,7 +30,7 @@ std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 extern "C"
 {
-  bool enclave_create_node(
+  CreateNodeStatus enclave_create_node(
     void* enclave_config,
     char* ccf_config,
     size_t ccf_config_size,
@@ -38,6 +40,9 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
+    uint8_t* enclave_version,
+    size_t enclave_version_size,
+    size_t* enclave_version_len,
     StartType start_type,
     ConsensusType consensus_type,
     size_t num_worker_threads,
@@ -47,7 +52,7 @@ extern "C"
 
     if (e != nullptr)
     {
-      return false;
+      return CreateNodeStatus::NodeAlreadyCreated;
     }
 
 #ifndef ENABLE_BFT
@@ -55,9 +60,20 @@ extern "C"
     // enclaves
     if (consensus_type != ConsensusType::CFT)
     {
-      return false;
+      return CreateNodeStatus::ConsensusNotAllowed;
     }
 #endif
+
+    // Report enclave version to host
+    auto ccf_version_string = std::string(ccf::ccf_version);
+    if (ccf_version_string.size() > enclave_version_size)
+    {
+      return CreateNodeStatus::InternalError;
+    }
+
+    ::memcpy(
+      enclave_version, ccf_version_string.data(), ccf_version_string.size());
+    *enclave_version_len = ccf_version_string.size();
 
     num_pending_threads = (uint16_t)num_worker_threads + 1;
 
@@ -65,14 +81,14 @@ extern "C"
       num_pending_threads >
       threading::ThreadMessaging::thread_messaging.max_num_threads)
     {
-      return false;
+      return CreateNodeStatus::TooManyThreads;
     }
 
     // Check that where we expect arguments to be in host-memory, they really
     // are. lfence after these checks to prevent speculative execution
     if (!oe_is_outside_enclave(time_location, sizeof(enclave::host_time)))
     {
-      return false;
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
     enclave::host_time =
@@ -80,7 +96,7 @@ extern "C"
 
     if (!oe_is_outside_enclave(enclave_config, sizeof(EnclaveConfig)))
     {
-      return false;
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
@@ -90,25 +106,25 @@ extern "C"
       if (!oe_is_outside_enclave(
             ec.to_enclave_buffer_start, ec.to_enclave_buffer_size))
       {
-        return false;
+        return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       if (!oe_is_outside_enclave(
             ec.from_enclave_buffer_start, ec.from_enclave_buffer_size))
       {
-        return false;
+        return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       if (!oe_is_outside_enclave(
             ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
       {
-        return false;
+        return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       if (!oe_is_outside_enclave(
             ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
       {
-        return false;
+        return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
       oe_lfence();
@@ -116,7 +132,7 @@ extern "C"
 
     if (!oe_is_outside_enclave(ccf_config, ccf_config_size))
     {
-      return false;
+      return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
     oe_lfence();
@@ -135,18 +151,22 @@ extern "C"
       cc.consensus_config,
       cc.curve_id);
 
-    bool result = enclave->create_new_node(
-      start_type,
-      std::move(cc),
-      node_cert,
-      node_cert_size,
-      node_cert_len,
-      network_cert,
-      network_cert_size,
-      network_cert_len);
+    if (!enclave->create_new_node(
+          start_type,
+          std::move(cc),
+          node_cert,
+          node_cert_size,
+          node_cert_len,
+          network_cert,
+          network_cert_size,
+          network_cert_len))
+    {
+      return CreateNodeStatus::InternalError;
+    }
+
     e.store(enclave);
 
-    return result;
+    return CreateNodeStatus::OK;
   }
 
   bool enclave_run()
