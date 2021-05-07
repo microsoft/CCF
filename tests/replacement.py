@@ -3,10 +3,8 @@
 import infra.e2e_args
 import infra.network
 import infra.proc
-import suite.test_requirements as reqs
 import reconfiguration
 
-from loguru import logger as LOG
 
 def run(args):
     with infra.network.network(
@@ -41,6 +39,7 @@ def run(args):
         other_backup.stop()
         # Confirm the network can make progress
         reconfiguration.check_can_progress(primary)
+
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
