@@ -158,20 +158,22 @@ def test_add_node_from_snapshot(
 @reqs.supports_methods("log/private")
 def test_add_as_many_pending_nodes(network, args):
     # Should not change the raft consensus rules (i.e. majority)
+    primary, _ = network.find_primary()
     number_new_nodes = len(network.nodes)
     LOG.info(
         f"Adding {number_new_nodes} pending nodes - consensus rules should not change"
     )
 
-    for _ in range(number_new_nodes):
-        network.create_and_add_pending_node(
-            args.package,
-            "local://localhost",
-            args,
-        )
-    check_can_progress(network.find_primary()[0])
-    return network
+    new_nodes = [network.create_and_add_pending_node(
+                    args.package,
+                    "local://localhost",
+                    args,
+                    ) for _ in range(number_new_nodes)]
+    check_can_progress(primary)
 
+    for new_node in new_nodes:
+        network.consortium.retire_node(primary, new_node)
+    return network
 
 @reqs.description("Retiring a backup")
 @reqs.at_least_n_nodes(2)
