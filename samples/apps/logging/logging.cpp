@@ -130,7 +130,7 @@ namespace loggingapp
 
     metrics::Tracker metrics_tracker;
 
-    void update_first_write(kv::Tx& tx, size_t id)
+    static void update_first_write(kv::Tx& tx, size_t id)
     {
       auto first_writes = tx.rw<FirstWritesTable>("first_write_version");
       if (!first_writes->has(id))
@@ -264,6 +264,10 @@ namespace loggingapp
 
       auto clear = [this](auto& ctx, nlohmann::json&&) {
         auto records_handle = ctx.tx.template rw<RecordsTable>("records");
+        records_handle->foreach([&ctx](const auto& id, const auto&) {
+          update_first_write(ctx.tx, id);
+          return true;
+        });
         records_handle->clear();
         return ccf::make_success(true);
       };
