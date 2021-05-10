@@ -8,7 +8,7 @@ import random
 import ccf.clients
 import ccf.commit
 from collections import defaultdict
-import TxID from ccf.tx_id
+from ccf.tx_id import TxID
 
 
 from loguru import logger as LOG
