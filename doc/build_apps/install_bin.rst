@@ -23,7 +23,7 @@ These dependencies can be conveniently installed using the ``ansible`` playbooks
 
     $ cd <ccf_path>/getting_started/setup_vm/
     $ ./run.sh driver.yml # Only on SGX-enabled hardware
-    $ ./run.sh app-run.yml
+    $ ./run.sh app-dev.yml
 
 Install
 -------
@@ -33,8 +33,10 @@ CCF releases are available on the `GitHub repository release page <https://githu
 The CCF Debian package (``ccf_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
 
 .. code-block:: bash
-
-    $ export CCF_VERSION=0.14.0
+    # Set CCF_VERSION to most recent release
+    $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
+    # Alternatively, set this manually, e.g.
+    # export CCF_VERSION=1.0.0
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_${CCF_VERSION}_amd64.deb
     $ sudo apt install ./ccf_${CCF_VERSION}_amd64.deb
 
