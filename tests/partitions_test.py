@@ -54,13 +54,13 @@ def test_partition_majority(network, args):
     # Note: Context manager
     with network.partitioner.partition(partition):
         try:
-            network.wait_for_new_primary(primary.node_id)
+            network.wait_for_new_primary(primary)
             assert False, "No new primary should be elected when partitioning majority"
         except TimeoutError:
             pass
 
     # A new leader should be elected once the partition is dropped
-    network.wait_for_new_primary(primary.node_id)
+    network.wait_for_new_primary(primary)
 
     return network
 
@@ -74,10 +74,21 @@ def test_isolate_primary(network, args):
     # Note: Managed manually
     rules = network.partitioner.isolate_node(primary, backups[0])
 
-    network.wait_for_new_primary(primary.node_id, nodes=backups, timeout_multiplier=6)
+    new_primary, new_view = network.wait_for_new_primary(
+        primary, nodes=backups, timeout_multiplier=6
+    )
 
     # Explicitly drop rules before continuing
     rules.drop()
+
+    # Old primary should now report of the new primary
+    new_primary_, new_view_ = network.wait_for_new_primary(primary, nodes=[primary])
+    assert (
+        new_primary == new_primary_
+    ), f"New primary {new_primary_.local_node_id} after partition is dropped is different than before {new_primary.local_node_id}"
+    assert (
+        new_view == new_view_
+    ), f"Consensus view {new_view} should not changed after partition is dropped: no {new_view_}"
 
     return network
 
@@ -96,9 +107,13 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
-        test_isolate_primary(network, args)
+        # test_invalid_partitions(network, args)
+        test_partition_majority(
+            network, args
+        )  # TODO: Stable on its own, repeated 20 times
+        test_isolate_primary(
+            network, args
+        )  # TODO: Stable on its own, repeated 20 times
 
 
 if __name__ == "__main__":

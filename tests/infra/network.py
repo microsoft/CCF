@@ -864,12 +864,12 @@ class Network:
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"Multiple commit values: {commits}"
 
-    def wait_for_new_primary(self, old_primary_id, nodes=None, timeout_multiplier=2):
+    def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
         timeout = self.election_duration * timeout_multiplier
         LOG.info(
-            f"Waiting up to {timeout}s for a new primary (different from {old_primary_id}) to be elected..."
+            f"Waiting up to {timeout}s for a new primary different from {old_primary.local_node_id} ({old_primary.node_id}) to be elected..."
         )
         end_time = time.time() + timeout
         error = TimeoutError
@@ -878,8 +878,11 @@ class Network:
             try:
                 logs = []
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
-                if new_primary.node_id != old_primary_id:
+                if new_primary.node_id != old_primary.node_id:
                     flush_info(logs, None)
+                    LOG.info(
+                        f"New primary is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                    )
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
