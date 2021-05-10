@@ -38,17 +38,6 @@ parameters:
       ctest_args: '-L "benchmark|perf|vegeta"'
 
 jobs:
-  # Debug
-  - ${{ each target in parameters.target }}:
-      - template: common.yml
-        parameters:
-          target: ${{ target }}
-          env: ${{ parameters.env[target] }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}"
-          suffix: "Debug"
-          artifact_name: "${{ target }}_Debug"
-          ctest_filter: "${{ parameters.test[target].ctest_args }}"
-
   # Performance
   - ${{ if eq(parameters.perf_tests, 'run') }}:
       - template: common.yml
@@ -60,23 +49,3 @@ jobs:
           artifact_name: "SGX_Perf"
           ctest_filter: "${{ parameters.test.perf.ctest_args }}"
 
-  # Release
-  - ${{ if eq(parameters.perf_or_release, 'release') }}:
-      - template: checks.yml
-        parameters:
-          env: ${{ parameters.env.Hosted }}
-
-      - template: common.yml
-        parameters:
-          target: SGX
-          env: ${{ parameters.env.SGX }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }}"
-          suffix: "Release"
-          artifact_name: "SGX_Release"
-
-      - template: release.yml
-        parameters:
-          env: ${{ parameters.env.Hosted }}
-          depends_on:
-            - Checks
-            - SGX_Release
