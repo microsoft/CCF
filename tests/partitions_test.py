@@ -108,12 +108,8 @@ def run(args):
         network.start_and_join(args)
 
         # test_invalid_partitions(network, args)
-        test_partition_majority(
-            network, args
-        )  # TODO: Stable on its own, repeated 20 times
-        test_isolate_primary(
-            network, args
-        )  # TODO: Stable on its own, repeated 20 times
+        test_partition_majority(network, args)
+        test_isolate_primary(network, args)
 
 
 if __name__ == "__main__":
