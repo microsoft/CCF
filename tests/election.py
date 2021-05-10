@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+from ccf.tx_id import TxID
 from infra.network import PrimaryNotFound
 import time
 import math
@@ -48,43 +49,6 @@ def test_kill_primary(network, args):
     return network
 
 
-def wait_for_seqno_to_commit(seqno, view, nodes):
-    """
-    Wait for a specific seqno at a specific view to be committed on all nodes.
-    """
-    for _ in range(infra.network.Network.replication_delay * 10):
-        up_to_date_f = []
-        logs = {}
-        for f in nodes:
-            with f.client() as c:
-                logs[f.node_id] = []
-                r = c.get(
-                    f"/node/tx?transaction_id={view}.{seqno}",
-                    log_capture=logs[f.node_id],
-                )
-                assert (
-                    r.status_code == http.HTTPStatus.OK
-                ), f"tx request returned HTTP status {r.status_code}"
-                status = TxStatus(r.body.json()["status"])
-                if status == TxStatus.Committed:
-                    up_to_date_f.append(f.node_id)
-                elif status == TxStatus.Invalid:
-                    flush_info(logs[f.node_id], None, 0)
-                    raise RuntimeError(
-                        f"Node {f.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
-                    )
-                else:
-                    pass
-        if len(up_to_date_f) == len(nodes):
-            break
-        time.sleep(0.1)
-    for lines in logs.values():
-        flush_info(lines, None, 0)
-    assert len(up_to_date_f) == len(
-        nodes
-    ), "Only {} out of {} nodes are up to date".format(len(up_to_date_f), len(nodes))
-
-
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -122,10 +86,10 @@ def run(args):
                     },
                 )
                 check(res, result=True)
-                seqno = res.seqno
 
             LOG.debug("Waiting for transaction to be committed by all nodes")
-            wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
+
+            network.wait_for_all_nodes_to_commit(tx_id=TxID(res.view, res.seqno))
 
             try:
                 test_kill_primary(network, args)

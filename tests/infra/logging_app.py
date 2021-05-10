@@ -111,7 +111,7 @@ class LoggingTxs:
                 check_commit(rep_pub, result=True)
 
         if wait_for_sync:
-            network.wait_for_node_commit_sync()
+            network.wait_for_all_nodes_to_commit()
 
     def verify(self, network=None, node=None, timeout=3):
         LOG.info("Verifying all logging txs")

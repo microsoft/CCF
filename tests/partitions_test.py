@@ -48,7 +48,7 @@ def test_partition_majority(network, args):
 
     # Wait for all nodes to be have reached the same level of commit, so that
     # nodes outside of partition can become primary after this one is dropped
-    network.wait_for_node_commit_sync()
+    network.wait_for_all_nodes_to_commit(primary=primary)
 
     # The primary should remain stable while the partition is active
     # Note: Context manager
