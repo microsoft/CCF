@@ -2,18 +2,14 @@
 # Licensed under the Apache 2.0 License.
 from ccf.tx_id import TxID
 from infra.network import PrimaryNotFound
-import time
 import math
 import infra.network
 import infra.proc
 import infra.e2e_args
 import infra.checker
-import http
 import suite.test_requirements as reqs
 from ccf.clients import CCFConnectionException
 
-from ccf.tx_status import TxStatus
-from ccf.log_capture import flush_info
 from loguru import logger as LOG
 
 # This test starts from a given number of nodes (hosts), commits
