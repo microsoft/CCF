@@ -159,14 +159,14 @@ class Network:
             pass
 
         for host in hosts:
-            self.create_node(host)
+            self._create_node(host)
 
     def _get_next_local_node_id(self):
         if len(self.nodes):
             return self.nodes[-1].local_node_id + 1
         return self.node_offset
 
-    def create_node(self, host):
+    def _create_node(self, host, node_port=None):
         node_id = self._get_next_local_node_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
@@ -175,7 +175,13 @@ class Network:
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
         node = infra.node.Node(
-            node_id, host, self.binary_dir, self.library_dir, debug, perf
+            node_id,
+            host,
+            self.binary_dir,
+            self.library_dir,
+            debug,
+            perf,
+            node_port=node_port,
         )
         self.nodes.append(node)
         return node
@@ -576,13 +582,14 @@ class Network:
         args,
         target_node=None,
         timeout=JOIN_TIMEOUT,
+        node_port=None,
         **kwargs,
     ):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
         """
-        new_node = self.create_node(host)
+        new_node = self._create_node(host, node_port)
 
         self._add_node(
             new_node,
@@ -624,6 +631,7 @@ class Network:
         host,
         args,
         target_node=None,
+        node_port=None,
         **kwargs,
     ):
         """
@@ -635,6 +643,7 @@ class Network:
             host,
             args,
             target_node,
+            node_port=node_port,
             **kwargs,
         )
 
