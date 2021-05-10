@@ -707,14 +707,14 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME js_e2e_logging_raft
+    NAME js_e2e_logging_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS cft
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
   )
 
   add_e2e_test(
-    NAME e2e_scenario_raft
+    NAME e2e_scenario_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
     CONSENSUS cft
     ADDITIONAL_ARGS --scenario

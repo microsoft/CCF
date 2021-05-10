@@ -45,6 +45,11 @@ class LoggingTxs:
         self.user = user_id
         self.network = None
 
+    def clear(self):
+        self.pub.clear()
+        self.priv.clear()
+        self.idx = 0
+
     def get_last_tx(self, priv=True, idx=None):
         if idx is None:
             idx = self.idx
