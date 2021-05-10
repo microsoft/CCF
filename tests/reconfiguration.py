@@ -255,6 +255,7 @@ def test_node_replacement(network, args):
     # Retire one node
     network.consortium.retire_node(primary, node_to_replace)
     node_to_replace.stop()
+    network.nodes.remove(node_to_replace)
     check_can_progress(primary)
 
     # Add in a node using the same address
