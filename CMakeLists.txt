@@ -794,6 +794,13 @@ if(BUILD_TESTS)
     LABEL forum
   )
 
+  add_e2e_test(
+    NAME lts_compatibility
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+    CONSENSUS cft
+    LABEL e2e
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
