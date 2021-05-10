@@ -35,7 +35,7 @@ parameters:
     SGX:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions"'
     perf:
-      ctest_args: '-L "benchmark|perf|vegeta|partitions"'
+      ctest_args: '-L "benchmark|perf|vegeta"'
 
 jobs:
   # Debug

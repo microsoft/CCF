@@ -13,24 +13,26 @@ steps:
     displayName: CTest
     workingDirectory: build
 
-  - script: |
-      set -ex
-      sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -L partitions"
-    env:
-      CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
-    condition: succeededOrFailed()
-    displayName: "CTest partitions"
-    workingDirectory: build
+  # Only run privileged tests in container environment
+  - ${{ if ne(parameters.suffix, 'Perf') }}:
+      - script: |
+          set -ex
+          sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -L partitions"
+        env:
+          CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+        condition: succeededOrFailed()
+        displayName: "CTest partitions"
+        workingDirectory: build
 
-  # This unconditional step is necessary as workspace files survive the container
-  # in which they are created
-  - script: |
-      set -ex
-      ci_user=$(whoami)
-      sudo chown -R $ci_user: workspace
-    condition: succeededOrFailed()
-    displayName: "Change root files ownership to ci user"
-    workingDirectory: build
+      # This unconditional step is necessary as workspace files survive the container
+      # in which they are created
+      - script: |
+          set -ex
+          ci_user=$(whoami)
+          sudo chown -R $ci_user: workspace
+        condition: succeededOrFailed()
+        displayName: "Change root files ownership to ci user"
+        workingDirectory: build
 
   # If a test fails, crudely upload nodes' logs for all tests
   - task: CopyFiles@2
