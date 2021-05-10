@@ -69,6 +69,10 @@ def test_partition_majority(network, args):
 def test_isolate_primary(network, args):
     primary, backups = network.find_nodes()
 
+    # Wait for all nodes to be have reached the same level of commit, so that
+    # nodes outside of partition can become primary after this one is dropped
+    network.wait_for_all_nodes_to_commit(primary=primary)
+
     # Isolate first backup from primary so that first backup becomes candidate
     # in a new term and wins the election
     # Note: Managed manually
