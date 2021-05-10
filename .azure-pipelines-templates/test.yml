@@ -2,6 +2,7 @@ parameters:
   suite_name_suffix: ""
   ctest_filter: ""
   ctest_timeout: "240"
+  suffix: ""
 
 steps:
   - script: |
@@ -21,7 +22,7 @@ steps:
         env:
           CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
         condition: succeededOrFailed()
-        displayName: "CTest partitions"
+        displayName: "CTest Partitions"
         workingDirectory: build
 
       # This unconditional step is necessary as workspace files survive the container
