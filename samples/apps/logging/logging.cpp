@@ -266,7 +266,7 @@ namespace loggingapp
         .install();
 
       auto clear = [this](auto& ctx, nlohmann::json&&) {
-        auto records_handle = ctx.tx.template rw<RecordsTable>("records");
+        auto records_handle = ctx.tx.template rw<RecordsMap>(PRIVATE_RECORDS);
         records_handle->foreach([&ctx](const auto& id, const auto&) {
           update_first_write(ctx.tx, id);
           return true;
@@ -280,7 +280,7 @@ namespace loggingapp
         .install();
 
       auto count = [this](auto& ctx, nlohmann::json&&) {
-        auto records_handle = ctx.tx.template ro<RecordsTable>("records");
+        auto records_handle = ctx.tx.template ro<RecordsMap>(PRIVATE_RECORDS);
         return ccf::make_success(records_handle->size());
       };
       make_endpoint(
@@ -383,7 +383,7 @@ namespace loggingapp
 
       auto clear_public = [this](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
-          ctx.tx.template rw<RecordsTable>("public:records");
+          ctx.tx.template rw<RecordsMap>(PUBLIC_RECORDS);
         public_records_handle->clear();
         return ccf::make_success(true);
       };
@@ -397,7 +397,7 @@ namespace loggingapp
 
       auto count_public = [this](auto& ctx, nlohmann::json&&) {
         auto public_records_handle =
-          ctx.tx.template ro<RecordsTable>("public:records");
+          ctx.tx.template ro<RecordsMap>(PUBLIC_RECORDS);
         return ccf::make_success(public_records_handle->size());
       };
       make_endpoint(
