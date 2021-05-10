@@ -89,7 +89,8 @@ namespace crypto
   }
 
   bool Verifier_OpenSSL::verify_certificate(
-    const std::vector<const Pem*>& trusted_certs)
+    const std::vector<const Pem*>& trusted_certs,
+    const std::vector<const Pem*>& chain)
   {
     Unique_X509_STORE store;
     Unique_X509_STORE_CTX store_ctx;
@@ -101,7 +102,17 @@ namespace crypto
       CHECK1(X509_STORE_add_cert(store, tc));
     }
 
-    CHECK1(X509_STORE_CTX_init(store_ctx, store, cert, NULL));
+    Unique_STACK_OF_X509 chain_stack;
+    for (auto& pem : chain)
+    {
+      Unique_BIO certbio(*pem);
+      Unique_X509 cert(certbio, true);
+
+      CHECK1(sk_X509_push(chain_stack, cert));
+      CHECK1(X509_up_ref(cert));
+    }
+
+    CHECK1(X509_STORE_CTX_init(store_ctx, store, cert, chain_stack));
     return X509_verify_cert(store_ctx) == 1;
   }
 
