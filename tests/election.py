@@ -26,24 +26,7 @@ from loguru import logger as LOG
 def test_kill_primary(network, args):
     primary, backup = network.find_primary_and_any_backup()
     primary.stop()
-
-    # When the consensus is BFT there is no status message timer that triggers a new election.
-    # It is triggered with a timeout from a message not executing. We need to send the message that
-    # will not execute because of the stopped primary which will then trigger a view change
-    if args.consensus == "bft":
-        try:
-            with backup.client("user0") as c:
-                _ = c.post(
-                    "/app/log/private",
-                    {
-                        "id": -1,
-                        "msg": "This is submitted to force a view change",
-                    },
-                )
-        except CCFConnectionException:
-            LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
-
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
+    new_primary, new_term = network.wait_for_new_primary(primary.node_id, args=args)
     LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
 
     return network

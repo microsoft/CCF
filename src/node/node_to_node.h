@@ -129,6 +129,8 @@ namespace ccf
 
     virtual std::vector<uint8_t> recv_encrypted(
       const NodeId& from, CBuffer cb, const uint8_t* data, size_t size) = 0;
+
+    virtual bool have_channel(const NodeId& with) const = 0;
   };
 
   class NodeToNodeImpl : public NodeToNode
@@ -332,6 +334,11 @@ namespace ccf
         LOG_FAIL_EXC(e.what());
         return;
       }
+    }
+
+    bool have_channel(const NodeId& with) const override
+    {
+      return channels->get(with) != nullptr;
     }
   };
 }

@@ -52,14 +52,17 @@ namespace ccf
     void call(kv::ConfigurableConsensus* consensus) override
     {
       auto configuration = consensus->get_latest_configuration_unsafe();
+
       for (const auto& [node_id, opt_ni] : cfg_delta)
       {
         if (opt_ni.has_value())
         {
+          LOG_DEBUG_FMT("Configuration: +{}", node_id);
           configuration.try_emplace(node_id, opt_ni->hostname, opt_ni->port);
         }
         else
         {
+          LOG_DEBUG_FMT("Configuration: -{}", node_id);
           configuration.erase(node_id);
         }
       }

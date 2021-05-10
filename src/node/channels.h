@@ -973,6 +973,7 @@ namespace ccf
         return;
       }
 
+      LOG_DEBUG_FMT("Destroyed channel with {}", peer_id);
       search->second = nullptr;
     }
 

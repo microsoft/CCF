@@ -199,7 +199,7 @@ def test_retire_primary(network, args):
 
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
+    new_primary, new_term = network.wait_for_new_primary(primary.node_id, args=args)
     LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
     check_can_progress(backup)
     network.nodes.remove(primary)
@@ -303,15 +303,18 @@ def run(args):
         test_add_node(network, args)
         test_retire_primary(network, args)
 
-        test_add_node_from_snapshot(network, args)
-        test_add_node_from_snapshot(network, args, from_backup=True)
-        test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-        latest_node_log = network.get_joined_nodes()[-1].remote.log_path()
-        with open(latest_node_log, "r+") as log:
-            assert any(
-                "No snapshot found: Node will replay all historical transactions" in l
-                for l in log.readlines()
-            ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
+        if args.consensus != "bft":
+            # BFT does not support snapshots yet
+            test_add_node_from_snapshot(network, args)
+            test_add_node_from_snapshot(network, args, from_backup=True)
+            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+            latest_node_log = network.get_joined_nodes()[-1].remote.log_path()
+            with open(latest_node_log, "r+") as log:
+                assert any(
+                    "No snapshot found: Node will replay all historical transactions"
+                    in l
+                    for l in log.readlines()
+                ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
 
         test_node_filter(network, args)
 
@@ -357,7 +360,7 @@ def run_join_old_snapshot(args):
             # Kill primary and wait for a new one: new primary is
             # guaranteed to have started from the new snapshot
             primary.stop()
-            network.wait_for_new_primary(primary.node_id)
+            network.wait_for_new_primary(primary.node_id, args=args)
 
             # Start new node from the old snapshot
             try:
@@ -381,4 +384,5 @@ if __name__ == "__main__":
     args.initial_user_count = 1
 
     run(args)
-    run_join_old_snapshot(args)
+    if args.consensus != "bft":
+        run_join_old_snapshot(args)

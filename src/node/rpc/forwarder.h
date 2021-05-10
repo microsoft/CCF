@@ -93,8 +93,9 @@ namespace ccf
         send_request_hash_to_nodes(rpc_ctx, nodes, to);
       }
 
-      return n2n_channels->send_encrypted(
-        to, NodeMsgType::forwarded_msg, plain, msg);
+      return n2n_channels->have_channel(to) &&
+        n2n_channels->send_encrypted(
+          to, NodeMsgType::forwarded_msg, plain, msg);
     }
 
     void send_request_hash_to_nodes(

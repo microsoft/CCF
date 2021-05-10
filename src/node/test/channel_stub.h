@@ -67,5 +67,10 @@ namespace ccf
     {
       return sent_encrypted_messages.empty();
     }
+
+    bool have_channel(const NodeId& with) const
+    {
+      return true;
+    }
   };
 }

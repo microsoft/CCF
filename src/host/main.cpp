@@ -782,7 +782,7 @@ int main(int argc, char** argv)
           "No snapshot found: Node will replay all historical transactions");
       }
     }
-    else
+    else if (!*start)
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }

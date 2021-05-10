@@ -172,6 +172,11 @@ namespace aft
     {
       return true;
     }
+
+    bool have_channel(const ccf::NodeId& with) const override
+    {
+      return true;
+    }
   };
 
   class LoggingStubStore

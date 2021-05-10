@@ -300,10 +300,14 @@ namespace aft
 
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
-      auto active_nodes_ = active_nodes();
-      auto it = active_nodes_.begin();
-      std::advance(it, (view - starting_view_change) % active_nodes_.size());
-      return *it;
+      auto& active_nodes = configurations.front().nodes;
+      LOG_DEBUG_FMT("---");
+      for (auto& [nid, _] : active_nodes)
+        LOG_DEBUG_FMT("Active: {}", nid);
+      LOG_DEBUG_FMT("---");
+      auto it = active_nodes.begin();
+      std::advance(it, (view - starting_view_change) % active_nodes.size());
+      return it->first;
     }
 
     Index last_committable_index() const
@@ -1150,7 +1154,8 @@ namespace aft
             from,
             r.term,
             get_primary(r.term));
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          if (channels->have_channel(from))
+            send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
         }
         else if (!view_change_tracker->check_evidence(r.term))
@@ -1212,10 +1217,12 @@ namespace aft
         {
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log does not yet "
-            "contain index {}",
+            "contain index {} (we're at commit_idx {}, last_idx {})",
             state->my_node_id,
             from,
-            r.prev_idx);
+            r.prev_idx,
+            state->commit_idx,
+            state->last_idx);
         }
         else
         {

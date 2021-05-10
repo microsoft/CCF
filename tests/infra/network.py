@@ -800,7 +800,7 @@ class Network:
         backup = random.choice(backups)
         return primary, backup
 
-    def wait_for_all_nodes_to_catch_up(self, primary, timeout=10):
+    def wait_for_all_nodes_to_catch_up(self, primary, timeout=100):
         """
         Wait for all nodes to have joined the network and globally replicated
         all transactions globally executed on the primary (including transactions
@@ -809,7 +809,12 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             with primary.client() as c:
-                resp = c.get("/node/commit")
+                resp = None
+                try:
+                    resp = c.get("/node/commit")
+                except (TimeoutError, CCFConnectionException):
+                    LOG.info("Query timeout - retrying")
+                    break
                 body = resp.body.json()
                 tx_id = TxID.from_str(body["transaction_id"])
                 if tx_id.valid():
@@ -823,10 +828,18 @@ class Network:
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
-                with node.client() as c:
-                    resp = c.get(f"/node/local_tx?transaction_id={tx_id}")
-                    if resp.status_code != 200:
-                        # Node may not have joined the network yet, try again
+                with node.client(connection_timeout=1) as c:
+                    resp = None
+                    try:
+                        resp = c.get(
+                            f"/node/local_tx?transaction_id={tx_id}", timeout=3
+                        )
+                    except (TimeoutError, CCFConnectionException):
+                        LOG.info("Query timeout - retrying")
+                        break
+                    if resp is None or resp.status_code != 200:
+                        # Node may not have joined the network yet, or it may be
+                        # too busy to answer the request in time, so try again
                         break
                     status = TxStatus(resp.body.json()["status"])
                     if status == TxStatus.Committed:
@@ -837,7 +850,6 @@ class Network:
                         )
                     else:
                         pass
-
             if len(caught_up_nodes) == len(self.get_joined_nodes()):
                 break
             time.sleep(0.1)
@@ -865,13 +877,31 @@ class Network:
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"Multiple commit values: {commits}"
 
-    def wait_for_new_primary(self, old_primary_id, timeout_multiplier=2):
+    def wait_for_new_primary(self, old_primary_id, timeout_multiplier=2, args=None):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
         timeout = self.election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary (different from {old_primary_id}) to be elected..."
         )
+
+        # When the consensus is BFT there is no status message timer that triggers a new election.
+        # It is triggered with a timeout from a message not executing. We need to send the message that
+        # will not execute because of the stopped primary which will then trigger a view change
+        if args is not None and args.consensus == "bft":
+            try:
+                backup = self.find_any_backup()
+                with backup.client("user0") as c:
+                    _ = c.post(
+                        "/app/log/private",
+                        {
+                            "id": -1,
+                            "msg": "This is submitted to force a view change",
+                        },
+                    )
+            except CCFConnectionException:
+                LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
+
         end_time = time.time() + timeout
         error = TimeoutError
         logs = []
