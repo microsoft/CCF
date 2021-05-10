@@ -69,9 +69,15 @@ def test_partition_majority(network, args):
 def test_isolate_primary(network, args):
     primary, backups = network.find_nodes()
 
-    # Wait for all nodes to be have reached the same level of commit, so that
-    # nodes outside of partition can become primary after this one is dropped
-    network.wait_for_all_nodes_to_commit(primary=primary)
+    # Issue one transaction, waiting for all nodes to be have reached
+    # the same level of commit, so that nodes outside of partition can
+    # become primary after this one is dropped
+    # Note: Because of https://github.com/microsoft/CCF/issues/2224, we need to
+    # issue a write transaction instead of just reading the TxID of the latest entry
+    network.txs.issue(network)
+
+    # Wait for all
+    # network.wait_for_all_nodes_to_commit(primary=primary)
 
     # Isolate first backup from primary so that first backup becomes candidate
     # in a new term and wins the election
