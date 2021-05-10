@@ -36,6 +36,13 @@ def max_nodes(args, f):
     return min_nodes(args, f + 1)[:-1]
 
 
+def max_f(args, number_nodes):
+    if args.consensus == "bft":
+        return (number_nodes - 1) // 3
+    else:
+        return (number_nodes - 1) // 2
+
+
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     LOG.remove()
     LOG.add(
