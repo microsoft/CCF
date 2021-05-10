@@ -8,6 +8,7 @@ import random
 import ccf.clients
 import ccf.commit
 from collections import defaultdict
+import TxID from ccf.tx_id
 
 
 from loguru import logger as LOG
@@ -116,7 +117,9 @@ class LoggingTxs:
                 check_commit(rep_pub, result=True)
 
         if wait_for_sync:
-            network.wait_for_all_nodes_to_commit()
+            network.wait_for_all_nodes_to_commit(
+                tx_id=TxID(rep_pub.view, rep_pub.seqno)
+            )
 
     def verify(self, network=None, node=None, timeout=3):
         LOG.info("Verifying all logging txs")

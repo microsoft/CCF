@@ -396,7 +396,7 @@ class Network:
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
-        self.wait_for_all_nodes_to_commit(primary)
+        self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined network")
 
         self.consortium.activate(self.find_random_node())
@@ -466,7 +466,7 @@ class Network:
                 infra.node.State.PART_OF_PUBLIC_NETWORK.value,
                 timeout=args.ledger_recovery_timeout,
             )
-        self.wait_for_all_nodes_to_commit(primary)
+        self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined public network")
 
     def recover(self, args):
@@ -656,7 +656,7 @@ class Network:
             raise
 
         new_node.network_state = infra.node.NodeNetworkState.joined
-        self.wait_for_all_nodes_to_commit(primary)
+        self.wait_for_all_nodes_to_commit(primary=primary)
 
         return new_node
 
