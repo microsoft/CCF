@@ -54,6 +54,10 @@ export class TypedKvMap<K, V> {
     return this.kv.delete(this.kt.encode(key));
   }
 
+  clear(): void {
+    this.kv.clear();
+  }
+
   forEach(callback: (value: V, key: K, table: TypedKvMap<K, V>) => void): void {
     let kt = this.kt;
     let vt = this.vt;
@@ -65,6 +69,10 @@ export class TypedKvMap<K, V> {
     ) {
       callback(vt.decode(raw_v), kt.decode(raw_k), typedMap);
     });
+  }
+
+  get size(): number {
+    return this.kv.size;
   }
 }
 
