@@ -54,7 +54,6 @@ namespace enclave
 
         if (get_status() == Status::ready)
         {
-          LOG_FAIL_FMT("Here we goooo!");
           // Send HTTP response describing soft session limit
           auto http_response = http::Response(HTTP_STATUS_SERVICE_UNAVAILABLE);
           http_response.set_header(
@@ -128,7 +127,7 @@ namespace enclave
       // TODO: Make soft cap separately configurable
       else if (sessions.size() >= max_open_sessions / 2)
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "Soft refusing a session inside the enclave - already have {} "
           "sessions and limit is {}: {}",
           sessions.size(),
