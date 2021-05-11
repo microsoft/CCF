@@ -199,8 +199,7 @@ def test_retire_primary(network, args):
 
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    network.wait_for_new_primary(primary)
     check_can_progress(backup)
     network.nodes.remove(primary)
     post_count = count_nodes(node_configs(network), network)
@@ -370,7 +369,7 @@ def run_join_old_snapshot(args):
             # Kill primary and wait for a new one: new primary is
             # guaranteed to have started from the new snapshot
             primary.stop()
-            network.wait_for_new_primary(primary.node_id)
+            network.wait_for_new_primary(primary)
 
             # Start new node from the old snapshot
             try:

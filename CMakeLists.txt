@@ -740,6 +740,13 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
+  add_e2e_test(
+    NAME partitions_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
+    CONSENSUS cft
+    LABEL partitions
+  )
+
   if(NOT SAN)
     add_e2e_test(
       NAME connections_cft
