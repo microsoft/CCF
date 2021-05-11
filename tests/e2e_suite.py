@@ -28,7 +28,7 @@ def mem_stats(network):
     for node in network.get_joined_nodes():
         try:
             with node.client() as c:
-                r = c.get("/node/memory", 0.1)
+                r = c.get("/node/memory", timeout=0.1)
                 mem[node.node_id] = r.body.json()
         except Exception:
             pass
