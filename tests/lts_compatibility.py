@@ -44,7 +44,10 @@ def install_release(version):
     return install_path
 
 
-def run(args):
+def run_live_compatibility_since_last(args):
+    """
+    Test that a service from the previous LTS can be safely upgraded to the current version.
+    """
 
     # First, install the latest LTS
     install_path = install_release(LATEST_LTS)
@@ -121,15 +124,44 @@ def run(args):
 
         txs.issue(network, number_txs=5)
 
+        # TODO:
+        # - Retire old nodes and remove old code
+
+
+def read_lts_releases_from_file(lts_release_file):
+    lts_releases = []
+    for l in open(lts_release_file, "r"):
+        line = l.strip()
+        if not line.startswith("#"):  # Ignore comments
+            lts_releases.append(l.rstrip())
+    return lts_releases
+
 
 if __name__ == "__main__":
 
-    args = infra.e2e_args.cli_args()
+    def add(parser):
+        parser.add_argument(
+            "--lts-releases-file",
+            help="File containing the list of LTS releases so far",
+            type=str,
+        )
 
-    # JS generic is the only enclave shipped in the CCF install
+    args = infra.e2e_args.cli_args(add)
+
+    lts_releases = read_lts_releases_from_file(args.lts_releases_file)
+
+    if not lts_releases:
+        raise ValueError(f"No valid LTS releases in {args.lts_releases_file}")
+
+    LOG.info(
+        f'Testing compatibility against the LTS releases: {",".join(lts_releases)}'
+    )
+
+    # JS generic is the only app included in CCF install
     args.package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
 
     # TODO: Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
-    run(args)
+
+    run_live_compatibility_since_last(args)
