@@ -94,6 +94,7 @@ class Network:
         "domain",
         "san",
         "snapshot_tx_interval",
+        "max_open_sessions_soft",
         "max_open_sessions",
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",

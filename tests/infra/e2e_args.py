@@ -256,8 +256,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=10,
     )
     parser.add_argument(
+        "--max-open-sessions-soft",
+        help="Soft cap on max open TLS sessions on each node",
+        default=None,
+    )
+    parser.add_argument(
         "--max-open-sessions",
-        help="Max open TLS sessions on each node",
+        help="Hard cap on max open TLS sessions on each node",
         default=None,
     )
     parser.add_argument(

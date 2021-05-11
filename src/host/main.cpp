@@ -166,13 +166,24 @@ int main(int argc, char** argv)
       "Number of transactions between snapshots")
     ->capture_default_str();
 
-  size_t max_open_sessions = 1'000;
+  size_t max_open_sessions_soft = 1'000;
+  app
+    .add_option(
+      "--max-open-sessions-soft",
+      max_open_sessions_soft,
+      "Soft cap on number of TLS sessions which may be open at the same time. "
+      "Once this many connection are open, additional connections will receive "
+      "a 503 HTTP error (until the hard cap is reached)")
+    ->capture_default_str();
+
+  size_t max_open_sessions = max_open_sessions_soft + 10;
   app
     .add_option(
       "--max-open-sessions",
       max_open_sessions,
-      "Number of TLS sessions which may be open at the same time. Additional "
-      "connections past this limit will be refused")
+      "Hard cap on umber of TLS sessions which may be open at the same time. "
+      "Once this many connections are open, additional connection attempts "
+      "will be closed before a TLS handshake is completed")
     ->capture_default_str();
 
   logger::Level host_log_level{logger::Level::INFO};
@@ -680,6 +691,7 @@ int main(int argc, char** argv)
                                     public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
+    ccf_config.max_open_sessions_soft = max_open_sessions_soft;
     ccf_config.max_open_sessions = max_open_sessions;
 
     ccf_config.subject_name = subject_name;

@@ -23,7 +23,8 @@ namespace enclave
   class RPCSessions : public AbstractRPCResponder
   {
   private:
-    size_t max_open_sessions = 1000;
+    size_t max_open_sessions_soft = 1000;
+    size_t max_open_sessions_hard = 1100;
 
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host = nullptr;
@@ -85,11 +86,12 @@ namespace enclave
       to_host = writer_factory.create_writer_to_outside();
     }
 
-    void set_max_open_sessions(size_t n)
+    void set_max_open_sessions(size_t soft_cap, size_t hard_cap)
     {
-      max_open_sessions = n;
+      max_open_sessions_soft = soft_cap;
+      max_open_sessions_hard = hard_cap;
 
-      LOG_INFO_FMT("Setting max open sessions to {}", n);
+      LOG_INFO_FMT("Setting max open sessions to [{}, {}]", soft_cap, hard_cap);
     }
 
     void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
@@ -112,26 +114,25 @@ namespace enclave
         throw std::logic_error(
           "Duplicate conn ID received inside enclave: " + std::to_string(id));
 
-      if (sessions.size() >= max_open_sessions)
+      if (sessions.size() >= max_open_sessions_hard)
       {
         LOG_INFO_FMT(
           "Refusing a session inside the enclave - already have {} sessions "
           "and limit is {}: {}",
           sessions.size(),
-          max_open_sessions,
+          max_open_sessions_hard,
           id);
 
         RINGBUFFER_WRITE_MESSAGE(
           tls::tls_stop, to_host, id, std::string("Session refused"));
       }
-      // TODO: Make soft cap separately configurable
-      else if (sessions.size() >= max_open_sessions / 2)
+      else if (sessions.size() >= max_open_sessions_soft)
       {
         LOG_INFO_FMT(
           "Soft refusing a session inside the enclave - already have {} "
           "sessions and limit is {}: {}",
           sessions.size(),
-          max_open_sessions / 2,
+          max_open_sessions_soft,
           id);
 
         auto ctx = std::make_unique<tls::Server>(cert);
@@ -186,7 +187,7 @@ namespace enclave
       auto session = std::make_shared<ClientEndpointImpl>(
         id, writer_factory, std::move(ctx));
 
-      // We do not check the max_open_sessions limit here, because we expect
+      // We do not check the open sessions limit here, because we expect
       // this type of session to be rare and want it to succeed even when we are
       // busy.
       sessions.insert(std::make_pair(id, session));
