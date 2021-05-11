@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/common_endpoint_registry.h"
-
 #include "ccf/common_auth_policies.h"
+#include "ccf/common_endpoint_registry.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
@@ -88,7 +87,7 @@ namespace ccf
       "commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
-      .set_auto_schema<void, GetCommit::Out>()
+      .set_auto_schema<GetCommit>()
       .install();
 
     auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {
