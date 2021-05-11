@@ -4,6 +4,7 @@ import infra.network
 import infra.e2e_args
 import infra.proc
 import infra.logging_app as app
+import infra.utils
 import os
 
 from loguru import logger as LOG
@@ -43,17 +44,42 @@ def install_release(version):
 
 def run(args):
 
+    # First, install the latest LTS
     install_path = install_release(LATEST_LTS)
 
-    # TODO: Start network with this install
+    txs = app.LoggingTxs()
+
+    library_dir = os.path.join(install_path, "lib")
+
+    # Run a short-lived service from this LTS
     with infra.network.network(
         args.nodes,
         binary_directory=os.path.join(install_path, "bin"),
-        library_directory=os.path.join(install_path, "lib"),
+        library_directory=library_dir,
         dbg_nodes=args.debug_nodes,
         pdb=args.pdb,
+        txs=txs,
     ) as network:
         network.start_and_join(args)
+        primary, _ = network.find_primary()
+
+        txs.issue(network, number_txs=5)
+
+        old_code_id = infra.utils.get_code_id(
+            args.enclave_type, args.oe_binary, args.package, library_dir=library_dir
+        )
+        new_code_id = infra.utils.get_code_id(
+            args.enclave_type, args.oe_binary, args.package, library_dir="."
+        )
+        LOG.info(f"Initiating code upgrade from {old_code_id} to {new_code_id}")
+
+        network.consortium.add_new_code(primary, new_code_id)
+
+        for _ in range(0, len(network.get_joined_nodes())):
+            new_node = network.create_and_trust_node(
+                os.path.join(library_dir, args.package), "local://localhost", args
+            )
+            assert new_node
 
     # txs = app.LoggingTxs()
     # with infra.network.network(
@@ -82,7 +108,7 @@ if __name__ == "__main__":
 
     # JS generic is the only enclave shipped in the CCF install
     args.package = "libjs_generic"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
     # TODO: Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"

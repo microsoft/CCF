@@ -799,6 +799,8 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
     CONSENSUS cft
     LABEL e2e
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+                    --oe-binary ${OE_BINDIR}
   )
 
   foreach(CONSENSUS ${CONSENSUSES})
