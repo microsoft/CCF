@@ -11,6 +11,7 @@ import psutil
 from ccf.log_capture import flush_info
 from ccf.clients import CCFConnectionException
 import random
+import http
 
 from loguru import logger as LOG
 
@@ -52,15 +53,24 @@ def run(args):
                                 primary.client("user0", connection_timeout=1)
                             )
                         )
-                        check(
-                            clients[-1].post(
-                                "/app/log/private",
-                                {"id": 42, "msg": "foo"},
-                                log_capture=logs,
-                            ),
-                            result=True,
+                        r = clients[-1].post(
+                            "/app/log/private",
+                            {"id": 42, "msg": "foo"},
+                            log_capture=logs,
                         )
-                        consecutive_failures = 0
+                        if r.status_code == http.HTTPStatus.OK:
+                            check(
+                                r,
+                                result=True,
+                            )
+                            consecutive_failures = 0
+                        elif r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE:
+                            raise RuntimeError(r.body.text())
+                        else:
+                            flush_info(logs)
+                            raise ValueError(
+                                f"Unexpected response status code: {r.status_code}"
+                            )
                     except (CCFConnectionException, RuntimeError) as e:
                         flush_info(logs)
                         LOG.warning(f"Hit exception at client {i}: {e}")
