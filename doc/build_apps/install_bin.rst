@@ -33,6 +33,7 @@ CCF releases are available on the `GitHub repository release page <https://githu
 The CCF Debian package (``ccf_<version>_amd64.deb``) contains the libraries and utilities to start a CCF service and build CCF applications. CCF can be installed as follows:
 
 .. code-block:: bash
+
     # Set CCF_VERSION to most recent release
     $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
     # Alternatively, set this manually, e.g.
