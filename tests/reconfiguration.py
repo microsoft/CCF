@@ -242,6 +242,16 @@ def test_node_filter(network, args):
     return network
 
 
+@reqs.description("Get node CCF version")
+def test_version(network, args):
+    nodes = network.get_joined_nodes()
+
+    for node in nodes:
+        with node.client() as c:
+            r = c.get("/node/version")
+            assert r.body.json()["version"] == args.ccf_version
+
+
 @reqs.description("Replace a node on the same addresses")
 @reqs.at_least_n_nodes(3)  # Should be at_least_f_failures(1)
 def test_node_replacement(network, args):
@@ -295,6 +305,12 @@ def run(args):
         txs=txs,
     ) as network:
         network.start_and_join(args)
+
+        test_version(network, args)
+
+        import sys
+
+        sys.exit(0)
 
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
@@ -377,7 +393,15 @@ def run_join_old_snapshot(args):
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+
+    def add(parser):
+        parser.add_argument(
+            "--ccf-version",
+            help="Expected CCF version",
+            type=str,
+        )
+
+    args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.initial_user_count = 1
