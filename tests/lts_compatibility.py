@@ -45,6 +45,16 @@ def run(args):
 
     install_path = install_release(LATEST_LTS)
 
+    # TODO: Start network with this install
+    with infra.network.network(
+        args.nodes,
+        binary_directory=os.path.join(install_path, "bin"),
+        library_directory=os.path.join(install_path, "lib"),
+        dbg_nodes=args.debug_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_join(args)
+
     # txs = app.LoggingTxs()
     # with infra.network.network(
     #     args.nodes,
@@ -69,9 +79,11 @@ def run(args):
 if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
-    if args.js_app_bundle:
-        args.package = "libjs_generic"
-    else:
-        args.package = "liblogging"
+
+    # JS generic is the only enclave shipped in the CCF install
+    args.package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
+
+    # TODO: Hardcoded because host only accepts from info on release builds
+    args.host_log_level = "info"
     run(args)
