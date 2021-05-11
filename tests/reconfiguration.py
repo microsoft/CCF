@@ -280,6 +280,8 @@ def test_node_replacement(network, args):
     for other_backup in f_backups:
         other_backup.resume()
 
+    return network
+
 
 def run(args):
     txs = app.LoggingTxs()
