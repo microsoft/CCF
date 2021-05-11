@@ -38,6 +38,44 @@ namespace enclave
     std::atomic<size_t> next_client_session_id =
       std::numeric_limits<size_t>::max() / 2;
 
+    class NoMoreSessionsEndpointImpl : public enclave::TLSEndpoint
+    {
+    public:
+      NoMoreSessionsEndpointImpl(
+        size_t session_id,
+        ringbuffer::AbstractWriterFactory& writer_factory,
+        std::unique_ptr<tls::Context> ctx) :
+        enclave::TLSEndpoint(session_id, writer_factory, std::move(ctx))
+      {}
+
+      void recv(const uint8_t* data, size_t size) override
+      {
+        recv_buffered(data, size);
+
+        if (get_status() == Status::ready)
+        {
+          LOG_FAIL_FMT("Here we goooo!");
+          // Send HTTP response describing soft session limit
+          auto http_response = http::Response(HTTP_STATUS_SERVICE_UNAVAILABLE);
+          http_response.set_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          const auto response_body = fmt::format(
+            "Service is currently busy and unable to serve new connections");
+          http_response.set_body(
+            (const uint8_t*)response_body.data(), response_body.size());
+          send(http_response.build_response());
+
+          // Close connection
+          close();
+        }
+      }
+
+      void send(std::vector<uint8_t>&& data) override
+      {
+        send_raw(std::move(data));
+      }
+    };
+
   public:
     RPCSessions(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -86,15 +124,31 @@ namespace enclave
 
         RINGBUFFER_WRITE_MESSAGE(
           tls::tls_stop, to_host, id, std::string("Session refused"));
-        return;
       }
+      // TODO: Make soft cap separately configurable
+      else if (sessions.size() >= max_open_sessions / 2)
+      {
+        LOG_FAIL_FMT(
+          "Soft refusing a session inside the enclave - already have {} "
+          "sessions and limit is {}: {}",
+          sessions.size(),
+          max_open_sessions / 2,
+          id);
 
-      LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
-      auto ctx = std::make_unique<tls::Server>(cert);
+        auto ctx = std::make_unique<tls::Server>(cert);
+        auto capped_session = std::make_shared<NoMoreSessionsEndpointImpl>(
+          id, writer_factory, std::move(ctx));
+        sessions.insert(std::make_pair(id, std::move(capped_session)));
+      }
+      else
+      {
+        LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
+        auto ctx = std::make_unique<tls::Server>(cert);
 
-      auto session = std::make_shared<ServerEndpointImpl>(
-        rpc_map, id, writer_factory, std::move(ctx));
-      sessions.insert(std::make_pair(id, std::move(session)));
+        auto session = std::make_shared<ServerEndpointImpl>(
+          rpc_map, id, writer_factory, std::move(ctx));
+        sessions.insert(std::make_pair(id, std::move(session)));
+      }
     }
 
     bool reply_async(size_t id, std::vector<uint8_t>&& data) override
