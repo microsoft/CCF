@@ -4,30 +4,57 @@ import infra.network
 import infra.e2e_args
 import infra.proc
 import infra.logging_app as app
+import os
+
+from loguru import logger as LOG
+
+LTS_INSTALL_DIRECTORY_PREFIX = "ccf_lts_"
+
+# TODO: Use https://api.github.com/repos/microsoft/CCF/releases to retrieve latest 1.x release
+LATEST_LTS = "1.0.0"
 
 
-def install_latest_lts():
+def install_release(version):
+    deb_package_name = f"ccf_{version}_amd64.deb"
+    install_directory = f"ccf_{version}"
+
     download_cmd = [
         "wget",
-        "https://github.com/microsoft/CCF/releases/download/ccf-1.0.0/ccf_1.0.0_amd64.deb",
+        f"https://github.com/microsoft/CCF/releases/download/ccf-{version}/{deb_package_name}",
     ]
-    infra.proc.ccall(*download_cmd)
+    LOG.info(f"Downloading CCF release {version}...")
+    infra.proc.ccall(*download_cmd, log_output=False)
+    LOG.info("Unpacking debian package...")
 
-    install_cmd = []
+    install_cmd = [
+        "dpkg-deb",
+        "-R",
+        deb_package_name,
+        install_directory,
+    ]
+    infra.proc.ccall(*install_cmd, log_output=False)
+
+    install_path = os.path.abspath(os.path.join(install_directory, "opt/ccf"))
+
+    LOG.success(f"CCF release {version} successfully installed at {install_path}")
+
+    return install_path
 
 
 def run(args):
 
-    txs = app.LoggingTxs()
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb,
-        txs=txs,
-    ) as network:
-        pass
+    install_path = install_release(LATEST_LTS)
+
+    # txs = app.LoggingTxs()
+    # with infra.network.network(
+    #     args.nodes,
+    #     args.binary_dir,
+    #     args.debug_nodes,
+    #     args.perf_nodes,
+    #     pdb=args.pdb,
+    #     txs=txs,
+    # ) as network:
+    #     pass
     # TODO:
     # 1. Download latest LTS, that has to be hardcoded somewhere as cannot be deduced from git tag
     # 2. Run service with cchost + libjsgeneric (enough for at least two chunks?)
