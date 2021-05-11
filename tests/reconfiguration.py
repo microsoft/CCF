@@ -307,11 +307,6 @@ def run(args):
         network.start_and_join(args)
 
         test_version(network, args)
-
-        import sys
-
-        sys.exit(0)
-
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
