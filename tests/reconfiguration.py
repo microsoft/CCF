@@ -175,8 +175,7 @@ def test_add_as_many_pending_nodes(network, args):
     check_can_progress(primary)
 
     for new_node in new_nodes:
-        network.consortium.retire_node(primary, new_node)
-        network.nodes.remove(new_node)
+        network.retire_node(primary, new_node)
     return network
 
 
@@ -186,7 +185,7 @@ def test_add_as_many_pending_nodes(network, args):
 def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
-    network.consortium.retire_node(primary, backup_to_retire)
+    network.retire_node(primary, backup_to_retire)
     backup_to_retire.stop()
     check_can_progress(primary)
     return network
@@ -198,11 +197,10 @@ def test_retire_primary(network, args):
     pre_count = count_nodes(node_configs(network), network)
 
     primary, backup = network.find_primary_and_any_backup()
-    network.consortium.retire_node(primary, primary)
+    network.retire_node(primary, primary)
     new_primary, new_term = network.wait_for_new_primary(primary.node_id)
     LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
     check_can_progress(backup)
-    network.nodes.remove(primary)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
     primary.stop()
@@ -263,9 +261,8 @@ def test_node_replacement(network, args):
     f_backups = backups[:f]
 
     # Retire one node
-    network.consortium.retire_node(primary, node_to_replace)
+    network.retire_node(primary, node_to_replace)
     node_to_replace.stop()
-    network.nodes.remove(node_to_replace)
     check_can_progress(primary)
 
     # Add in a node using the same address

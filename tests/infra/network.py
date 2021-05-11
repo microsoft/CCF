@@ -663,6 +663,10 @@ class Network:
 
         return new_node
 
+    def retire_node(self, remote_node, node_to_retire):
+        self.consortium.retire_node(remote_node, node_to_retire)
+        self.nodes.remove(node_to_retire)
+
     def create_user(self, local_user_id, curve, record=True):
         infra.proc.ccall(
             self.key_generator,
@@ -755,7 +759,7 @@ class Network:
 
                     except CCFConnectionException:
                         LOG.warning(
-                            f"Could not successfully connect to node {node.node_id}. Retrying..."
+                            f"Could not successfully connect to node {node.local_node_id}. Retrying..."
                         )
 
             if primary_id is not None:

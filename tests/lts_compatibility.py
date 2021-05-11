@@ -14,6 +14,8 @@ LTS_INSTALL_DIRECTORY_PREFIX = "ccf_lts_"
 # TODO: Use https://api.github.com/repos/microsoft/CCF/releases to retrieve latest 1.x release
 LATEST_LTS = "1.0.0"
 
+# TODO: Test recovery since the very first LTS!
+
 
 def install_release(version):
     deb_package_name = f"ccf_{version}_amd64.deb"
@@ -61,9 +63,11 @@ def run(args):
         txs=txs,
     ) as network:
         network.start_and_join(args)
+
+        old_nodes = network.get_joined_nodes()
         primary, _ = network.find_primary()
 
-        txs.issue(network, number_txs=5)
+        txs.issue(network, number_txs=args.snapshot_tx_interval * 4)
 
         old_code_id = infra.utils.get_code_id(
             args.enclave_type, args.oe_binary, args.package, library_dir=library_dir
@@ -75,31 +79,47 @@ def run(args):
 
         network.consortium.add_new_code(primary, new_code_id)
 
-        for _ in range(0, len(network.get_joined_nodes())):
+        # Add one more node than the current count so that at least one new
+        # node is required to reach consensus
+        # Note: alternate between joining from snapshot and replaying entire ledger
+        from_snapshot = True
+        for _ in range(0, len(network.get_joined_nodes()) + 1):
             new_node = network.create_and_trust_node(
-                os.path.join(library_dir, args.package), "local://localhost", args
+                os.path.join(library_dir, args.package),
+                "local://localhost",
+                args,
+                from_snapshot=from_snapshot,
             )
             assert new_node
+            from_snapshot = not from_snapshot
 
-    # txs = app.LoggingTxs()
-    # with infra.network.network(
-    #     args.nodes,
-    #     args.binary_dir,
-    #     args.debug_nodes,
-    #     args.perf_nodes,
-    #     pdb=args.pdb,
-    #     txs=txs,
-    # ) as network:
-    #     pass
-    # TODO:
-    # 1. Download latest LTS, that has to be hardcoded somewhere as cannot be deduced from git tag
-    # 2. Run service with cchost + libjsgeneric (enough for at least two chunks?)
-    # 3. Add newly built nodes and perform code upgrade
-    # 4. Primary change halfway through
-    #
+        # The hybrid service can make progress
+        txs.issue(network, number_txs=5)
 
-    # Recovery
-    # 4. Kill service, perform recovery
+        # Elect a new node as one of the primary
+        for node in old_nodes:
+            node.suspend()
+
+        new_primary, _ = network.wait_for_new_primary(primary.node_id)
+
+        for node in old_nodes:
+            node.resume()
+
+        try:
+            network.wait_for_new_primary(new_primary.node_id)
+            assert False, "No new primary should be elected"
+        except TimeoutError:
+            pass
+
+        # Retire one new node, so that at least one node is required to reach consensus
+        other_new_nodes = [
+            node
+            for node in network.get_joined_nodes()
+            if (node is not new_primary and node not in old_nodes)
+        ]
+        network.retire_node(new_primary, other_new_nodes[0])
+
+        txs.issue(network, number_txs=5)
 
 
 if __name__ == "__main__":
@@ -108,7 +128,7 @@ if __name__ == "__main__":
 
     # JS generic is the only enclave shipped in the CCF install
     args.package = "libjs_generic"
-    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.nodes = infra.e2e_args.max_nodes(args, f=0)
 
     # TODO: Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
