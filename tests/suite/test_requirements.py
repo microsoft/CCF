@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.network
 from ccf.ledger import NodeStatus
 import functools
 
@@ -140,15 +139,15 @@ def recover(number_txs=5):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             network = args[0]
-            infra.e2e_args = vars(args[1])
+            vargs = vars(args[1])
             network.txs.issue(
                 network=network,
-                number_txs=infra.e2e_args.get("msgs_per_recovery") or number_txs,
+                number_txs=vargs.get("msgs_per_recovery", number_txs),
             )
             new_network = func(*args, **kwargs)
             new_network.txs.verify(
                 network=new_network,
-                timeout=infra.e2e_args.get("ledger_recovery_timeout"),
+                timeout=vargs.get("ledger_recovery_timeout"),
             )
             return new_network
 

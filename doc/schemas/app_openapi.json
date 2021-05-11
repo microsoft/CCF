@@ -566,6 +566,27 @@
         ]
       }
     },
+    "/log/private/all": {
+      "delete": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/boolean"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
     "/log/private/anonymous": {
       "post": {
         "requestBody": {
@@ -590,6 +611,27 @@
             "description": "Default response description"
           }
         }
+      }
+    },
+    "/log/private/count": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/uint64"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
       }
     },
     "/log/private/historical": {
@@ -832,6 +874,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/boolean"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
+    "/log/public/all": {
+      "delete": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/boolean"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          }
+        ]
+      }
+    },
+    "/log/public/count": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/uint64"
                 }
               }
             },
