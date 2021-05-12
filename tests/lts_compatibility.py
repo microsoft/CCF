@@ -5,44 +5,38 @@ import infra.e2e_args
 import infra.proc
 import infra.logging_app as app
 import infra.utils
-import json
 import os
-import requests
 import re
+from github import Github
 
 from loguru import logger as LOG
-
-LTS_INSTALL_DIRECTORY_PREFIX = "ccf_lts_"
-GITHUB_RELEASE_API_BASE_URL = "https://api.github.com/repos/microsoft/CCF/releases"
 
 
 # TODO: Test recovery since the very first LTS!
 
+# This assumes that CCF is installed at `/opt/ccf`, which is true from 1.0.0
+INSTALL_DIRECTORY_SUB_PATH = "opt/ccf"
 
-def install_release(version):
-    deb_package_name = f"ccf_{version}_amd64.deb"
-    install_directory = f"ccf_{version}"
 
-    download_cmd = [
-        "wget",
-        f"https://github.com/microsoft/CCF/releases/download/ccf-{version}/{deb_package_name}",
-    ]
-    LOG.info(f"Downloading CCF release {version}...")
-    infra.proc.ccall(*download_cmd, log_output=False)
+def install_ccf_debian_package(debian_package_url, directory_name):
+    LOG.info(f"Downloading {debian_package_url}...")
+    download_cmd = ["wget", debian_package_url]
+    assert (
+        infra.proc.ccall(*download_cmd, log_output=False).returncode == 0
+    ), "Download failed"
+
     LOG.info("Unpacking debian package...")
+    remove_cmd = ["rm", "-rf", directory_name]
+    assert (
+        infra.proc.ccall(*remove_cmd).returncode == 0
+    ), "Previous install cleanup failed"
+    install_cmd = ["dpkg-deb", "-R", debian_package_url.split("/")[-1], directory_name]
+    assert infra.proc.ccall(*install_cmd).returncode == 0, "Installation failed"
 
-    install_cmd = [
-        "dpkg-deb",
-        "-R",
-        deb_package_name,
-        install_directory,
-    ]
-    infra.proc.ccall(*install_cmd, log_output=False)
-
-    install_path = os.path.abspath(os.path.join(install_directory, "opt/ccf"))
-
-    LOG.success(f"CCF release {version} successfully installed at {install_path}")
-
+    install_path = os.path.abspath(
+        os.path.join(directory_name, INSTALL_DIRECTORY_SUB_PATH)
+    )
+    LOG.success(f"CCF release successfully installed at {install_path}")
     return install_path
 
 
@@ -143,29 +137,39 @@ def run_ledger_compatibility_since_first(args, lts_releases):
     install_release()
 
 
-def read_lts_releases_from_file(lts_release_file):
-    lts_releases = []
-    for l in open(lts_release_file, "r"):
-        line = l.strip()
-        if not line.startswith("#"):  # Ignore comments
-            lts_releases.append(l.rstrip())
-    return lts_releases
+BRANCH_RELEASE_PREFIX = "release/"
+REPOSITORY_NAME = "microsoft/CCF"
+DEBIAN_PACKAGE_EXTENSION = "_amd64.deb"
 
 
-# TODO: Use PyGithub?
-def get_latest_lts_info(lts_release):
-    lts_release_re = "^ccf-{}$".format(lts_release.replace(".x", "\\.\\d+.\\d+"))
-    all_releases = requests.get(GITHUB_RELEASE_API_BASE_URL)
-    matching_releases = {}
-    for release in json.loads(all_releases.content):
-        if re.match(lts_release_re, release["tag_name"]):
-            matching_releases[release["id"]] = release
+def get_release_branches_names(repo):
+    # TODO: Branches should be sorted chronologically
+    # Release branches are sorted alphabetically
+    return sorted(
+        [
+            branch.name
+            for branch in repo.get_branches()
+            if branch.name.startswith(BRANCH_RELEASE_PREFIX)
+        ]
+    )
 
-    return matching_releases[sorted(matching_releases)[0]]
+
+def get_releases_from_release_branch(repo, branch_name):
+    # Assumes that N.a.b releases can only be cut from N.x branch, with N a valid major version number
+    assert branch_name.startswith(
+        BRANCH_RELEASE_PREFIX
+    ), f"{branch_name} is not a release branch"
+
+    release_branch_name = branch_name[len(BRANCH_RELEASE_PREFIX) :]
+    release_re = "^ccf-{}$".format(release_branch_name.replace(".x", "([.\d+]+)"))
+
+    # Most recent tag is first
+    return list(([tag for tag in repo.get_tags() if re.match(release_re, tag.name)]))
 
 
 if __name__ == "__main__":
 
+    # TODO: Delete this file?
     def add(parser):
         parser.add_argument(
             "--lts-releases-file",
@@ -175,23 +179,69 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args(add)
 
-    lts_releases = read_lts_releases_from_file(args.lts_releases_file)
+    g = Github("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")
+    repo = g.get_repo(REPOSITORY_NAME)
 
-    if not lts_releases:
-        raise ValueError(f"No valid LTS releases in {args.lts_releases_file} file")
+    # TODO: How do we select the latest tag for the branch this currently runs on?
 
-    LOG.info(
-        f'Testing compatibility against the LTS releases: {",".join(lts_releases)}'
+    release_branches = get_release_branches_names(repo)
+    LOG.info(f"Release branches: {release_branches}")
+
+    latest_release_branch = "release/0.99.x"  # TODO: To deduce from local checkout
+    LOG.info(f"Latest release branch for this checkout: {latest_release_branch}")
+
+    tags_for_this_release = get_releases_from_release_branch(
+        repo, latest_release_branch
+    )
+    LOG.info(f"Found tags: {[t.name for t in tags_for_this_release]}")
+
+    latest_tag_for_this_release = tags_for_this_release[0]
+    LOG.info(f"Most recent tag: {latest_tag_for_this_release.name}")
+
+    releases = [
+        r for r in repo.get_releases() if r.tag_name == latest_tag_for_this_release.name
+    ]
+    assert (
+        len(releases) == 1
+    ), f"Found {len(releases)} releases for tag {latest_tag_for_this_release.name}, expected 1"
+    release = releases[0]
+
+    LOG.info(f"Found release: {release.html_url}")
+
+    stripped_tag = latest_tag_for_this_release.name[len("ccf-") :]
+    debian_package_url = [
+        a.browser_download_url
+        for a in release.get_assets()
+        if re.match(f"ccf_{stripped_tag}{DEBIAN_PACKAGE_EXTENSION}", a.name)
+    ][0]
+
+    install_path = install_ccf_debian_package(
+        debian_package_url,
+        directory_name=f"ccf_install_{latest_tag_for_this_release.name}",
     )
 
-    LOG.success(get_latest_lts_info(lts_releases[0]))
+    # for release in repo.get_releases():
+    # if release.
 
-    # JS generic is the only app included in CCF install
-    args.package = "libjs_generic"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    # TODO: Get release for this tag
 
-    # TODO: Hardcoded because host only accepts from info on release builds
-    args.host_log_level = "info"
+    # lts_releases = read_lts_releases_from_file(args.lts_releases_file)
 
-    run_live_compatibility_since_last(args, lts_releases[0])
+    # if not lts_releases:
+    #     raise ValueError(f"No valid LTS releases in {args.lts_releases_file} file")
+
+    # LOG.info(
+    #     f'Testing compatibility against the LTS releases: {",".join(lts_releases)}'
+    # )
+
+    # LOG.success(get_latest_lts_info(lts_releases[0]))
+
+    # # JS generic is the only app included in CCF install
+    # args.package = "libjs_generic"
+    # args.nodes = infra.e2e_args.max_nodes(args, f=0)
+
+    # # TODO: Hardcoded because host only accepts from info on release builds
+    # args.host_log_level = "info"
+
+    # run_live_compatibility_since_last(args, lts_releases[0])
     # run_ledger_compatibility_since_first(args, lts_releases)
