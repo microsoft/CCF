@@ -46,7 +46,7 @@ def check_can_progress(node, timeout=3):
                 c.get("/node/commit").body.json()["transaction_id"]
             )
             if current_tx.seqno > original_tx.seqno:
-                return
+                return current_tx
             time.sleep(0.1)
         assert False, f"Stuck at {r}"
 
