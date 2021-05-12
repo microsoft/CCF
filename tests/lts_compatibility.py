@@ -5,14 +5,16 @@ import infra.e2e_args
 import infra.proc
 import infra.logging_app as app
 import infra.utils
+import json
 import os
+import requests
+import re
 
 from loguru import logger as LOG
 
 LTS_INSTALL_DIRECTORY_PREFIX = "ccf_lts_"
+GITHUB_RELEASE_API_BASE_URL = "https://api.github.com/repos/microsoft/CCF/releases"
 
-# TODO: Use https://api.github.com/repos/microsoft/CCF/releases to retrieve latest 1.x release
-LATEST_LTS = "1.0.0"
 
 # TODO: Test recovery since the very first LTS!
 
@@ -44,13 +46,13 @@ def install_release(version):
     return install_path
 
 
-def run_live_compatibility_since_last(args):
+def run_live_compatibility_since_last(args, latest_lts_release):
     """
     Test that a service from the previous LTS can be safely upgraded to the current version.
     """
 
     # First, install the latest LTS
-    install_path = install_release(LATEST_LTS)
+    install_path = install_release(latest_lts_release)
 
     txs = app.LoggingTxs()
 
@@ -128,6 +130,18 @@ def run_live_compatibility_since_last(args):
         # - Retire old nodes and remove old code
 
 
+def run_ledger_compatibility_since_first(args, lts_releases):
+
+    # TODO:
+    # 1. Install very first LTS release
+    # 2. Run a service and issue some commands
+    # 3. Stop
+    # 4. Install next LTS release
+    # 5. Rinse and repeat
+
+    install_release()
+
+
 def read_lts_releases_from_file(lts_release_file):
     lts_releases = []
     for l in open(lts_release_file, "r"):
@@ -135,6 +149,18 @@ def read_lts_releases_from_file(lts_release_file):
         if not line.startswith("#"):  # Ignore comments
             lts_releases.append(l.rstrip())
     return lts_releases
+
+
+# TODO: Use PyGithub?
+def get_latest_lts_info(lts_release):
+    lts_release_re = "^ccf-{}$".format(lts_release.replace(".x", "\\.\\d+.\\d+"))
+    all_releases = requests.get(GITHUB_RELEASE_API_BASE_URL)
+    matching_releases = {}
+    for release in json.loads(all_releases.content):
+        if re.match(lts_release_re, release["tag_name"]):
+            matching_releases[release["id"]] = release
+
+    return matching_releases[sorted(matching_releases)[0]]
 
 
 if __name__ == "__main__":
@@ -151,11 +177,13 @@ if __name__ == "__main__":
     lts_releases = read_lts_releases_from_file(args.lts_releases_file)
 
     if not lts_releases:
-        raise ValueError(f"No valid LTS releases in {args.lts_releases_file}")
+        raise ValueError(f"No valid LTS releases in {args.lts_releases_file} file")
 
     LOG.info(
         f'Testing compatibility against the LTS releases: {",".join(lts_releases)}'
     )
+
+    LOG.success(get_latest_lts_info(lts_releases[0]))
 
     # JS generic is the only app included in CCF install
     args.package = "libjs_generic"
@@ -164,4 +192,5 @@ if __name__ == "__main__":
     # TODO: Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
 
-    run_live_compatibility_since_last(args)
+    run_live_compatibility_since_last(args, lts_releases[0])
+    # run_ledger_compatibility_since_first(args, lts_releases)
