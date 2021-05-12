@@ -49,7 +49,7 @@ namespace ccf
 
     struct Out
     {
-      std::string version;
+      std::string ccf_version;
     };
   };
 

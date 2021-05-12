@@ -235,12 +235,12 @@
       },
       "GetVersion__Out": {
         "properties": {
-          "version": {
+          "ccf_version": {
             "$ref": "#/components/schemas/string"
           }
         },
         "required": [
-          "version"
+          "ccf_version"
         ],
         "type": "object"
       },
