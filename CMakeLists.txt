@@ -926,7 +926,6 @@ if(BUILD_TESTS)
       text
   )
 
-  
   add_perf_test(
     NAME ls_js_jwt
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
