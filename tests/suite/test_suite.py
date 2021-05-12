@@ -90,6 +90,7 @@ all_tests_suite = [
     memberclient.test_missing_signature_header,
     memberclient.test_corrupted_signature,
     # reconfiguration:
+    reconfiguration.test_node_replacement,
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_on_other_curve,
     reconfiguration.test_add_node_from_backup,

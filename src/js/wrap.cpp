@@ -302,10 +302,11 @@ namespace js
     JS_SetPropertyStr(
       ctx, view_val, "get", JS_NewCFunction(ctx, js_kv_map_get, "get", 1));
 
+    auto size_atom = JS_NewAtom(ctx, "size");
     JS_DefinePropertyGetSet(
       ctx,
       view_val,
-      JS_NewAtom(ctx, "size"),
+      size_atom,
       JS_NewCFunction2(
         ctx,
         js_kv_map_size_getter,
@@ -315,6 +316,7 @@ namespace js
         JS_CFUNC_getter_magic),
       JS_UNDEFINED,
       0);
+    JS_FreeAtom(ctx, size_atom);
 
     auto setter = js_kv_map_set;
     auto deleter = js_kv_map_delete;

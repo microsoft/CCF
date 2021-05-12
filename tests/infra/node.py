@@ -12,8 +12,11 @@ import ccf.ledger
 import os
 import socket
 import re
+import ipaddress
 
 from loguru import logger as LOG
+
+BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
 
 class NodeNetworkState(Enum):
@@ -71,6 +74,7 @@ class Node:
         library_dir=".",
         debug=False,
         perf=False,
+        node_port=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -82,9 +86,13 @@ class Node:
         self.common_dir = None
         self.suspended = False
         self.node_id = None
+        self.node_client_host = None
 
         if host.startswith("local://"):
             self.remote_impl = infra.remote.LocalRemote
+            self.node_client_host = str(
+                ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
+            )
         elif host.startswith("ssh://"):
             self.remote_impl = infra.remote.SSHRemote
         else:
@@ -103,7 +111,7 @@ class Node:
         else:
             self.pubhost = self.host
             self.pubport = self.rpc_port
-        self.node_port = None
+        self.node_port = node_port
 
     def __hash__(self):
         return self.local_node_id
@@ -195,11 +203,12 @@ class Node:
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
-            str(self.local_node_id),
+            self.local_node_id,
             self.host,
             self.pubhost,
             self.node_port,
             self.rpc_port,
+            self.node_client_host,
             self.remote_impl,
             enclave_type,
             workspace,
@@ -283,6 +292,7 @@ class Node:
             if self.suspended:
                 self.resume()
             self.network_state = NodeNetworkState.stopped
+            LOG.info(f"Stopping node {self.local_node_id}")
             return self.remote.stop()
         return [], []
 
