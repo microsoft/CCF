@@ -113,6 +113,7 @@ class Network:
         txs=None,
         library_dir=".",
         init_partitioner=False,
+        version=None,
     ):
         if existing_network is None:
             self.consortium = None
@@ -147,6 +148,7 @@ class Network:
             )
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
+        self.version = version
 
         # Requires admin privileges
         self.partitioner = (
@@ -182,6 +184,7 @@ class Network:
             debug,
             perf,
             node_port=node_port,
+            node_version=self.version,
         )
         self.nodes.append(node)
         return node
@@ -1025,6 +1028,7 @@ def network(
     txs=None,
     library_directory=".",
     init_partitioner=False,
+    version="2.0",  # TODO: This should be derived from somewhere else
 ):
     """
     Context manager for Network class.
@@ -1051,6 +1055,7 @@ def network(
         perf_nodes=perf_nodes,
         txs=txs,
         init_partitioner=init_partitioner,
+        version=version,
     )
     try:
         yield net

@@ -66,6 +66,7 @@ def run_live_compatibility_since_last(args, latest_lts_release):
         dbg_nodes=args.debug_nodes,
         pdb=args.pdb,
         txs=txs,
+        version="1.0",
     ) as network:
         network.start_and_join(args)
 
@@ -105,13 +106,13 @@ def run_live_compatibility_since_last(args, latest_lts_release):
         for node in old_nodes:
             node.suspend()
 
-        new_primary, _ = network.wait_for_new_primary(primary.node_id)
+        new_primary, _ = network.wait_for_new_primary(primary)
 
         for node in old_nodes:
             node.resume()
 
         try:
-            network.wait_for_new_primary(new_primary.node_id)
+            network.wait_for_new_primary(new_primary)
             assert False, "No new primary should be elected"
         except TimeoutError:
             pass
