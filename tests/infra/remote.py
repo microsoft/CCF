@@ -155,7 +155,7 @@ class SSHRemote(CmdMixin):
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.proc_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.common_dir = common_dir
-        self.root = os.path.join(workspace, label + "_" + name)
+        self.root = os.path.join(workspace, f"{label}_{name}")
         self.name = name
         self.env = env or {}
         self.out = os.path.join(self.root, "out")
@@ -404,7 +404,7 @@ class LocalRemote(CmdMixin):
         self.exe_files = exe_files
         self.data_files = data_files
         self.cmd = cmd
-        self.root = os.path.join(workspace, label + "_" + name)
+        self.root = os.path.join(workspace, f"{label}_{name}")
         self.common_dir = common_dir
         self.proc = None
         self.stdout = None
@@ -550,6 +550,7 @@ class CCFRemote(object):
         pubhost,
         node_port,
         rpc_port,
+        node_client_host,
         remote_class,
         enclave_type,
         workspace,
@@ -645,6 +646,9 @@ class CCFRemote(object):
             f"--consensus={consensus}",
             f"--worker-threads={worker_threads}",
         ]
+
+        if node_client_host:
+            cmd += [f"--node-client-interface={node_client_host}"]
 
         if log_format_json:
             cmd += ["--log-format-json"]
