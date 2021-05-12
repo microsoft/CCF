@@ -11,13 +11,21 @@ import psutil
 from ccf.log_capture import flush_info
 from ccf.clients import CCFConnectionException
 import random
+import http
 
 from loguru import logger as LOG
+
+
+class AllConnectionsCreatedException(Exception):
+    """
+    Raised if we expected a node to refuse connections, but it didn't
+    """
 
 
 def run(args):
     # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
     args.max_open_sessions = 100
+    args.max_open_sessions_hard = args.max_open_sessions + 20
 
     # Chunk often, so that new fds are regularly requested
     args.ledger_chunk_bytes = "500B"
@@ -39,7 +47,7 @@ def run(args):
         num_fds = initial_fds
         LOG.success(f"{primary_pid} has {num_fds} open file descriptors")
 
-        def create_connections_until_exhaustion(target):
+        def create_connections_until_exhaustion(target, continue_to_hard_cap=False):
             with contextlib.ExitStack() as es:
                 clients = []
                 LOG.success(f"Creating {target} clients")
@@ -52,15 +60,27 @@ def run(args):
                                 primary.client("user0", connection_timeout=1)
                             )
                         )
-                        check(
-                            clients[-1].post(
-                                "/app/log/private",
-                                {"id": 42, "msg": "foo"},
-                                log_capture=logs,
-                            ),
-                            result=True,
+                        r = clients[-1].post(
+                            "/app/log/private",
+                            {"id": 42, "msg": "foo"},
+                            log_capture=logs,
                         )
-                        consecutive_failures = 0
+                        if r.status_code == http.HTTPStatus.OK:
+                            check(
+                                r,
+                                result=True,
+                            )
+                            consecutive_failures = 0
+                        elif r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE:
+                            if continue_to_hard_cap:
+                                consecutive_failures = 0
+                                continue
+                            raise RuntimeError(r.body.text())
+                        else:
+                            flush_info(logs)
+                            raise ValueError(
+                                f"Unexpected response status code: {r.status_code}"
+                            )
                     except (CCFConnectionException, RuntimeError) as e:
                         flush_info(logs)
                         LOG.warning(f"Hit exception at client {i}: {e}")
@@ -73,7 +93,7 @@ def run(args):
                             # Ok you've really hit a wall, stop trying to create clients
                             break
                 else:
-                    raise RuntimeError(
+                    raise AllConnectionsCreatedException(
                         f"Successfully created {target} clients without exception - expected this to exhaust available connections"
                     )
 
@@ -126,6 +146,13 @@ def run(args):
 
         to_create = max_fds - num_fds + 1
         num_fds = create_connections_until_exhaustion(to_create)
+
+        try:
+            create_connections_until_exhaustion(to_create, True)
+        except AllConnectionsCreatedException as e:
+            # This is fine! The soft cap means this test no longer reaches the hard cap.
+            # It gets HTTP errors but then _closes_ sockets, fast enough that we never hit the hard cap
+            pass
 
         # Now set a low fd limit, so network sessions completely exhaust them - expect this to cause failures
         max_fds = args.max_open_sessions // 2
