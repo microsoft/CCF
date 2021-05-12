@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - The curve-id selected for the identity of joining nodes no longer needs to match that of the network (#2525).
-- The per-node session cap behaviour has changed. The `--max-open-sessions` is now a soft cap on the number of sessions. Beyond this, new sessions will receive a HTTP 503 error immediately after completing the TLS handshake. The existing hard cap (where sessions are closed immediately, before the TLS handshake) is still available, under the argument `--max-open-sessions-hard` (#2583).
+- The per-node session cap behaviour has changed. The `--max-open-sessions` is now a soft cap on the number of sessions. Beyond this, new sessions will receive a HTTP 503 error immediately after completing the TLS handshake. The existing hard cap (where sessions are closed immediately, before the TLS handshake) is still available, under the new argument `--max-open-sessions-hard` (#2583).
 
 ## [1.0.0]
 

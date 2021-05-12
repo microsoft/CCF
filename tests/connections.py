@@ -150,7 +150,7 @@ def run(args):
         try:
             create_connections_until_exhaustion(to_create, True)
         except AllConnectionsCreatedException as e:
-            # This is fine! The soft cap means this test no longer causes reaches the hard cap.
+            # This is fine! The soft cap means this test no longer reaches the hard cap.
             # It gets HTTP errors but then _closes_ sockets, fast enough that we never hit the hard cap
             pass
 
