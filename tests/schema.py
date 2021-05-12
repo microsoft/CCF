@@ -9,6 +9,7 @@ import infra.proc
 import infra.e2e_args
 import infra.checker
 import openapi_spec_validator
+from packaging import version
 
 from loguru import logger as LOG
 
@@ -35,6 +36,7 @@ def run(args):
         response_body = api_response.body.json()
         paths = response_body["paths"]
         all_methods.extend(paths.keys())
+        fetched_version = response_body["info"]["version"]
 
         formatted_schema = json.dumps(response_body, indent=2)
         openapi_target_file = os.path.join(args.schema_dir, f"{prefix}_openapi.json")
@@ -48,10 +50,19 @@ def run(args):
             f.seek(0)
             previous = f.read()
             if previous != formatted_schema:
-                LOG.debug("Writing schema to {}".format(openapi_target_file))
-                f.truncate(0)
-                f.seek(0)
-                f.write(formatted_schema)
+                from_file = json.loads(previous)
+                file_version = from_file["info"]["version"]
+                if version.parse(fetched_version) > version.parse(file_version):
+                    LOG.debug(
+                        f"Writing schema to {openapi_target_file} - overwriting {file_version} with {fetched_version}"
+                    )
+                    f.truncate(0)
+                    f.seek(0)
+                    f.write(formatted_schema)
+                else:
+                    LOG.error(
+                        f"Found differences in {openapi_target_file}, but not overwriting as retrieved version is not newer ({fetched_version} <= {file_version})"
+                    )
                 changed_files.append(openapi_target_file)
             else:
                 LOG.debug("Schema matches in {}".format(openapi_target_file))
@@ -103,7 +114,7 @@ def run(args):
         made_changes = True
 
     if len(changed_files) > 0:
-        LOG.error("Made changes to the following schema files:")
+        LOG.error("Found problems with the following schema files:")
         for f in changed_files:
             LOG.error(" " + f)
         made_changes = True
