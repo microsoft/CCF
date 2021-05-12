@@ -88,10 +88,7 @@ def run(args):
         backups[0].resume()
         backups[1].resume()
         backups[2].resume()
-        new_primary, new_term = network.wait_for_new_primary(
-            primary.node_id, timeout_multiplier=6
-        )
-        LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+        new_primary, _ = network.wait_for_new_primary(primary, timeout_multiplier=6)
 
         with new_primary.client("user0") as uc:
             # Check that uncommitted but committable suffix is preserved

@@ -417,6 +417,14 @@ function(add_e2e_test)
       )
     endif()
 
+    if("${PARSED_ARGS_LABEL}" STREQUAL "partitions")
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
+      )
+    endif()
+
     set_property(
       TEST ${PARSED_ARGS_NAME}
       APPEND

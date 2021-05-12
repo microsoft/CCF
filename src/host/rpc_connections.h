@@ -108,7 +108,9 @@ namespace asynchost
     bool listen(int64_t id, std::string& host, std::string& service)
     {
       if (id == 0)
+      {
         id = get_next_id();
+      }
 
       if (sockets.find(id) != sockets.end())
       {
@@ -120,7 +122,9 @@ namespace asynchost
       s->set_behaviour(std::make_unique<RPCServerBehaviour>(*this, id));
 
       if (!s->listen(host, service))
+      {
         return false;
+      }
 
       host = s->get_host();
       service = s->get_service();
@@ -133,7 +137,9 @@ namespace asynchost
       int64_t id, const std::string& host, const std::string& service)
     {
       if (id == 0)
+      {
         id = get_next_id();
+      }
 
       if (sockets.find(id) != sockets.end())
       {
@@ -145,7 +151,9 @@ namespace asynchost
       s->set_behaviour(std::make_unique<ClientBehaviour>(*this, id));
 
       if (!s->connect(host, service))
+      {
         return false;
+      }
 
       sockets.emplace(id, s);
       return true;

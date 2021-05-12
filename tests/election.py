@@ -1,18 +1,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+from ccf.tx_id import TxID
 from infra.network import PrimaryNotFound
-import time
 import math
 import infra.network
 import infra.proc
 import infra.e2e_args
 import infra.checker
-import http
 import suite.test_requirements as reqs
 from ccf.clients import CCFConnectionException
 
-from ccf.tx_status import TxStatus
-from ccf.log_capture import flush_info
 from loguru import logger as LOG
 
 # This test starts from a given number of nodes (hosts), commits
@@ -43,47 +40,9 @@ def test_kill_primary(network, args):
         except CCFConnectionException:
             LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
 
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    network.wait_for_new_primary(primary)
 
     return network
-
-
-def wait_for_seqno_to_commit(seqno, view, nodes):
-    """
-    Wait for a specific seqno at a specific view to be committed on all nodes.
-    """
-    for _ in range(infra.network.Network.replication_delay * 10):
-        up_to_date_f = []
-        logs = {}
-        for f in nodes:
-            with f.client() as c:
-                logs[f.node_id] = []
-                r = c.get(
-                    f"/node/tx?transaction_id={view}.{seqno}",
-                    log_capture=logs[f.node_id],
-                )
-                assert (
-                    r.status_code == http.HTTPStatus.OK
-                ), f"tx request returned HTTP status {r.status_code}"
-                status = TxStatus(r.body.json()["status"])
-                if status == TxStatus.Committed:
-                    up_to_date_f.append(f.node_id)
-                elif status == TxStatus.Invalid:
-                    flush_info(logs[f.node_id], None, 0)
-                    raise RuntimeError(
-                        f"Node {f.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
-                    )
-                else:
-                    pass
-        if len(up_to_date_f) == len(nodes):
-            break
-        time.sleep(0.1)
-    for lines in logs.values():
-        flush_info(lines, None, 0)
-    assert len(up_to_date_f) == len(
-        nodes
-    ), "Only {} out of {} nodes are up to date".format(len(up_to_date_f), len(nodes))
 
 
 def run(args):
@@ -123,10 +82,10 @@ def run(args):
                     },
                 )
                 check(res, result=True)
-                seqno = res.seqno
 
             LOG.debug("Waiting for transaction to be committed by all nodes")
-            wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
+
+            network.wait_for_all_nodes_to_commit(tx_id=TxID(res.view, res.seqno))
 
             try:
                 test_kill_primary(network, args)

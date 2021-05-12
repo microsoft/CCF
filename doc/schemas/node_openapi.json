@@ -233,6 +233,17 @@
         ],
         "type": "object"
       },
+      "GetVersion__Out": {
+        "properties": {
+          "ccf_version": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "ccf_version"
+        ],
+        "type": "object"
+      },
       "MemoryUsage__Out": {
         "properties": {
           "current_allocated_heap_size": {
@@ -723,6 +734,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetTxStatus__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetVersion__Out"
                 }
               }
             },
