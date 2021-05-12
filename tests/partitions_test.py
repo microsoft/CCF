@@ -109,15 +109,12 @@ def test_isolate_primary_from_one_backup(network, args):
 @reqs.description("Isolate and reconnect primary")
 def test_isolate_and_reconnect_primary(network, args):
     primary, backups = network.find_nodes()
-    rules = network.partitioner.isolate_node(primary)
+    with network.partitioner.partition(backups):
+        new_primary, _ = network.wait_for_new_primary(
+            primary, nodes=backups, timeout_multiplier=6
+        )
+        new_tx = reconfiguration.check_can_progress(new_primary)
 
-    new_primary, new_view = network.wait_for_new_primary(
-        primary, nodes=backups, timeout_multiplier=6
-    )
-    new_tx = reconfiguration.check_can_progress(new_primary)
-
-    # Drop rules to allow primary to reconnect
-    rules.drop()
     # Check reconnected former primary has caught up
     with primary.client() as c:
         r = c.get("/node/commit")
@@ -130,7 +127,7 @@ def test_isolate_and_reconnect_primary(network, args):
             if current_tx.seqno >= new_tx.seqno:
                 return network
             time.sleep(0.1)
-        assert False, f"Stuck at {r}"     
+        assert False, f"Stuck at {r}"
 
 
 def run(args):
