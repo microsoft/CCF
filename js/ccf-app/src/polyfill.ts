@@ -177,28 +177,50 @@ class CCFPolyfill implements CCF {
     }
   }
 
-  isValidX509CertBundle(pem: string): boolean {
-    if ("X509Certificate" in crypto) {
-      const sep = "-----END CERTIFICATE-----";
-      const items = pem.split(sep);
-      if (items.length === 1) {
-        return false;
-      }
-      const pems = items.slice(0, -1).map((p) => p + sep);
-      for (const [i, p] of pems.entries()) {
-        try {
-          new (<any>crypto).X509Certificate(p);
-        } catch (e) {
-          console.error(`cert ${i} is not valid: ${e.message}`);
-          console.error(p);
-          return false;
-        }
-      }
-      return true;
-    } else {
+  isValidX509Cert(pem: string): boolean {
+    if (!("X509Certificate" in crypto)) {
       throw new Error(
         "X509 validation unsupported, Node.js version too old (< 15.6.0)"
       );
+    }
+    try {
+      new (<any>crypto).X509Certificate(pem);
+    } catch (e) {
+      console.error(`certificate is not valid: ${e.message}`);
+      console.error(pem);
+      return false;
+    }
+    return true;
+  }
+
+  isValidX509CertChain(chain: string[], trusted: string[]): boolean {
+    if (!("X509Certificate" in crypto)) {
+      throw new Error(
+        "X509 validation unsupported, Node.js version too old (< 15.6.0)"
+      );
+    }
+    try {
+      const certsChain = chain.map(pem => new (<any>crypto).X509Certificate(pem));
+      const certsTrusted = trusted.map(pem => new (<any>crypto).X509Certificate(pem));
+      for (let i=0; i < certsChain.length - 1; i++) {
+        if (!certsChain[i].checkIssued(certsChain[i+1])) {
+          throw new Error(`chain[${i}] is not issued by chain[${i+1}]`);
+        }
+      }
+      for (const certChain of certsChain) {
+        for (const certTrusted of certsTrusted) {
+          if (certChain.fingerprint === certTrusted.fingerprint) {
+            return true;
+          }
+          if (certChain.checkIssued(certTrusted)) {
+            return true;
+          }
+        }
+      }
+      throw new Error('none of the chain certificates are identical to or issued by a trusted certificate');
+    } catch (e) {
+      console.error(`certificate chain validation failed: ${e.message}`);
+      return false;
     }
   }
 }

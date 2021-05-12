@@ -261,20 +261,22 @@ def set_ca_cert_bundle(cert_bundle_name, cert_bundle_path, skip_checks=False, **
     with open(cert_bundle_path) as f:
         cert_bundle_pem = f.read()
 
-    if not skip_checks:
-        delim = "-----END CERTIFICATE-----"
-        for cert_pem in cert_bundle_pem.split(delim):
-            if not cert_pem.strip():
-                continue
-            cert_pem += delim
+    bundle = []
+    delim = "-----END CERTIFICATE-----"
+    for cert_pem in cert_bundle_pem.split(delim):
+        if not cert_pem.strip():
+            continue
+        cert_pem += delim
+        bundle.append(cert_pem)
+        if not skip_checks:
             try:
                 x509.load_pem_x509_certificate(
                     cert_pem.encode(), crypto_backends.default_backend()
                 )
             except Exception as exc:
-                raise ValueError("Cannot parse PEM certificate") from exc
+                raise ValueError(f"Cannot parse PEM certificate: {cert_pem}") from exc
 
-    args = {"name": cert_bundle_name, "cert_bundle": cert_bundle_pem}
+    args = {"name": cert_bundle_name, "cert_bundle": bundle}
     return build_proposal("set_ca_cert_bundle", args, **kwargs)
 
 

@@ -50,6 +50,11 @@ namespace crypto
       throw std::invalid_argument(
         fmt::format("Failed to parse certificate: {}", error_string(rc)));
     }
+    if (cert.get()->next != nullptr)
+    {
+      throw std::invalid_argument(
+        "PEM string contains more than one certificate");
+    }
 
     // public_key expects to have unique ownership of the context and so does
     // `cert`, so we duplicate the key context here.
@@ -117,10 +122,9 @@ namespace crypto
 
     void add(const std::vector<const Pem*>& certs)
     {
-      for (size_t i = 0; i < certs.size(); i++)
+      for (auto& cert : certs)
       {
-        auto& tc = certs[i];
-        int rc = mbedtls_x509_crt_parse(&raw, tc->data(), tc->size());
+        int rc = mbedtls_x509_crt_parse(&raw, cert->data(), cert->size());
         if (rc != 0)
         {
           throw std::runtime_error(

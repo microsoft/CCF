@@ -3,6 +3,7 @@
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
+#include "js/util.h"
 #include "tls/ca.h"
 
 #include <quickjs/quickjs.h>
@@ -116,7 +117,7 @@ namespace js
     return JS_NewArrayBufferCopy(ctx, h.data(), h.size());
   }
 
-  static JSValue js_is_valid_x509_cert_bundle(
+  static JSValue js_is_valid_x509_cert(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
     if (argc != 1)
@@ -135,8 +136,58 @@ namespace js
 
     try
     {
-      std::string pem(pem_cstr);
-      tls::CA ca(pem);
+      std::string pem_str(pem_cstr);
+      crypto::Pem pem(pem_str);
+      crypto::make_unique_verifier(pem);
+    }
+    catch (const std::logic_error& e)
+    {
+      LOG_DEBUG_FMT("isValidX509Cert: {}", e.what());
+      return JS_FALSE;
+    }
+
+    return JS_TRUE;
+  }
+
+  static JSValue js_is_valid_x509_cert_chain(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    // first arg: chain (array of PEM certs, first cert = target)
+    // second arg: trusted (array of PEM certs)
+    if (argc != 2)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 2", argc);
+
+    auto chain_js = argv[0];
+    auto trusted_js = argv[1];
+
+    void* auto_free_ptr = JS_GetContextOpaque(ctx);
+    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+
+    try
+    {
+      auto chain_str = read_string_array(ctx, chain_js);
+      auto trusted_str = read_string_array(ctx, trusted_js);
+      if (chain_str.empty() || trusted_str.empty())
+        throw std::logic_error(
+          "chain/trusted argument cannot be an empty array");
+
+      crypto::Pem target_pem(chain_str[0]);
+      std::vector<crypto::Pem> chain_pem(
+        chain_str.begin() + 1, chain_str.end());
+      std::vector<crypto::Pem> trusted_pem(
+        trusted_str.begin(), trusted_str.end());
+
+      std::vector<const crypto::Pem*> chain_ptr;
+      std::vector<const crypto::Pem*> trusted_ptr;
+      for (auto& pem : chain_pem)
+        chain_ptr.push_back(&pem);
+      for (auto& pem : trusted_pem)
+        trusted_ptr.push_back(&pem);
+
+      auto verifier = crypto::make_unique_verifier(target_pem);
+      if (!verifier->verify_certificate(trusted_ptr, chain_ptr))
+        throw std::logic_error("certificate chain is invalid");
     }
     catch (const std::logic_error& e)
     {

@@ -124,16 +124,21 @@ function checkJwks(value, field) {
         "-----BEGIN CERTIFICATE-----\n" +
         b64der +
         "\n-----END CERTIFICATE-----";
-      checkX509CertBundle(pem, `${field}.keys[${i}].x5c[${j}]`);
+      checkX509Cert(pem, `${field}.keys[${i}].x5c[${j}]`);
     }
   }
 }
 
+function checkX509Cert(value, field) {
+  if (!ccf.isValidX509Cert(value)) {
+    throw new Error(`${field} must be a valid X509 certificate in PEM format`);
+  }
+}
+
 function checkX509CertBundle(value, field) {
-  if (!ccf.isValidX509CertBundle(value)) {
-    throw new Error(
-      `${field} must be a valid X509 certificate (bundle) in PEM format`
-    );
+  checkType(value, "array", field);
+  for (const [i, cert] of value.entries()) {
+    checkX509Cert(cert, `${field}[${i}]`);
   }
 }
 
@@ -174,7 +179,7 @@ const actions = new Map([
     "set_member",
     new Action(
       function (args) {
-        checkX509CertBundle(args.cert, "cert");
+        checkX509Cert(args.cert, "cert");
         checkType(args.member_data, "object?", "member_data");
         // Also check that public encryption key is well formed, if it exists
       },
@@ -310,7 +315,7 @@ const actions = new Map([
     "set_user",
     new Action(
       function (args) {
-        checkX509CertBundle(args.cert, "cert");
+        checkX509Cert(args.cert, "cert");
         checkType(args.user_data, "object?", "user_data");
       },
       function (args) {

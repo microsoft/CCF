@@ -7,7 +7,7 @@ import {
   RsaOaepAesKwpParams,
   RsaOaepParams,
 } from "../src/global.js";
-import { unwrapKey, generateSelfSignedCert } from "./crypto.js";
+import { unwrapKey, generateSelfSignedCert, generateCertChain } from "./crypto.js";
 
 beforeEach(function () {
   // clear KV before each test
@@ -103,22 +103,41 @@ describe("polyfill", function () {
       assert.equal(actual, expected);
     });
   });
-  describe("isValidX509CertBundle", function (this) {
+  describe("isValidX509Cert", function (this) {
     const supported = "X509Certificate" in crypto;
     it("returns true for valid certs", function () {
       if (!supported) {
         this.skip();
       }
-      const pem1 = generateSelfSignedCert();
-      const pem2 = generateSelfSignedCert();
-      assert.isTrue(ccf.isValidX509CertBundle(pem1));
-      assert.isTrue(ccf.isValidX509CertBundle(pem1 + "\n" + pem2));
+      const pem = generateSelfSignedCert();
+      assert.isTrue(ccf.isValidX509Cert(pem));
     });
     it("returns false for invalid certs", function () {
       if (!supported) {
         this.skip();
       }
-      assert.isFalse(ccf.isValidX509CertBundle("garbage"));
+      assert.isFalse(ccf.isValidX509Cert("garbage"));
+    });
+  });
+  describe("isValidX509CertChain", function (this) {
+    const supported = "X509Certificate" in crypto;
+    it("returns true for valid cert chains", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pems = generateCertChain(3);
+      const chain = [pems[0], pems[1]];
+      const trusted = [pems[2]];
+      assert.isTrue(ccf.isValidX509CertChain(chain, trusted));
+    });
+    it("returns false for invalid cert chains", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pems = generateCertChain(3);
+      const chain = [pems[0]];
+      const trusted = [pems[2]];
+      assert.isTrue(ccf.isValidX509CertChain(chain, trusted));
     });
   });
   describe("kv", function () {

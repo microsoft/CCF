@@ -6,5 +6,5 @@
 
 namespace ccf
 {
-  using CACertBundlePEMs = ServiceMap<std::string, std::string>;
+  using CACertBundlePEMs = ServiceMap<std::string, std::vector<std::string>>;
 }

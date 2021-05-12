@@ -293,8 +293,8 @@ namespace ccf
         LOG_DEBUG_FMT(
           "JWT key auto-refresh: Refreshing keys for issuer '{}'", issuer);
         auto& ca_cert_bundle_name = metadata.ca_cert_bundle_name.value();
-        auto ca_cert_bundle_pem = ca_cert_bundles->get(ca_cert_bundle_name);
-        if (!ca_cert_bundle_pem.has_value())
+        auto ca_cert_bundle = ca_cert_bundles->get(ca_cert_bundle_name);
+        if (!ca_cert_bundle.has_value())
         {
           LOG_FAIL_FMT(
             "JWT key auto-refresh: CA cert bundle with name '{}' for issuer "
@@ -311,7 +311,9 @@ namespace ccf
         auto metadata_url_port =
           !metadata_url.port.empty() ? metadata_url.port : "443";
 
-        auto ca = std::make_shared<tls::CA>(ca_cert_bundle_pem.value());
+        std::string ca_cert_bundle_pem =
+          fmt::format("{}", fmt::join(ca_cert_bundle.value(), "\n"));
+        auto ca = std::make_shared<tls::CA>(ca_cert_bundle_pem);
         auto ca_cert = std::make_shared<tls::Cert>(
           ca,
           std::nullopt,
