@@ -177,6 +177,31 @@ class CCFPolyfill implements CCF {
     }
   }
 
+  isValidX509CertBundle(pem: string): boolean {
+    if ("X509Certificate" in crypto) {
+      const sep = "-----END CERTIFICATE-----";
+      const items = pem.split(sep);
+      if (items.length === 1) {
+        return false;
+      }
+      const pems = items.slice(0, -1).map((p) => p + sep);
+      for (const [i, p] of pems.entries()) {
+        try {
+          new (<any>crypto).X509Certificate(p);
+        } catch (e) {
+          console.error(`cert ${i} is not valid: ${e.message}`);
+          console.error(p);
+          return false;
+        }
+      }
+      return true;
+    } else {
+      throw new Error(
+        "X509 validation unsupported, Node.js version too old (< 15.6.0)"
+      );
+    }
+  }
+
   isValidX509Cert(pem: string): boolean {
     if (!("X509Certificate" in crypto)) {
       throw new Error(
@@ -193,18 +218,31 @@ class CCFPolyfill implements CCF {
     return true;
   }
 
-  isValidX509CertChain(chain: string[], trusted: string[]): boolean {
+  isValidX509CertChain(chain: string, trusted: string): boolean {
     if (!("X509Certificate" in crypto)) {
       throw new Error(
         "X509 validation unsupported, Node.js version too old (< 15.6.0)"
       );
     }
     try {
-      const certsChain = chain.map(pem => new (<any>crypto).X509Certificate(pem));
-      const certsTrusted = trusted.map(pem => new (<any>crypto).X509Certificate(pem));
-      for (let i=0; i < certsChain.length - 1; i++) {
-        if (!certsChain[i].checkIssued(certsChain[i+1])) {
-          throw new Error(`chain[${i}] is not issued by chain[${i+1}]`);
+      const toX509Array = (pem: string) => {
+        const sep = "-----END CERTIFICATE-----";
+        const items = pem.split(sep);
+        if (items.length === 1) {
+          return [];
+        }
+        const pems = items.slice(0, -1).map((p) => p + sep);
+        const arr = pems.map((pem) => new (<any>crypto).X509Certificate(pem));
+        return arr;
+      };
+      const certsChain = toX509Array(chain);
+      const certsTrusted = toX509Array(trusted);
+      if (certsChain.length === 0) {
+        throw new Error("chain cannot be empty");
+      }
+      for (let i = 0; i < certsChain.length - 1; i++) {
+        if (!certsChain[i].checkIssued(certsChain[i + 1])) {
+          throw new Error(`chain[${i}] is not issued by chain[${i + 1}]`);
         }
       }
       for (const certChain of certsChain) {
@@ -217,7 +255,9 @@ class CCFPolyfill implements CCF {
           }
         }
       }
-      throw new Error('none of the chain certificates are identical to or issued by a trusted certificate');
+      throw new Error(
+        "none of the chain certificates are identical to or issued by a trusted certificate"
+      );
     } catch (e) {
       console.error(`certificate chain validation failed: ${e.message}`);
       return false;

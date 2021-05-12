@@ -38,6 +38,11 @@ export const wrapKey = ccf.wrapKey;
 export const digest = ccf.digest;
 
 /**
+ * @inheritDoc CCF.isValidX509CertBundle
+ */
+export const isValidX509CertBundle = ccf.isValidX509CertBundle;
+
+/**
  * @inheritDoc CCF.isValidX509Cert
  */
 export const isValidX509Cert = ccf.isValidX509Cert;

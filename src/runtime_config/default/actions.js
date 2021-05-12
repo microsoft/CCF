@@ -136,9 +136,10 @@ function checkX509Cert(value, field) {
 }
 
 function checkX509CertBundle(value, field) {
-  checkType(value, "array", field);
-  for (const [i, cert] of value.entries()) {
-    checkX509Cert(cert, `${field}[${i}]`);
+  if (!ccf.isValidX509CertBundle(value)) {
+    throw new Error(
+      `${field} must be a valid X509 certificate (bundle) in PEM format`
+    );
   }
 }
 

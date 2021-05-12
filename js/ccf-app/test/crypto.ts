@@ -85,7 +85,7 @@ export function generateSelfSignedCert(): string {
 
 export function generateCertChain(len: number): string[] {
   const keyPairs = [];
-  for (let i=0; i < len; i++) {
+  for (let i = 0; i < len; i++) {
     keyPairs.push(
       crypto.generateKeyPairSync("rsa", {
         modulusLength: 2048,
@@ -96,15 +96,15 @@ export function generateCertChain(len: number): string[] {
         privateKeyEncoding: {
           type: "pkcs8",
           format: "pem",
-        }
+        },
       })
     );
-  }  
+  }
   const certs = [];
-  for (let i=0; i < len; i++) {
+  for (let i = 0; i < len; i++) {
     const cert = forge.pki.createCertificate();
     cert.publicKey = forge.pki.publicKeyFromPem(keyPairs[i].publicKey);
-    const signer = i < len - 1 ? keyPairs[i+1] : keyPairs[i];
+    const signer = i < len - 1 ? keyPairs[i + 1] : keyPairs[i];
     cert.sign(
       forge.pki.privateKeyFromPem(signer.privateKey),
       forge.md.sha256.create()

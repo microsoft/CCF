@@ -237,6 +237,15 @@ export interface CCF {
   digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
 
   /**
+   * Returns whether a string is a PEM-encoded bundle of X.509 certificates.
+   *
+   * A bundle consists of one or more certificates.
+   * Certificates in the bundle do not have to be related to each other.
+   * Validation is only syntactical, properties like validity dates are not evaluated.
+   */
+  isValidX509CertBundle(pem: string): boolean;
+
+  /**
    * Returns whether a string is a PEM-encoded X.509 certificate.
    *
    * Validation is only syntactical, properties like validity dates are not evaluated.
@@ -245,9 +254,9 @@ export interface CCF {
 
   /**
    * Returns whether a certificate chain is valid given a set of trusted certificates.
-   * All certificates are PEM-encoded X.509 certificates.
+   * The chain and trusted certificates are PEM-encoded bundles of X.509 certificates.
    */
-  isValidX509CertChain(chain: string[], trusted: string[]): boolean;
+  isValidX509CertChain(chain: string, trusted: string): boolean;
 
   rpc: {
     /**
