@@ -48,6 +48,24 @@ namespace http
     return s;
   }
 
+  static std::string url_encode(const std::string_view& s_)
+  {
+    std::string s;
+    std::locale utf_en("C");
+    for (const auto& c: s_)
+    {
+      if (std::isalnum(c, utf_en) || c == '-' || c == '_' || c == '.' || c == '~')
+      {
+        s += c;
+      }
+      else
+      {
+        s += fmt::format("%{:02X}", c);
+      }
+    }
+    return s;
+  }
+
   inline bool status_success(http_status status)
   {
     return status >= 200 && status < 300;

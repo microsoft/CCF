@@ -137,6 +137,8 @@ namespace http
           query.empty() ? "" : fmt::format("?{}", query),
           http::get_header_string(request_headers));
 
+        LOG_INFO_FMT("CANONICAL HEADER: {}", canonical_request_header);
+
         serialised_request.resize(
           canonical_request_header.size() + request_body.size());
         ::memcpy(

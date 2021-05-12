@@ -314,6 +314,14 @@ DOCTEST_TEST_CASE("Escaping")
   }
 
   {
+    for (size_t i = 0; i < 256; i++)
+    {
+      std::string s((unsigned char) i, 1);
+      DOCTEST_REQUIRE(http::url_decode(http::url_encode(s)) == s);
+    }
+  }
+
+  {
     const std::string request =
       "GET "
       "/foo/"
