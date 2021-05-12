@@ -23,7 +23,8 @@ namespace enclave
   class RPCSessions : public AbstractRPCResponder
   {
   private:
-    size_t max_open_sessions = 1000;
+    size_t max_open_sessions_soft = 1000;
+    size_t max_open_sessions_hard = 1100;
 
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host = nullptr;
@@ -38,6 +39,43 @@ namespace enclave
     std::atomic<size_t> next_client_session_id =
       std::numeric_limits<size_t>::max() / 2;
 
+    class NoMoreSessionsEndpointImpl : public enclave::TLSEndpoint
+    {
+    public:
+      NoMoreSessionsEndpointImpl(
+        size_t session_id,
+        ringbuffer::AbstractWriterFactory& writer_factory,
+        std::unique_ptr<tls::Context> ctx) :
+        enclave::TLSEndpoint(session_id, writer_factory, std::move(ctx))
+      {}
+
+      void recv(const uint8_t* data, size_t size) override
+      {
+        recv_buffered(data, size);
+
+        if (get_status() == Status::ready)
+        {
+          // Send HTTP response describing soft session limit
+          auto http_response = http::Response(HTTP_STATUS_SERVICE_UNAVAILABLE);
+          http_response.set_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          const auto response_body = fmt::format(
+            "Service is currently busy and unable to serve new connections");
+          http_response.set_body(
+            (const uint8_t*)response_body.data(), response_body.size());
+          send(http_response.build_response());
+
+          // Close connection
+          close();
+        }
+      }
+
+      void send(std::vector<uint8_t>&& data) override
+      {
+        send_raw(std::move(data));
+      }
+    };
+
   public:
     RPCSessions(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -48,11 +86,12 @@ namespace enclave
       to_host = writer_factory.create_writer_to_outside();
     }
 
-    void set_max_open_sessions(size_t n)
+    void set_max_open_sessions(size_t soft_cap, size_t hard_cap)
     {
-      max_open_sessions = n;
+      max_open_sessions_soft = soft_cap;
+      max_open_sessions_hard = hard_cap;
 
-      LOG_INFO_FMT("Setting max open sessions to {}", n);
+      LOG_INFO_FMT("Setting max open sessions to [{}, {}]", soft_cap, hard_cap);
     }
 
     void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
@@ -75,26 +114,41 @@ namespace enclave
         throw std::logic_error(
           "Duplicate conn ID received inside enclave: " + std::to_string(id));
 
-      if (sessions.size() >= max_open_sessions)
+      if (sessions.size() >= max_open_sessions_hard)
       {
         LOG_INFO_FMT(
           "Refusing a session inside the enclave - already have {} sessions "
           "and limit is {}: {}",
           sessions.size(),
-          max_open_sessions,
+          max_open_sessions_hard,
           id);
 
         RINGBUFFER_WRITE_MESSAGE(
           tls::tls_stop, to_host, id, std::string("Session refused"));
-        return;
       }
+      else if (sessions.size() >= max_open_sessions_soft)
+      {
+        LOG_INFO_FMT(
+          "Soft refusing a session inside the enclave - already have {} "
+          "sessions and limit is {}: {}",
+          sessions.size(),
+          max_open_sessions_soft,
+          id);
 
-      LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
-      auto ctx = std::make_unique<tls::Server>(cert);
+        auto ctx = std::make_unique<tls::Server>(cert);
+        auto capped_session = std::make_shared<NoMoreSessionsEndpointImpl>(
+          id, writer_factory, std::move(ctx));
+        sessions.insert(std::make_pair(id, std::move(capped_session)));
+      }
+      else
+      {
+        LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
+        auto ctx = std::make_unique<tls::Server>(cert);
 
-      auto session = std::make_shared<ServerEndpointImpl>(
-        rpc_map, id, writer_factory, std::move(ctx));
-      sessions.insert(std::make_pair(id, std::move(session)));
+        auto session = std::make_shared<ServerEndpointImpl>(
+          rpc_map, id, writer_factory, std::move(ctx));
+        sessions.insert(std::make_pair(id, std::move(session)));
+      }
     }
 
     bool reply_async(size_t id, std::vector<uint8_t>&& data) override
@@ -133,7 +187,7 @@ namespace enclave
       auto session = std::make_shared<ClientEndpointImpl>(
         id, writer_factory, std::move(ctx));
 
-      // We do not check the max_open_sessions limit here, because we expect
+      // We do not check the open sessions limit here, because we expect
       // this type of session to be rare and want it to succeed even when we are
       // busy.
       sessions.insert(std::make_pair(id, session));
