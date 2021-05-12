@@ -48,7 +48,7 @@ struct CCFConfig
   std::string domain;
   size_t snapshot_tx_interval;
   size_t max_open_sessions_soft;
-  size_t max_open_sessions;
+  size_t max_open_sessions_hard;
 
   // Only if joining or recovering
   std::vector<uint8_t> startup_snapshot;
@@ -106,7 +106,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   domain,
   snapshot_tx_interval,
   max_open_sessions_soft,
-  max_open_sessions,
+  max_open_sessions_hard,
   startup_snapshot,
   startup_snapshot_evidence_seqno,
   signature_intervals,

@@ -24,8 +24,8 @@ class AllConnectionsCreatedException(Exception):
 
 def run(args):
     # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
-    args.max_open_sessions_soft = 100
-    args.max_open_sessions = 110
+    args.max_open_sessions = 100
+    args.max_open_sessions_hard = args.max_open_sessions + 20
 
     # Chunk often, so that new fds are regularly requested
     args.ledger_chunk_bytes = "500B"
@@ -150,9 +150,8 @@ def run(args):
         try:
             create_connections_until_exhaustion(to_create, True)
         except AllConnectionsCreatedException as e:
-            # This is fine! The soft cap means this test no longer causes exhaustion,
-            # it gets HTTP errors but then _closes_ sockets fast enough that we never
-            # hit the hard cap
+            # This is fine! The soft cap means this test no longer causes reaches the hard cap.
+            # It gets HTTP errors but then _closes_ sockets, fast enough that we never hit the hard cap
             pass
 
         # Now set a low fd limit, so network sessions completely exhaust them - expect this to cause failures

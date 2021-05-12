@@ -173,25 +173,28 @@ int main(int argc, char** argv)
       "Number of transactions between snapshots")
     ->capture_default_str();
 
-  size_t max_open_sessions_soft = 1'000;
+  size_t max_open_sessions = 1'000;
   app
     .add_option(
-      "--max-open-sessions-soft",
-      max_open_sessions_soft,
+      "--max-open-sessions",
+      max_open_sessions,
       "Soft cap on number of TLS sessions which may be open at the same time. "
       "Once this many connection are open, additional connections will receive "
       "a 503 HTTP error (until the hard cap is reached)")
     ->capture_default_str();
 
-  size_t max_open_sessions = max_open_sessions_soft + 10;
-  app
-    .add_option(
-      "--max-open-sessions",
-      max_open_sessions,
-      "Hard cap on umber of TLS sessions which may be open at the same time. "
+  constexpr auto hard_session_cap_diff = 10;
+  size_t max_open_sessions_hard = 0;
+  app.add_option(
+    "--max-open-sessions-hard",
+    max_open_sessions_hard,
+    fmt::format(
+      "Hard cap on number of TLS sessions which may be open at the same "
+      "time. "
       "Once this many connections are open, additional connection attempts "
-      "will be closed before a TLS handshake is completed")
-    ->capture_default_str();
+      "will be closed before a TLS handshake is completed. Default is {} "
+      "more than --max-open-sessions",
+      hard_session_cap_diff));
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -472,6 +475,11 @@ int main(int argc, char** argv)
     logger::config::initialize_with_json_console();
   }
 
+  if (max_open_sessions_hard == 0)
+  {
+    max_open_sessions_hard = max_open_sessions + hard_session_cap_diff;
+  }
+
   const auto cli_config = app.config_to_str(true, false);
   LOG_INFO_FMT("Run with following options:\n{}", cli_config);
 
@@ -699,8 +707,8 @@ int main(int argc, char** argv)
                                     public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
-    ccf_config.max_open_sessions_soft = max_open_sessions_soft;
-    ccf_config.max_open_sessions = max_open_sessions;
+    ccf_config.max_open_sessions_soft = max_open_sessions;
+    ccf_config.max_open_sessions_hard = max_open_sessions_hard;
 
     ccf_config.subject_name = subject_name;
     ccf_config.subject_alternative_names = subject_alternative_names;
