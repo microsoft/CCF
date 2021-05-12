@@ -112,10 +112,8 @@ namespace crypto
       CHECK1(X509_up_ref(cert));
     }
 
-    auto param = X509_VERIFY_PARAM_new();
     // Allow to use intermediate CAs as trust anchors
-    CHECK1(X509_VERIFY_PARAM_set_flags(param, X509_V_FLAG_PARTIAL_CHAIN));    
-    X509_STORE_CTX_set0_param(store_ctx, param);
+    CHECK1(X509_STORE_set_flags(store, X509_V_FLAG_PARTIAL_CHAIN));
 
     CHECK1(X509_STORE_CTX_init(store_ctx, store, cert, chain_stack));
     auto valid = X509_verify_cert(store_ctx) == 1;
@@ -125,10 +123,12 @@ namespace crypto
       auto msg = X509_verify_cert_error_string(error);
       LOG_DEBUG_FMT("Failed to verify certificate: {}", msg);
       LOG_DEBUG_FMT("Target: {}", cert_pem().str());
-      for (auto pem : chain) {
+      for (auto pem : chain)
+      {
         LOG_DEBUG_FMT("Chain: {}", pem->str());
       }
-      for (auto pem : trusted_certs) {
+      for (auto pem : trusted_certs)
+      {
         LOG_DEBUG_FMT("Trusted: {}", pem->str());
       }
     }

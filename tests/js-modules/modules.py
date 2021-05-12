@@ -349,7 +349,7 @@ def test_npm_app(network, args):
         assert body["msg"].startswith("token signing key not found"), r.body
 
         priv_key_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-        pem = infra.crypto.generate_cert(priv_key_pem, cn='1')
+        pem = infra.crypto.generate_cert(priv_key_pem)
         r = c.post("/app/isValidX509CertBundle", pem)
         assert r.body.json(), r.body
         r = c.post("/app/isValidX509CertBundle", pem + "\n" + pem)
@@ -357,29 +357,36 @@ def test_npm_app(network, args):
         r = c.post("/app/isValidX509CertBundle", "garbage")
         assert not r.body.json(), r.body
 
+        priv_key_pem1, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem1 = infra.crypto.generate_cert(priv_key_pem1, cn="1", ca=True)
         priv_key_pem2, _ = infra.crypto.generate_rsa_keypair(2048)
-        pem2 = infra.crypto.generate_cert(priv_key_pem2, cn='2',
-            issuer_priv_key_pem=priv_key_pem,
-            issuer_cn='1'
-            )
+        pem2 = infra.crypto.generate_cert(
+            priv_key_pem2,
+            cn="2",
+            ca=True,
+            issuer_priv_key_pem=priv_key_pem1,
+            issuer_cn="1",
+        )
         priv_key_pem3, _ = infra.crypto.generate_rsa_keypair(2048)
-        pem3 = infra.crypto.generate_cert(priv_key_pem3, cn='3',
-            issuer_priv_key_pem=priv_key_pem2,
-            issuer_cn='2')
+        pem3 = infra.crypto.generate_cert(
+            priv_key_pem3, cn="3", issuer_priv_key_pem=priv_key_pem2, issuer_cn="2"
+        )
         # validates chains with target being trusted directly
-        r = c.post("/app/isValidX509CertChain", {"chain": pem, "trusted": pem})
+        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem3})
         assert r.body.json(), r.body
         # validates chains without intermediates
-        r = c.post("/app/isValidX509CertChain", {"chain": pem2, "trusted": pem})
+        r = c.post("/app/isValidX509CertChain", {"chain": pem2, "trusted": pem1})
         assert r.body.json(), r.body
         # validates chains with intermediates
-        r = c.post("/app/isValidX509CertChain", {"chain": pem3 + "\n" + pem2, "trusted": pem})
+        r = c.post(
+            "/app/isValidX509CertChain", {"chain": pem3 + "\n" + pem2, "trusted": pem1}
+        )
         assert r.body.json(), r.body
         # validates partial chains (pem2 is an intermediate)
         r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem2})
         assert r.body.json(), r.body
         # fails to reach trust anchor
-        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem})
+        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem1})
         assert not r.body.json(), r.body
 
         r = c.get("/node/quotes/self")
@@ -461,9 +468,9 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        #network = test_module_import(network, args)
-        #network = test_app_bundle(network, args)
-        #network = test_dynamic_endpoints(network, args)
+        network = test_module_import(network, args)
+        network = test_app_bundle(network, args)
+        network = test_dynamic_endpoints(network, args)
         network = test_npm_app(network, args)
 
 

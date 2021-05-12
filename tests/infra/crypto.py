@@ -79,14 +79,18 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
     return priv_pem, pub_pem
 
 
-def generate_cert(priv_key_pem: str, cn="dummy", issuer_priv_key_pem=None, issuer_cn=None) -> str:
+def generate_cert(
+    priv_key_pem: str, cn="dummy", issuer_priv_key_pem=None, issuer_cn=None, ca=False
+) -> str:
     if issuer_priv_key_pem is None:
         issuer_priv_key_pem = priv_key_pem
     if issuer_cn is None:
         issuer_cn = cn
     priv = load_pem_private_key(priv_key_pem.encode("ascii"), None, default_backend())
     pub = priv.public_key()
-    issuer_priv = load_pem_private_key(issuer_priv_key_pem.encode("ascii"), None, default_backend())
+    issuer_priv = load_pem_private_key(
+        issuer_priv_key_pem.encode("ascii"), None, default_backend()
+    )
     subject = x509.Name(
         [
             x509.NameAttribute(NameOID.COMMON_NAME, cn),
@@ -97,7 +101,7 @@ def generate_cert(priv_key_pem: str, cn="dummy", issuer_priv_key_pem=None, issue
             x509.NameAttribute(NameOID.COMMON_NAME, issuer_cn),
         ]
     )
-    cert = (
+    builder = (
         x509.CertificateBuilder()
         .subject_name(subject)
         .issuer_name(issuer)
@@ -105,8 +109,14 @@ def generate_cert(priv_key_pem: str, cn="dummy", issuer_priv_key_pem=None, issue
         .serial_number(x509.random_serial_number())
         .not_valid_before(datetime.datetime.utcnow())
         .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=10))
-        .sign(issuer_priv, hashes.SHA256(), default_backend())
     )
+    if ca:
+        builder = builder.add_extension(
+            x509.BasicConstraints(ca=True, path_length=None),
+            critical=True,
+        )
+
+    cert = builder.sign(issuer_priv, hashes.SHA256(), default_backend())
 
     return cert.public_bytes(Encoding.PEM).decode("ascii")
 
