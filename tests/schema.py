@@ -63,6 +63,10 @@ def run(args):
                     LOG.error(
                         f"Found differences in {openapi_target_file}, but not overwriting as retrieved version is not newer ({fetched_version} <= {file_version})"
                     )
+                    alt_file = os.path.join(args.schema_dir, f"{prefix}_{fetched_version}_openapi.json")
+                    LOG.error(f"Writing to {alt_file} for comparison")
+                    with open(alt_file, "w") as f2:
+                        f2.write(formatted_schema)
                 changed_files.append(openapi_target_file)
             else:
                 LOG.debug("Schema matches in {}".format(openapi_target_file))
