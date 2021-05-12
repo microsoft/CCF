@@ -993,11 +993,6 @@ namespace js
     JS_SetPropertyStr(
       ctx,
       ccf,
-      "isValidX509Cert",
-      JS_NewCFunction(ctx, js_is_valid_x509_cert, "isValidX509Cert", 1));
-    JS_SetPropertyStr(
-      ctx,
-      ccf,
       "isValidX509CertChain",
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));

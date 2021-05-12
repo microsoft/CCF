@@ -140,39 +140,7 @@ namespace js
     }
     catch (const std::logic_error& e)
     {
-      LOG_DEBUG_FMT("isValidX509Chain: {}", e.what());
-      return JS_FALSE;
-    }
-
-    return JS_TRUE;
-  }
-
-  static JSValue js_is_valid_x509_cert(
-    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-  {
-    if (argc != 1)
-      return JS_ThrowTypeError(
-        ctx, "Passed %d arguments, but expected 1", argc);
-
-    void* auto_free_ptr = JS_GetContextOpaque(ctx);
-    js::Context& auto_free = *(js::Context*)auto_free_ptr;
-
-    auto pem_cstr = auto_free(JS_ToCString(ctx, argv[0]));
-    if (!pem_cstr)
-    {
-      js::js_dump_error(ctx);
-      return JS_EXCEPTION;
-    }
-
-    try
-    {
-      std::string pem_str(pem_cstr);
-      crypto::Pem pem(pem_str);
-      crypto::make_unique_verifier(pem);
-    }
-    catch (const std::logic_error& e)
-    {
-      LOG_DEBUG_FMT("isValidX509Cert: {}", e.what());
+      LOG_DEBUG_FMT("isValidX509Bundle: {}", e.what());
       return JS_FALSE;
     }
 

@@ -79,12 +79,22 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
     return priv_pem, pub_pem
 
 
-def generate_cert(priv_key_pem: str, cn="dummy") -> str:
+def generate_cert(priv_key_pem: str, cn="dummy", issuer_priv_key_pem=None, issuer_cn=None) -> str:
+    if issuer_priv_key_pem is None:
+        issuer_priv_key_pem = priv_key_pem
+    if issuer_cn is None:
+        issuer_cn = cn
     priv = load_pem_private_key(priv_key_pem.encode("ascii"), None, default_backend())
     pub = priv.public_key()
-    subject = issuer = x509.Name(
+    issuer_priv = load_pem_private_key(issuer_priv_key_pem.encode("ascii"), None, default_backend())
+    subject = x509.Name(
         [
             x509.NameAttribute(NameOID.COMMON_NAME, cn),
+        ]
+    )
+    issuer = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, issuer_cn),
         ]
     )
     cert = (
@@ -95,7 +105,7 @@ def generate_cert(priv_key_pem: str, cn="dummy") -> str:
         .serial_number(x509.random_serial_number())
         .not_valid_before(datetime.datetime.utcnow())
         .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=10))
-        .sign(priv, hashes.SHA256(), default_backend())
+        .sign(issuer_priv, hashes.SHA256(), default_backend())
     )
 
     return cert.public_bytes(Encoding.PEM).decode("ascii")

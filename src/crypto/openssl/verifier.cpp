@@ -113,7 +113,21 @@ namespace crypto
     }
 
     CHECK1(X509_STORE_CTX_init(store_ctx, store, cert, chain_stack));
-    return X509_verify_cert(store_ctx) == 1;
+    auto valid = X509_verify_cert(store_ctx) == 1;
+    if (!valid)
+    {
+      auto error = X509_STORE_CTX_get_error(store_ctx);
+      auto msg = X509_verify_cert_error_string(error);
+      LOG_DEBUG_FMT("Failed to verify certificate: {}", msg);
+      LOG_DEBUG_FMT("Target: {}", cert_pem().str());
+      for (auto pem : chain) {
+        LOG_DEBUG_FMT("Chain: {}", pem->str());
+      }
+      for (auto pem : trusted_certs) {
+        LOG_DEBUG_FMT("Trusted: {}", pem->str());
+      }
+    }
+    return valid;
   }
 
   bool Verifier_OpenSSL::is_self_signed() const

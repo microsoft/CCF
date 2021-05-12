@@ -202,22 +202,6 @@ class CCFPolyfill implements CCF {
     }
   }
 
-  isValidX509Cert(pem: string): boolean {
-    if (!("X509Certificate" in crypto)) {
-      throw new Error(
-        "X509 validation unsupported, Node.js version too old (< 15.6.0)"
-      );
-    }
-    try {
-      new (<any>crypto).X509Certificate(pem);
-    } catch (e) {
-      console.error(`certificate is not valid: ${e.message}`);
-      console.error(pem);
-      return false;
-    }
-    return true;
-  }
-
   isValidX509CertChain(chain: string, trusted: string): boolean {
     if (!("X509Certificate" in crypto)) {
       throw new Error(

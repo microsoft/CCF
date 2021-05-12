@@ -43,11 +43,6 @@ export const digest = ccf.digest;
 export const isValidX509CertBundle = ccf.isValidX509CertBundle;
 
 /**
- * @inheritDoc CCF.isValidX509Cert
- */
-export const isValidX509Cert = ccf.isValidX509Cert;
-
-/**
  * @inheritDoc CCF.isValidX509CertChain
  */
 export const isValidX509CertChain = ccf.isValidX509CertChain;

@@ -125,22 +125,6 @@ describe("polyfill", function () {
       assert.isFalse(ccf.isValidX509CertBundle("garbage"));
     });
   });
-  describe("isValidX509Cert", function (this) {
-    const supported = "X509Certificate" in crypto;
-    it("returns true for valid certs", function () {
-      if (!supported) {
-        this.skip();
-      }
-      const pem = generateSelfSignedCert();
-      assert.isTrue(ccf.isValidX509Cert(pem));
-    });
-    it("returns false for invalid certs", function () {
-      if (!supported) {
-        this.skip();
-      }
-      assert.isFalse(ccf.isValidX509Cert("garbage"));
-    });
-  });
   describe("isValidX509CertChain", function (this) {
     const supported = "X509Certificate" in crypto;
     it("returns true for valid cert chains", function () {

@@ -246,13 +246,6 @@ export interface CCF {
   isValidX509CertBundle(pem: string): boolean;
 
   /**
-   * Returns whether a string is a PEM-encoded X.509 certificate.
-   *
-   * Validation is only syntactical, properties like validity dates are not evaluated.
-   */
-  isValidX509Cert(pem: string): boolean;
-
-  /**
    * Returns whether a certificate chain is valid given a set of trusted certificates.
    * The chain and trusted certificates are PEM-encoded bundles of X.509 certificates.
    */
