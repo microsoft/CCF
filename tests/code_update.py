@@ -133,8 +133,7 @@ def test_update_all_nodes(network, args):
         # Elections take (much) longer than a backup removal which is just
         # a commit, so we need to adjust our timeout accordingly, hence this branch
         if node.node_id == primary.node_id:
-            new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-            LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+            new_primary, _ = network.wait_for_new_primary(primary)
             primary = new_primary
         node.stop()
 

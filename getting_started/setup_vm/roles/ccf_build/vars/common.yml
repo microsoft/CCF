@@ -22,6 +22,7 @@ debs:
   - sudo
   - curl
   - shellcheck
+  - iptables
 
 mbedtls_ver: "2.16.8"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"

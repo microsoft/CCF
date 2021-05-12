@@ -198,8 +198,7 @@ def test_retire_primary(network, args):
 
     primary, backup = network.find_primary_and_any_backup()
     network.retire_node(primary, primary)
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    network.wait_for_new_primary(primary)
     check_can_progress(backup)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
@@ -288,6 +287,8 @@ def test_node_replacement(network, args):
     for other_backup in f_backups:
         other_backup.resume()
 
+    return network
+
 
 def run(args):
     txs = app.LoggingTxs()
@@ -302,11 +303,6 @@ def run(args):
         network.start_and_join(args)
 
         test_version(network, args)
-
-        import sys
-
-        sys.exit(0)
-
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
@@ -370,7 +366,7 @@ def run_join_old_snapshot(args):
             # Kill primary and wait for a new one: new primary is
             # guaranteed to have started from the new snapshot
             primary.stop()
-            network.wait_for_new_primary(primary.node_id)
+            network.wait_for_new_primary(primary)
 
             # Start new node from the old snapshot
             try:
