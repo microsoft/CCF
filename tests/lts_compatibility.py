@@ -104,18 +104,18 @@ def run_live_compatibility_since_last(args, lts_major_version, lts_install_path)
 
 
 def run_ledger_compatibility_since_first(args):
-
-    # TODO:
-    # 0. Get all LTS
-    # 1. Install very first LTS
-    # 2.
-
     repo = infra.gh_helper.Repository()
-
     lts_releases = repo.get_lts_releases()
-    LOG.error(lts_releases)
 
-    for _, lts_release in lts_releases.items():
+    # TODO: Remove fakeness
+    lts_releases_fake = {}
+    lts_releases_fake["1.0"] = lts_releases["release/1.x"]
+    lts_releases_fake["2.0"] = lts_releases["release/1.x"]
+
+    # TODO: Also test local checkout!
+    txs = app.LoggingTxs()
+    is_first = True
+    for _, lts_release in lts_releases_fake.items():
         version, install_path = repo.install_release(lts_release)
         LOG.success(f"Release {version} successfully installed at {install_path}")
 
@@ -124,17 +124,28 @@ def run_ledger_compatibility_since_first(args):
 
         major_version = Version(version).release[0]
 
-        txs = app.LoggingTxs()
-        network = infra.network.Network(
-            args.nodes,
-            binary_dir=binary_dir,
-            library_dir=library_dir,
-            txs=txs,
-            version=major_version,
-        )
-        network.start_and_join(args)
-        nodes = network.get_joined_nodes()
-
+        network_args = {
+            "hosts": args.nodes,
+            "binary_dir": binary_dir,
+            "library_dir": library_dir,
+            "txs": txs,
+            "version": major_version,
+        }
+        if is_first:
+            network = infra.network.Network(**network_args)
+            network.start_and_join(args)
+            nodes = network.get_joined_nodes()
+            is_first = False
+        else:
+            network = infra.network.Network(**network_args, existing_network=network)
+            network.start_in_recovery(
+                args,
+                ledger_dir,
+                committed_ledger_dir,
+                # snapshot_dir=snapshot_dir, # TODO: Include snapshots too?
+            )
+            network.recover(args)
+        # Verify that nodes run the expected CCF version
         if major_version > 1:
             for node in nodes:
                 with node.client() as c:
@@ -143,6 +154,10 @@ def run_ledger_compatibility_since_first(args):
         txs.issue(network, number_txs=5)
 
         network.stop_all_nodes()
+
+        ledger_dir, committed_ledger_dir = nodes[0].get_ledger(
+            include_read_only_dirs=True
+        )
 
         # Check that the ledger can be parsed on all nodes
         for node in nodes:
