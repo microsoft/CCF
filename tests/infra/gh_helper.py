@@ -104,9 +104,10 @@ class Repository:
 
     def install_latest_lts(self, previous_lts_file):
 
+        # TODO: We could get rid of this if we decide to tag the very first commit on `main` after we've branched for a release. But maybe that's messy?
         with open(previous_lts_file) as f:
             latest_release = f.readline()
-        latest_release_branch = f"release/{latest_release}"
+        latest_release_branch = f"{BRANCH_RELEASE_PREFIX}{latest_release}"
         LOG.info(f"Latest release branch for this checkout: {latest_release_branch}")
 
         if latest_release_branch not in self.get_release_branches_names():
@@ -114,25 +115,10 @@ class Repository:
                 f"Latest release branch {latest_release_branch} is not a valid release branch"
             )
 
-        tags_for_this_release = self.get_releases_from_release_branch(
-            latest_release_branch
-        )
+        tags_for_this_release = self.get_tags_from_branch(latest_release_branch)
         LOG.info(f"Found tags: {[t.name for t in tags_for_this_release]}")
 
         latest_tag_for_this_release = tags_for_this_release[0]
         LOG.info(f"Most recent tag: {latest_tag_for_this_release.name}")
 
-        # release = self.get_release_for_tag(latest_tag_for_this_release)
-        # LOG.info(f"Found release: {release.html_url}")
-
-        # stripped_tag = latest_tag_for_this_release.name[len("ccf-") :]
-        # debian_package_url = [
-        #     a.browser_download_url
-        #     for a in release.get_assets()
-        #     if re.match(f"ccf_{stripped_tag}{DEBIAN_PACKAGE_EXTENSION}", a.name)
-        # ][0]
-
-        return self.install_release(
-            latest_tag_for_this_release,
-            directory_name=f"ccf_install_{latest_tag_for_this_release.name}",
-        )
+        return self.install_release(latest_tag_for_this_release)

@@ -162,14 +162,16 @@ class Network:
             pass
 
         for host in hosts:
-            self._create_node(host)
+            self.create_node(host, version=self.version)
 
     def _get_next_local_node_id(self):
         if len(self.nodes):
             return self.nodes[-1].local_node_id + 1
         return self.node_offset
 
-    def _create_node(self, host, node_port=None):
+    def create_node(
+        self, host, binary_dir=None, library_dir=None, node_port=None, version=None
+    ):
         node_id = self._get_next_local_node_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
@@ -180,12 +182,12 @@ class Network:
         node = infra.node.Node(
             node_id,
             host,
-            self.binary_dir,
-            self.library_dir,
+            binary_dir or self.binary_dir,
+            library_dir or self.library_dir,
             debug,
             perf,
             node_port=node_port,
-            version=self.version,
+            version=version,
         )
         self.nodes.append(node)
         return node
@@ -579,6 +581,61 @@ class Network:
             else:
                 raise NodeShutdownError("Fatal error found during node shutdown")
 
+    def join_node(self, node, lib_name, args, target_node=None, timeout=3, **kwargs):
+        self._add_node(
+            node,
+            lib_name,
+            args,
+            target_node,
+            **kwargs,
+        )
+
+        primary, _ = self.find_primary()
+        try:
+            self.consortium.wait_for_node_to_exist_in_store(
+                primary,
+                node.node_id,
+                timeout=timeout,
+                node_status=(
+                    NodeStatus.PENDING
+                    if self.status == ServiceStatus.OPEN
+                    else NodeStatus.TRUSTED
+                ),
+            )
+        except TimeoutError as e:
+            LOG.error(f"New pending node {node.node_id} failed to join the network")
+            errors, _ = node.stop()
+            self.nodes.remove(node)
+            if errors:
+                # Throw accurate exceptions if known errors found in
+                for error in errors:
+                    if "Quote does not contain known enclave measurement" in error:
+                        raise CodeIdNotFound from e
+                    if "StartupSnapshotIsOld" in error:
+                        raise StartupSnapshotIsOld from e
+            raise
+
+    def trust_node(self, args, node):
+        primary, _ = self.find_primary()
+        try:
+            if self.status is ServiceStatus.OPEN:
+                self.consortium.trust_node(
+                    primary,
+                    node.node_id,
+                    timeout=ceil(args.join_timer * 2 / 1000),
+                )
+            # Here, quote verification has already been run when the node
+            # was added as pending. Only wait for the join timer for the
+            # joining node to retrieve network secrets.
+            node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
+        except (ValueError, TimeoutError):
+            LOG.error(f"New trusted node {node.node_id} failed to join the network")
+            node.stop()
+            raise
+
+        node.network_state = infra.node.NodeNetworkState.joined
+        self.wait_for_all_nodes_to_commit(primary=primary)
+
     def create_and_add_pending_node(
         self,
         lib_name,
@@ -593,40 +650,8 @@ class Network:
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
         """
-        new_node = self._create_node(host, node_port)
-
-        self._add_node(
-            new_node,
-            lib_name,
-            args,
-            target_node,
-            **kwargs,
-        )
-        primary, _ = self.find_primary()
-        try:
-            self.consortium.wait_for_node_to_exist_in_store(
-                primary,
-                new_node.node_id,
-                timeout=timeout,
-                node_status=(
-                    NodeStatus.PENDING
-                    if self.status == ServiceStatus.OPEN
-                    else NodeStatus.TRUSTED
-                ),
-            )
-        except TimeoutError as e:
-            LOG.error(f"New pending node {new_node.node_id} failed to join the network")
-            errors, _ = new_node.stop()
-            self.nodes.remove(new_node)
-            if errors:
-                # Throw accurate exceptions if known errors found in
-                for error in errors:
-                    if "Quote does not contain known enclave measurement" in error:
-                        raise CodeIdNotFound from e
-                    if "StartupSnapshotIsOld" in error:
-                        raise StartupSnapshotIsOld from e
-            raise
-
+        new_node = self.create_node(host, node_port)
+        self.join_node(new_node, lib_name, args, target_node, timeout, **kwargs)
         return new_node
 
     def create_and_trust_node(
@@ -650,27 +675,7 @@ class Network:
             node_port=node_port,
             **kwargs,
         )
-
-        primary, _ = self.find_primary()
-        try:
-            if self.status is ServiceStatus.OPEN:
-                self.consortium.trust_node(
-                    primary,
-                    new_node.node_id,
-                    timeout=ceil(args.join_timer * 2 / 1000),
-                )
-            # Here, quote verification has already been run when the node
-            # was added as pending. Only wait for the join timer for the
-            # joining node to retrieve network secrets.
-            new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
-        except (ValueError, TimeoutError):
-            LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
-            new_node.stop()
-            raise
-
-        new_node.network_state = infra.node.NodeNetworkState.joined
-        self.wait_for_all_nodes_to_commit(primary=primary)
-
+        self.trust_node(args, new_node)
         return new_node
 
     def retire_node(self, remote_node, node_to_retire):
