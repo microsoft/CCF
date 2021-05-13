@@ -7,6 +7,10 @@ import infra.logging_app as app
 import infra.utils
 import infra.gh_helper
 import os
+from setuptools.extern.packaging.version import Version  # type: ignore
+
+import ccf.ledger
+
 
 from loguru import logger as LOG
 
@@ -99,24 +103,50 @@ def run_live_compatibility_since_last(args, lts_major_version, lts_install_path)
         # - Retire old nodes and remove old code
 
 
-def run_ledger_compatibility_since_first(args, lts_releases):
+def run_ledger_compatibility_since_first(args):
 
     # TODO:
     # 0. Get all LTS
     # 1. Install very first LTS
     # 2.
 
-    # infra.gh_helper.get_get_release_branches_names
+    repo = infra.gh_helper.Repository()
 
-    # TODO:
-    # 1. Install very first LTS release
-    # 2. Run a service and issue some commands
-    # 3. Stop
-    # 4. Install next LTS release
-    # 5. Rinse and repeat
+    lts_releases = repo.get_lts_releases()
+    LOG.error(lts_releases)
 
-    # install_release()
-    pass
+    for _, lts_release in lts_releases.items():
+        version, install_path = repo.install_release(lts_release)
+        LOG.success(f"Release {version} successfully installed at {install_path}")
+
+        binary_dir = os.path.join(install_path, "bin")
+        library_dir = os.path.join(install_path, "lib")
+
+        major_version = Version(version).release[0]
+
+        txs = app.LoggingTxs()
+        network = infra.network.Network(
+            args.nodes,
+            binary_dir=binary_dir,
+            library_dir=library_dir,
+            txs=txs,
+            version=major_version,
+        )
+        network.start_and_join(args)
+        nodes = network.get_joined_nodes()
+
+        if major_version > 1:
+            for node in nodes:
+                with node.client() as c:
+                    assert c.get("/node/version").body.json()["ccf_version"] == version
+
+        txs.issue(network, number_txs=5)
+
+        network.stop_all_nodes()
+
+        # Check that the ledger can be parsed on all nodes
+        for node in nodes:
+            ccf.ledger.Ledger(node.remote.ledger_paths()).get_latest_public_state()
 
 
 if __name__ == "__main__":
@@ -137,13 +167,14 @@ if __name__ == "__main__":
     # Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
 
-    repo = infra.gh_helper.Repository()
+    # repo = infra.gh_helper.Repository()
+    # lts_major_version, lts_install_path = repo.install_latest_lts(
+    #     args.previous_lts_file
+    # )
 
-    lts_major_version, lts_install_path = repo.install_latest_lts(
-        args.previous_lts_file
-    )
+    # LOG.error(f"LTS version: {lts_major_version}")
 
-    LOG.error(f"LTS version: {lts_major_version}")
-
-    run_live_compatibility_since_last(args, lts_major_version, lts_install_path)
+    # run_live_compatibility_since_last(args, lts_major_version, lts_install_path)
     # run_ledger_compatibility_since_first(args, lts_releases)
+
+    run_ledger_compatibility_since_first(args)
