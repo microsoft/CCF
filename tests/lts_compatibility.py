@@ -112,17 +112,26 @@ def run_ledger_compatibility_since_first(args):
     lts_releases_fake["1.0"] = lts_releases["release/1.x"]
     lts_releases_fake["2.0"] = lts_releases["release/1.x"]
 
+    lts_releases_fake["local"] = None
+
     # TODO: Also test local checkout!
     txs = app.LoggingTxs()
     is_first = True
     for _, lts_release in lts_releases_fake.items():
-        version, install_path = repo.install_release(lts_release)
-        LOG.success(f"Release {version} successfully installed at {install_path}")
 
-        binary_dir = os.path.join(install_path, "bin")
-        library_dir = os.path.join(install_path, "lib")
+        if lts_release:
+            version, install_path = repo.install_release(lts_release)
+            LOG.success(f"Release {version} successfully installed at {install_path}")
 
-        major_version = Version(version).release[0]
+            binary_dir = os.path.join(install_path, "bin")
+            library_dir = os.path.join(install_path, "lib")
+
+            major_version = Version(version).release[0]
+
+        else:
+            binary_dir = "."
+            library_dir = "."
+            major_version = None
 
         network_args = {
             "hosts": args.nodes,
@@ -146,10 +155,11 @@ def run_ledger_compatibility_since_first(args):
             )
             network.recover(args)
         # Verify that nodes run the expected CCF version
-        if major_version > 1:
+        if not major_version or major_version > 1:
             for node in nodes:
                 with node.client() as c:
-                    assert c.get("/node/version").body.json()["ccf_version"] == version
+                    r = c.get("/node/version")
+                    assert r.body.json()["ccf_version"] == args.ccf_version
 
         txs.issue(network, number_txs=5)
 

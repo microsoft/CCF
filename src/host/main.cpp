@@ -816,7 +816,7 @@ int main(int argc, char** argv)
       num_worker_threads,
       time_updater->behaviour.get_value());
 
-    LOG_INFO_FMT("Created new node");
+    LOG_INFO_FMT("Created new node (version: {})", ccf::ccf_version);
 
     // Write the node and network certs to disk.
     files::dump(node_cert, node_cert_file);
