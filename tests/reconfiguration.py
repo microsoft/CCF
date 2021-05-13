@@ -4,12 +4,11 @@ import infra.e2e_args
 import infra.network
 import infra.proc
 import infra.logging_app as app
-from ccf.tx_id import TxID
 import suite.test_requirements as reqs
-import time
 import tempfile
 from shutil import copy
 import os
+from infra.checker import check_can_progress
 
 from loguru import logger as LOG
 
@@ -32,23 +31,6 @@ def count_nodes(configs, network):
         nodes_in_config = set(node_config.keys()) - stopped
         assert nodes == nodes_in_config, f"{nodes} {nodes_in_config} {node_id}"
     return len(nodes)
-
-
-def check_can_progress(node, timeout=3):
-    with node.client() as c:
-        r = c.get("/node/commit")
-        original_tx = TxID.from_str(r.body.json()["transaction_id"])
-        with node.client("user0") as uc:
-            uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            current_tx = TxID.from_str(
-                c.get("/node/commit").body.json()["transaction_id"]
-            )
-            if current_tx.seqno > original_tx.seqno:
-                return current_tx
-            time.sleep(0.1)
-        assert False, f"Stuck at {r}"
 
 
 @reqs.description("Adding a valid node without snapshot")

@@ -6,9 +6,9 @@ import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
 import suite.test_requirements as reqs
-import reconfiguration
 from ccf.tx_id import TxID
 import time
+from infra.checker import check_can_progress
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -113,7 +113,7 @@ def test_isolate_and_reconnect_primary(network, args):
         new_primary, _ = network.wait_for_new_primary(
             primary, nodes=backups, timeout_multiplier=6
         )
-        new_tx = reconfiguration.check_can_progress(new_primary)
+        new_tx = check_can_progress(new_primary)
 
     # Check reconnected former primary has caught up
     with primary.client() as c:
