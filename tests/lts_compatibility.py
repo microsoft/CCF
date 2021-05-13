@@ -102,6 +102,13 @@ def run_live_compatibility_since_last(args, lts_major_version, lts_install_path)
 def run_ledger_compatibility_since_first(args, lts_releases):
 
     # TODO:
+    # 0. Get all LTS
+    # 1. Install very first LTS
+    # 2.
+
+    # infra.gh_helper.get_get_release_branches_names
+
+    # TODO:
     # 1. Install very first LTS release
     # 2. Run a service and issue some commands
     # 3. Stop
@@ -130,7 +137,11 @@ if __name__ == "__main__":
     # Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
 
-    lts_major_version, lts_install_path = infra.gh_helper.install_latest_lts(args)
+    repo = infra.gh_helper.Repository()
+
+    lts_major_version, lts_install_path = repo.install_latest_lts(
+        args.previous_lts_file
+    )
 
     LOG.error(f"LTS version: {lts_major_version}")
 
