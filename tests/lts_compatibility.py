@@ -17,59 +17,47 @@ from loguru import logger as LOG
 LOCAL_CHECKOUT_DIRECTORY = "."
 
 
-# TODO:
-# 1. Test recovery since the very first LTS
-# 2. Test live compatibility on all releases on a release branch
-# 3.
-
-
 def issue_activity_on_live_service(network, args):
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
 
 
-# TODO: Try to break this by adding a field to the append entries. It should fail!
 def run_live_compatibility_since_last(args):
     """
-    Test that a service from the previous LTS can be safely upgraded to the version of the local checkout
+    Test that a service from the latest LTS can be safely upgraded to the version of the local checkout.
     """
 
-    repo = infra.gh_helper.Repository()
-    version, install_path = repo.install_latest_lts(args.previous_lts_file)
+    # repo = infra.gh_helper.Repository()
+    # lts_version, lts_install_path = repo.install_latest_lts(args.previous_lts_file)
+    # TODO: Remove
+    lts_version = "1.0.0"
+    lts_install_path = "/data/git/CCF/build/ccf_install_1.0.0/opt/ccf"
 
-    LOG.error(f"LTS version: {install_path}")
-
-    binary_dir = os.path.join(install_path, "bin")
-    library_dir = os.path.join(install_path, "lib")
-
-    major_version = Version(version).release[0]
+    lts_binary_dir = os.path.join(lts_install_path, "bin")
+    lts_library_dir = os.path.join(lts_install_path, "lib")
+    major_version = Version(lts_version).release[0]
 
     txs = app.LoggingTxs()
     with infra.network.network(
         args.nodes,
-        binary_directory=binary_dir,
-        library_directory=library_dir,
-        dbg_nodes=args.debug_nodes,
+        binary_directory=lts_binary_dir,
+        library_directory=lts_library_dir,
         pdb=args.pdb,
         txs=txs,
         version=major_version,  # Start the service the LTS way
     ) as network:
         network.start_and_join(args)
 
-        old_nodes = network.get_joined_nodes()
+        lts_nodes = network.get_joined_nodes()
         primary, _ = network.find_primary()
 
         issue_activity_on_live_service(network, args)
 
-        old_code_id = infra.utils.get_code_id(
-            args.enclave_type, args.oe_binary, args.package, library_dir=library_dir
-        )
         new_code_id = infra.utils.get_code_id(
             args.enclave_type,
             args.oe_binary,
             args.package,
             library_dir=LOCAL_CHECKOUT_DIRECTORY,
         )
-        LOG.info(f"Initiating code upgrade from {old_code_id} to {new_code_id}")
 
         network.consortium.add_new_code(primary, new_code_id)
 
@@ -92,17 +80,18 @@ def run_live_compatibility_since_last(args):
 
         # Verify that all nodes run the expected CCF version
         for node in network.get_joined_nodes():
-            if node not in old_nodes or major_version > 1:
+            if node not in lts_nodes or major_version > 1:
                 with node.client() as c:
                     r = c.get("/node/version")
                     assert r.body.json()["ccf_version"] == (
-                        args.ccf_version if node in new_nodes else version
+                        args.ccf_version if node in new_nodes else lts_version
                     )
 
         issue_activity_on_live_service(network, args)
 
-        # Elect a new node as one of the primary
-        for node in old_nodes:
+        # Test that new nodes can become primary with LTS nodes as backups
+        # Note: Force a new node as primary by isolating LTS nodes
+        for node in lts_nodes:
             node.suspend()
 
         new_primary, _ = network.wait_for_new_primary(primary, nodes=new_nodes)
@@ -110,7 +99,7 @@ def run_live_compatibility_since_last(args):
             new_primary in new_nodes
         ), "New node should have been elected as new primary"
 
-        for node in old_nodes:
+        for node in lts_nodes:
             node.resume()
 
         try:
@@ -119,7 +108,7 @@ def run_live_compatibility_since_last(args):
         except TimeoutError:
             pass
 
-        # Retire one new node, so that at least one old node is required to reach consensus
+        # Retire one new node, so that at least one LTS node is required to reach consensus
         other_new_nodes = [
             node
             for node in network.get_joined_nodes()
@@ -129,9 +118,15 @@ def run_live_compatibility_since_last(args):
 
         issue_activity_on_live_service(network, args)
 
-        # Retire old nodes and code id
+        # Retire LTS nodes and code id
+        old_code_id = infra.utils.get_code_id(
+            args.enclave_type,
+            args.oe_binary,
+            args.package,
+            library_dir=lts_library_dir,
+        )
         network.consortium.retire_code(primary, old_code_id)
-        for node in old_nodes:
+        for node in lts_nodes:
             network.retire_node(new_primary, node)
             node.stop()
 
@@ -139,13 +134,13 @@ def run_live_compatibility_since_last(args):
 
 
 def run_ledger_compatibility_since_first(args):
-    repo = infra.gh_helper.Repository()
-    lts_releases = repo.get_lts_releases()
+    # repo = infra.gh_helper.Repository()
+    # lts_releases = repo.get_lts_releases()
 
     # TODO: Remove fakeness
     lts_releases_fake = {}
-    lts_releases_fake["1.0"] = lts_releases["release/1.x"]
-    lts_releases_fake["2.0"] = lts_releases["release/1.x"]
+    lts_releases_fake["1.0"] = None  # lts_releases["release/1.x"]
+    lts_releases_fake["2.0"] = None  # lts_releases["release/1.x"]
 
     # Add an empty entry to release to indicate local checkout
     # Note: dicts are ordered from Python3.7
@@ -156,9 +151,12 @@ def run_ledger_compatibility_since_first(args):
     for _, lts_release in lts_releases_fake.items():
 
         if lts_release:
-            version, install_path = repo.install_release(lts_release)
-            binary_dir = os.path.join(install_path, "bin")
-            library_dir = os.path.join(install_path, "lib")
+            # version, lts_install_path = repo.install_release(lts_release)
+            # TODO: Fix
+            version = "1.0.0"
+            lts_install_path = "/data/git/CCF/build/ccf_install_1.0.0/opt/ccf"
+            binary_dir = os.path.join(lts_install_path, "bin")
+            library_dir = os.path.join(lts_install_path, "lib")
             major_version = Version(version).release[0]
         else:
             version = args.ccf_version
@@ -183,7 +181,7 @@ def run_ledger_compatibility_since_first(args):
                 args,
                 ledger_dir,
                 committed_ledger_dir,
-                # snapshot_dir=snapshot_dir, # TODO: Include snapshots too?
+                # snapshot_dir=snapshot_dir, # TODO: How to include snapshots as well? A different test altogether? Probably!
             )
             network.recover(args)
 
@@ -196,6 +194,7 @@ def run_ledger_compatibility_since_first(args):
                     r = c.get("/node/version")
                     assert r.body.json()["ccf_version"] == version
 
+        # TODO: This seems too much!
         issue_activity_on_live_service(network, args)
 
         network.stop_all_nodes()
@@ -209,7 +208,6 @@ def run_ledger_compatibility_since_first(args):
             public_state = ccf.ledger.Ledger(
                 node.remote.ledger_paths()
             ).get_latest_public_state()
-            LOG.warning(list(public_state[0].keys()))
 
 
 if __name__ == "__main__":
@@ -230,5 +228,5 @@ if __name__ == "__main__":
     # Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
 
-    run_live_compatibility_since_last(args)
-    # run_ledger_compatibility_since_first(args)
+    # run_live_compatibility_since_last(args)
+    run_ledger_compatibility_since_first(args)
