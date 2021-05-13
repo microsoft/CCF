@@ -24,6 +24,7 @@ from ccf.tx_id import TxID
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
+import urllib.parse
 
 from loguru import logger as LOG
 
@@ -739,6 +740,7 @@ def test_historical_query_range(network, args):
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
+    primary, _ = network.find_primary()
 
     with backup.client() as c:
         check_commit = infra.checker.Checker(c)
@@ -767,11 +769,11 @@ def test_forwarding_frontends(network, args):
             r = c.get(f"/app/log/request_query?{query_string}")
             assert r.body.text() == query_string, r.body.text()
 
-    member = network.consortium.get_any_active_member()
-    with backup.client(*member.auth(True)) as c:
-        for query_string in samples:
-            r = c.get(f"/app/log/request_query?{query_string}")
-            assert r.body.text() == query_string, r.body.text()
+        for i in range(0, 255):
+            ci = chr(i)
+            ch = urllib.parse.urlencode({"arg": ci})
+            r = c.get(f"/app/log/request_query?{ch}")
+            assert r.body.data() == f"arg={ci}".encode(), r.body.data()
 
     return network
 
