@@ -23,6 +23,10 @@ LOCAL_CHECKOUT_DIRECTORY = "."
 # 3.
 
 
+def issue_activity_on_live_service(network, args):
+    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+
+
 # TODO: Try to break this by adding a field to the append entries. It should fail!
 def run_live_compatibility_since_last(args):
     """
@@ -54,8 +58,7 @@ def run_live_compatibility_since_last(args):
         old_nodes = network.get_joined_nodes()
         primary, _ = network.find_primary()
 
-        # TODO: Move to its own function
-        txs.issue(network, number_txs=args.snapshot_tx_interval * 4)
+        issue_activity_on_live_service(network, args)
 
         old_code_id = infra.utils.get_code_id(
             args.enclave_type, args.oe_binary, args.package, library_dir=library_dir
@@ -83,7 +86,7 @@ def run_live_compatibility_since_last(args):
                 version=None,
             )
             network.join_node(new_node, args.package, args)
-            network.trust_node(args, new_node)
+            network.trust_node(new_node, args)
             from_snapshot = not from_snapshot
             new_nodes.append(new_node)
 
@@ -96,8 +99,7 @@ def run_live_compatibility_since_last(args):
                         args.ccf_version if node in new_nodes else version
                     )
 
-        # The hybrid service can make progress
-        txs.issue(network, number_txs=5)
+        issue_activity_on_live_service(network, args)
 
         # Elect a new node as one of the primary
         for node in old_nodes:
@@ -125,10 +127,15 @@ def run_live_compatibility_since_last(args):
         ]
         network.retire_node(new_primary, other_new_nodes[0])
 
-        txs.issue(network, number_txs=5)
+        issue_activity_on_live_service(network, args)
 
-        # TODO:
-        # - Retire old nodes and remove old code
+        # Retire old nodes and code id
+        network.consortium.retire_code(primary, old_code_id)
+        for node in old_nodes:
+            network.retire_node(new_primary, node)
+            node.stop()
+
+        issue_activity_on_live_service(network, args)
 
 
 def run_ledger_compatibility_since_first(args):
@@ -189,8 +196,7 @@ def run_ledger_compatibility_since_first(args):
                     r = c.get("/node/version")
                     assert r.body.json()["ccf_version"] == version
 
-        # TODO: Move this out in its own function
-        txs.issue(network, number_txs=5)
+        issue_activity_on_live_service(network, args)
 
         network.stop_all_nodes()
 
@@ -225,4 +231,4 @@ if __name__ == "__main__":
     args.host_log_level = "info"
 
     run_live_compatibility_since_last(args)
-    run_ledger_compatibility_since_first(args)
+    # run_ledger_compatibility_since_first(args)
