@@ -740,7 +740,6 @@ def test_historical_query_range(network, args):
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
-    primary, _ = network.find_primary()
 
     with backup.client() as c:
         check_commit = infra.checker.Checker(c)
