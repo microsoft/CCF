@@ -101,10 +101,10 @@ namespace ccf::endpoints
     return make_endpoint(
              method,
              verb,
-             [f](EndpointContext& args) {
-               ReadOnlyEndpointContext ro_args(
-                 args.rpc_ctx, std::move(args.caller), args.tx);
-               f(ro_args);
+             [f](EndpointContext& ctx) {
+               ReadOnlyEndpointContext ro_ctx(
+                 ctx.rpc_ctx, std::move(ctx.caller), ctx.tx);
+               f(ro_ctx);
              },
              ap)
       .set_forwarding_required(ForwardingRequired::Sometimes);
@@ -117,7 +117,7 @@ namespace ccf::endpoints
     const AuthnPolicies& ap)
   {
     return make_endpoint(
-             method, verb, [f](EndpointContext& args) { f(args); }, ap)
+             method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Primary);
@@ -273,7 +273,7 @@ namespace ccf::endpoints
   }
 
   void EndpointRegistry::execute_endpoint(
-    EndpointDefinitionPtr e, EndpointContext& args)
+    EndpointDefinitionPtr e, EndpointContext& ctx)
   {
     auto endpoint = dynamic_cast<const Endpoint*>(e.get());
     if (endpoint == nullptr)
@@ -283,7 +283,7 @@ namespace ccf::endpoints
         "derived implementation to handle derived endpoint instances");
     }
 
-    endpoint->func(args);
+    endpoint->func(ctx);
   }
 
   std::set<RESTVerb> EndpointRegistry::get_allowed_verbs(

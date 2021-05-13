@@ -16,7 +16,6 @@
 #include "kv/kv_types.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
-#include "start_type.h"
 #include "tls/tls.h"
 
 #include <chrono>
@@ -140,7 +139,7 @@ enum AdminMessage : ringbuffer::Message
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::log_msg,
-  std::chrono::milliseconds,
+  std::chrono::microseconds,
   std::string,
   size_t,
   logger::Level,

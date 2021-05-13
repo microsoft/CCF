@@ -69,6 +69,32 @@ def test_add_node(network, args):
     return network
 
 
+@reqs.description("Adding a node on different curve")
+def test_add_node_on_other_curve(network, args):
+    original_curve = args.curve_id
+    args.curve_id = (
+        infra.network.EllipticCurve.secp256r1
+        if original_curve is None
+        else original_curve.next()
+    )
+    network = test_add_node(network, args)
+    args.curve_id = original_curve
+    return network
+
+
+@reqs.description("Changing curve used for identity of new nodes and new services")
+def test_change_curve(network, args):
+    # NB: This doesn't actually test things, it just changes the configuration
+    # for future tests. Expects to be part of an interesting suite
+    original_curve = args.curve_id
+    args.curve_id = (
+        infra.network.EllipticCurve.secp256r1
+        if original_curve is None
+        else original_curve.next()
+    )
+    return network
+
+
 @reqs.description("Adding a valid node from a backup")
 @reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
@@ -132,18 +158,25 @@ def test_add_node_from_snapshot(
 @reqs.supports_methods("log/private")
 def test_add_as_many_pending_nodes(network, args):
     # Should not change the raft consensus rules (i.e. majority)
+    primary, _ = network.find_primary()
     number_new_nodes = len(network.nodes)
     LOG.info(
         f"Adding {number_new_nodes} pending nodes - consensus rules should not change"
     )
 
-    for _ in range(number_new_nodes):
+    new_nodes = [
         network.create_and_add_pending_node(
             args.package,
             "local://localhost",
             args,
         )
-    check_can_progress(network.find_primary()[0])
+        for _ in range(number_new_nodes)
+    ]
+    check_can_progress(primary)
+
+    for new_node in new_nodes:
+        network.consortium.retire_node(primary, new_node)
+        network.nodes.remove(new_node)
     return network
 
 
@@ -209,6 +242,46 @@ def test_node_filter(network, args):
     return network
 
 
+@reqs.description("Replace a node on the same addresses")
+@reqs.at_least_n_nodes(3)  # Should be at_least_f_failures(1)
+def test_node_replacement(network, args):
+    primary, backups = network.find_nodes()
+
+    nodes = network.get_joined_nodes()
+    node_to_replace = backups[-1]
+    f = infra.e2e_args.max_f(args, len(nodes))
+    f_backups = backups[:f]
+
+    # Retire one node
+    network.consortium.retire_node(primary, node_to_replace)
+    node_to_replace.stop()
+    network.nodes.remove(node_to_replace)
+    check_can_progress(primary)
+
+    # Add in a node using the same address
+    replacement_node = network.create_and_trust_node(
+        args.package,
+        f"local://{node_to_replace.host}:{node_to_replace.rpc_port}",
+        args,
+        node_port=node_to_replace.node_port,
+        from_snapshot=False,
+    )
+
+    assert replacement_node.node_id != node_to_replace.node_id
+    assert replacement_node.host == node_to_replace.host
+    assert replacement_node.node_port == node_to_replace.node_port
+    assert replacement_node.rpc_port == node_to_replace.rpc_port
+    LOG.info(
+        f"Stopping {len(f_backups)} other nodes to make progress depend on the replacement"
+    )
+    for other_backup in f_backups:
+        other_backup.suspend()
+    # Confirm the network can make progress
+    check_can_progress(primary)
+    for other_backup in f_backups:
+        other_backup.resume()
+
+
 def run(args):
     txs = app.LoggingTxs()
     with infra.network.network(
@@ -221,8 +294,10 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
+        test_add_node_on_other_curve(network, args)
         test_retire_backup(network, args)
         test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
@@ -300,10 +375,9 @@ def run_join_old_snapshot(args):
 
 
 if __name__ == "__main__":
-
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.initial_user_count = 1
 
     run(args)

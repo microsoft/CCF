@@ -197,8 +197,8 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-# Build tags from ccf-0.16.3 onwards
-smv_tag_whitelist = r"^ccf-(0\.(1([6-9]\.[3-9]|[7-9].*)|[2-9].*)|[1-9].*)$"
+# Build tags from ccf-1.0.0
+smv_tag_whitelist = r"^ccf-(1\.\d+\.\d+|2.*)$"
 smv_branch_whitelist = r"^main$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
@@ -237,6 +237,27 @@ spelling_word_list_filename = ["spelling_wordlist.txt"]
 js_language = "typescript"
 js_source_path = "../src/js"
 jsdoc_config_path = "../src/js/tsconfig.json"
+
+# sphinxcontrib-mermaid options
+# NB: The docs say the <script> tag will no longer be needed
+# from 0.7, but this is not yet released
+mermaid_init_js = """<script>
+mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);
+</script>"""
 
 def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]):
     """

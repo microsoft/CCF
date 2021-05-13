@@ -45,6 +45,11 @@ class LoggingTxs:
         self.user = user_id
         self.network = None
 
+    def clear(self):
+        self.pub.clear()
+        self.priv.clear()
+        self.idx = 0
+
     def get_last_tx(self, priv=True, idx=None):
         if idx is None:
             idx = self.idx
@@ -60,9 +65,10 @@ class LoggingTxs:
         repeat=False,
         idx=None,
         wait_for_sync=True,
+        log_capture=None,
     ):
         self.network = network
-        remote_node, _ = network.find_primary()
+        remote_node, _ = network.find_primary(log_capture=log_capture)
         if on_backup:
             remote_node = network.find_any_backup()
 
@@ -86,6 +92,7 @@ class LoggingTxs:
                         "id": target_idx,
                         "msg": priv_msg,
                     },
+                    log_capture=log_capture,
                 )
                 self.priv[target_idx].append(
                     {"msg": priv_msg, "seqno": rep_priv.seqno, "view": rep_priv.view}
@@ -100,6 +107,7 @@ class LoggingTxs:
                         "id": target_idx,
                         "msg": pub_msg,
                     },
+                    log_capture=log_capture,
                 )
                 self.pub[target_idx].append(
                     {"msg": pub_msg, "seqno": rep_pub.seqno, "view": rep_pub.view}

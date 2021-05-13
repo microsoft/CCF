@@ -12,7 +12,6 @@ import ccf.ledger
 import os
 import socket
 import re
-import time
 
 from loguru import logger as LOG
 
@@ -72,6 +71,7 @@ class Node:
         library_dir=".",
         debug=False,
         perf=False,
+        node_port=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -104,7 +104,7 @@ class Node:
         else:
             self.pubhost = self.host
             self.pubport = self.rpc_port
-        self.node_port = None
+        self.node_port = node_port
 
     def __hash__(self):
         return self.local_node_id
@@ -312,32 +312,16 @@ class Node:
                 f"Node {self.local_node_id} failed to join the network"
             ) from e
 
-    def get_ledger_public_state_at(self, seqno, timeout=3):
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            try:
-                ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
-                tx = ledger.get_transaction(seqno)
-                return tx.get_public_domain().get_tables()
-            except Exception:
-                time.sleep(0.1)
+    def get_ledger_public_tables_at(self, seqno):
+        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+        assert ledger.last_committed_chunk_range[1] >= seqno
+        tx = ledger.get_transaction(seqno)
+        return tx.get_public_domain().get_tables()
 
-        raise TimeoutError(
-            f"Could not read transaction at seqno {seqno} from ledger {self.remote.ledger_paths()}"
-        )
-
-    def get_latest_ledger_public_state(self, timeout=3):
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            try:
-                ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
-                return ledger.get_latest_public_state()
-            except Exception:
-                time.sleep(0.1)
-
-        raise TimeoutError(
-            f"Could not read latest state from ledger {self.remote.ledger_paths()}"
-        )
+    def get_ledger_public_state_at(self, seqno):
+        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+        assert ledger.last_committed_chunk_range[1] >= seqno
+        return ledger.get_latest_public_state()
 
     def get_ledger(self, include_read_only_dirs=False):
         """

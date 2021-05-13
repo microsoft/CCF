@@ -298,10 +298,13 @@ TEST_CASE("Wrap, unwrap with RSAKeyPair")
 
   INFO("Cannot make RSA key from EC key");
   {
-    auto rsa_kp = make_key_pair(); // EC Key
+    for (const auto curve : supported_curves)
+    {
+      auto rsa_kp = make_key_pair(curve); // EC Key
 
-    REQUIRE_THROWS_AS(
-      make_rsa_public_key(rsa_kp->public_key_pem()), std::logic_error);
+      REQUIRE_THROWS_AS(
+        make_rsa_public_key(rsa_kp->public_key_pem()), std::logic_error);
+    }
   }
 
   INFO("Without label");

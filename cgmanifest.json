@@ -14,7 +14,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "97d5a9447e66cd5e107b7a6c463be4a468a40496"
+          "commitHash": "4d8716f1efc1d14aa736ef52ee727bd4204f4c40"
         }
       }
     },
@@ -33,15 +33,6 @@
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
           "commitHash": "5cb3efabce007c3a0230e4cc2e27da491c646b6c"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/rpavlik/jenkins-ctest-plugin.git",
-          "commitHash": "22265f5786dd26e47c46329f1fc76fc08de777c5"
         }
       }
     },
@@ -122,7 +113,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/llhttp",
-          "commitHash": "3523423483a61179f47cc7ff0da012fb6f81ec1b"
+          "commitHash": "2046903d99690b13a4a51a976dcc68254705fcd5"
         }
       }
     },

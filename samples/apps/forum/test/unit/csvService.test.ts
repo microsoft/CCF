@@ -46,8 +46,10 @@ describe("CsvService", function () {
       pollService.submitOpinion(user, topicB, opinionB);
 
       const csvOut = csvService.getOpinions(user);
-      const rowsOut = papa.parse(csvOut, { header: true, dynamicTyping: true })
-        .data;
+      const rowsOut = papa.parse(csvOut, {
+        header: true,
+        dynamicTyping: true,
+      }).data;
       assert.deepEqual(rowsOut, [
         { Topic: topicA, Opinion: opinionA },
         { Topic: topicB, Opinion: opinionB },

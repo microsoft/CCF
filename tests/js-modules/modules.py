@@ -70,7 +70,7 @@ def test_app_bundle(network, args):
 
         assert (
             raw_module_name
-            in primary.get_ledger_public_state_at(set_js_proposal.completed_seqno)[
+            in network.get_ledger_public_state_at(set_js_proposal.completed_seqno)[
                 "public:ccf.gov.modules"
             ]
         ), "Module was not added"
@@ -101,7 +101,7 @@ def test_app_bundle(network, args):
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     assert (
-        primary.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
+        network.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
             "public:ccf.gov.modules"
         ][raw_module_name]
         is None
@@ -186,7 +186,7 @@ def test_npm_app(network, args):
 
     LOG.info("Building ccf-app npm package (dependency)")
     ccf_pkg_dir = os.path.join(PARENT_DIR, "..", "js", "ccf-app")
-    subprocess.run(["npm", "install"], cwd=ccf_pkg_dir, check=True)
+    subprocess.run(["npm", "install", "--no-package-lock"], cwd=ccf_pkg_dir, check=True)
 
     LOG.info("Building npm app")
     app_dir = os.path.join(PARENT_DIR, "npm-app")
@@ -323,7 +323,7 @@ def test_npm_app(network, args):
 
         r = c.post("/app/rpc/apply_writes")
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
-        val = primary.get_ledger_public_state_at(r.seqno)["public:apply_writes"][
+        val = network.get_ledger_public_state_at(r.seqno)["public:apply_writes"][
             "foo".encode()
         ]
         assert val == b"bar", val
@@ -356,6 +356,39 @@ def test_npm_app(network, args):
         assert r.body.json(), r.body
         r = c.post("/app/isValidX509CertBundle", "garbage")
         assert not r.body.json(), r.body
+
+        r = c.get("/node/quotes/self")
+        primary_quote_info = r.body.json()
+        if not primary_quote_info["raw"]:
+            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, virtual mode")
+        else:
+            # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
+            OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
+            r = c.post(
+                "/app/verifyOpenEnclaveEvidence",
+                {
+                    "format": OE_FORMAT_UUID_SGX_ECDSA,
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            body = r.body.json()
+            assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
+            assert "sgx_report_data" in body["customClaims"], body
+
+            # again but without endorsements
+            r = c.post(
+                "/app/verifyOpenEnclaveEvidence",
+                {
+                    "format": OE_FORMAT_UUID_SGX_ECDSA,
+                    "evidence": primary_quote_info["raw"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            body = r.body.json()
+            assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
+            assert "sgx_report_data" in body["customClaims"], body
 
         validate_openapi(c)
 

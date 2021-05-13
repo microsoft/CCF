@@ -15,16 +15,24 @@ from inspect import signature, Parameter
 suites = {}
 
 
-# This suite tests that rekeying, network configuration changes
-# and recoveries can be interleaved
+# This suite tests that rekeying, network configuration changes, recoveries and
+# curve changes can be interleaved
 suite_rekey_recovery = [
     recovery.test,
     reconfiguration.test_add_node,
+    reconfiguration.test_add_node_on_other_curve,
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
+    reconfiguration.test_add_node_on_other_curve,
     recovery.test,
     e2e_logging.test_rekey,
     reconfiguration.test_add_node,
+    reconfiguration.test_change_curve,
+    reconfiguration.test_add_node,
+    reconfiguration.test_add_node_on_other_curve,
+    e2e_logging.test_rekey,
+    recovery.test,
+    e2e_logging.test_rekey,
 ]
 suites["rekey_recovery"] = suite_rekey_recovery
 
@@ -82,7 +90,9 @@ all_tests_suite = [
     memberclient.test_missing_signature_header,
     memberclient.test_corrupted_signature,
     # reconfiguration:
+    reconfiguration.test_node_replacement,
     reconfiguration.test_add_node,
+    reconfiguration.test_add_node_on_other_curve,
     reconfiguration.test_add_node_from_backup,
     reconfiguration.test_add_as_many_pending_nodes,
     reconfiguration.test_retire_backup,
@@ -98,6 +108,9 @@ all_tests_suite = [
     code_update.test_add_node_with_bad_code,
     governance_history.test_ledger_is_readable,
     governance_history.test_tables_doc,
+    # curve migration:
+    reconfiguration.test_change_curve,
+    recovery.test,
 ]
 suites["all"] = all_tests_suite
 

@@ -10,6 +10,7 @@ pr:
   branches:
     include:
       - main
+      - "release/*"
   paths:
     include:
       - "*"
@@ -20,6 +21,7 @@ schedules:
     branches:
       include:
         - main
+        - "release/*"
     always: true
 
 resources:
@@ -35,11 +37,13 @@ resources:
 variables:
   ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-') }}:
     perf_or_release: release
+    perf_tests: no_run
   ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
     perf_or_release: perf
+    perf_tests: run
 
 jobs:
   - template: .azure-pipelines-templates/matrix.yml
     parameters:
       perf_or_release: ${{ variables['perf_or_release'] }}
-      perf_tests: run
+      perf_tests: ${{ variables['perf_tests'] }}

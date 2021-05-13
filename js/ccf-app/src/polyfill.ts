@@ -29,6 +29,8 @@ import {
   CryptoKeyPair,
   WrapAlgoParams,
   DigestAlgorithm,
+  EvidenceClaims,
+  OpenEnclave,
 } from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -50,12 +52,18 @@ class KvMapPolyfill implements KvMap {
   delete(key: ArrayBuffer): boolean {
     return this.map.delete(base64(key));
   }
+  clear(): void {
+    this.map.clear();
+  }
   forEach(
     callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void
   ): void {
     this.map.forEach((value, key, _) => {
       callback(value, unbase64(key), this);
     });
+  }
+  get size(): number {
+    return this.map.size;
   }
 }
 
@@ -196,6 +204,18 @@ class CCFPolyfill implements CCF {
 }
 
 (<any>globalThis).ccf = new CCFPolyfill();
+
+class OpenEnclavePolyfill implements OpenEnclave {
+  verifyOpenEnclaveEvidence(
+    format: string | undefined,
+    evidence: ArrayBuffer,
+    endorsements?: ArrayBuffer
+  ): EvidenceClaims {
+    throw new Error("Method not implemented.");
+  }
+}
+
+(<any>globalThis).openenclave = new OpenEnclavePolyfill();
 
 function nodeBufToArrBuf(buf: Buffer): ArrayBuffer {
   // Note: buf.buffer is not safe, see docs.

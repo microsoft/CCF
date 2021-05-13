@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ccf/version.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -17,7 +18,6 @@
 #include "snapshot.h"
 #include "ticker.h"
 #include "time_updater.h"
-#include "version.h"
 
 #include <CLI11/CLI11.hpp>
 #include <codecvt>
@@ -31,8 +31,6 @@
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
-
-::timespec logger::config::start{0, 0};
 
 size_t asynchost::TCPImpl::remaining_read_quota;
 
@@ -348,6 +346,19 @@ int main(int argc, char** argv)
       )
     ->capture_default_str();
 
+  crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
+  std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
+    {"secp384r1", crypto::CurveID::SECP384R1},
+    {"secp256r1", crypto::CurveID::SECP256R1}};
+  app
+    .add_option(
+      "--curve-id",
+      curve_id,
+      "Elliptic curve to use as for node and network identities (used for TLS "
+      "and ledger signatures)")
+    ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
+    ->capture_default_str();
+
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
@@ -430,20 +441,6 @@ int main(int argc, char** argv)
       "Destination path to freshly created network certificate")
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
-
-  crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
-  std::vector<std::pair<std::string, crypto::CurveID>> curve_id_map = {
-    {"secp384r1", crypto::CurveID::SECP384R1},
-    {"secp256r1", crypto::CurveID::SECP256R1}};
-  app
-    .add_option(
-      "--curve-id",
-      curve_id,
-      "Elliptic curve to use as for node and network identities (used for TLS "
-      "and ledger "
-      "signatures")
-    ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
-    ->capture_default_str();
 
   CLI11_PARSE(app, argc, argv);
 
@@ -592,9 +589,7 @@ int main(int argc, char** argv)
   {
     // provide regular ticks to the enclave
     const std::chrono::milliseconds tick_period(tick_period_ms);
-    asynchost::Ticker ticker(tick_period, writer_factory, [](auto s) {
-      logger::config::set_start(s);
-    });
+    asynchost::Ticker ticker(tick_period, writer_factory);
 
     // reset the inbound-TCP processing quota each iteration
     asynchost::ResetTCPReadQuota reset_tcp_quota;
@@ -660,7 +655,7 @@ int main(int argc, char** argv)
     std::vector<uint8_t> node_cert(certificate_size);
     std::vector<uint8_t> network_cert(certificate_size);
 
-    StartType start_type = StartType::Unknown;
+    StartType start_type = StartType::New;
 
     EnclaveConfig enclave_config;
     enclave_config.to_enclave_buffer_start = to_enclave_buffer.data();
@@ -791,8 +786,7 @@ int main(int argc, char** argv)
           "No snapshot found: Node will replay all historical transactions");
       }
     }
-
-    if (start_type == StartType::Unknown)
+    else
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }
