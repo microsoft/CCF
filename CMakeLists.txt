@@ -807,8 +807,15 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
     CONSENSUS cft
     LABEL e2e
-    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-                    --oe-binary ${OE_BINDIR} --previous-lts-file ${CMAKE_SOURCE_DIR}/previous_lts
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      --oe-binary
+      ${OE_BINDIR}
+      --ccf-version
+      ${CCF_VERSION}
+      --previous-lts-file
+      ${CMAKE_SOURCE_DIR}/previous_lts
   )
 
   foreach(CONSENSUS ${CONSENSUSES})

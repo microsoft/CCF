@@ -121,14 +121,11 @@ def run_ledger_compatibility_since_first(args):
 
         if lts_release:
             version, install_path = repo.install_release(lts_release)
-            LOG.success(f"Release {version} successfully installed at {install_path}")
-
             binary_dir = os.path.join(install_path, "bin")
             library_dir = os.path.join(install_path, "lib")
-
             major_version = Version(version).release[0]
-
         else:
+            version = args.ccf_version
             binary_dir = "."
             library_dir = "."
             major_version = None
@@ -143,7 +140,6 @@ def run_ledger_compatibility_since_first(args):
         if is_first:
             network = infra.network.Network(**network_args)
             network.start_and_join(args)
-            nodes = network.get_joined_nodes()
             is_first = False
         else:
             network = infra.network.Network(**network_args, existing_network=network)
@@ -154,12 +150,15 @@ def run_ledger_compatibility_since_first(args):
                 # snapshot_dir=snapshot_dir, # TODO: Include snapshots too?
             )
             network.recover(args)
+
+        nodes = network.get_joined_nodes()
+
         # Verify that nodes run the expected CCF version
         if not major_version or major_version > 1:
             for node in nodes:
                 with node.client() as c:
                     r = c.get("/node/version")
-                    assert r.body.json()["ccf_version"] == args.ccf_version
+                    assert r.body.json()["ccf_version"] == version
 
         txs.issue(network, number_txs=5)
 
@@ -171,7 +170,10 @@ def run_ledger_compatibility_since_first(args):
 
         # Check that the ledger can be parsed on all nodes
         for node in nodes:
-            ccf.ledger.Ledger(node.remote.ledger_paths()).get_latest_public_state()
+            public_state = ccf.ledger.Ledger(
+                node.remote.ledger_paths()
+            ).get_latest_public_state()
+            LOG.warning(list(public_state[0].keys()))
 
 
 if __name__ == "__main__":
