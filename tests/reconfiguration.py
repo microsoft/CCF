@@ -246,7 +246,7 @@ def test_version(network, args):
     for node in nodes:
         with node.client() as c:
             r = c.get("/node/version")
-            assert r.body.json()["version"] == args.ccf_version
+            assert r.body.json()["ccf_version"] == args.ccf_version
 
 
 @reqs.description("Replace a node on the same addresses")

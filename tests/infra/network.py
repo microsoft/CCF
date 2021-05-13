@@ -95,6 +95,7 @@ class Network:
         "san",
         "snapshot_tx_interval",
         "max_open_sessions",
+        "max_open_sessions_hard",
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",
         "curve_id",

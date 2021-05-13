@@ -906,6 +906,24 @@ if(BUILD_TESTS)
     CLIENT_BIN ./scenario_perf_client
     ADDITIONAL_ARGS
       --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
+      --scenario-file
+      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+      --max-writes-ahead
+      1000
+      --repetitions
+      1000
+      --msg-ser-fmt
+      text
+  )
+
+  add_perf_test(
+    NAME ls_full_js
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+    CONSENSUS cft
+    CLIENT_BIN ./scenario_perf_client
+    ADDITIONAL_ARGS
+      --js-app-bundle
       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
       --scenario-file
       ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
@@ -924,7 +942,7 @@ if(BUILD_TESTS)
     CLIENT_BIN ./scenario_perf_client
     ADDITIONAL_ARGS
       --js-app-bundle
-      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
       --scenario-file
       ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
       --max-writes-ahead
