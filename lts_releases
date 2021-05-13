@@ -1,5 +1,0 @@
-# This file contains the list of Long-Term Support releases preceding the version at this checkout
-# It is read by the lts_compatibility test to test compatibility between these versions and the
-# one at this checkout
-# TODO: Change this to 1.x
-1.0.0

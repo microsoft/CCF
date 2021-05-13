@@ -808,7 +808,7 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL e2e
     ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-                    --oe-binary ${OE_BINDIR} --lts-releases-file ${CMAKE_SOURCE_DIR}/lts_releases
+                    --oe-binary ${OE_BINDIR} --previous-lts-file ${CMAKE_SOURCE_DIR}/previous_lts
   )
 
   foreach(CONSENSUS ${CONSENSUSES})

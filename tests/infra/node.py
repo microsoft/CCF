@@ -13,7 +13,7 @@ import os
 import socket
 import re
 import ipaddress
-from setuptools.extern.packaging import version
+from setuptools.extern.packaging import version as package_version
 
 from loguru import logger as LOG
 
@@ -76,7 +76,7 @@ class Node:
         debug=False,
         perf=False,
         node_port=None,
-        node_version="2.0",
+        version=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -89,11 +89,11 @@ class Node:
         self.suspended = False
         self.node_id = None
         self.node_client_host = None
-        self.version = node_version
+        self.version = version
 
         if host.startswith("local://"):
             self.remote_impl = infra.remote.LocalRemote
-            if version.parse(node_version) > version.parse("1.0"):
+            if version and version > 1:
                 self.node_client_host = str(
                     ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
                 )

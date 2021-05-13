@@ -184,7 +184,7 @@ class Network:
             debug,
             perf,
             node_port=node_port,
-            node_version=self.version,
+            version=self.version,
         )
         self.nodes.append(node)
         return node
@@ -1028,7 +1028,7 @@ def network(
     txs=None,
     library_directory=".",
     init_partitioner=False,
-    version="2.0",  # TODO: This should be derived from somewhere else
+    version=None,
 ):
     """
     Context manager for Network class.
