@@ -552,7 +552,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/uint64"
+                  "$ref": "#/components/schemas/boolean"
                 }
               }
             },
