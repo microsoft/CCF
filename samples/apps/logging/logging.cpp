@@ -1129,7 +1129,9 @@ namespace loggingapp
 
       auto get_request_query = [this](auto& ctx) {
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        std::vector<uint8_t> rq(ctx.rpc_ctx->get_request_query().begin(), ctx.rpc_ctx->get_request_query().end());
+        std::vector<uint8_t> rq(
+          ctx.rpc_ctx->get_request_query().begin(),
+          ctx.rpc_ctx->get_request_query().end());
         ctx.rpc_ctx->set_response_body(rq);
       };
 

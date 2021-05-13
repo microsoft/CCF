@@ -745,6 +745,13 @@ def test_forwarding_frontends(network, args):
         ack = network.consortium.get_any_active_member().ack(backup)
         check_commit(ack)
 
+    samples = [
+        "this=that",
+        "this=that&other=with spaces",
+        "this with spaces=with spaces",
+        'arg=This has many@many many \\% " AWKWARD :;-=?!& characters %20%20',
+    ]
+
     with backup.client("user0") as c:
         check_commit = infra.checker.Checker(c)
         check = infra.checker.Checker()
@@ -756,11 +763,12 @@ def test_forwarding_frontends(network, args):
         )
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
-        samples = [
-            "this=that",
-            "this=that&other=with spaces",
-            "arg=This has many@many+many \\% \" AWKWARD :;-=?!& ++ characters %20%20"
-        ]
+        for query_string in samples:
+            r = c.get(f"/app/log/request_query?{query_string}")
+            assert r.body.text() == query_string, r.body.text()
+
+    member = network.consortium.get_any_active_member()
+    with backup.client(*member.auth(True)) as c:
         for query_string in samples:
             r = c.get(f"/app/log/request_query?{query_string}")
             assert r.body.text() == query_string, r.body.text()
