@@ -764,15 +764,16 @@ def test_forwarding_frontends(network, args):
         )
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
-        for query_string in samples:
-            r = c.get(f"/app/log/request_query?{query_string}")
-            assert r.body.text() == query_string, r.body.text()
+        if args.package == "liblogging":
+            for query_string in samples:
+                r = c.get(f"/app/log/request_query?{query_string}")
+                assert r.body.text() == query_string, r.body.text()
 
-        for i in range(0, 255):
-            ci = chr(i)
-            ch = urllib.parse.urlencode({"arg": ci})
-            r = c.get(f"/app/log/request_query?{ch}")
-            assert r.body.data() == f"arg={ci}".encode(), r.body.data()
+            for i in range(0, 255):
+                ci = chr(i)
+                ch = urllib.parse.urlencode({"arg": ci})
+                r = c.get(f"/app/log/request_query?{ch}")
+                assert r.body.data() == f"arg={ci}".encode(), r.body.data()
 
     return network
 
