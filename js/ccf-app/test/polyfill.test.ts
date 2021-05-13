@@ -143,7 +143,7 @@ describe("polyfill", function () {
       const pems = generateCertChain(3);
       const chain = pems[0];
       const trusted = pems[2];
-      assert.isTrue(ccf.isValidX509CertChain(chain, trusted));
+      assert.isFalse(ccf.isValidX509CertChain(chain, trusted));
     });
   });
   describe("kv", function () {

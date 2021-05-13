@@ -234,7 +234,7 @@ class CCFPolyfill implements CCF {
           if (certChain.fingerprint === certTrusted.fingerprint) {
             return true;
           }
-          if (certChain.checkIssued(certTrusted)) {
+          if (certChain.verify(certTrusted.publicKey)) {
             return true;
           }
         }
