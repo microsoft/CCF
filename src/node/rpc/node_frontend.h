@@ -6,6 +6,7 @@
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
+#include "ccf/version.h"
 #include "crypto/hash.h"
 #include "frontend.h"
 #include "node/entities.h"
@@ -422,7 +423,7 @@ namespace ccf
             q.node_id = node_id;
             q.raw = node_info.quote_info.quote;
             q.endorsements = node_info.quote_info.endorsements;
-            q.format = QuoteFormat::oe_sgx_v1;
+            q.format = node_info.quote_info.format;
 
 #ifdef GET_QUOTE
             auto code_id =
@@ -772,6 +773,20 @@ namespace ccf
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<MemoryUsage>()
+        .install();
+
+      auto version = [this](auto&, nlohmann::json&&) {
+        GetVersion::Out result;
+        result.ccf_version = ccf::ccf_version;
+        return make_success(result);
+      };
+
+      make_command_endpoint(
+        "version", HTTP_GET, json_command_adapter(version), no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<GetVersion>()
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
     }
   };

@@ -142,6 +142,12 @@ namespace asynchost
         ConnectionBehaviour(parent, node)
       {}
 
+      void on_bind_failed()
+      {
+        LOG_DEBUG_FMT("node bind failed: {}", node.value());
+        reconnect();
+      }
+
       void on_resolve_failed()
       {
         LOG_DEBUG_FMT("node resolve failed {}", node.value());
@@ -202,15 +208,19 @@ namespace asynchost
     ringbuffer::WriterPtr to_enclave;
     std::set<ccf::NodeId> reconnect_queue;
 
+    std::optional<std::string> client_interface = std::nullopt;
+
   public:
     NodeConnections(
       messaging::Dispatcher<ringbuffer::Message>& disp,
       Ledger& ledger,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
-      std::string& service) :
+      std::string& service,
+      const std::optional<std::string>& client_interface) :
       ledger(ledger),
-      to_enclave(writer_factory.create_writer_to_inside())
+      to_enclave(writer_factory.create_writer_to_inside()),
+      client_interface(client_interface)
     {
       listener->set_behaviour(std::make_unique<NodeServerBehaviour>(*this));
       listener->listen(host, service);
@@ -344,7 +354,7 @@ namespace asynchost
       TCP s;
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node));
 
-      if (!s->connect(host, service))
+      if (!s->connect(host, service, client_interface))
       {
         LOG_DEBUG_FMT("Node failed initial connect {}", node);
         return false;

@@ -20,6 +20,7 @@ jobs:
 
       - template: test.yml
         parameters:
+          suffix: ${{ parameters.suffix }}
           ctest_filter: ${{ parameters.ctest_filter }}
           suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
           ctest_timeout: ${{ parameters.ctest_timeout }}

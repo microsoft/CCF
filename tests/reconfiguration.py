@@ -199,8 +199,7 @@ def test_retire_primary(network, args):
 
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    network.wait_for_new_primary(primary)
     check_can_progress(backup)
     network.nodes.remove(primary)
     post_count = count_nodes(node_configs(network), network)
@@ -242,6 +241,16 @@ def test_node_filter(network, args):
     return network
 
 
+@reqs.description("Get node CCF version")
+def test_version(network, args):
+    nodes = network.get_joined_nodes()
+
+    for node in nodes:
+        with node.client() as c:
+            r = c.get("/node/version")
+            assert r.body.json()["ccf_version"] == args.ccf_version
+
+
 @reqs.description("Replace a node on the same addresses")
 @reqs.at_least_n_nodes(3)  # Should be at_least_f_failures(1)
 def test_node_replacement(network, args):
@@ -281,6 +290,8 @@ def test_node_replacement(network, args):
     for other_backup in f_backups:
         other_backup.resume()
 
+    return network
+
 
 def run(args):
     txs = app.LoggingTxs()
@@ -294,6 +305,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        test_version(network, args)
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
@@ -357,7 +369,7 @@ def run_join_old_snapshot(args):
             # Kill primary and wait for a new one: new primary is
             # guaranteed to have started from the new snapshot
             primary.stop()
-            network.wait_for_new_primary(primary.node_id)
+            network.wait_for_new_primary(primary)
 
             # Start new node from the old snapshot
             try:
@@ -375,7 +387,15 @@ def run_join_old_snapshot(args):
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+
+    def add(parser):
+        parser.add_argument(
+            "--ccf-version",
+            help="Expected CCF version",
+            type=str,
+        )
+
+    args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.initial_user_count = 1

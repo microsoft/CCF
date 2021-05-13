@@ -173,7 +173,8 @@ namespace enclave
 
       start_type = start_type_;
 
-      rpcsessions->set_max_open_sessions(ccf_config_.max_open_sessions);
+      rpcsessions->set_max_open_sessions(
+        ccf_config_.max_open_sessions_soft, ccf_config_.max_open_sessions_hard);
 
       ccf::NodeCreateInfo r;
       try

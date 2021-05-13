@@ -98,7 +98,7 @@ int main(int argc, char** argv)
     app,
     node_address,
     "--node-address",
-    "Address on which to listen for TLS commands coming from other nodes")
+    "Address on which to listen for commands coming from other nodes")
     ->required();
 
   std::string node_address_file = {};
@@ -107,6 +107,13 @@ int main(int argc, char** argv)
     node_address_file,
     "Path to which the node's node-to-node address (including potentially "
     "auto-assigned port) will be written. If empty (default), write nothing");
+
+  std::optional<std::string> node_client_interface = std::nullopt;
+  app.add_option(
+    "--node-client-interface",
+    node_client_interface,
+    "Interface on which to bind to for commands sent to other nodes. If "
+    "unspecified (default), this is automatically assigned by the OS");
 
   cli::ParsedAddress rpc_address;
   cli::add_address_option(
@@ -172,9 +179,23 @@ int main(int argc, char** argv)
     .add_option(
       "--max-open-sessions",
       max_open_sessions,
-      "Number of TLS sessions which may be open at the same time. Additional "
-      "connections past this limit will be refused")
+      "Soft cap on number of TLS sessions which may be open at the same time. "
+      "Once this many connection are open, additional connections will receive "
+      "a 503 HTTP error (until the hard cap is reached)")
     ->capture_default_str();
+
+  constexpr auto hard_session_cap_diff = 10;
+  size_t max_open_sessions_hard = 0;
+  app.add_option(
+    "--max-open-sessions-hard",
+    max_open_sessions_hard,
+    fmt::format(
+      "Hard cap on number of TLS sessions which may be open at the same "
+      "time. "
+      "Once this many connections are open, additional connection attempts "
+      "will be closed before a TLS handshake is completed. Default is {} "
+      "more than --max-open-sessions",
+      hard_session_cap_diff));
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -455,6 +476,11 @@ int main(int argc, char** argv)
     logger::config::initialize_with_json_console();
   }
 
+  if (max_open_sessions_hard == 0)
+  {
+    max_open_sessions_hard = max_open_sessions + hard_session_cap_diff;
+  }
+
   const auto cli_config = app.config_to_str(true, false);
   LOG_INFO_FMT("Run with following options:\n{}", cli_config);
 
@@ -628,7 +654,8 @@ int main(int argc, char** argv)
       ledger,
       writer_factory,
       node_address.hostname,
-      node_address.port);
+      node_address.port,
+      node_client_interface);
     if (!node_address_file.empty())
     {
       files::dump(
@@ -684,7 +711,8 @@ int main(int argc, char** argv)
                                     public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
-    ccf_config.max_open_sessions = max_open_sessions;
+    ccf_config.max_open_sessions_soft = max_open_sessions;
+    ccf_config.max_open_sessions_hard = max_open_sessions_hard;
 
     ccf_config.subject_name = subject_name;
     ccf_config.subject_alternative_names = subject_alternative_names;
@@ -754,6 +782,10 @@ int main(int argc, char** argv)
       LOG_INFO_FMT("Creating new node - recover");
       start_type = StartType::Recover;
     }
+    else
+    {
+      LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
+    }
 
     if (*join || *recover)
     {
@@ -785,10 +817,6 @@ int main(int argc, char** argv)
         LOG_INFO_FMT(
           "No snapshot found: Node will replay all historical transactions");
       }
-    }
-    else
-    {
-      LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
     }
 
     if (consensus == ConsensusType::BFT)
