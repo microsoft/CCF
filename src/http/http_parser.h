@@ -18,6 +18,24 @@
 
 namespace http
 {
+  inline auto split_url_path(const std::string_view& url)
+  {
+    LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
+
+    const auto path_end = url.find('?');
+    const auto query_start =
+      path_end == std::string::npos ? url.size() : path_end + 1;
+
+    const auto query_end = url.find('#', query_start);
+    const auto fragment_start =
+      query_end == std::string::npos ? url.size() : query_end + 1;
+
+    return std::make_tuple(
+      url.substr(0, path_end),
+      url.substr(query_start, query_end - query_start),
+      url.substr(fragment_start));
+  }
+
   static std::string url_decode(const std::string_view& s_)
   {
     std::string s(s_);
@@ -48,24 +66,6 @@ namespace http
     return s;
   }
 
-  static std::string url_encode(const std::string_view& s_)
-  {
-    std::string s;
-    std::locale utf_en("C");
-    for (const auto& c: s_)
-    {
-      if (std::isalnum(c, utf_en) || c == '-' || c == '_' || c == '.' || c == '~')
-      {
-        s += c;
-      }
-      else
-      {
-        s += fmt::format("%{:02X}", c);
-      }
-    }
-    return s;
-  }
-
   inline bool status_success(http_status status)
   {
     return status >= 200 && status < 300;
@@ -77,9 +77,7 @@ namespace http
     struct Request
     {
       llhttp_method method;
-      std::string path;
-      std::string query;
-      std::string fragment;
+      std::string url;
       http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
@@ -88,18 +86,11 @@ namespace http
 
     virtual void handle_request(
       llhttp_method method,
-      const std::string_view& path,
-      const std::string& query,
-      const std::string& fragment,
+      const std::string_view& url,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
-      received.emplace(Request{method,
-                               std::string(path),
-                               std::string(query),
-                               std::string(fragment),
-                               headers,
-                               body});
+      received.emplace(Request{method, std::string(url), headers, body});
     }
   };
 
@@ -137,24 +128,6 @@ namespace http
   static int on_headers_complete(llhttp_t* parser);
   static int on_body(llhttp_t* parser, const char* at, size_t length);
   static int on_msg_end(llhttp_t* parser);
-
-  inline auto split_url_path(const std::string_view& url)
-  {
-    LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
-
-    const auto path_end = url.find('?');
-    const auto query_start =
-      path_end == std::string::npos ? url.size() : path_end + 1;
-
-    const auto query_end = url.find('#', query_start);
-    const auto fragment_start =
-      query_end == std::string::npos ? url.size() : query_end + 1;
-
-    return std::make_tuple(
-      url.substr(0, path_end),
-      url.substr(query_start, query_end - query_start),
-      url.substr(fragment_start));
-  }
 
   struct URL
   {
@@ -401,21 +374,14 @@ namespace http
         proc.handle_request(
           llhttp_method(parser.method),
           {},
-          {},
-          {},
           std::move(headers),
           std::move(body_buf));
       }
       else
       {
-        const auto [path, query, fragment] = split_url_path(url);
-        const std::string decoded_query = url_decode(query);
-        const std::string decoded_fragment = url_decode(fragment);
         proc.handle_request(
           llhttp_method(parser.method),
-          path,
-          decoded_query,
-          decoded_fragment,
+          url,
           std::move(headers),
           std::move(body_buf));
       }

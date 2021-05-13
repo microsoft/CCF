@@ -64,9 +64,12 @@ namespace http
     size_t request_index;
 
     ccf::RESTVerb verb;
+    std::string url = {};
+
     std::string whole_path = {};
     std::string path = {};
     std::string query = {};
+    std::string fragment = {};
 
     http::HeaderMap request_headers = {};
 
@@ -79,82 +82,37 @@ namespace http
     std::vector<uint8_t> response_body = {};
     http_status response_status = HTTP_STATUS_OK;
 
-    bool canonicalised = false;
+    bool serialised = false;
 
     std::optional<bool> explicit_apply_writes = std::nullopt;
 
-    void canonicalise()
+    void serialise()
     {
-      if (!canonicalised)
+      if (!serialised)
       {
-        // Build a canonical serialization of this request. If the request is
-        // signed, then all unsigned headers must be removed
-        const auto auth_it = request_headers.find(http::headers::AUTHORIZATION);
-        if (auth_it != request_headers.end())
-        {
-          std::string_view authz_header = auth_it->second;
-
-          if (http::HttpSignatureVerifier::parse_auth_scheme(authz_header))
-          {
-            auto parsed_sign_params =
-              http::HttpSignatureVerifier::parse_signature_params(authz_header);
-
-            if (!parsed_sign_params.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "Unable to parse signature params from: {}", authz_header));
-            }
-
-            // Keep all signed headers, and the auth header containing the
-            // signature itself
-            auto& signed_headers = parsed_sign_params->signed_headers;
-            signed_headers.emplace_back(http::headers::AUTHORIZATION);
-
-            auto it = request_headers.begin();
-            while (it != request_headers.end())
-            {
-              if (
-                std::find(
-                  signed_headers.begin(), signed_headers.end(), it->first) ==
-                signed_headers.end())
-              {
-                it = request_headers.erase(it);
-              }
-              else
-              {
-                ++it;
-              }
-            }
-          }
-        }
-
-        const auto canonical_request_header = fmt::format(
-          "{} {}{} HTTP/1.1\r\n"
+        const auto request_prefix = fmt::format(
+          "{} {} HTTP/1.1\r\n"
           "{}"
           "\r\n",
           verb.c_str(),
-          whole_path,
-          query.empty() ? "" : fmt::format("?{}", query),
+          url,
           http::get_header_string(request_headers));
 
-        LOG_INFO_FMT("CANONICAL HEADER: {}", canonical_request_header);
-
-        serialised_request.resize(
-          canonical_request_header.size() + request_body.size());
+        serialised_request.resize(request_prefix.size() + request_body.size());
         ::memcpy(
           serialised_request.data(),
-          canonical_request_header.data(),
-          canonical_request_header.size());
+          request_prefix.data(),
+          request_prefix.size());
         if (!request_body.empty())
         {
           ::memcpy(
-            serialised_request.data() + canonical_request_header.size(),
+            serialised_request.data() + request_prefix.size(),
             request_body.data(),
             request_body.size());
         }
       }
 
-      canonicalised = true;
+      serialised = true;
     }
 
   public:
@@ -162,8 +120,7 @@ namespace http
       size_t request_index_,
       std::shared_ptr<enclave::SessionContext> s,
       llhttp_method verb_,
-      const std::string_view& path_,
-      const std::string_view& query_,
+      const std::string_view& url_,
       const http::HeaderMap& headers_,
       const std::vector<uint8_t>& body_,
       const std::vector<uint8_t>& raw_request_ = {},
@@ -171,17 +128,20 @@ namespace http
       RpcContext(s, raw_bft_),
       request_index(request_index_),
       verb(verb_),
-      path(path_),
-      query(query_),
+      url(url_),
       request_headers(headers_),
       request_body(body_),
       serialised_request(raw_request_)
     {
-      whole_path = path;
+      const auto [path_, query_, fragment_] = split_url_path(url);
+      path = path_;
+      whole_path = path_;
+      query = url_decode(query_);
+      fragment = url_decode(fragment_);
 
       if (!serialised_request.empty())
       {
-        canonicalised = true;
+        serialised = true;
       }
     }
 
@@ -227,7 +187,7 @@ namespace http
 
     virtual const std::vector<uint8_t>& get_serialised_request() override
     {
-      canonicalise();
+      serialise();
       return serialised_request;
     }
 
@@ -352,15 +312,7 @@ namespace enclave
     const auto& msg = processor.received.front();
 
     return std::make_shared<http::HttpRpcContext>(
-      0,
-      s,
-      msg.method,
-      msg.path,
-      msg.query,
-      msg.headers,
-      msg.body,
-      packed,
-      raw_bft);
+      0, s, msg.method, msg.url, msg.headers, msg.body, packed, raw_bft);
   }
 
   inline std::shared_ptr<enclave::RpcContext> make_fwd_rpc_context(
@@ -401,7 +353,7 @@ namespace enclave
         const auto& msg = processor.received.front();
 
         return std::make_shared<ws::WsRpcContext>(
-          0, s, msg.path, msg.body, packed, raw_bft);
+          0, s, msg.url, msg.body, packed, raw_bft);
       }
       default:
         throw std::logic_error("Unknown Frame Format");

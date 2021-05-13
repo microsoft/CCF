@@ -756,8 +756,14 @@ def test_forwarding_frontends(network, args):
         )
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
-        # Reproduce #2587
-        check(c.get(f"/app/log/private?id={log_id}&unexpected=value with urlencoded content"), result={"msg": msg})
+        samples = [
+            "this=that",
+            "this=that&other=with spaces",
+            "arg=This has many@many+many \\% \" AWKWARD :;-=?!& ++ characters %20%20"
+        ]
+        for query_string in samples:
+            r = c.get(f"/app/log/request_query?{query_string}")
+            assert r.body.text() == query_string, r.body.text()
 
     return network
 
@@ -1190,15 +1196,12 @@ def run(args):
             args,
             verify=args.package != "libjs_generic",
         )
-        """
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_clear(network, args)
         network = test_record_count(network, args)
-        """
         network = test_forwarding_frontends(network, args)
-        """
         network = test_user_data_ACL(network, args)
         network = test_cert_prefix(network, args)
         network = test_anonymous_caller(network, args)
@@ -1222,7 +1225,6 @@ def run(args):
             network = test_ws(network, args)
             network = test_receipts(network, args)
         network = test_historical_receipts(network, args)
-        """
 
 
 if __name__ == "__main__":
