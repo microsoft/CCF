@@ -225,5 +225,4 @@ if __name__ == "__main__":
     args.host_log_level = "info"
 
     run_live_compatibility_since_last(args)
-
-    # run_ledger_compatibility_since_first(args)
+    run_ledger_compatibility_since_first(args)

@@ -22,7 +22,7 @@ INSTALL_DIRECTORY_SUB_PATH = "opt/ccf"
 
 class Repository:
     def __init__(self):
-        self.g = Github("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")
+        self.g = Github()
         self.repo = self.g.get_repo(REPOSITORY_NAME)
 
     def get_release_branches_names(self):
@@ -103,7 +103,6 @@ class Repository:
         return stripped_tag, install_path
 
     def install_latest_lts(self, previous_lts_file):
-
         # TODO: We could get rid of this if we decide to tag the very first commit on `main` after we've branched for a release. But maybe that's messy?
         with open(previous_lts_file) as f:
             latest_release = f.readline()

@@ -4,6 +4,7 @@ import infra.e2e_args
 import infra.network
 import infra.path
 import infra.proc
+import infra.utils
 import suite.test_requirements as reqs
 import os
 import reconfiguration
@@ -56,9 +57,8 @@ def test_add_node_with_bad_code(network, args):
     LOG.info(f"Adding a node with unsupported code id {new_code_id}")
     code_not_found_exception = None
     try:
-        network.create_and_add_pending_node(
-            replacement_package, "local://localhost", args, timeout=3
-        )
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, replacement_package, args, timeout=3)
     except infra.network.CodeIdNotFound as err:
         code_not_found_exception = err
 
@@ -121,9 +121,9 @@ def test_update_all_nodes(network, args):
 
     LOG.info("Start fresh nodes running new code")
     for _ in range(0, len(old_nodes)):
-        new_node = network.create_and_trust_node(
-            replacement_package, "local://localhost", args
-        )
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, replacement_package, args)
+        network.trust_node(new_node, args)
         assert new_node
 
     LOG.info("Retire original nodes running old code")

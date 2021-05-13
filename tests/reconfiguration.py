@@ -53,12 +53,9 @@ def check_can_progress(node, timeout=3):
 
 @reqs.description("Adding a valid node without snapshot")
 def test_add_node(network, args):
-    new_node = network.create_and_trust_node(
-        args.package,
-        "local://localhost",
-        args,
-        from_snapshot=False,
-    )
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.trust_node(new_node, args)
     with new_node.client() as c:
         s = c.get("/node/state")
         assert s.body.json()["node_id"] == new_node.node_id
@@ -98,13 +95,11 @@ def test_change_curve(network, args):
 @reqs.description("Adding a valid node from a backup")
 @reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
-    new_node = network.create_and_trust_node(
-        args.package,
-        "local://localhost",
-        args,
-        target_node=network.find_any_backup(),
+    new_node = network.create_node("local://localhost")
+    network.join_node(
+        new_node, args.package, args, target_node=network.find_any_backup()
     )
-    assert new_node
+    network.trust_node(new_node, args)
     return network
 
 
@@ -131,15 +126,16 @@ def test_add_node_from_snapshot(
         # generates snapshots
         snapshot_dir = network.get_committed_snapshots(primary)
 
-    new_node = network.create_and_trust_node(
+    new_node = network.create_node("local://localhost")
+    network.join_node(
+        new_node,
         args.package,
-        "local://localhost",
         args,
         copy_ledger_read_only=copy_ledger_read_only,
         target_node=target_node,
         snapshot_dir=snapshot_dir,
     )
-    assert new_node
+    network.trust_node(new_node, args)
 
     if copy_ledger_read_only:
         with new_node.client() as c:
@@ -164,14 +160,12 @@ def test_add_as_many_pending_nodes(network, args):
         f"Adding {number_new_nodes} pending nodes - consensus rules should not change"
     )
 
-    new_nodes = [
-        network.create_and_add_pending_node(
-            args.package,
-            "local://localhost",
-            args,
-        )
-        for _ in range(number_new_nodes)
-    ]
+    new_nodes = []
+    for _ in range(number_new_nodes):
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, from_snapshot=False)
+        new_nodes.append(new_node)
+
     check_can_progress(primary)
 
     for new_node in new_nodes:
@@ -219,9 +213,8 @@ def test_node_filter(network, args):
         trusted_before = get_nodes("Trusted")
         pending_before = get_nodes("Pending")
         retired_before = get_nodes("Retired")
-        new_node = network.create_and_add_pending_node(
-            args.package, "local://localhost", args, target_node=primary
-        )
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, target_node=primary)
         trusted_after = get_nodes("Trusted")
         pending_after = get_nodes("Pending")
         retired_after = get_nodes("Retired")
@@ -265,13 +258,12 @@ def test_node_replacement(network, args):
     check_can_progress(primary)
 
     # Add in a node using the same address
-    replacement_node = network.create_and_trust_node(
-        args.package,
+    replacement_node = network.create_node(
         f"local://{node_to_replace.host}:{node_to_replace.rpc_port}",
-        args,
         node_port=node_to_replace.node_port,
-        from_snapshot=False,
     )
+    network.join_node(replacement_node, args.package, args, from_snapshot=False)
+    network.trust_node(replacement_node, args)
 
     assert replacement_node.node_id != node_to_replace.node_id
     assert replacement_node.host == node_to_replace.host
@@ -356,12 +348,14 @@ def run_join_old_snapshot(args):
             txs.issue(network, number_txs=args.snapshot_tx_interval)
 
             for _ in range(0, 2):
-                network.create_and_trust_node(
+                new_node = network.create_node("local://localhost")
+                network.join_node(
+                    new_node,
                     args.package,
-                    "local://localhost",
                     args,
                     from_snapshot=True,
                 )
+                network.trust_node(new_node, args)
 
             # Kill primary and wait for a new one: new primary is
             # guaranteed to have started from the new snapshot
@@ -370,15 +364,15 @@ def run_join_old_snapshot(args):
 
             # Start new node from the old snapshot
             try:
-                network.create_and_trust_node(
+                new_node = network.create_node("local://localhost")
+                network.join_node(
+                    new_node,
                     args.package,
-                    "local://localhost",
                     args,
                     from_snapshot=True,
                     snapshot_dir=tmp_dir,
                     timeout=3,
                 )
-                assert False, "Node should not be able to join from old snapshot"
             except infra.network.StartupSnapshotIsOld:
                 pass
 

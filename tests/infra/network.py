@@ -581,7 +581,15 @@ class Network:
             else:
                 raise NodeShutdownError("Fatal error found during node shutdown")
 
-    def join_node(self, node, lib_name, args, target_node=None, timeout=3, **kwargs):
+    def join_node(
+        self,
+        node,
+        lib_name,
+        args,
+        target_node=None,
+        timeout=JOIN_TIMEOUT,
+        **kwargs,
+    ):
         self._add_node(
             node,
             lib_name,
@@ -615,7 +623,7 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-    def trust_node(self, args, node):
+    def trust_node(self, node, args):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
@@ -635,48 +643,6 @@ class Network:
 
         node.network_state = infra.node.NodeNetworkState.joined
         self.wait_for_all_nodes_to_commit(primary=primary)
-
-    def create_and_add_pending_node(
-        self,
-        lib_name,
-        host,
-        args,
-        target_node=None,
-        timeout=JOIN_TIMEOUT,
-        node_port=None,
-        **kwargs,
-    ):
-        """
-        Create a new node and add it to the network. Note that the new node
-        still needs to be trusted by members to complete the join protocol.
-        """
-        new_node = self.create_node(host, node_port)
-        self.join_node(new_node, lib_name, args, target_node, timeout, **kwargs)
-        return new_node
-
-    def create_and_trust_node(
-        self,
-        lib_name,
-        host,
-        args,
-        target_node=None,
-        node_port=None,
-        **kwargs,
-    ):
-        """
-        Create a new node, add it to the network and let members vote to trust
-        it so that it becomes part of the consensus protocol.
-        """
-        new_node = self.create_and_add_pending_node(
-            lib_name,
-            host,
-            args,
-            target_node,
-            node_port=node_port,
-            **kwargs,
-        )
-        self.trust_node(args, new_node)
-        return new_node
 
     def retire_node(self, remote_node, node_to_retire):
         self.consortium.retire_node(remote_node, node_to_retire)
