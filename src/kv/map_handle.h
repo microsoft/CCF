@@ -215,7 +215,7 @@ namespace kv
    * @see kv::WriteableMapHandle
    */
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class MapHandle : public AbstractMapHandle,
+  class MapHandle : public AbstractHandle,
                     public ReadableMapHandle<K, V, KSerialiser, VSerialiser>,
                     public WriteableMapHandle<K, V, KSerialiser, VSerialiser>
   {

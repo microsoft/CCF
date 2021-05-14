@@ -21,7 +21,7 @@ namespace kv
    * which leverages existing JSON serialisation is provided by CCF.
    */
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class TypedMap : public NamedMap
+  class TypedMap : public NamedHandleMixin
   {
   protected:
     using This = TypedMap<K, V, KSerialiser, VSerialiser>;
@@ -44,7 +44,7 @@ namespace kv
     using KeySerialiser = KSerialiser;
     using ValueSerialiser = VSerialiser;
 
-    using NamedMap::NamedMap;
+    using NamedHandleMixin::NamedHandleMixin;
 
     static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
     {
