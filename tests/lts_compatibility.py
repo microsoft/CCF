@@ -33,11 +33,11 @@ def run_live_compatibility_since_last(args):
     the local checkout.
     """
 
-    # repo = infra.gh_helper.Repository()
-    # lts_version, lts_install_path = repo.install_latest_lts(args.latest_lts_file)
+    repo = infra.gh_helper.Repository()
+    lts_version, lts_install_path = repo.install_latest_lts(args.latest_lts_file)
     # TODO: Remove
-    lts_version = "1.0.0"
-    lts_install_path = "/data/git/CCF/build/ccf_install_1.0.0/opt/ccf"
+    # lts_version = "1.0.0"
+    # lts_install_path = "/data/git/CCF/build/ccf_install_1.0.0/opt/ccf"
 
     lts_binary_dir = os.path.join(lts_install_path, "bin")
     lts_library_dir = os.path.join(lts_install_path, "lib")
@@ -164,10 +164,10 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
     for idx, (_, lts_release) in enumerate(lts_releases_fake.items()):
 
         if lts_release:
-            # version, lts_install_path = repo.install_release(lts_release)
+            version, lts_install_path = repo.install_release(lts_release)
             # TODO: Fix
-            version = "1.0.0"
-            lts_install_path = "/data/git/CCF/build/ccf_install_1.0.0/opt/ccf"
+            # version = "1.0.0"
+            # lts_install_path = "/data/git/CCF/build/ccf_install_1.0.0/opt/ccf"
             binary_dir = os.path.join(lts_install_path, "bin")
             library_dir = os.path.join(lts_install_path, "lib")
             major_version = Version(version).release[0]
