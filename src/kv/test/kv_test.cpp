@@ -3,6 +3,8 @@
 #include "ccf/app_interface.h"
 #include "ds/logger.h"
 #include "kv/kv_serialiser.h"
+#include "kv/map.h"
+#include "kv/set.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
@@ -157,6 +159,79 @@ TEST_CASE("Reads/writes and deletions")
       REQUIRE(!handle3->has(k));
       auto vc = handle3->get(k);
       REQUIRE(!vc.has_value());
+    }
+  }
+}
+
+TEST_CASE("sets and values")
+{
+  kv::Store kv_store;
+
+  {
+    INFO("kv::Set");
+    kv::Set<std::string> set("public:set");
+    constexpr auto k1 = "key1";
+    constexpr auto k2 = "key2";
+
+    {
+      INFO("Read own writes");
+      auto tx = kv_store.create_tx();
+      auto set_handle = tx.rw(set);
+
+      REQUIRE(!set_handle->has(k1));
+      REQUIRE(set_handle->size() == 0);
+
+      set_handle->put(k1);
+      REQUIRE(set_handle->has(k1));
+      REQUIRE(set_handle->size() == 1);
+
+      REQUIRE(!set_handle->has(k2));
+      set_handle->put(k2);
+      REQUIRE(set_handle->has(k2));
+      REQUIRE(set_handle->size() == 2);
+
+      REQUIRE(set_handle->remove(k2));
+      REQUIRE(!set_handle->has(k2));
+      REQUIRE(set_handle->size() == 1);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Read previous writes");
+      auto tx = kv_store.create_tx();
+      auto set_handle = tx.ro(set);
+      REQUIRE(set_handle->has(k1));
+      REQUIRE(!set_handle->has(k2));
+      REQUIRE(set_handle->size() == 1);
+      std::set<std::string> std_set;
+      set_handle->foreach([&std_set](const std::string& entry) {
+        std_set.insert(entry);
+        return true;
+      });
+      REQUIRE(std_set.size() == 1);
+      REQUIRE(std_set.find(k1) != std_set.end());
+      REQUIRE(std_set.find(k2) == std_set.end());
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Remove keys");
+      auto tx = kv_store.create_tx();
+      auto set_handle = tx.rw(set);
+
+      REQUIRE(set_handle->has(k1));
+      REQUIRE(set_handle->size() == 1);
+
+      REQUIRE(!set_handle->remove(k2));
+      REQUIRE(set_handle->has(k1));
+      REQUIRE(set_handle->size() == 1);
+
+      REQUIRE(set_handle->remove(k1));
+      REQUIRE(!set_handle->has(k1));
+      REQUIRE(set_handle->size() == 0);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
   }
 }
