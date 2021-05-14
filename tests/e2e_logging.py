@@ -795,8 +795,6 @@ def test_forwarding_frontends(network, args):
                 ch = urllib.parse.urlencode({f"arg{ci}": "value"})
                 r = c.get(f"/app/log/request_query?{ch}")
                 assert r.body.data() == f"arg{ci}=value".encode(), r.body.data()
-                
-    return network
 
     return network
 
