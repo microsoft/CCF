@@ -6,6 +6,9 @@ import infra.e2e_args
 import infra.partitions
 import infra.logging_app as app
 import suite.test_requirements as reqs
+from ccf.tx_id import TxID
+import time
+from infra.checker import check_can_progress
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -66,7 +69,7 @@ def test_partition_majority(network, args):
 
 
 @reqs.description("Isolate primary from one backup")
-def test_isolate_primary(network, args):
+def test_isolate_primary_from_one_backup(network, args):
     primary, backups = network.find_nodes()
 
     # Issue one transaction, waiting for all nodes to be have reached
@@ -103,6 +106,30 @@ def test_isolate_primary(network, args):
     return network
 
 
+@reqs.description("Isolate and reconnect primary")
+def test_isolate_and_reconnect_primary(network, args):
+    primary, backups = network.find_nodes()
+    with network.partitioner.partition(backups):
+        new_primary, _ = network.wait_for_new_primary(
+            primary, nodes=backups, timeout_multiplier=6
+        )
+        new_tx = check_can_progress(new_primary)
+
+    # Check reconnected former primary has caught up
+    with primary.client() as c:
+        r = c.get("/node/commit")
+        timeout = 5
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            current_tx = TxID.from_str(
+                c.get("/node/commit").body.json()["transaction_id"]
+            )
+            if current_tx.seqno >= new_tx.seqno:
+                return network
+            time.sleep(0.1)
+        assert False, f"Stuck at {r}"
+
+
 def run(args):
     txs = app.LoggingTxs()
 
@@ -119,7 +146,9 @@ def run(args):
 
         # test_invalid_partitions(network, args)
         test_partition_majority(network, args)
-        test_isolate_primary(network, args)
+        test_isolate_primary_from_one_backup(network, args)
+        for _ in range(5):
+            test_isolate_and_reconnect_primary(network, args)
 
 
 if __name__ == "__main__":
