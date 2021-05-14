@@ -120,6 +120,18 @@ export function isValidX509CertBundle(
   return { body: ccfcrypto.isValidX509CertBundle(pem) };
 }
 
+interface IsValidX509CertChainRequest {
+  chain: string;
+  trusted: string;
+}
+
+export function isValidX509CertChain(
+  request: ccfapp.Request<IsValidX509CertChainRequest>
+): ccfapp.Response<boolean> {
+  const { chain, trusted } = request.body.json();
+  return { body: ccfcrypto.isValidX509CertChain(chain, trusted) };
+}
+
 function b64ToBuf(b64: string): ArrayBuffer {
   return Base64.toUint8Array(b64).buffer;
 }
