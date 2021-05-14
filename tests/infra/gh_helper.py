@@ -81,7 +81,7 @@ class Repository:
         assert (
             infra.proc.ccall(*remove_cmd).returncode == 0
         ), "Previous download cleanup failed"
-        download_cmd = ["wget", debian_package_url]
+        download_cmd = ["curl", "-OL", debian_package_url]
         assert (
             infra.proc.ccall(*download_cmd, log_output=False).returncode == 0
         ), "Download failed"
