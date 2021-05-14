@@ -34,7 +34,7 @@ def run_live_compatibility_since_last(args):
     """
 
     # repo = infra.gh_helper.Repository()
-    # lts_version, lts_install_path = repo.install_latest_lts(args.previous_lts_file)
+    # lts_version, lts_install_path = repo.install_latest_lts(args.latest_lts_file)
     # TODO: Remove
     lts_version = "1.0.0"
     lts_install_path = "/data/git/CCF/build/ccf_install_1.0.0/opt/ccf"
@@ -234,7 +234,7 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument(
-            "--previous-lts-file",
+            "--latest-lts-file",
             help="File containing the latest LTS",
             type=str,
         )

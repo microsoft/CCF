@@ -102,8 +102,8 @@ class Repository:
         )
         return stripped_tag, install_path
 
-    def install_latest_lts(self, previous_lts_file):
-        with open(previous_lts_file) as f:
+    def install_latest_lts(self, latest_lts_file):
+        with open(latest_lts_file) as f:
             latest_release = f.readline()
         latest_release_branch = f"{BRANCH_RELEASE_PREFIX}{latest_release}"
         LOG.info(f"Latest release branch for this checkout: {latest_release_branch}")

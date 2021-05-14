@@ -812,8 +812,8 @@ if(BUILD_TESTS)
       ${OE_BINDIR}
       --ccf-version
       ${CCF_VERSION}
-      --previous-lts-file
-      ${CMAKE_SOURCE_DIR}/previous_lts
+      --latest-lts-file
+      ${CMAKE_SOURCE_DIR}/latest_lts
   )
 
   foreach(CONSENSUS ${CONSENSUSES})
