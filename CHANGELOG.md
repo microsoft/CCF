@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [1.0.1]
+
+### Bugfix
+
+- Requests with a url-encoded query string are now forwarded correctly from backups to the primary (#2587).
+- Signed requests with a url-encoded query string are now handled correctly rather than rejected (#2592).
+
 ## [1.0.0]
 
 The Confidential Consortium Framework CCF is an open-source framework for building a new category of secure, highly available, and performant applications that focus on multi-party compute and data.
@@ -851,6 +858,8 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[1.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.1
+[1.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0
 [1.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc3
 [1.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc2
 [1.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc1

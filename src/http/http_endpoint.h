@@ -164,17 +164,14 @@ namespace http
 
     void handle_request(
       llhttp_method verb,
-      const std::string_view& path,
-      const std::string& query,
-      const std::string&,
+      const std::string_view& url,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
       LOG_TRACE_FMT(
-        "Processing msg({}, {}, {}, [{} bytes])",
+        "Processing msg({}, {} [{} bytes])",
         llhttp_method_name(verb),
-        path,
-        query,
+        url,
         body.size());
 
       try
@@ -203,7 +200,7 @@ namespace http
           if (is_websocket)
           {
             rpc_ctx = std::make_shared<ws::WsRpcContext>(
-              request_index++, session_ctx, path, std::move(body));
+              request_index++, session_ctx, url, std::move(body));
           }
           else
           {
@@ -211,8 +208,7 @@ namespace http
               request_index++,
               session_ctx,
               verb,
-              path,
-              query,
+              url,
               std::move(headers),
               std::move(body));
           }
