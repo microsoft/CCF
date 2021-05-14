@@ -98,7 +98,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     EndpointMetrics::Entry, path, method, calls, errors, failures, retries)
   DECLARE_JSON_TYPE(EndpointMetrics::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Out, metrics, session_stats)
+  DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Out, metrics)
 
   DECLARE_JSON_TYPE(VerifyReceipt::In)
   DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::In, receipt)

@@ -197,31 +197,20 @@ namespace ccf
       .install();
 
     auto endpoint_metrics_fn = [this](auto&, nlohmann::json&&) {
+      std::lock_guard<SpinLock> guard(metrics_lock);
       EndpointMetrics::Out out;
+      for (const auto& [path, verb_metrics] : metrics)
       {
-        std::lock_guard<SpinLock> guard(metrics_lock);
-        for (const auto& [path, verb_metrics] : metrics)
+        for (const auto& [verb, metric] : verb_metrics)
         {
-          for (const auto& [verb, metric] : verb_metrics)
-          {
-            out.metrics.push_back({path,
-                                   verb,
-                                   metric.calls,
-                                   metric.errors,
-                                   metric.failures,
-                                   metric.retries});
-          }
+          out.metrics.push_back({path,
+                                 verb,
+                                 metric.calls,
+                                 metric.errors,
+                                 metric.failures,
+                                 metric.retries});
         }
       }
-
-      const auto session_metrics =
-        context.get_node_state().get_session_metrics();
-      auto j = nlohmann::json::object();
-      j["active"] = session_metrics.active_sessions;
-      j["peak_sessions"] = session_metrics.peak_sessions;
-      j["soft_cap"] = session_metrics.soft_cap_sessions;
-      j["hard_cap"] = session_metrics.hard_cap_sessions;
-      out.session_stats = j;
       return make_success(out);
     };
     make_command_endpoint(

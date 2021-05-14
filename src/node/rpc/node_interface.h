@@ -22,10 +22,10 @@ namespace ccf
 
   struct SessionMetrics
   {
-    size_t active_sessions;
-    size_t peak_sessions;
-    size_t soft_cap_sessions;
-    size_t hard_cap_sessions;
+    size_t active;
+    size_t peak;
+    size_t soft_cap;
+    size_t hard_cap;
   };
 
   class AbstractNodeState

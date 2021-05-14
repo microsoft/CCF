@@ -106,7 +106,6 @@ namespace ccf
     struct Out
     {
       std::vector<Entry> metrics;
-      nlohmann::json session_stats; // TODO: Bad name, bad type
     };
   };
 
