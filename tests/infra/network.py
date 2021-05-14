@@ -509,11 +509,14 @@ class Network:
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
-    def stop_all_nodes(self, skip_verification=False):
+    def stop_all_nodes(self, skip_verification=False, verbose_verification=True):
         if not skip_verification:
             # Verify that all txs committed on the service can be read
             if self.txs is not None:
-                self.txs.verify(self)
+                log_capture = None if verbose_verification else []
+                self.txs.verify(self, log_capture=log_capture)
+                if verbose_verification:
+                    flush_info(log_capture, None)
 
         fatal_error_found = False
 

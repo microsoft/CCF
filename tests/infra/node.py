@@ -392,6 +392,10 @@ class Node:
         }
 
     def client(self, identity=None, signing_identity=None, **kwargs):
+        if self.network_state == NodeNetworkState.stopped:
+            raise RuntimeError(
+                f"Cannot create client for node {self.local_node_id} as node is stopped"
+            )
         akwargs = self.session_auth(identity)
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[

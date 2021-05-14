@@ -6,19 +6,25 @@ import infra.proc
 import infra.logging_app as app
 import infra.utils
 import infra.gh_helper
+import ccf.ledger
 import os
 from setuptools.extern.packaging.version import Version  # type: ignore
-
-import ccf.ledger
 
 
 from loguru import logger as LOG
 
 LOCAL_CHECKOUT_DIRECTORY = "."
 
+# TODO: How to test for compatibility of patches on the same release branch??
+# As per https://microsoft.github.io/CCF/main/contribute/release_ccf.html#patch-an-lts-release, it's safe to assume the branch "release/"
+
 
 def issue_activity_on_live_service(network, args):
-    network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
+
+    log_capture = []
+    network.txs.issue(
+        network, number_txs=args.snapshot_tx_interval * 2, log_capture=log_capture
+    )
 
 
 def run_live_compatibility_since_last(args):
@@ -133,7 +139,7 @@ def run_live_compatibility_since_last(args):
         issue_activity_on_live_service(network, args)
 
 
-def run_ledger_compatibility_since_first(args):
+def run_ledger_compatibility_since_first(args, use_snapshot):
     # repo = infra.gh_helper.Repository()
     # lts_releases = repo.get_lts_releases()
 
@@ -171,6 +177,7 @@ def run_ledger_compatibility_since_first(args):
             "txs": txs,
             "version": major_version,
         }
+        # TODO: Use app from specific version instead of local checkout
         if is_first:
             network = infra.network.Network(**network_args)
             network.start_and_join(args)
@@ -181,11 +188,12 @@ def run_ledger_compatibility_since_first(args):
                 args,
                 ledger_dir,
                 committed_ledger_dir,
-                # snapshot_dir=snapshot_dir, # TODO: How to include snapshots as well? A different test altogether? Probably!
+                snapshot_dir=snapshot_dir,
             )
             network.recover(args)
 
         nodes = network.get_joined_nodes()
+        primary, _ = network.find_primary()
 
         # Verify that all nodes run the expected CCF version
         if not major_version or major_version > 1:
@@ -194,20 +202,20 @@ def run_ledger_compatibility_since_first(args):
                     r = c.get("/node/version")
                     assert r.body.json()["ccf_version"] == version
 
-        # TODO: This seems too much!
         issue_activity_on_live_service(network, args)
 
-        network.stop_all_nodes()
+        snapshot_dir = (
+            network.get_committed_snapshots(primary) if use_snapshot else None
+        )
 
-        ledger_dir, committed_ledger_dir = nodes[0].get_ledger(
+        network.stop_all_nodes(verbose_verification=False)
+        ledger_dir, committed_ledger_dir = primary.get_ledger(
             include_read_only_dirs=True
         )
 
         # Check that the ledger can be parsed on all nodes
         for node in nodes:
-            public_state = ccf.ledger.Ledger(
-                node.remote.ledger_paths()
-            ).get_latest_public_state()
+            ccf.ledger.Ledger(node.remote.ledger_paths()).get_latest_public_state()
 
 
 if __name__ == "__main__":
@@ -229,4 +237,5 @@ if __name__ == "__main__":
     args.host_log_level = "info"
 
     # run_live_compatibility_since_last(args)
-    run_ledger_compatibility_since_first(args)
+    run_ledger_compatibility_since_first(args, use_snapshot=False)
+    # run_ledger_compatibility_since_first(args, use_snapshot=True)

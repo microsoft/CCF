@@ -73,7 +73,9 @@ class LoggingTxs:
         if on_backup:
             remote_node = network.find_any_backup()
 
-        LOG.info(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
+        LOG.info(
+            f"Applying {number_txs} logging txs to node {remote_node.local_node_id}"
+        )
 
         with remote_node.client(self.user) as c:
             check_commit = infra.checker.Checker(c)
@@ -121,8 +123,7 @@ class LoggingTxs:
                 tx_id=TxID(rep_pub.view, rep_pub.seqno)
             )
 
-    def verify(self, network=None, node=None, timeout=3):
-        LOG.info("Verifying all logging txs")
+    def verify(self, network=None, node=None, timeout=3, log_capture=None):
         if network is not None:
             self.network = network
         if self.network is None:
@@ -145,6 +146,7 @@ class LoggingTxs:
                     entry["view"],
                     priv=False,
                     timeout=timeout,
+                    log_capture=log_capture,
                 )
 
             for priv_idx, priv_value in self.priv.items():
@@ -159,10 +161,22 @@ class LoggingTxs:
                         priv=True,
                         historical=(v != priv_value[-1]),
                         timeout=timeout,
+                        log_capture=log_capture,
                     )
 
+        LOG.info(f"Successfully verified logging txs")
+
     def _verify_tx(
-        self, node, idx, msg, seqno, view, priv=True, historical=False, timeout=3
+        self,
+        node,
+        idx,
+        msg,
+        seqno,
+        view,
+        priv=True,
+        historical=False,
+        log_capture=None,
+        timeout=3,
     ):
         if historical and not priv:
             raise ValueError(
@@ -181,9 +195,11 @@ class LoggingTxs:
         start_time = time.time()
         while time.time() < (start_time + timeout):
             with node.client(self.user) as c:
-                ccf.commit.wait_for_commit(c, seqno, view, timeout)
+                ccf.commit.wait_for_commit(
+                    c, seqno, view, timeout, log_capture=log_capture
+                )
 
-                rep = c.get(f"{cmd}?id={idx}", headers=headers)
+                rep = c.get(f"{cmd}?id={idx}", headers=headers, log_capture=log_capture)
                 if rep.status_code == http.HTTPStatus.OK:
                     expected_result = {"msg": msg}
                     assert (
@@ -203,7 +219,7 @@ class LoggingTxs:
                             raise ValueError(
                                 f"Response with status {rep.status_code} is missing 'retry-after' header"
                             )
-                        sleep_time = 0.5
+                        sleep_time = 0.1
                         LOG.info(
                             f"Sleeping for {sleep_time}s waiting for historical query processing..."
                         )
