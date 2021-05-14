@@ -103,7 +103,6 @@ class Repository:
         return stripped_tag, install_path
 
     def install_latest_lts(self, previous_lts_file):
-        # TODO: We could get rid of this if we decide to tag the very first commit on `main` after we've branched for a release. But maybe that's messy?
         with open(previous_lts_file) as f:
             latest_release = f.readline()
         latest_release_branch = f"{BRANCH_RELEASE_PREFIX}{latest_release}"
