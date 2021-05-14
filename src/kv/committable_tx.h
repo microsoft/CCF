@@ -6,7 +6,6 @@
 #include "ccf/tx.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "map.h"
 
 #include <list>
 
