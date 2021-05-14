@@ -263,6 +263,17 @@
         ],
         "type": "object"
       },
+      "NodeMetrics": {
+        "properties": {
+          "sessions": {
+            "$ref": "#/components/schemas/ccf__SessionMetrics"
+          }
+        },
+        "required": [
+          "sessions"
+        ],
+        "type": "object"
+      },
       "NodeStatus": {
         "enum": [
           "Pending",
@@ -384,6 +395,29 @@
       },
       "boolean": {
         "type": "boolean"
+      },
+      "ccf__SessionMetrics": {
+        "properties": {
+          "active": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "hard_cap": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "peak": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "soft_cap": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "active",
+          "peak",
+          "soft_cap",
+          "hard_cap"
+        ],
+        "type": "object"
       },
       "ccf__State": {
         "enum": [
@@ -523,6 +557,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemoryUsage__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeMetrics"
                 }
               }
             },
