@@ -467,8 +467,10 @@ describe("REST API", function () {
           null,
           fakeAuth.user(userId)
         );
-        const kvRows = papa.parse(csvOut, { header: true, dynamicTyping: true })
-          .data;
+        const kvRows = papa.parse(csvOut, {
+          header: true,
+          dynamicTyping: true,
+        }).data;
         assert.deepEqual(kvRows, rows);
       });
     });
