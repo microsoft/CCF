@@ -118,7 +118,7 @@ def test_isolate_and_reconnect_primary(network, args):
     # Check reconnected former primary has caught up
     with primary.client() as c:
         r = c.get("/node/commit")
-        timeout = 3
+        timeout = 5
         end_time = time.time() + timeout
         while time.time() < end_time:
             current_tx = TxID.from_str(
