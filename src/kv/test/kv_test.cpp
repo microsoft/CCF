@@ -8,6 +8,7 @@
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "kv/value.h"
 #include "node/entities.h"
 #include "node/history.h"
 
@@ -230,6 +231,68 @@ TEST_CASE("sets and values")
       REQUIRE(set_handle->remove(k1));
       REQUIRE(!set_handle->has(k1));
       REQUIRE(set_handle->size() == 0);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
+
+  {
+    INFO("kv::Value");
+    kv::Value<std::string> val1("public:value1");
+    kv::Value<std::string> val2("public:value2");
+
+    const auto v1 = "hello";
+    const auto v2 = "world";
+    const auto v3 = "saluton";
+
+    {
+      INFO("Read own writes");
+      auto tx = kv_store.create_tx();
+
+      auto h1 = tx.rw(val1);
+      REQUIRE(!h1->has());
+      h1->put(v1);
+      REQUIRE(h1->has());
+      REQUIRE(*h1->get() == v1);
+
+      auto h2 = tx.rw(val2);
+      REQUIRE(!h2->has());
+      h2->put(v2);
+      REQUIRE(h2->has());
+      REQUIRE(*h2->get() == v2);
+
+      h2->put(v3);
+      REQUIRE(h2->has());
+      REQUIRE(*h2->get() == v3);
+
+      h2->clear();
+      REQUIRE(!h2->has());
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Read previous writes");
+      auto tx = kv_store.create_tx();
+
+      auto h1 = tx.ro(val1);
+      REQUIRE(h1->has());
+      REQUIRE(*h1->get() == v1);
+
+      auto h2 = tx.rw(val2);
+      REQUIRE(!h2->has());
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Remove previous writes");
+      auto tx = kv_store.create_tx();
+
+      auto h1 = tx.rw(val1);
+      REQUIRE(h1->has());
+      h1->clear();
+      REQUIRE(!h1->has());
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }

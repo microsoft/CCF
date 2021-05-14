@@ -8,7 +8,7 @@ namespace kv
 {
   // A single-valued type, used as a utility type to convert kv::Maps to
   // kv::Values and kv::Sets. Specifically, these are implemented as wrappers so
-  // that kv::Value<T> is implemented as kv::Map<Unit, T>, and kv::Set<T> is
+  // that kv::Value<T> is essentially kv::Map<Unit, T>, and kv::Set<T> is
   // kv::Map<T, Unit>.
   struct Unit
   {
