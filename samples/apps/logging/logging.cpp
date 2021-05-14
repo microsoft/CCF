@@ -1127,6 +1127,35 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
+      auto get_request_query = [this](auto& ctx) {
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        std::vector<uint8_t> rq(
+          ctx.rpc_ctx->get_request_query().begin(),
+          ctx.rpc_ctx->get_request_query().end());
+        ctx.rpc_ctx->set_response_body(rq);
+      };
+
+      make_endpoint(
+        "log/request_query", HTTP_GET, get_request_query, ccf::no_auth_required)
+        .set_auto_schema<void, std::string>()
+        .install();
+
+      auto get_signed_request_query = [this](auto& ctx) {
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        std::vector<uint8_t> rq(
+          ctx.rpc_ctx->get_request_query().begin(),
+          ctx.rpc_ctx->get_request_query().end());
+        ctx.rpc_ctx->set_response_body(rq);
+      };
+
+      make_endpoint(
+        "log/signed_request_query",
+        HTTP_GET,
+        get_signed_request_query,
+        {ccf::user_signature_auth_policy})
+        .set_auto_schema<void, std::string>()
+        .install();
+
       metrics_tracker.install_endpoint(*this);
     }
 

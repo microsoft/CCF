@@ -24,6 +24,7 @@ from ccf.tx_id import TxID
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
+import urllib.parse
 
 from loguru import logger as LOG
 
@@ -755,6 +756,39 @@ def test_forwarding_frontends(network, args):
             result=True,
         )
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
+
+        if args.package == "liblogging":
+
+            samples = [
+                {"this": "that"},
+                {"this": "that", "other": "with spaces"},
+                {"this with spaces": "with spaces"},
+                {
+                    "arg": 'This has many@many many \\% " AWKWARD :;-=?!& characters %20%20'
+                },
+            ]
+            for query in samples:
+                unescaped_query = "&".join([f"{k}={v}" for k, v in query.items()])
+                query_to_send = unescaped_query
+                if os.getenv("CURL_CLIENT"):
+                    query_to_send = urllib.parse.urlencode(query)
+                r = c.get(f"/app/log/request_query?{query_to_send}")
+                assert r.body.text() == unescaped_query, (
+                    r.body.text(),
+                    unescaped_query,
+                )
+
+            for i in range(0, 255):
+                ci = chr(i)
+                ch = urllib.parse.urlencode({"arg": ci})
+                r = c.get(f"/app/log/request_query?{ch}")
+                assert r.body.data() == f"arg={ci}".encode(), r.body.data()
+
+            for i in range(0, 255):
+                ci = chr(i)
+                ch = urllib.parse.urlencode({f"arg{ci}": "value"})
+                r = c.get(f"/app/log/request_query?{ch}")
+                assert r.body.data() == f"arg{ci}=value".encode(), r.body.data()
 
     return network
 
