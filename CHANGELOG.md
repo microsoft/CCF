@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Bugfix
 
 - Requests with a url-encoded query string are now forwarded correctly from backups to the primary (#2587).
+- Signed requests with a url-encoded query string are now handled correctly rather than rejected (#2592).
 
 ## [1.0.0]
 

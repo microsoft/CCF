@@ -611,6 +611,37 @@ def test_historical_query_range(network, args):
     return network
 
 
+def escaped_query_tests(c, endpoint):
+    samples = [
+        {"this": "that"},
+        {"this": "that", "other": "with spaces"},
+        {"this with spaces": "with spaces"},
+        {"arg": 'This has many@many many \\% " AWKWARD :;-=?!& characters %20%20'},
+    ]
+    for query in samples:
+        unescaped_query = "&".join([f"{k}={v}" for k, v in query.items()])
+        query_to_send = unescaped_query
+        if os.getenv("CURL_CLIENT"):
+            query_to_send = urllib.parse.urlencode(query)
+        r = c.get(f"/app/log/{endpoint}?{query_to_send}")
+        assert r.body.text() == unescaped_query, (
+            r.body.text(),
+            unescaped_query,
+        )
+
+    for i in range(0, 255):
+        ci = chr(i)
+        ch = urllib.parse.urlencode({"arg": ci})
+        r = c.get(f"/app/log/{endpoint}?{ch}")
+        assert r.body.data() == f"arg={ci}".encode(), r.body.data()
+
+    for i in range(0, 255):
+        ci = chr(i)
+        ch = urllib.parse.urlencode({f"arg{ci}": "value"})
+        r = c.get(f"/app/log/{endpoint}?{ch}")
+        assert r.body.data() == f"arg{ci}=value".encode(), r.body.data()
+
+
 @reqs.description("Testing forwarding on member and user frontends")
 @reqs.supports_methods("log/private")
 @reqs.at_least_n_nodes(2)
@@ -634,37 +665,18 @@ def test_forwarding_frontends(network, args):
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
         if args.package == "liblogging":
+            escaped_query_tests(c, "request_query")
 
-            samples = [
-                {"this": "that"},
-                {"this": "that", "other": "with spaces"},
-                {"this with spaces": "with spaces"},
-                {
-                    "arg": 'This has many@many many \\% " AWKWARD :;-=?!& characters %20%20'
-                },
-            ]
-            for query in samples:
-                unescaped_query = "&".join([f"{k}={v}" for k, v in query.items()])
-                query_to_send = unescaped_query
-                if os.getenv("CURL_CLIENT"):
-                    query_to_send = urllib.parse.urlencode(query)
-                r = c.get(f"/app/log/request_query?{query_to_send}")
-                assert r.body.text() == unescaped_query, (
-                    r.body.text(),
-                    unescaped_query,
-                )
+    return network
 
-            for i in range(0, 255):
-                ci = chr(i)
-                ch = urllib.parse.urlencode({"arg": ci})
-                r = c.get(f"/app/log/request_query?{ch}")
-                assert r.body.data() == f"arg={ci}".encode(), r.body.data()
 
-            for i in range(0, 255):
-                ci = chr(i)
-                ch = urllib.parse.urlencode({f"arg{ci}": "value"})
-                r = c.get(f"/app/log/request_query?{ch}")
-                assert r.body.data() == f"arg{ci}=value".encode(), r.body.data()
+@reqs.description("Testing signed queries with escaped queries")
+@reqs.at_least_n_nodes(2)
+def test_signed_escapes(network, args):
+    if args.package == "liblogging":
+        node = network.find_node_by_role()
+        with node.client("user0", "user0") as c:
+            escaped_query_tests(c, "signed_request_query")
 
     return network
 
@@ -1101,6 +1113,7 @@ def run(args):
         network = test_large_messages(network, args)
         network = test_remove(network, args)
         network = test_forwarding_frontends(network, args)
+        network = test_signed_escapes(network, args)
         network = test_user_data_ACL(network, args)
         network = test_cert_prefix(network, args)
         network = test_anonymous_caller(network, args)
