@@ -808,8 +808,6 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL e2e
     ADDITIONAL_ARGS
-      --js-app-bundle
-      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
       --oe-binary
       ${OE_BINDIR}
       --ccf-version

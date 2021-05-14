@@ -29,7 +29,8 @@ def issue_activity_on_live_service(network, args):
 
 def run_live_compatibility_since_last(args):
     """
-    Test that a service from the latest LTS can be safely upgraded to the version of the local checkout.
+    Tests that a service from the latest LTS can be safely upgraded to the version
+    the local checkout.
     """
 
     # repo = infra.gh_helper.Repository()
@@ -40,6 +41,7 @@ def run_live_compatibility_since_last(args):
 
     lts_binary_dir = os.path.join(lts_install_path, "bin")
     lts_library_dir = os.path.join(lts_install_path, "lib")
+    args.js_app_bundle = os.path.join(lts_install_path, "samples/logging/js")
     major_version = Version(lts_version).release[0]
 
     txs = app.LoggingTxs()
@@ -64,7 +66,6 @@ def run_live_compatibility_since_last(args):
             args.package,
             library_dir=LOCAL_CHECKOUT_DIRECTORY,
         )
-
         network.consortium.add_new_code(primary, new_code_id)
 
         # Add one more node than the current count so that at least one new
@@ -140,21 +141,27 @@ def run_live_compatibility_since_last(args):
 
 
 def run_ledger_compatibility_since_first(args, use_snapshot):
-    # repo = infra.gh_helper.Repository()
-    # lts_releases = repo.get_lts_releases()
+    """
+    Tests that a service from the very first LTS can be recovered
+    to the next LTS, and so forth, until the version of the local checkout.
+
+    The recovery process uses snapshot is `use_snapshot` is True. Otherwise, the
+    entire historical ledger is used.
+    """
+    repo = infra.gh_helper.Repository()
+    lts_releases = repo.get_lts_releases()
 
     # TODO: Remove fakeness
     lts_releases_fake = {}
-    lts_releases_fake["1.0"] = None  # lts_releases["release/1.x"]
-    lts_releases_fake["2.0"] = None  # lts_releases["release/1.x"]
+    lts_releases_fake["1.0"] = lts_releases["release/1.x"]
+    lts_releases_fake["2.0"] = lts_releases["release/1.x"]
 
     # Add an empty entry to release to indicate local checkout
     # Note: dicts are ordered from Python3.7
     lts_releases_fake[None] = None
 
     txs = app.LoggingTxs()
-    is_first = True
-    for _, lts_release in lts_releases_fake.items():
+    for idx, (_, lts_release) in enumerate(lts_releases_fake.items()):
 
         if lts_release:
             # version, lts_install_path = repo.install_release(lts_release)
@@ -164,6 +171,9 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
             binary_dir = os.path.join(lts_install_path, "bin")
             library_dir = os.path.join(lts_install_path, "lib")
             major_version = Version(version).release[0]
+            # Explictly test the logging app as it was packaged in the very first LTS
+            # TODO: Is this the right approach?
+            args.js_app_bundle = os.path.join(lts_install_path, "samples/logging/js")
         else:
             version = args.ccf_version
             binary_dir = LOCAL_CHECKOUT_DIRECTORY
@@ -177,12 +187,12 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
             "txs": txs,
             "version": major_version,
         }
-        # TODO: Use app from specific version instead of local checkout
-        if is_first:
+        if idx == 0:
+            LOG.info(f"Starting new service (version: {version})")
             network = infra.network.Network(**network_args)
             network.start_and_join(args)
-            is_first = False
         else:
+            LOG.info(f"Recovering service (new version: {version})")
             network = infra.network.Network(**network_args, existing_network=network)
             network.start_in_recovery(
                 args,
@@ -200,7 +210,9 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
             for node in nodes:
                 with node.client() as c:
                     r = c.get("/node/version")
-                    assert r.body.json()["ccf_version"] == version
+                    assert (
+                        r.body.json()["ccf_version"] == version
+                    ), f"Node version is not {version}"
 
         issue_activity_on_live_service(network, args)
 
@@ -236,6 +248,6 @@ if __name__ == "__main__":
     # Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
 
-    # run_live_compatibility_since_last(args)
+    run_live_compatibility_since_last(args)
     run_ledger_compatibility_since_first(args, use_snapshot=False)
-    # run_ledger_compatibility_since_first(args, use_snapshot=True)
+    run_ledger_compatibility_since_first(args, use_snapshot=True)
