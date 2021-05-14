@@ -778,6 +778,32 @@ def test_forwarding_frontends(network, args):
     return network
 
 
+@reqs.description("Testing signed queries with escaped queries")
+@reqs.at_least_n_nodes(2)
+def test_signed_escapes(network, args):
+    samples = [
+        "this=that",
+        "this=that&other=with spaces",
+        "this with spaces=with spaces",
+        'arg=This has many@many many \\% " AWKWARD :;-=?!& characters %20%20',
+    ]
+
+    if args.package == "liblogging":
+        node = network.find_node_by_role()
+        with node.client("user0", "user0") as c:
+            for query_string in samples:
+                r = c.get(f"/app/log/signed_request_query?{query_string}")
+                assert r.body.text() == query_string, r.body.text()
+
+            for i in range(0, 255):
+                ci = chr(i)
+                ch = urllib.parse.urlencode({"arg": ci})
+                r = c.get(f"/app/log/signed_request_query?{ch}")
+                assert r.body.data() == f"arg={ci}".encode(), r.body.data()
+
+    return network
+
+
 @reqs.description("Test user-data used for access permissions")
 @reqs.supports_methods("log/private/admin_only")
 def test_user_data_ACL(network, args):
@@ -1212,6 +1238,7 @@ def run(args):
         network = test_clear(network, args)
         network = test_record_count(network, args)
         network = test_forwarding_frontends(network, args)
+        network = test_signed_escapes(network, args)
         network = test_user_data_ACL(network, args)
         network = test_cert_prefix(network, args)
         network = test_anonymous_caller(network, args)

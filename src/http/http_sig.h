@@ -18,8 +18,7 @@ namespace http
 {
   inline std::optional<std::vector<uint8_t>> construct_raw_signed_string(
     std::string verb,
-    const std::string_view& path,
-    const std::string_view& query,
+    const std::string_view& url,
     const http::HeaderMap& headers,
     const std::vector<std::string_view>& headers_to_sign)
   {
@@ -33,11 +32,7 @@ namespace http
       {
         // Store verb as lowercase
         nonstd::to_lower(verb);
-        value = fmt::format("{} {}", verb, path);
-        if (!query.empty())
-        {
-          value.append(fmt::format("?{}", query));
-        }
+        value = fmt::format("{} {}", verb, url);
       }
       else
       {
@@ -90,8 +85,7 @@ namespace http
 
     const auto to_sign = construct_raw_signed_string(
       llhttp_method_name(request.get_method()),
-      request.get_path(),
-      request.get_formatted_query(),
+      fmt::format("{}{}", request.get_path(), request.get_formatted_query()),
       request.get_headers(),
       headers_to_sign);
 
@@ -349,8 +343,7 @@ namespace http
 
     static std::optional<ccf::SignedReq> parse(
       const std::string& verb,
-      const std::string_view& path,
-      const std::string_view& query,
+      const std::string_view& url,
       const http::HeaderMap& headers,
       const std::vector<uint8_t>& body)
     {
@@ -405,8 +398,8 @@ namespace http
           return std::nullopt;
         }
 
-        auto signed_raw = construct_raw_signed_string(
-          verb, path, query, headers, signed_headers);
+        auto signed_raw =
+          construct_raw_signed_string(verb, url, headers, signed_headers);
         if (!signed_raw.has_value())
         {
           LOG_TRACE_FMT("Error constructing signed string");

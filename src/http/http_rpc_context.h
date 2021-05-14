@@ -218,6 +218,11 @@ namespace http
       return std::nullopt;
     }
 
+    virtual const std::string& get_request_url() const override
+    {
+      return url;
+    }
+
     virtual void set_response_body(const std::vector<uint8_t>& body) override
     {
       response_body = body;
