@@ -89,7 +89,8 @@ namespace crypto
   }
 
   bool Verifier_OpenSSL::verify_certificate(
-    const std::vector<const Pem*>& trusted_certs)
+    const std::vector<const Pem*>& trusted_certs,
+    const std::vector<const Pem*>& chain)
   {
     Unique_X509_STORE store;
     Unique_X509_STORE_CTX store_ctx;
@@ -101,8 +102,37 @@ namespace crypto
       CHECK1(X509_STORE_add_cert(store, tc));
     }
 
-    CHECK1(X509_STORE_CTX_init(store_ctx, store, cert, NULL));
-    return X509_verify_cert(store_ctx) == 1;
+    Unique_STACK_OF_X509 chain_stack;
+    for (auto& pem : chain)
+    {
+      Unique_BIO certbio(*pem);
+      Unique_X509 cert(certbio, true);
+
+      CHECK1(sk_X509_push(chain_stack, cert));
+      CHECK1(X509_up_ref(cert));
+    }
+
+    // Allow to use intermediate CAs as trust anchors
+    CHECK1(X509_STORE_set_flags(store, X509_V_FLAG_PARTIAL_CHAIN));
+
+    CHECK1(X509_STORE_CTX_init(store_ctx, store, cert, chain_stack));
+    auto valid = X509_verify_cert(store_ctx) == 1;
+    if (!valid)
+    {
+      auto error = X509_STORE_CTX_get_error(store_ctx);
+      auto msg = X509_verify_cert_error_string(error);
+      LOG_DEBUG_FMT("Failed to verify certificate: {}", msg);
+      LOG_DEBUG_FMT("Target: {}", cert_pem().str());
+      for (auto pem : chain)
+      {
+        LOG_DEBUG_FMT("Chain: {}", pem->str());
+      }
+      for (auto pem : trusted_certs)
+      {
+        LOG_DEBUG_FMT("Trusted: {}", pem->str());
+      }
+    }
+    return valid;
   }
 
   bool Verifier_OpenSSL::is_self_signed() const
