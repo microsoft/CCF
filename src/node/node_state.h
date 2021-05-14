@@ -1496,6 +1496,17 @@ namespace ccf
       return startup_seqno;
     }
 
+    SessionMetrics get_session_metrics() override
+    {
+      SessionMetrics sm;
+      rpcsessions->get_stats(
+        sm.active_sessions,
+        sm.peak_sessions,
+        sm.soft_cap_sessions,
+        sm.hard_cap_sessions);
+      return sm;
+    }
+
   private:
     crypto::SubjectAltName get_subject_alt_name()
     {
