@@ -245,6 +245,12 @@ export interface CCF {
    */
   isValidX509CertBundle(pem: string): boolean;
 
+  /**
+   * Returns whether a certificate chain is valid given a set of trusted certificates.
+   * The chain and trusted certificates are PEM-encoded bundles of X.509 certificates.
+   */
+  isValidX509CertChain(chain: string, trusted: string): boolean;
+
   rpc: {
     /**
      * Set whether KV writes should be applied even if the response status is not 2xx.
