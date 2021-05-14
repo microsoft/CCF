@@ -7,8 +7,8 @@ import infra.proc
 import suite.test_requirements as reqs
 import os
 import subprocess
-import reconfiguration
 import hashlib
+from infra.checker import check_can_progress
 
 from loguru import logger as LOG
 
@@ -41,7 +41,7 @@ def test_verify_quotes(network, args):
 
     LOG.info("Check the network is stable")
     primary, _ = network.find_primary()
-    reconfiguration.check_can_progress(primary)
+    check_can_progress(primary)
 
     for node in network.get_joined_nodes():
         LOG.info(f"Verifying quote for node {node.node_id}")
@@ -157,7 +157,7 @@ def test_update_all_nodes(network, args):
         node.stop()
 
     LOG.info("Check the network is still functional")
-    reconfiguration.check_can_progress(new_node)
+    check_can_progress(new_node)
     return network
 
 
