@@ -66,6 +66,23 @@ namespace aft
       last_view_change_sent = view;
     }
 
+    void received_skip_view(const SkipViewMsg& r)
+    {
+      if (last_view_change_sent != r.view)
+      {
+        LOG_FAIL_FMT(
+          "Received skip view message for not the latest view, "
+          "last_view_change_sent:{}, r.view:{}",
+          last_view_change_sent,
+          r.view);
+        return;
+      }
+
+      time_previous_view_change_increment = std::min(
+        time_previous_view_change_increment - time_between_attempts,
+        std::chrono::milliseconds(0));
+    }
+
     enum class ResultAddView
     {
       OK,
