@@ -6,6 +6,7 @@ import infra.logging_app as app
 import infra.e2e_args
 from ccf.tx_status import TxStatus
 import infra.checker
+import infra.jwt
 import inspect
 import http
 import ssl
@@ -1199,12 +1200,11 @@ def test_receipts(network, args):
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
 def test_liveness(network, args):
-    txs = app.LoggingTxs()
-    txs.issue(
+    network.txs.issue(
         network=network,
         number_txs=3,
     )
-    txs.verify()
+    network.txs.verify()
     return network
 
 
@@ -1217,7 +1217,12 @@ def test_rekey(network, args):
 
 
 def run(args):
-    txs = app.LoggingTxs()
+    jwt_issuer = infra.jwt.JwtIssuer()
+
+    # TODO:
+    # 1. Record kid
+
+    txs = app.LoggingTxs(jwt_issuer=jwt_issuer)  # TODO: "user0"
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -1225,6 +1230,7 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
+        jwt_issuer=jwt_issuer,
     ) as network:
         network.start_and_join(args)
 

@@ -5,49 +5,48 @@ import tempfile
 import json
 import time
 import base64
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from http import HTTPStatus
-import ssl
-import threading
-from contextlib import AbstractContextManager
 import infra.network
 import infra.path
 import infra.proc
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
+import infra.jwt
 
 from loguru import logger as LOG
 
 this_dir = os.path.dirname(__file__)
 
 
-def create_jwks(kid, cert_pem, test_invalid_is_key=False):
-    der_b64 = base64.b64encode(
-        infra.crypto.cert_pem_to_der(cert_pem)
-        if not test_invalid_is_key
-        else infra.crypto.pub_key_pem_to_der(cert_pem)
-    ).decode("ascii")
-    return {"keys": [{"kty": "RSA", "kid": kid, "x5c": [der_b64]}]}
+@reqs.description("Refresh JWT issuer")
+def test_refresh_jwt_issuer(network, args):
+    assert network.jwt_issuer.server, "JWT server is not started"
+    jwt_server = network.jwt_issuer.server
+    jwt_server.stop()
+    network.jwt_issuer.refresh_keys()
+    network.jwt_issuer.restart_openid_server(jwt_server)
+    network.jwt_issuer.wait_for_refresh(network)
+
+    # Check that more transactions can be issued
+    network.txs.issue(network)
+    return network
 
 
 @reqs.description("JWT without key policy")
 def test_jwt_without_key_policy(network, args):
     primary, _ = network.find_nodes()
 
-    key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
-    cert_pem = infra.crypto.generate_cert(key_priv_pem)
+    issuer = infra.jwt.JwtIssuer("my_issuer")
     kid = "my_kid"
-    issuer = "my_issuer"
     raw_kid = kid.encode()
 
     LOG.info("Try to add JWT signing key without matching issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
-        json.dump(create_jwks(kid, cert_pem), jwks_fp)
+        json.dump(issuer.create_jwks(kid), jwks_fp)
         jwks_fp.flush()
         try:
             network.consortium.set_jwt_public_signing_keys(
-                primary, issuer, jwks_fp.name
+                primary, issuer.name, jwks_fp.name
             )
         except infra.proposal.ProposalNotAccepted:
             pass
@@ -56,17 +55,17 @@ def test_jwt_without_key_policy(network, args):
 
     LOG.info("Add JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        json.dump({"issuer": issuer}, metadata_fp)
+        json.dump({"issuer": issuer.name}, metadata_fp)
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
     LOG.info("Try to add a public key instead of a certificate")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
-        json.dump(create_jwks(kid, key_pub_pem, test_invalid_is_key=True), jwks_fp)
+        json.dump(issuer.create_jwks(kid, test_invalid_is_key=True), jwks_fp)
         jwks_fp.flush()
         try:
             network.consortium.set_jwt_public_signing_keys(
-                primary, issuer, jwks_fp.name
+                primary, issuer.name, jwks_fp.name
             )
         except (infra.proposal.ProposalNotAccepted, infra.proposal.ProposalNotCreated):
             pass
@@ -75,10 +74,10 @@ def test_jwt_without_key_policy(network, args):
 
     LOG.info("Add JWT signing key with matching issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
-        json.dump(create_jwks(kid, cert_pem), jwks_fp)
+        json.dump(issuer.create_jwks(kid), jwks_fp)
         jwks_fp.flush()
         set_jwt_proposal = network.consortium.set_jwt_public_signing_keys(
-            primary, issuer, jwks_fp.name
+            primary, issuer.name, jwks_fp.name
         )
 
         stored_jwt_signing_key = network.get_ledger_public_state_at(
@@ -87,11 +86,11 @@ def test_jwt_without_key_policy(network, args):
 
         stored_cert = infra.crypto.cert_der_to_pem(stored_jwt_signing_key)
         assert infra.crypto.are_certs_equal(
-            cert_pem, stored_cert
+            issuer.cert_pem, stored_cert
         ), "input cert is not equal to stored cert"
 
     LOG.info("Remove JWT issuer")
-    remove_jwt_proposal = network.consortium.remove_jwt_issuer(primary, issuer)
+    remove_jwt_proposal = network.consortium.remove_jwt_issuer(primary, issuer.name)
 
     assert (
         network.get_ledger_public_state_at(remove_jwt_proposal.completed_seqno)[
@@ -102,7 +101,7 @@ def test_jwt_without_key_policy(network, args):
 
     LOG.info("Add JWT issuer with initial keys")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        json.dump({"issuer": issuer, "jwks": create_jwks(kid, cert_pem)}, metadata_fp)
+        json.dump({"issuer": issuer.name, "jwks": issuer.create_jwks(kid)}, metadata_fp)
         metadata_fp.flush()
         set_jwt_issuer = network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
@@ -112,7 +111,7 @@ def test_jwt_without_key_policy(network, args):
 
         stored_cert = infra.crypto.cert_der_to_pem(stored_jwt_signing_key)
         assert infra.crypto.are_certs_equal(
-            cert_pem, stored_cert
+            issuer.cert_pem, stored_cert
         ), "input cert is not equal to stored cert"
 
     return network
@@ -127,7 +126,7 @@ def test_jwt_with_sgx_key_policy(network, args):
         oe_cert_pem = f.read()
 
     kid = "my_kid"
-    issuer = "my_issuer"
+    issuer = infra.jwt.JwtIssuer("my_issuer", oe_cert_pem)
 
     matching_key_policy = {
         "sgx_claims": {
@@ -145,19 +144,21 @@ def test_jwt_with_sgx_key_policy(network, args):
 
     LOG.info("Add JWT issuer with SGX key policy")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        json.dump({"issuer": issuer, "key_policy": matching_key_policy}, metadata_fp)
+        json.dump(
+            {"issuer": issuer.name, "key_policy": matching_key_policy}, metadata_fp
+        )
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
     LOG.info("Try to add a non-OE-attested cert")
-    key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-    non_oe_cert_pem = infra.crypto.generate_cert(key_priv_pem)
+    non_oe_issuer_name = "non_oe_issuer"
+    non_oe_issuer = infra.jwt.JwtIssuer(non_oe_issuer_name)
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
-        json.dump(create_jwks(kid, non_oe_cert_pem), jwks_fp)
+        json.dump(non_oe_issuer.create_jwks(kid), jwks_fp)
         jwks_fp.flush()
         try:
             network.consortium.set_jwt_public_signing_keys(
-                primary, issuer, jwks_fp.name
+                primary, non_oe_issuer_name, jwks_fp.name
             )
         except infra.proposal.ProposalNotAccepted:
             pass
@@ -166,15 +167,17 @@ def test_jwt_with_sgx_key_policy(network, args):
 
     LOG.info("Add an OE-attested cert with matching claims")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
-        json.dump(create_jwks(kid, oe_cert_pem), jwks_fp)
+        json.dump(issuer.create_jwks(kid), jwks_fp)
         jwks_fp.flush()
-        network.consortium.set_jwt_public_signing_keys(primary, issuer, jwks_fp.name)
+        network.consortium.set_jwt_public_signing_keys(
+            primary, issuer.name, jwks_fp.name
+        )
 
     LOG.info("Update JWT issuer with mismatching SGX key policy")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
         json.dump(
             {
-                "issuer": issuer,
+                "issuer": issuer.name,
                 "key_policy": mismatching_key_policy,
             },
             metadata_fp,
@@ -184,11 +187,11 @@ def test_jwt_with_sgx_key_policy(network, args):
 
     LOG.info("Try to add an OE-attested cert with mismatching claims")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
-        json.dump(create_jwks(kid, non_oe_cert_pem), jwks_fp)
+        json.dump(non_oe_issuer.create_jwks(kid), jwks_fp)
         jwks_fp.flush()
         try:
             network.consortium.set_jwt_public_signing_keys(
-                primary, issuer, jwks_fp.name
+                primary, non_oe_issuer_name, jwks_fp.name
             )
         except infra.proposal.ProposalNotAccepted:
             pass
@@ -205,29 +208,28 @@ def test_jwt_with_sgx_key_filter(network, args):
     oe_cert_path = os.path.join(this_dir, "oe_cert.pem")
     with open(oe_cert_path) as f:
         oe_cert_pem = f.read()
+
+    oe_issuer = infra.jwt.JwtIssuer("oe_issuer", oe_cert_pem)
+    non_oe_issuer = infra.jwt.JwtIssuer("non_oe_issuer_name")
+
     oe_kid = "oe_kid"
-
-    key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-    non_oe_cert_pem = infra.crypto.generate_cert(key_priv_pem)
     non_oe_kid = "non_oe_kid"
-
-    issuer = "my_issuer"
 
     LOG.info("Add JWT issuer with SGX key filter")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        json.dump({"issuer": issuer, "key_filter": "sgx"}, metadata_fp)
+        json.dump({"issuer": oe_issuer.name, "key_filter": "sgx"}, metadata_fp)
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
     LOG.info("Add multiple certs (1 SGX, 1 non-SGX)")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
-        oe_jwks = create_jwks(oe_kid, oe_cert_pem)
-        non_oe_jwks = create_jwks(non_oe_kid, non_oe_cert_pem)
+        oe_jwks = oe_issuer.create_jwks(oe_kid)
+        non_oe_jwks = non_oe_issuer.create_jwks(non_oe_kid)
         jwks = {"keys": non_oe_jwks["keys"] + oe_jwks["keys"]}
         json.dump(jwks, jwks_fp)
         jwks_fp.flush()
         set_jwt_proposal = network.consortium.set_jwt_public_signing_keys(
-            primary, issuer, jwks_fp.name
+            primary, oe_issuer.name, jwks_fp.name
         )
 
         stored_jwt_signing_keys = network.get_ledger_public_state_at(
@@ -238,61 +240,6 @@ def test_jwt_with_sgx_key_filter(network, args):
         assert oe_kid.encode() in stored_jwt_signing_keys
 
     return network
-
-
-class OpenIDProviderServer(AbstractContextManager):
-    def __init__(self, port: int, tls_key_pem: str, tls_cert_pem: str, jwks: dict):
-        host = "localhost"
-        metadata = {"jwks_uri": f"https://{host}:{port}/keys"}
-        self.jwks = jwks
-        self_ = self
-
-        class MyHTTPRequestHandler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                routes = {
-                    "/.well-known/openid-configuration": metadata,
-                    "/keys": self_.jwks,
-                }
-                body = routes.get(self.path)
-                if body is None:
-                    self.send_error(HTTPStatus.NOT_FOUND)
-                    return
-                body = json.dumps(body).encode()
-                self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def log_message(self, fmt, *args):  # pylint: disable=arguments-differ
-                LOG.debug(f"OpenIDProviderServer: {fmt % args}")
-
-        with tempfile.NamedTemporaryFile(
-            prefix="ccf", mode="w+"
-        ) as keyfile_fp, tempfile.NamedTemporaryFile(
-            prefix="ccf", mode="w+"
-        ) as certfile_fp:
-            keyfile_fp.write(tls_key_pem)
-            keyfile_fp.flush()
-            certfile_fp.write(tls_cert_pem)
-            certfile_fp.flush()
-
-            self.httpd = HTTPServer((host, port), MyHTTPRequestHandler)
-            context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
-            context.load_cert_chain(
-                certfile=certfile_fp.name,
-                keyfile=keyfile_fp.name,
-            )
-            self.httpd.socket = context.wrap_socket(
-                self.httpd.socket,
-                server_side=True,
-            )
-            self.thread = threading.Thread(None, self.httpd.serve_forever)
-            self.thread.start()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.httpd.shutdown()
-        self.httpd.server_close()
-        self.thread.join()
 
 
 def check_kv_jwt_key_matches(network, kid, cert_pem):
@@ -329,30 +276,27 @@ def test_jwt_key_auto_refresh(network, args):
     primary, _ = network.find_nodes()
 
     ca_cert_bundle_name = "jwt"
-    kid = "my_kid"
+    kid = "the_kid"
     issuer_host = "localhost"
     issuer_port = 12345
-    issuer = f"https://{issuer_host}:{issuer_port}"
 
-    key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-    cert_pem = infra.crypto.generate_cert(key_priv_pem, cn=issuer_host)
+    issuer = infra.jwt.JwtIssuer(f"https://{issuer_host}:{issuer_port}", cn=issuer_host)
 
     LOG.info("Add CA cert for JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(cert_pem)
+        ca_cert_bundle_fp.write(issuer.tls_cert)
         ca_cert_bundle_fp.flush()
         network.consortium.set_ca_cert_bundle(
             primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
         )
 
     LOG.info("Start OpenID endpoint server")
-    jwks = create_jwks(kid, cert_pem)
-    with OpenIDProviderServer(issuer_port, key_priv_pem, cert_pem, jwks) as server:
+    with issuer.start_openid_server(issuer_port, kid) as server:
         LOG.info("Add JWT issuer with auto-refresh")
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump(
                 {
-                    "issuer": issuer,
+                    "issuer": issuer.name,
                     "auto_refresh": True,
                     "ca_cert_bundle_name": ca_cert_bundle_name,
                 },
@@ -364,7 +308,7 @@ def test_jwt_key_auto_refresh(network, args):
             LOG.info("Check that keys got refreshed")
             # Note: refresh interval is set to 1s, see network args below.
             with_timeout(
-                lambda: check_kv_jwt_key_matches(network, kid, cert_pem),
+                lambda: check_kv_jwt_key_matches(network, kid, issuer.cert_pem),
                 timeout=5,
             )
 
@@ -385,14 +329,12 @@ def test_jwt_key_auto_refresh(network, args):
         with_timeout(check_has_failures, timeout=5)
 
     LOG.info("Restart OpenID endpoint server with new keys")
-    kid2 = "my_kid_2"
-    key2_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-    cert2_pem = infra.crypto.generate_cert(key2_priv_pem, cn=issuer_host)
-    jwks = create_jwks(kid2, cert2_pem)
-    with OpenIDProviderServer(issuer_port, key_priv_pem, cert_pem, jwks):
+    kid2 = "the_kid_2"
+    issuer.refresh_keys()
+    with issuer.start_openid_server(issuer_port, kid2):
         LOG.info("Check that keys got refreshed")
         with_timeout(lambda: check_kv_jwt_key_matches(network, kid, None), timeout=5)
-        check_kv_jwt_key_matches(network, kid2, cert2_pem)
+        check_kv_jwt_key_matches(network, kid2, issuer.cert_pem)
 
     return network
 
@@ -405,27 +347,24 @@ def test_jwt_key_initial_refresh(network, args):
     kid = "my_kid"
     issuer_host = "localhost"
     issuer_port = 12345
-    issuer = f"https://{issuer_host}:{issuer_port}"
 
-    key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-    cert_pem = infra.crypto.generate_cert(key_priv_pem, cn=issuer_host)
+    issuer = infra.jwt.JwtIssuer(f"https://{issuer_host}:{issuer_port}", cn=issuer_host)
 
     LOG.info("Add CA cert for JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(cert_pem)
+        ca_cert_bundle_fp.write(issuer.tls_cert)
         ca_cert_bundle_fp.flush()
         network.consortium.set_ca_cert_bundle(
             primary, ca_cert_bundle_name, ca_cert_bundle_fp.name
         )
 
     LOG.info("Start OpenID endpoint server")
-    jwks = create_jwks(kid, cert_pem)
-    with OpenIDProviderServer(issuer_port, key_priv_pem, cert_pem, jwks):
+    with issuer.start_openid_server(issuer_port, kid):
         LOG.info("Add JWT issuer with auto-refresh")
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
             json.dump(
                 {
-                    "issuer": issuer,
+                    "issuer": issuer.name,
                     "auto_refresh": True,
                     "ca_cert_bundle_name": ca_cert_bundle_name,
                 },
@@ -435,10 +374,10 @@ def test_jwt_key_initial_refresh(network, args):
             network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
         LOG.info("Check that keys got refreshed")
-        # Auto-refresh interval is set to a large value so that it doesn't happen within the timeout.
+        # Auto-refresh interval has been set to a large value so that it doesn't happen within the timeout.
         # This is testing the one-off refresh after adding a new issuer.
         with_timeout(
-            lambda: check_kv_jwt_key_matches(network, kid, cert_pem), timeout=5
+            lambda: check_kv_jwt_key_matches(network, kid, issuer.cert_pem), timeout=5
         )
 
         LOG.info("Check that JWT refresh endpoint has no failures")
@@ -471,6 +410,7 @@ def run(args):
         network = test_jwt_without_key_policy(network, args)
         network = test_jwt_with_sgx_key_policy(network, args)
         network = test_jwt_with_sgx_key_filter(network, args)
+        network = test_refresh_jwt_issuer(network, args)
         network = test_jwt_key_auto_refresh(network, args)
 
         # Check that auto refresh also works on backups
