@@ -182,12 +182,12 @@ TEST_CASE("sets and values")
       REQUIRE(!set_handle->has(k1));
       REQUIRE(set_handle->size() == 0);
 
-      set_handle->put(k1);
+      set_handle->insert(k1);
       REQUIRE(set_handle->has(k1));
       REQUIRE(set_handle->size() == 1);
 
       REQUIRE(!set_handle->has(k2));
-      set_handle->put(k2);
+      set_handle->insert(k2);
       REQUIRE(set_handle->has(k2));
       REQUIRE(set_handle->size() == 2);
 
@@ -326,7 +326,7 @@ TEST_CASE("sets and values")
         const auto n = i * i;
         const char c[2] = {(char)('A' + i), 0};
         map_handle->put(std::string(c), n);
-        set_handle->put(n);
+        set_handle->insert(n);
       }
 
       REQUIRE(map_handle->size() == n_entries);
@@ -363,7 +363,7 @@ TEST_CASE("sets and values")
             const auto s = k + k;
             const auto n = ~v;
             map_handle->put(s, n);
-            set_handle->put(n);
+            set_handle->insert(n);
           }
 
           return true;

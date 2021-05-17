@@ -56,7 +56,7 @@ namespace kv
   public:
     WriteableSetHandle(kv::untyped::MapHandle& uh) : write_handle(uh) {}
 
-    void put(const K& key)
+    void insert(const K& key)
     {
       write_handle.put(KSerialiser::to_serialised(key), kv::Unit::get());
     }
