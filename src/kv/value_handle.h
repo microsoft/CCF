@@ -40,17 +40,6 @@ namespace kv
     {
       return read_handle.get_version_of_previous_write(kv::Unit::get());
     }
-
-    template <class F>
-    void foreach(F&& f)
-    {
-      auto g = [&](
-                 const kv::serialisers::SerialisedEntry&,
-                 const kv::serialisers::SerialisedEntry& v_rep) {
-        return f(VSerialiser::from_serialised(v_rep));
-      };
-      read_handle.foreach(g);
-    }
   };
 
   template <typename V, typename VSerialiser>
