@@ -12,14 +12,15 @@ namespace kv
   // kv::Map<T, Unit>.
   struct Unit
   {
-    static kv::serialisers::SerialisedEntry get()
+    static const kv::serialisers::SerialisedEntry& get()
     {
       // TODO: Should this be a 0? Our existing mono-valued tables had a single
       // value at key 0, we could remain ledger-compatible if we produce the
       // same value here. But that only works where we can guess the
       // serialisation format of that 0, and we're stuck with that inefficiency
       // forever.
-      return {};
+      static kv::serialisers::SerialisedEntry the_value = {};
+      return the_value;
     }
   };
 }
