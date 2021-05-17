@@ -112,6 +112,7 @@ class Network:
         perf_nodes=None,
         existing_network=None,
         txs=None,
+        jwt_issuer=None,
         library_dir=".",
         init_partitioner=False,
         version=None,
@@ -121,6 +122,7 @@ class Network:
             self.users = []
             self.node_offset = 0
             self.txs = txs
+            self.jwt_issuer = jwt_issuer
         else:
             self.consortium = existing_network.consortium
             self.users = existing_network.users
@@ -132,6 +134,7 @@ class Network:
                 len(existing_network.nodes) + existing_network.node_offset
             )
             self.txs = existing_network.txs
+            self.jwt_issuer = existing_network.jwt_issuer
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
@@ -422,6 +425,9 @@ class Network:
             self.consortium.set_jwt_issuer(
                 remote_node=self.find_random_node(), json_path=path
             )
+
+        if self.jwt_issuer:
+            self.jwt_issuer.register_test_kid(self)
 
         self.consortium.add_users(self.find_random_node(), initial_users)
         LOG.info(f"Initial set of users added: {len(initial_users)}")
@@ -971,7 +977,7 @@ class Network:
                 return call(seqno)
             except Exception:
                 self.consortium.create_and_withdraw_large_proposal(node)
-
+                time.sleep(0.1)
         raise TimeoutError(
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()}"
         )
@@ -1001,6 +1007,7 @@ def network(
     perf_nodes=None,
     pdb=False,
     txs=None,
+    jwt_issuer=None,
     library_directory=".",
     init_partitioner=False,
     version=None,
@@ -1029,6 +1036,7 @@ def network(
         dbg_nodes=dbg_nodes,
         perf_nodes=perf_nodes,
         txs=txs,
+        jwt_issuer=jwt_issuer,
         init_partitioner=init_partitioner,
         version=version,
     )
