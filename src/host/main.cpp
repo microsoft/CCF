@@ -33,6 +33,19 @@ using namespace std::chrono_literals;
 
 size_t asynchost::TCPImpl::remaining_read_quota;
 
+struct RpcListenOptions
+{
+  cli::ParsedAddress rpc_address;
+  CLI::Option* rpc_address_option = nullptr;
+  cli::ParsedAddress public_rpc_address;
+  CLI::Option* public_address_option = nullptr;
+  size_t max_open_sessions = 1'000;
+  size_t max_open_sessions_hard;
+  CLI::Option* mosh_option = nullptr;
+};
+
+static constexpr size_t MAX_RPC_LISTEN_ADDRESSES = 10;
+
 void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
@@ -114,6 +127,13 @@ int main(int argc, char** argv)
     "Interface on which to bind to for commands sent to other nodes. If "
     "unspecified (default), this is automatically assigned by the OS");
 
+  std::string rpc_address_file = {};
+  app.add_option(
+    "--rpc-address-file",
+    rpc_address_file,
+    "Path to which all node RPC addresses (including potentially "
+    "auto-assigned ports) will be written. If empty (default), write nothing");
+
   cli::ParsedAddress rpc_address;
   cli::add_address_option(
     app,
@@ -124,13 +144,6 @@ int main(int argc, char** argv)
     "443")
     ->required();
 
-  std::string rpc_address_file = {};
-  app.add_option(
-    "--rpc-address-file",
-    rpc_address_file,
-    "Path to which the node's RPC address (including potentially "
-    "auto-assigned port) will be written. If empty (default), write nothing");
-
   cli::ParsedAddress public_rpc_address;
   auto public_rpc_address_option = cli::add_address_option(
     app,
@@ -139,6 +152,57 @@ int main(int argc, char** argv)
     "Address to advertise publicly to clients (defaults to same as "
     "--rpc-address)",
     "443");
+
+  size_t max_open_sessions = 1'000;
+  app
+    .add_option(
+      "--max-open-sessions",
+      max_open_sessions,
+      "Soft cap on number of TLS sessions which may be open at the same time. "
+      "Once this many connection are open, additional connections will receive "
+      "a 503 HTTP error (until the hard cap is reached)")
+    ->capture_default_str();
+
+  constexpr auto hard_session_cap_diff = 10;
+  size_t max_open_sessions_hard = 0;
+  app.add_option(
+    "--max-open-sessions-hard",
+    max_open_sessions_hard,
+    fmt::format(
+      "Hard cap on number of TLS sessions which may be open at the same "
+      "time. "
+      "Once this many connections are open, additional connection attempts "
+      "will be closed before a TLS handshake is completed. Default is {} "
+      "more than --max-open-sessions",
+      hard_session_cap_diff));
+
+  RpcListenOptions rpc_listen_specs[MAX_RPC_LISTEN_ADDRESSES];
+  for (size_t i = 0; i < MAX_RPC_LISTEN_ADDRESSES; ++i)
+  {
+    auto& spec = rpc_listen_specs[i];
+    const auto n = i + 1;
+
+    spec.rpc_address_option =
+      cli::add_address_option(
+        app, spec.rpc_address, fmt::format("--rpc-address{}", n))
+        ->group("");
+    spec.public_address_option =
+      cli::add_address_option(
+        app, spec.public_rpc_address, fmt::format("--public-rpc-address{}", n))
+        ->group("")
+        ->needs(spec.rpc_address_option);
+    app
+      .add_option(
+        fmt::format("--max-open-sessions{}", n), spec.max_open_sessions)
+      ->group("")
+      ->needs(spec.rpc_address_option);
+    spec.mosh_option = app
+                         .add_option(
+                           fmt::format("--max-open-sessions-hard{}", n),
+                           spec.max_open_sessions_hard)
+                         ->group("")
+                         ->needs(spec.rpc_address_option);
+  }
 
   std::string ledger_dir("ledger");
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
@@ -172,29 +236,6 @@ int main(int argc, char** argv)
       snapshot_tx_interval,
       "Number of transactions between snapshots")
     ->capture_default_str();
-
-  size_t max_open_sessions = 1'000;
-  app
-    .add_option(
-      "--max-open-sessions",
-      max_open_sessions,
-      "Soft cap on number of TLS sessions which may be open at the same time. "
-      "Once this many connection are open, additional connections will receive "
-      "a 503 HTTP error (until the hard cap is reached)")
-    ->capture_default_str();
-
-  constexpr auto hard_session_cap_diff = 10;
-  size_t max_open_sessions_hard = 0;
-  app.add_option(
-    "--max-open-sessions-hard",
-    max_open_sessions_hard,
-    fmt::format(
-      "Hard cap on number of TLS sessions which may be open at the same "
-      "time. "
-      "Once this many connections are open, additional connection attempts "
-      "will be closed before a TLS handshake is completed. Default is {} "
-      "more than --max-open-sessions",
-      hard_session_cap_diff));
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -463,6 +504,39 @@ int main(int argc, char** argv)
     ->check(CLI::NonexistentPath);
 
   CLI11_PARSE(app, argc, argv);
+
+  for (size_t i = 0; i < MAX_RPC_LISTEN_ADDRESSES; ++i)
+  {
+    const auto n = i + 1;
+    auto& spec = rpc_listen_specs[i];
+    if (*spec.rpc_address_option)
+    {
+      if (!(*spec.public_address_option))
+      {
+        spec.public_rpc_address = spec.rpc_address;
+      }
+
+      if (!(*spec.mosh_option))
+      {
+        spec.max_open_sessions_hard =
+          spec.max_open_sessions + hard_session_cap_diff;
+      }
+
+      std::cout << fmt::format(
+                     "Listen address {} was specified: {}, {}, {}, {}",
+                     n,
+                     spec.rpc_address.hostname,
+                     spec.public_rpc_address.hostname,
+                     spec.max_open_sessions,
+                     spec.max_open_sessions_hard)
+                << std::endl;
+    }
+    else
+    {
+      std::cout << fmt::format("Listen address {} was not specified", n)
+                << std::endl;
+    }
+  }
 
   if (!(*public_rpc_address_option))
   {

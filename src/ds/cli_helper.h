@@ -23,7 +23,7 @@ namespace cli
     CLI::App& app,
     ParsedAddress& parsed,
     const std::string& option_name,
-    const std::string& option_desc,
+    const std::string& option_desc = "",
     const std::string& default_port = "0")
   {
     CLI::callback_t fun = [&parsed, option_name, default_port](
