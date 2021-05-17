@@ -297,6 +297,84 @@ TEST_CASE("sets and values")
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
   }
+
+  {
+    // Sanity check that transactions can handle a mix of maps, sets, and values
+    INFO("Mixed");
+
+    using TMap = kv::Map<std::string, size_t>;
+    using TSet = kv::Set<size_t>;
+    kv::Value<std::string> map_name_val("public:map_name");
+    kv::Value<std::string> set_name_val("public:set_name");
+
+    constexpr auto n_entries = 10;
+
+    {
+      INFO("Writing");
+      auto tx = kv_store.create_tx();
+
+      auto map_name_handle = tx.rw(map_name_val);
+      map_name_handle->put("public:my_test_map");
+
+      auto set_name_handle = tx.rw(set_name_val);
+      set_name_handle->put("public:values_from_my_test_map");
+
+      auto map_handle = tx.rw<TMap>(*map_name_handle->get());
+      auto set_handle = tx.rw<TSet>(*set_name_handle->get());
+      for (size_t i = 0; i < n_entries; ++i)
+      {
+        const auto n = i * i;
+        const char c[2] = {(char)('A' + i), 0};
+        map_handle->put(std::string(c), n);
+        set_handle->put(n);
+      }
+
+      REQUIRE(map_handle->size() == n_entries);
+      REQUIRE(set_handle->size() == n_entries);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Read and modify");
+      auto tx = kv_store.create_tx();
+
+      auto map_name_handle = tx.rw(map_name_val);
+      REQUIRE(map_name_handle->has());
+
+      auto set_name_handle = tx.rw(set_name_val);
+      REQUIRE(set_name_handle->has());
+
+      auto map_handle = tx.rw<TMap>(*map_name_handle->get());
+      auto set_handle = tx.rw<TSet>(*set_name_handle->get());
+
+      REQUIRE(map_handle->size() == n_entries);
+      REQUIRE(set_handle->size() == n_entries);
+
+      map_handle->foreach(
+        [&map_handle, &set_handle](const std::string& k, const size_t& v) {
+          REQUIRE(set_handle->has(v));
+
+          if (k[0] % 3 == 0)
+          {
+            REQUIRE(map_handle->remove(k));
+            REQUIRE(set_handle->remove(v));
+
+            const auto s = k + k;
+            const auto n = ~v;
+            map_handle->put(s, n);
+            set_handle->put(n);
+          }
+
+          return true;
+        });
+
+      REQUIRE(map_handle->size() == n_entries);
+      REQUIRE(set_handle->size() == n_entries);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
 }
 
 TEST_CASE("clear")
