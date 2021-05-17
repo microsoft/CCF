@@ -22,6 +22,13 @@ class AllConnectionsCreatedException(Exception):
     """
 
 
+def get_session_metrics(node):
+    with node.client() as c:
+        r = c.get("/node/metrics")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        return r.body.json()["sessions"]
+
+
 def run(args):
     # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
     args.max_open_sessions = 100
@@ -46,6 +53,13 @@ def run(args):
 
         num_fds = initial_fds
         LOG.success(f"{primary_pid} has {num_fds} open file descriptors")
+
+        initial_metrics = get_session_metrics(primary)
+        assert initial_metrics["active"] <= initial_metrics["peak"], initial_metrics
+        assert initial_metrics["soft_cap"] == args.max_open_sessions, initial_metrics
+        assert (
+            initial_metrics["hard_cap"] == args.max_open_sessions_hard
+        ), initial_metrics
 
         def create_connections_until_exhaustion(target, continue_to_hard_cap=False):
             with contextlib.ExitStack() as es:
@@ -102,6 +116,15 @@ def run(args):
                     f"{primary_pid} has {num_fds}/{max_fds} open file descriptors"
                 )
 
+                r = clients[-1].get("/node/metrics")
+                assert r.status_code == http.HTTPStatus.OK, r.status_code
+                peak_metrics = r.body.json()["sessions"]
+                assert peak_metrics["active"] <= peak_metrics["peak"], peak_metrics
+                assert peak_metrics["active"] >= len(clients), (
+                    peak_metrics,
+                    len(clients),
+                )
+
                 # Submit many requests, and at least enough to trigger additional snapshots
                 more_requests = max(len(clients) * 3, args.snapshot_tx_interval * 2)
                 LOG.info(
@@ -153,6 +176,15 @@ def run(args):
             # This is fine! The soft cap means this test no longer reaches the hard cap.
             # It gets HTTP errors but then _closes_ sockets, fast enough that we never hit the hard cap
             pass
+
+        final_metrics = get_session_metrics(primary)
+        assert final_metrics["active"] <= final_metrics["peak"], final_metrics
+        assert final_metrics["peak"] > initial_metrics["peak"], (
+            initial_metrics,
+            final_metrics,
+        )
+        assert final_metrics["peak"] >= args.max_open_sessions, final_metrics
+        assert final_metrics["peak"] < args.max_open_sessions_hard, final_metrics
 
         # Now set a low fd limit, so network sessions completely exhaust them - expect this to cause failures
         max_fds = args.max_open_sessions // 2
