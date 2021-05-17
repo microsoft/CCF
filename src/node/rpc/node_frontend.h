@@ -43,6 +43,18 @@ namespace ccf
   DECLARE_JSON_TYPE(GetQuotes::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes)
 
+  struct NodeMetrics
+  {
+    ccf::SessionMetrics sessions;
+  };
+
+  DECLARE_JSON_TYPE(ccf::SessionMetrics)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ccf::SessionMetrics, active, peak, soft_cap, hard_cap)
+
+  DECLARE_JSON_TYPE(NodeMetrics)
+  DECLARE_JSON_REQUIRED_FIELDS(NodeMetrics, sessions)
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -191,7 +203,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "1.0.0";
+      openapi_info.document_version = "1.1.0";
     }
 
     void init_handlers() override
@@ -774,6 +786,23 @@ namespace ccf
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<MemoryUsage>()
+        .install();
+
+      auto node_metrics = [this](auto& args) {
+        NodeMetrics nm;
+        nm.sessions = context.get_node_state().get_session_metrics();
+
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        args.rpc_ctx->set_response_body(nlohmann::json(nm).dump());
+      };
+
+      make_command_endpoint("metrics", HTTP_GET, node_metrics, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .set_auto_schema<void, NodeMetrics>()
         .install();
 
       auto version = [this](auto&, nlohmann::json&&) {
