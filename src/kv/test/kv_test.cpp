@@ -179,20 +179,20 @@ TEST_CASE("sets and values")
       auto tx = kv_store.create_tx();
       auto set_handle = tx.rw(set);
 
-      REQUIRE(!set_handle->has(k1));
+      REQUIRE(!set_handle->contains(k1));
       REQUIRE(set_handle->size() == 0);
 
       set_handle->insert(k1);
-      REQUIRE(set_handle->has(k1));
+      REQUIRE(set_handle->contains(k1));
       REQUIRE(set_handle->size() == 1);
 
-      REQUIRE(!set_handle->has(k2));
+      REQUIRE(!set_handle->contains(k2));
       set_handle->insert(k2);
-      REQUIRE(set_handle->has(k2));
+      REQUIRE(set_handle->contains(k2));
       REQUIRE(set_handle->size() == 2);
 
       REQUIRE(set_handle->remove(k2));
-      REQUIRE(!set_handle->has(k2));
+      REQUIRE(!set_handle->contains(k2));
       REQUIRE(set_handle->size() == 1);
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
@@ -202,8 +202,8 @@ TEST_CASE("sets and values")
       INFO("Read previous writes");
       auto tx = kv_store.create_tx();
       auto set_handle = tx.ro(set);
-      REQUIRE(set_handle->has(k1));
-      REQUIRE(!set_handle->has(k2));
+      REQUIRE(set_handle->contains(k1));
+      REQUIRE(!set_handle->contains(k2));
       REQUIRE(set_handle->size() == 1);
       std::set<std::string> std_set;
       set_handle->foreach([&std_set](const std::string& entry) {
@@ -221,15 +221,15 @@ TEST_CASE("sets and values")
       auto tx = kv_store.create_tx();
       auto set_handle = tx.rw(set);
 
-      REQUIRE(set_handle->has(k1));
+      REQUIRE(set_handle->contains(k1));
       REQUIRE(set_handle->size() == 1);
 
       REQUIRE(!set_handle->remove(k2));
-      REQUIRE(set_handle->has(k1));
+      REQUIRE(set_handle->contains(k1));
       REQUIRE(set_handle->size() == 1);
 
       REQUIRE(set_handle->remove(k1));
-      REQUIRE(!set_handle->has(k1));
+      REQUIRE(!set_handle->contains(k1));
       REQUIRE(set_handle->size() == 0);
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
@@ -353,7 +353,7 @@ TEST_CASE("sets and values")
 
       map_handle->foreach(
         [&map_handle, &set_handle](const std::string& k, const size_t& v) {
-          REQUIRE(set_handle->has(v));
+          REQUIRE(set_handle->contains(v));
 
           if (k[0] % 3 == 0)
           {

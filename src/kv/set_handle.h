@@ -19,7 +19,7 @@ namespace kv
 
     ReadableSetHandle(kv::untyped::MapHandle& uh) : read_handle(uh) {}
 
-    bool has(const K& key)
+    bool contains(const K& key)
     {
       return read_handle.has(KSerialiser::to_serialised(key));
     }
