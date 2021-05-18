@@ -213,7 +213,7 @@ class Network:
             target_node, _ = self.find_primary(
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
-        LOG.info(f"Joining from target node {target_node.node_id}")
+        LOG.info(f"Joining from target node {target_node.local_node_id}")
 
         # Only retrieve snapshot from target node if the snapshot directory is not
         # specified

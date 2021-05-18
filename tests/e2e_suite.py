@@ -6,7 +6,7 @@ import infra.network
 import suite.test_suite as s
 import suite.test_requirements as reqs
 import infra.logging_app as app
-import infra.jwt
+import infra.jwt_issuer
 import time
 import json
 import sys
@@ -62,7 +62,7 @@ def run(args):
     if args.enforce_reqs is False:
         LOG.warning("Test requirements will be ignored")
 
-    jwt_issuer = infra.jwt.JwtIssuer("https://localhost")
+    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
     jwt_server = jwt_issuer.start_openid_server()
     txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
     network = infra.network.Network(

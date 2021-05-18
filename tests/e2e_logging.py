@@ -6,7 +6,7 @@ import infra.logging_app as app
 import infra.e2e_args
 from ccf.tx_status import TxStatus
 import infra.checker
-import infra.jwt
+import infra.jwt_issuer
 import inspect
 import http
 import ssl

@@ -10,7 +10,7 @@ import infra.proc
 import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
-import infra.jwt
+import infra.jwt_issuer
 
 from loguru import logger as LOG
 
@@ -35,7 +35,7 @@ def test_refresh_jwt_issuer(network, args):
 def test_jwt_without_key_policy(network, args):
     primary, _ = network.find_nodes()
 
-    issuer = infra.jwt.JwtIssuer("my_issuer")
+    issuer = infra.jwt_issuer.JwtIssuer("my_issuer")
     kid = "my_kid"
     raw_kid = kid.encode()
 
@@ -125,7 +125,7 @@ def test_jwt_with_sgx_key_policy(network, args):
         oe_cert_pem = f.read()
 
     kid = "my_kid"
-    issuer = infra.jwt.JwtIssuer("my_issuer", oe_cert_pem)
+    issuer = infra.jwt_issuer.JwtIssuer("my_issuer", oe_cert_pem)
 
     matching_key_policy = {
         "sgx_claims": {
@@ -151,7 +151,7 @@ def test_jwt_with_sgx_key_policy(network, args):
 
     LOG.info("Try to add a non-OE-attested cert")
     non_oe_issuer_name = "non_oe_issuer"
-    non_oe_issuer = infra.jwt.JwtIssuer(non_oe_issuer_name)
+    non_oe_issuer = infra.jwt_issuer.JwtIssuer(non_oe_issuer_name)
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
         json.dump(non_oe_issuer.create_jwks(kid), jwks_fp)
         jwks_fp.flush()
@@ -208,8 +208,8 @@ def test_jwt_with_sgx_key_filter(network, args):
     with open(oe_cert_path) as f:
         oe_cert_pem = f.read()
 
-    oe_issuer = infra.jwt.JwtIssuer("oe_issuer", oe_cert_pem)
-    non_oe_issuer = infra.jwt.JwtIssuer("non_oe_issuer_name")
+    oe_issuer = infra.jwt_issuer.JwtIssuer("oe_issuer", oe_cert_pem)
+    non_oe_issuer = infra.jwt_issuer.JwtIssuer("non_oe_issuer_name")
 
     oe_kid = "oe_kid"
     non_oe_kid = "non_oe_kid"
@@ -279,7 +279,9 @@ def test_jwt_key_auto_refresh(network, args):
     issuer_host = "localhost"
     issuer_port = 12345
 
-    issuer = infra.jwt.JwtIssuer(f"https://{issuer_host}:{issuer_port}", cn=issuer_host)
+    issuer = infra.jwt_issuer.JwtIssuer(
+        f"https://{issuer_host}:{issuer_port}", cn=issuer_host
+    )
 
     LOG.info("Add CA cert for JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
@@ -347,7 +349,9 @@ def test_jwt_key_initial_refresh(network, args):
     issuer_host = "localhost"
     issuer_port = 12345
 
-    issuer = infra.jwt.JwtIssuer(f"https://{issuer_host}:{issuer_port}", cn=issuer_host)
+    issuer = infra.jwt_issuer.JwtIssuer(
+        f"https://{issuer_host}:{issuer_port}", cn=issuer_host
+    )
 
     LOG.info("Add CA cert for JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:

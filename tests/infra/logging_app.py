@@ -57,7 +57,7 @@ class LoggingTxs:
 
     def _get_headers_base(self):
         return (
-            infra.jwt.make_authn_bearer_header(self.jwt_issuer.issue_jwt())
+            infra.jwt_issuer.make_authn_bearer_header(self.jwt_issuer.issue_jwt())
             if self.jwt_issuer
             else {}
         )
@@ -84,7 +84,9 @@ class LoggingTxs:
         if on_backup:
             remote_node = network.find_any_backup()
 
-        LOG.info(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
+        LOG.info(
+            f"Applying {number_txs} logging txs to node {remote_node.local_node_id}"
+        )
 
         with remote_node.client(self.user) as c:
             check_commit = infra.checker.Checker(c)

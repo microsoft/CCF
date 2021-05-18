@@ -38,7 +38,7 @@ class MyHTTPRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, fmt, *args):  # pylint: disable=arguments-differ
-        LOG.debug(f"OpenIDProviderServer: {fmt % args}")
+        LOG.trace(f"OpenIDProviderServer: {fmt % args}")
 
 
 class OpenIDProviderServer(AbstractContextManager):
