@@ -3,7 +3,6 @@
 import infra.crypto
 import base64
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from socketserver import ThreadingMixIn
 from http import HTTPStatus
 import ssl
 import threading
@@ -185,7 +184,7 @@ class JwtIssuer:
         server.set_jwks(self.create_jwks(kid))
         server.restart()
 
-    def issue_jwt(self, kid=TEST_JWT_KID, claims={}):
+    def issue_jwt(self, kid=TEST_JWT_KID, claims=None):
         return infra.crypto.create_jwt(claims, self.key_priv_pem, kid)
 
     def wait_for_refresh(self, network, kid=TEST_JWT_KID, timeout=3):

@@ -4,7 +4,6 @@ import os
 import tempfile
 import json
 import time
-import base64
 import infra.network
 import infra.path
 import infra.proc
