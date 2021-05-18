@@ -33,18 +33,6 @@ using namespace std::chrono_literals;
 
 size_t asynchost::TCPImpl::remaining_read_quota;
 
-struct RpcListenOptions
-{
-  cli::ParsedAddress rpc_address;
-  CLI::Option* rpc_address_option = nullptr;
-  cli::ParsedAddress public_rpc_address;
-  CLI::Option* public_address_option = nullptr;
-  size_t max_open_sessions = 1'000;
-  size_t max_open_sessions_hard;
-  CLI::Option* mosh_option = nullptr;
-};
-
-static constexpr size_t MAX_RPC_LISTEN_ADDRESSES = 10;
 
 void print_version(size_t)
 {
@@ -69,8 +57,9 @@ int main(int argc, char** argv)
   app.require_subcommand(1, 1);
 
   std::string enclave_file;
-  app.add_option("-e,--enclave-file", enclave_file, "CCF application")
-    ->required()
+  app
+    .add_option("-e,--enclave-file", enclave_file, "CCF application")
+    // ->required()
     ->check(CLI::ExistingFile);
 
   enum EnclaveType
@@ -86,15 +75,17 @@ int main(int argc, char** argv)
     {"virtual", EnclaveType::VIRTUAL}};
 
   EnclaveType enclave_type;
-  app.add_option("-t,--enclave-type", enclave_type, "Enclave type")
-    ->required()
+  app
+    .add_option("-t,--enclave-type", enclave_type, "Enclave type")
+    // ->required()
     ->transform(CLI::CheckedTransformer(enclave_type_map, CLI::ignore_case));
 
   ConsensusType consensus;
   std::vector<std::pair<std::string, ConsensusType>> consensus_map{
     {"cft", ConsensusType::CFT}, {"bft", ConsensusType::BFT}};
-  app.add_option("-c,--consensus", consensus, "Consensus")
-    ->required()
+  app
+    .add_option("-c,--consensus", consensus, "Consensus")
+    // ->required()
     ->transform(CLI::CheckedTransformer(consensus_map, CLI::ignore_case));
 
   size_t num_worker_threads = 0;
@@ -111,7 +102,8 @@ int main(int argc, char** argv)
     node_address,
     "--node-address",
     "Address on which to listen for commands coming from other nodes")
-    ->required();
+    // ->required()
+    ;
 
   std::string node_address_file = {};
   app.add_option(
@@ -142,7 +134,8 @@ int main(int argc, char** argv)
     "Address on which to listen for TLS commands coming from clients. Port "
     "defaults to 443 if unspecified.",
     "443")
-    ->required();
+    // ->required()
+    ;
 
   cli::ParsedAddress public_rpc_address;
   auto public_rpc_address_option = cli::add_address_option(
@@ -176,33 +169,8 @@ int main(int argc, char** argv)
       "more than --max-open-sessions",
       hard_session_cap_diff));
 
-  RpcListenOptions rpc_listen_specs[MAX_RPC_LISTEN_ADDRESSES];
-  for (size_t i = 0; i < MAX_RPC_LISTEN_ADDRESSES; ++i)
-  {
-    auto& spec = rpc_listen_specs[i];
-    const auto n = i + 1;
-
-    spec.rpc_address_option =
-      cli::add_address_option(
-        app, spec.rpc_address, fmt::format("--rpc-address{}", n))
-        ->group("");
-    spec.public_address_option =
-      cli::add_address_option(
-        app, spec.public_rpc_address, fmt::format("--public-rpc-address{}", n))
-        ->group("")
-        ->needs(spec.rpc_address_option);
-    app
-      .add_option(
-        fmt::format("--max-open-sessions{}", n), spec.max_open_sessions)
-      ->group("")
-      ->needs(spec.rpc_address_option);
-    spec.mosh_option = app
-                         .add_option(
-                           fmt::format("--max-open-sessions-hard{}", n),
-                           spec.max_open_sessions_hard)
-                         ->group("")
-                         ->needs(spec.rpc_address_option);
-  }
+  std::vector<cli::ParsedRpcInterface> rpc_interfaces;
+  cli::add_rpc_interface_option(app, rpc_interfaces, "--rpc-interface", "TODO: help description");
 
   std::string ledger_dir("ledger");
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
@@ -452,7 +420,8 @@ int main(int argc, char** argv)
     "--member-info",
     "Initial consortium members information "
     "(member_cert.pem[,member_enc_pubk.pem[,member_data.json]])")
-    ->required();
+    // ->required()
+    ;
 
   std::optional<size_t> recovery_threshold = std::nullopt;
   start
@@ -490,7 +459,8 @@ int main(int argc, char** argv)
     target_rpc_address,
     "--target-rpc-address",
     "RPC over TLS listening address of target network node")
-    ->required();
+    // ->required()
+    ;
 
   auto recover = app.add_subcommand("recover", "Recover crashed network");
   recover->configurable();
@@ -504,39 +474,6 @@ int main(int argc, char** argv)
     ->check(CLI::NonexistentPath);
 
   CLI11_PARSE(app, argc, argv);
-
-  for (size_t i = 0; i < MAX_RPC_LISTEN_ADDRESSES; ++i)
-  {
-    const auto n = i + 1;
-    auto& spec = rpc_listen_specs[i];
-    if (*spec.rpc_address_option)
-    {
-      if (!(*spec.public_address_option))
-      {
-        spec.public_rpc_address = spec.rpc_address;
-      }
-
-      if (!(*spec.mosh_option))
-      {
-        spec.max_open_sessions_hard =
-          spec.max_open_sessions + hard_session_cap_diff;
-      }
-
-      std::cout << fmt::format(
-                     "Listen address {} was specified: {}, {}, {}, {}",
-                     n,
-                     spec.rpc_address.hostname,
-                     spec.public_rpc_address.hostname,
-                     spec.max_open_sessions,
-                     spec.max_open_sessions_hard)
-                << std::endl;
-    }
-    else
-    {
-      std::cout << fmt::format("Listen address {} was not specified", n)
-                << std::endl;
-    }
-  }
 
   if (!(*public_rpc_address_option))
   {
