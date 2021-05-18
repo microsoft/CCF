@@ -143,9 +143,7 @@ class JwtIssuer:
         ).decode("ascii")
         return {"keys": [{"kty": "RSA", "kid": kid, "x5c": [der_b64]}]}
 
-    def register_test_kid(
-        self, network, kid=TEST_JWT_KID, ca_bundle_name=TEST_CA_BUNDLE_NAME
-    ):
+    def register(self, network, kid=TEST_JWT_KID, ca_bundle_name=TEST_CA_BUNDLE_NAME):
         primary, _ = network.find_primary()
 
         if self.auto_refresh:
@@ -185,13 +183,9 @@ class JwtIssuer:
         server.restart()
 
     def issue_jwt(self, kid=TEST_JWT_KID, claims=None):
-        return infra.crypto.create_jwt(claims, self.key_priv_pem, kid)
+        return infra.crypto.create_jwt(claims or {}, self.key_priv_pem, kid)
 
     def wait_for_refresh(self, network, kid=TEST_JWT_KID, timeout=3):
-        time.sleep(timeout)
-        return
-
-        # TODO: Fix!
         LOG.info(f"Waiting {timeout}s for JWT key refresh")
         end_time = time.time() + timeout
         while time.time() < end_time:
