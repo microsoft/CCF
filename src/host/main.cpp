@@ -533,6 +533,8 @@ int main(int argc, char** argv)
     rpc_interfaces.insert(rpc_interfaces.begin(), std::move(first));
   }
 
+  // TODO: Use rpc_interfaces[0] rather than raw values for all of these
+
   const auto cli_config = app.config_to_str(true, false);
   LOG_INFO_FMT("Run with following options:\n{}", cli_config);
 
