@@ -538,9 +538,8 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
     http::HeaderMap&& headers,
     std::vector<uint8_t>&& body) override
   {
-    const auto [path_, query_, fragment_] = http::split_url_path(url);
     const auto signed_req = http::HttpSignatureVerifier::parse(
-      llhttp_method_name(method), path_, query_, headers, body);
+      llhttp_method_name(method), url, headers, body);
 
     if (signed_req.has_value())
     {
