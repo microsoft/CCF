@@ -16,8 +16,6 @@ from e2e_logging import test_multi_auth
 
 from loguru import logger as LOG
 
-# TODO: Delete test!
-
 
 @reqs.description("JWT authentication")
 def test_jwt_auth(network, args):

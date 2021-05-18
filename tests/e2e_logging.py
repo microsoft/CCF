@@ -1217,12 +1217,7 @@ def test_rekey(network, args):
 
 
 def run(args):
-    jwt_issuer = infra.jwt.JwtIssuer()
-
-    # TODO:
-    # 1. Record kid
-
-    txs = app.LoggingTxs(jwt_issuer=jwt_issuer)  # TODO: "user0"
+    txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -1230,7 +1225,6 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
-        jwt_issuer=jwt_issuer,
     ) as network:
         network.start_and_join(args)
 

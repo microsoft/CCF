@@ -26,8 +26,6 @@ from cryptography.hazmat.primitives.serialization import (
 from cryptography.hazmat.primitives import hashes, keywrap
 from cryptography.hazmat.backends import default_backend
 
-from loguru import logger as LOG
-
 import jwt
 
 RECOMMENDED_RSA_PUBLIC_EXPONENT = 65537
