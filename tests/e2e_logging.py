@@ -767,11 +767,6 @@ def escaped_query_tests(c, endpoint):
         r = c.get(f"/app/log/{endpoint}?{'&'.join(encoded)}")
         assert r.body.data() == "&".join(raw).encode(), r.body.data()
 
-    all_chars = list(range(0, 255))
-    max_args = 50
-    for ichars in [
-        all_chars[i : i + max_args] for i in range(0, len(all_chars), max_args)
-    ]:
         encoded, raw = [], []
         for ichar in ichars:
             char = chr(ichar)
