@@ -126,6 +126,10 @@ namespace cli
             return false;
           }
         }
+        else
+        {
+          interface.public_rpc_address = interface.rpc_address;
+        }
 
         if (chunks.size() > 2 && !chunks[2].empty())
         {

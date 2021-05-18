@@ -126,24 +126,24 @@ int main(int argc, char** argv)
     "auto-assigned ports) will be written. If empty (default), write nothing");
 
   cli::ParsedAddress rpc_address;
-  cli::add_address_option(
+  auto rpc_address_option = cli::add_address_option(
     app,
     rpc_address,
     "--rpc-address",
     "Address on which to listen for TLS commands coming from clients. Port "
     "defaults to 443 if unspecified.",
-    "443")
-    // ->required()
-    ;
+    "443");
 
   cli::ParsedAddress public_rpc_address;
-  auto public_rpc_address_option = cli::add_address_option(
-    app,
-    public_rpc_address,
-    "--public-rpc-address",
-    "Address to advertise publicly to clients (defaults to same as "
-    "--rpc-address)",
-    "443");
+  auto public_rpc_address_option =
+    cli::add_address_option(
+      app,
+      public_rpc_address,
+      "--public-rpc-address",
+      "Address to advertise publicly to clients (defaults to same as "
+      "--rpc-address)",
+      "443")
+      ->needs(rpc_address_option);
 
   size_t max_open_sessions = 1'000;
   app
@@ -153,22 +153,26 @@ int main(int argc, char** argv)
       "Soft cap on number of TLS sessions which may be open at the same time. "
       "Once this many connection are open, additional connections will receive "
       "a 503 HTTP error (until the hard cap is reached)")
-    ->capture_default_str();
+    ->capture_default_str()
+    ->needs(rpc_address_option);
 
   size_t max_open_sessions_hard = 0;
-  app.add_option(
-    "--max-open-sessions-hard",
-    max_open_sessions_hard,
-    fmt::format(
-      "Hard cap on number of TLS sessions which may be open at the same "
-      "time. "
-      "Once this many connections are open, additional connection attempts "
-      "will be closed before a TLS handshake is completed. Default is {} "
-      "more than --max-open-sessions",
-      cli::ParsedRpcInterface::default_mosh_diff));
+  auto mosh_option =
+    app
+      .add_option(
+        "--max-open-sessions-hard",
+        max_open_sessions_hard,
+        fmt::format(
+          "Hard cap on number of TLS sessions which may be open at the same "
+          "time. "
+          "Once this many connections are open, additional connection attempts "
+          "will be closed before a TLS handshake is completed. Default is {} "
+          "more than --max-open-sessions",
+          cli::ParsedRpcInterface::default_mosh_diff))
+      ->needs(rpc_address_option);
 
   std::vector<cli::ParsedRpcInterface> rpc_interfaces;
-  cli::add_rpc_interface_option(
+  auto rpc_interfaces_option = cli::add_rpc_interface_option(
     app,
     rpc_interfaces,
     "--rpc-interface",
@@ -479,11 +483,24 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
-  CLI11_PARSE(app, argc, argv);
-
-  if (!(*public_rpc_address_option))
+  try
   {
-    public_rpc_address = rpc_address;
+    app.parse(argc, argv);
+
+    // Add an additional check not represented by existing ->needs, ->requires
+    // etc
+    if (!(*rpc_address_option || *rpc_interfaces_option))
+    {
+      const auto option_list = fmt::format(
+        "{}, {}",
+        rpc_address_option->get_name(),
+        rpc_interfaces_option->get_name());
+      throw CLI::RequiredError::Option(1, 0, 0, option_list);
+    }
+  }
+  catch (const CLI::ParseError& e)
+  {
+    return app.exit(e);
   }
 
   // set json log formatter to write to std::out
@@ -492,10 +509,28 @@ int main(int argc, char** argv)
     logger::config::initialize_with_json_console();
   }
 
-  if (max_open_sessions_hard == 0)
+  // Fill in derived default values
+  if (!(*public_rpc_address_option))
+  {
+    public_rpc_address = rpc_address;
+  }
+
+  if (!(*mosh_option))
   {
     max_open_sessions_hard =
       max_open_sessions + cli::ParsedRpcInterface::default_mosh_diff;
+  }
+
+  // If --rpc-address etc were specified, they populate a single object at the
+  // start of the rpc_interfaces list
+  if (*rpc_address_option)
+  {
+    cli::ParsedRpcInterface first;
+    first.rpc_address = rpc_address;
+    first.public_rpc_address = public_rpc_address;
+    first.max_open_sessions = max_open_sessions;
+    first.max_open_sessions_hard = max_open_sessions_hard;
+    rpc_interfaces.insert(rpc_interfaces.begin(), std::move(first));
   }
 
   const auto cli_config = app.config_to_str(true, false);
