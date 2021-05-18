@@ -753,17 +753,33 @@ def escaped_query_tests(c, endpoint):
             unescaped_query,
         )
 
-    for i in range(0, 255):
-        ci = chr(i)
-        ch = urllib.parse.urlencode({"arg": ci})
-        r = c.get(f"/app/log/{endpoint}?{ch}")
-        assert r.body.data() == f"arg={ci}".encode(), r.body.data()
+    all_chars = list(range(0, 255))
+    max_args = 50
+    for ichars in [
+        all_chars[i : i + max_args] for i in range(0, len(all_chars), max_args)
+    ]:
+        encoded, raw = [], []
+        for ichar in ichars:
+            char = chr(ichar)
+            encoded.append(urllib.parse.urlencode({"arg": char}))
+            raw.append(f"arg={char}")
 
-    for i in range(0, 255):
-        ci = chr(i)
-        ch = urllib.parse.urlencode({f"arg{ci}": "value"})
-        r = c.get(f"/app/log/{endpoint}?{ch}")
-        assert r.body.data() == f"arg{ci}=value".encode(), r.body.data()
+        r = c.get(f"/app/log/{endpoint}?{'&'.join(encoded)}")
+        assert r.body.data() == "&".join(raw).encode(), r.body.data()
+
+    all_chars = list(range(0, 255))
+    max_args = 50
+    for ichars in [
+        all_chars[i : i + max_args] for i in range(0, len(all_chars), max_args)
+    ]:
+        encoded, raw = [], []
+        for ichar in ichars:
+            char = chr(ichar)
+            encoded.append(urllib.parse.urlencode({f"arg{char}": "value"}))
+            raw.append(f"arg{char}=value")
+
+        r = c.get(f"/app/log/{endpoint}?{'&'.join(encoded)}")
+        assert r.body.data() == "&".join(raw).encode(), r.body.data()
 
 
 @reqs.description("Testing forwarding on member and user frontends")
