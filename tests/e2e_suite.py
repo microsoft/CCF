@@ -62,9 +62,18 @@ def run(args):
     if args.enforce_reqs is False:
         LOG.warning("Test requirements will be ignored")
 
-    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
-    jwt_server = jwt_issuer.start_openid_server()
-    txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
+    user = None
+    jwt_issuer = None
+    if "reconfiguration" not in args.test_suite:
+        # https://github.com/microsoft/CCF/issues/2491
+        # Setting up JWT auto-refresh seem to trigger this bug more often on
+        # the reconfiguration test suite so deactivate for now
+        jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
+        jwt_server = jwt_issuer.start_openid_server()
+    else:
+        user = "user0"
+
+    txs = app.LoggingTxs(user_id=user, jwt_issuer=jwt_issuer)
     network = infra.network.Network(
         args.nodes,
         args.binary_dir,
@@ -149,7 +158,8 @@ def run(args):
         elapsed -= test_elapsed
 
     network.stop_all_nodes()
-    jwt_server.stop()
+    if jwt_server:
+        jwt_server.stop()
 
     if success:
         LOG.success(f"Full suite passed. Ran {len(run_tests)}/{len(chosen_suite)}")
