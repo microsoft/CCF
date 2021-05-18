@@ -20,10 +20,7 @@ this_dir = os.path.dirname(__file__)
 @reqs.description("Refresh JWT issuer")
 def test_refresh_jwt_issuer(network, args):
     assert network.jwt_issuer.server, "JWT server is not started"
-    jwt_server = network.jwt_issuer.server
-    jwt_server.stop()
     network.jwt_issuer.refresh_keys()
-    network.jwt_issuer.restart_openid_server(jwt_server)
     network.jwt_issuer.wait_for_refresh(network)
 
     # Check that more transactions can be issued

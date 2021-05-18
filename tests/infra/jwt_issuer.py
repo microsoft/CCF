@@ -50,7 +50,6 @@ class OpenIDProviderServer(AbstractContextManager):
         self.tls_cert_pem = tls_cert_pem
         self.self_ = self
         self.bind_port = None
-        self.started = False
         self.start(self.port)
 
     def start(self, port):
@@ -82,26 +81,17 @@ class OpenIDProviderServer(AbstractContextManager):
             self.bind_port = self.httpd.socket.getsockname()[1]
             self.metadata = {"jwks_uri": f"https://{self.host}:{self.bind_port}/keys"}
             self.thread.start()
-            self.started = True
             LOG.info(
                 f"OpenIDProviderServer https://{self.host}:{self.bind_port} started"
             )
-
-    def restart(self):
-        # Restart stopped server on the same port it originally started
-        assert not self.started, "Server is not stopped"
-        assert self.bind_port is not None, "Server was never started"
-        self.start(self.bind_port)
 
     def stop(self):
         self.httpd.shutdown()
         self.httpd.server_close()
         self.thread.join()
-        self.started = False
         LOG.info("OpenIdProviderServer stopped")
 
     def set_jwks(self, jwks):
-        assert not self.started
         self.jwks = jwks
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -132,8 +122,10 @@ class JwtIssuer:
         else:
             self.cert_pem = cert
 
-    def refresh_keys(self):
+    def refresh_keys(self, kid=TEST_JWT_KID):
         (self.key_priv_pem, self.key_pub_pem), self.cert_pem = self._generate_cert()
+        if self.server:
+            self.server.set_jwks(self.create_jwks(kid))
 
     def create_jwks(self, kid=TEST_JWT_KID, test_invalid_is_key=False):
         der_b64 = base64.b64encode(
@@ -177,10 +169,6 @@ class JwtIssuer:
             port, self.tls_priv, self.tls_cert, self.create_jwks(kid)
         )
         return self.server
-
-    def restart_openid_server(self, server, kid=TEST_JWT_KID):
-        server.set_jwks(self.create_jwks(kid))
-        server.restart()
 
     def issue_jwt(self, kid=TEST_JWT_KID, claims=None):
         return infra.crypto.create_jwt(claims or {}, self.key_priv_pem, kid)
