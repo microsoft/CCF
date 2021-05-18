@@ -33,7 +33,6 @@ using namespace std::chrono_literals;
 
 size_t asynchost::TCPImpl::remaining_read_quota;
 
-
 void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
@@ -156,7 +155,6 @@ int main(int argc, char** argv)
       "a 503 HTTP error (until the hard cap is reached)")
     ->capture_default_str();
 
-  constexpr auto hard_session_cap_diff = 10;
   size_t max_open_sessions_hard = 0;
   app.add_option(
     "--max-open-sessions-hard",
@@ -167,10 +165,18 @@ int main(int argc, char** argv)
       "Once this many connections are open, additional connection attempts "
       "will be closed before a TLS handshake is completed. Default is {} "
       "more than --max-open-sessions",
-      hard_session_cap_diff));
+      cli::ParsedRpcInterface::default_mosh_diff));
 
   std::vector<cli::ParsedRpcInterface> rpc_interfaces;
-  cli::add_rpc_interface_option(app, rpc_interfaces, "--rpc-interface", "TODO: help description");
+  cli::add_rpc_interface_option(
+    app,
+    rpc_interfaces,
+    "--rpc-interface",
+    "Specify additional interfaces on which this node should listen for "
+    "incoming client commands. Each interface will have its own separate "
+    "session caps. Each interface should be specified as a comma-separated "
+    "list <rpc-address>,<public-rpc-address>,<max-open-sessions>,<max-"
+    "open-sessions-hard>, where all fields after <rpc-address> are optional");
 
   std::string ledger_dir("ledger");
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
@@ -488,7 +494,8 @@ int main(int argc, char** argv)
 
   if (max_open_sessions_hard == 0)
   {
-    max_open_sessions_hard = max_open_sessions + hard_session_cap_diff;
+    max_open_sessions_hard =
+      max_open_sessions + cli::ParsedRpcInterface::default_mosh_diff;
   }
 
   const auto cli_config = app.config_to_str(true, false);

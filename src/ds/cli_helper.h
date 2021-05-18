@@ -81,8 +81,9 @@ namespace cli
   {
     ParsedAddress rpc_address;
     ParsedAddress public_rpc_address;
-    size_t max_open_sesssions = 1'000;
-    size_t max_open_sesssions_hard;
+    size_t max_open_sessions = 1'000;
+    size_t max_open_sessions_hard;
+    static constexpr size_t default_mosh_diff = 10;
   };
 
   CLI::Option* add_rpc_interface_option(
@@ -97,11 +98,13 @@ namespace cli
         const auto& arg = results[i];
         const auto chunks = nonstd::split(arg, ",");
 
-        // TODO: Can we recursively parse this with CLI11? Treat as optional
-        // positional arguments?
-        if (chunks.empty() || chunks.size() > 4)
+        if (chunks.size() < 1 || chunks.size() > 4)
         {
-          throw CLI::ValidationError(option_name, "TODO: Not expected format");
+          throw CLI::ValidationError(
+            option_name,
+            "Expected between 1 and 4 comma-separated elements: "
+            "<rpc-address>[,<public-rpc-address>[,<max-open-sessions>[,<max-"
+            "open-sessions-hard>]]]");
         }
 
         ParsedRpcInterface interface;
@@ -128,7 +131,7 @@ namespace cli
         {
           try
           {
-            interface.max_open_sesssions = std::stoul(std::string(chunks[2]));
+            interface.max_open_sessions = std::stoul(std::string(chunks[2]));
           }
           catch (const std::exception&)
           {
@@ -142,7 +145,8 @@ namespace cli
         {
           try
           {
-            interface.max_open_sesssions_hard = std::stoul(std::string(chunks[3]));
+            interface.max_open_sessions_hard =
+              std::stoul(std::string(chunks[3]));
           }
           catch (const std::exception&)
           {
@@ -153,8 +157,8 @@ namespace cli
         }
         else
         {
-          // TODO: Set diff somewhere
-          interface.max_open_sesssions_hard = interface.max_open_sesssions + 10;
+          interface.max_open_sessions_hard = interface.max_open_sessions +
+            cli::ParsedRpcInterface::default_mosh_diff;
         }
 
         parsed.emplace_back(interface);
@@ -165,7 +169,9 @@ namespace cli
 
     auto* option = app.add_option(option_name, fun, option_desc, true);
     option
-    //   ->type_name("member_cert.pem[,member_enc_pubk.pem[,member_data.json]]")
+      ->type_name(
+        "<rpc-address>[,<public-rpc-address>[,<max-open-sessions>[,<max-"
+        "open-sessions-hard>]]]")
       ->type_size(-1);
 
     return option;
