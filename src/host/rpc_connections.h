@@ -83,13 +83,14 @@ namespace asynchost
 
         parent.sockets.emplace(client_id, peer);
 
-        LOG_DEBUG_FMT("rpc accept {} on listener {}", client_id, id);
+        const auto listen_address = parent.get_address(id);
+        LOG_DEBUG_FMT("rpc accept {} on {}", client_id, listen_address);
 
         RINGBUFFER_WRITE_MESSAGE(
           tls::tls_start,
           parent.to_enclave,
           tls::ConnID(client_id),
-          tls::ConnID(id));
+          listen_address);
       }
 
       void cleanup()
@@ -108,7 +109,7 @@ namespace asynchost
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 
-    bool listen(tls::ConnID& id, std::string& host, std::string& service)
+    bool listen(tls::ConnID id, std::string& host, std::string& service)
     {
       if (id == 0)
       {
@@ -230,7 +231,8 @@ namespace asynchost
           }
           else
           {
-            LOG_FAIL_FMT("rpc session id is not in dedicated from-enclave range ({})", id);
+            LOG_FAIL_FMT(
+              "rpc session id is not in dedicated from-enclave range ({})", id);
           }
         });
 
@@ -273,6 +275,18 @@ namespace asynchost
     bool check_enclave_side_id(tls::ConnID id)
     {
       return id < 0;
+    }
+
+    std::string get_address(tls::ConnID id)
+    {
+      const auto it = sockets.find(id);
+      if (it == sockets.end())
+      {
+        throw std::logic_error(fmt::format("No socket with id {}", id));
+      }
+
+      return fmt::format(
+        "{}:{}", it->second->get_host(), it->second->get_service());
     }
   };
 }

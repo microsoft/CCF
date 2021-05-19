@@ -173,19 +173,7 @@ namespace enclave
 
       start_type = start_type_;
 
-      if (ccf_config_.node_info_network.rpc_interfaces.size() != ccf_config_.listening_session_ids.size())
-      {
-        LOG_FAIL_FMT("Invalid config: Specifies {} interfaces but is listening on {}", ccf_config_.node_info_network.rpc_interfaces.size(), ccf_config_.listening_session_ids.size());
-        return false;
-      }
-
-      std::vector<std::tuple<int64_t, size_t, size_t>> interface_caps;
-      for (size_t i = 0; i <  ccf_config_.listening_session_ids.size(); ++i)
-      {
-        const auto& addr_info = ccf_config_.node_info_network.rpc_interfaces[i];
-        interface_caps.emplace_back(ccf_config_.listening_session_ids[i], addr_info.max_open_sessions_soft, addr_info.max_open_sessions_hard);
-      }
-      rpcsessions->update_listening_interface_caps(interface_caps);
+      rpcsessions->update_listening_interface_caps(ccf_config_.node_info_network);
 
       LOG_INFO_FMT("Config is: {}", nlohmann::json(ccf_config_).dump(2));
 

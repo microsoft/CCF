@@ -39,7 +39,7 @@ namespace tls
   };
 }
 
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_start, tls::ConnID, tls::ConnID);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_start, tls::ConnID, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   tls::tls_connect, tls::ConnID, std::string, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(

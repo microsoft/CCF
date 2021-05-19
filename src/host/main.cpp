@@ -716,13 +716,9 @@ int main(int argc, char** argv)
     rpc.register_message_handlers(bp.get_dispatcher());
 
     std::string rpc_addresses;
-    std::vector<int64_t> listening_session_ids;
     for (auto& interface : rpc_interfaces)
     {
-      int64_t id = 0;
-      rpc.listen(
-        id, interface.rpc_address.hostname, interface.rpc_address.port);
-      listening_session_ids.push_back(id);
+      rpc.listen(0, interface.rpc_address.hostname, interface.rpc_address.port);
       rpc_addresses += fmt::format(
         "{}\n{}\n", interface.rpc_address.hostname, interface.rpc_address.port);
 
@@ -778,8 +774,6 @@ int main(int argc, char** argv)
     }
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
-
-    ccf_config.listening_session_ids = listening_session_ids;
 
     ccf_config.subject_name = subject_name;
     ccf_config.subject_alternative_names = subject_alternative_names;

@@ -48,10 +48,6 @@ struct CCFConfig
   std::string domain;
   size_t snapshot_tx_interval;
 
-  // Each entry in node_info_network.rpc_interfaces should have a corresponding
-  // session ID in this vector
-  std::vector<int64_t> listening_session_ids = {};
-
   // Only if joining or recovering
   std::vector<uint8_t> startup_snapshot;
   size_t startup_snapshot_evidence_seqno;
@@ -107,7 +103,6 @@ DECLARE_JSON_REQUIRED_FIELDS(
   node_info_network,
   domain,
   snapshot_tx_interval,
-  listening_session_ids,
   startup_snapshot,
   startup_snapshot_evidence_seqno,
   signature_intervals,
