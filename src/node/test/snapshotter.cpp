@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "node/snapshotter.h"
-
 #include "ds/logger.h"
 #include "kv/test/null_encryptor.h"
+#include "node/snapshotter.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -75,28 +74,72 @@ TEST_CASE("Regular snapshotting")
 
   REQUIRE_FALSE(snapshotter->record_committable(snapshot_tx_interval - 1));
   REQUIRE(snapshotter->record_committable(snapshot_tx_interval));
+  REQUIRE(snapshotter->record_committable(snapshot_tx_interval * 2));
+  REQUIRE(
+    snapshotter->record_committable(snapshot_tx_interval * interval_count));
 
-  INFO("Generate snapshots at regular intervals");
+  size_t commit_idx = 0;
+  INFO("Generate snapshot before first snapshot idx has no effect");
   {
-    for (size_t i = 1; i <= interval_count; i++)
-    {
-      // No snapshot generated if < interval
-      snapshotter->update(i * (snapshot_tx_interval - 1), true);
-      threading::ThreadMessaging::thread_messaging.run_one();
-      REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+    commit_idx = snapshot_tx_interval - 1;
+    snapshotter->commit(commit_idx, true);
+    threading::ThreadMessaging::thread_messaging.run_one();
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+  }
 
-      snapshotter->update(i * snapshot_tx_interval, true);
-      threading::ThreadMessaging::thread_messaging.run_one();
-      REQUIRE(
-        read_ringbuffer_out(eio) ==
-        rb_msg({consensus::snapshot, (i * snapshot_tx_interval)}));
-    }
+  INFO("Generate first snapshot");
+  {
+    // Note: even if commit_idx > snapshot_tx_interval, the snapshot is
+    // generated for the previous snapshot
+    auto snapshot_idx = snapshot_tx_interval;
+    commit_idx = snapshot_idx + 1;
+    snapshotter->commit(commit_idx, true);
+    threading::ThreadMessaging::thread_messaging.run_one();
+    REQUIRE(
+      read_ringbuffer_out(eio) == rb_msg({consensus::snapshot, snapshot_idx}));
+  }
+
+  INFO("Subsequent commit before next snapshot idx has no effect");
+  {
+    commit_idx = snapshot_tx_interval + 2;
+    snapshotter->commit(commit_idx, true);
+    threading::ThreadMessaging::thread_messaging.run_one();
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+  }
+
+  INFO("Generate second snapshot");
+  {
+    // Note: Commit exactly on snapshot idx
+    auto snapshot_idx = snapshot_tx_interval * 2;
+    commit_idx = snapshot_idx;
+    snapshotter->commit(commit_idx, true);
+    threading::ThreadMessaging::thread_messaging.run_one();
+    REQUIRE(
+      read_ringbuffer_out(eio) == rb_msg({consensus::snapshot, snapshot_idx}));
+  }
+
+  INFO("Subsequent commit before next snapshot idx has no effect");
+  {
+    commit_idx = snapshot_tx_interval * 2 + 1;
+    snapshotter->commit(commit_idx, true);
+    threading::ThreadMessaging::thread_messaging.run_one();
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+  }
+
+  INFO("Generate third snapshot");
+  {
+    auto snapshot_idx = (snapshot_tx_interval * interval_count);
+    commit_idx = snapshot_idx + 1;
+    snapshotter->commit(commit_idx, true);
+    threading::ThreadMessaging::thread_messaging.run_one();
+    REQUIRE(
+      read_ringbuffer_out(eio) == rb_msg({consensus::snapshot, snapshot_idx}));
   }
 
   INFO("Cannot snapshot before latest snapshot");
   {
-    REQUIRE_THROWS_AS(
-      snapshotter->update(snapshot_tx_interval - 1, true), std::logic_error);
+    commit_idx = (snapshot_tx_interval * interval_count) - 1;
+    REQUIRE_THROWS_AS(snapshotter->commit(commit_idx, true), std::logic_error);
   }
 }
 
@@ -119,7 +162,8 @@ TEST_CASE("Commit snapshot evidence")
 
   INFO("Generate snapshot");
   {
-    snapshotter->update(snapshot_tx_interval, true);
+    snapshotter->record_committable(snapshot_tx_interval);
+    snapshotter->commit(snapshot_tx_interval, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -133,12 +177,12 @@ TEST_CASE("Commit snapshot evidence")
 
     // First commit marks evidence as committed but no commit message is emitted
     // yet
-    snapshotter->commit(snapshot_tx_interval + 1);
+    snapshotter->commit(snapshot_tx_interval + 1, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
 
     // Second commit passed evidence commit, snapshot is committed
-    snapshotter->commit(snapshot_tx_interval + 2);
+    snapshotter->commit(snapshot_tx_interval + 2, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -165,7 +209,8 @@ TEST_CASE("Rollback before evidence is committed")
 
   INFO("Generate snapshot");
   {
-    snapshotter->update(snapshot_tx_interval, true);
+    snapshotter->record_committable(snapshot_tx_interval);
+    snapshotter->commit(snapshot_tx_interval, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) ==
@@ -179,9 +224,12 @@ TEST_CASE("Rollback before evidence is committed")
     // ... More transactions are committed, passing the idx at which the
     // evidence was originally committed
 
-    snapshotter->commit(snapshot_tx_interval + 1);
+    snapshotter->commit(snapshot_tx_interval + 1, true);
 
     // Snapshot previously generated is not committed
+    REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
+
+    snapshotter->commit(snapshot_tx_interval + 2, true);
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
   }
 
@@ -190,17 +238,19 @@ TEST_CASE("Rollback before evidence is committed")
     issue_transactions(network, snapshot_tx_interval);
 
     size_t snapshot_idx = network.tables->current_version();
-    snapshotter->update(snapshot_idx, true);
+
+    snapshotter->record_committable(snapshot_idx);
+    snapshotter->commit(snapshot_idx, true);
     threading::ThreadMessaging::thread_messaging.run_one();
     REQUIRE(
       read_ringbuffer_out(eio) == rb_msg({consensus::snapshot, snapshot_idx}));
 
     // Commit evidence
-    snapshotter->commit(snapshot_idx + 1);
+    snapshotter->commit(snapshot_idx + 1, true);
     REQUIRE(read_ringbuffer_out(eio) == std::nullopt);
 
     // Evidence proof is committed
-    snapshotter->commit(snapshot_idx + 2);
+    snapshotter->commit(snapshot_idx + 2, true);
     REQUIRE(
       read_ringbuffer_out(eio) ==
       rb_msg({consensus::snapshot_commit, snapshot_idx}));
