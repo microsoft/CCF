@@ -70,11 +70,6 @@ namespace aft
       return aft->get_commit_term_and_idx();
     }
 
-    std::pair<ccf::View, ccf::SeqNo> get_current_txid() override
-    {
-      return aft->get_current_txid();
-    }
-
     std::optional<SignableTxIndices> get_signable_txid() override
     {
       return aft->get_signable_commit_term_and_idx();

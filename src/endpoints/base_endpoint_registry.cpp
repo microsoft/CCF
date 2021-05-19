@@ -66,30 +66,6 @@ namespace ccf
     }
   }
 
-  ApiResult BaseEndpointRegistry::get_current_txid(
-    ccf::View& view, ccf::SeqNo& seqno)
-  {
-    if (consensus != nullptr)
-    {
-      try
-      {
-        const auto [v, s] = consensus->get_current_txid();
-        view = v;
-        seqno = s;
-        return ApiResult::OK;
-      }
-      catch (const std::exception& e)
-      {
-        LOG_TRACE_FMT("{}", e.what());
-        return ApiResult::InternalError;
-      }
-    }
-    else
-    {
-      return ApiResult::Uninitialised;
-    }
-  }
-
   ApiResult BaseEndpointRegistry::generate_openapi_document_v1(
     kv::ReadOnlyTx& tx,
     const std::string& title,

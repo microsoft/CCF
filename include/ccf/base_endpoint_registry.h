@@ -95,8 +95,6 @@ namespace ccf
 
     ApiResult get_last_committed_txid_v1(ccf::View& view, ccf::SeqNo& seqno);
 
-    ApiResult get_current_txid(ccf::View& view, ccf::SeqNo& seqno);
-
     /** Generate an OpenAPI document describing the currently installed
      * endpoints.
      *
