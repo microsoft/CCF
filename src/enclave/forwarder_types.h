@@ -12,7 +12,7 @@ namespace enclave
   {
   public:
     virtual ~AbstractRPCResponder() {}
-    virtual bool reply_async(size_t id, std::vector<uint8_t>&& data) = 0;
+    virtual bool reply_async(int64_t id, std::vector<uint8_t>&& data) = 0;
   };
 
   class AbstractForwarder

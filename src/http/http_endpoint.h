@@ -24,7 +24,7 @@ namespace http
     HTTPEndpoint(
       http::Parser& p_,
       ws::Parser& wp_,
-      size_t session_id,
+      int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
@@ -136,13 +136,13 @@ namespace http
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RpcHandler> handler;
     std::shared_ptr<enclave::SessionContext> session_ctx;
-    size_t session_id;
+    int64_t session_id;
     size_t request_index = 0;
 
   public:
     HTTPServerEndpoint(
       std::shared_ptr<enclave::RPCMap> rpc_map,
-      size_t session_id,
+      int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       HTTPEndpoint(
@@ -308,7 +308,7 @@ namespace http
 
   public:
     HTTPClientEndpoint(
-      size_t session_id,
+      int64_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       HTTPEndpoint(

@@ -17,12 +17,12 @@ namespace enclave
 
     HandleDataCallback handle_data_cb;
 
-    size_t session_id;
+    int64_t session_id;
     ringbuffer::WriterPtr to_host;
 
   public:
     ClientEndpoint(
-      size_t session_id, ringbuffer::AbstractWriterFactory& writer_factory) :
+      int64_t session_id, ringbuffer::AbstractWriterFactory& writer_factory) :
       session_id(session_id),
       to_host(writer_factory.create_writer_to_outside())
     {}

@@ -527,8 +527,6 @@ int main(int argc, char** argv)
     rpc_interfaces.insert(rpc_interfaces.begin(), std::move(first));
   }
 
-  // TODO: Use rpc_interfaces[0] rather than raw values for all of these
-
   const auto cli_config = app.config_to_str(true, false);
   LOG_INFO_FMT("Run with following options:\n{}", cli_config);
 
@@ -718,9 +716,13 @@ int main(int argc, char** argv)
     rpc.register_message_handlers(bp.get_dispatcher());
 
     std::string rpc_addresses;
+    std::vector<int64_t> listening_session_ids;
     for (auto& interface : rpc_interfaces)
     {
-      rpc.listen(0, interface.rpc_address.hostname, interface.rpc_address.port);
+      int64_t id = 0;
+      rpc.listen(
+        id, interface.rpc_address.hostname, interface.rpc_address.port);
+      listening_session_ids.push_back(id);
       rpc_addresses += fmt::format(
         "{}\n{}\n", interface.rpc_address.hostname, interface.rpc_address.port);
 
@@ -761,7 +763,6 @@ int main(int argc, char** argv)
                                    bft_status_interval};
     ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
 
-    // TODO: Take array of interfaces
     ccf_config.node_info_network.node_address = {node_address.hostname,
                                                  node_address.port};
     for (const auto& interface : rpc_interfaces)
@@ -775,8 +776,8 @@ int main(int argc, char** argv)
     }
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
-    ccf_config.max_open_sessions_soft = max_open_sessions;
-    ccf_config.max_open_sessions_hard = max_open_sessions_hard;
+
+    ccf_config.listening_session_ids = listening_session_ids;
 
     ccf_config.subject_name = subject_name;
     ccf_config.subject_alternative_names = subject_alternative_names;

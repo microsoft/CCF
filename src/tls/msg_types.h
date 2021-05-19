@@ -6,7 +6,7 @@
 
 namespace tls
 {
-  using ConnID = size_t;
+  using ConnID = int64_t;
 
   /// TLS-related ringbuffer messages
   /// The body of each message will begin with a connection ID
@@ -39,7 +39,7 @@ namespace tls
   };
 }
 
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_start, tls::ConnID);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_start, tls::ConnID, tls::ConnID);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   tls::tls_connect, tls::ConnID, std::string, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(

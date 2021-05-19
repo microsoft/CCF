@@ -26,6 +26,9 @@ namespace ccf
     {
       NetAddress rpc_address;
       NetAddress public_rpc_address;
+
+      size_t max_open_sessions_soft;
+      size_t max_open_sessions_hard;
     };
 
     NetAddress node_address;
@@ -35,7 +38,11 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork::NetAddress, hostname, port);
   DECLARE_JSON_TYPE(NodeInfoNetwork::RpcAddresses);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfoNetwork::RpcAddresses, rpc_address, public_rpc_address);
+    NodeInfoNetwork::RpcAddresses,
+    rpc_address,
+    public_rpc_address,
+    max_open_sessions_soft,
+    max_open_sessions_hard);
   DECLARE_JSON_TYPE(NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork, node_address, rpc_interfaces);
 }
