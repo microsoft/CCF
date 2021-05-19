@@ -1035,15 +1035,6 @@ namespace aft
     {
       const auto prev_idx = start_idx - 1;
 
-      if (replica_state == Retired && start_idx >= end_idx)
-      {
-        // When the local node is retired and the remote node has
-        // acked all entries that the local node wanted to replicate,
-        // the channel is no longer useful and can be closed.
-        channels->destroy_channel(to);
-        return;
-      }
-
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
       const bool contains_new_view =
@@ -2410,12 +2401,6 @@ namespace aft
 
     void become_follower(Term term)
     {
-      if (replica_state == Retired)
-      {
-        return;
-      }
-
-      replica_state = Follower;
       leader_id.reset();
       restart_election_timeout();
 
@@ -2427,12 +2412,16 @@ namespace aft
 
       is_new_follower = true;
 
-      LOG_INFO_FMT(
-        "Becoming follower {}: {}", state->my_node_id, state->current_view);
-
       if (consensus_type != ConsensusType::BFT)
       {
         channels->close_all_outgoing();
+      }
+
+      if (replica_state != Retired)
+      {
+        replica_state = Follower;
+        LOG_INFO_FMT(
+        "Becoming follower {}: {}", state->my_node_id, state->current_view);
       }
     }
 
@@ -2443,6 +2432,11 @@ namespace aft
 
       LOG_INFO_FMT(
         "Becoming retired {}: {}", state->my_node_id, state->current_view);
+
+      if (consensus_type != ConsensusType::BFT)
+      {
+        channels->close_all_outgoing();
+      }
     }
 
     void add_vote_for_me(const ccf::NodeId& from)
@@ -2477,20 +2471,25 @@ namespace aft
         std::vector<Index> match;
         match.reserve(c.nodes.size() + 1);
 
+        LOG_DEBUG_FMT(">>> CONFIG");
         for (auto node : c.nodes)
         {
           if (node.first == state->my_node_id)
           {
             match.push_back(state->last_idx);
+            LOG_DEBUG_FMT(">>> {} state->last_idx {}", node.first, state->last_idx);
           }
           else
           {
             match.push_back(nodes.at(node.first).match_idx);
+            LOG_DEBUG_FMT(">>> {} state->last_idx {}", node.first, nodes.at(node.first).match_idx);
           }
         }
 
         sort(match.begin(), match.end());
         auto confirmed = match.at((match.size() - 1) / 2);
+        LOG_DEBUG_FMT(">>> confirmed {}", confirmed);
+        LOG_DEBUG_FMT("<<< CONFIG");
 
         if (confirmed < new_commit_cft_idx)
         {
