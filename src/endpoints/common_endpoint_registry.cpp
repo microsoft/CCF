@@ -90,6 +90,36 @@ namespace ccf
       .set_auto_schema<GetCommit>()
       .install();
 
+    auto get_current = [this](auto&, nlohmann::json&&) {
+      ccf::View view;
+      ccf::SeqNo seqno;
+      const auto result = get_current_txid(view, seqno);
+
+      if (result == ccf::ApiResult::OK)
+      {
+        GetCommit::Out out;
+        out.transaction_id.view = view;
+        out.transaction_id.seqno = seqno;
+        return make_success(out);
+      }
+      else
+      {
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format("Error code: {}", ccf::api_result_to_str(result)));
+      }
+    };
+    make_command_endpoint(
+      "current_txid",
+      HTTP_GET,
+      json_command_adapter(get_current),
+      no_auth_required)
+      .set_execute_outside_consensus(
+        ccf::endpoints::ExecuteOutsideConsensus::Locally)
+      .set_auto_schema<void, GetCommit::Out>()
+      .install();
+
     auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {
       // Parse arguments from query
       const auto parsed_query =

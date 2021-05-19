@@ -85,6 +85,11 @@ namespace kv::test
       return {2, 0};
     }
 
+    std::pair<ccf::View, ccf::SeqNo> get_current_txid() override
+    {
+      return {2, 0};
+    }
+
     std::optional<SignableTxIndices> get_signable_txid() override
     {
       auto txid = get_committed_txid();
