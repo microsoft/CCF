@@ -521,10 +521,13 @@ namespace ccf
         return false;
       }
 
-      bool verified_signatures = true;
-
       for (auto& sig : view_change.signatures)
       {
+        if (it->second.sigs.find(sig.node) != it->second.sigs.end())
+        {
+          continue;
+        }
+
         if (!store->verify_signature(
               sig.node, it->second.root, sig.sig.size(), sig.sig.data()))
         {
@@ -538,19 +541,14 @@ namespace ccf
             it->second.root,
             sig.sig,
             sig.sig.size());
-          verified_signatures = false;
           continue;
         }
 
-        if (it->second.sigs.find(sig.node) == it->second.sigs.end())
-        {
-          continue;
-        }
         it->second.sigs.insert(
           std::pair<NodeId, BftNodeSignature>(sig.node, sig));
       }
 
-      return verified_signatures;
+      return true;
     }
 
     bool apply_new_view(
