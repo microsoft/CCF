@@ -136,9 +136,10 @@ namespace ccf
 
           if (info)
           {
+            const auto& address = info->rpc_interfaces[0].public_rpc_address;
             ctx->set_response_header(
               http::headers::LOCATION,
-              fmt::format("{}:{}", info->pubhost, info->pubport));
+              fmt::format("{}:{}", address.hostname, address.port));
           }
         }
 

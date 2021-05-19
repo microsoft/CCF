@@ -9,7 +9,6 @@
 #include "ledger_secrets.h"
 #include "members.h"
 #include "network_tables.h"
-#include "node_info_network.h"
 #include "nodes.h"
 #include "values.h"
 

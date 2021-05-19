@@ -274,7 +274,7 @@ class Node:
 
         rpc_address_path = os.path.join(self.common_dir, self.remote.rpc_address_path)
         with open(rpc_address_path, "r") as f:
-            rpc_host, rpc_port = f.read().splitlines()
+            rpc_host, rpc_port = f.read().splitlines()[:2]
             rpc_port = int(rpc_port)
             assert (
                 rpc_host == self.host

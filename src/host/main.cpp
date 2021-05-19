@@ -56,9 +56,8 @@ int main(int argc, char** argv)
   app.require_subcommand(1, 1);
 
   std::string enclave_file;
-  app
-    .add_option("-e,--enclave-file", enclave_file, "CCF application")
-    // ->required()
+  app.add_option("-e,--enclave-file", enclave_file, "CCF application")
+    ->required()
     ->check(CLI::ExistingFile);
 
   enum EnclaveType
@@ -74,17 +73,15 @@ int main(int argc, char** argv)
     {"virtual", EnclaveType::VIRTUAL}};
 
   EnclaveType enclave_type;
-  app
-    .add_option("-t,--enclave-type", enclave_type, "Enclave type")
-    // ->required()
+  app.add_option("-t,--enclave-type", enclave_type, "Enclave type")
+    ->required()
     ->transform(CLI::CheckedTransformer(enclave_type_map, CLI::ignore_case));
 
   ConsensusType consensus;
   std::vector<std::pair<std::string, ConsensusType>> consensus_map{
     {"cft", ConsensusType::CFT}, {"bft", ConsensusType::BFT}};
-  app
-    .add_option("-c,--consensus", consensus, "Consensus")
-    // ->required()
+  app.add_option("-c,--consensus", consensus, "Consensus")
+    ->required()
     ->transform(CLI::CheckedTransformer(consensus_map, CLI::ignore_case));
 
   size_t num_worker_threads = 0;
@@ -101,8 +98,7 @@ int main(int argc, char** argv)
     node_address,
     "--node-address",
     "Address on which to listen for commands coming from other nodes")
-    // ->required()
-    ;
+    ->required();
 
   std::string node_address_file = {};
   app.add_option(
@@ -430,8 +426,7 @@ int main(int argc, char** argv)
     "--member-info",
     "Initial consortium members information "
     "(member_cert.pem[,member_enc_pubk.pem[,member_data.json]])")
-    // ->required()
-    ;
+    ->required();
 
   std::optional<size_t> recovery_threshold = std::nullopt;
   start
@@ -469,8 +464,7 @@ int main(int argc, char** argv)
     target_rpc_address,
     "--target-rpc-address",
     "RPC over TLS listening address of target network node")
-    // ->required()
-    ;
+    ->required();
 
   auto recover = app.add_subcommand("recover", "Recover crashed network");
   recover->configurable();
@@ -768,12 +762,17 @@ int main(int argc, char** argv)
     ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
 
     // TODO: Take array of interfaces
-    ccf_config.node_info_network = {rpc_address.hostname,
-                                    public_rpc_address.hostname,
-                                    node_address.hostname,
-                                    node_address.port,
-                                    rpc_address.port,
-                                    public_rpc_address.port};
+    ccf_config.node_info_network.node_address = {node_address.hostname,
+                                                 node_address.port};
+    for (const auto& interface : rpc_interfaces)
+    {
+      ccf::NodeInfoNetwork::RpcAddresses addr;
+      addr.rpc_address = {interface.rpc_address.hostname,
+                          interface.rpc_address.port};
+      addr.public_rpc_address = {interface.public_rpc_address.hostname,
+                                 interface.public_rpc_address.port};
+      ccf_config.node_info_network.rpc_interfaces.push_back(addr);
+    }
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
     ccf_config.max_open_sessions_soft = max_open_sessions;

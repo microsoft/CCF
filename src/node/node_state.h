@@ -1507,10 +1507,16 @@ namespace ccf
     crypto::SubjectAltName get_subject_alt_name()
     {
       // If a domain is passed at node creation, record domain in SAN for node
-      // hostname authentication over TLS. Otherwise, record IP in SAN.
+      // hostname authentication over TLS. Otherwise, record IP of first
+      // interface in SAN.
+      // TODO: Does this make other RPC interfaces unusable? How does this work
+      // if we use the public UP?
       bool san_is_ip = config.domain.empty();
-      return {san_is_ip ? config.node_info_network.rpchost : config.domain,
-              san_is_ip};
+      return {
+        san_is_ip ?
+          config.node_info_network.rpc_interfaces[0].rpc_address.hostname :
+          config.domain,
+        san_is_ip};
     }
 
     std::vector<crypto::SubjectAltName> get_subject_alternative_names()

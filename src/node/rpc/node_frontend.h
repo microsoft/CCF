@@ -96,8 +96,7 @@ namespace ccf
       nodes->foreach([&node_info_network, &duplicate_node_id](
                        const NodeId& nid, const NodeInfo& ni) {
         if (
-          node_info_network.nodeport == ni.nodeport &&
-          node_info_network.nodehost == ni.nodehost &&
+          node_info_network.node_address == ni.node_address &&
           ni.status != NodeStatus::RETIRED)
         {
           duplicate_node_id = nid;
@@ -127,8 +126,8 @@ namespace ccf
           fmt::format(
             "A node with the same node host {} and port {} already exists "
             "(node id: {}).",
-            in.node_info_network.nodehost,
-            in.node_info_network.nodeport,
+            in.node_info_network.node_address.hostname,
+            in.node_info_network.node_address.port,
             conflicting_node_id.value()));
       }
 
@@ -530,9 +529,11 @@ namespace ccf
         auto nodes = args.tx.ro(this->network.nodes);
         nodes->foreach([this, host, port, status, &out](
                          const NodeId& nid, const NodeInfo& ni) {
-          if (host.has_value() && host.value() != ni.pubhost)
+          const auto& primary_interface = ni.rpc_interfaces[0];
+          const auto& pub_address = primary_interface.public_rpc_address;
+          if (host.has_value() && host.value() != pub_address.hostname)
             return true;
-          if (port.has_value() && port.value() != ni.pubport)
+          if (port.has_value() && port.value() != pub_address.port)
             return true;
           if (status.has_value() && status.value() != ni.status)
             return true;
@@ -544,10 +545,10 @@ namespace ccf
           }
           out.nodes.push_back({nid,
                                ni.status,
-                               ni.pubhost,
-                               ni.pubport,
-                               ni.rpchost,
-                               ni.rpcport,
+                               pub_address.hostname,
+                               pub_address.port,
+                               primary_interface.rpc_address.hostname,
+                               primary_interface.rpc_address.port,
                                is_primary});
           return true;
         });
@@ -604,13 +605,15 @@ namespace ccf
           }
         }
         auto ni = info.value();
-        return make_success(GetNode::Out{node_id,
-                                         ni.status,
-                                         ni.pubhost,
-                                         ni.pubport,
-                                         ni.rpchost,
-                                         ni.rpcport,
-                                         is_primary});
+        const auto& primary_interface = ni.rpc_interfaces[0];
+        return make_success(
+          GetNode::Out{node_id,
+                       ni.status,
+                       primary_interface.public_rpc_address.hostname,
+                       primary_interface.public_rpc_address.port,
+                       primary_interface.rpc_address.hostname,
+                       primary_interface.rpc_address.port,
+                       is_primary});
       };
       make_read_only_endpoint(
         "network/nodes/{node_id}",
@@ -628,13 +631,14 @@ namespace ccf
         auto info = nodes->get(node_id);
         if (info)
         {
+          const auto& address = info->rpc_interfaces[0].public_rpc_address;
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
           args.rpc_ctx->set_response_header(
             "Location",
             fmt::format(
               "https://{}:{}/node/network/nodes/{}",
-              info->pubhost,
-              info->pubport,
+              address.hostname,
+              address.port,
               node_id.value()));
           return;
         }
@@ -669,13 +673,14 @@ namespace ccf
           auto info_primary = nodes->get(primary_id.value());
           if (info && info_primary)
           {
+            const auto& address = info->rpc_interfaces[0].public_rpc_address;
             args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
             args.rpc_ctx->set_response_header(
               "Location",
               fmt::format(
                 "https://{}:{}/node/network/nodes/{}",
-                info->pubhost,
-                info->pubport,
+                address.hostname,
+                address.port,
                 primary_id->value()));
             return;
           }
@@ -716,10 +721,13 @@ namespace ccf
             auto info = nodes->get(primary_id.value());
             if (info)
             {
+              const auto& address = info->rpc_interfaces[0].public_rpc_address;
               args.rpc_ctx->set_response_header(
                 "Location",
                 fmt::format(
-                  "https://{}:{}/node/primary", info->pubhost, info->pubport));
+                  "https://{}:{}/node/primary",
+                  address.hostname,
+                  address.port));
             }
           }
         }
