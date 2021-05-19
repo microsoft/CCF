@@ -12,6 +12,7 @@
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
+#include "node/session_metrics.h"
 #include "node_interface.h"
 
 namespace ccf
@@ -47,10 +48,6 @@ namespace ccf
   {
     ccf::SessionMetrics sessions;
   };
-
-  DECLARE_JSON_TYPE(ccf::SessionMetrics)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    ccf::SessionMetrics, active, peak, soft_cap, hard_cap)
 
   DECLARE_JSON_TYPE(NodeMetrics)
   DECLARE_JSON_REQUIRED_FIELDS(NodeMetrics, sessions)

@@ -1498,9 +1498,7 @@ namespace ccf
 
     SessionMetrics get_session_metrics() override
     {
-      SessionMetrics sm;
-      rpcsessions->get_stats(sm.active, sm.peak, sm.soft_cap, sm.hard_cap);
-      return sm;
+      return rpcsessions->get_session_metrics();
     }
 
   private:

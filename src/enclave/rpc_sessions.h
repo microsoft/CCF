@@ -7,6 +7,7 @@
 #include "forwarder_types.h"
 #include "http/http_endpoint.h"
 #include "node/node_info_network.h"
+#include "node/session_metrics.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
 #include "tls/client.h"
@@ -134,15 +135,19 @@ namespace enclave
       }
     }
 
-    void get_stats(
-      size_t& current, size_t& peak, size_t& soft_cap, size_t& hard_cap)
+    ccf::SessionMetrics get_session_metrics()
     {
+      ccf::SessionMetrics sm;
       std::lock_guard<SpinLock> guard(lock);
-      current = sessions.size();
-      peak = sessions_peak;
-      // TODO
-      // soft_cap = max_open_sessions_soft;
-      // hard_cap = max_open_sessions_hard;
+      sm.active = sessions.size();
+      sm.peak = sessions_peak;
+
+      for (const auto& [name, interface]: listening_interfaces)
+      {
+        sm.interfaces[name] = {interface.max_open_sessions_soft, interface.max_open_sessions_hard};
+      }
+
+      return sm;
     }
 
     void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
