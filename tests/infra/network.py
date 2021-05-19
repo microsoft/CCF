@@ -854,7 +854,7 @@ class Network:
             flush_info(lines, None, 0)
 
         assert len(caught_up_nodes) == len(
-            joined_nodes
+            self.get_joined_nodes()
         ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
 
     def wait_for_trusted_and_committed(self, node, primary=None, timeout=10):
