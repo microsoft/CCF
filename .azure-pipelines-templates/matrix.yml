@@ -1,5 +1,5 @@
 parameters:
-  target: ["NoSGX"]
+  target: ["NoSGX", "SGX"]
 
   env:
     Hosted:
