@@ -924,20 +924,6 @@ namespace aft
         return;
       }
 
-      if (!state->requested_evidence_from.has_value())
-      {
-        LOG_FAIL_FMT("Received unrequested view change evidence");
-        return;
-      }
-
-      if (from != state->requested_evidence_from.value())
-      {
-        // Ignore if we didn't request this evidence.
-        LOG_FAIL_FMT("Received unrequested view change evidence from {}", from);
-        return;
-      }
-      state->requested_evidence_from.reset();
-
       view_change_tracker->add_unknown_primary_evidence(
         {data, size}, r.view, node_count());
     }
@@ -2156,7 +2142,6 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        state->requested_evidence_from = from;
         ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
                                     state->current_view};
 
@@ -2487,6 +2472,7 @@ namespace aft
 
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
+      view_change_tracker->set_current_view_change(state->current_view);
 
       if (consensus_type != ConsensusType::BFT)
       {

@@ -144,6 +144,11 @@ namespace aft
         return false;
       }
 
+      if (last_valid_view == vc.view)
+      {
+        return true;
+      }
+
       if (
         vc.view_change_messages.size() < ccf::get_message_threshold(node_count))
       {

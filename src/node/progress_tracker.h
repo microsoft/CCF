@@ -542,6 +542,11 @@ namespace ccf
 
       for (auto& sig : view_change.signatures)
       {
+        if (it->second.sigs.find(sig.node) != it->second.sigs.end())
+        {
+          continue;
+        }
+
         if (!store->verify_signature(
               sig.node, it->second.root, sig.sig.size(), sig.sig.data()))
         {
@@ -559,10 +564,6 @@ namespace ccf
           continue;
         }
 
-        if (it->second.sigs.find(sig.node) == it->second.sigs.end())
-        {
-          continue;
-        }
         it->second.sigs.insert(
           std::pair<NodeId, BftNodeSignature>(sig.node, sig));
       }
