@@ -333,7 +333,7 @@ namespace aft
       return false;
     }
 
-    void commit(Index)
+    void commit(Index, bool)
     {
       // For now, do not test snapshots in unit tests
       return;
