@@ -772,6 +772,8 @@ int main(int argc, char** argv)
                           interface.rpc_address.port};
       addr.public_rpc_address = {interface.public_rpc_address.hostname,
                                  interface.public_rpc_address.port};
+      addr.max_open_sessions_soft = interface.max_open_sessions;
+      addr.max_open_sessions_hard = interface.max_open_sessions_hard;
       ccf_config.node_info_network.rpc_interfaces.push_back(addr);
     }
     ccf_config.domain = domain;
