@@ -178,6 +178,7 @@ namespace aft
     ccf::View last_view_change_sent = 0;
     ccf::View last_valid_view = aft::starting_view_change;
     const std::chrono::milliseconds time_between_attempts;
+    ccf::ViewChangeConfirmation last_nvc;
 
     ccf::ViewChangeConfirmation create_view_change_confirmation_msg(
       ccf::View view)
@@ -185,6 +186,13 @@ namespace aft
       auto it = view_changes.find(view);
       if (it == view_changes.end())
       {
+        if (view == last_nvc.view)
+        {
+          return last_nvc;
+        }
+
+        LOG_FAIL_FMT(
+          "Cannot write unknown view-change to ledger, view:{}", view);
         throw std::logic_error(fmt::format(
           "Cannot write unknown view-change to ledger, view:{}", view));
       }
@@ -196,6 +204,8 @@ namespace aft
       {
         nv.view_change_messages.emplace(it.first, it.second);
       }
+
+      last_nvc = nv;
 
       return nv;
     }
