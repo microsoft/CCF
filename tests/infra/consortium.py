@@ -29,7 +29,7 @@ class Consortium:
         share_script,
         members_info=None,
         curve=None,
-        remote_node=None,
+        public_state=None,
         authenticate_session=True,
     ):
         self.common_dir = common_dir
@@ -77,10 +77,8 @@ class Consortium:
                         f"Successfully recovered member {local_id}: {new_member.service_id}"
                     )
 
-            # Retrieve state of service directly from ledger
-            latest_public_state, _ = remote_node.get_latest_ledger_public_state()
             self.recovery_threshold = json.loads(
-                latest_public_state["public:ccf.gov.service.config"][
+                public_state["public:ccf.gov.service.config"][
                     ccf.ledger.WELL_KNOWN_SINGLETON_TABLE_KEY
                 ]
             )["recovery_threshold"]
@@ -89,7 +87,7 @@ class Consortium:
                 LOG.warning("No consortium member to recover")
                 return
 
-            for id_bytes, info_bytes in latest_public_state[
+            for id_bytes, info_bytes in public_state[
                 "public:ccf.gov.members.info"
             ].items():
                 member_id = id_bytes.decode()

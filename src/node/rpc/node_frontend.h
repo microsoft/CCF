@@ -6,6 +6,7 @@
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
+#include "ccf/version.h"
 #include "crypto/hash.h"
 #include "frontend.h"
 #include "node/entities.h"
@@ -41,6 +42,18 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetQuotes::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes)
+
+  struct NodeMetrics
+  {
+    ccf::SessionMetrics sessions;
+  };
+
+  DECLARE_JSON_TYPE(ccf::SessionMetrics)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ccf::SessionMetrics, active, peak, soft_cap, hard_cap)
+
+  DECLARE_JSON_TYPE(NodeMetrics)
+  DECLARE_JSON_REQUIRED_FIELDS(NodeMetrics, sessions)
 
   class NodeEndpoints : public CommonEndpointRegistry
   {
@@ -190,6 +203,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
+      openapi_info.document_version = "1.1.0";
     }
 
     void init_handlers() override
@@ -422,7 +436,7 @@ namespace ccf
             q.node_id = node_id;
             q.raw = node_info.quote_info.quote;
             q.endorsements = node_info.quote_info.endorsements;
-            q.format = QuoteFormat::oe_sgx_v1;
+            q.format = node_info.quote_info.format;
 
 #ifdef GET_QUOTE
             auto code_id =
@@ -772,6 +786,37 @@ namespace ccf
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<MemoryUsage>()
+        .install();
+
+      auto node_metrics = [this](auto& args) {
+        NodeMetrics nm;
+        nm.sessions = context.get_node_state().get_session_metrics();
+
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        args.rpc_ctx->set_response_body(nlohmann::json(nm).dump());
+      };
+
+      make_command_endpoint("metrics", HTTP_GET, node_metrics, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .set_auto_schema<void, NodeMetrics>()
+        .install();
+
+      auto version = [this](auto&, nlohmann::json&&) {
+        GetVersion::Out result;
+        result.ccf_version = ccf::ccf_version;
+        return make_success(result);
+      };
+
+      make_command_endpoint(
+        "version", HTTP_GET, json_command_adapter(version), no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_auto_schema<GetVersion>()
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
     }
   };

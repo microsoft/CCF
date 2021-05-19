@@ -312,13 +312,14 @@ namespace kv
 
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
     {
-      if (v < commit_version())
+      auto cv = compacted_version();
+      if (v < cv)
       {
         throw std::logic_error(fmt::format(
-          "Cannot snapshot at version {} which is earlier than committed "
-          "version {} ",
+          "Cannot snapshot at version {} which is earlier than last "
+          "compacted version {} ",
           v,
-          commit_version()));
+          cv));
       }
 
       if (v > current_version())
@@ -913,7 +914,7 @@ namespace kv
       return {term, version};
     }
 
-    Version commit_version() override
+    Version compacted_version() override
     {
       // Must lock in case the store is being compacted.
       std::lock_guard<SpinLock> vguard(version_lock);

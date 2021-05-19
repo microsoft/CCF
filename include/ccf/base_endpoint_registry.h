@@ -119,6 +119,12 @@ namespace ccf
      */
     ApiResult get_id_for_this_node_v1(NodeId& node_id);
 
+    /** Get quotes attesting to the hardware that each node in the service is
+     * running on.
+     */
+    ApiResult get_quotes_for_all_trusted_nodes_v1(
+      kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes);
+
     /** Get the view associated with a given seqno, to construct a valid TxID.
      */
     ApiResult get_view_for_seqno_v1(ccf::SeqNo seqno, ccf::View& view);
@@ -146,5 +152,9 @@ namespace ccf
       kv::ReadOnlyTx& tx,
       const MemberId& member_id,
       crypto::Pem& member_cert_pem);
+
+    /** Get untrusted time from the host of the currently executing node.
+     */
+    ApiResult get_untrusted_host_time_v1(::timespec& time);
   };
 }

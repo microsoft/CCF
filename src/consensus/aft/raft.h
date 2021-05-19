@@ -95,6 +95,18 @@ namespace aft
     std::optional<ccf::NodeId> leader_id = std::nullopt;
     std::unordered_set<ccf::NodeId> votes_for_me;
 
+    // Replicas start in state Follower. Apart from a single forced
+    // transition from Follower to Leader on the initial node at startup,
+    // the state machine is made up of the following transitions:
+    //
+    // Follower -> Candidate, when election timeout expires
+    // Follower -> Retired, when commit advances past the last config containing
+    // the node
+    // Candidate -> Leader, upon collecting enough votes
+    // Leader -> Retired, when commit advances past the last config containing
+    // the node
+    // Leader -> Follower, when receiving entries for a newer term
+    // Candidate -> Follower, when receiving entries for a newer term
     ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
     // Last (committable) index preceding the node's election, this is
@@ -1022,6 +1034,16 @@ namespace aft
       const ccf::NodeId& to, Index start_idx, Index end_idx)
     {
       const auto prev_idx = start_idx - 1;
+
+      if (replica_state == Retired && start_idx >= end_idx)
+      {
+        // When the local node is retired and the remote node has
+        // acked all entries that the local node wanted to replicate,
+        // the channel is no longer useful and can be closed.
+        channels->destroy_channel(to);
+        return;
+      }
+
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
       const bool contains_new_view =
@@ -2304,6 +2326,11 @@ namespace aft
 
     void become_candidate()
     {
+      if (replica_state == Retired)
+      {
+        return;
+      }
+
       replica_state = Candidate;
       leader_id.reset();
       voted_for = state->my_node_id;
@@ -2331,6 +2358,11 @@ namespace aft
 
     void become_leader()
     {
+      if (replica_state == Retired)
+      {
+        return;
+      }
+
       election_index = last_committable_index();
       LOG_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);
@@ -2378,6 +2410,11 @@ namespace aft
 
     void become_follower(Term term)
     {
+      if (replica_state == Retired)
+      {
+        return;
+      }
+
       replica_state = Follower;
       leader_id.reset();
       restart_election_timeout();
@@ -2406,7 +2443,6 @@ namespace aft
 
       LOG_INFO_FMT(
         "Becoming retired {}: {}", state->my_node_id, state->current_view);
-      channels->destroy_all_channels();
     }
 
     void add_vote_for_me(const ccf::NodeId& from)
@@ -2531,12 +2567,10 @@ namespace aft
       state->commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");
-      snapshotter->commit(idx);
-      if (consensus_type == ConsensusType::CFT)
-      {
-        // Snapshots are not yet supported with BFT
-        snapshotter->update(idx, replica_state == Leader);
-      }
+      // Snapshots are not yet supported with BFT
+      snapshotter->commit(
+        idx, replica_state == Leader && consensus_type == ConsensusType::CFT);
+
       store->compact(idx);
       ledger->commit(idx);
 

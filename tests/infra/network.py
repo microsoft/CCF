@@ -10,7 +10,7 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-from ccf.ledger import NodeStatus
+from ccf.ledger import NodeStatus, Ledger
 from ccf.tx_status import TxStatus
 from ccf.tx_id import TxID
 import random
@@ -95,6 +95,7 @@ class Network:
         "san",
         "snapshot_tx_interval",
         "max_open_sessions",
+        "max_open_sessions_hard",
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",
         "curve_id",
@@ -112,6 +113,7 @@ class Network:
         existing_network=None,
         txs=None,
         library_dir=".",
+        init_partitioner=False,
     ):
         if existing_network is None:
             self.consortium = None
@@ -147,20 +149,25 @@ class Network:
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
 
+        # Requires admin privileges
+        self.partitioner = (
+            infra.partitions.Partitioner(self) if init_partitioner else None
+        )
+
         try:
             os.remove("/tmp/vscode-gdb.sh")
         except FileNotFoundError:
             pass
 
         for host in hosts:
-            self.create_node(host)
+            self._create_node(host)
 
     def _get_next_local_node_id(self):
         if len(self.nodes):
             return self.nodes[-1].local_node_id + 1
         return self.node_offset
 
-    def create_node(self, host):
+    def _create_node(self, host, node_port=None):
         node_id = self._get_next_local_node_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
@@ -169,7 +176,13 @@ class Network:
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
         node = infra.node.Node(
-            node_id, host, self.binary_dir, self.library_dir, debug, perf
+            node_id,
+            host,
+            self.binary_dir,
+            self.library_dir,
+            debug,
+            perf,
+            node_port=node_port,
         )
         self.nodes.append(node)
         return node
@@ -390,7 +403,7 @@ class Network:
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
-        self.wait_for_all_nodes_to_catch_up(primary)
+        self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined network")
 
         self.consortium.activate(self.find_random_node())
@@ -430,6 +443,12 @@ class Network:
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
+        ledger_dirs = [ledger_dir]
+        if committed_ledger_dir:
+            ledger_dirs.append(committed_ledger_dir)
+
+        ledger = Ledger(ledger_dirs, committed_only=False)
+        public_state, _ = ledger.get_latest_public_state()
 
         primary = self._start_all_nodes(
             args,
@@ -442,7 +461,10 @@ class Network:
         # If a common directory was passed in, initialise the consortium from it
         if common_dir is not None:
             self.consortium = infra.consortium.Consortium(
-                common_dir, self.key_generator, self.share_script, remote_node=primary
+                common_dir,
+                self.key_generator,
+                self.share_script,
+                public_state=public_state,
             )
 
         for node in self.get_joined_nodes():
@@ -451,7 +473,7 @@ class Network:
                 infra.node.State.PART_OF_PUBLIC_NETWORK.value,
                 timeout=args.ledger_recovery_timeout,
             )
-        self.wait_for_all_nodes_to_catch_up(primary)
+        self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined public network")
 
     def recover(self, args):
@@ -561,13 +583,14 @@ class Network:
         args,
         target_node=None,
         timeout=JOIN_TIMEOUT,
+        node_port=None,
         **kwargs,
     ):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
         """
-        new_node = self.create_node(host)
+        new_node = self._create_node(host, node_port)
 
         self._add_node(
             new_node,
@@ -609,6 +632,7 @@ class Network:
         host,
         args,
         target_node=None,
+        node_port=None,
         **kwargs,
     ):
         """
@@ -620,6 +644,7 @@ class Network:
             host,
             args,
             target_node,
+            node_port=node_port,
             **kwargs,
         )
 
@@ -641,7 +666,7 @@ class Network:
             raise
 
         new_node.network_state = infra.node.NodeNetworkState.joined
-        self.wait_for_all_nodes_to_catch_up(primary)
+        self.wait_for_all_nodes_to_commit(primary=primary)
 
         return new_node
 
@@ -710,7 +735,7 @@ class Network:
     def _get_node_by_service_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, timeout=3, log_capture=None):
+    def find_primary(self, nodes=None, timeout=3, log_capture=None):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
@@ -720,9 +745,11 @@ class Network:
 
         logs = []
 
+        asked_nodes = nodes or self.get_joined_nodes()
+
         end_time = time.time() + timeout
         while time.time() < end_time:
-            for node in self.get_joined_nodes():
+            for node in asked_nodes:
                 with node.client() as c:
                     try:
                         logs = []
@@ -782,31 +809,42 @@ class Network:
         backup = random.choice(backups)
         return primary, backup
 
-    def wait_for_all_nodes_to_catch_up(self, primary, timeout=10):
+    def wait_for_all_nodes_to_commit(self, primary=None, tx_id=None, timeout=10):
         """
-        Wait for all nodes to have joined the network and globally replicated
-        all transactions globally executed on the primary (including transactions
-        which added the nodes).
+        Wait for all nodes to have joined the network and committed all transactions
+        executed on the primary.
         """
+        if not (primary or tx_id):
+            raise ValueError("Either a valid TxID or primary node should be specified")
+
         end_time = time.time() + timeout
-        while time.time() < end_time:
-            with primary.client() as c:
-                resp = c.get("/node/commit")
-                body = resp.body.json()
-                tx_id = TxID.from_str(body["transaction_id"])
-                if tx_id.valid():
-                    break
-            time.sleep(0.1)
-        assert (
-            tx_id.valid()
-        ), f"Primary {primary.node_id} has not made any progress yet ({tx_id})"
+
+        # If no TxID is specified, retrieve latest readable one
+        if tx_id == None:
+            while time.time() < end_time:
+                with primary.client() as c:
+                    resp = c.get(
+                        "/node/network/nodes/self"
+                    )  # Well-known read-only endpoint
+                    tx_id = TxID(resp.view, resp.seqno)
+                    if tx_id.valid():
+                        break
+                time.sleep(0.1)
+            assert (
+                tx_id.valid()
+            ), f"Primary {primary.node_id} has not made any progress yet ({tx_id})"
 
         caught_up_nodes = []
+        logs = {}
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    resp = c.get(f"/node/local_tx?transaction_id={tx_id}")
+                    logs[node.node_id] = []
+                    resp = c.get(
+                        f"/node/local_tx?transaction_id={tx_id}",
+                        log_capture=logs[node.node_id],
+                    )
                     if resp.status_code != 200:
                         # Node may not have joined the network yet, try again
                         break
@@ -814,6 +852,7 @@ class Network:
                     if status == TxStatus.Committed:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:
+                        flush_info(logs[node.node_id], None, 0)
                         raise RuntimeError(
                             f"Node {node.node_id} reports transaction ID {tx_id} is invalid and will never be committed"
                         )
@@ -823,6 +862,9 @@ class Network:
             if len(caught_up_nodes) == len(self.get_joined_nodes()):
                 break
             time.sleep(0.1)
+
+        for lines in logs.values():
+            flush_info(lines, None, 0)
         assert len(caught_up_nodes) == len(
             self.get_joined_nodes()
         ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
@@ -847,12 +889,12 @@ class Network:
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"Multiple commit values: {commits}"
 
-    def wait_for_new_primary(self, old_primary_id, timeout_multiplier=2):
+    def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
         timeout = self.election_duration * timeout_multiplier
         LOG.info(
-            f"Waiting up to {timeout}s for a new primary (different from {old_primary_id}) to be elected..."
+            f"Waiting up to {timeout}s for a new primary different from {old_primary.local_node_id} ({old_primary.node_id}) to be elected..."
         )
         end_time = time.time() + timeout
         error = TimeoutError
@@ -860,9 +902,12 @@ class Network:
         while time.time() < end_time:
             try:
                 logs = []
-                new_primary, new_term = self.find_primary(log_capture=logs)
-                if new_primary.node_id != old_primary_id:
+                new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
+                if new_primary.node_id != old_primary.node_id:
                     flush_info(logs, None)
+                    LOG.info(
+                        f"New primary is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                    )
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
@@ -938,7 +983,7 @@ class Network:
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def _get_ledger_public_view_at(self, node, call, seqno, timeout=3):
+    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
@@ -950,13 +995,13 @@ class Network:
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()}"
         )
 
-    def get_ledger_public_state_at(self, seqno, timeout=3):
+    def get_ledger_public_state_at(self, seqno, timeout=5):
         primary, _ = self.find_primary()
         return self._get_ledger_public_view_at(
             primary, primary.get_ledger_public_tables_at, seqno, timeout
         )
 
-    def get_latest_ledger_public_state(self, timeout=3):
+    def get_latest_ledger_public_state(self, timeout=5):
         primary, _ = self.find_primary()
         with primary.client() as nc:
             resp = nc.get("/node/commit")
@@ -976,6 +1021,7 @@ def network(
     pdb=False,
     txs=None,
     library_directory=".",
+    init_partitioner=False,
 ):
     """
     Context manager for Network class.
@@ -1001,6 +1047,7 @@ def network(
         dbg_nodes=dbg_nodes,
         perf_nodes=perf_nodes,
         txs=txs,
+        init_partitioner=init_partitioner,
     )
     try:
         yield net
@@ -1015,4 +1062,9 @@ def network(
         else:
             raise
     finally:
+        LOG.info("Stopping network")
+        # To prevent https://github.com/microsoft/CCF/issues/2571, at
+        # the cost of additional messages in the node logs
+        if init_partitioner:
+            net.partitioner.cleanup()
         net.stop_all_nodes(skip_verification=True)

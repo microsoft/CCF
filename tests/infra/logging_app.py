@@ -8,6 +8,7 @@ import random
 import ccf.clients
 import ccf.commit
 from collections import defaultdict
+from ccf.tx_id import TxID
 
 
 from loguru import logger as LOG
@@ -45,6 +46,11 @@ class LoggingTxs:
         self.user = user_id
         self.network = None
 
+    def clear(self):
+        self.pub.clear()
+        self.priv.clear()
+        self.idx = 0
+
     def get_last_tx(self, priv=True, idx=None):
         if idx is None:
             idx = self.idx
@@ -60,9 +66,10 @@ class LoggingTxs:
         repeat=False,
         idx=None,
         wait_for_sync=True,
+        log_capture=None,
     ):
         self.network = network
-        remote_node, _ = network.find_primary()
+        remote_node, _ = network.find_primary(log_capture=log_capture)
         if on_backup:
             remote_node = network.find_any_backup()
 
@@ -86,6 +93,7 @@ class LoggingTxs:
                         "id": target_idx,
                         "msg": priv_msg,
                     },
+                    log_capture=log_capture,
                 )
                 self.priv[target_idx].append(
                     {"msg": priv_msg, "seqno": rep_priv.seqno, "view": rep_priv.view}
@@ -100,6 +108,7 @@ class LoggingTxs:
                         "id": target_idx,
                         "msg": pub_msg,
                     },
+                    log_capture=log_capture,
                 )
                 self.pub[target_idx].append(
                     {"msg": pub_msg, "seqno": rep_pub.seqno, "view": rep_pub.view}
@@ -108,7 +117,9 @@ class LoggingTxs:
                 check_commit(rep_pub, result=True)
 
         if wait_for_sync:
-            network.wait_for_node_commit_sync()
+            network.wait_for_all_nodes_to_commit(
+                tx_id=TxID(rep_pub.view, rep_pub.seqno)
+            )
 
     def verify(self, network=None, node=None, timeout=3):
         LOG.info("Verifying all logging txs")
@@ -192,11 +203,6 @@ class LoggingTxs:
                             raise ValueError(
                                 f"Response with status {rep.status_code} is missing 'retry-after' header"
                             )
-                        sleep_time = 0.5
-                        LOG.info(
-                            f"Sleeping for {sleep_time}s waiting for historical query processing..."
-                        )
-                        time.sleep(sleep_time)
                     elif rep.status_code == http.HTTPStatus.NO_CONTENT:
                         raise ValueError(
                             f"Historical query response claims there was no write to {idx} at {view}.{seqno}"

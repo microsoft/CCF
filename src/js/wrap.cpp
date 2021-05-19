@@ -7,6 +7,7 @@
 #include "enclave/rpc_context.h"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
+#include "js/oe.cpp"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"
@@ -90,6 +91,20 @@ namespace js
     return buf;
   }
 
+  static JSValue js_kv_map_size_getter(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst*)
+  {
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
+    const uint64_t size = handle->size();
+    if (size > INT64_MAX)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Map size (%lu) is too large to represent in int64", size);
+    }
+    return JS_NewInt64(ctx, (int64_t)size);
+  }
+
   static JSValue js_kv_map_delete(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
@@ -145,6 +160,29 @@ namespace js
     JSContext* ctx, JSValueConst, int, JSValueConst*)
   {
     return JS_ThrowTypeError(ctx, "Cannot call set on read-only map");
+  }
+
+  static JSValue js_kv_map_clear(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
+
+    if (argc != 0)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 0", argc);
+    }
+
+    handle->clear();
+
+    return JS_UNDEFINED;
+  }
+
+  static JSValue js_kv_map_clear_read_only(
+    JSContext* ctx, JSValueConst, int, JSValueConst*)
+  {
+    return JS_ThrowTypeError(ctx, "Cannot call clear on read-only map");
   }
 
   static JSValue js_kv_map_foreach(
@@ -264,19 +302,39 @@ namespace js
     JS_SetPropertyStr(
       ctx, view_val, "get", JS_NewCFunction(ctx, js_kv_map_get, "get", 1));
 
+    auto size_atom = JS_NewAtom(ctx, "size");
+    JS_DefinePropertyGetSet(
+      ctx,
+      view_val,
+      size_atom,
+      JS_NewCFunction2(
+        ctx,
+        js_kv_map_size_getter,
+        "size",
+        0,
+        JS_CFUNC_getter,
+        JS_CFUNC_getter_magic),
+      JS_UNDEFINED,
+      0);
+    JS_FreeAtom(ctx, size_atom);
+
     auto setter = js_kv_map_set;
     auto deleter = js_kv_map_delete;
+    auto clearer = js_kv_map_clear;
 
     if (read_only)
     {
       setter = js_kv_map_set_read_only;
       deleter = js_kv_map_delete_read_only;
+      clearer = js_kv_map_clear_read_only;
     }
 
     JS_SetPropertyStr(
       ctx, view_val, "set", JS_NewCFunction(ctx, setter, "set", 2));
     JS_SetPropertyStr(
       ctx, view_val, "delete", JS_NewCFunction(ctx, deleter, "delete", 1));
+    JS_SetPropertyStr(
+      ctx, view_val, "clear", JS_NewCFunction(ctx, clearer, "clear", 0));
 
     JS_SetPropertyStr(
       ctx,
@@ -865,6 +923,28 @@ namespace js
     JS_FreeValue(ctx, global_obj);
   }
 
+  static JSValue create_openenclave_obj(JSContext* ctx)
+  {
+    auto openenclave = JS_NewObject(ctx);
+
+    JS_SetPropertyStr(
+      ctx,
+      openenclave,
+      "verifyOpenEnclaveEvidence",
+      JS_NewCFunction(
+        ctx, js_verify_open_enclave_evidence, "verifyOpenEnclaveEvidence", 3));
+
+    return openenclave;
+  }
+
+  void populate_global_openenclave(JSContext* ctx)
+  {
+    auto global_obj = JS_GetGlobalObject(ctx);
+    JS_SetPropertyStr(
+      ctx, global_obj, "openenclave", create_openenclave_obj(ctx));
+    JS_FreeValue(ctx, global_obj);
+  }
+
   JSValue create_ccf_obj(
     TxContext* txctx,
     enclave::RpcContext* rpc_ctx,
@@ -912,6 +992,12 @@ namespace js
       "isValidX509CertBundle",
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "isValidX509CertChain",
+      JS_NewCFunction(
+        ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
 

@@ -24,6 +24,7 @@ from ccf.tx_id import TxID
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
+import urllib.parse
 
 from loguru import logger as LOG
 
@@ -58,7 +59,6 @@ def test_illegal(network, args, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
     cafile = os.path.join(network.common_dir, "networkcert.pem")
     context = ssl.create_default_context(cafile=cafile)
-    context.set_ecdh_curve(ccf.clients.get_curve(cafile).name)
     context.load_cert_chain(
         certfile=os.path.join(network.common_dir, "user0_cert.pem"),
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
@@ -148,6 +148,116 @@ def test_remove(network, args):
                             error=lambda status, msg: status
                             == http.HTTPStatus.BAD_REQUEST.value,
                         )
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application ({args.package}) is not in supported packages: {supported_packages}"
+        )
+
+    return network
+
+
+@reqs.description("Write/Read/Clear messages on primary")
+@reqs.supports_methods("log/private/all", "log/public/all")
+def test_clear(network, args):
+    supported_packages = ["libjs_generic", "liblogging"]
+    if args.package in supported_packages:
+        primary, _ = network.find_primary()
+
+        with primary.client() as nc:
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
+
+            with primary.client("user0") as c:
+                log_ids = list(range(40, 50))
+                msg = "Will be deleted"
+
+                for table in ["private", "public"]:
+                    resource = f"/app/log/{table}"
+                    for log_id in log_ids:
+                        check_commit(
+                            c.post(resource, {"id": log_id, "msg": msg}),
+                            result=True,
+                        )
+                        check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
+                    check(
+                        c.delete(f"{resource}/all"),
+                        result=None,
+                    )
+                    for log_id in log_ids:
+                        get_r = c.get(f"{resource}?id={log_id}")
+                        if args.package == "libjs_generic":
+                            check(
+                                get_r,
+                                result={"error": "No such key"},
+                            )
+                        else:
+                            check(
+                                get_r,
+                                error=lambda status, msg: status
+                                == http.HTTPStatus.BAD_REQUEST.value,
+                            )
+
+        # Make sure no-one else is still looking for these
+        network.txs.clear()
+
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application ({args.package}) is not in supported packages: {supported_packages}"
+        )
+
+    return network
+
+
+@reqs.description("Count messages on primary")
+@reqs.supports_methods("log/private/count", "log/public/count")
+def test_record_count(network, args):
+    supported_packages = ["libjs_generic", "liblogging"]
+    if args.package in supported_packages:
+        primary, _ = network.find_primary()
+
+        with primary.client() as nc:
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
+
+            with primary.client("user0") as c:
+                msg = "Will be deleted"
+
+                def get_count(resource):
+                    r_get = c.get(f"{resource}/count")
+                    assert r_get.status_code == http.HTTPStatus.OK
+                    return int(r_get.body.json())
+
+                for table in ["private", "public"]:
+                    resource = f"/app/log/{table}"
+
+                    count = get_count(resource)
+
+                    # Add several new IDs
+                    for i in range(10):
+                        log_id = 234 + i
+                        check_commit(
+                            c.post(resource, {"id": log_id, "msg": msg}),
+                            result=True,
+                        )
+                        new_count = get_count(resource)
+                        assert (
+                            new_count == count + 1
+                        ), f"Added one ID after {count}, but found {new_count} resulting IDs"
+                        count = new_count
+
+                    # Clear all IDs
+                    check(
+                        c.delete(f"{resource}/all"),
+                        result=None,
+                    )
+                    new_count = get_count(resource)
+                    assert (
+                        new_count == 0
+                    ), f"Found {new_count} remaining IDs after clear"
+
+        # Make sure no-one else is still looking for these
+        network.txs.clear()
+
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application ({args.package}) is not in supported packages: {supported_packages}"
@@ -524,22 +634,26 @@ def test_historical_query_range(network, args):
 
     primary, _ = network.find_primary()
 
-    id_a = 100
-    id_b = 101
+    id_a = 142
+    id_b = 143
 
     first_seqno = None
     last_seqno = None
 
-    def get_all_entries(target_id):
+    def get_all_entries(target_id, from_seqno=None, to_seqno=None):
         LOG.info(
-            f"Getting historical entries from {first_seqno} to {last_seqno} for id {target_id}"
+            f"Getting historical entries{f' from {from_seqno}' if from_seqno is not None else ''}{f' to {last_seqno}' if to_seqno is not None else ''} for id {target_id}"
         )
         logs = []
         with primary.client("user0") as c:
             timeout = 5
             end_time = time.time() + timeout
             entries = []
-            path = f"/app/log/private/historical/range?from_seqno={first_seqno}&to_seqno={last_seqno}&id={target_id}"
+            path = f"/app/log/private/historical/range?id={target_id}"
+            if from_seqno is not None:
+                path += f"&from_seqno={first_seqno}"
+            if to_seqno is not None:
+                path += f"&to_seqno={to_seqno}"
             while time.time() < end_time:
                 r = c.get(path, log_capture=logs)
                 if r.status_code == http.HTTPStatus.OK:
@@ -574,7 +688,9 @@ def test_historical_query_range(network, args):
         n_entries = 100
         for i in range(n_entries):
             idx = id_b if i % 3 == 0 else id_a
-            network.txs.issue(network, repeat=True, idx=idx, wait_for_sync=False)
+            network.txs.issue(
+                network, repeat=True, idx=idx, wait_for_sync=False, log_capture=[]
+            )
             _, tx = network.txs.get_last_tx(idx=idx)
             msg = tx["msg"]
             seqno = tx["seqno"]
@@ -590,6 +706,15 @@ def test_historical_query_range(network, args):
 
         entries_a = get_all_entries(id_a)
         entries_b = get_all_entries(id_b)
+
+        # Confirm that we can retrieve these with more specific queries, and we end up with the same result
+        alt_a = get_all_entries(id_a, from_seqno=first_seqno)
+        assert alt_a == entries_a
+        alt_a = get_all_entries(id_a, to_seqno=last_seqno)
+        assert alt_a == entries_a
+        alt_a = get_all_entries(id_a, from_seqno=first_seqno, to_seqno=last_seqno)
+        assert alt_a == entries_a
+
         actual_len = len(entries_a) + len(entries_b)
         assert (
             n_entries == actual_len
@@ -608,6 +733,48 @@ def test_historical_query_range(network, args):
         assert len(entries_b) == 0
 
     return network
+
+
+def escaped_query_tests(c, endpoint):
+    samples = [
+        {"this": "that"},
+        {"this": "that", "other": "with spaces"},
+        {"this with spaces": "with spaces"},
+        {"arg": 'This has many@many many \\% " AWKWARD :;-=?!& characters %20%20'},
+    ]
+    for query in samples:
+        unescaped_query = "&".join([f"{k}={v}" for k, v in query.items()])
+        query_to_send = unescaped_query
+        if os.getenv("CURL_CLIENT"):
+            query_to_send = urllib.parse.urlencode(query)
+        r = c.get(f"/app/log/{endpoint}?{query_to_send}")
+        assert r.body.text() == unescaped_query, (
+            r.body.text(),
+            unescaped_query,
+        )
+
+    all_chars = list(range(0, 255))
+    max_args = 50
+    for ichars in [
+        all_chars[i : i + max_args] for i in range(0, len(all_chars), max_args)
+    ]:
+        encoded, raw = [], []
+        for ichar in ichars:
+            char = chr(ichar)
+            encoded.append(urllib.parse.urlencode({"arg": char}))
+            raw.append(f"arg={char}")
+
+        r = c.get(f"/app/log/{endpoint}?{'&'.join(encoded)}")
+        assert r.body.data() == "&".join(raw).encode(), r.body.data()
+
+        encoded, raw = [], []
+        for ichar in ichars:
+            char = chr(ichar)
+            encoded.append(urllib.parse.urlencode({f"arg{char}": "value"}))
+            raw.append(f"arg{char}=value")
+
+        r = c.get(f"/app/log/{endpoint}?{'&'.join(encoded)}")
+        assert r.body.data() == "&".join(raw).encode(), r.body.data()
 
 
 @reqs.description("Testing forwarding on member and user frontends")
@@ -631,6 +798,20 @@ def test_forwarding_frontends(network, args):
             result=True,
         )
         check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
+
+        if args.package == "liblogging":
+            escaped_query_tests(c, "request_query")
+
+    return network
+
+
+@reqs.description("Testing signed queries with escaped queries")
+@reqs.at_least_n_nodes(2)
+def test_signed_escapes(network, args):
+    if args.package == "liblogging":
+        node = network.find_node_by_role()
+        with node.client("user0", "user0") as c:
+            escaped_query_tests(c, "signed_request_query")
 
     return network
 
@@ -1066,7 +1247,10 @@ def run(args):
         network = test_illegal(network, args, verify=args.package != "libjs_generic")
         network = test_large_messages(network, args)
         network = test_remove(network, args)
+        network = test_clear(network, args)
+        network = test_record_count(network, args)
         network = test_forwarding_frontends(network, args)
+        network = test_signed_escapes(network, args)
         network = test_user_data_ACL(network, args)
         network = test_cert_prefix(network, args)
         network = test_anonymous_caller(network, args)

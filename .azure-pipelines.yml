@@ -10,6 +10,7 @@ pr:
   branches:
     include:
       - main
+      - "release/*"
   paths:
     include:
       - "*"
@@ -20,26 +21,29 @@ schedules:
     branches:
       include:
         - main
+        - "release/*"
     always: true
 
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci:oe0.15.0
-      options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
+      image: ccfciteam/ccf-ci:oe0.15.0-iptables
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.15.0
-      options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
+      image: ccfciteam/ccf-ci:oe0.15.0-iptables
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
 variables:
   ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-') }}:
     perf_or_release: release
+    perf_tests: no_run
   ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
     perf_or_release: perf
+    perf_tests: run
 
 jobs:
   - template: .azure-pipelines-templates/matrix.yml
     parameters:
       perf_or_release: ${{ variables['perf_or_release'] }}
-      perf_tests: run
+      perf_tests: ${{ variables['perf_tests'] }}

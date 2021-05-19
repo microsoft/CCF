@@ -29,6 +29,8 @@ import {
   CryptoKeyPair,
   WrapAlgoParams,
   DigestAlgorithm,
+  EvidenceClaims,
+  OpenEnclave,
 } from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -50,12 +52,18 @@ class KvMapPolyfill implements KvMap {
   delete(key: ArrayBuffer): boolean {
     return this.map.delete(base64(key));
   }
+  clear(): void {
+    this.map.clear();
+  }
   forEach(
     callback: (value: ArrayBuffer, key: ArrayBuffer, kvmap: KvMap) => void
   ): void {
     this.map.forEach((value, key, _) => {
       callback(value, unbase64(key), this);
     });
+  }
+  get size(): number {
+    return this.map.size;
   }
 }
 
@@ -193,9 +201,67 @@ class CCFPolyfill implements CCF {
       );
     }
   }
+
+  isValidX509CertChain(chain: string, trusted: string): boolean {
+    if (!("X509Certificate" in crypto)) {
+      throw new Error(
+        "X509 validation unsupported, Node.js version too old (< 15.6.0)"
+      );
+    }
+    try {
+      const toX509Array = (pem: string) => {
+        const sep = "-----END CERTIFICATE-----";
+        const items = pem.split(sep);
+        if (items.length === 1) {
+          return [];
+        }
+        const pems = items.slice(0, -1).map((p) => p + sep);
+        const arr = pems.map((pem) => new (<any>crypto).X509Certificate(pem));
+        return arr;
+      };
+      const certsChain = toX509Array(chain);
+      const certsTrusted = toX509Array(trusted);
+      if (certsChain.length === 0) {
+        throw new Error("chain cannot be empty");
+      }
+      for (let i = 0; i < certsChain.length - 1; i++) {
+        if (!certsChain[i].checkIssued(certsChain[i + 1])) {
+          throw new Error(`chain[${i}] is not issued by chain[${i + 1}]`);
+        }
+      }
+      for (const certChain of certsChain) {
+        for (const certTrusted of certsTrusted) {
+          if (certChain.fingerprint === certTrusted.fingerprint) {
+            return true;
+          }
+          if (certChain.verify(certTrusted.publicKey)) {
+            return true;
+          }
+        }
+      }
+      throw new Error(
+        "none of the chain certificates are identical to or issued by a trusted certificate"
+      );
+    } catch (e) {
+      console.error(`certificate chain validation failed: ${e.message}`);
+      return false;
+    }
+  }
 }
 
 (<any>globalThis).ccf = new CCFPolyfill();
+
+class OpenEnclavePolyfill implements OpenEnclave {
+  verifyOpenEnclaveEvidence(
+    format: string | undefined,
+    evidence: ArrayBuffer,
+    endorsements?: ArrayBuffer
+  ): EvidenceClaims {
+    throw new Error("Method not implemented.");
+  }
+}
+
+(<any>globalThis).openenclave = new OpenEnclavePolyfill();
 
 function nodeBufToArrBuf(buf: Buffer): ArrayBuffer {
   // Note: buf.buffer is not safe, see docs.

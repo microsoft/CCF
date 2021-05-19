@@ -476,7 +476,7 @@ def run(args):
         # Check that auto refresh also works on backups
         primary, _ = network.find_primary()
         primary.stop()
-        network.wait_for_new_primary(primary.node_id)
+        network.wait_for_new_primary(primary)
         network = test_jwt_key_auto_refresh(network, args)
 
     args.jwt_key_refresh_interval_s = 100000
@@ -489,7 +489,7 @@ def run(args):
         # Check that initial refresh also works on backups
         primary, _ = network.find_primary()
         primary.stop()
-        network.wait_for_new_primary(primary.node_id)
+        network.wait_for_new_primary(primary)
         network = test_jwt_key_initial_refresh(network, args)
 
 

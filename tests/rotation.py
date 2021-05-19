@@ -5,6 +5,7 @@ import infra.network
 import infra.proc
 import suite.test_requirements as reqs
 import reconfiguration
+from infra.checker import check_can_progress
 
 from loguru import logger as LOG
 
@@ -14,11 +15,10 @@ from loguru import logger as LOG
 def test_suspend_primary(network, args):
     primary, _ = network.find_primary()
     primary.suspend()
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
-    reconfiguration.check_can_progress(new_primary)
+    new_primary, _ = network.wait_for_new_primary(primary)
+    check_can_progress(new_primary)
     primary.resume()
-    reconfiguration.check_can_progress(new_primary)
+    check_can_progress(new_primary)
     return network
 
 

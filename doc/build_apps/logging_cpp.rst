@@ -30,12 +30,18 @@ The Logging application simply has:
         :lines: 1
         :dedent:
 
-    Table creation happens in the app's constructor:
+    These tables are then accessed by type and name:
 
     .. literalinclude:: ../../samples/apps/logging/logging.cpp
         :language: cpp
-        :start-after: SNIPPET_START: constructor
-        :end-before: SNIPPET_END: constructor
+        :start-after: SNIPPET: public_table_access
+        :lines: 1
+        :dedent:
+
+    .. literalinclude:: ../../samples/apps/logging/logging.cpp
+        :language: cpp
+        :start-after: SNIPPET: private_table_access
+        :lines: 1
         :dedent:
 
 RPC Handler

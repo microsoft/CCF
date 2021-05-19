@@ -540,15 +540,19 @@ class Ledger:
         self._ledger_validator = LedgerValidator()
 
     @classmethod
-    def _range_from_filename(cls, filename: str) -> Tuple[str, str]:
+    def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
         elements = (
             os.path.basename(filename)
             .replace(".committed", "")
             .replace("ledger_", "")
             .split("-")
         )
-        assert len(elements) == 2
-        return (elements[0], elements[1])
+        if len(elements) == 2:
+            return (int(elements[0]), int(elements[1]))
+        elif len(elements) == 1:
+            return (int(elements[0]), None)
+        else:
+            assert False, elements
 
     def __init__(self, directories: List[str], committed_only: bool = True):
 
@@ -567,16 +571,15 @@ class Ledger:
         # the ledger is verified in sequence
         self._filenames = sorted(
             ledger_files,
-            key=lambda x: int(Ledger._range_from_filename(x)[0]),
+            key=lambda x: Ledger._range_from_filename(x)[0],
         )
 
         self._reset_iterators()
 
     @property
-    def last_committed_chunk_range(self) -> Tuple[int, int]:
+    def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
         last_chunk_name = self._filenames[-1]
-        start, end = Ledger._range_from_filename(last_chunk_name)
-        return (int(start), int(end))
+        return Ledger._range_from_filename(last_chunk_name)
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1

@@ -232,9 +232,8 @@ const actions = new Map([
       },
       function (args) {
         const rawMemberId = ccf.strToBuf(args.member_id);
-        const rawMemberInfo = ccf.kv["public:ccf.gov.members.info"].get(
-          rawMemberId
-        );
+        const rawMemberInfo =
+          ccf.kv["public:ccf.gov.members.info"].get(rawMemberId);
         if (rawMemberInfo === undefined) {
           return; // Idempotent
         }
@@ -741,7 +740,8 @@ const actions = new Map([
         const nodeInfo = ccf.bufToJsonCompatible(node);
         if (nodeInfo.status === "Pending") {
           nodeInfo.status = "Trusted";
-          nodeInfo.ledger_secret_seqno = ccf.network.getLatestLedgerSecretSeqno();
+          nodeInfo.ledger_secret_seqno =
+            ccf.network.getLatestLedgerSecretSeqno();
           ccf.kv["public:ccf.gov.nodes.info"].set(
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(nodeInfo)

@@ -2,6 +2,7 @@ pr:
   branches:
     include:
       - main
+      - "release/*"
   paths:
     include:
       - .daily.yml
@@ -16,17 +17,18 @@ schedules:
     branches:
       include:
         - main
+        - "release/*"
     always: true
 
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci:oe0.15.0
-      options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache
+      image: ccfciteam/ccf-ci:oe0.15.0-iptables
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache
 
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.15.0
-      options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
+      image: ccfciteam/ccf-ci:oe0.15.0-iptables
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
   - template: .azure-pipelines-templates/daily-matrix.yml

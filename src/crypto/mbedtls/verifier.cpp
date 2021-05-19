@@ -50,8 +50,11 @@ namespace crypto
       throw std::invalid_argument(
         fmt::format("Failed to parse certificate: {}", error_string(rc)));
     }
-
-    md_type = get_md_type(cert->sig_md);
+    if (cert.get()->next != nullptr)
+    {
+      throw std::invalid_argument(
+        "PEM string contains more than one certificate");
+    }
 
     // public_key expects to have unique ownership of the context and so does
     // `cert`, so we duplicate the key context here.
@@ -110,52 +113,67 @@ namespace crypto
   class CertificateChain
   {
   public:
-    size_t n = 0;
-    mbedtls_x509_crt* raw = NULL;
+    mbedtls_x509_crt raw;
 
-    CertificateChain(const std::vector<const Pem*>& certs)
+    CertificateChain()
     {
-      if (!certs.empty())
+      mbedtls_x509_crt_init(&raw);
+    }
+
+    void add(const std::vector<const Pem*>& certs)
+    {
+      for (auto& cert : certs)
       {
-        n = certs.size();
-        raw = new mbedtls_x509_crt[certs.size()];
-
-        for (size_t i = 0; i < certs.size(); i++)
+        int rc = mbedtls_x509_crt_parse(&raw, cert->data(), cert->size());
+        if (rc != 0)
         {
-          mbedtls_x509_crt_init(&raw[i]);
+          throw std::runtime_error(
+            "Could not parse PEM certificate: " + error_string(rc));
         }
+      }
+    }
 
-        for (size_t i = 0; i < certs.size(); i++)
-        {
-          auto& tc = certs[i];
-          int rc = mbedtls_x509_crt_parse(&raw[i], tc->data(), tc->size());
-          if (rc != 0)
-          {
-            throw std::runtime_error(
-              "Could not parse PEM certificate: " + error_string(rc));
-          }
-        }
+    void add(const uint8_t* der, size_t len)
+    {
+      int rc = mbedtls_x509_crt_parse_der(&raw, der, len);
+      if (rc != 0)
+      {
+        throw std::runtime_error(
+          "Could not parse DER certificate: " + error_string(rc));
       }
     }
 
     ~CertificateChain()
     {
-      for (size_t i = 0; i < n; i++)
-      {
-        mbedtls_x509_crt_free(&raw[i]);
-      }
-      delete[] raw;
+      mbedtls_x509_crt_free(&raw);
     }
   };
 
   bool Verifier_mbedTLS::verify_certificate(
-    const std::vector<const Pem*>& trusted_certs)
+    const std::vector<const Pem*>& trusted_certs,
+    const std::vector<const Pem*>& chain)
   {
-    CertificateChain chain(trusted_certs);
+    CertificateChain trusted;
+    trusted.add(trusted_certs);
+
+    mbedtls_x509_crt* crt;
+
+    CertificateChain target_and_chain;
+    if (chain.empty())
+    {
+      // Fast-path, avoids extra parse step.
+      crt = cert.get();
+    }
+    else
+    {
+      target_and_chain.add(cert.get()->raw.p, cert.get()->raw.len);
+      target_and_chain.add(chain);
+      crt = &target_and_chain.raw;
+    }
 
     uint32_t flags;
     int rc = mbedtls_x509_crt_verify(
-      cert.get(), chain.raw, NULL, NULL, &flags, NULL, NULL);
+      crt, &trusted.raw, NULL, NULL, &flags, NULL, NULL);
 
     return rc == 0 && flags == 0;
   }
