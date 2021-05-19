@@ -541,12 +541,18 @@ int main(int argc, char** argv)
   uint32_t oe_flags = 0;
   try
   {
-    if (domain.empty() && !ds::is_valid_ip(rpc_address.hostname.c_str()))
+    if (domain.empty())
     {
-      throw std::logic_error(fmt::format(
-        "--rpc-address ({}) does not appear to specify valid IP address. "
-        "Please specify a domain name via the --domain option",
-        rpc_address.hostname));
+      for (const auto& interface : rpc_interfaces)
+      {
+        if (!ds::is_valid_ip(interface.rpc_address.hostname.c_str()))
+        {
+          throw std::logic_error(fmt::format(
+            "Rpc address ({}) does not appear to specify valid IP address. "
+            "Please specify a domain name via the --domain option",
+            interface.rpc_address.hostname));
+        }
+      }
     }
 
     if (*start && files::exists(ledger_dir))
@@ -716,16 +722,22 @@ int main(int argc, char** argv)
 
     asynchost::RPCConnections rpc(writer_factory);
     rpc.register_message_handlers(bp.get_dispatcher());
-    rpc.listen(0, rpc_address.hostname, rpc_address.port);
+
+    std::string rpc_addresses;
+    for (auto& interface : rpc_interfaces)
+    {
+      rpc.listen(0, interface.rpc_address.hostname, interface.rpc_address.port);
+      rpc_addresses += fmt::format(
+        "{}\n{}\n", interface.rpc_address.hostname, interface.rpc_address.port);
+
+      if (interface.public_rpc_address.port == "0")
+      {
+        interface.public_rpc_address.port = interface.rpc_address.port;
+      }
+    }
     if (!rpc_address_file.empty())
     {
-      files::dump(
-        fmt::format("{}\n{}", rpc_address.hostname, rpc_address.port),
-        rpc_address_file);
-    }
-    if (public_rpc_address.port == "0")
-    {
-      public_rpc_address.port = rpc_address.port;
+      files::dump(rpc_addresses, rpc_address_file);
     }
 
     // Initialise the enclave and create a CCF node in it
@@ -754,6 +766,8 @@ int main(int argc, char** argv)
                                    bft_view_change_timeout,
                                    bft_status_interval};
     ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
+
+    // TODO: Take array of interfaces
     ccf_config.node_info_network = {rpc_address.hostname,
                                     public_rpc_address.hostname,
                                     node_address.hostname,
