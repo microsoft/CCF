@@ -853,7 +853,7 @@ namespace ccf
           // continue generating snapshots at the correct interval once the
           // recovery is complete
           snapshotter->record_committable(ledger_idx);
-          snapshotter->commit(ledger_idx);
+          snapshotter->commit(ledger_idx, false);
         }
       }
       else if (

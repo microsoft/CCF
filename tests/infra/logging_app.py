@@ -192,11 +192,6 @@ class LoggingTxs:
                             raise ValueError(
                                 f"Response with status {rep.status_code} is missing 'retry-after' header"
                             )
-                        sleep_time = 0.5
-                        LOG.info(
-                            f"Sleeping for {sleep_time}s waiting for historical query processing..."
-                        )
-                        time.sleep(sleep_time)
                     elif rep.status_code == http.HTTPStatus.NO_CONTENT:
                         raise ValueError(
                             f"Historical query response claims there was no write to {idx} at {view}.{seqno}"
@@ -238,11 +233,6 @@ class LoggingTxs:
                         raise ValueError(
                             f"Response with status {rep.status_code} is missing 'retry-after' header"
                         )
-                    sleep_time = 0.5
-                    LOG.info(
-                        f"Sleeping for {sleep_time}s waiting for historical query processing..."
-                    )
-                    time.sleep(sleep_time)
                 elif rep.status_code == http.HTTPStatus.NO_CONTENT:
                     raise ValueError(
                         f"Historical query response claims there was no write to {idx} at {view}.{seqno}"
