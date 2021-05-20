@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The per-node session cap behaviour has changed. The `--max-open-sessions` is now a soft cap on the number of sessions. Beyond this, new sessions will receive a HTTP 503 error immediately after completing the TLS handshake. The existing hard cap (where sessions are closed immediately, before the TLS handshake) is still available, under the new argument `--max-open-sessions-hard` (#2583).
 - Requests with a url-encoded query string are now forwarded correctly from backups to the primary (#2587).
 - Signed requests with a url-encoded query string are now handled correctly rather than rejected (#2592).
+- Fixed consistency issue between ledger files on different nodes when snapshotting is active (#2607).
+
+## [1.0.2]
+
+### Bugfix
+
+- Fixed consistency issue between ledger files on different nodes when snapshotting is active (#2607).
 
 ## [1.0.1]
 
@@ -875,6 +882,9 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[1.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.2
+[1.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.1
+[1.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0
 [1.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc3
 [1.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc2
 [1.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc1

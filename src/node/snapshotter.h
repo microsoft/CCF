@@ -221,7 +221,7 @@ namespace ccf
     void commit(consensus::Index idx, bool generate_snapshot)
     {
       // If generate_snapshot is true, takes a snapshot of the key value store
-      // at the last committable index before idx, and schedule snapshot
+      // at the last snapshottable index before idx, and schedule snapshot
       // serialisation on another thread (round-robin). Otherwise, only record
       // that a snapshot was generated.
       std::lock_guard<SpinLock> guard(lock);
