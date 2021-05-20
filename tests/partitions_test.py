@@ -131,7 +131,7 @@ def test_isolate_and_reconnect_primary(network, args):
 
 
 def run(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
 
     with infra.network.network(
         args.nodes,

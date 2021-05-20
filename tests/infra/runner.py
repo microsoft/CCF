@@ -4,10 +4,8 @@ import getpass
 import time
 import http
 import logging
-import tempfile
-import base64
-import json
 from random import seed
+import infra.jwt_issuer
 import infra.network
 import infra.proc
 import infra.remote_client
@@ -96,25 +94,9 @@ def run(get_command, args):
         command_args = get_command_args(args, get_command)
 
         if args.use_jwt:
-            jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-            jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
-            jwt_kid = "my_key_id"
-            jwt_issuer = "https://example.issuer"
-            # Add JWT issuer
-            with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-                jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
-                der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-                data = {
-                    "issuer": jwt_issuer,
-                    "jwks": {
-                        "keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]
-                    },
-                }
-                json.dump(data, metadata_fp)
-                metadata_fp.flush()
-                network.consortium.set_jwt_issuer(primary, metadata_fp.name)
-            jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
-
+            jwt_issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
+            jwt_issuer.register(network)
+            jwt = jwt_issuer.issue_jwt()
             command_args += ["--bearer-token", jwt]
 
         nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)

@@ -80,8 +80,9 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
 
 
 def generate_cert(
-    priv_key_pem: str, cn="dummy", issuer_priv_key_pem=None, issuer_cn=None, ca=False
+    priv_key_pem: str, cn=None, issuer_priv_key_pem=None, issuer_cn=None, ca=False
 ) -> str:
+    cn = cn or "dummy"
     if issuer_priv_key_pem is None:
         issuer_priv_key_pem = priv_key_pem
     if issuer_cn is None:

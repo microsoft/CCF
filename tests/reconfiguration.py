@@ -276,7 +276,7 @@ def test_node_replacement(network, args):
 
 
 def run(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -311,7 +311,7 @@ def run(args):
 
 
 def run_join_old_snapshot(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     nodes = ["local://localhost"]
 
     with tempfile.TemporaryDirectory() as tmp_dir:
