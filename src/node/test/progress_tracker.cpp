@@ -686,7 +686,6 @@ TEST_CASE("test progress_tracker apply_view_change")
   {
     REQUIRE_CALL(store_mock, verify_view_change_request(_, _, _, _))
       .RETURN(true);
-    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(true);
     ccf::ViewChangeRequest v;
     v.signatures.push_back(ccf::NodeSignature(kv::test::PrimaryNodeId));
 
@@ -702,7 +701,7 @@ TEST_CASE("test progress_tracker apply_view_change")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(false);
 
     ccf::ViewChangeRequest v;
-    v.signatures.push_back(ccf::NodeSignature(kv::test::PrimaryNodeId));
+    v.signatures.push_back(ccf::NodeSignature(kv::test::FourthBackupNodeId));
 
     auto result =
       pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 42);
