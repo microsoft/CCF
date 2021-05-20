@@ -15,7 +15,7 @@ from loguru import logger as LOG
 
 @reqs.description("Move committed ledger files to read-only directory")
 def save_committed_ledger_files(network, args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     # Issue txs in a loop to force a signature and a new ledger chunk
     # each time. Record log messages at the same key (repeat=True) so
     # that CCF makes use of historical queries when verifying messages

@@ -79,7 +79,14 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
     return priv_pem, pub_pem
 
 
-def generate_cert(priv_key_pem: str, cn="dummy") -> str:
+def generate_cert(
+    priv_key_pem: str, cn=None, issuer_priv_key_pem=None, issuer_cn=None, ca=False
+) -> str:
+    cn = cn or "dummy"
+    if issuer_priv_key_pem is None:
+        issuer_priv_key_pem = priv_key_pem
+    if issuer_cn is None:
+        issuer_cn = cn
     priv = load_pem_private_key(priv_key_pem.encode("ascii"), None, default_backend())
     pub = priv.public_key()
     subject = issuer = x509.Name(
