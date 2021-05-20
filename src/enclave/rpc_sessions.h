@@ -30,6 +30,7 @@ namespace enclave
     struct ListenInterface
     {
       size_t open_sessions;
+      size_t peak_sessions;
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
     };
@@ -139,12 +140,13 @@ namespace enclave
     {
       ccf::SessionMetrics sm;
       std::lock_guard<SpinLock> guard(lock);
+
       sm.active = sessions.size();
       sm.peak = sessions_peak;
 
       for (const auto& [name, interface]: listening_interfaces)
       {
-        sm.interfaces[name] = {interface.max_open_sessions_soft, interface.max_open_sessions_hard};
+        sm.interfaces[name] = {interface.open_sessions, interface.peak_sessions, interface.max_open_sessions_soft, interface.max_open_sessions_hard};
       }
 
       return sm;
@@ -217,6 +219,7 @@ namespace enclave
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(capped_session))));
         per_listen_interface.open_sessions++;
+        per_listen_interface.peak_sessions = std::max(per_listen_interface.peak_sessions, per_listen_interface.open_sessions);
       }
       else
       {
@@ -231,6 +234,7 @@ namespace enclave
         sessions.insert(std::make_pair(
           id, std::make_pair(listen_interface_id, std::move(session))));
         per_listen_interface.open_sessions++;
+        per_listen_interface.peak_sessions = std::max(per_listen_interface.peak_sessions, per_listen_interface.open_sessions);
       }
 
       sessions_peak = std::max(sessions_peak, sessions.size());
