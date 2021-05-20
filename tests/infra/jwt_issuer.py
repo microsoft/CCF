@@ -13,7 +13,7 @@ import time
 from loguru import logger as LOG
 
 
-def make_authn_bearer_header(jwt):
+def make_bearer_header(jwt):
     return {"authorization": "Bearer " + jwt}
 
 

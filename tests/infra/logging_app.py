@@ -57,7 +57,7 @@ class LoggingTxs:
 
     def _get_headers_base(self):
         return (
-            infra.jwt_issuer.make_authn_bearer_header(self.jwt_issuer.issue_jwt())
+            infra.jwt_issuer.make_bearer_header(self.jwt_issuer.issue_jwt())
             if self.jwt_issuer
             else {}
         )
