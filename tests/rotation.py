@@ -26,10 +26,14 @@ def test_suspend_primary(network, args):
 @reqs.description("Replace all nodes in a single transaction")
 @reqs.at_least_n_nodes(3)
 def test_replace_all_nodes(network, args):
+    pprint.pprint(network.nodes)
+
     current_nodes = network.get_joined_nodes()
     current_node_ids = [node.node_id for node in current_nodes]
+
     new_nodes = [network.create_and_add_pending_node(args.package, "local://localhost", args) for _ in range(3)]
     new_node_ids = [node.node_id for node in new_nodes]
+
     trust_new_nodes = [{"name": "transition_node_to_trusted", "args": {"node_id": node_id}} for node_id in new_node_ids]
     remove_old_nodes = [{"name": "remove_node", "args": {"node_id": node_id}} for node_id in current_node_ids]
     replace_nodes = {"actions": trust_new_nodes + remove_old_nodes}
@@ -41,10 +45,17 @@ def test_replace_all_nodes(network, args):
     network.consortium.vote_using_majority(primary, proposal, {"ballot": "export function vote (proposal, proposer_id) { return true }"}, timeout=10)
 
     new_primary, _ = network.wait_for_new_primary(primary)
+    for node in new_nodes:
+        LOG.info("Waiting for node {} to join", node.local_node_id)
+        node.wait_for_node_to_join(timeout=10)
     check_can_progress(new_primary)
 
     for node in current_nodes:
+        node.stop()
         network.nodes.remove(node)
+
+    pprint.pprint(network.nodes)
+    return network
 
 def run(args):
     with infra.network.network(
@@ -52,8 +63,11 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        test_replace_all_nodes(network, args)
-        return
+        # Replace all nodes repeatedly and check the network still operates
+        LOG.info(f"Replacing all nodes {args.rotation_replacements} times")
+        for i in range(args.rotation_replacements):
+            LOG.warning(f"Replacement {i}")
+            test_replace_all_nodes(network, args)
 
         # Replace primary repeatedly and check the network still operates
         LOG.info(f"Retiring primary {args.rotation_retirements} times")
@@ -82,6 +96,12 @@ if __name__ == "__main__":
         parser.add_argument(
             "--rotation-suspensions",
             help="Number of times to suspend the primary",
+            type=int,
+            default=3,
+        )
+        parser.add_argument(
+            "--rotation-replacements",
+            help="Number of times to replace all nodes",
             type=int,
             default=3,
         )

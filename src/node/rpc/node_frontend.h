@@ -224,6 +224,32 @@ namespace ccf
             "Target node should be part of network to accept new nodes.");
         }
 
+        if (!this->context.get_node_state().is_primary())
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+          if (consensus != nullptr)
+          {
+            auto primary_id = consensus->primary();
+            if (!primary_id.has_value())
+            {
+              args.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Primary unknown");
+            }
+
+            auto nodes = args.tx.ro(this->network.nodes);
+            auto info = nodes->get(primary_id.value());
+            if (info)
+            {
+              args.rpc_ctx->set_response_header(
+                "Location",
+                fmt::format(
+                  "https://{}:{}/node/primary", info->pubhost, info->pubport));
+            }
+          }
+        }
+
         if (this->network.consensus_type != in.consensus_type)
         {
           return make_error(
@@ -348,6 +374,7 @@ namespace ccf
       };
       make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)
         .set_openapi_hidden(true)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
       auto get_state = [this](auto& args, nlohmann::json&&) {

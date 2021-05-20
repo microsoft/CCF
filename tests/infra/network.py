@@ -665,7 +665,6 @@ class Network:
             new_node.stop()
             raise
 
-        new_node.network_state = infra.node.NodeNetworkState.joined
         self.wait_for_all_nodes_to_commit(primary=primary)
 
         return new_node

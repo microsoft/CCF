@@ -1035,6 +1035,12 @@ namespace aft
     {
       const auto prev_idx = start_idx - 1;
 
+      // TODO: clamp to first signature after retirement instead
+      if (replica_state == Retired && start_idx >= end_idx)
+      {
+        return;
+      }
+
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
       const bool contains_new_view =
@@ -2435,7 +2441,7 @@ namespace aft
 
       if (consensus_type != ConsensusType::BFT)
       {
-        channels->close_all_outgoing();
+        // channels->close_all_outgoing();
       }
     }
 
