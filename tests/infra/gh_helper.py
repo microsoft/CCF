@@ -70,9 +70,10 @@ class Repository:
 
     def get_release_for_tag(self, tag):
         releases = [r for r in self.repo.get_releases() if r.tag_name == tag.name]
-        assert (
-            len(releases) == 1
-        ), f"Found {len(releases)} releases for tag {tag.name}, expected 1"
+        if not releases:
+            raise ValueError(
+                f"No releases found for tag {tag}. Has the release for {tag} not been published yet?"
+            )
         return releases[0]
 
     def get_tags_from_branch(self, branch_name):
@@ -161,7 +162,7 @@ class Repository:
         tags_for_this_release = self.get_tags_from_branch(latest_release_branch)
         LOG.info(f"Found tags: {[t.name for t in tags_for_this_release]}")
 
-        latest_tag_for_this_release = tags_for_this_release[0]
+        latest_tag_for_this_release = tags_for_this_release[-1]
         LOG.info(f"Most recent tag: {latest_tag_for_this_release.name}")
 
         return self.install_release(latest_tag_for_this_release)
