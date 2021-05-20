@@ -160,30 +160,30 @@ def run_live_compatibility_since_last(args):
     the local checkout.
     """
 
-    # repo = infra.gh_helper.Repository()
-    # lts_version, lts_install_path = repo.install_latest_lts(args.latest_lts_file)
+    repo = infra.gh_helper.Repository()
+    lts_version, lts_install_path = repo.install_latest_lts()
     # TODO: Remove
-    lts_version = "1.0.1"
-    lts_install_path = "/data/git/CCF/build/ccf_install_1.0.1/opt/ccf"
+    # lts_version = "1.0.1"
+    # lts_install_path = "/data/git/CCF/build/ccf_install_1.0.1/opt/ccf"
 
-    env = cimetrics.env.get_env()  # TODO: Use cimetrics for this?
+    # env = cimetrics.env.get_env()  # TODO: Use cimetrics for this?
 
-    LOG.info(
-        f"Running live compatibility test LTS {lts_version} to local {env.branch} branch"
-    )
+    # LOG.info(
+    #     f"Running live compatibility test LTS {lts_version} to local {env.branch} branch"
+    # )
 
-    if infra.gh_helper.is_release_branch(env.branch):
-        # TODO: Compare with latest release on the branch
-        pass
-    else:
-        # TODO: Compare with latest release on latest release branch
-        pass
+    # if infra.gh_helper.is_release_branch(env.branch):
+    #     # TODO: Compare with latest release on the branch
+    #     pass
+    # else:
+    #     # TODO: Compare with latest release on latest release branch
+    #     pass
 
-    run_code_upgrade_from(
-        from_install_path=lts_install_path,
-        to_install_path=LOCAL_CHECKOUT_DIRECTORY,
-        from_major_version=Version(lts_version).release[0],
-    )
+    # run_code_upgrade_from(
+    #     from_install_path=lts_install_path,
+    #     to_install_path=LOCAL_CHECKOUT_DIRECTORY,
+    #     from_major_version=Version(lts_version).release[0],
+    # )
 
     return lts_version
 
