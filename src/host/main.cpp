@@ -342,10 +342,6 @@ int main(int argc, char** argv)
       "latency at a cost to throughput")
     ->capture_default_str();
 
-  std::string domain;
-  app.add_option(
-    "--domain", domain, "DNS to use for TLS certificate validation");
-
   std::string subject_name("CN=CCF Node");
   app
     .add_option(
@@ -358,7 +354,8 @@ int main(int argc, char** argv)
     subject_alternative_names,
     "--san",
     "Subject Alternative Name in node certificate. Can be either "
-    "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
+    "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld. If not specified, "
+    "the address components from --rpc-interface will be used");
 
   size_t jwt_key_refresh_interval_s = 1800;
   app
@@ -533,20 +530,6 @@ int main(int argc, char** argv)
   uint32_t oe_flags = 0;
   try
   {
-    if (domain.empty())
-    {
-      for (const auto& interface : rpc_interfaces)
-      {
-        if (!ds::is_valid_ip(interface.rpc_address.hostname.c_str()))
-        {
-          throw std::logic_error(fmt::format(
-            "Rpc address ({}) does not appear to specify valid IP address. "
-            "Please specify a domain name via the --domain option",
-            interface.rpc_address.hostname));
-        }
-      }
-    }
-
     if (*start && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
@@ -772,7 +755,6 @@ int main(int argc, char** argv)
       addr.max_open_sessions_hard = interface.max_open_sessions_hard;
       ccf_config.node_info_network.rpc_interfaces.push_back(addr);
     }
-    ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
 
     ccf_config.subject_name = subject_name;

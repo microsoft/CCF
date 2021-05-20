@@ -45,7 +45,6 @@ struct CCFConfig
 {
   consensus::Configuration consensus_config = {};
   ccf::NodeInfoNetwork node_info_network = {};
-  std::string domain;
   size_t snapshot_tx_interval;
 
   // Only if joining or recovering
@@ -101,7 +100,6 @@ DECLARE_JSON_REQUIRED_FIELDS(
   CCFConfig,
   consensus_config,
   node_info_network,
-  domain,
   snapshot_tx_interval,
   startup_snapshot,
   startup_snapshot_evidence_seqno,

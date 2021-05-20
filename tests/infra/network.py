@@ -91,7 +91,6 @@ class Network:
         "join_timer",
         "worker_threads",
         "ledger_chunk_bytes",
-        "domain",
         "san",
         "snapshot_tx_interval",
         "max_open_sessions",

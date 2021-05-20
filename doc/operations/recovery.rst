@@ -25,7 +25,6 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
     --node-address node_ip:node_port
     --rpc-address <ccf-node-address>
     --public-rpc-address <ccf-node-public-address>
-    [--domain domain]
     --ledger-dir /path/to/ledger/dir/to/recover
     --node-cert-file /path/to/node_certificate
     recover
