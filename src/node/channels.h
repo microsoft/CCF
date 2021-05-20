@@ -159,10 +159,10 @@ namespace ccf
         local_nonce = &local_recv_nonce[tid].tid_seqno;
       }
 
-      LOG_TRACE_FMT(
-        "<- {}: node msg with nonce={}",
-        peer_id,
-        (const uint64_t)recv_nonce.nonce);
+      //LOG_TRACE_FMT(
+      //  "<- {}: node msg with nonce={}",
+      //  peer_id,
+      //  (const uint64_t)recv_nonce.nonce);
 
       // Note: We must assume that some messages are dropped, i.e. we may not
       // see every nonce/sequence number, but they must be increasing, except
@@ -776,8 +776,8 @@ namespace ccf
         gcm_hdr,
         cipher);
 
-      LOG_TRACE_FMT(
-        "-> {}: node msg with nonce={}", peer_id, (uint64_t)nonce.nonce);
+      //LOG_TRACE_FMT(
+      //  "-> {}: node msg with nonce={}", peer_id, (uint64_t)nonce.nonce);
 
       return true;
     }

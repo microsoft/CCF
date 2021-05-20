@@ -894,6 +894,9 @@ namespace aft
 
       view_change_tracker->add_unknown_primary_evidence(
         {data, size}, r.view, node_count());
+
+      // Become a follower in the new term.
+      become_follower(r.view);
     }
 
     bool is_first_request = true;
@@ -963,6 +966,7 @@ namespace aft
         std::chrono::milliseconds(view_change_timeout.count() * wait_factor);
 
       // Check if we are waiting too long since the last signature
+      /*
       if (expire_time < time)
       {
         LOG_FAIL_FMT(
@@ -971,6 +975,7 @@ namespace aft
           state->last_idx);
         return true;
       }
+      */
 
       // Check if there have been too many entries since the last signature
       if (
@@ -1215,6 +1220,7 @@ namespace aft
             r.prev_term);
         }
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+        //rollback(r.prev_idx);
         return;
       }
 
@@ -2642,6 +2648,9 @@ namespace aft
       {
         create_and_remove_node_state();
       }
+
+      auto progress_tracker = store->get_progress_tracker();
+      progress_tracker->rollback(idx, state->current_view);
     }
 
     void create_and_remove_node_state()

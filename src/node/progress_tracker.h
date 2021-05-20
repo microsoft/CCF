@@ -511,13 +511,15 @@ namespace ccf
 
       auto it = certificates.find(seqno);
 
-      if (it == certificates.end())
+      if (it == certificates.end() || !it->second.have_primary_signature)
       {
         LOG_INFO_FMT(
-          "Received view-change for view:{} and seqno:{} that I am not aware "
+          "Received view-change for view:{} and seqno:{} that I am not aware, from:{}, last_prepared:{} "
           "of",
           view,
-          seqno);
+          seqno,
+          from,
+          highest_prepared_level.seqno);
         return false;
       }
 
@@ -564,15 +566,13 @@ namespace ccf
       ccf::SeqNo seqno = new_view->seqno;
 
       if (
-        seqno < highest_prepared_level.seqno ||
-        view < highest_prepared_level.view)
+        seqno < highest_commit_level)
       {
         LOG_FAIL_FMT(
           "Invalid view and seqno in the new view highest prepared from:{}, "
-          "view:{},seqno:{}, new_view view:{}, seqno:{}",
+          "highest_commit_level:{}, new_view view:{}, seqno:{}",
           from,
-          highest_prepared_level.view,
-          highest_prepared_level.seqno,
+          highest_commit_level,
           view,
           seqno);
         return false;
@@ -624,6 +624,45 @@ namespace ccf
     {
       std::unique_lock<SpinLock> guard(lock);
       return get_node_nonce_(tx_id);
+    }
+
+    void rollback(ccf::SeqNo rollback_seqno, ccf::View view)
+    {
+      std::unique_lock<SpinLock> guard(lock);
+      if (rollback_seqno < highest_commit_level)
+      {
+        LOG_FAIL_FMT(
+          "Cannot rollback to {}, commit_level:{}",
+          rollback_seqno,
+          highest_commit_level);
+        throw std::logic_error(fmt::format(
+          "Cannot rollback to {}, commit_level:{}",
+          rollback_seqno,
+          highest_commit_level));
+      }
+
+      ccf::SeqNo last_good_seqno = 0;
+      for (auto it = certificates.begin(); it != certificates.end();)
+      {
+        if (it->first > rollback_seqno)
+        {
+          it = certificates.erase(it);
+        }
+        else
+        {
+          last_good_seqno = it->first;
+          ++it;
+        }
+      }
+      
+      if (certificates.empty())
+      {
+        highest_prepared_level = {0, 0};
+      }
+      else if (highest_prepared_level.seqno > last_good_seqno)
+      {
+        highest_prepared_level = {view, last_good_seqno};
+      }
     }
 
   private:
