@@ -2472,7 +2472,21 @@ namespace aft
       voted_for.reset();
       votes_for_me.clear();
 
-      rollback(last_committable_index());
+      /*
+      auto progress_tracker = store->get_progress_tracker();
+      ccf::SeqNo new_commit_bft_idx =
+        progress_tracker->get_highest_committed_nonce();
+      //rollback(new_commit_bft_idx());
+      rollback(new_commit_bft_idx);
+      */
+      auto progress_tracker = store->get_progress_tracker();
+      //ccf::SeqNo rollback_level = progress_tracker->get_rollback_level();
+      ccf::SeqNo rollback_level = progress_tracker->get_highest_committed_nonce();
+      rollback(rollback_level);
+      if (term > 2)
+      {
+        state->view_history.set_last(rollback_level);
+      }
 
       is_new_follower = true;
 
