@@ -515,7 +515,7 @@ class Network:
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
-    def stop_all_nodes(self, skip_verification=False, verbose_verification=True):
+    def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
         if not skip_verification:
             # Verify that all txs committed on the service can be read
             if self.txs is not None:
@@ -1058,4 +1058,4 @@ def network(
         # the cost of additional messages in the node logs
         if init_partitioner:
             net.partitioner.cleanup()
-        net.stop_all_nodes(skip_verification=True)
+        net.stop_all_nodes(skip_verification=False)

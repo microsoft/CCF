@@ -6,6 +6,8 @@ import infra.proc
 import infra.logging_app as app
 import infra.utils
 import infra.gh_helper
+import infra.jwt
+import cimetrics.env
 import ccf.ledger
 import os
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -20,124 +22,170 @@ LOCAL_CHECKOUT_DIRECTORY = "."
 
 
 def issue_activity_on_live_service(network, args):
-
     log_capture = []
     network.txs.issue(
         network, number_txs=args.snapshot_tx_interval * 2, log_capture=log_capture
     )
+    # At least one transaction that will require historical fetching
+    network.txs.issue(network, number_txs=1, repeat=True, log_capture=log_capture)
+
+
+def run_code_upgrade_from(
+    from_install_path,
+    to_install_path,
+    from_major_version=None,
+    to_major_version=None,
+):
+    from_binary_dir = os.path.join(from_install_path, "bin")
+    from_library_dir = os.path.join(from_install_path, "lib")
+
+    # TODO: Output cmake builds to bin/ and lib/
+    to_binary_dir = to_install_path
+    to_library_dir = to_install_path
+    # to_binary_dir = os.path.join(to_install_path, "bin")
+    # to_library_dir = os.path.join(to_install_path, "lib")
+
+    args.js_app_bundle = os.path.join(from_install_path, "samples/logging/js")
+
+    jwt_issuer = infra.jwt.JwtIssuer("https://localhost")
+    with jwt_issuer.start_openid_server() as jwt_server:
+        txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
+        with infra.network.network(
+            args.nodes,
+            binary_directory=from_binary_dir,
+            library_directory=from_library_dir,
+            pdb=args.pdb,
+            txs=txs,
+            jwt_issuer=jwt_issuer,
+            version=from_major_version,
+        ) as network:
+            network.start_and_join(args)
+
+            old_nodes = network.get_joined_nodes()
+            primary, _ = network.find_primary()
+
+            # Old nodes only
+            issue_activity_on_live_service(network, args)
+
+            new_code_id = infra.utils.get_code_id(
+                args.enclave_type,
+                args.oe_binary,
+                args.package,
+                library_dir=to_library_dir,
+            )
+            network.consortium.add_new_code(primary, new_code_id)
+
+            # Add one more node than the current count so that at least one new
+            # node is required to reach consensus
+            # Note: alternate between joining from snapshot and replaying entire ledger
+            new_nodes = []
+            from_snapshot = True
+            for _ in range(0, len(network.get_joined_nodes()) + 1):
+                new_node = network.create_node(
+                    "local://localhost",
+                    binary_dir=to_binary_dir,
+                    library_dir=to_library_dir,
+                    version=to_major_version,
+                )
+                network.join_node(new_node, args.package, args)
+                network.trust_node(new_node, args)
+                from_snapshot = not from_snapshot
+                new_nodes.append(new_node)
+
+            # Verify that all nodes run the expected CCF version
+            for node in network.get_joined_nodes():
+                if node not in old_nodes or from_major_version > 1:
+                    with node.client() as c:
+                        r = c.get("/node/version")
+                        assert r.body.json()["ccf_version"] == (
+                            args.ccf_version
+                            if node in new_nodes
+                            else from_major_version
+                        )
+
+            # Hybrid network, primary is old node
+            issue_activity_on_live_service(network, args)
+
+            # Test that new nodes can become primary with old nodes as backups
+            # Note: Force a new node as primary by isolating old nodes
+            for node in old_nodes:
+                node.suspend()
+
+            new_primary, _ = network.wait_for_new_primary(primary, nodes=new_nodes)
+            assert (
+                new_primary in new_nodes
+            ), "New node should have been elected as new primary"
+
+            for node in old_nodes:
+                node.resume()
+
+            # Retire one new node, so that at least one old node is required to reach consensus
+            other_new_nodes = [node for node in new_nodes if (node is not new_primary)]
+            network.retire_node(new_primary, other_new_nodes[0])
+
+            # Rollover JWKS so that new primary must read historical CA bundle table
+            # and retrieve new keys via auto refresh
+            jwt_server.stop()
+            jwt_issuer.refresh_keys()
+            jwt_issuer.restart_openid_server(jwt_server)
+            jwt_issuer.wait_for_refresh(network)
+
+            # Hybrid network, primary is new
+            issue_activity_on_live_service(network, args)
+
+            # Finally, retire old nodes and code id
+            old_code_id = infra.utils.get_code_id(
+                args.enclave_type,
+                args.oe_binary,
+                args.package,
+                library_dir=from_library_dir,
+            )
+            network.consortium.retire_code(primary, old_code_id)
+            for node in old_nodes:
+                network.retire_node(new_primary, node)
+                node.stop()
+
+            # New nodes only
+            issue_activity_on_live_service(network, args)
+
+
+# TODO:
+# 1. run_live_compatibility_since_last should work on `main` but also any `release/` branch
+# 2. run_live_compatibility_with_next: Any commit on `release/` branch should work
 
 
 def run_live_compatibility_since_last(args):
     """
-    Tests that a service from the latest LTS can be safely upgraded to the version
+    Tests that a service from the latest LTS can be safely upgraded to the version of
     the local checkout.
     """
 
-    repo = infra.gh_helper.Repository()
-    lts_version, lts_install_path = repo.install_latest_lts(args.latest_lts_file)
+    # repo = infra.gh_helper.Repository()
+    # lts_version, lts_install_path = repo.install_latest_lts(args.latest_lts_file)
     # TODO: Remove
-    # lts_version = "1.0.0"
-    # lts_install_path = "/data/git/CCF/build/ccf_install_1.0.0/opt/ccf"
+    lts_version = "1.0.1"
+    lts_install_path = "/data/git/CCF/build/ccf_install_1.0.1/opt/ccf"
 
-    lts_binary_dir = os.path.join(lts_install_path, "bin")
-    lts_library_dir = os.path.join(lts_install_path, "lib")
-    args.js_app_bundle = os.path.join(lts_install_path, "samples/logging/js")
-    major_version = Version(lts_version).release[0]
+    env = cimetrics.env.get_env()  # TODO: Use cimetrics for this?
 
-    txs = app.LoggingTxs()
-    with infra.network.network(
-        args.nodes,
-        binary_directory=lts_binary_dir,
-        library_directory=lts_library_dir,
-        pdb=args.pdb,
-        txs=txs,
-        version=major_version,  # Start the service the LTS way
-    ) as network:
-        network.start_and_join(args)
+    LOG.info(
+        f"Running live compatibility test LTS {lts_version} to local {env.branch} branch"
+    )
 
-        lts_nodes = network.get_joined_nodes()
-        primary, _ = network.find_primary()
+    if infra.gh_helper.is_release_branch(env.branch):
+        # TODO: Compare with latest release on the branch
+        pass
+    else:
+        # TODO: Compare with latest release on latest release branch
+        pass
 
-        issue_activity_on_live_service(network, args)
+    run_code_upgrade_from(
+        from_install_path=lts_install_path,
+        to_install_path=LOCAL_CHECKOUT_DIRECTORY,
+        from_major_version=Version(lts_version).release[0],
+    )
 
-        new_code_id = infra.utils.get_code_id(
-            args.enclave_type,
-            args.oe_binary,
-            args.package,
-            library_dir=LOCAL_CHECKOUT_DIRECTORY,
-        )
-        network.consortium.add_new_code(primary, new_code_id)
-
-        # Add one more node than the current count so that at least one new
-        # node is required to reach consensus
-        # Note: alternate between joining from snapshot and replaying entire ledger
-        new_nodes = []
-        from_snapshot = True
-        for _ in range(0, len(network.get_joined_nodes()) + 1):
-            new_node = network.create_node(
-                "local://localhost",
-                binary_dir=LOCAL_CHECKOUT_DIRECTORY,
-                library_dir=LOCAL_CHECKOUT_DIRECTORY,
-                version=None,
-            )
-            network.join_node(new_node, args.package, args)
-            network.trust_node(new_node, args)
-            from_snapshot = not from_snapshot
-            new_nodes.append(new_node)
-
-        # Verify that all nodes run the expected CCF version
-        for node in network.get_joined_nodes():
-            if node not in lts_nodes or major_version > 1:
-                with node.client() as c:
-                    r = c.get("/node/version")
-                    assert r.body.json()["ccf_version"] == (
-                        args.ccf_version if node in new_nodes else lts_version
-                    )
-
-        issue_activity_on_live_service(network, args)
-
-        # Test that new nodes can become primary with LTS nodes as backups
-        # Note: Force a new node as primary by isolating LTS nodes
-        for node in lts_nodes:
-            node.suspend()
-
-        new_primary, _ = network.wait_for_new_primary(primary, nodes=new_nodes)
-        assert (
-            new_primary in new_nodes
-        ), "New node should have been elected as new primary"
-
-        for node in lts_nodes:
-            node.resume()
-
-        try:
-            network.wait_for_new_primary(new_primary)
-            assert False, "No new primary should be elected while"
-        except TimeoutError:
-            pass
-
-        # Retire one new node, so that at least one LTS node is required to reach consensus
-        other_new_nodes = [
-            node
-            for node in network.get_joined_nodes()
-            if (node is not new_primary and node in new_nodes)
-        ]
-        network.retire_node(new_primary, other_new_nodes[0])
-
-        issue_activity_on_live_service(network, args)
-
-        # Retire LTS nodes and code id
-        old_code_id = infra.utils.get_code_id(
-            args.enclave_type,
-            args.oe_binary,
-            args.package,
-            library_dir=lts_library_dir,
-        )
-        network.consortium.retire_code(primary, old_code_id)
-        for node in lts_nodes:
-            network.retire_node(new_primary, node)
-            node.stop()
-
-        issue_activity_on_live_service(network, args)
+    return lts_version
 
 
 def run_ledger_compatibility_since_first(args, use_snapshot):
@@ -244,10 +292,14 @@ if __name__ == "__main__":
     # JS generic is the only app included in CCF install
     args.package = "libjs_generic"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.jwt_key_refresh_interval_s = 1
 
     # Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
 
     run_live_compatibility_since_last(args)
-    run_ledger_compatibility_since_first(args, use_snapshot=False)
-    run_ledger_compatibility_since_first(args, use_snapshot=True)
+    # run_ledger_compatibility_since_first(args, use_snapshot=False)
+    # run_ledger_compatibility_since_first(args, use_snapshot=True)
+
+    # TODO:
+    # - Write compatibility report and export to Azure Pipelines artefacts for a release!

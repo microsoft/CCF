@@ -11,13 +11,22 @@ from loguru import logger as LOG
 
 REPOSITORY_NAME = "microsoft/CCF"
 BRANCH_RELEASE_PREFIX = "release/"
+MAIN_BRANCH_NAME = "main"
 DEBIAN_PACKAGE_EXTENSION = "_amd64.deb"
 # This assumes that CCF is installed at `/opt/ccf`, which is true from 1.0.0
 INSTALL_DIRECTORY_PREFIX = "ccf_install_"
 INSTALL_DIRECTORY_SUB_PATH = "opt/ccf"
 
 # Note: Releases are identified by tag since releases are not necessarily named, but all
-# releases are tagged by design
+# releases are tagged
+
+
+def is_release_branch(branch_name):
+    return branch_name.startswith(BRANCH_RELEASE_PREFIX)
+
+
+def is_main_branch(branch_name):
+    return branch_name == MAIN_BRANCH_NAME
 
 
 class Repository:
@@ -29,7 +38,7 @@ class Repository:
         return [
             branch.name
             for branch in self.repo.get_branches()
-            if branch.name.startswith(BRANCH_RELEASE_PREFIX)
+            if is_release_branch(branch.name)
         ]
 
     def get_release_for_tag(self, tag):
@@ -41,9 +50,7 @@ class Repository:
 
     def get_tags_from_branch(self, branch_name):
         # Assumes that N.a.b releases can only be cut from N.x branch, with N a valid major version number
-        assert branch_name.startswith(
-            BRANCH_RELEASE_PREFIX
-        ), f"{branch_name} is not a release branch"
+        assert is_release_branch(branch_name), f"{branch_name} is not a release branch"
 
         release_branch_name = branch_name[len(BRANCH_RELEASE_PREFIX) :]
         release_re = "^ccf-{}$".format(release_branch_name.replace(".x", "([.\d+]+)"))
