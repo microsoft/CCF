@@ -88,23 +88,23 @@ class Node:
         self.node_id = None
         self.node_client_host = None
 
-        if host.startswith("local://"):
+        if host.protocol == "local":
             self.remote_impl = infra.remote.LocalRemote
             self.node_client_host = str(
                 ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
             )
-        elif host.startswith("ssh://"):
+        elif host.protocol == "ssh":
             self.remote_impl = infra.remote.SSHRemote
         else:
             assert False, f"{host} does not start with 'local://' or 'ssh://'"
 
-        host_, *pubhost_ = host.split(",")
-
-        self.host, *port = host_[host_.find("/") + 2 :].split(":")
+        host_ = host.rpchost
+        self.host, *port = host_.split(":")
         self.rpc_port = int(port[0]) if port else None
         if self.host == "localhost":
             self.host = infra.net.expand_localhost()
 
+        pubhost_ = host.public_rpchost
         if pubhost_:
             self.pubhost, *pubport = pubhost_[0].split(":")
             self.pubport = int(pubport[0]) if pubport else self.rpc_port
@@ -112,6 +112,10 @@ class Node:
             self.pubhost = self.host
             self.pubport = self.rpc_port
         self.node_port = node_port
+
+        self.max_open_sessions = host.max_open_sessions
+        self.max_open_sessions_hard = host.max_open_sessions_hard
+        self.additional_raw_node_args = host.additional_raw_node_args
 
     def __hash__(self):
         return self.local_node_id
@@ -199,6 +203,10 @@ class Node:
         lib_path = infra.path.build_lib_path(
             lib_name, enclave_type, library_dir=self.library_dir
         )
+        if self.max_open_sessions:
+            kwargs["max_open_sessions"] = self.max_open_sessions
+        if self.max_open_sessions_hard:
+            kwargs["max_open_sessions_hard"] = self.max_open_sessions_hard
         self.common_dir = common_dir
         self.remote = infra.remote.CCFRemote(
             start_type,
@@ -218,6 +226,7 @@ class Node:
             members_info=members_info,
             snapshot_dir=snapshot_dir,
             binary_dir=self.binary_dir,
+            additional_raw_node_args=self.additional_raw_node_args,
             **kwargs,
         )
         self.remote.setup()

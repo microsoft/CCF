@@ -34,6 +34,12 @@ def run(args):
     args.max_open_sessions = 100
     args.max_open_sessions_hard = args.max_open_sessions + 20
 
+    for i, node_spec in enumerate(args.nodes):
+        additional_args = []
+        additional_args.append(f"--rpc-interface=127.{i}.0.1,,2")
+        additional_args.append(f"--rpc-interface=127.{i}.0.2,,5")
+        node_spec.additional_raw_node_args = additional_args
+
     # Chunk often, so that new fds are regularly requested
     args.ledger_chunk_bytes = "500B"
 
