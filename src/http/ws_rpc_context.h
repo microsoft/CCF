@@ -44,6 +44,7 @@ namespace ws
 
     ccf::RESTVerb verb = ws::Verb::WEBSOCKET;
 
+    std::string url = {};
     std::string path = {};
     std::string method = {};
 
@@ -143,6 +144,11 @@ namespace ws
       const std::string_view&) override
     {
       return std::nullopt;
+    }
+
+    virtual const std::string& get_request_url() const override
+    {
+      return url;
     }
 
     virtual void set_response_body(const std::vector<uint8_t>& body) override

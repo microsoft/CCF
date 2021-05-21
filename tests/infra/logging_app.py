@@ -57,7 +57,7 @@ class LoggingTxs:
 
     def _get_headers_base(self):
         return (
-            infra.jwt.make_authn_bearer_header(self.jwt_issuer.issue_jwt())
+            infra.jwt_issuer.make_bearer_header(self.jwt_issuer.issue_jwt())
             if self.jwt_issuer
             else {}
         )
@@ -234,11 +234,6 @@ class LoggingTxs:
                             raise ValueError(
                                 f"Response with status {rep.status_code} is missing 'retry-after' header"
                             )
-                        sleep_time = 0.1
-                        LOG.info(
-                            f"Sleeping for {sleep_time}s waiting for historical query processing..."
-                        )
-                        time.sleep(sleep_time)
                     elif rep.status_code == http.HTTPStatus.NO_CONTENT:
                         raise ValueError(
                             f"Historical query response claims there was no write to {idx} at {view}.{seqno}"
@@ -283,11 +278,6 @@ class LoggingTxs:
                         raise ValueError(
                             f"Response with status {rep.status_code} is missing 'retry-after' header"
                         )
-                    sleep_time = 0.5
-                    LOG.info(
-                        f"Sleeping for {sleep_time}s waiting for historical query processing..."
-                    )
-                    time.sleep(sleep_time)
                 elif rep.status_code == http.HTTPStatus.NO_CONTENT:
                     raise ValueError(
                         f"Historical query response claims there was no write to {idx} at {view}.{seqno}"

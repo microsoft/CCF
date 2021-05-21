@@ -33,6 +33,7 @@ namespace enclave
 
     SpinLock lock;
     std::unordered_map<size_t, std::shared_ptr<Endpoint>> sessions;
+    size_t sessions_peak;
 
     // Upper half of sessions range is reserved for those originating from
     // the enclave via create_client().
@@ -88,10 +89,21 @@ namespace enclave
 
     void set_max_open_sessions(size_t soft_cap, size_t hard_cap)
     {
+      std::lock_guard<SpinLock> guard(lock);
       max_open_sessions_soft = soft_cap;
       max_open_sessions_hard = hard_cap;
 
       LOG_INFO_FMT("Setting max open sessions to [{}, {}]", soft_cap, hard_cap);
+    }
+
+    void get_stats(
+      size_t& current, size_t& peak, size_t& soft_cap, size_t& hard_cap)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      current = sessions.size();
+      peak = sessions_peak;
+      soft_cap = max_open_sessions_soft;
+      hard_cap = max_open_sessions_hard;
     }
 
     void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
@@ -149,6 +161,8 @@ namespace enclave
           rpc_map, id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(id, std::move(session)));
       }
+
+      sessions_peak = std::max(sessions_peak, sessions.size());
     }
 
     bool reply_async(size_t id, std::vector<uint8_t>&& data) override
@@ -191,6 +205,9 @@ namespace enclave
       // this type of session to be rare and want it to succeed even when we are
       // busy.
       sessions.insert(std::make_pair(id, session));
+
+      sessions_peak = std::max(sessions_peak, sessions.size());
+
       return session;
     }
 

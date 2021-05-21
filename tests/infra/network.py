@@ -218,7 +218,7 @@ class Network:
             target_node, _ = self.find_primary(
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
-        LOG.info(f"Joining from target node {target_node.node_id}")
+        LOG.info(f"Joining from target node {target_node.local_node_id}")
 
         # Only retrieve snapshot from target node if the snapshot directory is not
         # specified
@@ -427,7 +427,7 @@ class Network:
             )
 
         if self.jwt_issuer:
-            self.jwt_issuer.register_test_kid(self)
+            self.jwt_issuer.register(self)
 
         self.consortium.add_users(self.find_random_node(), initial_users)
         LOG.info(f"Initial set of users added: {len(initial_users)}")
@@ -550,7 +550,7 @@ class Network:
                 if ledger_end_seqno > longest_ledger_seqno:
                     longest_ledger_seqno = ledger_end_seqno
                     most_up_to_date_node = node
-                committed_ledger_dirs[node.node_id] = [
+                committed_ledger_dirs[node.local_node_id] = [
                     committed_ledger_dir,
                     ledger_end_seqno,
                 ]
@@ -559,7 +559,7 @@ class Network:
             # and are identical
             if most_up_to_date_node:
                 longest_ledger_dir, _ = committed_ledger_dirs[
-                    most_up_to_date_node.node_id
+                    most_up_to_date_node.local_node_id
                 ]
                 for node_id, (committed_ledger_dir, _) in (
                     l
@@ -569,7 +569,7 @@ class Network:
                     for ledger_file in os.listdir(committed_ledger_dir):
                         if ledger_file not in os.listdir(longest_ledger_dir):
                             raise Exception(
-                                f"Ledger file on node {node_id} does not exist on most up-to-date node {most_up_to_date_node.node_id}: {ledger_file}"
+                                f"Ledger file on node {node_id} does not exist on most up-to-date node {most_up_to_date_node.local_node_id}: {ledger_file}"
                             )
                         if infra.path.compute_file_checksum(
                             os.path.join(longest_ledger_dir, ledger_file)

@@ -853,7 +853,7 @@ namespace ccf
           // continue generating snapshots at the correct interval once the
           // recovery is complete
           snapshotter->record_committable(ledger_idx);
-          snapshotter->commit(ledger_idx);
+          snapshotter->commit(ledger_idx, false);
         }
       }
       else if (
@@ -1494,6 +1494,13 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
       return startup_seqno;
+    }
+
+    SessionMetrics get_session_metrics() override
+    {
+      SessionMetrics sm;
+      rpcsessions->get_stats(sm.active, sm.peak, sm.soft_cap, sm.hard_cap);
+      return sm;
     }
 
   private:
