@@ -42,8 +42,24 @@ class HostSpec:
             s += f",{self.max_open_sessions_hard}"
         return s
 
-    def __repr__(self):
-        return self.__str__()
+    @staticmethod
+    def from_str(s):
+        kwargs = {}
+        protocol_end = s.find("://")
+        if protocol_end != -1:
+            kwargs["protocol"] = s[:protocol_end]
+            rpc_start = protocol_end + len("://")
+        else:
+            rpc_start = 0
+        components = s[rpc_start:].split(",")
+        kwargs["rpchost"] = components[0]
+        if len(components) > 1 and len(components[1]) > 0:
+            kwargs["public_rpchost"] = components[1]
+        if len(components) > 2 and len(components[2]) > 0:
+            kwargs["max_open_sessions"] = components[2]
+        if len(components) > 3 and len(components[3]) > 0:
+            kwargs["max_open_sessions_hard"] = components[3]
+        return HostSpec(**kwargs)
 
 
 def nodes(args, n):
