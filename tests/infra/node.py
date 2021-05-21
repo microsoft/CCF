@@ -87,6 +87,7 @@ class Node:
         self.suspended = False
         self.node_id = None
         self.node_client_host = None
+        self.interfaces = []
 
         if host.protocol == "local":
             self.remote_impl = infra.remote.LocalRemote
@@ -283,18 +284,22 @@ class Node:
 
         rpc_address_path = os.path.join(self.common_dir, self.remote.rpc_address_path)
         with open(rpc_address_path, "r") as f:
-            rpc_host, rpc_port = f.read().splitlines()[:2]
-            rpc_port = int(rpc_port)
-            assert (
-                rpc_host == self.host
-            ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
-            if self.rpc_port is not None:
-                assert (
-                    rpc_port == self.rpc_port
-                ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
-            self.rpc_port = rpc_port
-            if self.pubport is None:
-                self.pubport = self.rpc_port
+            lines = f.read().splitlines()
+            it = [iter(lines)] * 2
+            for i, (rpc_host, rpc_port) in enumerate(zip(*it)):
+                rpc_port = int(rpc_port)
+                if i == 0:
+                    assert (
+                        rpc_host == self.host
+                    ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
+                    if self.rpc_port is not None:
+                        assert (
+                            rpc_port == self.rpc_port
+                        ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
+                    self.rpc_port = rpc_port
+                    if self.pubport is None:
+                        self.pubport = self.rpc_port
+                self.interfaces.append((rpc_host, rpc_port))
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
@@ -397,14 +402,22 @@ class Node:
             "signing_auth": self.identity(name),
         }
 
-    def client(self, identity=None, signing_identity=None, **kwargs):
+    def client(self, identity=None, signing_identity=None, interface_idx=None, **kwargs):
         akwargs = self.session_auth(identity)
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
             "description"
         ] = f"[{self.local_node_id}|{identity or ''}|{signing_identity or ''}]"
         akwargs.update(kwargs)
-        return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
+        if interface_idx is None:
+            return ccf.clients.client(self.pubhost, self.pubport, **akwargs)
+        else:
+            try:
+                host, port = self.interfaces[interface_idx]
+            except IndexError as e:
+                LOG.error(f"Cannot create client on interface {interface_idx} - this node only has {len(self.interfaces)} interfaces")
+                raise
+            return ccf.clients.client(host, port, **akwargs)
 
     def suspend(self):
         assert not self.suspended

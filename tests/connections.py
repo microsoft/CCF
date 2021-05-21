@@ -9,7 +9,7 @@ import contextlib
 import resource
 import psutil
 from ccf.log_capture import flush_info
-from ccf.clients import CCFConnectionException
+from ccf.clients import CCFConnectionException, client as ccf_client
 import random
 import http
 
@@ -29,15 +29,24 @@ def get_session_metrics(node):
         return r.body.json()["sessions"]
 
 
+def interface_caps(i):
+    return {
+        f"127.{i}.0.1": 2,
+        f"127.{i}.0.2": 5,
+    }
+
+
 def run(args):
     # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
     args.max_open_sessions = 100
     args.max_open_sessions_hard = args.max_open_sessions + 20
 
+    # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
         additional_args = []
-        additional_args.append(f"--rpc-interface=127.{i}.0.1,,2")
-        additional_args.append(f"--rpc-interface=127.{i}.0.2,,5")
+        caps = interface_caps(i)
+        for address, cap in caps.items():
+            additional_args.append(f"--rpc-interface={address},,{cap}")
         node_spec.additional_raw_node_args = additional_args
 
     # Chunk often, so that new fds are regularly requested
@@ -49,6 +58,8 @@ def run(args):
         check = infra.checker.Checker()
         network.start_and_join(args)
         primary, _ = network.find_nodes()
+
+        caps = interface_caps(primary.local_node_id)
 
         primary_pid = primary.remote.remote.proc.pid
 
@@ -62,23 +73,31 @@ def run(args):
 
         initial_metrics = get_session_metrics(primary)
         assert initial_metrics["active"] <= initial_metrics["peak"], initial_metrics
-        assert initial_metrics["soft_cap"] == args.max_open_sessions, initial_metrics
+        main_session_metrics = initial_metrics["interfaces"][
+            f"{primary.host}:{primary.rpc_port}"
+        ]
         assert (
-            initial_metrics["hard_cap"] == args.max_open_sessions_hard
+            main_session_metrics["soft_cap"] == args.max_open_sessions
+        ), initial_metrics
+        assert (
+            main_session_metrics["hard_cap"] == args.max_open_sessions_hard
         ), initial_metrics
 
-        def create_connections_until_exhaustion(target, continue_to_hard_cap=False):
+        max_fds = args.max_open_sessions + (initial_fds * 2)
+
+        def create_connections_until_exhaustion(
+            target, continue_to_hard_cap=False, client_fn=primary.client
+        ):
             with contextlib.ExitStack() as es:
                 clients = []
                 LOG.success(f"Creating {target} clients")
                 consecutive_failures = 0
-                for i in range(target):
+                i = 1
+                while i <= target:
                     logs = []
                     try:
                         clients.append(
-                            es.enter_context(
-                                primary.client("user0", connection_timeout=1)
-                            )
+                            es.enter_context(client_fn(identity="user0", connection_timeout=1))
                         )
                         r = clients[-1].post(
                             "/app/log/private",
@@ -91,9 +110,11 @@ def run(args):
                                 result=True,
                             )
                             consecutive_failures = 0
+                            i += 1
                         elif r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE:
                             if continue_to_hard_cap:
                                 consecutive_failures = 0
+                                i += 1
                                 continue
                             raise RuntimeError(r.body.text())
                         else:
@@ -103,7 +124,7 @@ def run(args):
                             )
                     except (CCFConnectionException, RuntimeError) as e:
                         flush_info(logs)
-                        LOG.warning(f"Hit exception at client {i}: {e}")
+                        LOG.warning(f"Hit exception at client {i}/{target}: {e}")
                         clients.pop(-1)
                         if consecutive_failures < 5:
                             # Maybe got unlucky and tried to create a session while many files were open - keep trying
@@ -166,7 +187,6 @@ def run(args):
             return num_fds
 
         # For initial safe tests, we have many more fds than the maximum sessions, so file operations should still succeed even when network is saturated
-        max_fds = args.max_open_sessions + (initial_fds * 2)
         resource.prlimit(primary_pid, resource.RLIMIT_NOFILE, (max_fds, max_fds))
         LOG.success(f"Setting max fds to safe initial value {max_fds} on {primary_pid}")
 
@@ -175,6 +195,13 @@ def run(args):
 
         to_create = max_fds - num_fds + 1
         num_fds = create_connections_until_exhaustion(to_create)
+
+        # Check that lower caps on separate caps are enforced on each interface
+        for i, (address, cap) in enumerate(caps.items()):
+            create_connections_until_exhaustion(
+                cap + 1,
+                client_fn=lambda **kwargs: primary.client(interface_idx=i+1, **kwargs),
+            )
 
         try:
             create_connections_until_exhaustion(to_create, True)
