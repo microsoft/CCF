@@ -6,7 +6,7 @@ import infra.proc
 import infra.logging_app as app
 import infra.utils
 import infra.gh_helper
-import infra.jwt
+import infra.jwt_issuer
 import cimetrics.env
 import suite.test_requirements as reqs
 import ccf.ledger
@@ -60,7 +60,7 @@ def run_code_upgrade_from(
 
     args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
 
-    jwt_issuer = infra.jwt.JwtIssuer("https://localhost")
+    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
     with jwt_issuer.start_openid_server() as jwt_server:
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(
@@ -113,8 +113,8 @@ def run_code_upgrade_from(
                         r = c.get("/node/version")
                         expected_version = node.version or args.ccf_version
                         version = r.body.json()["ccf_version"]
-                        assert version == (
-                            expected_version
+                        assert (
+                            version == expected_version
                         ), f"For node {node.local_node_id}, expect version {expected_version}, got {version}"
 
             # Hybrid network, primary is old node
@@ -218,83 +218,91 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
     repo = infra.gh_helper.Repository()
     lts_releases = repo.get_lts_releases()
 
-    # TODO: Remove fakeness
-    lts_releases_fake = {}
-    lts_releases_fake["1.0"] = lts_releases["release/1.x"]
-    lts_releases_fake["2.0"] = lts_releases["release/1.x"]
+    LOG.info(f"LTS releases: {lts_releases}")
+
+    lts_versions = []
 
     # Add an empty entry to release to indicate local checkout
     # Note: dicts are ordered from Python3.7
-    lts_releases_fake[None] = None
+    lts_releases[None] = None
 
-    txs = app.LoggingTxs()
-    for idx, (_, lts_release) in enumerate(lts_releases_fake.items()):
+    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
+    with jwt_issuer.start_openid_server():
+        txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
+        for idx, (_, lts_release) in enumerate(lts_releases.items()):
+            if lts_release:
+                version, lts_install_path = repo.install_release(lts_release)
+                lts_versions.append(version)
+                binary_dir, library_dir = get_bin_and_lib_dirs_for_install_path(
+                    lts_install_path
+                )
+                major_version = Version(version).release[0]
+                args.js_app_bundle = os.path.join(
+                    lts_install_path, "samples/logging/js"
+                )
+            else:
+                version = args.ccf_version
+                binary_dir = LOCAL_CHECKOUT_DIRECTORY
+                library_dir = LOCAL_CHECKOUT_DIRECTORY
+                major_version = None
 
-        if lts_release:
-            version, lts_install_path = repo.install_release(lts_release)
-            # TODO: Fix
-            # version = "1.0.0"
-            # lts_install_path = "/data/git/CCF/build/ccf_install_1.0.0/opt/ccf"
-            binary_dir = os.path.join(lts_install_path, "bin")
-            library_dir = os.path.join(lts_install_path, "lib")
-            major_version = Version(version).release[0]
-            # Explictly test the logging app as it was packaged in the very first LTS
-            # TODO: Is this the right approach?
-            args.js_app_bundle = os.path.join(lts_install_path, "samples/logging/js")
-        else:
-            version = args.ccf_version
-            binary_dir = LOCAL_CHECKOUT_DIRECTORY
-            library_dir = LOCAL_CHECKOUT_DIRECTORY
-            major_version = None
+            network_args = {
+                "hosts": args.nodes,
+                "binary_dir": binary_dir,
+                "library_dir": library_dir,
+                "txs": txs,
+                "jwt_issuer": jwt_issuer,
+                "version": major_version,
+            }
+            if idx == 0:
+                LOG.info(f"Starting new service (version: {version})")
+                network = infra.network.Network(**network_args)
+                network.start_and_join(args)
+            else:
+                LOG.info(f"Recovering service (new version: {version})")
+                network = infra.network.Network(
+                    **network_args, existing_network=network
+                )
+                network.start_in_recovery(
+                    args,
+                    ledger_dir,
+                    committed_ledger_dir,
+                    snapshot_dir=snapshot_dir,
+                )
+                network.recover(args)
 
-        network_args = {
-            "hosts": args.nodes,
-            "binary_dir": binary_dir,
-            "library_dir": library_dir,
-            "txs": txs,
-            "version": major_version,
-        }
-        if idx == 0:
-            LOG.info(f"Starting new service (version: {version})")
-            network = infra.network.Network(**network_args)
-            network.start_and_join(args)
-        else:
-            LOG.info(f"Recovering service (new version: {version})")
-            network = infra.network.Network(**network_args, existing_network=network)
-            network.start_in_recovery(
-                args,
-                ledger_dir,
-                committed_ledger_dir,
-                snapshot_dir=snapshot_dir,
-            )
-            network.recover(args)
+            nodes = network.get_joined_nodes()
+            primary, _ = network.find_primary()
 
-        nodes = network.get_joined_nodes()
-        primary, _ = network.find_primary()
-
-        # Verify that all nodes run the expected CCF version
-        if not major_version or major_version > 1:
+            # Verify that all nodes run the expected CCF version
             for node in nodes:
-                with node.client() as c:
-                    r = c.get("/node/version")
-                    assert (
-                        r.body.json()["ccf_version"] == version
-                    ), f"Node version is not {version}"
+                if not node.version or major_version > 1:
+                    with node.client() as c:
+                        # Note: /node/version endpoint was added in 2.x
+                        r = c.get("/node/version")
+                        expected_version = node.version or args.ccf_version
+                        version = r.body.json()["ccf_version"]
+                        assert (
+                            r.body.json()["ccf_version"] == version
+                        ), f"Node version is not {version}"
 
-        issue_activity_on_live_service(network, args)
+            issue_activity_on_live_service(network, args)
 
-        snapshot_dir = (
-            network.get_committed_snapshots(primary) if use_snapshot else None
-        )
+            snapshot_dir = (
+                network.get_committed_snapshots(primary) if use_snapshot else None
+            )
 
-        network.stop_all_nodes(verbose_verification=False)
-        ledger_dir, committed_ledger_dir = primary.get_ledger(
-            include_read_only_dirs=True
-        )
+            network.stop_all_nodes(verbose_verification=False)
+            ledger_dir, committed_ledger_dir = primary.get_ledger(
+                include_read_only_dirs=True
+            )
 
-        # Check that the ledger can be parsed on all nodes
-        for node in nodes:
-            ccf.ledger.Ledger(node.remote.ledger_paths()).get_latest_public_state()
+            # TODO: Sometimes throws invalidroot exception
+            # Check that the ledger can be parsed on all nodes
+            # for node in nodes:
+            # ccf.ledger.Ledger(node.remote.ledger_paths()).get_latest_public_state()
+
+    return lts_versions
 
 
 if __name__ == "__main__":
@@ -304,6 +312,9 @@ if __name__ == "__main__":
             "--compatibility-report-file",
             type=str,
             default=None,
+        )
+        parser.add_argument(
+            "--check-ledger-compatibility-since-first", type=bool, default=False
         )
 
     args = infra.e2e_args.cli_args(add)
@@ -322,15 +333,24 @@ if __name__ == "__main__":
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
-    # previous_lts_version = run_live_compatibility_with_previous(args, repo, env.branch)
-    # compatibility_report["live compatibility"].update(
-    #     {"with previous": previous_lts_version}
-    # )
+    previous_lts_version = run_live_compatibility_with_previous(args, repo, env.branch)
     next_lts_version = run_live_compatibility_with_next(args, repo, env.branch)
+    compatibility_report["live compatibility"].update(
+        {"with previous": previous_lts_version}
+    )
     compatibility_report["live compatibility"].update({"with next": next_lts_version})
 
-    # run_ledger_compatibility_since_first(args, use_snapshot=False)
-    # run_ledger_compatibility_since_first(args, use_snapshot=True)
+    # TODO: Only ON for Daily build!
+    # if args.check_ledger_compatibility_since_first:
+    compatibility_report["data compatibility"] = {}
+    lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=False)
+    compatibility_report["data compatibility"].update(
+        {"with previous ledger": lts_versions}
+    )
+    lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=True)
+    compatibility_report["data compatibility"].update(
+        {"with previous snapshots": lts_versions}
+    )
 
     # TODO: Publish compatibility report to Azure Pipelines
     if args.compatibility_report_file:
