@@ -1,13 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.proc
+import cimetrics.env
 
 import re
 import os
 from functools import cmp_to_key
 from github import Github
 from setuptools.extern.packaging.version import Version  # type: ignore
-
 from loguru import logger as LOG
 
 
@@ -167,31 +167,45 @@ class Repository:
         )
         return stripped_tag, install_path
 
-    def install_latest_lts(self, latest_lts_file=None):
-        # TODO: Unused for now, delete completly depending on whether we need reproducible builds,
-        # which should be required?
-        if latest_lts_file:
-            with open(latest_lts_file) as f:
-                latest_release = f.readline()
-            latest_release_branch = f"{BRANCH_RELEASE_PREFIX}{latest_release}"
-
-            if latest_release_branch not in self.get_release_branches_names():
-                raise ValueError(
-                    f"Latest release branch {latest_release_branch} is not a valid release branch"
-                )
+    def get_latest_tags_for_branch(self, branch):
+        # If the branch is a release branch, verify compatibility with latest
+        # tag on this branch. If no tags are found (i.e. first tag on this release branch),
+        # verify compatibility with latest tag on _previous_ release branch.
+        # If the local checkout is not a release branch, verify compatibility with the
+        # latest available LTS
+        if is_release_branch(branch):
+            LOG.debug(f"{branch} is release branch")
+            tags = self.get_tags_for_release_branch(branch)
+            if tags:
+                # Verify compatibility with latest tag on this release branch
+                return tags
+            else:
+                # If there are no tags on this release branch yet, verify compatibility
+                # with _previous_ release branch
+                try:
+                    prior_release_branch = self.get_release_branch_name_prior_to(branch)
+                    return self.get_tags_for_release_branch(prior_release_branch)
+                except ValueError as e:  # No tag on previous release branch
+                    LOG.warning(f"{e}. Skipping compatibility test with previous")
+                    return None
         else:
+            LOG.debug(f"{branch} is development branch")
             latest_release_branch = self.get_release_branches_names()[0]
-        LOG.info(f"Latest release branch for this checkout: {latest_release_branch}")
+            LOG.info(f"Latest release branch: {latest_release_branch}")
+            return self.get_tags_for_release_branch(latest_release_branch)
 
-        tags_for_this_release = self.get_tags_for_release_branch(latest_release_branch)
-        assert (
-            tags_for_this_release
-        ), f"No tag found for release branch {latest_release_branch}"
-        LOG.info(f"Found tags: {[t.name for t in tags_for_this_release]}")
+    def install_latest_lts_for_branch(self, branch):
+
+        tags = self.get_latest_tags_for_branch(branch)
+        if not tags:
+            LOG.info(f"No tags found for {branch}")
+            return None, None
+
+        LOG.debug(f"Found tags: {[t.name for t in tags]}")
 
         # TODO: If the install fails because the release cannot be found for the latest tag,
         # try again with the tag before that? (perhaps the release hasn't yet been published??)
-        latest_tag_for_this_release = tags_for_this_release[0]
-        LOG.info(f"Most recent tag: {latest_tag_for_this_release.name}")
+        latest_tag = tags[0]
+        LOG.info(f"Most recent tag: {latest_tag.name}")
 
-        return self.install_release(latest_tag_for_this_release)
+        return self.install_release(latest_tag)

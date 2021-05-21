@@ -165,45 +165,9 @@ def run_live_compatibility_since_last(args):
 
     repo = infra.gh_helper.Repository()
     env = cimetrics.env.get_env()  # Cheeky!
-
-    this_branch = env.branch
-
-    # If the local checkout is a release branch, verify compatibility with latest
-    # tag on this branch. If none are found (i.e. first tag on this release branch),
-    # verify compatibility with latest tag on previous release branch.
-    # If the local checkout is not a release branch, verify compatibility with the
-    # latest available LTS
-    if infra.gh_helper.is_release_branch(this_branch):
-        LOG.warning(f"On release branch: {this_branch}")
-        tags = repo.get_tags_for_release_branch(this_branch)
-        if tags:
-            # Verify compatibility with latest tag on this release branch
-            LOG.info(f"Found tags: {[t.name for t in tags]}")
-            LOG.info(f"Latest tag: {tags[0].name}")
-            lts_version, lts_install_path = repo.install_release(tags[0])
-        else:
-            # If there are no tags on this release branch yet, verify compatibility
-            # with latest release branch
-            try:
-                prior_release_branch = repo.get_release_branch_name_prior_to(
-                    this_branch
-                )
-            except ValueError as e:
-                LOG.warning(f"{e}. Skipping compatibility test with previous")
-                return None
-
-            tags = repo.get_tags_for_release_branch(prior_release_branch)
-            if not tags:
-                LOG.warning(
-                    f"No tag found for prior release branch {prior_release_branch}"
-                )
-                return None
-            lts_version, lts_install_path = repo.install_release(tags[0])
-    else:
-        lts_version, lts_install_path = repo.install_latest_lts()
-
+    lts_version, lts_install_path = repo.install_latest_lts_for_branch(env.branch)
     LOG.info(
-        f"Running live compatibility test LTS {lts_version} to local {this_branch} branch"
+        f"Running live compatibility test LTS from {lts_version} to local {env.branch} branch"
     )
 
     # run_code_upgrade_from(
@@ -306,15 +270,7 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
 
 
 if __name__ == "__main__":
-
-    def add(parser):
-        parser.add_argument(
-            "--latest-lts-file",
-            help="File containing the latest LTS",
-            type=str,
-        )
-
-    args = infra.e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args()
 
     # JS generic is the only app included in CCF install
     args.package = "libjs_generic"
