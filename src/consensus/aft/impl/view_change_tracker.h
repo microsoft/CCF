@@ -188,14 +188,14 @@ namespace aft
     ccf::ViewChangeConfirmation create_view_change_confirmation_msg(
       ccf::View view)
     {
+      if (view == last_nvc.view)
+      {
+        return last_nvc;
+      }
+
       auto it = view_changes.find(view);
       if (it == view_changes.end())
       {
-        if (view == last_nvc.view)
-        {
-          return last_nvc;
-        }
-
         LOG_FAIL_FMT(
           "Cannot write unknown view-change to ledger, view:{}", view);
         throw std::logic_error(fmt::format(

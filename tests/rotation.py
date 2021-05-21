@@ -13,7 +13,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Suspend and resume primary")
-@reqs.at_least_n_nodes(4)
+@reqs.can_kill_n_nodes(1)
 def test_suspend_primary(network, args):
     primary, backup = network.find_primary_and_any_backup()
     primary.suspend()
@@ -45,11 +45,12 @@ def run(args):
         network.start_and_join(args)
 
         # Replace primary repeatedly and check the network still operates
-        # LOG.info(f"Retiring primary {args.rotation_retirements} times")
-        # for i in range(args.rotation_retirements):
-        #     LOG.warning(f"Retirement {i}")
-        #     reconfiguration.test_add_node(network, args)
-        #     reconfiguration.test_retire_primary(network, args)
+        if args.consensus != "bft":
+          LOG.info(f"Retiring primary {args.rotation_retirements} times")
+          for i in range(args.rotation_retirements):
+              LOG.warning(f"Retirement {i}")
+              reconfiguration.test_add_node(network, args)
+              reconfiguration.test_retire_primary(network, args)
 
         reconfiguration.test_add_node(network, args)
         # Suspend primary repeatedly and check the network still operates
