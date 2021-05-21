@@ -570,7 +570,7 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         constitution=None,
         ledger_dir=None,
-        read_only_ledger_dir=None,  # Read-only ledger dir to copy to node director
+        read_only_ledger_dir=None,  # Read-only ledger dir to copy to node directory
         common_read_only_ledger_dir=None,  # Read-only ledger dir for all nodes
         log_format_json=None,
         binary_dir=".",
