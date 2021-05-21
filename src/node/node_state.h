@@ -1504,14 +1504,21 @@ namespace ccf
   private:
     bool is_ip(const std::string& hostname)
     {
-      // IP address components are purely numeric. DNS names may be largely numeric, but at least the final component (TLD) must not be all-numeric.
-      // So this distinguishes "1.2.3.4" (and IP address) from "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will throw. Attempts to handle IPv6 by also splitting on ':', but this is untested.
-      const auto final_component =  nonstd::split(nonstd::split(hostname, ".").back(), ":").back();
+      // IP address components are purely numeric. DNS names may be largely
+      // numeric, but at least the final component (TLD) must not be
+      // all-numeric. So this distinguishes "1.2.3.4" (and IP address) from
+      // "1.2.3.c4m" (a DNS name). "1.2.3." is invalid for either, and will
+      // throw. Attempts to handle IPv6 by also splitting on ':', but this is
+      // untested.
+      const auto final_component =
+        nonstd::split(nonstd::split(hostname, ".").back(), ":").back();
       if (final_component.empty())
       {
-        throw std::runtime_error(fmt::format("{} has a trailing period, is not a valid hostname", final_component));
+        throw std::runtime_error(fmt::format(
+          "{} has a trailing period, is not a valid hostname",
+          final_component));
       }
-      for (const auto c: final_component)
+      for (const auto c : final_component)
       {
         if (c < '0' || c > '9')
         {
@@ -1530,11 +1537,13 @@ namespace ccf
       }
       else
       {
-        // Construct SANs from RPC interfaces, manually detecting whether each is a domain name or IP
+        // Construct SANs from RPC interfaces, manually detecting whether each
+        // is a domain name or IP
         std::vector<crypto::SubjectAltName> sans;
-        for (const auto& interface: config.node_info_network.rpc_interfaces)
+        for (const auto& interface : config.node_info_network.rpc_interfaces)
         {
-          sans.push_back({interface.rpc_address.hostname, is_ip(interface.rpc_address.hostname)});
+          sans.push_back({interface.rpc_address.hostname,
+                          is_ip(interface.rpc_address.hostname)});
         }
         return sans;
       }
