@@ -289,29 +289,29 @@ namespace ccf
             return make_success(rep);
           }
 
-          if (!this->context.get_node_state().is_primary())
+          if (
+            consensus != nullptr && consensus->type() == ConsensusType::CFT &&
+            !this->context.get_node_state().is_primary())
           {
-            if (consensus != nullptr)
+            auto primary_id = consensus->primary();
+            if (primary_id.has_value())
             {
-              auto primary_id = consensus->primary();
-              if (primary_id.has_value())
+              auto nodes = args.tx.ro(this->network.nodes);
+              auto info = nodes->get(primary_id.value());
+              if (info)
               {
-                auto nodes = args.tx.ro(this->network.nodes);
-                auto info = nodes->get(primary_id.value());
-                if (info)
-                {
-                  args.rpc_ctx->set_response_header(
-                    "Location",
-                    fmt::format(
-                      "https://{}:{}/node/join", info->pubhost, info->pubport));
+                args.rpc_ctx->set_response_header(
+                  "Location",
+                  fmt::format(
+                    "https://{}:{}/node/join", info->pubhost, info->pubport));
 
-                  return make_error(
-                    HTTP_STATUS_PERMANENT_REDIRECT,
-                    ccf::errors::NodeRetired,
-                    "Retired");
-                }
+                return make_error(
+                  HTTP_STATUS_PERMANENT_REDIRECT,
+                  ccf::errors::NodeRetired,
+                  "Retired");
               }
             }
+
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
@@ -367,29 +367,29 @@ namespace ccf
         }
         else
         {
-          if (!this->context.get_node_state().is_primary())
+          if (
+            consensus != nullptr && consensus->type() == ConsensusType::CFT &&
+            !this->context.get_node_state().is_primary())
           {
-            if (consensus != nullptr)
+            auto primary_id = consensus->primary();
+            if (primary_id.has_value())
             {
-              auto primary_id = consensus->primary();
-              if (primary_id.has_value())
+              auto nodes = args.tx.ro(this->network.nodes);
+              auto info = nodes->get(primary_id.value());
+              if (info)
               {
-                auto nodes = args.tx.ro(this->network.nodes);
-                auto info = nodes->get(primary_id.value());
-                if (info)
-                {
-                  args.rpc_ctx->set_response_header(
-                    "Location",
-                    fmt::format(
-                      "https://{}:{}/node/join", info->pubhost, info->pubport));
+                args.rpc_ctx->set_response_header(
+                  "Location",
+                  fmt::format(
+                    "https://{}:{}/node/join", info->pubhost, info->pubport));
 
-                  return make_error(
-                    HTTP_STATUS_PERMANENT_REDIRECT,
-                    ccf::errors::NodeRetired,
-                    "Retired");
-                }
+                return make_error(
+                  HTTP_STATUS_PERMANENT_REDIRECT,
+                  ccf::errors::NodeRetired,
+                  "Retired");
               }
             }
+
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
