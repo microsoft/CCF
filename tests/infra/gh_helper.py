@@ -89,6 +89,17 @@ class Repository:
         # # return release_branches[prior_index]
         return "release/1.x"
 
+    def get_release_branch_name_after(self, release_branch_name):
+        release_branches = self.get_release_branches_names()
+        # assert (
+        #     release_branch_name in release_branches
+        # ), f"{release_branch_name} branch is not a valid release branch"
+        # after_index = release_branches.index(release_branch_name) + 1
+        # if after_index >= len(release_branches):
+        #     raise ValueError(f"No release branch after {release_branch_name}")
+        # return release_branches[after_index]
+        return "release/1.x"
+
     def get_release_for_tag(self, tag):
         releases = [r for r in self.repo.get_releases() if r.tag_name == tag.name]
         if not releases:
@@ -185,7 +196,7 @@ class Repository:
                 try:
                     prior_release_branch = self.get_release_branch_name_prior_to(branch)
                     return self.get_tags_for_release_branch(prior_release_branch)
-                except ValueError as e:  # No tag on previous release branch
+                except ValueError as e:  # No previous release branch
                     LOG.warning(f"{e}. Skipping compatibility test with previous")
                     return None
         else:
@@ -195,7 +206,9 @@ class Repository:
             return self.get_tags_for_release_branch(latest_release_branch)
 
     def install_latest_lts_for_branch(self, branch):
-
+        """
+        TODO:
+        """
         tags = self.get_latest_tags_for_branch(branch)
         if not tags:
             LOG.info(f"No tags found for {branch}")
@@ -209,3 +222,33 @@ class Repository:
         LOG.info(f"Most recent tag: {latest_tag.name}")
 
         return self.install_release(latest_tag)
+
+    def get_next_tags_for_branch(self, branch):
+        # TODO:
+        # 1. On development branch, nothing
+        # 2. On release branch, get next LTS branch and return tags from it
+        if is_release_branch(branch):
+            try:
+                next_release_branch = self.get_release_branch_name_after(branch)
+                return self.get_tags_for_release_branch(next_release_branch)
+            except ValueError as e:  # No release branch after target branch
+                LOG.warning(f"{e}. Skipping compatibility test with next")
+                return None
+        else:
+            LOG.debug(f"{branch} is development branch")
+            return None
+
+    def install_next_lts_for_branch(self, branch):
+        """
+        TODO:
+        """
+        tags = self.get_next_tags_for_branch(branch)
+        if not tags:
+            LOG.info(f"No tags found for {branch}")
+            return None, None
+
+        LOG.debug(f"Found tags:  {[t.name for t in tags]}")
+        first_tag = tags[-1]
+        LOG.info(f"First tag on branch: {first_tag.name}")
+
+        return self.install_release(first_tag)

@@ -8,6 +8,7 @@ import infra.utils
 import infra.gh_helper
 import infra.jwt
 import cimetrics.env
+import suite.test_requirements as reqs
 import ccf.ledger
 import os
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -30,22 +31,35 @@ def issue_activity_on_live_service(network, args):
     network.txs.issue(network, number_txs=1, repeat=True, log_capture=log_capture)
 
 
+# TODO: Output cmake builds to bin/ and lib/
+def get_bin_and_lib_dirs_for_install_path(install_path):
+    return (
+        [LOCAL_CHECKOUT_DIRECTORY] * 2
+        if install_path == LOCAL_CHECKOUT_DIRECTORY
+        else (os.path.join(install_path, "bin"), os.path.join(install_path, "lib"))
+    )
+
+
 def run_code_upgrade_from(
     from_install_path,
     to_install_path,
     from_major_version=None,
     to_major_version=None,
 ):
-    from_binary_dir = os.path.join(from_install_path, "bin")
-    from_library_dir = os.path.join(from_install_path, "lib")
+    from_binary_dir, from_library_dir = get_bin_and_lib_dirs_for_install_path(
+        from_install_path
+    )
+    to_binary_dir, to_library_dir = get_bin_and_lib_dirs_for_install_path(
+        to_install_path
+    )
 
-    # TODO: Output cmake builds to bin/ and lib/
-    to_binary_dir = to_install_path
-    to_library_dir = to_install_path
-    # to_binary_dir = os.path.join(to_install_path, "bin")
-    # to_library_dir = os.path.join(to_install_path, "lib")
+    js_app_directory = (
+        "../samples/apps/logging/js"
+        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
+        else "samples/logging/js"
+    )
 
-    args.js_app_bundle = os.path.join(from_install_path, "samples/logging/js")
+    args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
 
     jwt_issuer = infra.jwt.JwtIssuer("https://localhost")
     with jwt_issuer.start_openid_server() as jwt_server:
@@ -94,14 +108,15 @@ def run_code_upgrade_from(
 
             # Verify that all nodes run the expected CCF version
             for node in network.get_joined_nodes():
-                if node not in old_nodes or from_major_version > 1:
+                # Note: /node/version endpoint was added in 2.x
+                if not node.version or node.version > 1:
                     with node.client() as c:
                         r = c.get("/node/version")
-                        assert r.body.json()["ccf_version"] == (
-                            args.ccf_version
-                            if node in new_nodes
-                            else from_major_version
-                        )
+                        expected_version = node.version or args.ccf_version
+                        version = r.body.json()["ccf_version"]
+                        assert version == (
+                            expected_version
+                        ), f"For node {node.local_node_id}, expect version {expected_version}, got {version}"
 
             # Hybrid network, primary is old node
             issue_activity_on_live_service(network, args)
@@ -150,14 +165,15 @@ def run_code_upgrade_from(
 
 
 # TODO:
-# 1. run_live_compatibility_since_last should work on `main` but also any `release/` branch
+# 1. run_live_compatibility_with_previous should work on `main` but also any `release/` branch
 # 2. run_live_compatibility_with_next: Any commit on `release/` branch should work
 
 # Assumptions:
 # 1. No commit on `main` (or any non-release branch) that's older than the latest release branch.
 
 
-def run_live_compatibility_since_last(args):
+@reqs.description("Run live compatibility with latest LTS")
+def run_live_compatibility_with_previous(args):
     """
     Tests that a service from the latest LTS can be safely upgraded to the version of
     the local checkout.
@@ -170,11 +186,37 @@ def run_live_compatibility_since_last(args):
         f"Running live compatibility test LTS from {lts_version} to local {env.branch} branch"
     )
 
-    # run_code_upgrade_from(
-    #     from_install_path=lts_install_path,
-    #     to_install_path=LOCAL_CHECKOUT_DIRECTORY,
-    #     from_major_version=Version(lts_version).release[0],
-    # )
+    run_code_upgrade_from(
+        from_install_path=lts_install_path,
+        to_install_path=LOCAL_CHECKOUT_DIRECTORY,
+        from_major_version=Version(lts_version).release[0],
+        to_major_version=None,
+    )
+
+    return lts_version
+
+
+@reqs.description("Run live compatibility with next LTS")
+def run_live_compatibility_with_next(args):
+    """
+    Tests that a service from the latest LTS can be safely upgraded to the version of
+    the local checkout.
+    """
+
+    repo = infra.gh_helper.Repository()
+    env = cimetrics.env.get_env()  # Cheeky!
+
+    lts_version, lts_install_path = repo.install_next_lts_for_branch("release/0.x")
+    LOG.info(
+        f"Running live compatibility test LTS from {lts_version} to local {env.branch} branch"
+    )
+
+    run_code_upgrade_from(
+        from_install_path=LOCAL_CHECKOUT_DIRECTORY,
+        to_install_path=lts_install_path,
+        from_major_version=None,
+        to_major_version=Version(lts_version).release[0],
+    )
 
     return lts_version
 
@@ -280,7 +322,8 @@ if __name__ == "__main__":
     # Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
 
-    run_live_compatibility_since_last(args)
+    run_live_compatibility_with_previous(args)
+    run_live_compatibility_with_next(args)
     # run_ledger_compatibility_since_first(args, use_snapshot=False)
     # run_ledger_compatibility_since_first(args, use_snapshot=True)
 
