@@ -139,9 +139,7 @@ def run_code_upgrade_from(
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
-            jwt_server.stop()
             jwt_issuer.refresh_keys()
-            jwt_issuer.restart_openid_server(jwt_server)
             jwt_issuer.wait_for_refresh(network)
 
             # Hybrid network, primary is new
