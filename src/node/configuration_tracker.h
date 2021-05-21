@@ -47,6 +47,7 @@ namespace aft
   {
   public:
     const NodeId& node_id;
+    ConsensusType consensus_type;
     std::shared_ptr<kv::AbstractStore> store;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
@@ -63,12 +64,14 @@ namespace aft
   public:
     ConfigurationTracker(
       const NodeId& node_id_,
+      ConsensusType consensus_type_,
       std::shared_ptr<kv::AbstractStore> store_,
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       const crypto::KeyPairPtr& node_sign_kp_,
       const crypto::Pem& node_cert_) :
       node_id(node_id_),
+      consensus_type(consensus_type_),
       store(store_),
       rpcsessions(rpcsessions_),
       rpc_map(rpc_map_),
@@ -87,7 +90,7 @@ namespace aft
     // configuration.
     bool commit(Index idx)
     {
-      LOG_INFO_FMT("Config commit {}!", idx);
+      LOG_INFO_FMT("Configurations: commit {}!", idx);
 
       bool r = false;
       while (true)
@@ -107,13 +110,14 @@ namespace aft
         r = true;
       }
 
-      LOG_INFO_FMT("Configurations now: {}", to_string());
+      LOG_INFO_FMT("Configurations: {}", to_string());
 
       return r;
     }
 
     bool rollback(Index idx)
     {
+      LOG_INFO_FMT("Configurations: rollback to {}", idx);
       bool r = false;
       while (!configurations.empty() &&
              (configurations.back().active.idx > idx))
@@ -122,17 +126,23 @@ namespace aft
         r = true;
       }
 
-      LOG_INFO_FMT("Configurations now: {}", to_string());
+      LOG_INFO_FMT("Configurations: {}", to_string());
 
       return r;
     }
 
     void add(size_t idx, const kv::Consensus::ConsensusConfiguration&& config)
     {
+      LOG_INFO_FMT("Configurations: add");
+
+      if (consensus_type == BFT && configurations.size() > 1)
+        throw std::runtime_error(
+          "Multiple ongoing reconfigurations not supported");
+
       configurations.push_back(
         {{idx, std::move(config.active)}, std::move(config.passive)});
 
-      LOG_INFO_FMT("Configurations now: {}", to_string());
+      LOG_INFO_FMT("Configurations: {}", to_string());
     }
 
     bool empty() const
@@ -255,10 +265,14 @@ namespace aft
     Index cft_watermark(
       kv::Version last_idx, std::unordered_map<NodeId, aft::NodeState>& nodes)
     {
+      LOG_INFO_FMT(
+        "Configurations: CFT watermark; configurations: {}", to_string());
       Index r = std::numeric_limits<Index>::max();
 
       for (auto& c : configurations)
       {
+        assert(c.active.nodes.size() > 0);
+
         // The majority must be checked separately for each active
         // configuration.
         std::vector<Index> match;
@@ -282,13 +296,17 @@ namespace aft
 
         auto confirmed = match.at((match.size() - 1) / 2);
 
+        r = std::min(confirmed, r);
+
+        std::stringstream ss;
+        for (auto& m : match)
+          ss << m << " ";
         LOG_INFO_FMT(
-          "last_idx: {} confirmed: {} Matches: {}",
+          "last_idx={} confirmed={} r={} match={}",
           last_idx,
           confirmed,
-          ds::to_hex(match));
-
-        r = std::min(confirmed, r);
+          r,
+          ss.str());
       }
 
       return r;

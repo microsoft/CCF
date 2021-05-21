@@ -199,6 +199,7 @@ namespace aft
 
       configuration_tracker(
         state_->my_node_id,
+        consensus_type,
         kv_store_,
         rpc_sessions_,
         rpc_map_,
@@ -2714,7 +2715,19 @@ namespace aft
         }
 
         if (can_commit)
+        {
           commit(highest_committable);
+        }
+        else
+        {
+          LOG_DEBUG_FMT(
+            "Cannot commit to {}; highest_committable is {}, sz={}, "
+            "commit_idx={}.",
+            idx,
+            highest_committable,
+            committable_indices.size(),
+            state->commit_idx);
+        }
       }
     }
 

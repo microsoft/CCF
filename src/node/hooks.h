@@ -64,7 +64,7 @@ namespace ccf
       auto configuration = consensus->get_latest_configuration_unsafe();
 
       LOG_INFO_FMT(
-        "ConfigurationChangeHook::call(): {}/{} {}/{}",
+        "ConfigurationChangeHook::call(): current={}/{} delta={}/{}",
         configuration.active.size(),
         configuration.passive.size(),
         cfg_delta.size(),

@@ -853,6 +853,9 @@ class Network:
         for lines in logs.values():
             flush_info(lines, None, 0)
 
+        for n in self.get_joined_nodes():
+            if not n in caught_up_nodes:
+                print(f"not caught up: {n.node_id}")
         assert len(caught_up_nodes) == len(
             self.get_joined_nodes()
         ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
@@ -865,44 +868,7 @@ class Network:
             primary, node.node_id, timeout, NodeStatus.TRUSTED
         )
 
-        with primary.client() as c:
-            primary_commit = c.get("/node/current_txid")
-            primary_txid = TxID.from_str(primary_commit.body.json()["transaction_id"])
-            assert primary_txid.valid()
-            keep_waiting = True
-
-            end_time = time.time() + timeout
-            max_txid = primary_txid
-            while time.time() < end_time and keep_waiting:
-                keep_waiting = False
-
-                for n in self.get_joined_nodes():
-                    with n.client() as nc:
-                        node_commit = nc.get("/node/current_txid")
-                        node_txid = TxID.from_str(
-                            node_commit.body.json()["transaction_id"]
-                        )
-                        # print(f"{max_txid} vs {node_txid}")
-                        if not node_txid.valid() or node_txid < max_txid:
-                            keep_waiting = True
-                        elif max_txid < node_txid:
-                            max_txid = node_txid
-
-                if not keep_waiting:
-                    pc2 = c.get("/node/current_txid")
-                    txid2 = TxID.from_str(pc2.body.json()["transaction_id"])
-                    if txid2 > max_txid:
-                        max_txid = txid2
-                    if txid2 != max_txid:
-                        keep_waiting = True
-                time.sleep(0.1)
-
-            LOG.info(f"All nodes are at {max_txid}")
-
-            if keep_waiting:
-                raise TimeoutError(
-                    "Could not ensure nodes are at the same commit level "
-                )
+        self.wait_for_all_nodes_to_commit(primary)
 
     def wait_for_node_commit_sync(self, timeout=3):
         """

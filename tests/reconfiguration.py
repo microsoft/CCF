@@ -48,6 +48,72 @@ def test_add_node(network, args):
     return network
 
 
+@reqs.description("Adding multiple valid nodes without snapshots")
+@reqs.at_least_n_nodes(3)
+def test_add_multiple_nodes(network, args, n=2):
+    new_nodes = [
+        network.create_and_add_pending_node(args.package, "local://localhost", args)
+        for _ in range(n)
+    ]
+    new_node_ids = [node.node_id for node in new_nodes]
+    trust_new_nodes = [
+        {"name": "transition_node_to_trusted", "args": {"node_id": node_id}}
+        for node_id in new_node_ids
+    ]
+    actions = {"actions": trust_new_nodes}
+
+    primary, _ = network.find_primary()
+    proposal = network.consortium.get_any_active_member().propose(primary, actions)
+    network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+        timeout=10,
+    )
+    check_can_progress(primary)
+
+
+@reqs.description("Add and remove multiple nodes")
+@reqs.at_least_n_nodes(3)
+def test_add_and_remove_multiple_nodes(network, args, n=1, m=1):
+    current_nodes = network.get_joined_nodes()
+    if m > len(current_nodes):
+        LOG.error(
+            f"Cannot remove more than {m} nodes from a network of {len(current_nodes)}"
+        )
+    current_node_ids = [node.node_id for node in current_nodes]
+    new_nodes = [
+        network.create_and_add_pending_node(args.package, "local://localhost", args)
+        for _ in range(n)
+    ]
+    new_node_ids = [node.node_id for node in new_nodes]
+    trust_new_nodes = [
+        {"name": "transition_node_to_trusted", "args": {"node_id": node_id}}
+        for node_id in new_node_ids
+    ]
+    node_ids_to_remove = []
+    for i in range(m):
+        node_ids_to_remove.append(current_node_ids[i])
+    remove_old_nodes = [
+        {"name": "remove_node", "args": {"node_id": node_id}}
+        for node_id in node_ids_to_remove
+    ]
+    actions = {"actions": trust_new_nodes + remove_old_nodes}
+
+    primary, _ = network.find_primary()
+    proposal = network.consortium.get_any_active_member().propose(primary, actions)
+    network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+        timeout=10,
+    )
+    if primary.node_id in node_ids_to_remove:
+        network.wait_for_new_primary(primary)
+        primary, _ = network.find_primary()
+    check_can_progress(primary)
+
+
 @reqs.description("Adding a node on different curve")
 def test_add_node_on_other_curve(network, args):
     original_curve = args.curve_id
@@ -221,6 +287,7 @@ def test_version(network, args):
     for node in nodes:
         with node.client() as c:
             r = c.get("/node/version")
+            print(args.ccf_version)
             assert r.body.json()["ccf_version"] == args.ccf_version
 
 
@@ -325,6 +392,8 @@ def run(args):
         test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
         test_retire_primary(network, args)
+        test_add_multiple_nodes(network, args, n=2)
+        test_add_and_remove_multiple_nodes(network, args, n=1, m=1)
 
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)
