@@ -153,6 +153,9 @@ def run_code_upgrade_from(
 # 1. run_live_compatibility_since_last should work on `main` but also any `release/` branch
 # 2. run_live_compatibility_with_next: Any commit on `release/` branch should work
 
+# Assumptions:
+# 1. No commit on `main` (or any non-release branch) that's older than the latest release branch.
+
 
 def run_live_compatibility_since_last(args):
     """
@@ -161,23 +164,35 @@ def run_live_compatibility_since_last(args):
     """
 
     repo = infra.gh_helper.Repository()
-    lts_version, lts_install_path = repo.install_latest_lts()
-    # TODO: Remove
-    # lts_version = "1.0.1"
-    # lts_install_path = "/data/git/CCF/build/ccf_install_1.0.1/opt/ccf"
+    env = cimetrics.env.get_env()  # TODO: Use cimetrics for this?
 
-    # env = cimetrics.env.get_env()  # TODO: Use cimetrics for this?
+    if infra.gh_helper.is_release_branch(env.branch):
+        # TODO:
+        # 1. Try to find latest tag on this branch, if found, use this
+        # 2. Otherwise, find previous release branch, and test with latest tag on it
+        # 3. If no previous release branch, nothing
 
-    # LOG.info(
-    #     f"Running live compatibility test LTS {lts_version} to local {env.branch} branch"
-    # )
+        LOG.warning(f"On release branch: {env.branch}")
+        tags = infra.gh_helper.get_tags_from_release_branch(env.branch)
+        if tags:
+            # TODO: That's it, install this tag `tags[-1]`` and start test
+            pass
+        else:
+            release_branches = infra.gh_helper.get_release_branches_names()
+            # TODO: Find previous release branch before env.branch
+            # TODO: If none, return None and skip test
+            # TODO: Otherwise, get latest tag on it (if none, return None)
 
-    # if infra.gh_helper.is_release_branch(env.branch):
-    #     # TODO: Compare with latest release on the branch
-    #     pass
-    # else:
-    #     # TODO: Compare with latest release on latest release branch
-    #     pass
+        pass
+    else:
+        lts_version, lts_install_path = repo.install_latest_lts()
+        # TODO: Remove
+        # lts_version = "1.0.1"
+        # lts_install_path = "/data/git/CCF/build/ccf_install_1.0.1/opt/ccf"
+
+    LOG.info(
+        f"Running live compatibility test LTS {lts_version} to local {env.branch} branch"
+    )
 
     # run_code_upgrade_from(
     #     from_install_path=lts_install_path,

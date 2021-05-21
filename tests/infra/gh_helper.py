@@ -76,7 +76,7 @@ class Repository:
             )
         return releases[0]
 
-    def get_tags_from_branch(self, branch_name):
+    def get_tags_from_release_branch(self, branch_name):
         # Tags are ordered based on patch version, with oldest first
         # Note: Assumes that N.a.b releases can only be cut from N.x branch,
         # with N a valid major version number
@@ -101,7 +101,7 @@ class Repository:
         """
         releases = {}
         for release_branch in self.get_release_branches_names():
-            releases[release_branch] = self.get_tags_from_branch(release_branch)[0]
+            releases[release_branch] = self.get_tags_from_release_branch(release_branch)[0]
         return releases
 
     def install_release(self, tag):
@@ -159,7 +159,7 @@ class Repository:
             latest_release_branch = self.get_release_branches_names()[-1]
         LOG.info(f"Latest release branch for this checkout: {latest_release_branch}")
 
-        tags_for_this_release = self.get_tags_from_branch(latest_release_branch)
+        tags_for_this_release = self.get_tags_from_release_branch(latest_release_branch)
         LOG.info(f"Found tags: {[t.name for t in tags_for_this_release]}")
 
         latest_tag_for_this_release = tags_for_this_release[-1]
