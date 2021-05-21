@@ -168,19 +168,13 @@ def run_code_upgrade_from(
 
 
 @reqs.description("Run live compatibility with latest LTS")
-def run_live_compatibility_with_previous(args, repo, env):
+def run_live_compatibility_with_previous(args, repo, local_branch):
     """
     Tests that a service from the latest LTS can be safely upgraded to the version of
     the local checkout.
     """
-
-    repo = infra.gh_helper.Repository()
-    env = cimetrics.env.get_env()
-    lts_version, lts_install_path = repo.install_latest_lts_for_branch(env.branch)
-    LOG.info(
-        f"Running live compatibility test LTS from {lts_version} to local {env.branch} branch"
-    )
-
+    lts_version, lts_install_path = repo.install_latest_lts_for_branch(local_branch)
+    LOG.info(f'From LTS {lts_version} to local "{local_branch}" branch')
     run_code_upgrade_from(
         args,
         from_install_path=lts_install_path,
@@ -188,22 +182,21 @@ def run_live_compatibility_with_previous(args, repo, env):
         from_major_version=Version(lts_version).release[0],
         to_major_version=None,
     )
-
     return lts_version
 
 
 @reqs.description("Run live compatibility with next LTS")
-def run_live_compatibility_with_next(args, repo, env):
+def run_live_compatibility_with_next(args, repo, local_branch):
     """
-    Tests that a service from the latest LTS can be safely upgraded to the version of
-    the local checkout.
+    Tests that a service from the local checkout can be safely upgraded to the version of
+    the next LTS.
     """
+    lts_version, lts_install_path = repo.install_next_lts_for_branch(local_branch)
+    if lts_version is None:
+        LOG.warning(f"No next LTS for local {local_branch} branch")
+        return None
 
-    lts_version, lts_install_path = repo.install_next_lts_for_branch("release/0.x")
-    LOG.info(
-        f"Running live compatibility test LTS from {lts_version} to local {env.branch} branch"
-    )
-
+    LOG.info(f'From local "{local_branch}" branch to LTS {lts_version}')
     run_code_upgrade_from(
         args,
         from_install_path=LOCAL_CHECKOUT_DIRECTORY,
@@ -211,7 +204,6 @@ def run_live_compatibility_with_next(args, repo, env):
         from_major_version=None,
         to_major_version=Version(lts_version).release[0],
     )
-
     return lts_version
 
 
@@ -330,11 +322,11 @@ if __name__ == "__main__":
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
-    previous_lts_version = run_live_compatibility_with_previous(args, repo, env)
-    compatibility_report["live compatibility"].update(
-        {"with previous": previous_lts_version}
-    )
-    next_lts_version = run_live_compatibility_with_next(args, repo, env)
+    # previous_lts_version = run_live_compatibility_with_previous(args, repo, env.branch)
+    # compatibility_report["live compatibility"].update(
+    #     {"with previous": previous_lts_version}
+    # )
+    next_lts_version = run_live_compatibility_with_next(args, repo, env.branch)
     compatibility_report["live compatibility"].update({"with next": next_lts_version})
 
     # run_ledger_compatibility_since_first(args, use_snapshot=False)
