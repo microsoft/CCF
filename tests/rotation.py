@@ -17,20 +17,21 @@ from loguru import logger as LOG
 def test_suspend_primary(network, args):
     primary, backup = network.find_primary_and_any_backup()
     primary.suspend()
-    try:
-        for index in range(3):
-          with backup.client("user0") as c:
-              _ = c.post(
-                  "/app/log/private",
-                  {
-                      "id": -1,
-                      "msg": "This is submitted to force a view change",
-                  },
-              )
-          time.sleep(5)
-          backup = network.find_any_backup()
-    except CCFConnectionException:
-        LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
+    if args.consensus == "bft":
+      try:
+          for index in range(3):
+            with backup.client("user0") as c:
+                _ = c.post(
+                    "/app/log/private",
+                    {
+                        "id": -1,
+                        "msg": "This is submitted to force a view change",
+                    },
+                )
+            time.sleep(5)
+            backup = network.find_any_backup()
+      except CCFConnectionException:
+          LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
     new_primary, _ = network.wait_for_new_primary(primary)
     check_can_progress(new_primary)
     primary.resume()
