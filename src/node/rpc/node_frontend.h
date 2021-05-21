@@ -289,6 +289,35 @@ namespace ccf
             return make_success(rep);
           }
 
+          if (!this->context.get_node_state().is_primary())
+          {
+            if (consensus != nullptr)
+            {
+              auto primary_id = consensus->primary();
+              if (primary_id.has_value())
+              {
+                auto nodes = args.tx.ro(this->network.nodes);
+                auto info = nodes->get(primary_id.value());
+                if (info)
+                {
+                  args.rpc_ctx->set_response_header(
+                    "Location",
+                    fmt::format(
+                      "https://{}:{}/node/join", info->pubhost, info->pubport));
+
+                  return make_error(
+                    HTTP_STATUS_PERMANENT_REDIRECT,
+                    ccf::errors::NodeRetired,
+                    "Retired");
+                }
+              }
+            }
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Primary unknown");
+          }
+
           return add_node(
             args.tx,
             args.rpc_ctx->session->caller_cert,
@@ -338,6 +367,35 @@ namespace ccf
         }
         else
         {
+          if (!this->context.get_node_state().is_primary())
+          {
+            if (consensus != nullptr)
+            {
+              auto primary_id = consensus->primary();
+              if (primary_id.has_value())
+              {
+                auto nodes = args.tx.ro(this->network.nodes);
+                auto info = nodes->get(primary_id.value());
+                if (info)
+                {
+                  args.rpc_ctx->set_response_header(
+                    "Location",
+                    fmt::format(
+                      "https://{}:{}/node/join", info->pubhost, info->pubport));
+
+                  return make_error(
+                    HTTP_STATUS_PERMANENT_REDIRECT,
+                    ccf::errors::NodeRetired,
+                    "Retired");
+                }
+              }
+            }
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Primary unknown");
+          }
+
           // If the node does not exist, add it to the KV in state pending
           return add_node(
             args.tx,
@@ -347,6 +405,7 @@ namespace ccf
         }
       };
       make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_openapi_hidden(true)
         .install();
 

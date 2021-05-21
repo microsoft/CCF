@@ -68,6 +68,7 @@ namespace ccf
     ERROR(UnknownCertificate)
     ERROR(VoteNotFound)
     ERROR(VoteAlreadyExists)
+    ERROR(NodeRetired)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)
