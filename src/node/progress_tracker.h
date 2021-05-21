@@ -344,10 +344,6 @@ namespace ccf
 
       if (can_send_reply_and_nonce(cert, node_count))
       {
-        if (tx_id.seqno > rollback_level)
-        {
-          rollback_level = tx_id.seqno;
-        }
         return kv::TxHistory::Result::SEND_REPLY_AND_NONCE;
       }
       return kv::TxHistory::Result::OK;
@@ -548,11 +544,6 @@ namespace ccf
 
       for (auto& sig : view_change.signatures)
       {
-        if (it->second.sigs.find(sig.node) != it->second.sigs.end())
-        {
-          continue;
-        }
-
         if (!store->verify_signature(
               sig.node, it->second.root, sig.sig.size(), sig.sig.data()))
         {
@@ -570,12 +561,17 @@ namespace ccf
           continue;
         }
 
+        if (it->second.sigs.find(sig.node) != it->second.sigs.end())
+        {
+          continue;
+        }
         it->second.sigs.insert(
           std::pair<NodeId, BftNodeSignature>(sig.node, sig));
       }
 
       return verified_signatures ? ApplyViewChangeMessageResult::OK :
                                    ApplyViewChangeMessageResult::FAIL;
+
     }
 
     bool apply_new_view(
@@ -690,23 +686,10 @@ namespace ccf
       }
     }
 
-    ccf::SeqNo get_prepared_level()
-    {
-      std::unique_lock<SpinLock> guard(lock);
-      return highest_prepared_level.seqno;
-    }
-
-    ccf::SeqNo get_rollback_level()
-    {
-      std::unique_lock<SpinLock> guard(lock);
-      return rollback_level;
-    }
-
   private:
     NodeId id;
     std::shared_ptr<crypto::Entropy> entropy;
     ccf::SeqNo highest_commit_level = 0;
-    ccf::SeqNo rollback_level = 0;
     ccf::TxID highest_prepared_level = {0, 0};
 
     std::map<ccf::SeqNo, CommitCert> certificates;
