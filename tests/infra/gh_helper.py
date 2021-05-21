@@ -6,9 +6,14 @@ import re
 import os
 from functools import cmp_to_key
 from github import Github
+from setuptools.extern.packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
+
+# Optional. May be useful to avoid GitHub's low rate limits for unauthenticated clients
+# https://docs.github.com/en/rest/reference/rate-limit
+ENV_VAR_GITHUB_AUTH_TOKEN_NAME = "GITHUB_COMPATIBILITY_TOKEN"
 
 REPOSITORY_NAME = "microsoft/CCF"
 BRANCH_RELEASE_PREFIX = "release/"
@@ -44,14 +49,19 @@ def get_major_version_from_release_branch_name(full_branch_name):
     return int(strip_release_branch_name(full_branch_name).split(".")[0])
 
 
-def get_patch_version_from_tag_name(tag_name):
+def get_version_from_tag_name(tag_name):
     assert is_release_tag(tag_name), tag_name
-    return int(tag_name[len(TAG_RELEASE_PREFIX) :].split(".")[-1])
+    return Version(tag_name[len(TAG_RELEASE_PREFIX) :])
 
 
 class Repository:
+    """
+    Helper class to verify CCF operations compatibility described at
+    https://microsoft.github.io/CCF/main/overview/release_policy.html#operations-compatibility
+    """
+
     def __init__(self):
-        self.g = Github()
+        self.g = Github(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))
         self.repo = self.g.get_repo(REPOSITORY_NAME)
 
     def get_release_branches_names(self):
@@ -63,21 +73,33 @@ class Repository:
                 if is_release_branch(branch.name)
             ],
             key=cmp_to_key(
-                lambda b1, b2: get_major_version_from_release_branch_name(b1)
-                - get_major_version_from_release_branch_name(b2)
+                lambda b1, b2: get_major_version_from_release_branch_name(b2)
+                - get_major_version_from_release_branch_name(b1)
             ),
         )
+
+    def get_release_branch_name_prior_to(self, release_branch_name):
+        release_branches = self.get_release_branches_names()
+        # assert (
+        #     release_branch_name in release_branches
+        # ), f"{release_branch_name} branch is not a valid release branch"
+        # prior_index = release_branches.index(release_branch_name) - 1
+        # if prior_index < 0:
+        #     raise ValueError(f"No prior release branch to {release_branch_name}")
+        # # return release_branches[prior_index]
+        return "release/1.x"
 
     def get_release_for_tag(self, tag):
         releases = [r for r in self.repo.get_releases() if r.tag_name == tag.name]
         if not releases:
+            # TODO: Try with latest tag instead?
             raise ValueError(
                 f"No releases found for tag {tag}. Has the release for {tag} not been published yet?"
             )
         return releases[0]
 
-    def get_tags_from_release_branch(self, branch_name):
-        # Tags are ordered based on patch version, with oldest first
+    def get_tags_for_release_branch(self, branch_name):
+        # Tags are ordered based on semver, with latest first
         # Note: Assumes that N.a.b releases can only be cut from N.x branch,
         # with N a valid major version number
         assert is_release_branch(branch_name), f"{branch_name} is not a release branch"
@@ -89,8 +111,8 @@ class Repository:
         return sorted(
             [tag for tag in self.repo.get_tags() if re.match(release_re, tag.name)],
             key=cmp_to_key(
-                lambda t1, t2: get_patch_version_from_tag_name(t1.name)
-                - get_patch_version_from_tag_name(t2.name)
+                lambda t1, t2: get_version_from_tag_name(t1.name)
+                < get_version_from_tag_name(t2.name)
             ),
         )
 
@@ -101,7 +123,9 @@ class Repository:
         """
         releases = {}
         for release_branch in self.get_release_branches_names():
-            releases[release_branch] = self.get_tags_from_release_branch(release_branch)[0]
+            releases[release_branch] = self.get_tags_for_release_branch(release_branch)[
+                0
+            ]
         return releases
 
     def install_release(self, tag):
@@ -156,13 +180,18 @@ class Repository:
                     f"Latest release branch {latest_release_branch} is not a valid release branch"
                 )
         else:
-            latest_release_branch = self.get_release_branches_names()[-1]
+            latest_release_branch = self.get_release_branches_names()[0]
         LOG.info(f"Latest release branch for this checkout: {latest_release_branch}")
 
-        tags_for_this_release = self.get_tags_from_release_branch(latest_release_branch)
+        tags_for_this_release = self.get_tags_for_release_branch(latest_release_branch)
+        assert (
+            tags_for_this_release
+        ), f"No tag found for release branch {latest_release_branch}"
         LOG.info(f"Found tags: {[t.name for t in tags_for_this_release]}")
 
-        latest_tag_for_this_release = tags_for_this_release[-1]
+        # TODO: If the install fails because the release cannot be found for the latest tag,
+        # try again with the tag before that? (perhaps the release hasn't yet been published??)
+        latest_tag_for_this_release = tags_for_this_release[0]
         LOG.info(f"Most recent tag: {latest_tag_for_this_release.name}")
 
         return self.install_release(latest_tag_for_this_release)

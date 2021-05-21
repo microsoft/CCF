@@ -164,34 +164,46 @@ def run_live_compatibility_since_last(args):
     """
 
     repo = infra.gh_helper.Repository()
-    env = cimetrics.env.get_env()  # TODO: Use cimetrics for this?
+    env = cimetrics.env.get_env()  # Cheeky!
 
-    if infra.gh_helper.is_release_branch(env.branch):
-        # TODO:
-        # 1. Try to find latest tag on this branch, if found, use this
-        # 2. Otherwise, find previous release branch, and test with latest tag on it
-        # 3. If no previous release branch, nothing
+    this_branch = env.branch
 
-        LOG.warning(f"On release branch: {env.branch}")
-        tags = infra.gh_helper.get_tags_from_release_branch(env.branch)
+    # If the local checkout is a release branch, verify compatibility with latest
+    # tag on this branch. If none are found (i.e. first tag on this release branch),
+    # verify compatibility with latest tag on previous release branch.
+    # If the local checkout is not a release branch, verify compatibility with the
+    # latest available LTS
+    if infra.gh_helper.is_release_branch(this_branch):
+        LOG.warning(f"On release branch: {this_branch}")
+        tags = repo.get_tags_for_release_branch(this_branch)
         if tags:
-            # TODO: That's it, install this tag `tags[-1]`` and start test
-            pass
+            # Verify compatibility with latest tag on this release branch
+            LOG.info(f"Found tags: {[t.name for t in tags]}")
+            LOG.info(f"Latest tag: {tags[0].name}")
+            lts_version, lts_install_path = repo.install_release(tags[0])
         else:
-            release_branches = infra.gh_helper.get_release_branches_names()
-            # TODO: Find previous release branch before env.branch
-            # TODO: If none, return None and skip test
-            # TODO: Otherwise, get latest tag on it (if none, return None)
+            # If there are no tags on this release branch yet, verify compatibility
+            # with latest release branch
+            try:
+                prior_release_branch = repo.get_release_branch_name_prior_to(
+                    this_branch
+                )
+            except ValueError as e:
+                LOG.warning(f"{e}. Skipping compatibility test with previous")
+                return None
 
-        pass
+            tags = repo.get_tags_for_release_branch(prior_release_branch)
+            if not tags:
+                LOG.warning(
+                    f"No tag found for prior release branch {prior_release_branch}"
+                )
+                return None
+            lts_version, lts_install_path = repo.install_release(tags[0])
     else:
         lts_version, lts_install_path = repo.install_latest_lts()
-        # TODO: Remove
-        # lts_version = "1.0.1"
-        # lts_install_path = "/data/git/CCF/build/ccf_install_1.0.1/opt/ccf"
 
     LOG.info(
-        f"Running live compatibility test LTS {lts_version} to local {env.branch} branch"
+        f"Running live compatibility test LTS {lts_version} to local {this_branch} branch"
     )
 
     # run_code_upgrade_from(
