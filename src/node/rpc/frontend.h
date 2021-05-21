@@ -107,7 +107,6 @@ namespace ccf
             LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
             return std::nullopt;
           }
-          LOG_FAIL_FMT("RPC could not be forwarded primary_id.has_value():{}", primary_id.has_value());
         }
         ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,

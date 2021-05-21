@@ -296,14 +296,19 @@ namespace ccf
 
       // ensure that we order the evidence consistently when producing a
       // signature
-      std::map<NodeId, const NodeSignature&> sigs_map;
+      //std::map<NodeId, const NodeSignature&> sigs_map;
+      //for (auto& s : v.signatures)
+      //{
+      //  sigs_map.insert({s.node, s});
+      //}
+      //for (auto& s : sigs_map)
+      //{
+      //  ch->update(s.second.sig);
+      //}
+
       for (auto& s : v.signatures)
       {
-        sigs_map.insert({s.node, s});
-      }
-      for (auto& s : sigs_map)
-      {
-        ch->update(s.second.sig);
+        ch->update(s.sig);
       }
 
       return ch->finalise();

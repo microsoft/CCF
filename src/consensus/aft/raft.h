@@ -1022,7 +1022,6 @@ namespace aft
         std::chrono::milliseconds(view_change_timeout.count() * wait_factor);
 
       // Check if we are waiting too long since the last signature
-      /*
       if (expire_time < time)
       {
         LOG_FAIL_FMT(
@@ -1031,7 +1030,6 @@ namespace aft
           state->last_idx);
         return true;
       }
-      */
 
       // Check if there have been too many entries since the last signature
       if (
@@ -1278,7 +1276,6 @@ namespace aft
             r.prev_term);
         }
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
-        //rollback(r.prev_idx);
         return;
       }
 
@@ -2472,27 +2469,23 @@ namespace aft
       voted_for.reset();
       votes_for_me.clear();
 
-      /*
-      auto progress_tracker = store->get_progress_tracker();
-      ccf::SeqNo new_commit_bft_idx =
-        progress_tracker->get_highest_committed_nonce();
-      //rollback(new_commit_bft_idx());
-      rollback(new_commit_bft_idx);
-      */
-      auto progress_tracker = store->get_progress_tracker();
-      //ccf::SeqNo rollback_level = progress_tracker->get_rollback_level();
-      ccf::SeqNo rollback_level = progress_tracker->get_highest_committed_nonce();
-      rollback(rollback_level);
-      if (term > 2)
+      if (consensus_type == ConsensusType::BFT)
       {
-        state->view_history.set_last(rollback_level);
+        auto progress_tracker = store->get_progress_tracker();
+        ccf::SeqNo rollback_level =
+          progress_tracker->get_highest_committed_nonce();
+        rollback(rollback_level);
+        if (term > starting_view_change)
+        {
+          state->view_history.set_last(rollback_level);
+        }
+        view_change_tracker->set_current_view_change(state->current_view);
       }
 
       is_new_follower = true;
 
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
-      view_change_tracker->set_current_view_change(state->current_view);
 
       if (consensus_type != ConsensusType::BFT)
       {
@@ -2721,8 +2714,11 @@ namespace aft
         create_and_remove_node_state();
       }
 
-      auto progress_tracker = store->get_progress_tracker();
-      progress_tracker->rollback(idx, state->current_view);
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        progress_tracker->rollback(idx, state->current_view);
+      }
     }
 
     void create_and_remove_node_state()
