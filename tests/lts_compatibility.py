@@ -11,15 +11,13 @@ import cimetrics.env
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
+import json
 from setuptools.extern.packaging.version import Version  # type: ignore
 
 
 from loguru import logger as LOG
 
 LOCAL_CHECKOUT_DIRECTORY = "."
-
-# TODO: How to test for compatibility of patches on the same release branch??
-# As per https://microsoft.github.io/CCF/main/contribute/release_ccf.html#patch-an-lts-release, it's safe to assume the branch "release/"
 
 
 def issue_activity_on_live_service(network, args):
@@ -41,6 +39,7 @@ def get_bin_and_lib_dirs_for_install_path(install_path):
 
 
 def run_code_upgrade_from(
+    args,
     from_install_path,
     to_install_path,
     from_major_version=None,
@@ -164,29 +163,26 @@ def run_code_upgrade_from(
             issue_activity_on_live_service(network, args)
 
 
-# TODO:
-# 1. run_live_compatibility_with_previous should work on `main` but also any `release/` branch
-# 2. run_live_compatibility_with_next: Any commit on `release/` branch should work
-
 # Assumptions:
 # 1. No commit on `main` (or any non-release branch) that's older than the latest release branch.
 
 
 @reqs.description("Run live compatibility with latest LTS")
-def run_live_compatibility_with_previous(args):
+def run_live_compatibility_with_previous(args, repo, env):
     """
     Tests that a service from the latest LTS can be safely upgraded to the version of
     the local checkout.
     """
 
     repo = infra.gh_helper.Repository()
-    env = cimetrics.env.get_env()  # Cheeky!
+    env = cimetrics.env.get_env()
     lts_version, lts_install_path = repo.install_latest_lts_for_branch(env.branch)
     LOG.info(
         f"Running live compatibility test LTS from {lts_version} to local {env.branch} branch"
     )
 
     run_code_upgrade_from(
+        args,
         from_install_path=lts_install_path,
         to_install_path=LOCAL_CHECKOUT_DIRECTORY,
         from_major_version=Version(lts_version).release[0],
@@ -197,14 +193,11 @@ def run_live_compatibility_with_previous(args):
 
 
 @reqs.description("Run live compatibility with next LTS")
-def run_live_compatibility_with_next(args):
+def run_live_compatibility_with_next(args, repo, env):
     """
     Tests that a service from the latest LTS can be safely upgraded to the version of
     the local checkout.
     """
-
-    repo = infra.gh_helper.Repository()
-    env = cimetrics.env.get_env()  # Cheeky!
 
     lts_version, lts_install_path = repo.install_next_lts_for_branch("release/0.x")
     LOG.info(
@@ -212,6 +205,7 @@ def run_live_compatibility_with_next(args):
     )
 
     run_code_upgrade_from(
+        args,
         from_install_path=LOCAL_CHECKOUT_DIRECTORY,
         to_install_path=lts_install_path,
         from_major_version=None,
@@ -312,7 +306,15 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+
+    def add(parser):
+        parser.add_argument(
+            "--compatibility-report-file",
+            type=str,
+            default=None,
+        )
+
+    args = infra.e2e_args.cli_args(add)
 
     # JS generic is the only app included in CCF install
     args.package = "libjs_generic"
@@ -322,10 +324,28 @@ if __name__ == "__main__":
     # Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
 
-    run_live_compatibility_with_previous(args)
-    run_live_compatibility_with_next(args)
+    repo = infra.gh_helper.Repository()
+    env = cimetrics.env.get_env()
+
+    compatibility_report = {}
+    compatibility_report["version"] = args.ccf_version
+    compatibility_report["live compatibility"] = {}
+    previous_lts_version = run_live_compatibility_with_previous(args, repo, env)
+    compatibility_report["live compatibility"].update(
+        {"with previous": previous_lts_version}
+    )
+    next_lts_version = run_live_compatibility_with_next(args, repo, env)
+    compatibility_report["live compatibility"].update({"with next": next_lts_version})
+
     # run_ledger_compatibility_since_first(args, use_snapshot=False)
     # run_ledger_compatibility_since_first(args, use_snapshot=True)
 
-    # TODO:
-    # - Write compatibility report and export to Azure Pipelines artefacts for a release!
+    # TODO: Publish compatibility report to Azure Pipelines
+    if args.compatibility_report_file:
+        with open(args.compatibility_report_file, "w") as f:
+            json.dump(compatibility_report, f, indent=2)
+            LOG.info(
+                f"Compatibility report written to {args.compatibility_report_file}"
+            )
+
+    LOG.success(f"Compatibility report:\n {json.dumps(compatibility_report, indent=2)}")

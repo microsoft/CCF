@@ -812,6 +812,8 @@ if(BUILD_TESTS)
       ${OE_BINDIR}
       --ccf-version
       ${CCF_VERSION}
+      --compatibility-report-file
+      ${CMAKE_SOURCE_DIR}/tests/compatibility_report.json
   )
 
   foreach(CONSENSUS ${CONSENSUSES})
