@@ -937,7 +937,7 @@ namespace aft
         return;
       }
       if (!view_change_tracker->add_unknown_primary_evidence(
-            {data, size}, r.view, node_count()))
+            {data, size}, r.view, from, node_count()))
       {
         LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
         return;
@@ -2493,8 +2493,10 @@ namespace aft
       if (consensus_type == ConsensusType::BFT)
       {
         auto progress_tracker = store->get_progress_tracker();
+        //ccf::SeqNo rollback_level =
+          //progress_tracker->get_highest_committed_nonce();
         ccf::SeqNo rollback_level =
-          progress_tracker->get_highest_committed_nonce();
+          progress_tracker->get_rollback_seqno();
         rollback(rollback_level);
         view_change_tracker->set_current_view_change(state->current_view);
       }

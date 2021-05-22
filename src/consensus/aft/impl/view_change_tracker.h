@@ -134,7 +134,7 @@ namespace aft
     }
 
     bool add_unknown_primary_evidence(
-      CBuffer data, ccf::View view, uint32_t node_count)
+      CBuffer data, ccf::View view, const ccf::NodeId& from, uint32_t node_count)
     {
       nlohmann::json j = nlohmann::json::parse(data.p);
       auto vc = j.get<ccf::ViewChangeConfirmation>();
@@ -147,6 +147,11 @@ namespace aft
       if (last_valid_view == vc.view)
       {
         return true;
+      }
+
+      if (!store->verify_view_change_request_confirmation(vc, from))
+      {
+        return false;
       }
 
       if (
