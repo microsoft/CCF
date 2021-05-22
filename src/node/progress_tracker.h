@@ -559,7 +559,7 @@ namespace ccf
       const NodeId& from,
       uint32_t node_count,
       ccf::View& view_,
-      ccf::SeqNo& seqno_) const
+      ccf::SeqNo& seqno_)
     {
       std::unique_lock<SpinLock> guard(lock);
       auto new_view = store->get_new_view();
@@ -619,6 +619,8 @@ namespace ccf
 
       view_ = view;
       seqno_ = seqno;
+      last_view_change_seqno = seqno;
+
       return true;
     }
 
@@ -667,11 +669,18 @@ namespace ccf
       }
     }
 
+    ccf::SeqNo get_rollback_seqno() const
+    {
+      std::unique_lock<SpinLock> guard(lock);
+      return std::max(highest_commit_level, last_view_change_seqno);
+    }
+
   private:
     NodeId id;
     std::shared_ptr<crypto::Entropy> entropy;
     ccf::SeqNo highest_commit_level = 0;
     ccf::TxID highest_prepared_level = {0, 0};
+    ccf::SeqNo last_view_change_seqno = 0;
 
     std::map<ccf::SeqNo, CommitCert> certificates;
     mutable SpinLock lock;
