@@ -924,8 +924,24 @@ namespace aft
         return;
       }
 
-      view_change_tracker->add_unknown_primary_evidence(
-        {data, size}, r.view, node_count());
+      if (!state->requested_evidence_from.has_value())
+      {
+        LOG_FAIL_FMT("Received unrequested view change evidence");
+        return;
+      }
+
+      if (from != state->requested_evidence_from.value())
+      {
+        // Ignore if we didn't request this evidence.
+        LOG_FAIL_FMT("Received unrequested view change evidence from {}", from);
+        return;
+      }
+      if (!view_change_tracker->add_unknown_primary_evidence(
+            {data, size}, r.view, node_count()))
+      {
+        LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
+        return;
+      }
 
       // Become a follower in the new term.
       become_follower(r.view);
@@ -1862,6 +1878,11 @@ namespace aft
         to.trim(),
         state->last_idx,
         answer);
+      
+      if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
+      {
+        state->requested_evidence_from = to;
+      }
 
       AppendEntriesResponse response = {{raft_append_entries_response},
                                         state->current_view,
@@ -2475,11 +2496,11 @@ namespace aft
         ccf::SeqNo rollback_level =
           progress_tracker->get_highest_committed_nonce();
         rollback(rollback_level);
-        if (term > starting_view_change)
-        {
-          state->view_history.set_last(rollback_level);
-        }
         view_change_tracker->set_current_view_change(state->current_view);
+      }
+      else
+      {
+        rollback(last_committable_index());
       }
 
       is_new_follower = true;

@@ -531,8 +531,8 @@ namespace ccf
       if (it == certificates.end() || !it->second.have_primary_signature)
       {
         LOG_INFO_FMT(
-          "Received view-change for view:{} and seqno:{} that I am not aware, from:{}, last_prepared:{} "
-          "of",
+          "Received view-change for view:{} and seqno:{} that I am not aware "
+          "of, from:{}, last_prepared:{} ",
           view,
           seqno,
           from,
