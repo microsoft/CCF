@@ -55,14 +55,6 @@ namespace aft
       LOG_DEBUG_FMT("Resulting views: {}", fmt::join(views, ", "));
     }
 
-    void set_last(kv::Version idx)
-    {
-      if (views.back() > idx && !views.empty())
-      {
-        views.back() = idx;
-      }
-    }
-
     ccf::View view_at(kv::Version idx)
     {
       auto it = upper_bound(views.begin(), views.end(), idx);
@@ -124,5 +116,6 @@ namespace aft
 
     ViewHistory view_history;
     kv::Version new_view_idx;
+    std::optional<ccf::NodeId> requested_evidence_from = std::nullopt;
   };
 }
