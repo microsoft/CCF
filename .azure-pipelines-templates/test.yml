@@ -6,14 +6,14 @@ parameters:
 
 steps:
   # TODO: Re-enable before merging. Only commented out to get more timeout on partition tests
-  # - script: |
-  #     set -ex
-  #     ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
-  #   env:
-  #     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
-  #     CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
-  #   displayName: CTest
-  #   workingDirectory: build
+  - script: |
+      set -ex
+      ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -R tutorial
+    env:
+      METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+      CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
+    displayName: CTest
+    workingDirectory: build
 
   # Only run privileged tests in container environment
   - ${{ if ne(parameters.suffix, 'Perf') }}:
