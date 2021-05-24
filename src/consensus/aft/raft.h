@@ -470,6 +470,17 @@ namespace aft
       return get_latest_configuration_unsafe();
     }
 
+    std::vector<Configuration> get_active_configurations()
+    {
+      std::vector<Configuration> configs;
+      std::lock_guard<SpinLock> guard(state->lock);
+      for (auto& config: configurations)
+      {
+        configs.push_back(config);
+      }
+      return configs;
+    }
+
     uint32_t node_count() const
     {
       return get_latest_configuration_unsafe().size();

@@ -156,6 +156,11 @@ namespace kv::test
       return {};
     }
 
+    std::vector<Configuration> get_active_configurations() override
+    {
+      return {};
+    }    
+
     uint32_t node_count() override
     {
       return 0;

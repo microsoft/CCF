@@ -759,6 +759,29 @@ namespace ccf
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
+      auto consensus_configs = [this](auto& args) {
+        // Query node for configurations, separate current from pending
+        if (consensus != nullptr)
+        {
+          auto cfg = consensus->get_active_configurations();
+          nlohmann::json c;
+          c["configs"] = cfg;
+          args.rpc_ctx->set_response_body(c.dump());
+        }
+        else
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+          args.rpc_ctx->set_response_body("No configured consensus");
+        }
+      };
+
+      make_command_endpoint(
+        "configs", HTTP_GET, consensus_configs, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
+
       auto memory_usage = [](auto& args) {
 
 // Do not attempt to call oe_allocator_mallinfo when used from

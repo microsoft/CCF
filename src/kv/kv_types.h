@@ -93,6 +93,11 @@ namespace kv
     Nodes nodes;
   };
 
+  DECLARE_JSON_TYPE(Configuration::NodeInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(Configuration::NodeInfo, hostname, port);
+  DECLARE_JSON_TYPE(Configuration);
+  DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes);
+
   class ConfigurableConsensus
   {
   public:
@@ -100,6 +105,7 @@ namespace kv
       ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
+    virtual std::vector<Configuration> get_active_configurations() = 0;
   };
 
   class ConsensusHook
