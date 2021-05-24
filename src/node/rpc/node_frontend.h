@@ -144,7 +144,7 @@ namespace ccf
         // Pad node id string to avoid memory alignment issues on
         // node-to-node messages
         joining_node_id = fmt::format(
-          "{:#08}", get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
+          "{:#064}", get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
       }
 
 #ifdef GET_QUOTE

@@ -380,7 +380,7 @@ namespace ccf
 
             // Pad node id string to avoid memory alignment issues on
             // node-to-node messages
-            self = NodeId(fmt::format("{:#08}", 0));
+            self = NodeId(fmt::format("{:#064}", 0));
           }
 
           setup_snapshotter();

@@ -1820,7 +1820,7 @@ namespace aft
         to.trim(),
         state->last_idx,
         answer);
-      
+
       if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
       {
         state->requested_evidence_from = to;
@@ -2435,10 +2435,7 @@ namespace aft
       if (consensus_type == ConsensusType::BFT)
       {
         auto progress_tracker = store->get_progress_tracker();
-        //ccf::SeqNo rollback_level =
-          //progress_tracker->get_highest_committed_nonce();
-        ccf::SeqNo rollback_level =
-          progress_tracker->get_rollback_seqno();
+        ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
         rollback(rollback_level);
         view_change_tracker->set_current_view_change(state->current_view);
       }
