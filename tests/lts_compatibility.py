@@ -29,7 +29,7 @@ def issue_activity_on_live_service(network, args):
     network.txs.issue(network, number_txs=1, repeat=True, log_capture=log_capture)
 
 
-# TODO: Output cmake builds to bin/ and lib/
+# Local build and install bin/ and lib/ directories differ
 def get_bin_and_lib_dirs_for_install_path(install_path):
     return (
         [LOCAL_CHECKOUT_DIRECTORY] * 2
@@ -122,6 +122,7 @@ def run_code_upgrade_from(
 
             # Test that new nodes can become primary with old nodes as backups
             # Note: Force a new node as primary by isolating old nodes
+            primary, _ = network.find_primary()
             for node in old_nodes:
                 node.suspend()
 
@@ -205,6 +206,7 @@ def run_live_compatibility_with_next(args, repo, local_branch):
     return lts_version
 
 
+@reqs.description("Run ledger compatibility since first LTS")
 def run_ledger_compatibility_since_first(args, use_snapshot):
     """
     Tests that a service from the very first LTS can be recovered
@@ -274,9 +276,9 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
 
             # Verify that all nodes run the expected CCF version
             for node in nodes:
+                # Note: /node/version endpoint was added in 2.x
                 if not node.version or major_version > 1:
                     with node.client() as c:
-                        # Note: /node/version endpoint was added in 2.x
                         r = c.get("/node/version")
                         expected_version = node.version or args.ccf_version
                         version = r.body.json()["ccf_version"]
@@ -284,21 +286,24 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
                             r.body.json()["ccf_version"] == version
                         ), f"Node version is not {version}"
 
+            # Rollover JWKS so that new primary must read historical CA bundle table
+            # and retrieve new keys via auto refresh
+            jwt_issuer.refresh_keys()
+            jwt_issuer.wait_for_refresh(network)
+
             issue_activity_on_live_service(network, args)
 
             snapshot_dir = (
                 network.get_committed_snapshots(primary) if use_snapshot else None
             )
 
+            # Check that the ledger can be parsed
+            network.get_latest_ledger_public_state()
+
             network.stop_all_nodes(verbose_verification=False)
             ledger_dir, committed_ledger_dir = primary.get_ledger(
                 include_read_only_dirs=True
             )
-
-            # TODO: Sometimes throws invalidroot exception
-            # Check that the ledger can be parsed on all nodes
-            # for node in nodes:
-            # ccf.ledger.Ledger(node.remote.ledger_paths()).get_latest_public_state()
 
     return lts_versions
 
@@ -312,7 +317,9 @@ if __name__ == "__main__":
             default=None,
         )
         parser.add_argument(
-            "--check-ledger-compatibility-since-first", type=bool, default=False
+            "--check-ledger-compatibility",
+            type=bool,
+            default=True,  # TODO: Default false
         )
 
     args = infra.e2e_args.cli_args(add)
@@ -326,7 +333,7 @@ if __name__ == "__main__":
     args.host_log_level = "info"
 
     repo = infra.gh_helper.Repository()
-    env = cimetrics.env.get_env()
+    env = cimetrics.env.get_env()  # Cheeky!
 
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
@@ -339,18 +346,18 @@ if __name__ == "__main__":
     compatibility_report["live compatibility"].update({"with next": next_lts_version})
 
     # TODO: Only ON for Daily build!
-    # if args.check_ledger_compatibility_since_first:
-    compatibility_report["data compatibility"] = {}
-    lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=False)
-    compatibility_report["data compatibility"].update(
-        {"with previous ledger": lts_versions}
-    )
-    lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=True)
-    compatibility_report["data compatibility"].update(
-        {"with previous snapshots": lts_versions}
-    )
+    if args.check_ledger_compatibility:
+        compatibility_report["data compatibility"] = {}
+        lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=False)
+        compatibility_report["data compatibility"].update(
+            {"with previous ledger": lts_versions}
+        )
+        lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=True)
+        compatibility_report["data compatibility"].update(
+            {"with previous snapshots": lts_versions}
+        )
 
-    # TODO: Publish compatibility report to Azure Pipelines
+    # TODO: Publish compatibility report to Azure Pipelines artefacts
     if args.compatibility_report_file:
         with open(args.compatibility_report_file, "w") as f:
             json.dump(compatibility_report, f, indent=2)

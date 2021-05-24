@@ -144,7 +144,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # test_invalid_partitions(network, args)
+        test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
         for _ in range(5):
