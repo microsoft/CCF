@@ -449,6 +449,7 @@ namespace aft
         guard.lock();
       }
       // This should only be called when the spin lock is held.
+      // TODO: if node isn't in config, then state -> Retiring
       configurations.push_back({idx, std::move(conf)});
       backup_nodes.clear();
       create_and_remove_node_state();
@@ -521,6 +522,7 @@ namespace aft
       {
         bool globally_committable = is_globally_committable;
 
+        // TODO: if a retirement_index is set and higher than it, return true early
         if (index != state->last_idx + 1)
           return false;
 
@@ -539,6 +541,7 @@ namespace aft
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
+          // TODO: if Retiring, capture as retirement_index and drop subsequent transactions
           committable_indices.push_back(index);
 
           // Only if globally committable, a snapshot requires a new ledger
@@ -1232,6 +1235,8 @@ namespace aft
         return;
       }
 
+      // TODO: reject if higher than retirement_index
+
       // If the terms match up, it is sufficient to convince us that the sender
       // is leader in our term
       restart_election_timeout();
@@ -1500,6 +1505,7 @@ namespace aft
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
+            // TODO: if Retiring, capture as retirement_index
             committable_indices.push_back(i);
 
             if (ds->get_term())
@@ -2432,7 +2438,7 @@ namespace aft
 
       if (consensus_type != ConsensusType::BFT)
       {
-        channels->close_all_outgoing();
+        // channels->close_all_outgoing();
       }
     }
 
@@ -2564,6 +2570,7 @@ namespace aft
       if (idx <= state->commit_idx)
         return;
 
+      // TODO: if higher than retirement index, Retiring -> Retired
       state->commit_idx = idx;
 
       LOG_DEBUG_FMT("Compacting...");
