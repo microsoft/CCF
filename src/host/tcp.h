@@ -604,6 +604,14 @@ namespace asynchost
     {
       auto self = static_cast<TCPImpl*>(req->handle->data);
       delete req;
+
+      if (rc == UV_ECANCELED)
+      {
+        // Break reconnection loop early if cancelled
+        LOG_TRACE_FMT("on_connect: cancelled");
+        return;
+      }
+
       self->on_connect(rc);
     }
 

@@ -1071,8 +1071,6 @@ def network(
             raise
     finally:
         LOG.info("Stopping network")
-        # To prevent https://github.com/microsoft/CCF/issues/2571, at
-        # the cost of additional messages in the node logs
+        net.stop_all_nodes(skip_verification=True)
         if init_partitioner:
             net.partitioner.cleanup()
-        net.stop_all_nodes(skip_verification=True)
