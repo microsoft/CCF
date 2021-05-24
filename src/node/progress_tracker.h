@@ -586,8 +586,7 @@ namespace ccf
       ccf::View view = new_view->view;
       ccf::SeqNo seqno = new_view->seqno;
 
-      if (
-        seqno < highest_commit_level)
+      if (seqno < highest_commit_level)
       {
         LOG_FAIL_FMT(
           "Invalid view and seqno in the new view highest prepared from:{}, "
@@ -677,7 +676,7 @@ namespace ccf
           ++it;
         }
       }
-      
+
       if (certificates.empty())
       {
         highest_prepared_level = {0, 0};

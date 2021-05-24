@@ -162,11 +162,10 @@ namespace messaging
       }
 
       // Handlers may register or remove handlers, so iterator is invalidated
-      //try
+      try
       {
         it->second(data, size);
       }
-      /*
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT(
@@ -178,7 +177,6 @@ namespace messaging
 #endif
         throw e;
       }
-      */
 
       auto& counts = message_counts[m];
       counts.messages++;

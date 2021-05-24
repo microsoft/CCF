@@ -123,10 +123,11 @@ namespace aft
       return store->write_view_change_confirmation(nv);
     }
 
-    std::vector<uint8_t> get_serialized_view_change_confirmation(ccf::View view)
+    std::vector<uint8_t> get_serialized_view_change_confirmation(
+      ccf::View view, bool force_create_new = false)
     {
       ccf::ViewChangeConfirmation nv =
-        create_view_change_confirmation_msg(view);
+        create_view_change_confirmation_msg(view, force_create_new);
       nlohmann::json j;
       to_json(j, nv);
       std::string s = j.dump();
@@ -134,7 +135,10 @@ namespace aft
     }
 
     bool add_unknown_primary_evidence(
-      CBuffer data, ccf::View view, const ccf::NodeId& from, uint32_t node_count)
+      CBuffer data,
+      ccf::View view,
+      const ccf::NodeId& from,
+      uint32_t node_count)
     {
       nlohmann::json j = nlohmann::json::parse(data.p);
       auto vc = j.get<ccf::ViewChangeConfirmation>();
@@ -206,9 +210,9 @@ namespace aft
     ccf::ViewChangeConfirmation last_nvc;
 
     ccf::ViewChangeConfirmation create_view_change_confirmation_msg(
-      ccf::View view)
+      ccf::View view, bool force_create_new = false)
     {
-      if (view == last_nvc.view)
+      if (view == last_nvc.view && !force_create_new)
       {
         return last_nvc;
       }
