@@ -81,8 +81,9 @@ namespace ccf
       }
     }
 
-    std::optional<std::vector<uint8_t>> forward_or_redirect_json(
+    std::optional<std::vector<uint8_t>> forward_or_redirect(
       std::shared_ptr<enclave::RpcContext> ctx,
+      kv::CommittableTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       if (cmd_forwarder && !ctx->session->is_forwarded)
@@ -130,7 +131,6 @@ namespace ccf
               "RPC could not be redirected to unknown primary.");
           }
 
-          auto tx = tables.create_tx();
           auto nodes = tx.ro<Nodes>(Tables::NODES);
           auto info = nodes->get(primary_id.value());
 
@@ -249,7 +249,7 @@ namespace ccf
                    endpoints::ExecuteOutsideConsensus::Locally))))
             {
               ctx->session->is_forwarding = true;
-              return forward_or_redirect_json(ctx, endpoint);
+              return forward_or_redirect(ctx, tx, endpoint);
             }
             break;
           }
@@ -257,7 +257,7 @@ namespace ccf
           case endpoints::ForwardingRequired::Always:
           {
             ctx->session->is_forwarding = true;
-            return forward_or_redirect_json(ctx, endpoint);
+            return forward_or_redirect(ctx, tx, endpoint);
           }
         }
       }
