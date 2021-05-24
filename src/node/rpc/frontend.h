@@ -83,7 +83,7 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> forward_or_redirect(
       std::shared_ptr<enclave::RpcContext> ctx,
-      kv::CommittableTx& tx,
+      kv::ReadOnlyTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       if (cmd_forwarder && !ctx->session->is_forwarded)
