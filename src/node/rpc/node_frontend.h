@@ -307,8 +307,8 @@ namespace ccf
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
-                  ccf::errors::NodeRetired,
-                  "Retired");
+                  ccf::errors::NodeCannotHandleRequest,
+                  "Node is not primary; cannot handle write");
               }
             }
 
@@ -385,8 +385,8 @@ namespace ccf
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
-                  ccf::errors::NodeRetired,
-                  "Retired");
+                  ccf::errors::NodeCannotHandleRequest,
+                  "Node is not primary; cannot handle write");
               }
             }
 
