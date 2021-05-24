@@ -608,7 +608,8 @@ namespace asynchost
       if (rc == UV_ECANCELED)
       {
         // Break reconnection loop early if cancelled
-        LOG_TRACE_FMT("on_connect: cancelled");
+        // TODO: Change to trace
+        LOG_FAIL_FMT("on_connect: cancelled");
         return;
       }
 
