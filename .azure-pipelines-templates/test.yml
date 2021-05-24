@@ -26,15 +26,15 @@ steps:
         displayName: "CTest Partitions"
         workingDirectory: build
 
-      # This unconditional step is necessary as workspace files survive the container
-      # in which they are created
-      - script: |
-          set -ex
-          ci_user=$(whoami)
-          sudo chown -R $ci_user: workspace
-        condition: succeededOrFailed()
-        displayName: "Change root files ownership to ci user"
-        workingDirectory: build
+  #     # This unconditional step is necessary as workspace files survive the container
+  #     # in which they are created
+  #     - script: |
+  #         set -ex
+  #         ci_user=$(whoami)
+  #         sudo chown -R $ci_user: workspace
+  #       condition: succeededOrFailed()
+  #       displayName: "Change root files ownership to ci user"
+  #       workingDirectory: build
 
   # If a test fails, crudely upload nodes' logs for all tests
   - task: CopyFiles@2
