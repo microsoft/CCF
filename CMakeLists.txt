@@ -746,7 +746,8 @@ if(BUILD_TESTS)
     CONSENSUS cft
     LABEL partitions
     # Higher snapshot interval as the test currently assumes that no
-    # transactions are emitted while partitions are up
+    # transactions are emitted while partitions are up. To be removed when
+    # https://github.com/microsoft/CCF/issues/2577 is implemented
     ADDITIONAL_ARGS --snapshot-tx-interval 10000
   )
 
