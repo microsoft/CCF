@@ -496,7 +496,7 @@ namespace ccf
 
     enum class ApplyViewChangeMessageResult
     {
-      OK,
+      OK = 1,
       FAIL,
       SKIP_VIEW
     };

@@ -78,9 +78,7 @@ namespace aft
         return;
       }
 
-      time_previous_view_change_increment = std::min(
-        time_previous_view_change_increment - time_between_attempts,
-        std::chrono::milliseconds(0));
+      time_previous_view_change_increment = 0;
     }
 
     enum class ResultAddView
