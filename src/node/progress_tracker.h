@@ -485,9 +485,13 @@ namespace ccf
       auto& cert = it->second;
       auto m = std::make_unique<ViewChangeRequest>();
 
-      for (const auto& sig : cert.sigs)
+      auto it_view_change_view = it->second.view_change_sig.find(view);
+      if (it_view_change_view != it->second.view_change_sig.end())
       {
-        m->signatures.push_back(sig.second);
+        for (const auto& sig : it_view_change_view->second)
+        {
+          m->signatures.push_back(sig.second);
+        }
       }
 
       store->sign_view_change_request(*m, view, highest_prepared_level.seqno);
@@ -561,11 +565,21 @@ namespace ccf
           continue;
         }
 
-        if (it->second.sigs.find(sig.node) != it->second.sigs.end())
+        auto it_view_change_view = it->second.view_change_sig.find(view);
+        if (it_view_change_view == it->second.view_change_sig.end())
+        {
+          auto ret = it->second.view_change_sig.insert(
+            std::pair<ccf::View, std::map<NodeId, BftNodeSignature>>(view, {}));
+          it_view_change_view = ret.first;
+        }
+
+        if (
+          it_view_change_view->second.find(sig.node) !=
+          it_view_change_view->second.end())
         {
           continue;
         }
-        it->second.sigs.insert(
+        it_view_change_view->second.insert(
           std::pair<NodeId, BftNodeSignature>(sig.node, sig));
       }
 
@@ -620,10 +634,11 @@ namespace ccf
         if (!store->verify_view_change_request(vc, id, view, seqno))
         {
           LOG_FAIL_FMT(
-            "Failed to verify view-change id:{},view:{}, seqno:{}",
+            "Failed to verify view-change id:{},view:{}, seqno:{}, from:{}",
             id,
             view,
-            seqno);
+            seqno,
+            from);
           return false;
         }
       }
