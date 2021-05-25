@@ -745,6 +745,9 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     CONSENSUS cft
     LABEL partitions
+    # Higher snapshot interval as the test currently assumes that no
+    # transactions are emitted while partitions are up
+    ADDITIONAL_ARGS --snapshot-tx-interval 10000
   )
 
   if(NOT SAN)
