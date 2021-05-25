@@ -11,7 +11,7 @@ import os
 from infra.checker import check_can_progress
 
 from loguru import logger as LOG
-import pprint
+
 
 def node_configs(network):
     configs = {}
@@ -173,11 +173,6 @@ def test_retire_backup(network, args):
     check_can_progress(primary)
     return network
 
-def show_configs(network):
-    primary, _ = network.find_primary()
-    with primary.client() as c:
-        r = c.get("/node/consensus")
-        pprint.pprint(r.body.json())
 
 @reqs.description("Retiring the primary")
 @reqs.can_kill_n_nodes(1)
@@ -186,7 +181,6 @@ def test_retire_primary(network, args):
 
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
-    show_configs(network)
     network.wait_for_new_primary(primary)
     check_can_progress(backup)
     network.nodes.remove(primary)

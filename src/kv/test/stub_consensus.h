@@ -159,7 +159,7 @@ namespace kv::test
     ConsensusDetails get_details() override
     {
       return ConsensusDetails{{}, {}, ReplicaState::Candidate};
-    }    
+    }
 
     uint32_t node_count() override
     {

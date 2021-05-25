@@ -467,11 +467,11 @@ namespace aft
       kv::ConsensusDetails details;
       std::lock_guard<SpinLock> guard(state->lock);
       details.state = replica_state;
-      for (auto& config: configurations)
+      for (auto& config : configurations)
       {
         details.configs.push_back(config);
       }
-      for (auto& [k, v]: nodes)
+      for (auto& [k, v] : nodes)
       {
         details.acks[k] = v.match_idx;
       }
@@ -836,7 +836,9 @@ namespace aft
       }
       else if (consensus_type != ConsensusType::BFT)
       {
-        if (replica_state != kv::ReplicaState::Retired && timeout_elapsed >= election_timeout)
+        if (
+          replica_state != kv::ReplicaState::Retired &&
+          timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -1184,7 +1186,9 @@ namespace aft
 
       // First, check append entries term against our own term, becoming
       // follower if necessary
-      if (state->current_view == r.term && replica_state == kv::ReplicaState::Candidate)
+      if (
+        state->current_view == r.term &&
+        replica_state == kv::ReplicaState::Candidate)
       {
         // Become a follower in this term.
         become_follower(r.term);
@@ -2577,7 +2581,9 @@ namespace aft
       LOG_DEBUG_FMT("Compacting...");
       // Snapshots are not yet supported with BFT
       snapshotter->commit(
-        idx, replica_state == kv::ReplicaState::Leader && consensus_type == ConsensusType::CFT);
+        idx,
+        replica_state == kv::ReplicaState::Leader &&
+          consensus_type == ConsensusType::CFT);
 
       store->compact(idx);
       ledger->commit(idx);
@@ -2691,7 +2697,9 @@ namespace aft
 
       for (auto node_id : to_remove)
       {
-        if (replica_state == kv::ReplicaState::Leader || consensus_type == ConsensusType::BFT)
+        if (
+          replica_state == kv::ReplicaState::Leader ||
+          consensus_type == ConsensusType::BFT)
         {
           channels->destroy_channel(node_id);
         }
@@ -2717,7 +2725,9 @@ namespace aft
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
-          if (replica_state == kv::ReplicaState::Leader || consensus_type == ConsensusType::BFT)
+          if (
+            replica_state == kv::ReplicaState::Leader ||
+            consensus_type == ConsensusType::BFT)
           {
             channels->create_channel(
               node_info.first,

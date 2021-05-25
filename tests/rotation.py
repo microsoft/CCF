@@ -8,7 +8,6 @@ import reconfiguration
 from infra.checker import check_can_progress
 
 from loguru import logger as LOG
-import pprint
 
 
 @reqs.description("Suspend and resume primary")
@@ -22,11 +21,6 @@ def test_suspend_primary(network, args):
     check_can_progress(new_primary)
     return network
 
-def show_configs(network):
-    primary, _ = network.find_primary()
-    with primary.client() as c:
-        r = c.get("/node/consensus")
-        pprint.pprint(r.body.json())
 
 def run(args):
     with infra.network.network(
@@ -38,13 +32,8 @@ def run(args):
         LOG.info(f"Retiring primary {args.rotation_retirements} times")
         for i in range(args.rotation_retirements):
             LOG.warning(f"Retirement {i}")
-            show_configs(network)
             reconfiguration.test_add_node(network, args)
-            show_configs(network)
             reconfiguration.test_retire_primary(network, args)
-            show_configs(network)
-
-        return
 
         reconfiguration.test_add_node(network, args)
         # Suspend primary repeatedly and check the network still operates
