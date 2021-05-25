@@ -77,7 +77,7 @@ def run_code_upgrade_from(
             old_nodes = network.get_joined_nodes()
             primary, _ = network.find_primary()
 
-            # Old nodes only
+            LOG.info("Apply transactions to old service")
             issue_activity_on_live_service(network, args)
 
             new_code_id = infra.utils.get_code_id(
@@ -117,7 +117,7 @@ def run_code_upgrade_from(
                             version == expected_version
                         ), f"For node {node.local_node_id}, expect version {expected_version}, got {version}"
 
-            # Hybrid network, primary is old node
+            LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
 
             # Test that new nodes can become primary with old nodes as backups
@@ -143,7 +143,7 @@ def run_code_upgrade_from(
             jwt_issuer.refresh_keys()
             jwt_issuer.wait_for_refresh(network)
 
-            # Hybrid network, primary is new
+            LOG.info("Apply transactions to hybrid network, with primary as new node")
             issue_activity_on_live_service(network, args)
 
             # Finally, retire old nodes and code id
@@ -158,7 +158,7 @@ def run_code_upgrade_from(
                 network.retire_node(new_primary, node)
                 node.stop()
 
-            # New nodes only
+            LOG.info("Apply transactions to new nodes only")
             issue_activity_on_live_service(network, args)
 
 

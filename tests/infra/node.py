@@ -331,7 +331,6 @@ class Node:
         return tx.get_public_domain().get_tables()
 
     def get_ledger_public_state_at(self, seqno):
-        LOG.error(self.remote.ledger_paths())
         ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
         assert ledger.last_committed_chunk_range[1] >= seqno
         return ledger.get_latest_public_state()
