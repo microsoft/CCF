@@ -500,7 +500,7 @@ namespace ccf
 
           if (status != HTTP_STATUS_OK)
           {
-            const auto& location = headers.find("location");
+            const auto& location = headers.find(http::headers::LOCATION);
             if (
               status == HTTP_STATUS_PERMANENT_REDIRECT &&
               location != headers.end())
@@ -508,7 +508,7 @@ namespace ccf
               const auto& url = http::parse_url_full(location->second);
               config.joining.target_host = url.host;
               config.joining.target_port = url.port;
-              LOG_FAIL_FMT("Target node redirected to {}", location->second);
+              LOG_INFO_FMT("Target node redirected to {}", location->second);
             }
             else
             {

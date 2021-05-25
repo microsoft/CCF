@@ -301,7 +301,7 @@ namespace ccf
               if (info)
               {
                 args.rpc_ctx->set_response_header(
-                  "Location",
+                  http::headers::LOCATION,
                   fmt::format(
                     "https://{}:{}/node/join", info->pubhost, info->pubport));
 
@@ -379,7 +379,7 @@ namespace ccf
               if (info)
               {
                 args.rpc_ctx->set_response_header(
-                  "Location",
+                  http::headers::LOCATION,
                   fmt::format(
                     "https://{}:{}/node/join", info->pubhost, info->pubport));
 
@@ -689,7 +689,7 @@ namespace ccf
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
           args.rpc_ctx->set_response_header(
-            "Location",
+            http::headers::LOCATION,
             fmt::format(
               "https://{}:{}/node/network/nodes/{}",
               info->pubhost,
@@ -730,7 +730,7 @@ namespace ccf
           {
             args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
             args.rpc_ctx->set_response_header(
-              "Location",
+              http::headers::LOCATION,
               fmt::format(
                 "https://{}:{}/node/network/nodes/{}",
                 info->pubhost,
@@ -776,7 +776,7 @@ namespace ccf
             if (info)
             {
               args.rpc_ctx->set_response_header(
-                "Location",
+                http::headers::LOCATION,
                 fmt::format(
                   "https://{}:{}/node/primary", info->pubhost, info->pubport));
             }
