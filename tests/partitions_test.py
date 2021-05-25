@@ -146,8 +146,8 @@ def run(args):
         test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
-        # for _ in range(5):
-        #     test_isolate_and_reconnect_primary(network, args)
+        for _ in range(5):
+            test_isolate_and_reconnect_primary(network, args)
 
 
 if __name__ == "__main__":
