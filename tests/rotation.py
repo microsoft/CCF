@@ -19,7 +19,7 @@ def test_suspend_primary(network, args):
     primary.suspend()
     if args.consensus == "bft":
         try:
-            for index in range(3):
+            for _ in range(3):
                 with backup.client("user0") as c:
                     _ = c.post(
                         "/app/log/private",
