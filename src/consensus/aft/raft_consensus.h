@@ -137,9 +137,9 @@ namespace aft
       return aft->get_latest_configuration_unsafe();
     }
 
-    std::vector<Configuration> get_active_configurations() override
+    kv::ConsensusDetails get_details() override
     {
-      return aft->get_active_configurations();
+      return aft->get_details();
     }
 
     void periodic(std::chrono::milliseconds elapsed) override

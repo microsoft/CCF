@@ -759,13 +759,12 @@ namespace ccf
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .install();
 
-      auto consensus_configs = [this](auto& args) {
-        // Query node for configurations, separate current from pending
+      auto consensus_state = [this](auto& args) {
         if (consensus != nullptr)
         {
-          auto cfg = consensus->get_active_configurations();
+          auto d = consensus->get_details();
           nlohmann::json c;
-          c["configs"] = cfg;
+          c["details"] = d;
           args.rpc_ctx->set_response_body(c.dump());
         }
         else
@@ -776,7 +775,7 @@ namespace ccf
       };
 
       make_command_endpoint(
-        "configs", HTTP_GET, consensus_configs, no_auth_required)
+        "consensus", HTTP_GET, consensus_state, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)

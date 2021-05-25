@@ -176,7 +176,7 @@ def test_retire_backup(network, args):
 def show_configs(network):
     primary, _ = network.find_primary()
     with primary.client() as c:
-        r = c.get("/node/configs")
+        r = c.get("/node/consensus")
         pprint.pprint(r.body.json())
 
 @reqs.description("Retiring the primary")

@@ -156,9 +156,9 @@ namespace kv::test
       return {};
     }
 
-    std::vector<Configuration> get_active_configurations() override
+    ConsensusDetails get_details() override
     {
-      return {};
+      return ConsensusDetails{{}, {}, ReplicaState::Candidate};
     }    
 
     uint32_t node_count() override

@@ -93,10 +93,46 @@ namespace kv
     Nodes nodes;
   };
 
-  DECLARE_JSON_TYPE(Configuration::NodeInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(Configuration::NodeInfo, hostname, port);
+  inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
+  {
+    j["address"] = fmt::format("{}:{}", ni.hostname, ni.port);
+  }
+
+  inline void from_json(const nlohmann::json& j, Configuration::NodeInfo& ni)
+  {
+    const std::string addr(j["address"]);
+    const auto& [h, p] = nonstd::split_1(addr, ":");
+    ni.hostname = h;
+    ni.port = p;
+  }
+
+  enum class ReplicaState
+  {
+    Leader,
+    Follower,
+    Candidate,
+    Retired
+  };
+
+  DECLARE_JSON_ENUM(
+    ReplicaState,
+    {{ReplicaState::Leader, "Leader"},
+     {ReplicaState::Follower, "Follower"},
+     {ReplicaState::Candidate, "Candidate"},
+     {ReplicaState::Retired, "Retired"}});
+
   DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes);
+
+  struct ConsensusDetails
+  {
+    std::vector<Configuration> configs = {};
+    std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
+    ReplicaState state;
+  };
+
+  DECLARE_JSON_TYPE(ConsensusDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks, state);
 
   class ConfigurableConsensus
   {
@@ -105,7 +141,7 @@ namespace kv
       ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
-    virtual std::vector<Configuration> get_active_configurations() = 0;
+    virtual ConsensusDetails get_details() = 0;
   };
 
   class ConsensusHook
