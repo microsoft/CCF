@@ -600,18 +600,6 @@ namespace ccf
       ccf::View view = new_view->view;
       ccf::SeqNo seqno = new_view->seqno;
 
-      if (seqno < highest_commit_level)
-      {
-        LOG_FAIL_FMT(
-          "Invalid view and seqno in the new view highest prepared from:{}, "
-          "highest_commit_level:{}, new_view view:{}, seqno:{}",
-          from,
-          highest_commit_level,
-          view,
-          seqno);
-        return false;
-      }
-
       if (
         new_view->view_change_messages.size() <
         ccf::get_message_threshold(node_count))
