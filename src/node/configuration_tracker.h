@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/app_interface.h"
+#include "ccf/entity_id.h"
 #include "consensus/aft/raft_types.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
@@ -135,9 +136,9 @@ namespace aft
     {
       LOG_INFO_FMT("Configurations: add");
 
-      if (consensus_type == BFT && configurations.size() > 1)
-        throw std::runtime_error(
-          "Multiple ongoing reconfigurations not supported");
+      // if (consensus_type == BFT && configurations.size() > 1)
+      //   throw std::runtime_error(
+      //     "Multiple ongoing reconfigurations not supported");
 
       configurations.push_back(
         {{idx, std::move(config.active)}, std::move(config.passive)});
@@ -384,6 +385,22 @@ namespace aft
       }
 
       return rs == HTTP_STATUS_OK;
+    }
+
+    static void promote_cb(
+      ConfigurationTracker& configuration_tracker,
+      const NodeId& from,
+      const TxID& txid,
+      const TxID& primary_txid)
+    {
+      if (!configuration_tracker.promote_if_possible(from, txid, primary_txid))
+      {
+        threading::ThreadMessaging::thread_messaging.add_task(
+          [&configuration_tracker, &from, &txid, &primary_txid]() {
+            ConfigurationTracker::promote_cb(
+              configuration_tracker, from, txid, primary_txid);
+          });
+      }
     }
   };
 }

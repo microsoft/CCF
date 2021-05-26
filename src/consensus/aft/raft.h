@@ -2252,11 +2252,11 @@ namespace aft
           {
             threading::ThreadMessaging::thread_messaging.add_task(
               [this, from, r]() {
-                configuration_tracker.promote_if_possible(
+                ConfigurationTracker::promote_cb(
+                  configuration_tracker,
                   from,
                   {r.term, r.last_log_idx},
                   {state->current_view, state->commit_idx});
-                // TODO: Retry on failure?
               });
           }
           break;
