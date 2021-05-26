@@ -386,12 +386,6 @@ namespace aft
       return {get_term_internal(state->commit_idx), state->commit_idx};
     }
 
-    std::pair<Term, Index> get_current_txid()
-    {
-      std::lock_guard<SpinLock> guard(state->lock);
-      return {get_term_internal(state->commit_idx), state->last_idx};
-    }
-
     std::optional<kv::Consensus::SignableTxIndices>
     get_signable_commit_term_and_idx()
     {
