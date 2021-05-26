@@ -296,10 +296,11 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
+                const auto& pub_address = info->rpc_interfaces[0].public_rpc_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
                   fmt::format(
-                    "https://{}:{}/node/join", info->pubhost, info->pubport));
+                    "https://{}:{}/node/join", pub_address.hostname, pub_address.port));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
@@ -374,10 +375,11 @@ namespace ccf
               auto info = nodes->get(primary_id.value());
               if (info)
               {
+                const auto& pub_address = info->rpc_interfaces[0].public_rpc_address;
                 args.rpc_ctx->set_response_header(
                   http::headers::LOCATION,
                   fmt::format(
-                    "https://{}:{}/node/join", info->pubhost, info->pubport));
+                    "https://{}:{}/node/join", pub_address.hostname, pub_address.port));
 
                 return make_error(
                   HTTP_STATUS_PERMANENT_REDIRECT,
