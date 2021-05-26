@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Signed requests with a url-encoded query string are now handled correctly rather than rejected (#2592).
 - Fixed consistency issue between ledger files on different nodes when snapshotting is active (#2607).
 
+### Dependency
+
+- Upgrade OpenEnclave from 0.15.0 to 0.16.1 (#2609)
+
+## [1.0.3]
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.15.0 to 0.16.1 (#2609)
+
 ## [1.0.2]
 
 ### Bugfix
@@ -882,6 +892,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[1.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.3
 [1.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.2
 [1.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.1
 [1.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0
