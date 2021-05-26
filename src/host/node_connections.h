@@ -74,10 +74,7 @@ namespace asynchost
           auto msg_type = serialized::read<ccf::NodeMsgType>(p, psize);
           ccf::NodeId from = serialized::read<ccf::NodeId::Value>(p, psize);
 
-          if (!node.has_value())
-          {
-            associate(from);
-          }
+          associate(from);
 
           LOG_DEBUG_FMT(
             "node in: from node {}, size {}, type {}",
@@ -129,9 +126,21 @@ namespace asynchost
 
       virtual void associate(const ccf::NodeId& n)
       {
+        // It is possible that a peer terminates a connection and opens a new
+        // one but the termination is seen by us _after_ messages on the new
+        // connection are received. We re-associate the connection on the latest
+        // received message, so that oubound messages are routed to the correct,
+        // most up-to-date, incoming connection.
+        auto search = parent.associated.find(n);
+        if (search != parent.associated.end() && search->second.first == id)
+        {
+          // Incoming connection is already associated n
+          return;
+        }
+
+        parent.associated[n] = std::make_pair(id, parent.incoming.at(id));
+        LOG_DEBUG_FMT("node incoming {} associated with {}", id, n);
         node = n;
-        parent.associated.emplace(node.value(), parent.incoming.at(id));
-        LOG_DEBUG_FMT("node incoming {} associated with {}", id, node.value());
       }
     };
 
@@ -203,7 +212,7 @@ namespace asynchost
     std::unordered_map<ccf::NodeId, TCP> outgoing;
 
     std::unordered_map<size_t, TCP> incoming;
-    std::unordered_map<ccf::NodeId, TCP> associated;
+    std::unordered_map<ccf::NodeId, std::pair<size_t, TCP>> associated;
     size_t next_id = 1;
     ringbuffer::WriterPtr to_enclave;
     std::set<ccf::NodeId> reconnect_queue;
@@ -382,7 +391,7 @@ namespace asynchost
 
         if (s != associated.end())
         {
-          return s->second;
+          return s->second.second;
         }
       }
 
