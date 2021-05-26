@@ -126,6 +126,36 @@ namespace ccf
         snapshot_hash);
     }
 
+    void update_indices(consensus::Index idx)
+    {
+      while ((next_snapshot_indices.size() > 1) &&
+             (*std::next(next_snapshot_indices.begin()) <= idx))
+      {
+        next_snapshot_indices.pop_front();
+      }
+
+      for (auto it = snapshot_evidence_indices.begin();
+           it != snapshot_evidence_indices.end();)
+      {
+        if (it->evidence_commit_idx.has_value())
+        {
+          if (idx > it->evidence_commit_idx.value())
+          {
+            commit_snapshot(it->idx, idx);
+            auto it_ = it;
+            it++;
+            snapshot_evidence_indices.erase(it_);
+            continue;
+          }
+        }
+        else if (idx >= it->evidence_idx)
+        {
+          it->evidence_commit_idx = idx;
+        }
+        it++;
+      }
+    }
+
   public:
     Snapshotter(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -172,13 +202,31 @@ namespace ccf
       next_snapshot_indices.push_back(last_snapshot_idx);
     }
 
-    void update(consensus::Index idx, bool generate_snapshot)
+    bool record_committable(consensus::Index idx)
+    {
+      // Returns true if the committable idx will require the generation of a
+      // snapshot, and thus a new ledger chunk
+      std::lock_guard<SpinLock> guard(lock);
+
+      if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
+      {
+        next_snapshot_indices.push_back(idx);
+        LOG_TRACE_FMT("Recorded {} as snapshot index", idx);
+        return true;
+      }
+
+      return false;
+    }
+
+    void commit(consensus::Index idx, bool generate_snapshot)
     {
       // If generate_snapshot is true, takes a snapshot of the key value store
-      // at idx, and schedule snapshot serialisation on another thread
-      // (round-robin). Otherwise, only record that a snapshot was
-      // generated at idx.
+      // at the last snapshottable index before idx, and schedule snapshot
+      // serialisation on another thread (round-robin). Otherwise, only record
+      // that a snapshot was generated.
       std::lock_guard<SpinLock> guard(lock);
+
+      update_indices(idx);
 
       if (idx < last_snapshot_idx)
       {
@@ -189,69 +237,31 @@ namespace ccf
           last_snapshot_idx));
       }
 
-      if (idx - last_snapshot_idx >= snapshot_tx_interval)
-      {
-        last_snapshot_idx = idx;
+      CCF_ASSERT_FMT(
+        idx >= next_snapshot_indices.front(),
+        "Cannot commit snapshotter at {}, which is before last snapshottable "
+        "idx {}",
+        idx,
+        next_snapshot_indices.front());
 
-        if (generate_snapshot && snapshot_generation_enabled)
+      auto snapshot_idx = next_snapshot_indices.front();
+      if (snapshot_idx - last_snapshot_idx >= snapshot_tx_interval)
+      {
+        if (generate_snapshot && snapshot_generation_enabled && snapshot_idx)
         {
           auto msg =
             std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
           msg->data.self = shared_from_this();
-          msg->data.snapshot = store->snapshot(idx);
-
+          msg->data.snapshot = store->snapshot(snapshot_idx);
           static uint32_t generation_count = 0;
           threading::ThreadMessaging::thread_messaging.add_task(
             threading::ThreadMessaging::get_execution_thread(
               generation_count++),
             std::move(msg));
         }
-      }
-    }
 
-    bool record_committable(consensus::Index idx)
-    {
-      // Returns true if the committable idx will require the generation of a
-      // snapshot, and thus a new ledger chunk
-      std::lock_guard<SpinLock> guard(lock);
-
-      if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
-      {
-        next_snapshot_indices.push_back(idx);
-        return true;
-      }
-      return false;
-    }
-
-    void commit(consensus::Index idx)
-    {
-      std::lock_guard<SpinLock> guard(lock);
-
-      while ((next_snapshot_indices.size() > 1) &&
-             (next_snapshot_indices.front() < idx))
-      {
-        next_snapshot_indices.pop_front();
-      }
-
-      for (auto it = snapshot_evidence_indices.begin();
-           it != snapshot_evidence_indices.end();)
-      {
-        if (it->evidence_commit_idx.has_value())
-        {
-          if (idx > it->evidence_commit_idx.value())
-          {
-            commit_snapshot(it->idx, idx);
-            auto it_ = it;
-            it++;
-            snapshot_evidence_indices.erase(it_);
-            continue;
-          }
-        }
-        else if (idx >= it->evidence_idx)
-        {
-          it->evidence_commit_idx = idx;
-        }
-        it++;
+        last_snapshot_idx = snapshot_idx;
+        LOG_TRACE_FMT("Recorded {} as last snapshot index", last_snapshot_idx);
       }
     }
 
@@ -269,6 +279,10 @@ namespace ccf
       {
         next_snapshot_indices.push_back(last_snapshot_idx);
       }
+
+      LOG_TRACE_FMT(
+        "Rolled back snapshotter: last snapshottable idx is now {}",
+        next_snapshot_indices.front());
 
       while (!snapshot_evidence_indices.empty() &&
              (snapshot_evidence_indices.back().evidence_idx > idx))
