@@ -50,7 +50,7 @@ def test_add_node(network, args):
 
 @reqs.description("Adding multiple valid nodes without snapshots")
 @reqs.at_least_n_nodes(3)
-def test_add_multiple_nodes(network, args, n=2):
+def test_add_multiple_nodes(network, args, n=2, timeout=3):
     new_nodes = [
         network.create_and_add_pending_node(args.package, "local://localhost", args)
         for _ in range(n)
@@ -68,20 +68,19 @@ def test_add_multiple_nodes(network, args, n=2):
         primary,
         proposal,
         {"ballot": "export function vote (proposal, proposer_id) { return true }"},
-        timeout=10,
+        timeout=timeout,
     )
     check_can_progress(primary)
 
 
 @reqs.description("Add and remove multiple nodes")
 @reqs.at_least_n_nodes(3)
-def test_add_and_remove_multiple_nodes(network, args, n=1, m=1):
+def test_add_and_remove_multiple_nodes(network, args, n=1, m=1, timeout=3):
     current_nodes = network.get_joined_nodes()
     if m > len(current_nodes):
         LOG.error(
             f"Cannot remove more than {m} nodes from a network of {len(current_nodes)}"
         )
-    current_node_ids = [node.node_id for node in current_nodes]
     new_nodes = [
         network.create_and_add_pending_node(args.package, "local://localhost", args)
         for _ in range(n)
@@ -91,13 +90,15 @@ def test_add_and_remove_multiple_nodes(network, args, n=1, m=1):
         {"name": "transition_node_to_trusted", "args": {"node_id": node_id}}
         for node_id in new_node_ids
     ]
-    node_ids_to_remove = []
+
+    nodes_to_remove = []
     for i in range(m):
-        node_ids_to_remove.append(current_node_ids[i])
+        nodes_to_remove.append(current_nodes[i])
     remove_old_nodes = [
-        {"name": "remove_node", "args": {"node_id": node_id}}
-        for node_id in node_ids_to_remove
+        {"name": "remove_node", "args": {"node_id": node.node_id}}
+        for node in nodes_to_remove
     ]
+
     actions = {"actions": trust_new_nodes + remove_old_nodes}
 
     primary, _ = network.find_primary()
@@ -106,11 +107,13 @@ def test_add_and_remove_multiple_nodes(network, args, n=1, m=1):
         primary,
         proposal,
         {"ballot": "export function vote (proposal, proposer_id) { return true }"},
-        timeout=10,
+        timeout=timeout,
     )
-    if primary.node_id in node_ids_to_remove:
+    if primary in nodes_to_remove:
         network.wait_for_new_primary(primary)
         primary, _ = network.find_primary()
+    for n in nodes_to_remove:
+        network.nodes.remove(n)
     check_can_progress(primary)
 
 
@@ -394,6 +397,7 @@ def run(args):
         test_retire_primary(network, args)
         test_add_multiple_nodes(network, args, n=2)
         test_add_and_remove_multiple_nodes(network, args, n=1, m=1)
+        test_add_and_remove_multiple_nodes(network, args, n=2, m=3)
 
         test_add_node_from_snapshot(network, args)
         test_add_node_from_snapshot(network, args, from_backup=True)
