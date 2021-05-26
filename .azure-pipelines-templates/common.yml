@@ -6,9 +6,6 @@ jobs:
     ${{ insert }}: ${{ parameters.env }}
 
     steps:
-      - script: sudo rm -rf build
-        displayName: Pre-emptive cleanup
-
       - checkout: self
         clean: true
         fetchDepth: 10000
