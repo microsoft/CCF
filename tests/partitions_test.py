@@ -85,9 +85,7 @@ def test_isolate_primary_from_one_backup(network, args):
     rules = network.partitioner.isolate_node(primary, backups[0])
 
     new_primary, new_view = network.wait_for_new_primary(
-        primary,
-        nodes=backups,
-        timeout_multiplier=8,
+        primary, nodes=backups, timeout_multiplier=6
     )
 
     # Explicitly drop rules before continuing
