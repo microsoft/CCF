@@ -469,9 +469,13 @@ namespace ccf
         }
 
         if (
-          consensus->get_confirmed_matching_index(in.node_id) !=
+          consensus->get_confirmed_matching_index(in.node_id) <
           consensus->get_committed_seqno())
         {
+          LOG_INFO_FMT(
+            "us={} them={}",
+            consensus->get_committed_seqno(),
+            consensus->get_confirmed_matching_index(in.node_id));
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
