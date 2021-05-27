@@ -357,14 +357,14 @@ namespace aft
 
     static void promote_cb(
       ConfigurationTracker& configuration_tracker,
-      const NodeId& from,
-      const TxID& txid,
-      const TxID& primary_txid)
+      NodeId from,
+      TxID txid,
+      TxID primary_txid)
     {
       if (!configuration_tracker.promote_if_possible(from, txid, primary_txid))
       {
         threading::ThreadMessaging::thread_messaging.add_task(
-          [&configuration_tracker, &from, &txid, &primary_txid]() {
+          [&configuration_tracker, from, txid, primary_txid]() {
             ConfigurationTracker::promote_cb(
               configuration_tracker, from, txid, primary_txid);
           });
