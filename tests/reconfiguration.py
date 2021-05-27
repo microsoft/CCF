@@ -8,6 +8,7 @@ import suite.test_requirements as reqs
 import tempfile
 from shutil import copy
 import os
+import time
 from infra.checker import check_can_progress
 
 from loguru import logger as LOG
@@ -70,7 +71,7 @@ def test_add_multiple_nodes(network, args, n=2, timeout=3):
         {"ballot": "export function vote (proposal, proposer_id) { return true }"},
         timeout=timeout,
     )
-    check_can_progress(primary, timeout=10)
+    check_can_progress(primary)
 
 
 @reqs.description("Add and remove multiple nodes")
@@ -251,6 +252,8 @@ def test_retire_primary(network, args):
     primary, backup = network.find_primary_and_any_backup()
     network.retire_node(primary, primary)
     network.wait_for_new_primary(primary)
+    # The backup may forward the request to the old primary if it hasn't seen the retirement yet.
+    time.sleep(1)
     check_can_progress(backup)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
