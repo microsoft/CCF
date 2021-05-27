@@ -272,10 +272,9 @@ def test_join_straddling_primary_replacement(network, args):
     # are unable to participate (one retired and one not yet joined).
     test_add_node(network, args)
     primary, _ = network.find_primary()
-    new_node = network.create_and_add_pending_node(
-        args.package, "local://localhost", args
-    )
-
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args)
+    network.trust_node(new_node, args)
     proposal_body = {
         "actions": [
             {
