@@ -322,7 +322,7 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument("--check-ledger-compatibility", action="store_true")
-        parser.add_argument("--compatibility-report-file", type=str, default=None)
+        parser.add_argument("--compatibility-report-file", type=str, default=".")
 
     args = infra.e2e_args.cli_args(add)
 
@@ -365,11 +365,8 @@ if __name__ == "__main__":
         )
 
     # TODO: Publish compatibility report to Azure Pipelines artefacts
-    if args.compatibility_report_file:
-        with open(args.compatibility_report_file, "w") as f:
-            json.dump(compatibility_report, f, indent=2)
-            LOG.info(
-                f"Compatibility report written to {args.compatibility_report_file}"
-            )
+    with open(args.compatibility_report_file, "w") as f:
+        json.dump(compatibility_report, f, indent=2)
+        LOG.info(f"Compatibility report written to {args.compatibility_report_file}")
 
     LOG.success(f"Compatibility report:\n {json.dumps(compatibility_report, indent=2)}")

@@ -802,17 +802,9 @@ if(BUILD_TESTS)
     LABEL forum
   )
 
-  list(
-    APPEND
-    LTS_TEST_ARGS
-    --oe-binary
-    ${OE_BINDIR}
-    --ccf-version
-    ${CCF_VERSION}
-    --compatibility-report-file
-    ${CMAKE_SOURCE_DIR}/tests/compatibility_report.json
+  list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
+       ${CCF_VERSION}
   )
-
   if(LONG_TESTS)
     list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
   endif()

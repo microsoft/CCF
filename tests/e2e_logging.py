@@ -1236,7 +1236,6 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
-        jwt_issuer=jwt_issuer,
     ) as network:
         network.start_and_join(args)
 
