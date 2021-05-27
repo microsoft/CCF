@@ -4,6 +4,7 @@
 
 #include "ccf/app_interface.h"
 #include "ccf/entity_id.h"
+#include "ccf/tx_id.h"
 #include "consensus/aft/raft_types.h"
 #include "ds/logger.h"
 #include "enclave/rpc_sessions.h"
@@ -176,6 +177,12 @@ namespace aft
       }
 
       return true;
+    }
+
+    void update_node_progress(
+      const NodeId& from, const TxID& txid, const TxID& node_txid)
+    {
+      // TODO
     }
 
     std::set<NodeId> active_node_ids()

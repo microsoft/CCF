@@ -1922,6 +1922,19 @@ namespace aft
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
+
+      if (
+        consensus_type == ConsensusType::BFT &&
+        response.success == AppendEntriesResponseType::OK)
+      {
+        NodeCaughtUpMsg ncamsg = {
+          {raft_node_caught_up}, state->current_view, state->last_idx};
+        for (const auto& [node_id, _] : nodes)
+        {
+          channels->send_authenticated(
+            node_id, ccf::NodeMsgType::consensus_msg, ncamsg);
+        }
+      }
     }
 
     void send_append_entries_signed_response(

@@ -98,8 +98,11 @@ def test_add_and_remove_multiple_nodes(network, args, n=1, m=1, timeout=3):
         {"name": "remove_node", "args": {"node_id": node.node_id}}
         for node in nodes_to_remove
     ]
+    node_ids_to_remove = [node.node_id for node in nodes_to_remove]
 
     actions = {"actions": trust_new_nodes + remove_old_nodes}
+
+    LOG.info(f"Adding: {new_node_ids} Removing: {node_ids_to_remove}")
 
     primary, _ = network.find_primary()
     proposal = network.consortium.get_any_active_member().propose(primary, actions)
