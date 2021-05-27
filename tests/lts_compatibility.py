@@ -5,7 +5,7 @@ import infra.e2e_args
 import infra.proc
 import infra.logging_app as app
 import infra.utils
-import infra.gh_helper
+import infra.github
 import infra.jwt_issuer
 import cimetrics.env
 import suite.test_requirements as reqs
@@ -14,8 +14,16 @@ import os
 import json
 from setuptools.extern.packaging.version import Version  # type: ignore
 
-
 from loguru import logger as LOG
+
+# Assumption:
+# By default, this assumes that the local checkout is not a non-release branch (e.g. main)
+# that is older than the latest release branch. This is to simplify the test, and assume
+# that the latest release to test compatibility with is the latest available one.
+# Use the CCF_LATEST_RELEASE_BRANCH_SUFFIX envvar below if this isn't the case.
+ENV_VAR_LATEST_LTS_BRANCH_NAME = (
+    "CCF_LATEST_RELEASE_BRANCH_SUFFIX"  # e.g. "release/1.x"
+)
 
 LOCAL_CHECKOUT_DIRECTORY = "."
 
@@ -100,7 +108,9 @@ def run_code_upgrade_from(
                     library_dir=to_library_dir,
                     version=to_major_version,
                 )
-                network.join_node(new_node, args.package, args)
+                network.join_node(
+                    new_node, args.package, args, from_snapshot=from_snapshot
+                )
                 network.trust_node(new_node, args)
                 from_snapshot = not from_snapshot
                 new_nodes.append(new_node)
@@ -161,18 +171,19 @@ def run_code_upgrade_from(
             LOG.info("Apply transactions to new nodes only")
             issue_activity_on_live_service(network, args)
 
-
-# Assumptions:
-# 1. No commit on `main` (or any non-release branch) that's older than the latest release branch.
+            # Check that the ledger can be parsed
+            network.get_latest_ledger_public_state()
 
 
 @reqs.description("Run live compatibility with latest LTS")
-def run_live_compatibility_with_previous(args, repo, local_branch):
+def run_live_compatibility_with_latest(args, repo, local_branch):
     """
     Tests that a service from the latest LTS can be safely upgraded to the version of
     the local checkout.
     """
-    lts_version, lts_install_path = repo.install_latest_lts_for_branch(local_branch)
+    lts_version, lts_install_path = repo.install_latest_lts_for_branch(
+        os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch)
+    )
     LOG.info(f'From LTS {lts_version} to local "{local_branch}" branch')
     run_code_upgrade_from(
         args,
@@ -185,7 +196,7 @@ def run_live_compatibility_with_previous(args, repo, local_branch):
 
 
 @reqs.description("Run live compatibility with next LTS")
-def run_live_compatibility_with_next(args, repo, local_branch):
+def run_live_compatibility_with_following(args, repo, local_branch):
     """
     Tests that a service from the local checkout can be safely upgraded to the version of
     the next LTS.
@@ -215,10 +226,10 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
     The recovery process uses snapshot is `use_snapshot` is True. Otherwise, the
     entire historical ledger is used.
     """
-    repo = infra.gh_helper.Repository()
+    repo = infra.github.Repository()
     lts_releases = repo.get_lts_releases()
 
-    LOG.info(f"LTS releases: {lts_releases}")
+    LOG.info(f"LTS releases: {[r[1].name for r in lts_releases.items()]}")
 
     lts_versions = []
 
@@ -259,6 +270,7 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
                 network = infra.network.Network(**network_args)
                 network.start_and_join(args)
             else:
+                args.host_log_level = "debug"
                 LOG.info(f"Recovering service (new version: {version})")
                 network = infra.network.Network(
                     **network_args, existing_network=network
@@ -277,14 +289,14 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
             # Verify that all nodes run the expected CCF version
             for node in nodes:
                 # Note: /node/version endpoint was added in 2.x
-                if not node.version or major_version > 1:
+                if not node.version or node.version > 1:
                     with node.client() as c:
                         r = c.get("/node/version")
                         expected_version = node.version or args.ccf_version
                         version = r.body.json()["ccf_version"]
                         assert (
-                            r.body.json()["ccf_version"] == version
-                        ), f"Node version is not {version}"
+                            r.body.json()["ccf_version"] == expected_version
+                        ), f"Node version is not {expected_version}"
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
@@ -297,30 +309,20 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
                 network.get_committed_snapshots(primary) if use_snapshot else None
             )
 
-            # Check that the ledger can be parsed
-            network.get_latest_ledger_public_state()
-
             network.stop_all_nodes(verbose_verification=False)
             ledger_dir, committed_ledger_dir = primary.get_ledger(
                 include_read_only_dirs=True
             )
 
-    return lts_versions
+            # Check that the ledger can be parsed
+            ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
 
 
 if __name__ == "__main__":
 
     def add(parser):
-        parser.add_argument(
-            "--compatibility-report-file",
-            type=str,
-            default=None,
-        )
-        parser.add_argument(
-            "--check-ledger-compatibility",
-            type=bool,
-            default=True,  # TODO: Default false
-        )
+        parser.add_argument("--check-ledger-compatibility", action="store_true")
+        parser.add_argument("--compatibility-report-file", type=str, default=None)
 
     args = infra.e2e_args.cli_args(add)
 
@@ -332,20 +334,25 @@ if __name__ == "__main__":
     # Hardcoded because host only accepts from info on release builds
     args.host_log_level = "info"
 
-    repo = infra.gh_helper.Repository()
-    env = cimetrics.env.get_env()  # Cheeky!
+    repo = infra.github.Repository()
+    # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
+    # current branch on any environment (either local checkout or CI run)
+    env = cimetrics.env.get_env()
 
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
     compatibility_report["live compatibility"] = {}
-    previous_lts_version = run_live_compatibility_with_previous(args, repo, env.branch)
-    next_lts_version = run_live_compatibility_with_next(args, repo, env.branch)
-    compatibility_report["live compatibility"].update(
-        {"with previous": previous_lts_version}
+    latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
+    following_lts_version = run_live_compatibility_with_following(
+        args, repo, env.branch
     )
-    compatibility_report["live compatibility"].update({"with next": next_lts_version})
+    compatibility_report["live compatibility"].update(
+        {"with latest": latest_lts_version}
+    )
+    compatibility_report["live compatibility"].update(
+        {"with following": following_lts_version}
+    )
 
-    # TODO: Only ON for Daily build!
     if args.check_ledger_compatibility:
         compatibility_report["data compatibility"] = {}
         lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=False)
