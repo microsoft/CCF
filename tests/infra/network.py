@@ -633,7 +633,7 @@ class Network:
             raise
 
     def trust_node(self, node, args):
-        timeout = ceil(args.join_timer * 2 / 1000)
+        timeout = ceil(args.join_timer * 4 / 1000)
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
@@ -645,7 +645,7 @@ class Network:
             # Here, quote verification has already been run when the node
             # was added as pending. Only wait for the join timer for the
             # joining node to retrieve network secrets.
-            node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
+            node.wait_for_node_to_join(timeout=timeout)
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {node.node_id} failed to join the network")
             node.stop()
