@@ -222,9 +222,9 @@ class Repository:
             LOG.info(f"No latest release tag found for {branch}")
             return None, None
 
-        # TODO: If the install fails because the release cannot be found for the latest tag,
-        # try again with the tag before that? (perhaps the release hasn't yet been published??)
-        LOG.info(f"Latest release tag tag: {latest_tag.name}")
+        # Note: will currently fail if the tag is created but the release
+        # not yet published
+        LOG.info(f"Latest release tag: {latest_tag.name}")
         return self.install_release(latest_tag)
 
     def install_next_lts_for_branch(self, branch):

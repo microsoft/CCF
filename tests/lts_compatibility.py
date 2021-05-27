@@ -322,7 +322,9 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument("--check-ledger-compatibility", action="store_true")
-        parser.add_argument("--compatibility-report-file", type=str, default=".")
+        parser.add_argument(
+            "--compatibility-report-file", type=str, default="compatibility_report.json"
+        )
 
     args = infra.e2e_args.cli_args(add)
 

@@ -53,6 +53,12 @@ steps:
     condition: or(failed(), canceled())
     displayName: "Upload logs (only on failure)"
 
+  # Publish compatibility report
+  - task: PublishPipelineArtifact@1
+    inputs:
+      artifactName: "Compatibility report"
+      targetPath: build/compatibility_report.json
+
   - script: |
       set -ex
       sed -i -r "s/\[NON-XML-CHAR-0x1B\]\[([0-9]*)m//g" Testing/*/Test.xml
