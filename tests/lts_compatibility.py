@@ -12,6 +12,8 @@ import suite.test_requirements as reqs
 import ccf.ledger
 import os
 import json
+
+# pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
@@ -69,7 +71,7 @@ def run_code_upgrade_from(
     args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
-    with jwt_issuer.start_openid_server() as jwt_server:
+    with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(
             args.nodes,
@@ -366,7 +368,6 @@ if __name__ == "__main__":
             {"with previous snapshots": lts_versions}
         )
 
-    # TODO: Publish compatibility report to Azure Pipelines artefacts
     with open(args.compatibility_report_file, "w") as f:
         json.dump(compatibility_report, f, indent=2)
         LOG.info(f"Compatibility report written to {args.compatibility_report_file}")

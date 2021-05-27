@@ -1,13 +1,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.proc
-import cimetrics.env
 
 import re
 import os
 from functools import cmp_to_key
 from github import Github
+
+# pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
+
 from loguru import logger as LOG
 
 
@@ -114,7 +116,7 @@ class Repository:
 
         release_branch_name = strip_release_branch_name(branch_name)
         release_re = "^{}{}$".format(
-            TAG_RELEASE_PREFIX, release_branch_name.replace(".x", "([.\d+]+)")
+            TAG_RELEASE_PREFIX, release_branch_name.replace(".x", "([.\\d+]+)")
         )
         return sorted(
             [tag for tag in self.repo.get_tags() if re.match(release_re, tag.name)],

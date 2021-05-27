@@ -178,7 +178,7 @@ class LoggingTxs:
                         log_capture=log_capture,
                     )
 
-        LOG.info(f"Successfully verified logging txs")
+        LOG.info("Successfully verified logging txs")
 
     def _verify_tx(
         self,
