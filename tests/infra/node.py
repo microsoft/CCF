@@ -319,6 +319,7 @@ class Node:
                 assert (
                     rep.status_code == 200
                 ), f"An error occured after node {self.local_node_id} joined the network: {rep.body}"
+                self.network_state = infra.node.NodeNetworkState.joined
         except ccf.clients.CCFConnectionException as e:
             raise TimeoutError(
                 f"Node {self.local_node_id} failed to join the network"

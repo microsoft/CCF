@@ -79,9 +79,6 @@ def test_isolate_primary_from_one_backup(network, args):
     # issue a write transaction instead of just reading the TxID of the latest entry
     network.txs.issue(network)
 
-    # Wait for all
-    # network.wait_for_all_nodes_to_commit(primary=primary)
-
     # Isolate first backup from primary so that first backup becomes candidate
     # in a new term and wins the election
     # Note: Managed manually

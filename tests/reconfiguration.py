@@ -264,6 +264,46 @@ def test_node_replacement(network, args):
     return network
 
 
+@reqs.description("Join straddling a primary retirement")
+@reqs.at_least_n_nodes(3)
+def test_join_straddling_primary_replacement(network, args):
+    # We need a fourth node before we attempt the replacement, otherwise
+    # we will reach a situation where two out four nodes in the voting quorum
+    # are unable to participate (one retired and one not yet joined).
+    test_add_node(network, args)
+    primary, _ = network.find_primary()
+    new_node = network.create_and_add_pending_node(
+        args.package, "local://localhost", args
+    )
+
+    proposal_body = {
+        "actions": [
+            {
+                "name": "transition_node_to_trusted",
+                "args": {"node_id": new_node.node_id},
+            },
+            {"name": "remove_node", "args": {"node_id": primary.node_id}},
+        ]
+    }
+
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+        timeout=10,
+    )
+
+    network.wait_for_new_primary(primary)
+    new_node.wait_for_node_to_join(timeout=10)
+
+    primary.stop()
+    network.nodes.remove(primary)
+    return network
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -276,6 +316,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        test_join_straddling_primary_replacement(network, args)
         test_version(network, args)
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
