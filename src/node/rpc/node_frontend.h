@@ -881,7 +881,7 @@ namespace ccf
         {
           auto cfg = consensus->get_latest_configuration();
           nlohmann::json c;
-          for (auto& [nid, ninfo] : cfg.active)
+          for (auto& [nid, ninfo] : cfg)
           {
             nlohmann::json n;
             n["address"] = fmt::format("{}:{}", ninfo.hostname, ninfo.port);

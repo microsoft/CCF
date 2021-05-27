@@ -209,9 +209,15 @@ namespace ccf
       size_t size) override
     {
       auto n2n_channel = channels->get(to);
-      // Sending after a channel has been destroyed is a bug.
-      assert(n2n_channel);
-      return n2n_channel->send(type, {data, size});
+      if (!n2n_channel)
+      {
+        LOG_DEBUG_FMT("Dropping message sent non-existing channel with {}", to);
+        return false;
+      }
+      else
+      {
+        return n2n_channel->send(type, {data, size});
+      }
     }
 
     bool recv_authenticated(
@@ -233,8 +239,15 @@ namespace ccf
       const std::vector<uint8_t>& data) override
     {
       auto n2n_channel = channels->get(to);
-      assert(n2n_channel);
-      return n2n_channel ? n2n_channel->send(type, cb, data) : true;
+      if (!n2n_channel)
+      {
+        LOG_DEBUG_FMT("Dropping message sent non-existing channel with {}", to);
+        return false;
+      }
+      else
+      {
+        return n2n_channel ? n2n_channel->send(type, cb, data) : true;
+      }
     }
 
     bool recv_authenticated_with_load(
@@ -280,6 +293,12 @@ namespace ccf
     {
       LOG_DEBUG_FMT("key_exchange_response from {}", from);
       auto n2n_channel = channels->get(from);
+      if (!n2n_channel)
+      {
+        LOG_DEBUG_FMT(
+          "Dropping message received on non-existing channel with {}", from);
+        return;
+      }
       n2n_channel->consume_responder_key_share(data, size);
     }
 

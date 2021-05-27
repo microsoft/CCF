@@ -12,12 +12,13 @@ namespace ccf
   {
     std::string hostname;
     std::string port;
+    bool catching_up;
   };
 
   class ConfigurationChangeHook : public kv::ConsensusHook
   {
     kv::Version version;
-    std::map<NodeId, std::optional<NodeAddr>> cfg_delta, cfg_delta_catchup;
+    std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
 
   public:
     ConfigurationChangeHook(kv::Version version_, const Nodes::Write& w) :
@@ -38,13 +39,14 @@ namespace ccf
           }
           case NodeStatus::CATCHING_UP:
           {
-            cfg_delta_catchup.try_emplace(
-              node_id, NodeAddr{ni.nodehost, ni.nodeport});
+            cfg_delta.try_emplace(
+              node_id, NodeAddr{ni.nodehost, ni.nodeport, true});
             break;
           }
           case NodeStatus::TRUSTED:
           {
-            cfg_delta.try_emplace(node_id, NodeAddr{ni.nodehost, ni.nodeport});
+            cfg_delta.try_emplace(
+              node_id, NodeAddr{ni.nodehost, ni.nodeport, false});
             break;
           }
           case NodeStatus::RETIRED:
@@ -62,52 +64,32 @@ namespace ccf
     void call(kv::ConfigurableConsensus* consensus) override
     {
       auto configuration = consensus->get_latest_configuration_unsafe();
+      std::set<NodeId> catchup_nodes;
 
-      LOG_INFO_FMT(
-        "ConfigurationChangeHook::call(): current={}/{} delta={}/{}",
-        configuration.active.size(),
-        configuration.passive.size(),
-        cfg_delta.size(),
-        cfg_delta_catchup.size());
+      LOG_INFO_FMT("ConfigurationChangeHook::call()");
 
       for (const auto& [node_id, opt_ni] : cfg_delta)
       {
-        LOG_INFO_FMT("Active: {} {}", node_id, opt_ni.has_value());
         if (opt_ni.has_value())
         {
-          configuration.active.try_emplace(
-            node_id, opt_ni->hostname, opt_ni->port);
-          configuration.passive.erase(node_id);
+          LOG_INFO_FMT(
+            "+ {} {}",
+            node_id,
+            (opt_ni->catching_up ? "catching up" : "trusted"));
+          configuration.try_emplace(node_id, opt_ni->hostname, opt_ni->port);
+          if (opt_ni->catching_up)
+            catchup_nodes.insert(node_id);
         }
         else
         {
-          configuration.active.erase(node_id);
+          LOG_INFO_FMT("- {}", node_id);
+          configuration.erase(node_id);
         }
       }
 
-      for (const auto& [node_id, opt_ni] : cfg_delta_catchup)
+      if (!cfg_delta.empty())
       {
-        LOG_INFO_FMT("Passive: {} {}", node_id, opt_ni.has_value());
-
-        if (configuration.active.find(node_id) != configuration.active.end())
-        {
-          continue;
-        }
-
-        if (opt_ni.has_value())
-        {
-          configuration.passive.try_emplace(
-            node_id, opt_ni->hostname, opt_ni->port);
-        }
-        else
-        {
-          configuration.passive.erase(node_id);
-        }
-      }
-
-      if (!cfg_delta.empty() || !cfg_delta_catchup.empty())
-      {
-        consensus->add_configuration(version, configuration);
+        consensus->add_configuration(version, configuration, catchup_nodes);
       }
     }
   };

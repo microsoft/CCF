@@ -132,6 +132,8 @@ namespace aft
     // Configurations
     aft::ConfigurationTracker configuration_tracker;
     std::unordered_map<ccf::NodeId, aft::NodeState> nodes;
+    std::set<NodeId> catchup_node_ids;
+    bool catching_up = false;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -200,6 +202,7 @@ namespace aft
       configuration_tracker(
         state_->my_node_id,
         consensus_type,
+        nodes,
         kv_store_,
         rpc_sessions_,
         rpc_map_,
@@ -276,6 +279,30 @@ namespace aft
     bool is_follower()
     {
       return replica_state == kv::ReplicaState::Follower;
+    }
+
+    bool is_eligible_voter(const ccf::NodeId& from) const
+    {
+      if (from == state->my_node_id)
+      {
+        return !catching_up;
+      }
+      else
+      {
+        auto it = nodes.find(from);
+        return it != nodes.end() && !it->second.catching_up;
+      }
+    }
+
+    size_t num_eligigble_voters() const
+    {
+      size_t r = 0;
+      for (const auto& [_, state] : nodes)
+      {
+        if (state.catching_up == false)
+          r++;
+      }
+      return r;
     }
 
     ccf::NodeId get_primary(ccf::View view)
@@ -422,7 +449,10 @@ namespace aft
       return state->view_history.initialise(term_history);
     }
 
-    void add_configuration(Index idx, const ConsensusConfiguration& conf)
+    void add_configuration(
+      Index idx,
+      const Configuration::Nodes& conf,
+      const std::set<NodeId>& cn_ids)
     {
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       // It is safe to call is_follower() by construction as the consensus
@@ -434,18 +464,26 @@ namespace aft
       {
         guard.lock();
       }
-      configuration_tracker.add(idx, std::move(conf));
+      if (conf != get_latest_configuration_unsafe())
+        configuration_tracker.add(idx, std::move(conf));
+      for (const auto& id : cn_ids)
+      {
+        LOG_TRACE_FMT("Catchup node: {}", id);
+        catchup_node_ids.insert(id);
+      }
+      if (cn_ids.find(state->my_node_id) != cn_ids.end())
+        catching_up = true;
       // This should only be called when the spin lock is held.
       backup_nodes.clear();
       create_and_remove_node_state();
     }
 
-    ConsensusConfiguration get_latest_configuration_unsafe() const
+    Configuration::Nodes get_latest_configuration_unsafe() const
     {
       return configuration_tracker.get_latest_configuration_unsafe();
     }
 
-    ConsensusConfiguration get_latest_configuration()
+    Configuration::Nodes get_latest_configuration()
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return get_latest_configuration_unsafe();
@@ -469,7 +507,7 @@ namespace aft
 
     uint32_t node_count() const
     {
-      return get_latest_configuration_unsafe().active.size();
+      return get_latest_configuration_unsafe().size();
     }
 
     ccf::SeqNo get_confirmed_matching_index(const NodeId& id) const
@@ -859,9 +897,11 @@ namespace aft
       {
         if (
           replica_state != kv::ReplicaState::Retired &&
-          timeout_elapsed >= election_timeout &&
-          !configuration_tracker.is_passive(state->my_node_id))
+          timeout_elapsed >= election_timeout)
         {
+          LOG_DEBUG_FMT(
+            "Starting election: eligible?={}",
+            is_eligible_voter(state->my_node_id));
           // Start an election.
           become_candidate();
         }
@@ -885,9 +925,10 @@ namespace aft
         return;
       }
 
-      if (configuration_tracker.is_passive(from))
+      if (!is_eligible_voter(from))
       {
-        LOG_INFO_FMT("Unexpected recv view change from passive node {}", from);
+        LOG_INFO_FMT(
+          "Unexpected recv view change from ineligible voter {}", from);
         return;
       }
 
@@ -943,7 +984,7 @@ namespace aft
         return;
       }
 
-      if (configuration_tracker.is_passive(from))
+      if (!is_eligible_voter(from))
       {
         LOG_INFO_FMT(
           "Unexpected recv view change evidence passive node {}", from);
@@ -2064,9 +2105,10 @@ namespace aft
         return;
       }
 
-      if (configuration_tracker.is_passive(from))
+      if (!is_eligible_voter(from))
       {
-        LOG_INFO_FMT("Unexpected recv nonce reveal from passive node {}", from);
+        LOG_INFO_FMT(
+          "Unexpected recv nonce reveal from ineligible voter {}", from);
         return;
       }
 
@@ -2255,7 +2297,7 @@ namespace aft
       {
         case ConsensusType::CFT:
         {
-          if (is_primary())
+          if (is_primary() && node->second.catching_up)
           {
             threading::ThreadMessaging::thread_messaging.add_task(
               [this, from, r]() {
@@ -2313,9 +2355,10 @@ namespace aft
       }
 
       // Ignore if the request came from a passive node.
-      if (configuration_tracker.is_passive(from))
+      if (!is_eligible_voter(from))
       {
-        LOG_INFO_FMT("Ignoring recv request vote from passive node {}", from);
+        LOG_INFO_FMT(
+          "Ignoring recv request vote from ineligible voter {}", from);
         return;
       }
 
@@ -2426,10 +2469,11 @@ namespace aft
         return;
       }
 
-      if (configuration_tracker.is_passive(from))
+      if (!is_eligible_voter(from))
       {
         LOG_INFO_FMT(
-          "Unexpected recv request vote response from passive node {}", from);
+          "Unexpected recv request vote response from ineligible voter {}",
+          from);
         return;
       }
 
@@ -2489,6 +2533,7 @@ namespace aft
         return;
       }
 
+      catching_up = false;
       replica_state = kv::ReplicaState::Candidate;
       leader_id.reset();
       voted_for = state->my_node_id;
@@ -2500,6 +2545,7 @@ namespace aft
 
       LOG_INFO_FMT(
         "Becoming candidate {}: {}", state->my_node_id, state->current_view);
+      LOG_DEBUG_FMT("Configurations: {}", configuration_tracker.to_string());
 
       if (consensus_type != ConsensusType::BFT)
       {
@@ -2513,16 +2559,14 @@ namespace aft
             it->second.node_info.hostname,
             it->second.node_info.port);
 
-          if (!configuration_tracker.is_passive(it->first))
+          if (is_eligible_voter(it->first))
           {
             send_request_vote(it->first);
           }
           else
           {
             LOG_INFO_FMT(
-              "Not requesting a vote from passive node {}", it->first);
-            LOG_TRACE_FMT(
-              "Configurations: {}", configuration_tracker.to_string());
+              "Not requesting a vote from ineligible voter {}", it->first);
           }
         }
       }
@@ -2565,9 +2609,15 @@ namespace aft
         state->last_idx);
 
       for (const auto& [node_id, info] : nodes)
-        LOG_TRACE_FMT("Node: {} {}", node_id, info.match_idx);
+        LOG_TRACE_FMT(
+          "Node: {} {} catchup={}",
+          node_id,
+          info.match_idx,
+          catchup_node_ids.find(node_id) == catchup_node_ids.end());
 
       LOG_TRACE_FMT("Configurations: {}", configuration_tracker.to_string());
+
+      catching_up = false;
 
       // Immediately commit if there are no other nodes.
       if (nodes.size() == 0)
@@ -2629,6 +2679,7 @@ namespace aft
 
     void become_retired()
     {
+      catching_up = false;
       replica_state = kv::ReplicaState::Retired;
       leader_id.reset();
 
@@ -2638,10 +2689,17 @@ namespace aft
 
     void add_vote_for_me(const ccf::NodeId& from)
     {
+      if (!is_eligible_voter(from))
+      {
+        LOG_INFO_FMT(
+          "Rejecting vote from {}; they are not an eligible voter", from);
+        return;
+      }
+
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
       votes_for_me.insert(from);
 
-      size_t n = configuration_tracker.num_active_nodes();
+      size_t n = num_eligigble_voters();
       size_t threshold = (n / 2) + 1;
 
       LOG_INFO_FMT(
@@ -2826,6 +2884,25 @@ namespace aft
 
     void create_and_remove_node_state()
     {
+      for (auto& [id, info] : nodes)
+      {
+        if (
+          info.catching_up &&
+          catchup_node_ids.find(id) == catchup_node_ids.end())
+        {
+          LOG_TRACE_FMT("Configuration: {} is not catching up anymore", id);
+          info.catching_up = false;
+        }
+      }
+
+      if (
+        catching_up &&
+        catchup_node_ids.find(state->my_node_id) == catchup_node_ids.end())
+      {
+        LOG_TRACE_FMT("Configuration: not catching up anymore");
+        catching_up = false;
+      }
+
       // Find all nodes present in any active configuration.
       Configuration::Nodes all_nodes = configuration_tracker.all_nodes();
 
@@ -2869,7 +2946,13 @@ namespace aft
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = state->last_idx + 1;
-          nodes.try_emplace(node_info.first, node_info.second, index, 0);
+          auto er =
+            nodes.try_emplace(node_info.first, node_info.second, index, 0);
+
+          if (catchup_node_ids.find(node_info.first) == catchup_node_ids.end())
+          {
+            er.first->second.catching_up = false;
+          }
 
           if (
             replica_state == kv::ReplicaState::Leader ||

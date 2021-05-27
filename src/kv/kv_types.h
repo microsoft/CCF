@@ -85,6 +85,11 @@ namespace kv
         hostname(hostname_),
         port(port_)
       {}
+
+      bool operator==(const struct NodeInfo& other) const
+      {
+        return hostname == other.hostname && port == other.port;
+      }
     };
 
     using Nodes = std::unordered_map<NodeId, NodeInfo>;
@@ -137,15 +142,12 @@ namespace kv
   class ConfigurableConsensus
   {
   public:
-    typedef struct
-    {
-      Configuration::Nodes active, passive;
-    } ConsensusConfiguration;
-
     virtual void add_configuration(
-      ccf::SeqNo seqno, const ConsensusConfiguration& conf) = 0;
-    virtual ConsensusConfiguration get_latest_configuration() = 0;
-    virtual ConsensusConfiguration get_latest_configuration_unsafe() const = 0;
+      ccf::SeqNo seqno,
+      const Configuration::Nodes& conf,
+      const std::set<NodeId>& catchup_nodes) = 0;
+    virtual Configuration::Nodes get_latest_configuration() = 0;
+    virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
   };
 

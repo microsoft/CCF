@@ -33,6 +33,10 @@ namespace aft
     // the highest matching index with the node that was confirmed
     Index match_idx;
 
+    // Flag indicating whether this node is still catching up; before that it's
+    // not an eligible voter.
+    bool catching_up;
+
     NodeState() = default;
 
     NodeState(
@@ -41,7 +45,8 @@ namespace aft
       Index match_idx_ = 0) :
       node_info(node_info_),
       sent_idx(sent_idx_),
-      match_idx(match_idx_)
+      match_idx(match_idx_),
+      catching_up(true)
     {}
   };
 
@@ -55,18 +60,14 @@ namespace aft
     std::shared_ptr<enclave::RPCMap> rpc_map;
     crypto::KeyPairPtr node_sign_kp;
     const crypto::Pem& node_cert;
-
-    typedef struct
-    {
-      kv::Configuration active;
-      kv::Configuration::Nodes passive;
-    } TrackedConfig;
-    std::list<TrackedConfig> configurations;
+    std::unordered_map<ccf::NodeId, aft::NodeState>& nodes;
+    std::list<kv::Configuration> configurations;
 
   public:
     ConfigurationTracker(
       const NodeId& node_id_,
       ConsensusType consensus_type_,
+      std::unordered_map<ccf::NodeId, aft::NodeState>& nodes_,
       std::shared_ptr<kv::AbstractStore> store_,
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
@@ -78,7 +79,8 @@ namespace aft
       rpcsessions(rpcsessions_),
       rpc_map(rpc_map_),
       node_sign_kp(node_sign_kp_),
-      node_cert(node_cert_)
+      node_cert(node_cert_),
+      nodes(nodes_)
     {
       if (!node_sign_kp_)
         LOG_INFO_FMT("NO SIGNING KEY!");
@@ -105,7 +107,7 @@ namespace aft
         if (next == configurations.end())
           break;
 
-        if (idx < next->active.idx)
+        if (idx < next->idx)
           break;
 
         configurations.pop_front();
@@ -121,29 +123,18 @@ namespace aft
     {
       LOG_INFO_FMT("Configurations: rollback to {}", idx);
       bool r = false;
-      while (!configurations.empty() &&
-             (configurations.back().active.idx > idx))
+      while (!configurations.empty() && (configurations.back().idx > idx))
       {
         configurations.pop_back();
         r = true;
       }
-
       LOG_INFO_FMT("Configurations: {}", to_string());
-
       return r;
     }
 
-    void add(size_t idx, const kv::Consensus::ConsensusConfiguration&& config)
+    void add(size_t idx, const kv::Configuration::Nodes&& config)
     {
-      LOG_INFO_FMT("Configurations: add");
-
-      // if (consensus_type == BFT && configurations.size() > 1)
-      //   throw std::runtime_error(
-      //     "Multiple ongoing reconfigurations not supported");
-
-      configurations.push_back(
-        {{idx, std::move(config.active)}, std::move(config.passive)});
-
+      configurations.push_back({idx, std::move(config)});
       LOG_INFO_FMT("Configurations: {}", to_string());
     }
 
@@ -152,27 +143,25 @@ namespace aft
       return configurations.empty();
     }
 
-    kv::Consensus::ConsensusConfiguration get_latest_configuration_unsafe()
-      const
+    kv::Configuration::Nodes get_latest_configuration_unsafe() const
     {
       if (configurations.empty())
       {
         return {};
       }
 
-      return {configurations.back().active.nodes,
-              configurations.back().passive};
+      return configurations.back().nodes;
     }
 
     bool promote_if_possible(
       const NodeId& id, const TxID& txid, const TxID& primary_txid)
     {
-      auto& last_config = configurations.back();
-      if (last_config.passive.find(id) == last_config.passive.end())
-        return true;
-
-      if (!(txid < primary_txid) && store != nullptr)
+      auto nit = nodes.find(id);
+      if (
+        nit != nodes.end() && nit->second.catching_up &&
+        !(txid < primary_txid) && store != nullptr)
       {
+        nit->second.catching_up = false;
         return record_promotion(id);
       }
 
@@ -189,15 +178,9 @@ namespace aft
     {
       // Find all nodes present in any active configuration.
       std::set<NodeId> result;
-
-      for (auto& conf : configurations)
-      {
-        for (auto node : conf.active.nodes)
-        {
-          result.insert(node.first);
-        }
-      }
-
+      auto an = active_nodes();
+      for (const auto& [id, _] : an)
+        result.insert(id);
       return result;
     }
 
@@ -207,44 +190,11 @@ namespace aft
 
       for (auto& conf : configurations)
       {
-        for (auto node : conf.active.nodes)
+        for (auto node : conf.nodes)
         {
-          r.emplace(node.first, node.second);
-        }
-      }
-
-      return r;
-    }
-
-    bool is_active(const NodeId& id)
-    {
-      return configurations.back().active.nodes.find(id) !=
-        configurations.back().active.nodes.end();
-    }
-
-    bool is_passive(const NodeId& id)
-    {
-      return !is_active(id) &&
-        configurations.back().passive.find(id) !=
-        configurations.back().passive.end();
-    }
-
-    size_t num_active_nodes()
-    {
-      return configurations.size() == 0 ?
-        0 :
-        configurations.back().active.nodes.size();
-    }
-
-    kv::Configuration::Nodes passive_nodes() const
-    {
-      kv::Configuration::Nodes r;
-
-      for (auto& conf : configurations)
-      {
-        for (auto node : conf.passive)
-        {
-          r.emplace(node.first, node.second);
+          auto nit = nodes.find(node.first);
+          if (nit != nodes.end() && !nit->second.catching_up)
+            r.emplace(node.first, node.second);
         }
       }
 
@@ -257,11 +207,7 @@ namespace aft
 
       for (auto& conf : configurations)
       {
-        for (auto node : conf.active.nodes)
-        {
-          r.emplace(node.first, node.second);
-        }
-        for (auto node : conf.passive)
+        for (auto node : conf.nodes)
         {
           r.emplace(node.first, node.second);
         }
@@ -279,32 +225,44 @@ namespace aft
 
       for (auto& c : configurations)
       {
-        assert(c.active.nodes.size() > 0);
+        assert(c.nodes.size() > 0);
 
         // The majority must be checked separately for each active
         // configuration.
         std::vector<Index> match;
-        match.reserve(c.active.nodes.size() + 1);
+        match.reserve(c.nodes.size() + 1);
 
-        for (const auto& node : c.active.nodes)
+        for (const auto& node : c.nodes)
         {
+          auto nit = nodes.find(node.first);
+
           if (node.first == node_id)
           {
+            LOG_TRACE_FMT("CFTWM check: {}={}", node_id, last_idx);
             match.push_back(last_idx);
+          }
+          else if (nit->second.catching_up)
+          {
+            LOG_TRACE_FMT("CFTWM not eligible: {}", nit->first);
           }
           else
           {
-            match.push_back(nodes.at(node.first).match_idx);
+            LOG_TRACE_FMT(
+              "CFTWM check: {}={}", node.first, nit->second.match_idx);
+            match.push_back(nit->second.match_idx);
           }
-
-          LOG_INFO_FMT("Check: {} = {}", node.first, match.back());
         }
 
-        sort(match.begin(), match.end());
-
-        auto confirmed = match.at((match.size() - 1) / 2);
-
-        r = std::min(confirmed, r);
+        // `match` may be empty if multiple joining nodes are not caught up and
+        // the current node is leaving, or when the whole network is being
+        // replaced.
+        size_t confirmed = 0;
+        if (!match.empty())
+        {
+          sort(match.begin(), match.end());
+          confirmed = match.at((match.size() - 1) / 2);
+          r = std::min(confirmed, r);
+        }
 
         std::stringstream ss;
         for (auto& m : match)
@@ -325,14 +283,17 @@ namespace aft
       std::stringstream ss;
       for (auto c : configurations)
       {
+        bool first = true;
         ss << "[";
-        ss << "active:";
-        for (const auto& [node_id, _] : c.active.nodes)
-          ss << " " << node_id;
-        ss << " passive:";
-        for (const auto& [node_id, _] : c.passive)
-          ss << " " << node_id;
-        ss << "]{" << c.active.idx << "} ";
+        for (const auto& [id, _] : c.nodes)
+        {
+          if (first)
+            first = false;
+          else
+            ss << " ";
+          ss << id;
+        }
+        ss << "]@" << c.idx << " ";
       }
       return ss.str();
     }

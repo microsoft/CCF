@@ -122,17 +122,19 @@ namespace aft
     }
 
     void add_configuration(
-      ccf::SeqNo seqno, const ConsensusConfiguration& conf) override
+      ccf::SeqNo seqno,
+      const Configuration::Nodes& conf,
+      const std::set<NodeId>& catchup_nodes) override
     {
-      aft->add_configuration(seqno, conf);
+      aft->add_configuration(seqno, conf, catchup_nodes);
     }
 
-    ConsensusConfiguration get_latest_configuration() override
+    Configuration::Nodes get_latest_configuration() override
     {
       return aft->get_latest_configuration();
     }
 
-    ConsensusConfiguration get_latest_configuration_unsafe() const override
+    Configuration::Nodes get_latest_configuration_unsafe() const override
     {
       return aft->get_latest_configuration_unsafe();
     }
