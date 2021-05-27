@@ -79,9 +79,6 @@ def test_isolate_primary_from_one_backup(network, args):
     # issue a write transaction instead of just reading the TxID of the latest entry
     network.txs.issue(network)
 
-    # Wait for all
-    # network.wait_for_all_nodes_to_commit(primary=primary)
-
     # Isolate first backup from primary so that first backup becomes candidate
     # in a new term and wins the election
     # Note: Managed manually
@@ -131,7 +128,7 @@ def test_isolate_and_reconnect_primary(network, args):
 
 
 def run(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
 
     with infra.network.network(
         args.nodes,
@@ -144,7 +141,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # test_invalid_partitions(network, args)
+        test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
         for _ in range(5):

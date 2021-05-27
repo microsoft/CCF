@@ -6,6 +6,7 @@ import infra.network
 import suite.test_suite as s
 import suite.test_requirements as reqs
 import infra.logging_app as app
+import infra.jwt_issuer
 import time
 import json
 import sys
@@ -29,7 +30,7 @@ def mem_stats(network):
         try:
             with node.client() as c:
                 r = c.get("/node/memory", timeout=0.1)
-                mem[node.node_id] = r.body.json()
+                mem[node.local_node_id] = r.body.json()
         except Exception:
             pass
     return mem
@@ -61,9 +62,16 @@ def run(args):
     if args.enforce_reqs is False:
         LOG.warning("Test requirements will be ignored")
 
-    txs = app.LoggingTxs()
+    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
+    jwt_server = jwt_issuer.start_openid_server()
+    txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
     network = infra.network.Network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, txs=txs
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        txs=txs,
+        jwt_issuer=jwt_issuer,
     )
     network.start_and_join(args)
 
@@ -141,6 +149,7 @@ def run(args):
         elapsed -= test_elapsed
 
     network.stop_all_nodes()
+    jwt_server.stop()
 
     if success:
         LOG.success(f"Full suite passed. Ran {len(run_tests)}/{len(chosen_suite)}")
@@ -187,4 +196,5 @@ if __name__ == "__main__":
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.initial_user_count = 3
+    args.jwt_key_refresh_interval_s = 1
     run(args)
