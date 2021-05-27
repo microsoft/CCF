@@ -124,7 +124,7 @@ namespace aft
     void add_configuration(
       ccf::SeqNo seqno,
       const Configuration::Nodes& conf,
-      const std::set<NodeId>& catchup_nodes) override
+      const std::set<NodeId>& catchup_nodes = {}) override
     {
       aft->add_configuration(seqno, conf, catchup_nodes);
     }

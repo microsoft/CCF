@@ -452,7 +452,7 @@ namespace aft
     void add_configuration(
       Index idx,
       const Configuration::Nodes& conf,
-      const std::set<NodeId>& cn_ids)
+      const std::set<NodeId>& cn_ids = {})
     {
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       // It is safe to call is_follower() by construction as the consensus
@@ -494,7 +494,7 @@ namespace aft
       kv::ConsensusDetails details;
       std::lock_guard<std::mutex> guard(state->lock);
       details.state = replica_state;
-      for (auto& config : configurations)
+      for (auto& config : configuration_tracker.configurations)
       {
         details.configs.push_back(config);
       }
