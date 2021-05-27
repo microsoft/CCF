@@ -137,6 +137,11 @@ namespace aft
       return aft->get_latest_configuration_unsafe();
     }
 
+    kv::ConsensusDetails get_details() override
+    {
+      return aft->get_details();
+    }
+
     void periodic(std::chrono::milliseconds elapsed) override
     {
       aft->periodic(elapsed);
