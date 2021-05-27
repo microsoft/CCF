@@ -55,14 +55,6 @@ namespace aft
   class Aft : public kv::ConfigurableConsensus, public AbstractConsensusCallback
   {
   private:
-    enum ReplicaState
-    {
-      Leader,
-      Follower,
-      Candidate,
-      Retired
-    };
-
     struct NodeState
     {
       Configuration::NodeInfo node_info;
@@ -107,7 +99,7 @@ namespace aft
     // the node
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
-    ReplicaState replica_state;
+    kv::ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
     // Last (committable) index preceding the node's election, this is
     // used to decide when to start issuing signatures. While commit_idx
@@ -200,7 +192,7 @@ namespace aft
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
-      replica_state(Follower),
+      replica_state(kv::ReplicaState::Follower),
       timeout_elapsed(0),
 
       state(state_),
@@ -256,7 +248,7 @@ namespace aft
       }
       else
       {
-        return (replica_state == Candidate);
+        return (replica_state == kv::ReplicaState::Candidate);
       }
     }
 
@@ -284,12 +276,12 @@ namespace aft
 
     bool is_primary()
     {
-      return replica_state == Leader;
+      return replica_state == kv::ReplicaState::Leader;
     }
 
     bool is_follower()
     {
-      return replica_state == Follower;
+      return replica_state == kv::ReplicaState::Follower;
     }
 
     ccf::NodeId get_primary(ccf::View view)
@@ -470,6 +462,22 @@ namespace aft
       return get_latest_configuration_unsafe();
     }
 
+    kv::ConsensusDetails get_details()
+    {
+      kv::ConsensusDetails details;
+      std::lock_guard<SpinLock> guard(state->lock);
+      details.state = replica_state;
+      for (auto& config : configurations)
+      {
+        details.configs.push_back(config);
+      }
+      for (auto& [k, v] : nodes)
+      {
+        details.acks[k] = v.match_idx;
+      }
+      return details;
+    }
+
     uint32_t node_count() const
     {
       return get_latest_configuration_unsafe().size();
@@ -497,7 +505,7 @@ namespace aft
 
       std::lock_guard<SpinLock> guard(state->lock);
 
-      if (replica_state != Leader)
+      if (replica_state != kv::ReplicaState::Leader)
       {
         LOG_FAIL_FMT(
           "Failed to replicate {} items: not leader", entries.size());
@@ -820,7 +828,7 @@ namespace aft
         }
       }
 
-      if (replica_state == Leader)
+      if (replica_state == kv::ReplicaState::Leader)
       {
         if (timeout_elapsed >= request_timeout)
         {
@@ -837,7 +845,9 @@ namespace aft
       }
       else if (consensus_type != ConsensusType::BFT)
       {
-        if (replica_state != Retired && timeout_elapsed >= election_timeout)
+        if (
+          replica_state != kv::ReplicaState::Retired &&
+          timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -1081,7 +1091,7 @@ namespace aft
     {
       const auto prev_idx = start_idx - 1;
 
-      if (replica_state == Retired && start_idx >= end_idx)
+      if (replica_state == kv::ReplicaState::Retired && start_idx >= end_idx)
       {
         // When the local node is retired and the remote node has
         // acked all entries that the local node wanted to replicate,
@@ -1222,7 +1232,9 @@ namespace aft
 
       // First, check append entries term against our own term, becoming
       // follower if necessary
-      if (state->current_view == r.term && replica_state == Candidate)
+      if (
+        state->current_view == r.term &&
+        replica_state == kv::ReplicaState::Candidate)
       {
         // Become a follower in this term.
         become_follower(r.term);
@@ -2079,7 +2091,7 @@ namespace aft
       std::lock_guard<SpinLock> guard(state->lock);
       // Ignore if we're not the leader.
 
-      if (replica_state != Leader)
+      if (replica_state != kv::ReplicaState::Leader)
       {
         return;
       }
@@ -2302,7 +2314,7 @@ namespace aft
     {
       std::lock_guard<SpinLock> guard(state->lock);
 
-      if (replica_state != Candidate)
+      if (replica_state != kv::ReplicaState::Candidate)
       {
         LOG_INFO_FMT(
           "Recv request vote response to {}: we aren't a candidate",
@@ -2372,12 +2384,12 @@ namespace aft
 
     void become_candidate()
     {
-      if (replica_state == Retired)
+      if (replica_state == kv::ReplicaState::Retired)
       {
         return;
       }
 
-      replica_state = Candidate;
+      replica_state = kv::ReplicaState::Candidate;
       leader_id.reset();
       voted_for = state->my_node_id;
       votes_for_me.clear();
@@ -2404,7 +2416,7 @@ namespace aft
 
     void become_leader()
     {
-      if (replica_state == Retired)
+      if (replica_state == kv::ReplicaState::Retired)
       {
         return;
       }
@@ -2425,7 +2437,7 @@ namespace aft
         store->set_term(state->current_view);
       }
 
-      replica_state = Leader;
+      replica_state = kv::ReplicaState::Leader;
       leader_id = state->my_node_id;
 
       using namespace std::chrono_literals;
@@ -2456,12 +2468,12 @@ namespace aft
 
     void become_follower(Term term)
     {
-      if (replica_state == Retired)
+      if (replica_state == kv::ReplicaState::Retired)
       {
         return;
       }
 
-      replica_state = Follower;
+      replica_state = kv::ReplicaState::Follower;
       leader_id.reset();
       restart_election_timeout();
 
@@ -2484,7 +2496,7 @@ namespace aft
 
     void become_retired()
     {
-      replica_state = Retired;
+      replica_state = kv::ReplicaState::Retired;
       leader_id.reset();
 
       LOG_INFO_FMT(
@@ -2615,7 +2627,9 @@ namespace aft
       LOG_DEBUG_FMT("Compacting...");
       // Snapshots are not yet supported with BFT
       snapshotter->commit(
-        idx, replica_state == Leader && consensus_type == ConsensusType::CFT);
+        idx,
+        replica_state == kv::ReplicaState::Leader &&
+          consensus_type == ConsensusType::CFT);
 
       store->compact(idx);
       ledger->commit(idx);
@@ -2729,7 +2743,9 @@ namespace aft
 
       for (auto node_id : to_remove)
       {
-        if (replica_state == Leader || consensus_type == ConsensusType::BFT)
+        if (
+          replica_state == kv::ReplicaState::Leader ||
+          consensus_type == ConsensusType::BFT)
         {
           channels->destroy_channel(node_id);
         }
@@ -2755,7 +2771,9 @@ namespace aft
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
-          if (replica_state == Leader || consensus_type == ConsensusType::BFT)
+          if (
+            replica_state == kv::ReplicaState::Leader ||
+            consensus_type == ConsensusType::BFT)
           {
             channels->create_channel(
               node_info.first,
@@ -2763,7 +2781,7 @@ namespace aft
               node_info.second.port);
           }
 
-          if (replica_state == Leader)
+          if (replica_state == kv::ReplicaState::Leader)
           {
             send_append_entries(node_info.first, index);
           }
@@ -2775,7 +2793,7 @@ namespace aft
       if (!self_is_active)
       {
         LOG_INFO_FMT("Removed raft self {}", state->my_node_id);
-        if (replica_state == Leader)
+        if (replica_state == kv::ReplicaState::Leader)
         {
           become_retired();
         }
