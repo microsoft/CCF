@@ -144,7 +144,7 @@ namespace ccf
         // Pad node id string to avoid memory alignment issues on
         // node-to-node messages
         joining_node_id = fmt::format(
-          "{:#08}", get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
+          "{:#064}", get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
       }
 
 #ifdef GET_QUOTE
@@ -203,7 +203,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "1.1.0";
+      openapi_info.document_version = "1.2.0";
     }
 
     void init_handlers() override
@@ -813,6 +813,28 @@ namespace ccf
 
       make_command_endpoint(
         "config", HTTP_GET, consensus_config, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
+
+      auto consensus_state = [this](auto& args) {
+        if (consensus != nullptr)
+        {
+          auto d = consensus->get_details();
+          nlohmann::json c;
+          c["details"] = d;
+          args.rpc_ctx->set_response_body(c.dump());
+        }
+        else
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+          args.rpc_ctx->set_response_body("No configured consensus");
+        }
+      };
+
+      make_command_endpoint(
+        "consensus", HTTP_GET, consensus_state, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)

@@ -111,7 +111,7 @@ Summary Diagram
         Member 0->>+Node 2: POST /gov/recovery_share: "<recovery_share_0>"
         Node 2-->>Member 0: False
 
-        Member 1->>+Node 2: POST /gov/recovery_share
+        Member 1->>+Node 2: GET /gov/recovery_share
         Node 2-->>Member 1: Encrypted recovery share for Member 1
         Note over Member 1: Decrypts recovery share
         Member 1->>+Node 2: POST /gov/recovery_share: "<recovery_share_1>"
