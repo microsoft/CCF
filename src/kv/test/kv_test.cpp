@@ -377,6 +377,79 @@ TEST_CASE("sets and values")
   }
 }
 
+TEST_CASE("serialisation of Unit type")
+{
+  kv::Store kv_store;
+
+  {
+    INFO("The default unit type allows migration to/from a kv::Map");
+
+    using TValue = kv::RawCopySerialisedValue<std::string>;
+    using TValueEquivalent = kv::RawCopySerialisedMap<size_t, std::string>;
+    const auto value_name = "public:aa";
+
+    using TSet = kv::RawCopySerialisedSet<std::string>;
+    using TSetEquivalent = kv::RawCopySerialisedMap<std::string, size_t>;
+    const auto set_name = "public:bb";
+
+    const auto v1 = "hello";
+    const auto v2 = "world";
+    const auto v3 = "saluton";
+
+    {
+      auto tx = kv_store.create_tx();
+
+      auto val_handle = tx.rw<TValueEquivalent>(value_name);
+      val_handle->put(0, v1); // Will be visible in TValue handle
+      val_handle->put(1, v2); // Won't be
+
+      auto set_handle = tx.rw<TSetEquivalent>(set_name);
+      set_handle->put(v1, 0); // Will be visible in TSet handle
+      set_handle->put(v2, 1); // Will be visible in TSet handle, but would be
+                              // written with different value
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      auto tx = kv_store.create_tx();
+
+      auto val_handle = tx.rw<TValue>(value_name);
+      REQUIRE(val_handle->has());
+      REQUIRE(*val_handle->get() == v1);
+      val_handle->put(v3);
+
+      auto set_handle = tx.rw<TSet>(set_name);
+      REQUIRE(set_handle->contains(v1));
+      REQUIRE(set_handle->contains(v2));
+      set_handle->insert(v2);
+      set_handle->insert(v3);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      auto tx = kv_store.create_tx();
+
+      auto val_handle = tx.rw<TValueEquivalent>(value_name);
+      REQUIRE(val_handle->has(0));
+      REQUIRE(*val_handle->get(0) == v3);
+      REQUIRE(val_handle->has(1));
+      REQUIRE(*val_handle->get(1) == v2);
+
+      auto set_handle = tx.rw<TSetEquivalent>(set_name);
+      REQUIRE(set_handle->has(v1));
+      REQUIRE(*set_handle->get(v1) == 0);
+      REQUIRE(set_handle->has(v2));
+      REQUIRE(*set_handle->get(v2) == 0);
+      REQUIRE(set_handle->has(v3));
+      REQUIRE(*set_handle->get(v3) == 0);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
+}
+
 TEST_CASE("clear")
 {
   kv::Store kv_store;
