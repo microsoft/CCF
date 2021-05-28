@@ -287,7 +287,7 @@ namespace enclave
       auto ctx = std::make_unique<tls::Client>(cert);
       auto id = get_next_id();
 
-      LOG_INFO_FMT("Creating a new client session inside the enclave: {}", id);
+      LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
 
       auto session = std::make_shared<ClientEndpointImpl>(
         id, writer_factory, std::move(ctx));
