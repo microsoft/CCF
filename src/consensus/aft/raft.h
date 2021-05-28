@@ -296,11 +296,13 @@ namespace aft
 
     size_t num_eligigble_voters() const
     {
-      size_t r = 0;
+      size_t r = catching_up ? 0 : 1;
       for (const auto& [_, state] : nodes)
       {
-        if (state.catching_up == false)
+        if (!state.catching_up)
+        {
           r++;
+        }
       }
       return r;
     }
@@ -464,16 +466,28 @@ namespace aft
       {
         guard.lock();
       }
-      if (conf != get_latest_configuration_unsafe())
-        configuration_tracker.add(idx, std::move(conf));
+      // This should only be called when the spin lock is held.
+
+      configuration_tracker.add(idx, std::move(conf));
       for (const auto& id : cn_ids)
       {
         LOG_TRACE_FMT("Catchup node: {}", id);
         catchup_node_ids.insert(id);
       }
+      for (const auto& n : conf)
+      {
+        if (cn_ids.find(n.first) == cn_ids.end())
+        {
+          auto nit = nodes.find(n.first);
+          if (nit != nodes.end())
+          {
+            LOG_DEBUG_FMT("Observing promotion: {}", nit->first);
+            nit->second.catching_up = false;
+          }
+        }
+      }
       if (cn_ids.find(state->my_node_id) != cn_ids.end())
         catching_up = true;
-      // This should only be called when the spin lock is held.
       backup_nodes.clear();
       create_and_remove_node_state();
     }

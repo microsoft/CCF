@@ -134,7 +134,8 @@ namespace aft
 
     void add(size_t idx, const kv::Configuration::Nodes&& config)
     {
-      configurations.push_back({idx, std::move(config)});
+      if (config != configurations.back().nodes)
+        configurations.push_back({idx, std::move(config)});
       LOG_INFO_FMT("Configurations: {}", to_string());
     }
 
@@ -292,6 +293,11 @@ namespace aft
           else
             ss << " ";
           ss << id;
+          auto nit = nodes.find(id);
+          if (nit == nodes.end())
+            ss << "!";
+          else if (nit->second.catching_up)
+            ss << "*";
         }
         ss << "]@" << c.idx << " ";
       }
