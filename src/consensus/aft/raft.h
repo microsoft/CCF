@@ -676,6 +676,15 @@ namespace aft
             break;
           }
 
+          case bft_skip_view:
+          {
+            SkipViewMsg r =
+              channels->template recv_authenticated_with_load<SkipViewMsg>(
+                from, data, size);
+            aee = std::make_unique<SkipViewCallback>(*this, from, std::move(r));
+            break;
+          }
+
           case bft_view_change_evidence:
           {
             ViewChangeEvidenceMsg r =
@@ -869,9 +878,22 @@ namespace aft
         "Received view change from:{}, view:{}", from.trim(), r.view);
 
       auto progress_tracker = store->get_progress_tracker();
-      if (!progress_tracker->apply_view_change_message(
-            v, from, r.view, r.seqno))
+      auto result =
+        progress_tracker->apply_view_change_message(v, from, r.view, r.seqno);
+
+      if (result == ccf::ProgressTracker::ApplyViewChangeMessageResult::FAIL)
       {
+        return;
+      }
+
+      if (
+        result ==
+          ccf::ProgressTracker::ApplyViewChangeMessageResult::SKIP_VIEW &&
+        get_primary(r.view) == id())
+      {
+        SkipViewMsg response = {{bft_skip_view}, r.view};
+        channels->send_authenticated(
+          from, ccf::NodeMsgType::consensus_msg, response);
         return;
       }
 
@@ -918,6 +940,30 @@ namespace aft
 
       view_change_tracker->add_unknown_primary_evidence(
         {data, size}, r.view, node_count());
+    }
+
+    void recv_skip_view(const ccf::NodeId& from, SkipViewMsg r)
+    {
+      auto node = nodes.find(from);
+      if (node == nodes.end())
+      {
+        LOG_FAIL_FMT(
+          "Recv skip view to {} from {}: unknown node",
+          state->my_node_id,
+          from);
+        return;
+      }
+
+      if (from != get_primary(r.view))
+      {
+        LOG_FAIL_FMT(
+          "Recv skip view to {} from {}: wrong replica",
+          state->my_node_id,
+          from);
+        return;
+      }
+
+      view_change_tracker->received_skip_view(r);
     }
 
     bool is_first_request = true;
