@@ -176,8 +176,6 @@ namespace enclave
       rpcsessions->update_listening_interface_caps(
         ccf_config_.node_info_network);
 
-      LOG_INFO_FMT("Config is: {}", nlohmann::json(ccf_config_).dump(2));
-
       ccf::NodeCreateInfo r;
       try
       {

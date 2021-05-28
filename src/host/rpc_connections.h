@@ -87,10 +87,7 @@ namespace asynchost
         LOG_DEBUG_FMT("rpc accept {} on {}", client_id, listen_address);
 
         RINGBUFFER_WRITE_MESSAGE(
-          tls::tls_start,
-          parent.to_enclave,
-          tls::ConnID(client_id),
-          listen_address);
+          tls::tls_start, parent.to_enclave, client_id, listen_address);
       }
 
       void cleanup()

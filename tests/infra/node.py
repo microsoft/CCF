@@ -403,7 +403,9 @@ class Node:
             "signing_auth": self.identity(name),
         }
 
-    def client(self, identity=None, signing_identity=None, interface_idx=None, **kwargs):
+    def client(
+        self, identity=None, signing_identity=None, interface_idx=None, **kwargs
+    ):
         akwargs = self.session_auth(identity)
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
@@ -415,8 +417,10 @@ class Node:
         else:
             try:
                 host, port = self.interfaces[interface_idx]
-            except IndexError as e:
-                LOG.error(f"Cannot create client on interface {interface_idx} - this node only has {len(self.interfaces)} interfaces")
+            except IndexError:
+                LOG.error(
+                    f"Cannot create client on interface {interface_idx} - this node only has {len(self.interfaces)} interfaces"
+                )
                 raise
             return ccf.clients.client(host, port, **akwargs)
 

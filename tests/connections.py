@@ -9,7 +9,7 @@ import contextlib
 import resource
 import psutil
 from ccf.log_capture import flush_info
-from ccf.clients import CCFConnectionException, client as ccf_client
+from ccf.clients import CCFConnectionException
 import random
 import http
 
@@ -97,7 +97,9 @@ def run(args):
                     logs = []
                     try:
                         clients.append(
-                            es.enter_context(client_fn(identity="user0", connection_timeout=1))
+                            es.enter_context(
+                                client_fn(identity="user0", connection_timeout=1)
+                            )
                         )
                         r = clients[-1].post(
                             "/app/log/private",
@@ -200,7 +202,9 @@ def run(args):
         for i, (address, cap) in enumerate(caps.items()):
             create_connections_until_exhaustion(
                 cap + 1,
-                client_fn=lambda **kwargs: primary.client(interface_idx=i+1, **kwargs),
+                client_fn=lambda **kwargs: primary.client(
+                    interface_idx=i + 1, **kwargs
+                ),
             )
 
         try:
