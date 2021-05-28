@@ -4,6 +4,7 @@
 from ccf.commit import wait_for_commit
 from ccf.tx_id import TxID
 import time
+import pprint
 
 
 class Checker:
@@ -52,4 +53,5 @@ def check_can_progress(node, timeout=3):
             if current_tx.seqno > original_tx.seqno:
                 return current_tx
             time.sleep(0.1)
-        assert False, f"Stuck at {r}"
+        details = c.get("/node/commit").body.json()
+        assert False, f"Stuck at {r}: {pprint.pformat(details)}"

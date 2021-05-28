@@ -9,6 +9,7 @@ import suite.test_requirements as reqs
 from ccf.tx_id import TxID
 import time
 from infra.checker import check_can_progress
+import pprint
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -124,7 +125,8 @@ def test_isolate_and_reconnect_primary(network, args):
             if current_tx.seqno >= new_tx.seqno:
                 return network
             time.sleep(0.1)
-        assert False, f"Stuck at {r}"
+        details = c.get("/node/commit").body.json()
+        assert False, f"Stuck at {r}: {pprint.pformat(details)}"
 
 
 def run(args):
