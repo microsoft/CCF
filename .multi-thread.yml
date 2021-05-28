@@ -16,7 +16,7 @@ pr:
 resources:
   containers:
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.15.0-iptables
+      image: ccfciteam/ccf-ci:oe0.16.1
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:

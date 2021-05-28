@@ -140,6 +140,80 @@ namespace js
     }
     catch (const std::logic_error& e)
     {
+      LOG_DEBUG_FMT("isValidX509Bundle: {}", e.what());
+      return JS_FALSE;
+    }
+
+    return JS_TRUE;
+  }
+
+  static std::vector<crypto::Pem> split_x509_cert_bundle(
+    const std::string_view& pem)
+  {
+    std::string separator("-----END CERTIFICATE-----");
+    std::vector<crypto::Pem> pems;
+    auto separator_end = 0;
+    auto next_separator_start = pem.find(separator);
+    while (next_separator_start != std::string_view::npos)
+    {
+      pems.emplace_back(std::string(
+        pem.substr(separator_end, next_separator_start + separator.size())));
+      separator_end = next_separator_start + separator.size();
+      next_separator_start = pem.find(separator, separator_end);
+    }
+    return pems;
+  }
+
+  static JSValue js_is_valid_x509_cert_chain(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    // first arg: chain (concatenated PEM certs, first cert = target)
+    // second arg: trusted (concatenated PEM certs)
+    if (argc != 2)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 2", argc);
+
+    auto chain_js = argv[0];
+    auto trusted_js = argv[1];
+
+    void* auto_free_ptr = JS_GetContextOpaque(ctx);
+    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+
+    auto chain_cstr = auto_free(JS_ToCString(ctx, chain_js));
+    if (!chain_cstr)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+    auto trusted_cstr = auto_free(JS_ToCString(ctx, trusted_js));
+    if (!trusted_cstr)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    try
+    {
+      auto chain_vec = split_x509_cert_bundle(chain_cstr);
+      auto trusted_vec = split_x509_cert_bundle(trusted_cstr);
+      if (chain_vec.empty() || trusted_vec.empty())
+        throw std::logic_error(
+          "chain/trusted arguments must contain at least one certificate");
+
+      auto& target_pem = chain_vec[0];
+      std::vector<const crypto::Pem*> chain_ptr;
+      for (auto it = chain_vec.begin() + 1; it != chain_vec.end(); it++)
+        chain_ptr.push_back(&*it);
+      std::vector<const crypto::Pem*> trusted_ptr;
+      for (auto& pem : trusted_vec)
+        trusted_ptr.push_back(&pem);
+
+      auto verifier = crypto::make_unique_verifier(target_pem);
+      if (!verifier->verify_certificate(trusted_ptr, chain_ptr))
+        throw std::logic_error("certificate chain is invalid");
+    }
+    catch (const std::logic_error& e)
+    {
       LOG_DEBUG_FMT("isValidX509Chain: {}", e.what());
       return JS_FALSE;
     }

@@ -181,10 +181,13 @@ namespace crypto
 
     /** Verify the certificate (held internally)
      * @param trusted_certs Vector of trusted certificates
-     * @return true if the
+     * @param chain Vector of ordered untrusted certificates used to
+     *  build a chain to trusted certificates
+     * @return true if the verification is successfull
      */
     virtual bool verify_certificate(
-      const std::vector<const Pem*>& trusted_certs) = 0;
+      const std::vector<const Pem*>& trusted_certs,
+      const std::vector<const Pem*>& chain = {}) = 0;
 
     /** Indicates whether the certificate (held intenally) is self-signed */
     virtual bool is_self_signed() const = 0;

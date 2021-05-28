@@ -20,6 +20,14 @@ namespace ccf
     std::optional<kv::Version> /* recovery_target_seqno */,
     std::optional<kv::Version> /* last_recovered_seqno */>;
 
+  struct SessionMetrics
+  {
+    size_t active;
+    size_t peak;
+    size_t soft_cap;
+    size_t hard_cap;
+  };
+
   class AbstractNodeState
   {
   public:
@@ -45,5 +53,6 @@ namespace ccf
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der) = 0;
     virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
+    virtual SessionMetrics get_session_metrics() = 0;
   };
 }

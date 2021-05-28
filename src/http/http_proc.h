@@ -20,9 +20,7 @@ namespace http
   public:
     virtual void handle_request(
       llhttp_method method,
-      const std::string_view& path,
-      const std::string& query,
-      const std::string& fragment,
+      const std::string_view& url,
       HeaderMap&& headers,
       std::vector<uint8_t>&& body) = 0;
   };

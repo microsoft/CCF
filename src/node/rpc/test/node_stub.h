@@ -105,6 +105,11 @@ namespace ccf
     {
       return std::nullopt;
     }
+
+    SessionMetrics get_session_metrics() override
+    {
+      return {};
+    }
   };
 
   class StubNodeStateCache : public historical::AbstractStateCache

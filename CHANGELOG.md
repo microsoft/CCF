@@ -13,11 +13,38 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added `get_quotes_for_all_trusted_nodes_v1` API. This returns the ID and quote for all nodes which are currently trusted and participating in the service, for live audit (#2511).
 - Added node start-up check for `cchost` and enclave compatibility, which should both always be from the same release for a single node (#2532).
 - Added a new `/node/version` endpoint to return the CCF version of a node (#2582).
+- Added a new `/node/metrics` endpoint which includes the count of active and peak concurrent sessions handled by the node (#2596).
 
 ### Changed
 
 - The curve-id selected for the identity of joining nodes no longer needs to match that of the network (#2525).
 - The per-node session cap behaviour has changed. The `--max-open-sessions` is now a soft cap on the number of sessions. Beyond this, new sessions will receive a HTTP 503 error immediately after completing the TLS handshake. The existing hard cap (where sessions are closed immediately, before the TLS handshake) is still available, under the new argument `--max-open-sessions-hard` (#2583).
+- Requests with a url-encoded query string are now forwarded correctly from backups to the primary (#2587).
+- Signed requests with a url-encoded query string are now handled correctly rather than rejected (#2592).
+- Fixed consistency issue between ledger files on different nodes when snapshotting is active (#2607).
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.15.0 to 0.16.1 (#2609)
+
+## [1.0.3]
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.15.0 to 0.16.1 (#2609)
+
+## [1.0.2]
+
+### Bugfix
+
+- Fixed consistency issue between ledger files on different nodes when snapshotting is active (#2607).
+
+## [1.0.1]
+
+### Bugfix
+
+- Requests with a url-encoded query string are now forwarded correctly from backups to the primary (#2587).
+- Signed requests with a url-encoded query string are now handled correctly rather than rejected (#2592).
 
 ## [1.0.0]
 
@@ -865,6 +892,10 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[1.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.3
+[1.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.2
+[1.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.1
+[1.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0
 [1.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc3
 [1.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc2
 [1.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc1

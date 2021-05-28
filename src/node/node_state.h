@@ -489,7 +489,9 @@ namespace ccf
         config.joining.target_host,
         config.joining.target_port,
         [this](
-          http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
+          http_status status,
+          http::HeaderMap&& headers,
+          std::vector<uint8_t>&& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
           {
@@ -498,13 +500,26 @@ namespace ccf
 
           if (status != HTTP_STATUS_OK)
           {
-            LOG_FAIL_FMT(
-              "An error occurred while joining the network: {} {}{}",
-              status,
-              http_status_str(status),
-              data.empty() ?
-                "" :
-                fmt::format("  '{}'", std::string(data.begin(), data.end())));
+            const auto& location = headers.find(http::headers::LOCATION);
+            if (
+              status == HTTP_STATUS_PERMANENT_REDIRECT &&
+              location != headers.end())
+            {
+              const auto& url = http::parse_url_full(location->second);
+              config.joining.target_host = url.host;
+              config.joining.target_port = url.port;
+              LOG_INFO_FMT("Target node redirected to {}", location->second);
+            }
+            else
+            {
+              LOG_FAIL_FMT(
+                "An error occurred while joining the network: {} {}{}",
+                status,
+                http_status_str(status),
+                data.empty() ?
+                  "" :
+                  fmt::format("  '{}'", std::string(data.begin(), data.end())));
+            }
             return false;
           }
 
@@ -853,7 +868,7 @@ namespace ccf
           // continue generating snapshots at the correct interval once the
           // recovery is complete
           snapshotter->record_committable(ledger_idx);
-          snapshotter->commit(ledger_idx);
+          snapshotter->commit(ledger_idx, false);
         }
       }
       else if (
@@ -1504,6 +1519,13 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
       return startup_seqno;
+    }
+
+    SessionMetrics get_session_metrics() override
+    {
+      SessionMetrics sm;
+      rpcsessions->get_stats(sm.active, sm.peak, sm.soft_cap, sm.hard_cap);
+      return sm;
     }
 
   private:

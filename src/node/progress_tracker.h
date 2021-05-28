@@ -494,17 +494,34 @@ namespace ccf
       return std::make_tuple(std::move(m), highest_prepared_level.seqno);
     }
 
-    bool apply_view_change_message(
+    enum class ApplyViewChangeMessageResult
+    {
+      OK = 1,
+      FAIL,
+      SKIP_VIEW
+    };
+
+    ApplyViewChangeMessageResult apply_view_change_message(
       ViewChangeRequest& view_change,
       const NodeId& from,
       ccf::View view,
       ccf::SeqNo seqno)
     {
       std::unique_lock<SpinLock> guard(lock);
+      if (seqno > highest_prepared_level.seqno)
+      {
+        LOG_INFO_FMT(
+          "view-change seqno:{}, my_prepared_seqno:{}, from:{}",
+          seqno,
+          highest_prepared_level.seqno,
+          from);
+        return ApplyViewChangeMessageResult::SKIP_VIEW;
+      }
+
       if (!store->verify_view_change_request(view_change, from, view, seqno))
       {
         LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
-        return false;
+        return ApplyViewChangeMessageResult::FAIL;
       }
       LOG_TRACE_FMT(
         "Applying view-change from:{}, view:{}, seqno:{}", from, view, seqno);
@@ -518,7 +535,7 @@ namespace ccf
           "of",
           view,
           seqno);
-        return false;
+        return ApplyViewChangeMessageResult::FAIL;
       }
 
       bool verified_signatures = true;
@@ -550,7 +567,8 @@ namespace ccf
           std::pair<NodeId, BftNodeSignature>(sig.node, sig));
       }
 
-      return verified_signatures;
+      return verified_signatures ? ApplyViewChangeMessageResult::OK :
+                                   ApplyViewChangeMessageResult::FAIL;
     }
 
     bool apply_new_view(
