@@ -102,7 +102,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
 
 def run(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
         args.binary_dir,

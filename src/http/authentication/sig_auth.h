@@ -15,8 +15,7 @@ namespace ccf
     {
       return http::HttpSignatureVerifier::parse(
         ctx->get_request_verb().c_str(),
-        ctx->get_request_path(),
-        ctx->get_request_query(),
+        ctx->get_request_url(),
         ctx->get_request_headers(),
         ctx->get_request_body());
     }

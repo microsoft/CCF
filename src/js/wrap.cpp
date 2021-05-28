@@ -1049,6 +1049,12 @@ namespace js
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
     JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "isValidX509CertChain",
+      JS_NewCFunction(
+        ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
+    JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
 
     if (txctx != nullptr)

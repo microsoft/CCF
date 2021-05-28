@@ -263,6 +263,17 @@
         ],
         "type": "object"
       },
+      "NodeMetrics": {
+        "properties": {
+          "sessions": {
+            "$ref": "#/components/schemas/ccf__SessionMetrics"
+          }
+        },
+        "required": [
+          "sessions"
+        ],
+        "type": "object"
+      },
       "NodeStatus": {
         "enum": [
           "Pending",
@@ -385,6 +396,29 @@
       "boolean": {
         "type": "boolean"
       },
+      "ccf__SessionMetrics": {
+        "properties": {
+          "active": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "hard_cap": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "peak": {
+            "$ref": "#/components/schemas/uint64"
+          },
+          "soft_cap": {
+            "$ref": "#/components/schemas/uint64"
+          }
+        },
+        "required": [
+          "active",
+          "peak",
+          "soft_cap",
+          "hard_cap"
+        ],
+        "type": "object"
+      },
       "ccf__State": {
         "enum": [
           "Uninitialized",
@@ -412,7 +446,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "0.0.1"
+    "version": "1.2.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -489,6 +523,15 @@
         }
       }
     },
+    "/consensus": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          }
+        }
+      }
+    },
     "/local_tx": {
       "get": {
         "parameters": [
@@ -523,6 +566,22 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemoryUsage__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeMetrics"
                 }
               }
             },

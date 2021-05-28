@@ -4,12 +4,11 @@ import infra.e2e_args
 import infra.network
 import infra.proc
 import infra.logging_app as app
-from ccf.tx_id import TxID
 import suite.test_requirements as reqs
-import time
 import tempfile
 from shutil import copy
 import os
+from infra.checker import check_can_progress
 
 from loguru import logger as LOG
 
@@ -32,23 +31,6 @@ def count_nodes(configs, network):
         nodes_in_config = set(node_config.keys()) - stopped
         assert nodes == nodes_in_config, f"{nodes} {nodes_in_config} {node_id}"
     return len(nodes)
-
-
-def check_can_progress(node, timeout=3):
-    with node.client() as c:
-        r = c.get("/node/commit")
-        original_tx = TxID.from_str(r.body.json()["transaction_id"])
-        with node.client("user0") as uc:
-            uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            current_tx = TxID.from_str(
-                c.get("/node/commit").body.json()["transaction_id"]
-            )
-            if current_tx.seqno > original_tx.seqno:
-                return
-            time.sleep(0.1)
-        assert False, f"Stuck at {r}"
 
 
 @reqs.description("Adding a valid node without snapshot")
@@ -293,8 +275,48 @@ def test_node_replacement(network, args):
     return network
 
 
+@reqs.description("Join straddling a primary retirement")
+@reqs.at_least_n_nodes(3)
+def test_join_straddling_primary_replacement(network, args):
+    # We need a fourth node before we attempt the replacement, otherwise
+    # we will reach a situation where two out four nodes in the voting quorum
+    # are unable to participate (one retired and one not yet joined).
+    test_add_node(network, args)
+    primary, _ = network.find_primary()
+    new_node = network.create_and_add_pending_node(
+        args.package, "local://localhost", args
+    )
+
+    proposal_body = {
+        "actions": [
+            {
+                "name": "transition_node_to_trusted",
+                "args": {"node_id": new_node.node_id},
+            },
+            {"name": "remove_node", "args": {"node_id": primary.node_id}},
+        ]
+    }
+
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+        timeout=10,
+    )
+
+    network.wait_for_new_primary(primary)
+    new_node.wait_for_node_to_join(timeout=10)
+
+    primary.stop()
+    network.nodes.remove(primary)
+    return network
+
+
 def run(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -305,6 +327,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        test_join_straddling_primary_replacement(network, args)
         test_version(network, args)
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
@@ -329,7 +352,7 @@ def run(args):
 
 
 def run_join_old_snapshot(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     nodes = ["local://localhost"]
 
     with tempfile.TemporaryDirectory() as tmp_dir:

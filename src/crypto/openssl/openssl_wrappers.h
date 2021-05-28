@@ -174,6 +174,22 @@ namespace crypto
       }
     };
 
+    class Unique_STACK_OF_X509
+    {
+      std::unique_ptr<STACK_OF(X509), void (*)(STACK_OF(X509)*)> p;
+
+    public:
+      Unique_STACK_OF_X509() :
+        p(sk_X509_new_null(), [](auto x) { sk_X509_pop_free(x, X509_free); })
+      {
+        OpenSSL::CHECKNULL(p.get());
+      }
+      operator STACK_OF(X509) * ()
+      {
+        return p.get();
+      }
+    };
+
     inline std::string error_string(int ec)
     {
       return ERR_error_string((unsigned long)ec, NULL);

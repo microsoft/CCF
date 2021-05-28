@@ -39,17 +39,28 @@ def sample_list(l, n):
 
 
 class LoggingTxs:
-    def __init__(self, user_id="user0"):
+    def __init__(self, user_id=None, jwt_issuer=None):
         self.pub = defaultdict(list)
         self.priv = defaultdict(list)
         self.idx = 0
-        self.user = user_id
         self.network = None
+        self.user = user_id
+        self.jwt_issuer = jwt_issuer
+        assert (
+            self.user or self.jwt_issuer
+        ), "User identity or JWT issuer are required to issue logging txs"
 
     def clear(self):
         self.pub.clear()
         self.priv.clear()
         self.idx = 0
+
+    def _get_headers_base(self):
+        return (
+            infra.jwt_issuer.make_bearer_header(self.jwt_issuer.issue_jwt())
+            if self.jwt_issuer
+            else {}
+        )
 
     def get_last_tx(self, priv=True, idx=None):
         if idx is None:
@@ -73,7 +84,9 @@ class LoggingTxs:
         if on_backup:
             remote_node = network.find_any_backup()
 
-        LOG.info(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
+        LOG.info(
+            f"Applying {number_txs} logging txs to node {remote_node.local_node_id}"
+        )
 
         with remote_node.client(self.user) as c:
             check_commit = infra.checker.Checker(c)
@@ -93,6 +106,7 @@ class LoggingTxs:
                         "id": target_idx,
                         "msg": priv_msg,
                     },
+                    headers=self._get_headers_base(),
                     log_capture=log_capture,
                 )
                 self.priv[target_idx].append(
@@ -108,6 +122,7 @@ class LoggingTxs:
                         "id": target_idx,
                         "msg": pub_msg,
                     },
+                    headers=self._get_headers_base(),
                     log_capture=log_capture,
                 )
                 self.pub[target_idx].append(
@@ -170,12 +185,14 @@ class LoggingTxs:
             )
 
         cmd = "/app/log/private" if priv else "/app/log/public"
-        headers = {}
+        headers = self._get_headers_base()
         if historical:
             cmd = "/app/log/private/historical"
-            headers = {
-                ccf.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}",
-            }
+            headers.update(
+                {
+                    ccf.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}",
+                }
+            )
 
         found = False
         start_time = time.time()
@@ -203,11 +220,6 @@ class LoggingTxs:
                             raise ValueError(
                                 f"Response with status {rep.status_code} is missing 'retry-after' header"
                             )
-                        sleep_time = 0.5
-                        LOG.info(
-                            f"Sleeping for {sleep_time}s waiting for historical query processing..."
-                        )
-                        time.sleep(sleep_time)
                     elif rep.status_code == http.HTTPStatus.NO_CONTENT:
                         raise ValueError(
                             f"Historical query response claims there was no write to {idx} at {view}.{seqno}"
@@ -226,9 +238,12 @@ class LoggingTxs:
     def get_receipt(self, node, idx, seqno, view, timeout=3):
 
         cmd = "/app/log/private/historical_receipt"
-        headers = {
-            ccf.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}",
-        }
+        headers = self._get_headers_base()
+        headers.update(
+            {
+                ccf.clients.CCF_TX_ID_HEADER: f"{view}.{seqno}",
+            }
+        )
 
         found = False
         start_time = time.time()
@@ -249,11 +264,6 @@ class LoggingTxs:
                         raise ValueError(
                             f"Response with status {rep.status_code} is missing 'retry-after' header"
                         )
-                    sleep_time = 0.5
-                    LOG.info(
-                        f"Sleeping for {sleep_time}s waiting for historical query processing..."
-                    )
-                    time.sleep(sleep_time)
                 elif rep.status_code == http.HTTPStatus.NO_CONTENT:
                     raise ValueError(
                         f"Historical query response claims there was no write to {idx} at {view}.{seqno}"

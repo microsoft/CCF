@@ -9,6 +9,7 @@ import election
 import code_update
 import membership
 import governance_history
+import jwt_test
 
 from inspect import signature, Parameter
 
@@ -111,6 +112,8 @@ all_tests_suite = [
     # curve migration:
     reconfiguration.test_change_curve,
     recovery.test,
+    # jwt
+    jwt_test.test_refresh_jwt_issuer,
 ]
 suites["all"] = all_tests_suite
 
