@@ -31,6 +31,7 @@ namespace js
   JSClassID node_class_id = 0;
   JSClassID network_class_id = 0;
   JSClassID rpc_class_id = 0;
+  JSClassID host_class_id = 0;
 
   JSClassDef kv_class_def = {};
   JSClassExoticMethods kv_exotic_methods = {};
@@ -39,6 +40,7 @@ namespace js
   JSClassDef node_class_def = {};
   JSClassDef network_class_def = {};
   JSClassDef rpc_class_def = {};
+  JSClassDef host_class_def = {};
 
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -1004,6 +1006,7 @@ namespace js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
+    ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     JSContext* ctx)
   {
@@ -1161,9 +1164,17 @@ namespace js
           js_node_trigger_recovery_shares_refresh,
           "triggerRecoverySharesRefresh",
           0));
+    }
+
+    if (host_node_state != nullptr)
+    {
+      auto host = JS_NewObjectClass(ctx, host_class_id);
+      JS_SetOpaque(host, host_node_state);
+      JS_SetPropertyStr(ctx, ccf, "host", host);
+
       JS_SetPropertyStr(
         ctx,
-        node,
+        host,
         "triggerHostProcessLaunch",
         JS_NewCFunction(
           ctx,
@@ -1214,6 +1225,7 @@ namespace js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
+    ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     JSContext* ctx)
   {
@@ -1229,6 +1241,7 @@ namespace js
         transaction_id,
         receipt,
         node_state,
+        host_node_state,
         network_state,
         ctx));
 
@@ -1294,6 +1307,16 @@ namespace js
       {
         throw std::logic_error(
           "Failed to register JS class definition for rpc");
+      }
+    }
+
+    // Register class for host
+    {
+      auto ret = JS_NewClass(rt, host_class_id, &host_class_def);
+      if (ret != 0)
+      {
+        throw std::logic_error(
+          "Failed to register JS class definition for host");
       }
     }
   }

@@ -339,7 +339,7 @@ namespace ccfapp
         endpoint_ctx.rpc_ctx.get(),
         transaction_id,
         receipt,
-        // TODO temporary (?)
+        nullptr,
         &context.get_node_state(),
         nullptr,
         ctx);

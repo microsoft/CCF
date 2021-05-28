@@ -11,8 +11,6 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 
-from loguru import logger as LOG
-
 
 @reqs.description("Test host process launch")
 def test_host_process_launch(network, args):
