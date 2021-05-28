@@ -320,6 +320,12 @@ namespace aft
       {
         active_nodes_.insert(id());
       }
+#ifndef NDEBUG
+      std::stringstream ss;
+      for (auto& m : active_nodes_)
+        ss << " " << m;
+      LOG_DEBUG_FMT("Active nodes:{}", ss.str());
+#endif
       auto it = active_nodes_.begin();
       std::advance(it, (view - starting_view_change) % active_nodes_.size());
       return *it;
@@ -482,8 +488,8 @@ namespace aft
         LOG_TRACE_FMT("Catchup node: {}", id);
         catchup_node_ids.insert(id);
       }
-      if (cn_ids.find(state->my_node_id) != cn_ids.end())
-        catching_up = true;
+      catching_up =
+        conf.find(id()) != conf.end() && cn_ids.find(id()) != cn_ids.end();
       backup_nodes.clear();
       create_and_remove_node_state();
     }
