@@ -189,7 +189,7 @@ namespace crypto
       const std::vector<const Pem*>& trusted_certs,
       const std::vector<const Pem*>& chain = {}) = 0;
 
-    /** Indicates whether the certificate (held intenally) is self-signed */
+    /** Indicates whether the certificate (held internally) is self-signed */
     virtual bool is_self_signed() const = 0;
 
     /** The serial number of the certificate*/
