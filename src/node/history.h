@@ -712,13 +712,7 @@ namespace ccf
       log_hash(root, VERIFY);
       bool result =
         from_cert->verify_hash(root.h, sig_value.sig, crypto::MDType::SHA256);
-
-      if (!result)
-      {
-        return false;
-      }
-
-      return true;
+      return result;
     }
 
     std::vector<uint8_t> serialise_tree(size_t from, size_t to) override

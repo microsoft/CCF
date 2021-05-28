@@ -430,7 +430,9 @@ namespace ccf
             "Target node should be part of network to promote nodes.");
         }
 
-        if (!this->context.get_node_state().is_primary())
+        if (
+          !this->context.get_node_state().is_primary() &&
+          consensus->type() != ConsensusType::BFT)
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,

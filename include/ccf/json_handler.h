@@ -261,6 +261,9 @@ namespace ccf
   inline jsonhandler::JsonAdapterResponse make_error(
     http_status status, const std::string& code, const std::string& msg)
   {
+    // Debug-only log for BFT, which may swallow frontend error results.
+    LOG_DEBUG_FMT(
+      "Frontend error: status={} code={} msg={}", status, code, msg);
     return ErrorDetails{status, code, msg};
   }
 
