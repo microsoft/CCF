@@ -485,9 +485,13 @@ namespace ccf
       auto& cert = it->second;
       auto m = std::make_unique<ViewChangeRequest>();
 
-      for (const auto& sig : cert.sigs)
+      auto it_view_change_view = it->second.view_change_sig.find(view);
+      if (it_view_change_view != it->second.view_change_sig.end())
       {
-        m->signatures.push_back(sig.second);
+        for (const auto& sig : it_view_change_view->second)
+        {
+          m->signatures.push_back(sig.second);
+        }
       }
 
       store->sign_view_change_request(*m, view, highest_prepared_level.seqno);
@@ -528,13 +532,15 @@ namespace ccf
 
       auto it = certificates.find(seqno);
 
-      if (it == certificates.end())
+      if (it == certificates.end() || !it->second.have_primary_signature)
       {
         LOG_INFO_FMT(
           "Received view-change for view:{} and seqno:{} that I am not aware "
-          "of",
+          "of, from:{}, last_prepared:{} ",
           view,
-          seqno);
+          seqno,
+          from,
+          highest_prepared_level.seqno);
         return ApplyViewChangeMessageResult::FAIL;
       }
 
@@ -559,11 +565,21 @@ namespace ccf
           continue;
         }
 
-        if (it->second.sigs.find(sig.node) == it->second.sigs.end())
+        auto it_view_change_view = it->second.view_change_sig.find(view);
+        if (it_view_change_view == it->second.view_change_sig.end())
+        {
+          auto ret = it->second.view_change_sig.insert(
+            std::pair<ccf::View, std::map<NodeId, BftNodeSignature>>(view, {}));
+          it_view_change_view = ret.first;
+        }
+
+        if (
+          it_view_change_view->second.find(sig.node) !=
+          it_view_change_view->second.end())
         {
           continue;
         }
-        it->second.sigs.insert(
+        it_view_change_view->second.insert(
           std::pair<NodeId, BftNodeSignature>(sig.node, sig));
       }
 
@@ -575,28 +591,13 @@ namespace ccf
       const NodeId& from,
       uint32_t node_count,
       ccf::View& view_,
-      ccf::SeqNo& seqno_) const
+      ccf::SeqNo& seqno_)
     {
       std::unique_lock<SpinLock> guard(lock);
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
       ccf::View view = new_view->view;
       ccf::SeqNo seqno = new_view->seqno;
-
-      if (
-        seqno < highest_prepared_level.seqno ||
-        view < highest_prepared_level.view)
-      {
-        LOG_FAIL_FMT(
-          "Invalid view and seqno in the new view highest prepared from:{}, "
-          "view:{},seqno:{}, new_view view:{}, seqno:{}",
-          from,
-          highest_prepared_level.view,
-          highest_prepared_level.seqno,
-          view,
-          seqno);
-        return false;
-      }
 
       if (
         new_view->view_change_messages.size() <
@@ -620,10 +621,11 @@ namespace ccf
         if (!store->verify_view_change_request(vc, id, view, seqno))
         {
           LOG_FAIL_FMT(
-            "Failed to verify view-change id:{},view:{}, seqno:{}",
+            "Failed to verify view-change id:{},view:{}, seqno:{}, from:{}",
             id,
             view,
-            seqno);
+            seqno,
+            from);
           return false;
         }
       }
@@ -637,6 +639,8 @@ namespace ccf
 
       view_ = view;
       seqno_ = seqno;
+      last_view_change_seqno = seqno;
+
       return true;
     }
 
@@ -646,11 +650,45 @@ namespace ccf
       return get_node_nonce_(tx_id);
     }
 
+    void rollback(ccf::SeqNo rollback_seqno, ccf::View view)
+    {
+      std::unique_lock<SpinLock> guard(lock);
+      ccf::SeqNo last_good_seqno = 0;
+      for (auto it = certificates.begin(); it != certificates.end();)
+      {
+        if (it->first > rollback_seqno)
+        {
+          it = certificates.erase(it);
+        }
+        else
+        {
+          last_good_seqno = it->first;
+          ++it;
+        }
+      }
+
+      if (certificates.empty())
+      {
+        highest_prepared_level = {0, 0};
+      }
+      else if (highest_prepared_level.seqno > last_good_seqno)
+      {
+        highest_prepared_level = {view, last_good_seqno};
+      }
+    }
+
+    ccf::SeqNo get_rollback_seqno() const
+    {
+      std::unique_lock<SpinLock> guard(lock);
+      return std::max(highest_commit_level, last_view_change_seqno);
+    }
+
   private:
     NodeId id;
     std::shared_ptr<crypto::Entropy> entropy;
     ccf::SeqNo highest_commit_level = 0;
     ccf::TxID highest_prepared_level = {0, 0};
+    ccf::SeqNo last_view_change_seqno = 0;
 
     std::map<ccf::SeqNo, CommitCert> certificates;
     mutable SpinLock lock;
