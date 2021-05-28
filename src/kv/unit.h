@@ -6,21 +6,23 @@
 
 namespace kv
 {
-  // A single-valued type, used as a utility type to convert kv::Maps to
-  // kv::Values and kv::Sets. Specifically, these are implemented as wrappers so
+  // Unit serialisations are used as a utility type to convert kv::Maps to
+  // kv::Maps and kv::Sets. Specifically, these are implemented as wrappers so
   // that kv::Value<T> is essentially kv::Map<Unit, T>, and kv::Set<T> is
   // kv::Map<T, Unit>.
-  struct Unit
+  // This type is used as a template parameter but could be replaced by any user
+  // type with the same signature get(), allowing the caller to specify what
+  // value is inserted into the ledger.
+  struct UnitCreator
   {
-    static const kv::serialisers::SerialisedEntry& get()
+    // This is the default UnitCreator, returning 8 null bytes for compatibility
+    // with old ledgers (where Values were previously Maps with a single entry
+    // at key 0, serialised as a uint64_t)
+    static kv::serialisers::SerialisedEntry get()
     {
-      // TODO: Should this be a 0? Our existing mono-valued tables had a single
-      // value at key 0, we could remain ledger-compatible if we produce the
-      // same value here. But that only works where we can guess the
-      // serialisation format of that 0, and we're stuck with that inefficiency
-      // forever.
-      static kv::serialisers::SerialisedEntry the_value = {};
-      return the_value;
-    }
+      kv::serialisers::SerialisedEntry e;
+      e.assign(8, 0u);
+      return e;
+    };
   };
 }

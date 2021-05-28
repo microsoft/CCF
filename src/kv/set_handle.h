@@ -47,7 +47,7 @@ namespace kv
     }
   };
 
-  template <typename K, typename KSerialiser>
+  template <typename K, typename KSerialiser, typename Unit>
   class WriteableSetHandle
   {
   protected:
@@ -58,7 +58,7 @@ namespace kv
 
     void insert(const K& key)
     {
-      write_handle.put(KSerialiser::to_serialised(key), kv::Unit::get());
+      write_handle.put(KSerialiser::to_serialised(key), Unit::get());
     }
 
     bool remove(const K& key)
@@ -72,16 +72,16 @@ namespace kv
     }
   };
 
-  template <typename K, typename KSerialiser>
+  template <typename K, typename KSerialiser, typename Unit>
   class SetHandle : public kv::AbstractHandle,
                     public ReadableSetHandle<K, KSerialiser>,
-                    public WriteableSetHandle<K, KSerialiser>
+                    public WriteableSetHandle<K, KSerialiser, Unit>
   {
   protected:
     kv::untyped::MapHandle untyped_handle;
 
     using ReadableBase = ReadableSetHandle<K, KSerialiser>;
-    using WriteableBase = WriteableSetHandle<K, KSerialiser>;
+    using WriteableBase = WriteableSetHandle<K, KSerialiser, Unit>;
 
   public:
     SetHandle(kv::untyped::ChangeSet& changes, const std::string& map_name) :

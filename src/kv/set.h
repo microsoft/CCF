@@ -10,7 +10,7 @@
 // TODO: Docs
 namespace kv
 {
-  template <typename K, typename KSerialiser>
+  template <typename K, typename KSerialiser, typename Unit= kv::UnitCreator>
   class TypedSet : public NamedHandleMixin
   {
   protected:
@@ -18,16 +18,20 @@ namespace kv
 
   public:
     using ReadOnlyHandle = kv::ReadableSetHandle<K, KSerialiser>;
-    using WriteOnlyHandle = kv::WriteableSetHandle<K, KSerialiser>;
-    using Handle = kv::SetHandle<K, KSerialiser>;
+    using WriteOnlyHandle = kv::WriteableSetHandle<K, KSerialiser, Unit>;
+    using Handle = kv::SetHandle<K, KSerialiser, Unit>;
 
     using KeySerialiser = KSerialiser;
 
     using NamedHandleMixin::NamedHandleMixin;
   };
 
-  template <typename K, template <typename> typename KSerialiser>
-  using SetSerialisedWith = TypedSet<K, KSerialiser<K>>;
+  template <
+    typename K,
+    template <typename>
+    typename KSerialiser,
+    typename Unit = kv::UnitCreator>
+  using SetSerialisedWith = TypedSet<K, KSerialiser<K>, Unit>;
 
   template <typename K>
   using JsonSerialisedSet =

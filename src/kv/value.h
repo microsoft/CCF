@@ -10,24 +10,28 @@
 // TODO: Docs
 namespace kv
 {
-  template <typename V, typename VSerialiser>
+  template <typename V, typename VSerialiser, typename Unit = kv::UnitCreator>
   class TypedValue : public NamedHandleMixin
   {
   protected:
     using This = TypedValue<V, VSerialiser>;
 
   public:
-    using ReadOnlyHandle = kv::ReadableValueHandle<V, VSerialiser>;
-    using WriteOnlyHandle = kv::WriteableValueHandle<V, VSerialiser>;
-    using Handle = kv::ValueHandle<V, VSerialiser>;
+    using ReadOnlyHandle = kv::ReadableValueHandle<V, VSerialiser, Unit>;
+    using WriteOnlyHandle = kv::WriteableValueHandle<V, VSerialiser, Unit>;
+    using Handle = kv::ValueHandle<V, VSerialiser, Unit>;
 
     using ValueSerialiser = VSerialiser;
 
     using NamedHandleMixin::NamedHandleMixin;
   };
 
-  template <typename V, template <typename> typename VSerialiser>
-  using ValueSerialisedWith = TypedValue<V, VSerialiser<V>>;
+  template <
+    typename V,
+    template <typename>
+    typename VSerialiser,
+    typename Unit = kv::UnitCreator>
+  using ValueSerialisedWith = TypedValue<V, VSerialiser<V>, Unit>;
 
   template <typename V>
   using JsonSerialisedValue =
