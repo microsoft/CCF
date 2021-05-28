@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/base_endpoint_registry.h"
+
 #include "enclave/enclave_time.h"
 #include "node/members.h"
 #include "node/users.h"
