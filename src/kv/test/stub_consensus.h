@@ -100,6 +100,11 @@ namespace kv::test
       return 0;
     }
 
+    ccf::SeqNo get_committed_seqno_unsafe() override
+    {
+      return 0;
+    }
+
     std::optional<NodeId> primary() override
     {
       return PrimaryNodeId;

@@ -427,7 +427,15 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Target node should be part of network to promote nodes.");
+            "Target node should be part of network to promote nodes");
+        }
+
+        if (!consensus)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "No configured consensus");
         }
 
         if (
@@ -437,7 +445,22 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Only the primary can promote nodes.");
+            "Only the primary can promote nodes");
+        }
+
+        if (this->context.get_node_state().is_primary())
+        {
+          const auto committed_seqno = consensus->get_committed_seqno_unsafe();
+          const auto node_seqno =
+            consensus->get_confirmed_matching_index(in.node_id);
+
+          if (node_seqno < committed_seqno)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Node has not caught up with primary");
+          }
         }
 
         auto service = args.tx.ro(this->network.service);
@@ -448,7 +471,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "No service is available to promote node.");
+            "No service is available to promote node");
         }
 
         if (active_service->status != ServiceStatus::OPEN)
@@ -456,7 +479,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::FrontendNotOpen,
-            "Service must be open to promote nodes.");
+            "Service must be open to promote nodes");
         }
 
         auto nodes = args.tx.rw(this->network.nodes);
@@ -467,21 +490,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Missing node state.");
-        }
-
-        if (
-          consensus->get_confirmed_matching_index(in.node_id) <
-          consensus->get_committed_seqno())
-        {
-          LOG_INFO_FMT(
-            "us={} them={}",
-            consensus->get_committed_seqno(),
-            consensus->get_confirmed_matching_index(in.node_id));
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Node has not caught up with primary.");
+            "Missing node state");
         }
 
         node_info->status = NodeStatus::TRUSTED;

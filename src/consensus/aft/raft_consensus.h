@@ -101,6 +101,11 @@ namespace aft
       return aft->get_commit_idx();
     }
 
+    ccf::SeqNo get_committed_seqno_unsafe() override
+    {
+      return aft->get_commit_idx_unsafe();
+    }
+
     std::optional<ccf::NodeId> primary() override
     {
       return aft->leader();

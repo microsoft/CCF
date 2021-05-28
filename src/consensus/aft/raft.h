@@ -407,6 +407,11 @@ namespace aft
       return state->commit_idx;
     }
 
+    Index get_commit_idx_unsafe()
+    {
+      return state->commit_idx;
+    }
+
     Term get_term()
     {
       std::lock_guard<std::mutex> guard(state->lock);
