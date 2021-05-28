@@ -761,7 +761,7 @@ namespace js
     }
 
     auto node = static_cast<ccf::AbstractNodeState*>(
-      JS_GetOpaque(this_val, node_class_id));
+      JS_GetOpaque(this_val, host_class_id));
 
     node->trigger_host_process_launch(process_args);
 
@@ -798,6 +798,9 @@ namespace js
 
     JS_NewClassID(&rpc_class_id);
     rpc_class_def.class_name = "RPC";
+
+    JS_NewClassID(&host_class_id);
+    host_class_def.class_name = "Host";
   }
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
