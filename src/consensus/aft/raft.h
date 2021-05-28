@@ -936,10 +936,15 @@ namespace aft
         LOG_FAIL_FMT("Received unrequested view change evidence from {}", from);
         return;
       }
-      state->requested_evidence_from.reset();
+      if (!view_change_tracker->add_unknown_primary_evidence(
+            {data, size}, r.view, from, node_count()))
+      {
+        LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
+        return;
+      }
 
-      view_change_tracker->add_unknown_primary_evidence(
-        {data, size}, r.view, node_count());
+      // Become a follower in the new term.
+      become_follower(r.view);
     }
 
     void recv_skip_view(const ccf::NodeId& from, SkipViewMsg r)
@@ -1874,6 +1879,11 @@ namespace aft
         state->last_idx,
         answer);
 
+      if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
+      {
+        state->requested_evidence_from = to;
+      }
+
       AppendEntriesResponse response = {{raft_append_entries_response},
                                         state->current_view,
                                         state->last_idx,
@@ -2156,7 +2166,6 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        state->requested_evidence_from = from;
         ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
                                     state->current_view};
 
@@ -2481,7 +2490,17 @@ namespace aft
       voted_for.reset();
       votes_for_me.clear();
 
-      rollback(last_committable_index());
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+        rollback(rollback_level);
+        view_change_tracker->set_current_view_change(state->current_view);
+      }
+      else
+      {
+        rollback(last_committable_index());
+      }
 
       is_new_follower = true;
 
@@ -2713,6 +2732,12 @@ namespace aft
       if (changed)
       {
         create_and_remove_node_state();
+      }
+
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        progress_tracker->rollback(idx, state->current_view);
       }
     }
 

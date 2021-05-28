@@ -123,10 +123,11 @@ namespace aft
       return store->write_view_change_confirmation(nv);
     }
 
-    std::vector<uint8_t> get_serialized_view_change_confirmation(ccf::View view)
+    std::vector<uint8_t> get_serialized_view_change_confirmation(
+      ccf::View view, bool force_create_new = false)
     {
       ccf::ViewChangeConfirmation nv =
-        create_view_change_confirmation_msg(view);
+        create_view_change_confirmation_msg(view, force_create_new);
       nlohmann::json j;
       to_json(j, nv);
       std::string s = j.dump();
@@ -134,12 +135,25 @@ namespace aft
     }
 
     bool add_unknown_primary_evidence(
-      CBuffer data, ccf::View view, uint32_t node_count)
+      CBuffer data,
+      ccf::View view,
+      const ccf::NodeId& from,
+      uint32_t node_count)
     {
       nlohmann::json j = nlohmann::json::parse(data.p);
       auto vc = j.get<ccf::ViewChangeConfirmation>();
 
       if (view != vc.view)
+      {
+        return false;
+      }
+
+      if (last_valid_view == vc.view)
+      {
+        return true;
+      }
+
+      if (!store->verify_view_change_request_confirmation(vc, from))
       {
         return false;
       }
@@ -193,13 +207,21 @@ namespace aft
     ccf::View last_view_change_sent = 0;
     ccf::View last_valid_view = aft::starting_view_change;
     const std::chrono::milliseconds time_between_attempts;
+    ccf::ViewChangeConfirmation last_nvc;
 
     ccf::ViewChangeConfirmation create_view_change_confirmation_msg(
-      ccf::View view)
+      ccf::View view, bool force_create_new = false)
     {
+      if (view == last_nvc.view && !force_create_new)
+      {
+        return last_nvc;
+      }
+
       auto it = view_changes.find(view);
       if (it == view_changes.end())
       {
+        LOG_FAIL_FMT(
+          "Cannot write unknown view-change to ledger, view:{}", view);
         throw std::logic_error(fmt::format(
           "Cannot write unknown view-change to ledger, view:{}", view));
       }
@@ -211,6 +233,8 @@ namespace aft
       {
         nv.view_change_messages.emplace(it.first, it.second);
       }
+
+      last_nvc = nv;
 
       return nv;
     }

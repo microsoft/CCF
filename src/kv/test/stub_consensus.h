@@ -15,6 +15,7 @@ namespace kv::test
   static NodeId FirstBackupNodeId = std::string("FirstBackupNodeId");
   static NodeId SecondBackupNodeId = std::string("SecondBackupNodeId");
   static NodeId ThirdBackupNodeId = std::string("ThirdBackupNodeId");
+  static NodeId FourthBackupNodeId = std::string("FourthBackupNodeId");
 
   class StubConsensus : public Consensus
   {
