@@ -1181,12 +1181,9 @@ namespace js
       JS_SetPropertyStr(
         ctx,
         host,
-        "triggerHostProcessLaunch",
+        "triggerSubprocess",
         JS_NewCFunction(
-          ctx,
-          js_node_trigger_host_process_launch,
-          "triggerHostProcessLaunch",
-          1));
+          ctx, js_node_trigger_host_process_launch, "triggerSubprocess", 1));
     }
 
     if (network_state != nullptr)

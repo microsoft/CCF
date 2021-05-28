@@ -5,10 +5,10 @@
 #include "ds/messaging.h"
 #include "enclave/interface.h"
 
-#include <uv.h>
 #include <chrono>
 #include <queue>
 #include <unordered_map>
+#include <uv.h>
 
 namespace asynchost
 {
@@ -32,10 +32,12 @@ namespace asynchost
       std::chrono::steady_clock::time_point started_at;
     };
 
-    std::unordered_map<pid_t, ProcessEntry> running;  
+    std::unordered_map<pid_t, ProcessEntry> running;
 
-    void maybe_process_next_entry() {
-      if (stopping || queued.empty() || running.size() >= max_processes) {
+    void maybe_process_next_entry()
+    {
+      if (stopping || queued.empty() || running.size() >= max_processes)
+      {
         return;
       }
       auto entry = std::move(queued.front());
@@ -63,7 +65,7 @@ namespace asynchost
 
       auto handle = new uv_process_t;
       handle->data = this;
-      
+
       uv_process_options_t options = {};
       options.file = argv.at(0);
       options.args = const_cast<char**>(argv.data());
@@ -73,8 +75,7 @@ namespace asynchost
 
       if (rc != 0)
       {
-        LOG_FAIL_FMT(
-          "Error starting host process: {}", uv_strerror(rc));
+        LOG_FAIL_FMT("Error starting host process: {}", uv_strerror(rc));
         return;
       }
 
@@ -85,24 +86,25 @@ namespace asynchost
         fmt::join(args, " "));
 
       auto started_at = std::chrono::steady_clock::now();
-      ProcessEntry process_entry {
-        std::move(entry.msg),
-        started_at
-      };
+      ProcessEntry process_entry{std::move(entry.msg), started_at};
       running.insert({handle->pid, std::move(process_entry)});
     }
 
-    static void on_process_exit(uv_process_t* handle, int64_t exit_status, int term_signal) {
-      static_cast<ProcessLauncher*>(handle->data)->on_process_exit(handle, exit_status);
+    static void on_process_exit(
+      uv_process_t* handle, int64_t exit_status, int term_signal)
+    {
+      static_cast<ProcessLauncher*>(handle->data)
+        ->on_process_exit(handle, exit_status);
     }
 
-    void on_process_exit(uv_process_t* handle, int64_t exit_status) {
+    void on_process_exit(uv_process_t* handle, int64_t exit_status)
+    {
       auto& process = running.at(handle->pid);
 
       auto t_end = std::chrono::steady_clock::now();
-      auto runtime_ms =
-        std::chrono::duration_cast<std::chrono::milliseconds>(t_end - process.started_at)
-          .count();
+      auto runtime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          t_end - process.started_at)
+                          .count();
 
       LOG_DEBUG_FMT(
         "Host process exited: pid={} status={} runtime={}ms cmd={}",
@@ -112,7 +114,7 @@ namespace asynchost
         fmt::join(process.msg.args, " "));
 
       running.erase(handle->pid);
-      
+
       maybe_process_next_entry();
 
       uv_close((uv_handle_t*)handle, ProcessLauncher::on_close);
@@ -120,7 +122,7 @@ namespace asynchost
 
     static void on_close(uv_handle_t* handle)
     {
-       delete handle;
+      delete handle;
     }
 
   public:
