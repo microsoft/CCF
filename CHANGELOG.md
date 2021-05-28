@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added node start-up check for `cchost` and enclave compatibility, which should both always be from the same release for a single node (#2532).
 - Added a new `/node/version` endpoint to return the CCF version of a node (#2582).
 - Added a new `/node/metrics` endpoint which includes the count of active and peak concurrent sessions handled by the node (#2596).
+- Added experimental JavaScript API `ccf.host.triggerSubprocess()` (#2461).
 
 ### Changed
 
