@@ -25,7 +25,7 @@ def test_host_process_launch(network, args):
         with primary.client("user0") as c:
             r = c.post("/app/launch", body={"args": args})
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-        
+
         timeout = 1
         t0 = time.time()
         while time.time() - t0 < timeout:
@@ -39,6 +39,7 @@ def test_host_process_launch(network, args):
 
     return network
 
+
 @reqs.description("Test host process launch (many)")
 def test_host_process_launch_many(network, args):
     primary, _ = network.find_nodes()
@@ -48,13 +49,12 @@ def test_host_process_launch_many(network, args):
         count = 100
 
         with primary.client("user0") as c:
-            r = c.post("/app/launch_many", body={
-                "program": script_path,
-                "out_dir": tmp_dir,
-                "count": count
-            })
+            r = c.post(
+                "/app/launch_many",
+                body={"program": script_path, "out_dir": tmp_dir, "count": count},
+            )
             assert r.status_code == http.HTTPStatus.OK, r.status_code
-        
+
         pending = set(range(count))
         timeout = 2
         t0 = time.time()
@@ -68,6 +68,7 @@ def test_host_process_launch_many(network, args):
         assert not pending, f"{len(pending)} pending host processes after {timeout}s"
 
     return network
+
 
 def run(args):
     with infra.network.network(
