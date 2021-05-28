@@ -377,24 +377,40 @@ TEST_CASE("sets and values")
   }
 }
 
+struct CustomUnitCreator
+{
+  static kv::serialisers::SerialisedEntry get()
+  {
+    kv::serialisers::SerialisedEntry e;
+
+    for (size_t i = 0; i < 42; ++i)
+    {
+      e.push_back(i);
+    }
+
+    return e;
+  }
+};
+
 TEST_CASE("serialisation of Unit type")
 {
-  kv::Store kv_store;
+  const auto value_name = "public:aa";
+  const auto set_name = "public:bb";
+
+  const auto v1 = "hello";
+  const auto v2 = "world";
+  const auto v3 = "saluton";
 
   {
     INFO("The default unit type allows migration to/from a kv::Map");
 
     using TValue = kv::RawCopySerialisedValue<std::string>;
     using TValueEquivalent = kv::RawCopySerialisedMap<size_t, std::string>;
-    const auto value_name = "public:aa";
 
     using TSet = kv::RawCopySerialisedSet<std::string>;
     using TSetEquivalent = kv::RawCopySerialisedMap<std::string, size_t>;
-    const auto set_name = "public:bb";
 
-    const auto v1 = "hello";
-    const auto v2 = "world";
-    const auto v3 = "saluton";
+    kv::Store kv_store;
 
     {
       auto tx = kv_store.create_tx();
@@ -447,6 +463,65 @@ TEST_CASE("serialisation of Unit type")
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
+  }
+
+  {
+    INFO("Custom UnitCreators produce distinct ledger entries");
+
+    using ValueA = kv::TypedValue<
+      std::string,
+      kv::serialisers::BlitSerialiser<std::string>,
+      kv::UnitCreator>;
+    std::vector<uint8_t> entry_a;
+    {
+      auto consensus = std::make_shared<kv::test::StubConsensus>();
+      kv::Store kv_store(consensus);
+      auto tx = kv_store.create_tx();
+      auto val_handle = tx.rw<ValueA>(value_name);
+      val_handle->put(v1);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      const auto e = consensus->get_latest_data();
+      REQUIRE(e.has_value());
+      entry_a = e.value();
+    }
+
+    using ValueB = kv::TypedValue<
+      std::string,
+      kv::serialisers::BlitSerialiser<std::string>,
+      kv::EmptyUnitCreator>;
+    std::vector<uint8_t> entry_b;
+    {
+      auto consensus = std::make_shared<kv::test::StubConsensus>();
+      kv::Store kv_store(consensus);
+      auto tx = kv_store.create_tx();
+      auto val_handle = tx.rw<ValueB>(value_name);
+      val_handle->put(v1);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      const auto e = consensus->get_latest_data();
+      REQUIRE(e.has_value());
+      entry_b = e.value();
+    }
+
+    using ValueC = kv::TypedValue<
+      std::string,
+      kv::serialisers::BlitSerialiser<std::string>,
+      CustomUnitCreator>;
+    std::vector<uint8_t> entry_c;
+    {
+      auto consensus = std::make_shared<kv::test::StubConsensus>();
+      kv::Store kv_store(consensus);
+      auto tx = kv_store.create_tx();
+      auto val_handle = tx.rw<ValueC>(value_name);
+      val_handle->put(v1);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      const auto e = consensus->get_latest_data();
+      REQUIRE(e.has_value());
+      entry_c = e.value();
+    }
+
+    REQUIRE(entry_a != entry_b);
+    REQUIRE(entry_a != entry_c);
+    REQUIRE(entry_b != entry_c);
   }
 }
 
