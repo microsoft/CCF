@@ -310,8 +310,8 @@ namespace aft
     NodeCatchUpCallback(
       const ccf::NodeId& from_,
       ConfigurationTracker& config_tracker_,
-      const TxID& from_txid_,
-      const TxID& node_txid_) :
+      const TxID from_txid_,
+      const TxID node_txid_) :
       from(from_),
       config_tracker(config_tracker_),
       txid(from_txid_),
@@ -326,7 +326,7 @@ namespace aft
   private:
     ccf::NodeId from;
     ConfigurationTracker& config_tracker;
-    const TxID& txid;
-    const TxID& node_txid;
+    TxID txid;
+    TxID node_txid;
   };
 }

@@ -316,6 +316,10 @@ namespace aft
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
       auto active_nodes_ = active_node_ids();
+      if (!catching_up)
+      {
+        active_nodes_.insert(id());
+      }
       auto it = active_nodes_.begin();
       std::advance(it, (view - starting_view_change) % active_nodes_.size());
       return *it;
@@ -467,24 +471,11 @@ namespace aft
         guard.lock();
       }
       // This should only be called when the spin lock is held.
-
-      configuration_tracker.add(idx, std::move(conf));
+      configuration_tracker.add(idx, std::move(conf), cn_ids);
       for (const auto& id : cn_ids)
       {
         LOG_TRACE_FMT("Catchup node: {}", id);
         catchup_node_ids.insert(id);
-      }
-      for (const auto& n : conf)
-      {
-        if (cn_ids.find(n.first) == cn_ids.end())
-        {
-          auto nit = nodes.find(n.first);
-          if (nit != nodes.end())
-          {
-            LOG_DEBUG_FMT("Observing promotion: {}", nit->first);
-            nit->second.catching_up = false;
-          }
-        }
       }
       if (cn_ids.find(state->my_node_id) != cn_ids.end())
         catching_up = true;
@@ -2308,30 +2299,16 @@ namespace aft
         from.trim(),
         r.last_log_idx);
 
-      switch (consensus_type)
+      if (is_primary() && node->second.catching_up)
       {
-        case ConsensusType::CFT:
-        {
-          if (is_primary() && node->second.catching_up)
-          {
-            threading::ThreadMessaging::thread_messaging.add_task(
-              [this, from, r]() {
-                ConfigurationTracker::promote_cb(
-                  configuration_tracker,
-                  from,
-                  {r.term, r.last_log_idx},
-                  {state->current_view, state->commit_idx});
-              });
-          }
-          break;
-        }
-        case ConsensusType::BFT:
-        {
-          // TODO.
-          break;
-        }
-        default:
-          LOG_FAIL_FMT("Unknown consensus type: {}", consensus_type);
+        threading::ThreadMessaging::thread_messaging.add_task(
+          [this, from, r]() {
+            ConfigurationTracker::promote_cb(
+              configuration_tracker,
+              from,
+              {r.term, r.last_log_idx},
+              {state->current_view, state->commit_idx});
+          });
       }
 
       update_commit();

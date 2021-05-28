@@ -132,10 +132,14 @@ namespace aft
       return r;
     }
 
-    void add(size_t idx, const kv::Configuration::Nodes&& config)
+    void add(
+      size_t idx,
+      const kv::Configuration::Nodes&& config,
+      const std::set<NodeId>& cn_ids)
     {
       if (config != configurations.back().nodes)
         configurations.push_back({idx, std::move(config)});
+      check_for_promotions(config, cn_ids);
       LOG_INFO_FMT("Configurations: {}", to_string());
     }
 
@@ -172,7 +176,12 @@ namespace aft
     void update_node_progress(
       const NodeId& from, const TxID& txid, const TxID& node_txid)
     {
-      // TODO
+      assert(consensus_type == ConsensusType::BFT);
+      auto nit = nodes.find(from);
+      if (nit != nodes.end())
+      {
+        nit->second.match_idx = std::max(nit->second.match_idx, txid.seqno);
+      }
     }
 
     std::set<NodeId> active_node_ids()
@@ -195,7 +204,9 @@ namespace aft
         {
           auto nit = nodes.find(node.first);
           if (nit != nodes.end() && !nit->second.catching_up)
+          {
             r.emplace(node.first, node.second);
+          }
         }
       }
 
@@ -265,6 +276,7 @@ namespace aft
           r = std::min(confirmed, r);
         }
 
+#ifndef NDEBUG
         std::stringstream ss;
         for (auto& m : match)
           ss << m << " ";
@@ -274,6 +286,7 @@ namespace aft
           confirmed,
           r,
           ss.str());
+#endif
       }
 
       return r;
@@ -359,6 +372,23 @@ namespace aft
       }
 
       return rs == HTTP_STATUS_OK;
+    }
+
+    void check_for_promotions(
+      const kv::Configuration::Nodes& config, const std::set<NodeId>& cn_ids)
+    {
+      for (const auto& n : config)
+      {
+        if (cn_ids.find(n.first) == cn_ids.end())
+        {
+          auto nit = nodes.find(n.first);
+          if (nit != nodes.end())
+          {
+            LOG_DEBUG_FMT("Observing promotion: {}", nit->first);
+            nit->second.catching_up = false;
+          }
+        }
+      }
     }
 
     static void promote_cb(
