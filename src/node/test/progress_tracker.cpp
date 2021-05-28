@@ -731,7 +731,6 @@ TEST_CASE("Can rollback out of date progress tracker entires")
     ordered_execution(kv::test::FirstBackupNodeId, pt);
 
     ref_pt.rollback(ref_pt.get_rollback_seqno(), view);
-    CHECK_THROWS(ref_pt.rollback(ref_pt.get_rollback_seqno() - 1, view));
   }
 }
 

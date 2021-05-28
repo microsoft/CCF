@@ -654,18 +654,6 @@ namespace ccf
     void rollback(ccf::SeqNo rollback_seqno, ccf::View view)
     {
       std::unique_lock<SpinLock> guard(lock);
-      if (rollback_seqno < highest_commit_level)
-      {
-        LOG_FAIL_FMT(
-          "Cannot rollback to {}, commit_level:{}",
-          rollback_seqno,
-          highest_commit_level);
-        throw std::logic_error(fmt::format(
-          "Cannot rollback to {}, commit_level:{}",
-          rollback_seqno,
-          highest_commit_level));
-      }
-
       ccf::SeqNo last_good_seqno = 0;
       for (auto it = certificates.begin(); it != certificates.end();)
       {
