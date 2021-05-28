@@ -706,6 +706,7 @@ namespace aft
               configuration_tracker,
               TxID({r.view, r.seqno}),
               TxID({state->current_view, state->last_idx}));
+            break;
           }
 
           case bft_signature_received_ack:
