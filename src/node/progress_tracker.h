@@ -585,7 +585,6 @@ namespace ccf
 
       return verified_signatures ? ApplyViewChangeMessageResult::OK :
                                    ApplyViewChangeMessageResult::FAIL;
-
     }
 
     bool apply_new_view(

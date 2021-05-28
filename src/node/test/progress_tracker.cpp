@@ -707,7 +707,6 @@ TEST_CASE("test progress_tracker apply_view_change")
     auto result =
       pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 42);
     REQUIRE(result == ccf::ProgressTracker::ApplyViewChangeMessageResult::FAIL);
-
   }
 }
 
