@@ -196,7 +196,7 @@ def run(args):
         to_create = max_fds - num_fds + 1
         num_fds = create_connections_until_exhaustion(to_create)
 
-        # Check that lower caps on separate caps are enforced on each interface
+        # Check that lower caps are enforced on each interface
         for i, (address, cap) in enumerate(caps.items()):
             create_connections_until_exhaustion(
                 cap + 1,
