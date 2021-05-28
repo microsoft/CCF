@@ -142,6 +142,11 @@ namespace aft
 
       if (view != vc.view)
       {
+        LOG_INFO_FMT(
+          "Add unknown evidence - views do not match view:{}, vc.view:{}, from",
+          view,
+          vc.view,
+          from);
         return false;
       }
 
@@ -152,12 +157,20 @@ namespace aft
 
       if (!store->verify_view_change_request_confirmation(vc, from))
       {
+        LOG_INFO_FMT(
+          "Add unknown evidence - bad view change confirmation, from:{}",
+          from);
         return false;
       }
 
       if (
         vc.view_change_messages.size() < ccf::get_message_threshold(node_count))
       {
+        LOG_INFO_FMT(
+          "Add unknown evidence - not enough evidence, need:{}, have:{}, from:{}",
+          vc.view_change_messages.size(),
+          ccf::get_message_threshold(node_count),
+          from);
         return false;
       }
 
@@ -166,6 +179,10 @@ namespace aft
         if (!store->verify_view_change_request(
               it.second, it.first, vc.view, it.second.seqno))
         {
+          LOG_INFO_FMT(
+            "Add unknown evidence - bad view change request, from:{}, view:{}",
+            from,
+            vc.view);
           return false;
         }
       }

@@ -487,13 +487,9 @@ namespace ccf
       m->seqno = highest_prepared_level.seqno;
       LOG_INFO_FMT("Creating ViewChangeRequest view:{}, seqno:{}",view, m->seqno);
 
-      auto it_view_change_view = it->second.view_change_sig.find(view);
-      if (it_view_change_view != it->second.view_change_sig.end())
+      for (const auto& sig : cert.sigs)
       {
-        for (const auto& sig : it_view_change_view->second)
-        {
-          m->signatures.push_back(sig.second);
-        }
+        m->signatures.push_back(sig.second);
       }
 
       store->sign_view_change_request(*m, view);
@@ -529,64 +525,9 @@ namespace ccf
         LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
         return ApplyViewChangeMessageResult::FAIL;
       }
-      LOG_TRACE_FMT(
+      LOG_INFO_FMT(
         "Applying view-change from:{}, view:{}, seqno:{}", from, view, seqno);
-
-      auto it = certificates.find(seqno);
-
-      if (it == certificates.end() || !it->second.have_primary_signature)
-      {
-        LOG_INFO_FMT(
-          "Received view-change for view:{} and seqno:{} that I am not aware "
-          "of, from:{}, last_prepared:{} ",
-          view,
-          seqno,
-          from,
-          highest_prepared_level.seqno);
-        return ApplyViewChangeMessageResult::FAIL;
-      }
-
-      bool verified_signatures = true;
-
-      for (auto& sig : view_change.signatures)
-      {
-        if (!store->verify_signature(
-              sig.node, it->second.root, sig.sig.size(), sig.sig.data()))
-        {
-          LOG_FAIL_FMT(
-            "signatures do not match, view-change from:{}, view:{}, seqno:{}, "
-            "node_id:{}, root:{}, sig:{}, sig.size:{}",
-            from,
-            view,
-            seqno,
-            sig.node,
-            it->second.root,
-            sig.sig,
-            sig.sig.size());
-          verified_signatures = false;
-          continue;
-        }
-
-        auto it_view_change_view = it->second.view_change_sig.find(view);
-        if (it_view_change_view == it->second.view_change_sig.end())
-        {
-          auto ret = it->second.view_change_sig.insert(
-            std::pair<ccf::View, std::map<NodeId, BftNodeSignature>>(view, {}));
-          it_view_change_view = ret.first;
-        }
-
-        if (
-          it_view_change_view->second.find(sig.node) !=
-          it_view_change_view->second.end())
-        {
-          continue;
-        }
-        it_view_change_view->second.insert(
-          std::pair<NodeId, BftNodeSignature>(sig.node, sig));
-      }
-
-      return verified_signatures ? ApplyViewChangeMessageResult::OK :
-                                   ApplyViewChangeMessageResult::FAIL;
+      return ApplyViewChangeMessageResult::OK;
     }
 
     bool apply_new_view(

@@ -45,7 +45,6 @@ namespace ccf
 
     crypto::Sha256Hash root;
     std::map<NodeId, BftNodeSignature> sigs;
-    std::map<ccf::View, std::map<NodeId, BftNodeSignature>> view_change_sig;
     std::set<NodeId> sig_acks;
     std::set<NodeId> nonce_set;
     std::map<NodeId, Nonce> unmatched_nonces;
