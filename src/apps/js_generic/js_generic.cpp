@@ -138,7 +138,7 @@ namespace ccfapp
       }
 
       char const* policy_name = nullptr;
-      EntityId id;
+      std::string id;
       bool is_member = false;
 
       if (
