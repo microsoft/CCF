@@ -118,7 +118,8 @@ namespace aft
     bft_signature_received_ack,
     bft_nonce_reveal,
     bft_view_change,
-    bft_view_change_evidence
+    bft_view_change_evidence,
+    bft_skip_view,
   };
 
 #pragma pack(push, 1)
@@ -179,6 +180,11 @@ namespace aft
   };
 
   struct ViewChangeEvidenceMsg : RaftHeader
+  {
+    ccf::View view = 0;
+  };
+
+  struct SkipViewMsg : RaftHeader
   {
     ccf::View view = 0;
   };
