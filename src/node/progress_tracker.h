@@ -485,6 +485,7 @@ namespace ccf
       auto& cert = it->second;
       auto m = std::make_unique<ViewChangeRequest>();
       m->seqno = highest_prepared_level.seqno;
+      LOG_INFO_FMT("Creating ViewChangeRequest view:{}, seqno:{}",view, m->seqno);
 
       auto it_view_change_view = it->second.view_change_sig.find(view);
       if (it_view_change_view != it->second.view_change_sig.end())
@@ -495,7 +496,7 @@ namespace ccf
         }
       }
 
-      store->sign_view_change_request(*m, view, highest_prepared_level.seqno);
+      store->sign_view_change_request(*m, view);
       return std::make_tuple(std::move(m), highest_prepared_level.seqno);
     }
 
@@ -591,25 +592,22 @@ namespace ccf
     bool apply_new_view(
       const NodeId& from,
       uint32_t node_count,
-      ccf::View& view_,
-      ccf::SeqNo& seqno_)
+      ccf::View& view_)
     {
       std::unique_lock<SpinLock> guard(lock);
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
       ccf::View view = new_view->view;
-      ccf::SeqNo seqno = new_view->seqno;
 
       if (
         new_view->view_change_messages.size() <
         ccf::get_message_threshold(node_count))
       {
         LOG_FAIL_FMT(
-          "Not enough ViewChangeRequests from:{}, new_view view:{}, seqno:{}, "
+          "Not enough ViewChangeRequests from:{}, new_view view:{}, "
           "num_requests:{}",
           from,
           view,
-          seqno,
           new_view->view_change_messages.size());
         return false;
       }
@@ -647,9 +645,6 @@ namespace ccf
       }
 
       view_ = view;
-      seqno_ = seqno;
-      last_view_change_seqno = seqno;
-
       return true;
     }
 
@@ -689,7 +684,7 @@ namespace ccf
     ccf::SeqNo get_rollback_seqno() const
     {
       std::unique_lock<SpinLock> guard(lock);
-      return std::max(highest_commit_level, last_view_change_seqno);
+      return highest_commit_level;
     }
 
   private:
@@ -697,7 +692,6 @@ namespace ccf
     std::shared_ptr<crypto::Entropy> entropy;
     ccf::SeqNo highest_commit_level = 0;
     ccf::TxID highest_prepared_level = {0, 0};
-    ccf::SeqNo last_view_change_seqno = 0;
 
     std::map<ccf::SeqNo, CommitCert> certificates;
     mutable SpinLock lock;

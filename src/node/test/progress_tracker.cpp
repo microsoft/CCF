@@ -34,9 +34,9 @@ public:
     verify_signature,
     bool(const kv::NodeId&, crypto::Sha256Hash&, uint32_t, uint8_t*),
     override);
-  MAKE_MOCK3(
+  MAKE_MOCK2(
     sign_view_change_request,
-    void(ccf::ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno),
+    void(ccf::ViewChangeRequest& view_change, ccf::View view),
     override);
   MAKE_MOCK4(
     verify_view_change_request,
@@ -373,7 +373,7 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
+    REQUIRE_CALL(store_mock, sign_view_change_request(_, _))
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, seqno},
@@ -425,7 +425,7 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
+    REQUIRE_CALL(store_mock, sign_view_change_request(_, _))
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, new_seqno},
@@ -478,7 +478,7 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
+    REQUIRE_CALL(store_mock, sign_view_change_request(_, _))
       .TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, new_seqno},

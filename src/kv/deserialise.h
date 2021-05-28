@@ -218,7 +218,7 @@ namespace kv
       return term;
     }
 
-    kv::Version get_index() override
+    virtual kv::Version get_index() override
     {
       return version;
     }
@@ -445,7 +445,7 @@ namespace kv
       }
 
       if (!progress_tracker->apply_new_view(
-            primary_id.value(), consensus->node_count(), term, version))
+            primary_id.value(), consensus->node_count(), term))
       {
         LOG_FAIL_FMT("apply_new_view Failed");
         LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);
@@ -454,6 +454,11 @@ namespace kv
 
       history->append(data);
       return ApplyResult::PASS_NEW_VIEW;
+    }
+
+    kv::Version get_index() override
+    {
+      throw std::logic_error("get_index not implemented");
     }
   };
 

@@ -164,7 +164,7 @@ namespace aft
       for (auto it : vc.view_change_messages)
       {
         if (!store->verify_view_change_request(
-              it.second, it.first, vc.view, vc.seqno))
+              it.second, it.first, vc.view, it.second.seqno))
         {
           return false;
         }
@@ -206,7 +206,6 @@ namespace aft
     const std::chrono::milliseconds time_between_attempts;
     ccf::ViewChangeConfirmation last_nvc;
 
-    // TODO: add logging here
     ccf::ViewChangeConfirmation create_view_change_confirmation_msg(
       ccf::View view, bool force_create_new = false)
     {
@@ -224,9 +223,8 @@ namespace aft
           "Cannot write unknown view-change to ledger, view:{}", view));
       }
 
-      // TODO: fix this
       auto& vc = it->second;
-      ccf::ViewChangeConfirmation nv(vc.view, 42);
+      ccf::ViewChangeConfirmation nv(vc.view);
 
       for (auto it : vc.received_view_changes)
       {
