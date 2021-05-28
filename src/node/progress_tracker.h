@@ -484,6 +484,7 @@ namespace ccf
 
       auto& cert = it->second;
       auto m = std::make_unique<ViewChangeRequest>();
+      m->seqno = highest_prepared_level.seqno;
 
       auto it_view_change_view = it->second.view_change_sig.find(view);
       if (it_view_change_view != it->second.view_change_sig.end())
@@ -618,13 +619,21 @@ namespace ccf
         NodeId id = vcp.first;
         ccf::ViewChangeRequest& vc = vcp.second;
 
-        if (!store->verify_view_change_request(vc, id, view, seqno))
+        bool result = store->verify_view_change_request(vc, id, view, vc.seqno);
+        LOG_INFO_FMT(
+          "Verify view-change id:{},view:{}, seqno:{}, from:{}, result:{}",
+          id,
+          view,
+          vc.seqno,
+          from,
+          result);
+        if (!result)
         {
           LOG_FAIL_FMT(
             "Failed to verify view-change id:{},view:{}, seqno:{}, from:{}",
             id,
             view,
-            seqno,
+            vc.seqno,
             from);
           return false;
         }

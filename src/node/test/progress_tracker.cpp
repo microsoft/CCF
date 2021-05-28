@@ -614,7 +614,7 @@ TEST_CASE("view-change-tracker statemachine tests")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, view, seqno, node_count);
+      auto r = vct.add_request_view_change(v, node_id, view, node_count);
       if (i == 2)
       {
         REQUIRE(
@@ -639,7 +639,7 @@ TEST_CASE("view-change-tracker statemachine tests")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, i, seqno, node_count);
+      auto r = vct.add_request_view_change(v, node_id, i, node_count);
       REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
       i++;
     }
@@ -748,7 +748,7 @@ TEST_CASE("Sending evidence out of band")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, view, seqno, node_count);
+      auto r = vct.add_request_view_change(v, node_id, view, node_count);
       if (i == 2)
       {
         REQUIRE(

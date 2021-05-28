@@ -15,14 +15,12 @@ namespace aft
   {
     struct ViewChange
     {
-      ViewChange(ccf::View view_, ccf::SeqNo seqno_) :
+      ViewChange(ccf::View view_) :
         view(view_),
-        seqno(seqno_),
         new_view_sent(false)
       {}
 
       ccf::View view;
-      ccf::SeqNo seqno;
       bool new_view_sent;
 
       std::map<ccf::NodeId, ccf::ViewChangeRequest> received_view_changes;
@@ -91,13 +89,12 @@ namespace aft
       ccf::ViewChangeRequest& v,
       const ccf::NodeId& from,
       ccf::View view,
-      ccf::SeqNo seqno,
       uint32_t node_count)
     {
       auto it = view_changes.find(view);
       if (it == view_changes.end())
       {
-        ViewChange view_change(view, seqno);
+        ViewChange view_change(view);
         std::tie(it, std::ignore) =
           view_changes.emplace(view, std::move(view_change));
       }
@@ -119,7 +116,7 @@ namespace aft
     ccf::SeqNo write_view_change_confirmation_append_entry(ccf::View view)
     {
       ccf::ViewChangeConfirmation nv =
-        create_view_change_confirmation_msg(view);
+        create_view_change_confirmation_msg(view, true);
       return store->write_view_change_confirmation(nv);
     }
 
@@ -209,6 +206,7 @@ namespace aft
     const std::chrono::milliseconds time_between_attempts;
     ccf::ViewChangeConfirmation last_nvc;
 
+    // TODO: add logging here
     ccf::ViewChangeConfirmation create_view_change_confirmation_msg(
       ccf::View view, bool force_create_new = false)
     {
@@ -226,11 +224,13 @@ namespace aft
           "Cannot write unknown view-change to ledger, view:{}", view));
       }
 
+      // TODO: fix this
       auto& vc = it->second;
-      ccf::ViewChangeConfirmation nv(vc.view, vc.seqno);
+      ccf::ViewChangeConfirmation nv(vc.view, 42);
 
       for (auto it : vc.received_view_changes)
       {
+        LOG_INFO_FMT("Adding to view:{}, from:{}, seqno:{}", view, it.first, it.second.seqno);
         nv.view_change_messages.emplace(it.first, it.second);
       }
 

@@ -13,13 +13,14 @@ namespace ccf
   struct ViewChangeRequest
   {
     std::vector<NodeSignature> signatures;
+    ccf::SeqNo seqno;
     std::vector<uint8_t> signature;
 
     ViewChangeRequest() = default;
 
     size_t get_serialized_size() const
     {
-      size_t size = sizeof(size_t) + sizeof(size_t) + signature.size();
+      size_t size = sizeof(size_t) + sizeof(size_t) + sizeof(ccf::SeqNo) + signature.size();
 
       for (const auto& s : signatures)
       {
@@ -39,6 +40,9 @@ namespace ccf
         s.serialize(data, size);
       }
 
+      serialized::write(
+        data, size, reinterpret_cast<uint8_t*>(&seqno), sizeof(seqno));
+
       size_t sig_size = signature.size();
       serialized::write(
         data, size, reinterpret_cast<uint8_t*>(&sig_size), sizeof(sig_size));
@@ -54,6 +58,7 @@ namespace ccf
         v.signatures.push_back(ccf::NodeSignature::deserialize(data, size));
       }
 
+      v.seqno = serialized::read<ccf::SeqNo>(data,size);
       size_t sig_size = serialized::read<size_t>(data, size);
       v.signature = serialized::read(data, size, sig_size);
 
@@ -61,7 +66,7 @@ namespace ccf
     }
   };
   DECLARE_JSON_TYPE(ViewChangeRequest);
-  DECLARE_JSON_REQUIRED_FIELDS(ViewChangeRequest, signatures, signature);
+  DECLARE_JSON_REQUIRED_FIELDS(ViewChangeRequest, signatures, seqno, signature);
 
   struct ViewChangeConfirmation
   {
