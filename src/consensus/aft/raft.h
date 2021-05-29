@@ -132,8 +132,8 @@ namespace aft
     // Configurations
     aft::ConfigurationTracker configuration_tracker;
     std::unordered_map<ccf::NodeId, aft::NodeState> nodes;
-    std::set<NodeId> catchup_node_ids;
     bool catching_up = false;
+    bool retiring = false;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -285,7 +285,7 @@ namespace aft
     {
       if (from == state->my_node_id)
       {
-        return !catching_up;
+        return !catching_up && !retiring;
       }
       else
       {
@@ -466,10 +466,7 @@ namespace aft
       return state->view_history.initialise(term_history);
     }
 
-    void add_configuration(
-      Index idx,
-      const Configuration::Nodes& conf,
-      const std::set<NodeId>& cn_ids = {})
+    void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       // It is safe to call is_follower() by construction as the consensus
@@ -482,14 +479,10 @@ namespace aft
         guard.lock();
       }
       // This should only be called when the spin lock is held.
-      configuration_tracker.add(idx, std::move(conf), cn_ids);
-      for (const auto& id : cn_ids)
-      {
-        LOG_TRACE_FMT("Catchup node: {}", id);
-        catchup_node_ids.insert(id);
-      }
-      catching_up =
-        conf.find(id()) != conf.end() && cn_ids.find(id()) != cn_ids.end();
+      auto nit = conf.find(id());
+      catching_up = nit != conf.end() && nit->second.catching_up;
+      configuration_tracker.add(idx, std::move(conf));
+      LOG_DEBUG_FMT("catching_up={}", catching_up);
       backup_nodes.clear();
       create_and_remove_node_state();
     }
@@ -2531,7 +2524,7 @@ namespace aft
 
     void become_candidate()
     {
-      if (replica_state == kv::ReplicaState::Retired)
+      if (replica_state == kv::ReplicaState::Retired || retiring)
       {
         return;
       }
@@ -2577,7 +2570,7 @@ namespace aft
 
     void become_leader()
     {
-      if (replica_state == kv::ReplicaState::Retired)
+      if (replica_state == kv::ReplicaState::Retired || retiring)
       {
         return;
       }
@@ -2612,11 +2605,7 @@ namespace aft
         state->last_idx);
 
       for (const auto& [node_id, info] : nodes)
-        LOG_TRACE_FMT(
-          "Node: {} {} catchup={}",
-          node_id,
-          info.match_idx,
-          catchup_node_ids.find(node_id) == catchup_node_ids.end());
+        LOG_TRACE_FMT("Node: {} {}", node_id, info.match_idx);
 
       LOG_TRACE_FMT("Configurations: {}", configuration_tracker.to_string());
 
@@ -2644,7 +2633,7 @@ namespace aft
 
     void become_follower(Term term)
     {
-      if (replica_state == kv::ReplicaState::Retired)
+      if (replica_state == kv::ReplicaState::Retired || retiring)
       {
         return;
       }
@@ -2683,11 +2672,35 @@ namespace aft
     void become_retired()
     {
       catching_up = false;
-      replica_state = kv::ReplicaState::Retired;
-      leader_id.reset();
 
-      LOG_INFO_FMT(
-        "Becoming retired {}: {}", state->my_node_id, state->current_view);
+#if 0
+      // To guarantee liveness during reconfiguration, we need something of this
+      // sort (e.g. when replacing the whole network in one reconfiguration).
+      // This is not enough though; we would need to check that n/2+1 of the new
+      // nodes have seen enough of the new configuration to make sure we don't
+      // lose any transactions.
+      if (configuration_tracker.configurations.size() > 1)
+      {
+        std::stringstream ss;
+        for (const auto& [id, info] : nodes)
+        {
+          if (info.catching_up)
+            ss << " " << id;
+        }
+        LOG_INFO_FMT(
+          "Delaying retirement during reconfiguration; nodes catching up:{}",
+          ss.str());
+        retiring = true;
+      }
+      else
+#endif
+      {
+        replica_state = kv::ReplicaState::Retired;
+        leader_id.reset();
+
+        LOG_INFO_FMT(
+          "Becoming retired {}: {}", state->my_node_id, state->current_view);
+      }
     }
 
     void add_vote_for_me(const ccf::NodeId& from)
@@ -2887,37 +2900,24 @@ namespace aft
 
     void create_and_remove_node_state()
     {
-      for (auto& [id, info] : nodes)
-      {
-        if (
-          info.catching_up &&
-          catchup_node_ids.find(id) == catchup_node_ids.end())
-        {
-          LOG_TRACE_FMT("Configuration: {} is not catching up anymore", id);
-          info.catching_up = false;
-        }
-      }
-
-      if (
-        catching_up &&
-        catchup_node_ids.find(state->my_node_id) == catchup_node_ids.end())
-      {
-        LOG_TRACE_FMT("Configuration: not catching up anymore");
-        catching_up = false;
-      }
-
       // Find all nodes present in any active configuration.
       Configuration::Nodes all_nodes = configuration_tracker.all_nodes();
+
+      for (const auto& [id, info] : all_nodes)
+      {
+        LOG_DEBUG_FMT(
+          "N: {} {}", id, info.catching_up ? "catching up" : "trusted");
+      }
 
       // Remove all nodes in the node state that are not present in any active
       // configuration.
       std::vector<ccf::NodeId> to_remove;
 
-      for (auto& node : nodes)
+      for (const auto& [id, _] : nodes)
       {
-        if (all_nodes.find(node.first) == all_nodes.end())
+        if (all_nodes.find(id) == all_nodes.end())
         {
-          to_remove.push_back(node.first);
+          to_remove.push_back(id);
         }
       }
 
@@ -2936,53 +2936,54 @@ namespace aft
       // Add all nodes that are not already present in the node state.
       bool self_is_active = false;
 
-      for (auto node_info : all_nodes)
+      for (const auto& [id, info] : all_nodes)
       {
-        if (node_info.first == state->my_node_id)
+        if (id == state->my_node_id)
         {
           self_is_active = true;
           continue;
         }
 
-        if (nodes.find(node_info.first) == nodes.end())
+        if (nodes.find(id) == nodes.end())
         {
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = state->last_idx + 1;
-          auto er =
-            nodes.try_emplace(node_info.first, node_info.second, index, 0);
+          auto er = nodes.try_emplace(id, info, index, 0, info.catching_up);
 
-          if (catchup_node_ids.find(node_info.first) == catchup_node_ids.end())
+          if (er.second)
           {
-            er.first->second.catching_up = false;
+            LOG_DEBUG_FMT(
+              "{}: {} (was {})",
+              er.first->first,
+              er.first->second.catching_up,
+              info.catching_up);
           }
 
           if (
             replica_state == kv::ReplicaState::Leader ||
             consensus_type == ConsensusType::BFT)
           {
-            channels->create_channel(
-              node_info.first,
-              node_info.second.hostname,
-              node_info.second.port);
+            channels->create_channel(id, info.hostname, info.port);
           }
 
           if (replica_state == kv::ReplicaState::Leader)
           {
-            send_append_entries(node_info.first, index);
+            send_append_entries(id, index);
           }
 
-          LOG_INFO_FMT("Added raft node {}", node_info.first);
+          LOG_INFO_FMT("Added raft node {}", id);
         }
       }
 
       if (!self_is_active)
       {
-        LOG_INFO_FMT("Removed raft self {}", state->my_node_id);
         if (replica_state == kv::ReplicaState::Leader)
         {
           become_retired();
         }
+        else
+          LOG_INFO_FMT("Removed raft self {}", state->my_node_id);
       }
     }
   };

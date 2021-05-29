@@ -64,7 +64,6 @@ namespace ccf
     void call(kv::ConfigurableConsensus* consensus) override
     {
       auto configuration = consensus->get_latest_configuration_unsafe();
-      std::set<NodeId> catchup_nodes;
 
       LOG_INFO_FMT("ConfigurationChangeHook::call()");
 
@@ -76,9 +75,8 @@ namespace ccf
             "+ {} {}",
             node_id,
             (opt_ni->catching_up ? "catching up" : "trusted"));
-          configuration.try_emplace(node_id, opt_ni->hostname, opt_ni->port);
-          if (opt_ni->catching_up)
-            catchup_nodes.insert(node_id);
+          configuration[node_id] = {
+            opt_ni->hostname, opt_ni->port, opt_ni->catching_up};
         }
         else
         {
@@ -89,7 +87,7 @@ namespace ccf
 
       if (!cfg_delta.empty())
       {
-        consensus->add_configuration(version, configuration, catchup_nodes);
+        consensus->add_configuration(version, configuration);
       }
     }
   };

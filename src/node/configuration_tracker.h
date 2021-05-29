@@ -42,11 +42,12 @@ namespace aft
     NodeState(
       const kv::Configuration::NodeInfo& node_info_,
       Index sent_idx_,
-      Index match_idx_ = 0) :
+      Index match_idx_ = 0,
+      bool catching_up_ = true) :
       node_info(node_info_),
       sent_idx(sent_idx_),
       match_idx(match_idx_),
-      catching_up(true)
+      catching_up(catching_up_)
     {}
   };
 
@@ -94,7 +95,7 @@ namespace aft
     // configuration.
     bool commit(Index idx)
     {
-      LOG_INFO_FMT("Configurations: commit {}!", idx);
+      LOG_TRACE_FMT("Configurations: commit {}!", idx);
 
       bool r = false;
       while (true)
@@ -114,33 +115,31 @@ namespace aft
         r = true;
       }
 
-      LOG_INFO_FMT("Configurations: {}", to_string());
+      LOG_TRACE_FMT("Configurations: {}", to_string());
 
       return r;
     }
 
     bool rollback(Index idx)
     {
-      LOG_INFO_FMT("Configurations: rollback to {}", idx);
+      LOG_TRACE_FMT("Configurations: rollback to {}", idx);
       bool r = false;
       while (!configurations.empty() && (configurations.back().idx > idx))
       {
         configurations.pop_back();
         r = true;
       }
-      LOG_INFO_FMT("Configurations: {}", to_string());
+      LOG_TRACE_FMT("Configurations: {}", to_string());
       return r;
     }
 
-    void add(
-      size_t idx,
-      const kv::Configuration::Nodes&& config,
-      const std::set<NodeId>& cn_ids)
+    void add(size_t idx, const kv::Configuration::Nodes&& config)
     {
+      LOG_TRACE_FMT("Configurations: {}", to_string());
+      check_for_promotions(config);
       if (config != configurations.back().nodes)
         configurations.push_back({idx, std::move(config)});
-      check_for_promotions(config, cn_ids);
-      LOG_INFO_FMT("Configurations: {}", to_string());
+      LOG_TRACE_FMT("Configurations: {}", to_string());
     }
 
     bool empty() const
@@ -166,7 +165,6 @@ namespace aft
         nit != nodes.end() && nit->second.catching_up &&
         !(txid < primary_txid) && store != nullptr)
       {
-        nit->second.catching_up = false;
         return record_promotion(id);
       }
 
@@ -217,11 +215,11 @@ namespace aft
     {
       kv::Configuration::Nodes r;
 
-      for (auto& conf : configurations)
+      for (const auto& c : configurations)
       {
-        for (auto node : conf.nodes)
+        for (const auto& [id, info] : c.nodes)
         {
-          r.emplace(node.first, node.second);
+          r[id] = info;
         }
       }
 
@@ -231,7 +229,7 @@ namespace aft
     Index cft_watermark(
       kv::Version last_idx, std::unordered_map<NodeId, aft::NodeState>& nodes)
     {
-      LOG_INFO_FMT(
+      LOG_TRACE_FMT(
         "Configurations: CFT watermark; configurations: {}", to_string());
       Index r = std::numeric_limits<Index>::max();
 
@@ -307,9 +305,9 @@ namespace aft
             ss << " ";
           ss << id;
           auto nit = nodes.find(id);
-          if (nit == nodes.end())
+          if (nit == nodes.end() && id != node_id)
             ss << "!";
-          else if (nit->second.catching_up)
+          else if (nit != nodes.end() && nit->second.catching_up)
             ss << "*";
         }
         ss << "]@" << c.idx << " ";
@@ -374,17 +372,22 @@ namespace aft
       return rs == HTTP_STATUS_OK;
     }
 
-    void check_for_promotions(
-      const kv::Configuration::Nodes& config, const std::set<NodeId>& cn_ids)
+    void check_for_promotions(const kv::Configuration::Nodes& config)
     {
-      for (const auto& n : config)
+      for (const auto& [id, info] : nodes)
       {
-        if (cn_ids.find(n.first) == cn_ids.end())
+        LOG_DEBUG_FMT("Promo check node {}: {}", id, info.catching_up);
+      }
+
+      for (const auto& [id, info] : config)
+      {
+        LOG_DEBUG_FMT("In config: {}: {}", id, info.catching_up);
+        if (!info.catching_up)
         {
-          auto nit = nodes.find(n.first);
-          if (nit != nodes.end())
+          auto nit = nodes.find(id);
+          if (nit != nodes.end() && nit->second.catching_up)
           {
-            LOG_DEBUG_FMT("Observing promotion: {}", nit->first);
+            LOG_DEBUG_FMT("Observing promotion: {}", id);
             nit->second.catching_up = false;
           }
         }

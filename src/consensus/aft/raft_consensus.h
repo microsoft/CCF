@@ -127,11 +127,9 @@ namespace aft
     }
 
     void add_configuration(
-      ccf::SeqNo seqno,
-      const Configuration::Nodes& conf,
-      const std::set<NodeId>& catchup_nodes = {}) override
+      ccf::SeqNo seqno, const Configuration::Nodes& conf) override
     {
-      aft->add_configuration(seqno, conf, catchup_nodes);
+      aft->add_configuration(seqno, conf);
     }
 
     Configuration::Nodes get_latest_configuration() override

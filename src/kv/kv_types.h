@@ -78,17 +78,23 @@ namespace kv
     {
       std::string hostname;
       std::string port;
+      bool catching_up;
 
       NodeInfo() = default;
 
-      NodeInfo(const std::string& hostname_, const std::string& port_) :
+      NodeInfo(
+        const std::string& hostname_,
+        const std::string& port_,
+        bool catching_up_) :
         hostname(hostname_),
-        port(port_)
+        port(port_),
+        catching_up(catching_up_)
       {}
 
       bool operator==(const struct NodeInfo& other) const
       {
-        return hostname == other.hostname && port == other.port;
+        return hostname == other.hostname && port == other.port &&
+          catching_up == other.catching_up;
       }
     };
 
@@ -143,9 +149,7 @@ namespace kv
   {
   public:
     virtual void add_configuration(
-      ccf::SeqNo seqno,
-      const Configuration::Nodes& conf,
-      const std::set<NodeId>& catchup_nodes) = 0;
+      ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;

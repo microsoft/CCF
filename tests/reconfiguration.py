@@ -125,6 +125,11 @@ def test_add_and_remove_multiple_nodes(network, args, n=1, m=1, timeout=3):
     check_can_progress(primary)
 
 
+def test_replace_network(network, args, timeout=3):
+    n = len(network.nodes)
+    test_add_and_remove_multiple_nodes(network, args, n, n, timeout)
+
+
 @reqs.description("Adding a node on different curve")
 def test_add_node_on_other_curve(network, args):
     original_curve = args.curve_id
@@ -397,6 +402,7 @@ def run(args):
 
         test_join_straddling_primary_replacement(network, args)
         test_version(network, args)
+        # test_replace_network(network, args)
         test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
