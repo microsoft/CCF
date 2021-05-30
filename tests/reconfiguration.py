@@ -399,6 +399,9 @@ def run(args):
         txs=txs,
         consensus=args.consensus,
     ) as network:
+        if args.consensus == "bft":
+            args.join_timer = 2 * args.join_timer
+
         network.start_and_join(args)
 
         test_version(network, args)

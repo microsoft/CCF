@@ -531,6 +531,13 @@ class Consortium:
                     # Node may not have joined the network yet, or it may be
                     # too busy to answer the request in time, so try again.
                     retries -= 1
+                elif (
+                    node_status == NodeStatus.TRUSTED
+                    and r is not None
+                    and r.status_code == http.HTTPStatus.OK.value
+                    and r.body.json()["status"] == "CatchingUp"
+                ):
+                    time.sleep(0.5)  # Doesn't count!
                 else:
                     break
 
