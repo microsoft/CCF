@@ -8,7 +8,6 @@ import infra.proc
 import infra.e2e_args
 import infra.checker
 import suite.test_requirements as reqs
-from ccf.clients import CCFConnectionException
 
 from loguru import logger as LOG
 
