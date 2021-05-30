@@ -278,7 +278,7 @@ namespace aft
         std::stringstream ss;
         for (auto& m : match)
           ss << m << " ";
-        LOG_INFO_FMT(
+        LOG_TRACE_FMT(
           "last_idx={} confirmed={} r={} match={}",
           last_idx,
           confirmed,
