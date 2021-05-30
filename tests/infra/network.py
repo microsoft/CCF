@@ -876,7 +876,7 @@ class Network:
             primary, node.node_id, timeout, NodeStatus.TRUSTED
         )
 
-        self.wait_for_all_nodes_to_commit(primary)
+        self.wait_for_all_nodes_to_commit(primary, timeout=2 * timeout)
 
     def wait_for_node_commit_sync(self, timeout=3):
         """
