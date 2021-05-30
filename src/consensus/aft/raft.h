@@ -296,7 +296,7 @@ namespace aft
 
     size_t num_eligigble_voters() const
     {
-      size_t r = catching_up ? 0 : 1;
+      size_t r = (catching_up || retiring) ? 0 : 1;
       for (const auto& [_, state] : nodes)
       {
         if (!state.catching_up)
@@ -316,7 +316,7 @@ namespace aft
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
       auto active_nodes_ = active_node_ids();
-      if (!catching_up)
+      if (!catching_up && !retiring)
       {
         active_nodes_.insert(id());
       }
@@ -1145,7 +1145,9 @@ namespace aft
     Term get_term_internal(Index idx)
     {
       if (idx > state->last_idx)
+      {
         return ccf::VIEW_UNKNOWN;
+      }
 
       return state->view_history.view_at(idx);
     }
@@ -2976,7 +2978,7 @@ namespace aft
         }
       }
 
-      if (!self_is_active)
+      if (!self_is_active && !catching_up)
       {
         if (replica_state == kv::ReplicaState::Leader)
         {

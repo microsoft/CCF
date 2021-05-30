@@ -117,6 +117,7 @@ class Network:
         library_dir=".",
         init_partitioner=False,
         version=None,
+        consensus="cft",
     ):
         if existing_network is None:
             self.consortium = None
@@ -154,6 +155,8 @@ class Network:
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
         self.version = version
+        self.consensus = consensus
+        self.next_bft_node_id = 0
 
         # Requires admin privileges
         self.partitioner = (
@@ -169,9 +172,14 @@ class Network:
             self.create_node(host, version=self.version)
 
     def _get_next_local_node_id(self):
-        if len(self.nodes):
-            return self.nodes[-1].local_node_id + 1
-        return self.node_offset
+        if self.consensus == "bft":
+            r = self.next_bft_node_id
+            self.next_bft_node_id += 1
+            return r
+        else:
+            if len(self.nodes):
+                return self.nodes[-1].local_node_id + 1
+            return self.node_offset
 
     def create_node(
         self, host, binary_dir=None, library_dir=None, node_port=None, version=None
@@ -890,13 +898,33 @@ class Network:
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"Multiple commit values: {commits}"
 
-    def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):
+    def wait_for_new_primary(
+        self, old_primary, nodes=None, timeout_multiplier=2, args=None
+    ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
         timeout = self.election_duration * timeout_multiplier
         LOG.info(
             f"Waiting up to {timeout}s for a new primary different from {old_primary.local_node_id} ({old_primary.node_id}) to be elected..."
         )
+
+        # When the consensus is BFT there is no status message timer that triggers a new election.
+        # It is triggered with a timeout from a message not executing. We need to send the message that
+        # will not execute because of the stopped primary which will then trigger a view change
+        if args is not None and args.consensus == "bft":
+            try:
+                backup = self.find_any_backup()
+                with backup.client("user0") as c:
+                    _ = c.post(
+                        "/app/log/private",
+                        {
+                            "id": -1,
+                            "msg": "This is submitted to force a view change",
+                        },
+                    )
+            except CCFConnectionException:
+                LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
+
         end_time = time.time() + timeout
         error = TimeoutError
         logs = []
@@ -1025,6 +1053,7 @@ def network(
     library_directory=".",
     init_partitioner=False,
     version=None,
+    consensus="cft",
 ):
     """
     Context manager for Network class.
@@ -1053,6 +1082,7 @@ def network(
         jwt_issuer=jwt_issuer,
         init_partitioner=init_partitioner,
         version=version,
+        consensus=consensus,
     )
     try:
         yield net

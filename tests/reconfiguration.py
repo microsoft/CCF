@@ -118,7 +118,7 @@ def test_add_and_remove_multiple_nodes(network, args, n=1, m=1, timeout=3):
         timeout=timeout,
     )
     if primary in nodes_to_remove:
-        network.wait_for_new_primary(primary)
+        network.wait_for_new_primary(primary, args=args)
         primary, _ = network.find_primary()
     for n in nodes_to_remove:
         network.nodes.remove(n)
@@ -256,7 +256,7 @@ def test_retire_primary(network, args):
 
     primary, backup = network.find_primary_and_any_backup()
     network.retire_node(primary, primary)
-    network.wait_for_new_primary(primary)
+    network.wait_for_new_primary(primary, args=args)
     # The backup may forward the request to the old primary if it hasn't seen the retirement yet.
     time.sleep(1)
     check_can_progress(backup)
@@ -300,13 +300,13 @@ def test_node_filter(network, args):
 
 @reqs.description("Get node CCF version")
 def test_version(network, args):
-    nodes = network.get_joined_nodes()
+    if args.ccf_version is not None:
+        nodes = network.get_joined_nodes()
 
-    for node in nodes:
-        with node.client() as c:
-            r = c.get("/node/version")
-            print(args.ccf_version)
-            assert r.body.json()["ccf_version"] == args.ccf_version
+        for node in nodes:
+            with node.client() as c:
+                r = c.get("/node/version")
+                assert r.body.json()["ccf_version"] == args.ccf_version
 
 
 @reqs.description("Replace a node on the same addresses")
@@ -380,7 +380,7 @@ def test_join_straddling_primary_replacement(network, args):
         timeout=10,
     )
 
-    network.wait_for_new_primary(primary)
+    network.wait_for_new_primary(primary, args=args)
     new_node.wait_for_node_to_join(timeout=10)
 
     primary.stop()
@@ -397,35 +397,59 @@ def run(args):
         args.perf_nodes,
         pdb=args.pdb,
         txs=txs,
+        consensus=args.consensus,
     ) as network:
         network.start_and_join(args)
 
-        test_join_straddling_primary_replacement(network, args)
         test_version(network, args)
-        # test_replace_network(network, args)
-        test_node_replacement(network, args)
-        test_add_node_from_backup(network, args)
-        test_add_node(network, args)
-        test_add_node_on_other_curve(network, args)
-        test_retire_backup(network, args)
-        test_add_as_many_pending_nodes(network, args)
-        test_add_node(network, args)
-        test_retire_primary(network, args)
-        test_add_multiple_nodes(network, args, n=2)
-        test_add_and_remove_multiple_nodes(network, args, n=1, m=1)
-        test_add_and_remove_multiple_nodes(network, args, n=2, m=3)
 
-        test_add_node_from_snapshot(network, args)
-        test_add_node_from_snapshot(network, args, from_backup=True)
-        test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
-        latest_node_log = network.get_joined_nodes()[-1].remote.log_path()
-        with open(latest_node_log, "r+") as log:
-            assert any(
-                "No snapshot found: Node will replay all historical transactions" in l
-                for l in log.readlines()
-            ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
+        if args.consensus == "cft":
+            test_join_straddling_primary_replacement(network, args)
+            test_node_replacement(network, args)
+            test_add_node_from_backup(network, args)
+            test_add_node(network, args)
+            test_add_node_on_other_curve(network, args)
+            test_retire_backup(network, args)
+            test_add_as_many_pending_nodes(network, args)
+            test_add_node(network, args)
+            test_retire_primary(network, args)
+            test_add_multiple_nodes(network, args, n=2)
+            test_add_and_remove_multiple_nodes(network, args, n=1, m=1)
+            test_add_and_remove_multiple_nodes(network, args, n=2, m=3)
 
-        test_node_filter(network, args)
+            test_add_node_from_snapshot(network, args)
+            test_add_node_from_snapshot(network, args, from_backup=True)
+            test_add_node_from_snapshot(network, args, copy_ledger_read_only=False)
+            latest_node_log = network.get_joined_nodes()[-1].remote.log_path()
+            with open(latest_node_log, "r+") as log:
+                assert any(
+                    "No snapshot found: Node will replay all historical transactions"
+                    in l
+                    for l in log.readlines()
+                ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
+
+            test_node_filter(network, args)
+
+        elif args.consensus == "bft":
+            # test_join_straddling_primary_replacement(network, args)  # Fails to find new primary
+            test_node_replacement(network, args)
+            # test_add_node_from_backup(network, args)  # Join-tx gets rolled back every time it tries
+            test_add_node(network, args)
+            test_add_node_on_other_curve(network, args)
+            test_retire_backup(network, args)
+            # test_add_as_many_pending_nodes(network, args) # Too many nodes and transactions, runs into timeouts and buffer size exhaustions
+            test_add_node(network, args)
+            test_retire_primary(network, args)
+
+            # These get stuck because of signature verification problems
+            # test_add_multiple_nodes(network, args, n=2)
+            # test_add_and_remove_multiple_nodes(network, args, n=1, m=1)
+            # test_add_and_remove_multiple_nodes(network, args, n=2, m=3)
+
+            test_node_filter(network, args)
+
+        else:
+            raise ValueError("Unknown consensus")
 
 
 def run_join_old_snapshot(args):
@@ -471,7 +495,7 @@ def run_join_old_snapshot(args):
             # Kill primary and wait for a new one: new primary is
             # guaranteed to have started from the new snapshot
             primary.stop()
-            network.wait_for_new_primary(primary)
+            network.wait_for_new_primary(primary, args=args)
 
             # Start new node from the old snapshot
             try:
@@ -496,4 +520,6 @@ if __name__ == "__main__":
     args.initial_user_count = 1
 
     run(args)
-    run_join_old_snapshot(args)
+
+    if args.consensus != "bft":
+        run_join_old_snapshot(args)

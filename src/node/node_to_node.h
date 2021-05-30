@@ -211,7 +211,8 @@ namespace ccf
       auto n2n_channel = channels->get(to);
       if (!n2n_channel)
       {
-        LOG_DEBUG_FMT("Dropping message sent non-existing channel with {}", to);
+        LOG_DEBUG_FMT(
+          "Dropping message sent to non-existing channel with {}", to);
         return false;
       }
       else
@@ -241,7 +242,8 @@ namespace ccf
       auto n2n_channel = channels->get(to);
       if (!n2n_channel)
       {
-        LOG_DEBUG_FMT("Dropping message sent non-existing channel with {}", to);
+        LOG_DEBUG_FMT(
+          "Dropping message sent to non-existing channel with {}", to);
         return false;
       }
       else
