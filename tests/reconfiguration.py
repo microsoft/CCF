@@ -122,6 +122,19 @@ def test_add_and_remove_multiple_nodes(network, args, n=1, m=1, timeout=3):
         primary, _ = network.find_primary()
     for n in nodes_to_remove:
         network.nodes.remove(n)
+
+    # During a multi-node, multi-step reconfiguration, the primary may change very
+    # rapidly. So, before checking whether we can progress, we need to make sure
+    # it's stable.
+    retries = 10
+    while retries > 0:
+        primary2, _ = network.find_primary()
+        if primary.node_id == primary2.node_id:
+            break
+        else:
+            retries -= 1
+            time.sleep(0.5)
+
     check_can_progress(primary)
 
 
