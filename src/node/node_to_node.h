@@ -248,7 +248,7 @@ namespace ccf
       }
       else
       {
-        return n2n_channel ? n2n_channel->send(type, cb, data) : true;
+        return n2n_channel->send(type, cb, data);
       }
     }
 
@@ -267,7 +267,11 @@ namespace ccf
       auto n2n_channel = channels->get(from);
 
       if (!n2n_channel)
+      {
+        LOG_DEBUG_FMT(
+          "Dropping message received on non-existing channel with {}", from);
         return {};
+      }
 
       auto plain = n2n_channel->recv_encrypted(cb, data, size);
       if (!plain.has_value())
@@ -283,17 +287,6 @@ namespace ccf
     {
       LOG_DEBUG_FMT("key_exchange_init from {}", from);
 
-      // In the case of concurrent key_exchange_init's from both nodes, the one
-      // with the lower ID wins.
-
-      auto n2n_channel = channels->get(from);
-      n2n_channel->consume_initiator_key_share(data, size, self < from);
-    }
-
-    void process_key_exchange_response(
-      const NodeId& from, const uint8_t* data, size_t size)
-    {
-      LOG_DEBUG_FMT("key_exchange_response from {}", from);
       auto n2n_channel = channels->get(from);
       if (!n2n_channel)
       {
@@ -301,6 +294,25 @@ namespace ccf
           "Dropping message received on non-existing channel with {}", from);
         return;
       }
+
+      // In the case of concurrent key_exchange_init's from both nodes, the one
+      // with the lower ID wins.
+      n2n_channel->consume_initiator_key_share(data, size, self < from);
+    }
+
+    void process_key_exchange_response(
+      const NodeId& from, const uint8_t* data, size_t size)
+    {
+      LOG_DEBUG_FMT("key_exchange_response from {}", from);
+
+      auto n2n_channel = channels->get(from);
+      if (!n2n_channel)
+      {
+        LOG_DEBUG_FMT(
+          "Dropping message received on non-existing channel with {}", from);
+        return;
+      }
+
       n2n_channel->consume_responder_key_share(data, size);
     }
 
@@ -308,7 +320,15 @@ namespace ccf
       const NodeId& from, const uint8_t* data, size_t size)
     {
       LOG_DEBUG_FMT("key_exchange_final from {}", from);
+
       auto n2n_channel = channels->get(from);
+      if (!n2n_channel)
+      {
+        LOG_DEBUG_FMT(
+          "Dropping message received on non-existing channel with {}", from);
+        return;
+      }
+
       if (!n2n_channel->check_peer_key_share_signature(data, size))
       {
         n2n_channel->reset();
