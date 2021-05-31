@@ -104,28 +104,25 @@ namespace ccf
           cert, bft_node_sig, tx_id.view, tx_id.seqno, node_id);
         cert.my_nonce = my_nonce;
         cert.have_primary_signature = true;
-        for (auto& sig : cert.sigs)
+        for (auto sig = cert.sigs.begin(); sig != cert.sigs.begin();)
         {
           if (
-            !sig.second.is_primary &&
+            !sig->second.is_primary &&
             !store->verify_signature(
-              sig.second.node,
+              sig->second.node,
               cert.root,
-              sig.second.sig.size(),
-              sig.second.sig.data()))
+              sig->second.sig.size(),
+              sig->second.sig.data()))
           {
-            // NOTE: We need to handle this case but for now having this make a
-            // test fail will be very handy
-            throw ccf::ccf_logic_error(fmt::format(
-              "record_primary: Signature verification from {} FAILED, view:{}, "
-              "seqno:{}",
-              sig.first,
-              tx_id.view,
-              tx_id.seqno));
+            sig = cert.sigs.erase(sig);
+          }
+          else
+          {
+            ++sig;
           }
           LOG_TRACE_FMT(
             "Signature verification from {} passed, view:{}, seqno:{}",
-            sig.second.node,
+            sig->second.node,
             tx_id.view,
             tx_id.seqno);
         }
@@ -485,14 +482,19 @@ namespace ccf
       auto& cert = it->second;
       auto m = std::make_unique<ViewChangeRequest>();
       m->seqno = highest_prepared_level.seqno;
-      LOG_INFO_FMT("Creating ViewChangeRequest view:{}, seqno:{}",view, m->seqno);
+      m->root = cert.root;
 
       for (const auto& sig : cert.sigs)
       {
-        m->signatures.push_back(sig.second);
+        // We may have received a nonce but nonce but not the signature from a node, in this case we do not want to include the empty signature
+        if (!sig.second.sig.empty())
+        {
+          m->signatures.push_back(sig.second);
+        }
       }
 
       store->sign_view_change_request(*m, view);
+      LOG_INFO_FMT("Creating ViewChangeRequest view:{}, seqno:{}, root:{}, sig.size:{}, sig:{}",view, m->seqno, m->root, m->signature.size(), m->signature);
       return std::make_tuple(std::move(m), highest_prepared_level.seqno);
     }
 
@@ -527,7 +529,30 @@ namespace ccf
       }
       LOG_INFO_FMT(
         "Applying view-change from:{}, view:{}, seqno:{}", from, view, seqno);
-      return ApplyViewChangeMessageResult::OK;
+      bool verified_signatures = true;
+
+      for (auto& sig : view_change.signatures)
+      {
+        if (!store->verify_signature(
+              sig.node, view_change.root, sig.sig.size(), sig.sig.data()))
+        {
+          LOG_FAIL_FMT(
+            "signatures do not match, view-change from:{}, view:{}, seqno:{}, "
+            "node_id:{}, root:{}, sig:{}, sig.size:{}",
+            from,
+            view,
+            seqno,
+            sig.node,
+            view_change.root,
+            sig.sig,
+            sig.sig.size());
+          verified_signatures = false;
+          continue;
+        }
+      }
+
+      return verified_signatures ? ApplyViewChangeMessageResult::OK :
+                                   ApplyViewChangeMessageResult::FAIL;
     }
 
     bool apply_new_view(

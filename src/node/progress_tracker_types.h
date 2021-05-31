@@ -290,6 +290,7 @@ namespace ccf
 
       ch->update(view);
       ch->update(v.seqno);
+      ch->update(v.root);
 
       for (auto& s : v.signatures)
       {

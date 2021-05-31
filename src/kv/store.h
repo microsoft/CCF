@@ -909,7 +909,7 @@ namespace kv
     TxID current_txid() override
     {
       // Must lock in case the version is being incremented.
-      std::lock_guard<SpinLock> vguard(version_lock);
+      //std::lock_guard<SpinLock> vguard(version_lock);
       return {term, version};
     }
 
