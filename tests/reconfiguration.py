@@ -435,7 +435,6 @@ def run(args):
             test_retire_primary(network, args)
             test_add_multiple_nodes(network, args, n=2)
             test_add_and_remove_multiple_nodes(network, args, n=1, m=1)
-            test_add_and_remove_multiple_nodes(network, args, n=2, m=3)
 
             test_add_node_from_snapshot(network, args)
             test_add_node_from_snapshot(network, args, from_backup=True)
@@ -464,7 +463,6 @@ def run(args):
             # These get stuck because of signature verification problems
             # test_add_multiple_nodes(network, args, n=2)
             # test_add_and_remove_multiple_nodes(network, args, n=1, m=1)
-            # test_add_and_remove_multiple_nodes(network, args, n=2, m=3)
 
             test_node_filter(network, args)
 
