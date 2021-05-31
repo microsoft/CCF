@@ -129,7 +129,11 @@ def test_add_and_remove_multiple_nodes(network, args, n=1, m=1, timeout=3):
     retries = 10
     while retries > 0:
         primary2, _ = network.find_primary()
-        if primary.node_id == primary2.node_id:
+        if (
+            primary is not None
+            and primary2 is not None
+            and primary.node_id == primary2.node_id
+        ):
             break
         else:
             retries -= 1
