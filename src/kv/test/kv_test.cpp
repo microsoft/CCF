@@ -525,6 +525,40 @@ TEST_CASE("serialisation of Unit type")
   }
 }
 
+TEST_CASE("multiple handles")
+{
+  kv::Store kv_store;
+
+  MapTypes::NumString map("public:map");
+
+  constexpr auto k = 42;
+  constexpr auto v1 = "hello";
+  constexpr auto v2 = "saluton";
+
+  auto tx = kv_store.create_tx();
+
+  auto h1 = tx.ro(map);
+  auto h2 = tx.rw(map);
+  auto h3 = tx.wo(map);
+
+  REQUIRE(!h1->has(k));
+  REQUIRE(!h2->has(k));
+
+  h2->put(k, v1);
+
+  REQUIRE(h1->has(k));
+  REQUIRE(*h1->get(k) == v1);
+  REQUIRE(h2->has(k));
+  REQUIRE(*h2->get(k) == v1);
+
+  h3->put(k, v2);
+
+  REQUIRE(h1->has(k));
+  REQUIRE(*h1->get(k) == v2);
+  REQUIRE(h2->has(k));
+  REQUIRE(*h2->get(k) == v2);
+}
+
 TEST_CASE("clear")
 {
   kv::Store kv_store;
