@@ -81,7 +81,7 @@ namespace kv
      *
      * @param key Key to read
      *
-     * @return bool true if key exists
+     * @return Boolean true iff key exists
      */
     bool has(const K& key)
     {
@@ -93,8 +93,8 @@ namespace kv
      *
      * Returns nullopt when there is no value, because the key has no value
      * (never existed or has been removed). Note that this is always talking
-     * about the version of previously committed state and not the same values
-     * as @c get or @c has - this transaction's pending writes have no version
+     * about the version of previously applied state and not the same values
+     * as @c get or @c has. This transaction's pending writes have no version
      * yet, and this method does not talk about them.
      *
      * @param key Key to read
