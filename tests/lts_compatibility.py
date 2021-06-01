@@ -272,7 +272,6 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
                 network = infra.network.Network(**network_args)
                 network.start_and_join(args)
             else:
-                args.host_log_level = "debug"
                 LOG.info(f"Recovering service (new version: {version})")
                 network = infra.network.Network(
                     **network_args, existing_network=network
