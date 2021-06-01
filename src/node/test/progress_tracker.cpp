@@ -79,6 +79,7 @@ void ordered_execution(
     auto result = pt->record_primary(
       {view, seqno},
       kv::test::PrimaryNodeId,
+      false,
       root,
       primary_sig,
       hashed_nonce,
@@ -335,7 +336,7 @@ TEST_CASE("Record primary signature")
   ccf::ProgressTracker pt(nullptr, my_node_id);
 
   auto result = pt.record_primary(
-    {view, seqno}, kv::test::PrimaryNodeId, root, primary_sig, nonce);
+    {view, seqno}, kv::test::PrimaryNodeId, false, root, primary_sig, nonce);
   REQUIRE(result == kv::TxHistory::Result::OK);
 
   primary_sig = {1};
@@ -378,6 +379,7 @@ TEST_CASE("View Changes")
     auto result = pt.record_primary(
       {view, seqno},
       kv::test::PrimaryNodeId,
+      false,
       root,
       primary_sig,
       hashed_nonce,
@@ -430,6 +432,7 @@ TEST_CASE("View Changes")
     auto result = pt.record_primary(
       {view, new_seqno},
       kv::test::PrimaryNodeId,
+      false,
       root,
       primary_sig,
       hashed_nonce,
@@ -483,6 +486,7 @@ TEST_CASE("View Changes")
     auto result = pt.record_primary(
       {view, new_seqno},
       kv::test::PrimaryNodeId,
+      false,
       root,
       primary_sig,
       hashed_nonce,

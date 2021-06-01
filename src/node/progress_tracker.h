@@ -51,6 +51,7 @@ namespace ccf
     kv::TxHistory::Result record_primary(
       ccf::TxID tx_id,
       NodeId node_id,
+      bool am_i_primary,
       crypto::Sha256Hash& root,
       std::vector<uint8_t>& sig,
       Nonce hashed_nonce,
@@ -74,8 +75,13 @@ namespace ccf
         sig);
 
       auto it = certificates.find(tx_id.seqno);
-      if (it == certificates.end())
+      if (it == certificates.end() || am_i_primary)
       {
+        if (it != certificates.end())
+        {
+          certificates.erase(it);
+        }
+
         CommitCert cert(root, my_nonce);
         cert.have_primary_signature = true;
         BftNodeSignature bft_node_sig(sig, node_id, hashed_nonce);
