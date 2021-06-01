@@ -428,7 +428,7 @@ namespace ccf
     {
       auto service = tx.rw(network.service);
       auto submitted_shares = tx.rw(network.submitted_shares);
-      auto active_service = service->get(0);
+      auto active_service = service->get();
       if (!active_service.has_value())
       {
         throw std::logic_error("Failed to get active service");

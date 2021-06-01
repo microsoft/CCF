@@ -471,7 +471,7 @@ TEST_CASE("serialisation of Unit type")
     using ValueA = kv::TypedValue<
       std::string,
       kv::serialisers::BlitSerialiser<std::string>,
-      kv::UnitCreator>;
+      kv::serialisers::ZeroBlitUnitCreator>;
     std::vector<uint8_t> entry_a;
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
@@ -488,7 +488,7 @@ TEST_CASE("serialisation of Unit type")
     using ValueB = kv::TypedValue<
       std::string,
       kv::serialisers::BlitSerialiser<std::string>,
-      kv::EmptyUnitCreator>;
+      kv::serialisers::EmptyUnitCreator>;
     std::vector<uint8_t> entry_b;
     {
       auto consensus = std::make_shared<kv::test::StubConsensus>();
@@ -1666,8 +1666,8 @@ TEST_CASE("Deserialise return status")
     auto sig_handle = tx.rw(signatures);
     auto tree_handle = tx.rw(serialised_tree);
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
-    sig_handle->put(0, sigv);
-    tree_handle->put(0, {});
+    sig_handle->put(sigv);
+    tree_handle->put({});
     auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
@@ -1682,7 +1682,7 @@ TEST_CASE("Deserialise return status")
     auto sig_handle = tx.rw(signatures);
     auto data_handle = tx.rw(data);
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
-    sig_handle->put(0, sigv);
+    sig_handle->put(sigv);
     data_handle->put(43, 43);
     auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);

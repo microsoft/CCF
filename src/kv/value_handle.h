@@ -31,6 +31,19 @@ namespace kv
       return std::nullopt;
     }
 
+    std::optional<V> get_globally_committed()
+    {
+      const auto opt_v_rep =
+        read_handle.get_globally_committed(Unit::get());
+
+      if (opt_v_rep.has_value())
+      {
+        return VSerialiser::from_serialised(*opt_v_rep);
+      }
+
+      return std::nullopt;
+    }
+
     bool has()
     {
       return read_handle.has(Unit::get());

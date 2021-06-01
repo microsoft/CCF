@@ -10,7 +10,10 @@
 // TODO: Docs
 namespace kv
 {
-  template <typename K, typename KSerialiser, typename Unit= kv::UnitCreator>
+  template <
+    typename K,
+    typename KSerialiser,
+    typename Unit = kv::serialisers::ZeroBlitUnitCreator>
   class TypedSet : public NamedHandleMixin
   {
   protected:
@@ -30,7 +33,7 @@ namespace kv
     typename K,
     template <typename>
     typename KSerialiser,
-    typename Unit = kv::UnitCreator>
+    typename Unit = kv::serialisers::ZeroBlitUnitCreator>
   using SetSerialisedWith = TypedSet<K, KSerialiser<K>, Unit>;
 
   template <typename K>

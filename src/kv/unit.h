@@ -4,7 +4,7 @@
 
 #include "kv/serialised_entry.h"
 
-namespace kv
+namespace kv::serialisers
 {
   // Unit serialisations are used as a utility type to convert kv::Maps to
   // kv::Maps and kv::Sets. Specifically, these are implemented as wrappers so
@@ -16,12 +16,12 @@ namespace kv
   // This is the default UnitCreator, returning 8 null bytes for compatibility
   // with old ledgers (where Values were previously Maps with a single entry
   // at key 0, serialised as a uint64_t)
-  struct UnitCreator
+  struct ZeroBlitUnitCreator
   {
     static kv::serialisers::SerialisedEntry get()
     {
       kv::serialisers::SerialisedEntry e;
-      e.assign(8, 0u);
+      e.assign(sizeof(uint64_t), 0u);
       return e;
     }
   };
