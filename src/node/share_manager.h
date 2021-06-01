@@ -267,7 +267,7 @@ namespace ccf
         return true;
       });
 
-      auto recovery_threshold = config->get(0)->recovery_threshold;
+      auto recovery_threshold = config->get()->recovery_threshold;
       if (recovery_threshold > shares.size())
       {
         throw std::logic_error(fmt::format(

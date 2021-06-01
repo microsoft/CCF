@@ -409,14 +409,14 @@ namespace ccf
     void init_configuration(const ServiceConfiguration& configuration)
     {
       auto config = tx.rw(tables.config);
-      if (config->get(0).has_value())
+      if (config->has())
       {
         throw std::logic_error(
           "Cannot initialise service configuration: configuration already "
           "exists");
       }
 
-      config->put(0, configuration);
+      config->put(configuration);
     }
 
     bool set_recovery_threshold(size_t threshold)
@@ -461,21 +461,21 @@ namespace ccf
         }
       }
 
-      auto current_config = config->get(0);
+      auto current_config = config->get();
       if (!current_config.has_value())
       {
         throw std::logic_error("Configuration should already be set");
       }
 
       current_config->recovery_threshold = threshold;
-      config->put(0, current_config.value());
+      config->put(current_config.value());
       return true;
     }
 
     size_t get_recovery_threshold()
     {
       auto config = tx.ro(tables.config);
-      auto current_config = config->get(0);
+      auto current_config = config->get();
       if (!current_config.has_value())
       {
         throw std::logic_error(
