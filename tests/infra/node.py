@@ -256,7 +256,7 @@ class Node:
         else:
             # BFT consensus should deterministically compute the primary id from the
             # consensus view, so node ids are monotonic in this case
-            self.node_id = "{:0>8}".format(self.local_node_id)
+            self.node_id = "{:0>64}".format(self.local_node_id)
 
         self._read_ports()
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")

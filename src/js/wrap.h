@@ -54,6 +54,7 @@ namespace js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
+    ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     JSContext* ctx);
   void populate_global_openenclave(JSContext* ctx);

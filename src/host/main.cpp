@@ -12,6 +12,7 @@
 #include "handle_ring_buffer.h"
 #include "load_monitor.h"
 #include "node_connections.h"
+#include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
 #include "snapshot.h"
@@ -609,6 +610,9 @@ int main(int argc, char** argv)
   // reconstruct oversized messages sent to the host
   oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
+  asynchost::ProcessLauncher process_launcher;
+  process_launcher.register_message_handlers(bp.get_dispatcher());
+
   {
     // provide regular ticks to the enclave
     const std::chrono::milliseconds tick_period(tick_period_ms);
@@ -881,6 +885,8 @@ int main(int argc, char** argv)
       t.join();
     }
   }
+
+  process_launcher.stop();
 
   // Continue running the loop long enough for the on_close
   // callbacks to be despatched, so as to avoid memory being

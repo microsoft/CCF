@@ -15,6 +15,7 @@ namespace kv::test
   static NodeId FirstBackupNodeId = std::string("FirstBackupNodeId");
   static NodeId SecondBackupNodeId = std::string("SecondBackupNodeId");
   static NodeId ThirdBackupNodeId = std::string("ThirdBackupNodeId");
+  static NodeId FourthBackupNodeId = std::string("FourthBackupNodeId");
 
   class StubConsensus : public Consensus
   {
@@ -154,6 +155,11 @@ namespace kv::test
     Configuration::Nodes get_latest_configuration() override
     {
       return {};
+    }
+
+    ConsensusDetails get_details() override
+    {
+      return ConsensusDetails{{}, {}, ReplicaState::Candidate};
     }
 
     uint32_t node_count() override

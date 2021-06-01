@@ -380,7 +380,7 @@ namespace ccf
 
             // Pad node id string to avoid memory alignment issues on
             // node-to-node messages
-            self = NodeId(fmt::format("{:#08}", 0));
+            self = NodeId(fmt::format("{:#064}", 0));
           }
 
           setup_snapshotter();
@@ -1260,6 +1260,16 @@ namespace ccf
     void trigger_recovery_shares_refresh(kv::Tx& tx) override
     {
       share_manager.shuffle_recovery_shares(tx);
+    }
+
+    void trigger_host_process_launch(
+      const std::vector<std::string>& args) override
+    {
+      LaunchHostProcessMessage msg{args};
+      nlohmann::json j = msg;
+      auto json = j.dump();
+      LOG_DEBUG_FMT("Triggering host process launch: {}", json);
+      RINGBUFFER_WRITE_MESSAGE(AppMessage::launch_host_process, to_host, json);
     }
 
     void transition_service_to_open(kv::Tx& tx) override

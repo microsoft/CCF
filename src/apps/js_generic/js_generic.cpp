@@ -340,6 +340,7 @@ namespace ccfapp
         transaction_id,
         receipt,
         nullptr,
+        &context.get_node_state(),
         nullptr,
         ctx);
       js::populate_global_openenclave(ctx);
