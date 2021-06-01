@@ -5,6 +5,7 @@ import os
 import infra.path
 import infra.network
 import sys
+import re
 
 from loguru import logger as LOG
 
@@ -43,11 +44,36 @@ def max_f(args, number_nodes):
         return (number_nodes - 1) // 2
 
 
+def hex_wrapped_entity_id(s):
+    colour_code = f"fg #{s[:6]}"
+    return f"<{colour_code}>{s}</{colour_code}>"
+
+
+entity_id_regex = re.compile("[a-fA-F0-9]{10}[a-f-A-F0-9]*")
+
+
+def entity_id_highlight(s):
+    entity_ids = entity_id_regex.findall(s)
+    for entity_id in entity_ids:
+        s = s.replace(entity_id, hex_wrapped_entity_id(entity_id))
+    return s
+
+
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     LOG.remove()
+
+    def formatter(record):
+        # Highlight entity IDs in this message, then format-escape any braces in this (since we're about to call .format() on this string)
+        highlighted_message = (
+            entity_id_highlight(record["message"]).replace("{", "{{").replace("}", "}}")
+        )
+        return "<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{highlighted_message}</level>\n{exception}".format(
+            **record, highlighted_message=highlighted_message
+        )
+
     LOG.add(
         sys.stdout,
-        format="<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        format=formatter,
     )
 
     if parser is None:
