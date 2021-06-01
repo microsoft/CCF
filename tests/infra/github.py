@@ -6,6 +6,8 @@ import re
 import os
 from functools import cmp_to_key
 from github import Github
+import urllib
+import shutil
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -25,6 +27,7 @@ DEBIAN_PACKAGE_EXTENSION = "_amd64.deb"
 # This assumes that CCF is installed at `/opt/ccf`, which is true from 1.0.0
 INSTALL_DIRECTORY_PREFIX = "ccf_install_"
 INSTALL_DIRECTORY_SUB_PATH = "opt/ccf"
+DOWNLOAD_FOLDER_NAME = "downloads"
 
 # Note: Releases are identified by tag since releases are not necessarily named, but all
 # releases are tagged
@@ -149,23 +152,18 @@ class Repository:
             if re.match(f"ccf_{stripped_tag}{DEBIAN_PACKAGE_EXTENSION}", a.name)
         ][0]
 
-        LOG.info(f"Downloading {debian_package_url}...")
         debian_package_name = debian_package_url.split("/")[-1]
-        remove_cmd = ["rm", "-rf", debian_package_name]
-        assert (
-            infra.proc.ccall(*remove_cmd).returncode == 0
-        ), "Previous download cleanup failed"
-        download_cmd = ["curl", "-OL", debian_package_url]
-        assert (
-            infra.proc.ccall(*download_cmd, log_output=False).returncode == 0
-        ), "Download failed"
+        download_path = os.path.join(DOWNLOAD_FOLDER_NAME, debian_package_name)
+        LOG.info(f"Downloading {debian_package_url} to {download_path}...")
+        if not os.path.exists(DOWNLOAD_FOLDER_NAME):
+            os.mkdir(DOWNLOAD_FOLDER_NAME)
+
+        shutil.rmtree(download_path, ignore_errors=True)
+        urllib.request.urlretrieve(debian_package_url, download_path)
 
         LOG.info("Unpacking debian package...")
-        remove_cmd = ["rm", "-rf", install_directory]
-        assert (
-            infra.proc.ccall(*remove_cmd).returncode == 0
-        ), "Previous install cleanup failed"
-        install_cmd = ["dpkg-deb", "-R", debian_package_name, install_directory]
+        shutil.rmtree(install_directory, ignore_errors=True)
+        install_cmd = ["dpkg-deb", "-R", download_path, install_directory]
         assert infra.proc.ccall(*install_cmd).returncode == 0, "Installation failed"
 
         install_path = os.path.abspath(

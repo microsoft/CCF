@@ -318,6 +318,8 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
             # Check that the ledger can be parsed
             ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
 
+    return lts_versions
+
 
 if __name__ == "__main__":
 
