@@ -396,7 +396,7 @@ namespace asynchost
       }
 
       LOG_FAIL_FMT("Unknown node connection {}", node);
-      return {};
+      return std::nullopt;
     }
 
     bool remove_node(const ccf::NodeId& node)

@@ -114,8 +114,14 @@ def test_isolate_and_reconnect_primary(network, args):
 
     # Check reconnected former primary has caught up
     with primary.client() as c:
+        # In some cases, the new primary may not be able to create a connection
+        # to the previous one. In this case, a new election will take place
+        # and all nodes will eventually catch up. Otherwise, the previous primary
+        # will catch up straight away.
+        # See https://github.com/microsoft/CCF/issues/2616#issuecomment-852253179
+        # for more detail
+        timeout = network.election_duration * 3
         r = c.get("/node/commit")
-        timeout = 5
         end_time = time.time() + timeout
         while time.time() < end_time:
             current_tx = TxID.from_str(
