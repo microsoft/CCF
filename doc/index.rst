@@ -83,7 +83,7 @@ CCF Documentation
     :fa:`flask` :doc:`research`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    CCF related research papers and technical reports.
+    CCF-related research papers and technical reports.
 
 .. toctree::
     :maxdepth: 1
