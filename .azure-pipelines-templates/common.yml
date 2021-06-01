@@ -25,14 +25,6 @@ jobs:
           suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
           ctest_timeout: ${{ parameters.ctest_timeout }}
 
-      # Publish compatibility report
-      # prettier-ignore
-      - ${{ if and(ne(parameters.suffix, 'Fuzz'), ne(parameters.suffix, 'Perf')) }}:
-        - task: PublishPipelineArtifact@1
-          inputs:
-            artifactName: "Compatibility report"
-            targetPath: build/compatibility_report.json
-
       - ${{ if eq(parameters.suffix, 'Instrumented') }}:
           - template: scan_build.yml
 
@@ -45,4 +37,5 @@ jobs:
 
       - ${{ if eq(parameters.suffix, 'Release') }}:
           - template: publish_tls_report.yml
+          - template: publish_compatibility_report.yml
           - template: install.yml

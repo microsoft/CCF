@@ -336,7 +336,7 @@ if __name__ == "__main__":
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
     args.jwt_key_refresh_interval_s = 1
 
-    # Hardcoded because host only accepts from info on release builds
+    # Hardcoded because host only accepts info log on release builds
     args.host_log_level = "info"
 
     repo = infra.github.Repository()
