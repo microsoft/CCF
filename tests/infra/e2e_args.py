@@ -67,7 +67,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         highlighted_message = (
             entity_id_highlight(record["message"]).replace("{", "{{").replace("}", "}}")
         )
-        return "<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{highlighted_message}</level>\n{exception}".format(
+        return "<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{highlighted_message}</level>\n".format(
             **record, highlighted_message=highlighted_message
         )
 
