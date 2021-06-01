@@ -26,7 +26,7 @@ and performant applications that focus on multi-party compute and data.
 ## Learn More
 
 - Browse the [documentation](https://microsoft.github.io/CCF/)
-- Read the [Technical Report](CCF-TECHNICAL-REPORT.pdf) for a more detailed description
+- Read the [Research Papers](https://microsoft.github.io/CCF/main/research)
 - Learn more about [Azure Confidential Computing](https://azure.microsoft.com/solutions/confidential-compute/) offerings like Azure DC-series (which support Intel SGX TEE) and the [Open Enclave](https://github.com/openenclave/openenclave) SDK
 
 ## Third-party components
