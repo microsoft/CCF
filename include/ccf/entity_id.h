@@ -98,7 +98,8 @@ namespace ccf
   }
 
   template <typename FmtExtender>
-  inline void from_json(const nlohmann::json& j, EntityId<FmtExtender>& entity_id)
+  inline void from_json(
+    const nlohmann::json& j, EntityId<FmtExtender>& entity_id)
   {
     if (j.is_string())
     {
@@ -118,7 +119,8 @@ namespace ccf
   }
 
   template <typename FmtExtender>
-  inline void fill_json_schema(nlohmann::json& schema, const EntityId<FmtExtender>&)
+  inline void fill_json_schema(
+    nlohmann::json& schema, const EntityId<FmtExtender>&)
   {
     schema["type"] = "string";
 
@@ -126,7 +128,8 @@ namespace ccf
     // formats, even not those defined by the OpenAPI Specification"
     // https://swagger.io/docs/specification/data-models/data-types/#format
     schema["format"] = "hex";
-    schema["pattern"] = fmt::format("^[a-f0-9]{{{}}}$", EntityId<FmtExtender>::LENGTH);
+    schema["pattern"] =
+      fmt::format("^[a-f0-9]{{{}}}$", EntityId<FmtExtender>::LENGTH);
   }
 
   struct MemberIdFormatter
