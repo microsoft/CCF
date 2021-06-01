@@ -30,6 +30,12 @@ namespace ccf
       return;
     }
 
+    void trigger_host_process_launch(
+      const std::vector<std::string>& args) override
+    {
+      return;
+    }
+
     bool is_part_of_public_network() const override
     {
       return is_public;

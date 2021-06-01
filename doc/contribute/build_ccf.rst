@@ -72,3 +72,18 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
         $ TEST_ENCLAVE=virtual ./tests.sh [-VV]
 
     Tests that require enclave attestation will be skipped.
+
+Updating the Documentation
+--------------------------
+
+It is possible to preview local documentation changes by running
+
+.. code-block:: bash
+
+    $ ./livehtml.sh ..
+
+or if there are no Doxygen changes
+
+.. code-block:: bash
+
+    $ SKIP_DOXYGEN=ON ./livehtml.sh ..
