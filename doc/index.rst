@@ -80,7 +80,7 @@ CCF Documentation
 
     ---
 
-    :fa:`book` :doc:`Research`
+    :fa:`flask` :doc:`research`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     CCF related research papers and technical reports.
