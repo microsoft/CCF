@@ -309,11 +309,10 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
             snapshot_dir = (
                 network.get_committed_snapshots(primary) if use_snapshot else None
             )
-
-            network.stop_all_nodes(verbose_verification=False)
             ledger_dir, committed_ledger_dir = primary.get_ledger(
                 include_read_only_dirs=True
             )
+            network.stop_all_nodes(verbose_verification=False)
 
             # Check that the ledger can be parsed
             ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
@@ -346,17 +345,17 @@ if __name__ == "__main__":
 
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
-    compatibility_report["live compatibility"] = {}
-    latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
-    following_lts_version = run_live_compatibility_with_following(
-        args, repo, env.branch
-    )
-    compatibility_report["live compatibility"].update(
-        {"with latest": latest_lts_version}
-    )
-    compatibility_report["live compatibility"].update(
-        {"with following": following_lts_version}
-    )
+    # compatibility_report["live compatibility"] = {}
+    # latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
+    # following_lts_version = run_live_compatibility_with_following(
+    #     args, repo, env.branch
+    # )
+    # compatibility_report["live compatibility"].update(
+    #     {"with latest": latest_lts_version}
+    # )
+    # compatibility_report["live compatibility"].update(
+    #     {"with following": following_lts_version}
+    # )
 
     if args.check_ledger_compatibility:
         compatibility_report["data compatibility"] = {}
