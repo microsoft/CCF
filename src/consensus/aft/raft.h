@@ -55,14 +55,6 @@ namespace aft
   class Aft : public kv::ConfigurableConsensus, public AbstractConsensusCallback
   {
   private:
-    enum ReplicaState
-    {
-      Leader,
-      Follower,
-      Candidate,
-      Retired
-    };
-
     struct NodeState
     {
       Configuration::NodeInfo node_info;
@@ -107,7 +99,7 @@ namespace aft
     // the node
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
-    ReplicaState replica_state;
+    kv::ReplicaState replica_state;
     std::chrono::milliseconds timeout_elapsed;
     // Last (committable) index preceding the node's election, this is
     // used to decide when to start issuing signatures. While commit_idx
@@ -200,7 +192,7 @@ namespace aft
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
-      replica_state(Follower),
+      replica_state(kv::ReplicaState::Follower),
       timeout_elapsed(0),
 
       state(state_),
@@ -256,7 +248,7 @@ namespace aft
       }
       else
       {
-        return (replica_state == Candidate);
+        return (replica_state == kv::ReplicaState::Candidate);
       }
     }
 
@@ -284,12 +276,12 @@ namespace aft
 
     bool is_primary()
     {
-      return replica_state == Leader;
+      return replica_state == kv::ReplicaState::Leader;
     }
 
     bool is_follower()
     {
-      return replica_state == Follower;
+      return replica_state == kv::ReplicaState::Follower;
     }
 
     ccf::NodeId get_primary(ccf::View view)
@@ -470,6 +462,22 @@ namespace aft
       return get_latest_configuration_unsafe();
     }
 
+    kv::ConsensusDetails get_details()
+    {
+      kv::ConsensusDetails details;
+      std::lock_guard<SpinLock> guard(state->lock);
+      details.state = replica_state;
+      for (auto& config : configurations)
+      {
+        details.configs.push_back(config);
+      }
+      for (auto& [k, v] : nodes)
+      {
+        details.acks[k] = v.match_idx;
+      }
+      return details;
+    }
+
     uint32_t node_count() const
     {
       return get_latest_configuration_unsafe().size();
@@ -497,7 +505,7 @@ namespace aft
 
       std::lock_guard<SpinLock> guard(state->lock);
 
-      if (replica_state != Leader)
+      if (replica_state != kv::ReplicaState::Leader)
       {
         LOG_FAIL_FMT(
           "Failed to replicate {} items: not leader", entries.size());
@@ -668,6 +676,15 @@ namespace aft
             break;
           }
 
+          case bft_skip_view:
+          {
+            SkipViewMsg r =
+              channels->template recv_authenticated_with_load<SkipViewMsg>(
+                from, data, size);
+            aee = std::make_unique<SkipViewCallback>(*this, from, std::move(r));
+            break;
+          }
+
           case bft_view_change_evidence:
           {
             ViewChangeEvidenceMsg r =
@@ -811,7 +828,7 @@ namespace aft
         }
       }
 
-      if (replica_state == Leader)
+      if (replica_state == kv::ReplicaState::Leader)
       {
         if (timeout_elapsed >= request_timeout)
         {
@@ -828,7 +845,9 @@ namespace aft
       }
       else if (consensus_type != ConsensusType::BFT)
       {
-        if (replica_state != Retired && timeout_elapsed >= election_timeout)
+        if (
+          replica_state != kv::ReplicaState::Retired &&
+          timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -859,9 +878,22 @@ namespace aft
         "Received view change from:{}, view:{}", from.trim(), r.view);
 
       auto progress_tracker = store->get_progress_tracker();
-      if (!progress_tracker->apply_view_change_message(
-            v, from, r.view, r.seqno))
+      auto result =
+        progress_tracker->apply_view_change_message(v, from, r.view, r.seqno);
+
+      if (result == ccf::ProgressTracker::ApplyViewChangeMessageResult::FAIL)
       {
+        return;
+      }
+
+      if (
+        result ==
+          ccf::ProgressTracker::ApplyViewChangeMessageResult::SKIP_VIEW &&
+        get_primary(r.view) == id())
+      {
+        SkipViewMsg response = {{bft_skip_view}, r.view};
+        channels->send_authenticated(
+          from, ccf::NodeMsgType::consensus_msg, response);
         return;
       }
 
@@ -904,10 +936,39 @@ namespace aft
         LOG_FAIL_FMT("Received unrequested view change evidence from {}", from);
         return;
       }
-      state->requested_evidence_from.reset();
+      if (!view_change_tracker->add_unknown_primary_evidence(
+            {data, size}, r.view, from, node_count()))
+      {
+        LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
+        return;
+      }
 
-      view_change_tracker->add_unknown_primary_evidence(
-        {data, size}, r.view, node_count());
+      // Become a follower in the new term.
+      become_follower(r.view);
+    }
+
+    void recv_skip_view(const ccf::NodeId& from, SkipViewMsg r)
+    {
+      auto node = nodes.find(from);
+      if (node == nodes.end())
+      {
+        LOG_FAIL_FMT(
+          "Recv skip view to {} from {}: unknown node",
+          state->my_node_id,
+          from);
+        return;
+      }
+
+      if (from != get_primary(r.view))
+      {
+        LOG_FAIL_FMT(
+          "Recv skip view to {} from {}: wrong replica",
+          state->my_node_id,
+          from);
+        return;
+      }
+
+      view_change_tracker->received_skip_view(r);
     }
 
     bool is_first_request = true;
@@ -1035,7 +1096,7 @@ namespace aft
     {
       const auto prev_idx = start_idx - 1;
 
-      if (replica_state == Retired && start_idx >= end_idx)
+      if (replica_state == kv::ReplicaState::Retired && start_idx >= end_idx)
       {
         // When the local node is retired and the remote node has
         // acked all entries that the local node wanted to replicate,
@@ -1176,7 +1237,9 @@ namespace aft
 
       // First, check append entries term against our own term, becoming
       // follower if necessary
-      if (state->current_view == r.term && replica_state == Candidate)
+      if (
+        state->current_view == r.term &&
+        replica_state == kv::ReplicaState::Candidate)
       {
         // Become a follower in this term.
         become_follower(r.term);
@@ -1816,6 +1879,11 @@ namespace aft
         state->last_idx,
         answer);
 
+      if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
+      {
+        state->requested_evidence_from = to;
+      }
+
       AppendEntriesResponse response = {{raft_append_entries_response},
                                         state->current_view,
                                         state->last_idx,
@@ -2033,7 +2101,7 @@ namespace aft
       std::lock_guard<SpinLock> guard(state->lock);
       // Ignore if we're not the leader.
 
-      if (replica_state != Leader)
+      if (replica_state != kv::ReplicaState::Leader)
       {
         return;
       }
@@ -2098,7 +2166,6 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        state->requested_evidence_from = from;
         ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
                                     state->current_view};
 
@@ -2256,7 +2323,7 @@ namespace aft
     {
       std::lock_guard<SpinLock> guard(state->lock);
 
-      if (replica_state != Candidate)
+      if (replica_state != kv::ReplicaState::Candidate)
       {
         LOG_INFO_FMT(
           "Recv request vote response to {}: we aren't a candidate",
@@ -2326,12 +2393,12 @@ namespace aft
 
     void become_candidate()
     {
-      if (replica_state == Retired)
+      if (replica_state == kv::ReplicaState::Retired)
       {
         return;
       }
 
-      replica_state = Candidate;
+      replica_state = kv::ReplicaState::Candidate;
       leader_id.reset();
       voted_for = state->my_node_id;
       votes_for_me.clear();
@@ -2358,7 +2425,7 @@ namespace aft
 
     void become_leader()
     {
-      if (replica_state == Retired)
+      if (replica_state == kv::ReplicaState::Retired)
       {
         return;
       }
@@ -2379,7 +2446,7 @@ namespace aft
         store->set_term(state->current_view);
       }
 
-      replica_state = Leader;
+      replica_state = kv::ReplicaState::Leader;
       leader_id = state->my_node_id;
 
       using namespace std::chrono_literals;
@@ -2410,12 +2477,12 @@ namespace aft
 
     void become_follower(Term term)
     {
-      if (replica_state == Retired)
+      if (replica_state == kv::ReplicaState::Retired)
       {
         return;
       }
 
-      replica_state = Follower;
+      replica_state = kv::ReplicaState::Follower;
       leader_id.reset();
       restart_election_timeout();
 
@@ -2423,7 +2490,17 @@ namespace aft
       voted_for.reset();
       votes_for_me.clear();
 
-      rollback(last_committable_index());
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+        rollback(rollback_level);
+        view_change_tracker->set_current_view_change(state->current_view);
+      }
+      else
+      {
+        rollback(last_committable_index());
+      }
 
       is_new_follower = true;
 
@@ -2438,7 +2515,7 @@ namespace aft
 
     void become_retired()
     {
-      replica_state = Retired;
+      replica_state = kv::ReplicaState::Retired;
       leader_id.reset();
 
       LOG_INFO_FMT(
@@ -2569,7 +2646,9 @@ namespace aft
       LOG_DEBUG_FMT("Compacting...");
       // Snapshots are not yet supported with BFT
       snapshotter->commit(
-        idx, replica_state == Leader && consensus_type == ConsensusType::CFT);
+        idx,
+        replica_state == kv::ReplicaState::Leader &&
+          consensus_type == ConsensusType::CFT);
 
       store->compact(idx);
       ledger->commit(idx);
@@ -2654,6 +2733,12 @@ namespace aft
       {
         create_and_remove_node_state();
       }
+
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        progress_tracker->rollback(idx, state->current_view);
+      }
     }
 
     void create_and_remove_node_state()
@@ -2683,7 +2768,9 @@ namespace aft
 
       for (auto node_id : to_remove)
       {
-        if (replica_state == Leader || consensus_type == ConsensusType::BFT)
+        if (
+          replica_state == kv::ReplicaState::Leader ||
+          consensus_type == ConsensusType::BFT)
         {
           channels->destroy_channel(node_id);
         }
@@ -2709,7 +2796,9 @@ namespace aft
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
-          if (replica_state == Leader || consensus_type == ConsensusType::BFT)
+          if (
+            replica_state == kv::ReplicaState::Leader ||
+            consensus_type == ConsensusType::BFT)
           {
             channels->create_channel(
               node_info.first,
@@ -2717,7 +2806,7 @@ namespace aft
               node_info.second.port);
           }
 
-          if (replica_state == Leader)
+          if (replica_state == kv::ReplicaState::Leader)
           {
             send_append_entries(node_info.first, index);
           }
@@ -2729,7 +2818,7 @@ namespace aft
       if (!self_is_active)
       {
         LOG_INFO_FMT("Removed raft self {}", state->my_node_id);
-        if (replica_state == Leader)
+        if (replica_state == kv::ReplicaState::Leader)
         {
           become_retired();
         }

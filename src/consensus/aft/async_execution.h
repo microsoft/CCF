@@ -30,6 +30,7 @@ namespace aft
       RequestViewChangeMsg r,
       const uint8_t* data,
       size_t size) = 0;
+    virtual void recv_skip_view(const ccf::NodeId& from, SkipViewMsg r) = 0;
     virtual void recv_view_change_evidence(
       const ccf::NodeId& from,
       ViewChangeEvidenceMsg r,
@@ -244,6 +245,29 @@ namespace aft
     const uint8_t* data;
     size_t size;
     OArray oarray;
+  };
+
+  class SkipViewCallback : public AbstractMsgCallback
+  {
+  public:
+    SkipViewCallback(
+      AbstractConsensusCallback& store_,
+      const ccf::NodeId& from_,
+      SkipViewMsg&& hdr_) :
+      store(store_),
+      from(from_),
+      hdr(std::move(hdr_))
+    {}
+
+    void execute() override
+    {
+      store.recv_skip_view(from, hdr);
+    }
+
+  private:
+    AbstractConsensusCallback& store;
+    ccf::NodeId from;
+    SkipViewMsg hdr;
   };
 
   class ViewChangeEvidenceCallback : public AbstractMsgCallback
