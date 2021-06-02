@@ -285,7 +285,7 @@ namespace kv
 
       if (!result)
       {
-        LOG_INFO_FMT("Signature in transaction {} failed to verify", v);
+        LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
         return ApplyResult::FAIL;
       }
       history->append(data);
