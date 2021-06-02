@@ -1970,8 +1970,13 @@ namespace aft
       switch (r)
       {
         case kv::TxHistory::Result::OK:
+        {
+          break;
+        }
         case kv::TxHistory::Result::FAIL:
         {
+          LOG_FAIL_FMT("FAILED in try_send_sig_ack rolling back to {}", last_committable_index());
+          rollback(last_committable_index());
           break;
         }
         case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
