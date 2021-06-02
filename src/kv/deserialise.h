@@ -218,7 +218,7 @@ namespace kv
       return term;
     }
 
-    virtual kv::Version get_index() override
+    kv::Version get_index() override
     {
       return version;
     }
@@ -454,11 +454,6 @@ namespace kv
 
       history->append(data);
       return ApplyResult::PASS_NEW_VIEW;
-    }
-
-    kv::Version get_index() override
-    {
-      throw std::logic_error("get_index not implemented");
     }
   };
 

@@ -326,24 +326,71 @@ TEST_CASE("Request tracker")
 
 TEST_CASE("Record primary signature")
 {
+  using trompeloeil::_;
+
   kv::NodeId my_node_id = kv::test::PrimaryNodeId;
-  ccf::View view = 0;
+  ccf::View view = 1;
   ccf::SeqNo seqno = 42;
   crypto::Sha256Hash root;
+  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
   ccf::Nonce nonce;
+  ccf::Nonce hashed_nonce;
+  uint32_t node_count = 4;
   std::vector<uint8_t> primary_sig;
 
-  ccf::ProgressTracker pt(nullptr, my_node_id);
+  INFO("Can record primary signature");
+  {
+    ccf::ProgressTracker pt(nullptr, my_node_id);
 
-  auto result = pt.record_primary(
-    {view, seqno}, kv::test::PrimaryNodeId, false, root, primary_sig, nonce);
-  REQUIRE(result == kv::TxHistory::Result::OK);
+    auto result = pt.record_primary(
+      {view, seqno}, kv::test::PrimaryNodeId, true, root, primary_sig, nonce);
+    REQUIRE(result == kv::TxHistory::Result::OK);
 
-  primary_sig = {1};
-  result = pt.record_primary_signature({view, seqno}, primary_sig);
-  REQUIRE(result == kv::TxHistory::Result::OK);
-  result = pt.record_primary_signature({view, seqno + 1}, primary_sig);
-  REQUIRE(result != kv::TxHistory::Result::OK);
+    primary_sig = {1};
+    result = pt.record_primary_signature({view, seqno}, primary_sig);
+    REQUIRE(result == kv::TxHistory::Result::OK);
+    result = pt.record_primary_signature({view, seqno + 1}, primary_sig);
+    REQUIRE(result != kv::TxHistory::Result::OK);
+  }
+
+  INFO(
+    "Can record primary signature after receiving signatures for previous "
+    "view");
+  {
+    auto store = std::make_unique<StoreMock>();
+    StoreMock& store_mock = *store.get();
+    ccf::ProgressTracker pt(std::move(store), my_node_id);
+
+    {
+      REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
+        .RETURN(true)
+        .TIMES(1);
+
+      auto result = pt.add_signature(
+        {view - 1, seqno},
+        kv::test::FirstBackupNodeId,
+        MBEDTLS_ECDSA_MAX_LEN,
+        sig,
+        hashed_nonce,
+        node_count,
+        false);
+      REQUIRE(result == kv::TxHistory::Result::OK);
+      result = pt.record_primary(
+        {view, seqno},
+        kv::test::PrimaryNodeId,
+        false,
+        root,
+        primary_sig,
+        nonce);
+      REQUIRE(result == kv::TxHistory::Result::OK);
+    }
+
+    {
+      auto result = pt.record_primary(
+        {view, seqno}, kv::test::PrimaryNodeId, true, root, primary_sig, nonce);
+      REQUIRE(result == kv::TxHistory::Result::OK);
+    }
+  }
 }
 
 TEST_CASE("View Changes")
@@ -374,8 +421,7 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change_request(_, _))
-      .TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change_request(_, _)).TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, seqno},
       kv::test::PrimaryNodeId,
@@ -427,8 +473,7 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change_request(_, _))
-      .TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change_request(_, _)).TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, new_seqno},
       kv::test::PrimaryNodeId,
@@ -481,8 +526,7 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change_request(_, _))
-      .TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change_request(_, _)).TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, new_seqno},
       kv::test::PrimaryNodeId,

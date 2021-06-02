@@ -110,7 +110,7 @@ namespace ccf
           cert, bft_node_sig, tx_id.view, tx_id.seqno, node_id);
         cert.my_nonce = my_nonce;
         cert.have_primary_signature = true;
-        for (auto sig = cert.sigs.begin(); sig != cert.sigs.begin();)
+        for (auto sig = cert.sigs.begin(); sig != cert.sigs.end();)
         {
           if (
             !sig->second.is_primary &&
@@ -124,13 +124,13 @@ namespace ccf
           }
           else
           {
+            LOG_TRACE_FMT(
+              "Signature verification from {} passed, view:{}, seqno:{}",
+              sig->second.node,
+              tx_id.view,
+              tx_id.seqno);
             ++sig;
           }
-          LOG_TRACE_FMT(
-            "Signature verification from {} passed, view:{}, seqno:{}",
-            sig->second.node,
-            tx_id.view,
-            tx_id.seqno);
         }
         cert.sigs.insert(
           std::pair<NodeId, BftNodeSignature>(node_id, bft_node_sig));
@@ -492,7 +492,8 @@ namespace ccf
 
       for (const auto& sig : cert.sigs)
       {
-        // We may have received a nonce but nonce but not the signature from a node, in this case we do not want to include the empty signature
+        // We may have received a nonce but nonce but not the signature from a
+        // node, in this case we do not want to include the empty signature
         if (!sig.second.sig.empty())
         {
           m->signatures.push_back(sig.second);
@@ -500,7 +501,14 @@ namespace ccf
       }
 
       store->sign_view_change_request(*m, view);
-      LOG_INFO_FMT("Creating ViewChangeRequest view:{}, seqno:{}, root:{}, sig.size:{}, sig:{}",view, m->seqno, m->root, m->signature.size(), m->signature);
+      LOG_INFO_FMT(
+        "Creating ViewChangeRequest view:{}, seqno:{}, root:{}, sig.size:{}, "
+        "sig:{}",
+        view,
+        m->seqno,
+        m->root,
+        m->signature.size(),
+        m->signature);
       return std::make_tuple(std::move(m), highest_prepared_level.seqno);
     }
 
@@ -562,9 +570,7 @@ namespace ccf
     }
 
     bool apply_new_view(
-      const NodeId& from,
-      uint32_t node_count,
-      ccf::View& view_)
+      const NodeId& from, uint32_t node_count, ccf::View& view_)
     {
       std::unique_lock<SpinLock> guard(lock);
       auto new_view = store->get_new_view();

@@ -15,10 +15,7 @@ namespace aft
   {
     struct ViewChange
     {
-      ViewChange(ccf::View view_) :
-        view(view_),
-        new_view_sent(false)
-      {}
+      ViewChange(ccf::View view_) : view(view_), new_view_sent(false) {}
 
       ccf::View view;
       bool new_view_sent;
@@ -158,8 +155,7 @@ namespace aft
       if (!store->verify_view_change_request_confirmation(vc, from))
       {
         LOG_INFO_FMT(
-          "Add unknown evidence - bad view change confirmation, from:{}",
-          from);
+          "Add unknown evidence - bad view change confirmation, from:{}", from);
         return false;
       }
 
@@ -167,7 +163,8 @@ namespace aft
         vc.view_change_messages.size() < ccf::get_message_threshold(node_count))
       {
         LOG_INFO_FMT(
-          "Add unknown evidence - not enough evidence, need:{}, have:{}, from:{}",
+          "Add unknown evidence - not enough evidence, need:{}, have:{}, "
+          "from:{}",
           vc.view_change_messages.size(),
           ccf::get_message_threshold(node_count),
           from);
@@ -245,7 +242,11 @@ namespace aft
 
       for (auto it : vc.received_view_changes)
       {
-        LOG_INFO_FMT("Adding to view:{}, from:{}, seqno:{}", view, it.first, it.second.seqno);
+        LOG_INFO_FMT(
+          "Adding to view:{}, from:{}, seqno:{}",
+          view,
+          it.first,
+          it.second.seqno);
         nv.view_change_messages.emplace(it.first, it.second);
       }
 

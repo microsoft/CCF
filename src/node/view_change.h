@@ -21,7 +21,8 @@ namespace ccf
 
     size_t get_serialized_size() const
     {
-      size_t size = sizeof(size_t) + sizeof(size_t) + sizeof(ccf::SeqNo) + sizeof(root) + signature.size();
+      size_t size = sizeof(size_t) + sizeof(size_t) + sizeof(ccf::SeqNo) +
+        sizeof(root) + signature.size();
 
       for (const auto& s : signatures)
       {
@@ -61,8 +62,8 @@ namespace ccf
         v.signatures.push_back(ccf::NodeSignature::deserialize(data, size));
       }
 
-      v.seqno = serialized::read<ccf::SeqNo>(data,size);
-      v.root = serialized::read<crypto::Sha256Hash>(data,size);
+      v.seqno = serialized::read<ccf::SeqNo>(data, size);
+      v.root = serialized::read<crypto::Sha256Hash>(data, size);
       size_t sig_size = serialized::read<size_t>(data, size);
       v.signature = serialized::read(data, size, sig_size);
 
@@ -70,7 +71,8 @@ namespace ccf
     }
   };
   DECLARE_JSON_TYPE(ViewChangeRequest);
-  DECLARE_JSON_REQUIRED_FIELDS(ViewChangeRequest, signatures, seqno, root, signature);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ViewChangeRequest, signatures, seqno, root, signature);
 
   struct ViewChangeConfirmation
   {
@@ -80,9 +82,7 @@ namespace ccf
     std::map<NodeId, ViewChangeRequest> view_change_messages;
 
     ViewChangeConfirmation() = default;
-    ViewChangeConfirmation(ccf::View view_) :
-      view(view_)
-    {}
+    ViewChangeConfirmation(ccf::View view_) : view(view_) {}
   };
   DECLARE_JSON_TYPE(ViewChangeConfirmation);
   DECLARE_JSON_REQUIRED_FIELDS(
