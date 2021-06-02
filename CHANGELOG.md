@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+## Added
+
+- Added new `--client-connection-timeout-ms` command line argument to `cchost` to specify the maximum time a node should wait before re-establishing failed client connections (#2618).
+
 ## [2.0.0-dev0]
 
 ### Added
