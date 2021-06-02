@@ -11,6 +11,8 @@ import time
 from infra.checker import check_can_progress
 import pprint
 
+from loguru import logger as LOG
+
 
 @reqs.description("Invalid partitions are not allowed")
 def test_invalid_partitions(network, args):
@@ -62,6 +64,8 @@ def test_partition_majority(network, args):
             assert False, "No new primary should be elected when partitioning majority"
         except TimeoutError:
             pass
+        cmd = ["sudo", "iptables", "-L", "-n"]
+        infra.proc.ccall(*cmd, log_output=True)
 
     # A new leader should be elected once the partition is dropped
     network.wait_for_new_primary(primary)
@@ -107,11 +111,19 @@ def test_isolate_primary_from_one_backup(network, args):
 @reqs.description("Isolate and reconnect primary")
 def test_isolate_and_reconnect_primary(network, args):
     primary, backups = network.find_nodes()
+    start = time.time()
     with network.partitioner.partition(backups):
         new_primary, _ = network.wait_for_new_primary(
             primary, nodes=backups, timeout_multiplier=6
         )
         new_tx = check_can_progress(new_primary)
+
+        cmd = ["sudo", "iptables", "-L", "-n"]
+        infra.proc(*cmd, log_output=True)
+
+        time.sleep(10)
+
+    LOG.error(f"Partition was up for {time.time() - start}s")
 
     # Check reconnected former primary has caught up
     with primary.client() as c:
@@ -121,7 +133,8 @@ def test_isolate_and_reconnect_primary(network, args):
         # will catch up straight away.
         # See https://github.com/microsoft/CCF/issues/2616#issuecomment-852253179
         # for more detail
-        timeout = network.election_duration * 4
+        # timeout = network.election_duration * 4
+        timeout = 5
         r = c.get("/node/commit")
         end_time = time.time() + timeout
         while time.time() < end_time:

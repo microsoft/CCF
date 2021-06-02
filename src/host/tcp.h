@@ -97,6 +97,7 @@ namespace asynchost
 
     uv_os_sock_t sock;
     bool is_client;
+    size_t connection_timeout = 0;
     Status status;
     std::unique_ptr<TCPBehaviour> behaviour;
     std::vector<PendingWrite> pending_writes;
@@ -129,9 +130,12 @@ namespace asynchost
       }
     }
 
-    TCPImpl(bool is_client_ = false) : is_client(is_client_), status(FRESH)
+    TCPImpl(bool is_client_ = false, size_t connection_timeout_ = 0) :
+      is_client(is_client_),
+      connection_timeout(connection_timeout_),
+      status(FRESH)
     {
-      if (!init(is_client))
+      if (!init())
       {
         throw std::logic_error("uv tcp initialization failed");
       }
@@ -355,7 +359,7 @@ namespace asynchost
     }
 
   private:
-    bool init(bool is_client = false)
+    bool init()
     {
       assert_status(FRESH, FRESH);
 
@@ -378,7 +382,7 @@ namespace asynchost
         assert(
           setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == 0);
 
-        uint32_t conn_timeout_ms = 1 * 1000; // * 1000;
+        uint32_t conn_timeout_ms = connection_timeout;
         setsockopt(
           sock,
           IPPROTO_TCP,
@@ -817,7 +821,7 @@ namespace asynchost
     {
       assert_status(RECONNECTING, FRESH);
 
-      if (!init(is_client))
+      if (!init())
       {
         assert_status(FRESH, CONNECTING_FAILED);
         behaviour->on_connect_failed();

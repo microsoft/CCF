@@ -218,6 +218,7 @@ namespace asynchost
     std::set<ccf::NodeId> reconnect_queue;
 
     std::optional<std::string> client_interface = std::nullopt;
+    size_t client_connection_timeout;
 
   public:
     NodeConnections(
@@ -226,10 +227,12 @@ namespace asynchost
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
       std::string& service,
-      const std::optional<std::string>& client_interface) :
+      const std::optional<std::string>& client_interface,
+      size_t client_connection_timeout_) :
       ledger(ledger),
       to_enclave(writer_factory.create_writer_to_inside()),
-      client_interface(client_interface)
+      client_interface(client_interface),
+      client_connection_timeout(client_connection_timeout_)
     {
       listener->set_behaviour(std::make_unique<NodeServerBehaviour>(*this));
       listener->listen(host, service);
@@ -360,7 +363,7 @@ namespace asynchost
         return false;
       }
 
-      auto s = TCP(true);
+      auto s = TCP(true, client_connection_timeout);
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node));
 
       if (!s->connect(host, service, client_interface))

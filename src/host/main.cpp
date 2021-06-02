@@ -298,6 +298,17 @@ int main(int argc, char** argv)
       "defined by this timer interval.")
     ->capture_default_str();
 
+  size_t client_connection_timeout = 1000;
+  app
+    .add_option(
+      "--client-connection-timeout-ms",
+      client_connection_timeout,
+      "TCP client connection timeout in milliseconds after which a"
+      "non-established client connection is automatically re-created. This "
+      "should be set to value significantly less than the consensus election "
+      "timeout")
+    ->capture_default_str();
+
   size_t max_msg_size = 24;
   app
     .add_option(
@@ -655,7 +666,8 @@ int main(int argc, char** argv)
       writer_factory,
       node_address.hostname,
       node_address.port,
-      node_client_interface);
+      node_client_interface,
+      client_connection_timeout);
     if (!node_address_file.empty())
     {
       files::dump(
@@ -663,7 +675,7 @@ int main(int argc, char** argv)
         node_address_file);
     }
 
-    asynchost::RPCConnections rpc(writer_factory);
+    asynchost::RPCConnections rpc(writer_factory, client_connection_timeout);
     rpc.register_message_handlers(bp.get_dispatcher());
     rpc.listen(0, rpc_address.hostname, rpc_address.port);
     if (!rpc_address_file.empty())

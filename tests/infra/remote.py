@@ -67,14 +67,14 @@ def log_errors(out_path, err_path):
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
                 if any(x in stripped_line for x in error_filter):
-                    LOG.error("{}: {}".format(out_path, stripped_line))
+                    # LOG.error("{}: {}".format(out_path, stripped_line))
                     error_lines.append(stripped_line)
         if error_lines:
             LOG.info(
                 "{} errors found, printing end of output for context:", len(error_lines)
             )
-            for line in tail_lines:
-                LOG.info(line)
+            # for line in tail_lines:
+            #     LOG.info(line)
     except IOError:
         LOG.exception("Could not check output {} for errors".format(out_path))
 
@@ -582,6 +582,7 @@ class CCFRemote(object):
         max_open_sessions_hard=None,
         jwt_key_refresh_interval_s=None,
         curve_id=None,
+        client_connection_timeout_ms=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -694,6 +695,9 @@ class CCFRemote(object):
 
         if curve_id is not None:
             cmd += [f"--curve-id={curve_id.name}"]
+
+        if client_connection_timeout_ms:
+            cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
 
         if start_type == StartType.new:
             cmd += [
