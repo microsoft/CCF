@@ -948,7 +948,7 @@ namespace kv
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
-          LOG_DEBUG_FMT(
+          LOG_FAIL_FMT(
             "Want to commit for term {} but term is {}", txid.term, term);
 
           return CommitResult::FAIL_NO_REPLICATE;
