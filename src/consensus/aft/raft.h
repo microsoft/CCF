@@ -144,7 +144,9 @@ namespace aft
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
 
-    std::optional<kv::TxID> retirement_txid = std::nullopt;
+    std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
+    std::optional<ccf::SeqNo> retirement_commit_idx = std::nullopt;
+    bool added = false;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -442,12 +444,16 @@ namespace aft
       {
         guard.lock();
       }
+      
       // This should only be called when the spin lock is held.
-      if (conf.find(state->my_node_id) == conf.end() &&
-          !retirement_txid.has_value())
+      if (!added && conf.find(state->my_node_id) != conf.end())
+        added = true;
+
+      if (added && conf.find(state->my_node_id) == conf.end() &&
+          !retirement_idx.has_value())
       {
-        // TODO: this isn't the right view, must get it from history
-        retirement_txid = {state->current_view, idx}; 
+        LOG_INFO_FMT("XXXXXXXXXXXXXXXXXXXXXXX RETIRING AT {}", idx);
+        retirement_idx = idx; 
       }
 
       configurations.push_back({idx, std::move(conf)});
@@ -538,8 +544,10 @@ namespace aft
       {
         bool globally_committable = is_globally_committable;
 
-        // TODO: if a retirement_index is set and higher than it, return true early
         if (index != state->last_idx + 1)
+          return false;
+
+        if (retirement_commit_idx.has_value())
           return false;
 
         LOG_DEBUG_FMT(
@@ -557,7 +565,10 @@ namespace aft
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
-          // TODO: if Retiring, capture as retirement_index and drop subsequent transactions
+          if (retirement_idx.has_value() && index >= retirement_idx.value())
+          {
+            retirement_commit_idx = index;
+          }
           committable_indices.push_back(index);
 
           // Only if globally committable, a snapshot requires a new ledger
@@ -1306,7 +1317,11 @@ namespace aft
         return;
       }
 
-      // TODO: reject if higher than retirement_index
+      if (retirement_commit_idx.has_value())
+      {
+        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+        return;
+      }
 
       // If the terms match up, it is sufficient to convince us that the sender
       // is leader in our term
@@ -1576,7 +1591,10 @@ namespace aft
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
-            // TODO: if Retiring, capture as retirement_index
+            if (retirement_idx.has_value() && i >= retirement_idx.value())
+            {
+              retirement_commit_idx = i;
+            }
             committable_indices.push_back(i);
 
             if (ds->get_term())
@@ -2520,11 +2538,6 @@ namespace aft
 
       LOG_INFO_FMT(
         "Becoming follower {}: {}", state->my_node_id, state->current_view);
-
-      if (consensus_type != ConsensusType::BFT)
-      {
-        // channels->close_all_outgoing();
-      }
     }
 
     void become_retired()
@@ -2655,8 +2668,11 @@ namespace aft
       if (idx <= state->commit_idx)
         return;
 
-      // TODO: if higher than retirement index, Retiring -> Retired
       state->commit_idx = idx;
+      if (retirement_commit_idx.has_value() && idx >= retirement_commit_idx.value())
+      {
+        become_retired();
+      }
 
       LOG_DEBUG_FMT("Compacting...");
       // Snapshots are not yet supported with BFT
@@ -2732,6 +2748,16 @@ namespace aft
       while (!committable_indices.empty() && (committable_indices.back() > idx))
       {
         committable_indices.pop_back();
+      }
+
+      if (retirement_idx.has_value() && retirement_idx.value() > idx)
+      {
+        retirement_idx = std::nullopt;
+      }
+
+      if (retirement_commit_idx.has_value() && retirement_commit_idx.value() > idx)
+      {
+        retirement_commit_idx = std::nullopt;
       }
 
       // Rollback configurations.
