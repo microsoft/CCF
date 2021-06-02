@@ -144,6 +144,8 @@ namespace aft
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
 
+    std::optional<kv::TxID> retirement_txid = std::nullopt;
+
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
     Index entries_batch_size = 1;
@@ -441,7 +443,13 @@ namespace aft
         guard.lock();
       }
       // This should only be called when the spin lock is held.
-      // TODO: if node isn't in config, then state -> Retiring
+      if (conf.find(state->my_node_id) == conf.end() &&
+          !retirement_txid.has_value())
+      {
+        // TODO: this isn't the right view, must get it from history
+        retirement_txid = {state->current_view, idx}; 
+      }
+
       configurations.push_back({idx, std::move(conf)});
       backup_nodes.clear();
       create_and_remove_node_state();
