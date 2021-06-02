@@ -228,6 +228,8 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
     The recovery process uses snapshot is `use_snapshot` is True. Otherwise, the
     entire historical ledger is used.
     """
+
+    LOG.info("Use snapshot: {}", use_snapshot)
     repo = infra.github.Repository()
     lts_releases = repo.get_lts_releases()
 
