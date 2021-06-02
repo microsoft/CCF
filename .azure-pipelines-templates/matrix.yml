@@ -31,9 +31,9 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions"'
+      ctest_args: '-R rotation_test_bft --repeat-until-fail 10'
     SGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions"'
+      ctest_args: '-R rotation_test_bft --repeat-until-fail 10'
     perf:
       ctest_args: '-L "benchmark|perf|vegeta"'
     release:
