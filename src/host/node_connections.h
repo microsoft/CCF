@@ -360,7 +360,7 @@ namespace asynchost
         return false;
       }
 
-      TCP s;
+      auto s = TCP(true);
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node));
 
       if (!s->connect(host, service, client_interface))

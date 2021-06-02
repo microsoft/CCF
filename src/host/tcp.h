@@ -95,6 +95,8 @@ namespace asynchost
       }
     };
 
+    uv_os_sock_t sock;
+    bool is_client;
     Status status;
     std::unique_ptr<TCPBehaviour> behaviour;
     std::vector<PendingWrite> pending_writes;
@@ -126,10 +128,12 @@ namespace asynchost
       }
     }
 
-    TCPImpl() : status(FRESH)
+    TCPImpl(bool is_client_ = false) : is_client(is_client_), status(FRESH)
     {
-      if (!init())
+      if (!init(is_client))
+      {
         throw std::logic_error("uv tcp initialization failed");
+      }
 
       uv_handle.data = this;
     }
@@ -324,15 +328,44 @@ namespace asynchost
     }
 
   private:
-    bool init()
+    bool init(bool is_client = false)
     {
       assert_status(FRESH, FRESH);
-      int rc;
 
+      int rc;
       if ((rc = uv_tcp_init(uv_default_loop(), &uv_handle)) < 0)
       {
         LOG_FAIL_FMT("uv_tcp_init failed: {}", uv_strerror(rc));
         return false;
+      }
+
+      if (is_client)
+      {
+        if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+        {
+          LOG_FAIL_FMT("socket creation failed: {}", strerror(errno));
+          return false;
+        }
+
+        int yes = 1;
+        assert(
+          setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == 0);
+
+        uint32_t conn_timeout_ms = 1 * 1000;
+        setsockopt(
+          sock,
+          IPPROTO_TCP,
+          TCP_USER_TIMEOUT,
+          &conn_timeout_ms,
+          sizeof(conn_timeout_ms));
+
+        LOG_FAIL_FMT("fd: {}", sock);
+
+        if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
+        {
+          LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
+          return false;
+        }
       }
 
       if ((rc = uv_tcp_keepalive(&uv_handle, 1, 30)) < 0)
@@ -605,6 +638,8 @@ namespace asynchost
       auto self = static_cast<TCPImpl*>(req->handle->data);
       delete req;
 
+      LOG_FAIL_FMT("On connect: {}", uv_strerror(rc));
+
       if (rc == UV_ECANCELED)
       {
         // Break reconnection loop early if cancelled
@@ -749,7 +784,7 @@ namespace asynchost
     {
       assert_status(RECONNECTING, FRESH);
 
-      if (!init())
+      if (!init(is_client))
       {
         assert_status(FRESH, CONNECTING_FAILED);
         behaviour->on_connect_failed();
