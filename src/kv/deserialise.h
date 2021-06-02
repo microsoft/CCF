@@ -285,10 +285,7 @@ namespace kv
 
       if (!result)
       {
-        LOG_FAIL_FMT("Failed to deserialise");
-        LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
-        throw std::logic_error(
-          "Failed to verify signature, view-changes not implemented");
+        LOG_INFO_FMT("Signature in transaction {} failed to verify", v);
         return ApplyResult::FAIL;
       }
       history->append(data);
