@@ -17,6 +17,16 @@ import json
 from loguru import logger as LOG
 
 
+@reqs.description("Test consensus status")
+def test_consensus_status(network, args):
+    primary, _ = network.find_nodes()
+    with primary.client() as c:
+        r = c.get("/node/consensus")
+        assert r.status_code == 200
+        assert r.body.json()["details"]["state"] == "Leader"
+    return network
+
+
 @reqs.description("Test quotes")
 @reqs.supports_methods("quotes/self", "quotes")
 def test_quote(network, args):
@@ -209,6 +219,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        network = test_consensus_status(network, args)
         network = test_node_ids(network, args)
         network = test_member_data(network, args)
         network = test_quote(network, args)

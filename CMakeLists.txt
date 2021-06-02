@@ -563,18 +563,6 @@ if(BUILD_TESTS)
       all
   )
 
-  if(LONG_TESTS)
-    set(ROTATION_TEST_ARGS --rotation-retirements 10 --rotation-suspensions 10)
-  endif()
-
-  add_e2e_test(
-    NAME rotation_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-    CONSENSUS cft
-    LABEL rotation
-    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-  )
-
   add_e2e_test(
     NAME committable_suffix_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
@@ -638,6 +626,15 @@ if(BUILD_TESTS)
       ${CONSTITUTION_ARGS} --constitution
       ${CCF_DIR}/src/runtime_config/test/service_principals_actions.js
   )
+  add_e2e_test(
+    NAME launch_host_process_test
+    PYTHON_SCRIPT
+      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
+  )
+
   add_e2e_test(
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
@@ -830,6 +827,20 @@ if(BUILD_TESTS)
       LABEL vegeta
       CONFIGURATIONS long_stress
       ADDITIONAL_ARGS -p liblogging --duration 45m
+    )
+
+    if(LONG_TESTS)
+      set(ROTATION_TEST_ARGS --rotation-retirements 10 --rotation-suspensions
+                             10
+      )
+    endif()
+
+    add_e2e_test(
+      NAME rotation_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
+      CONSENSUS ${CONSENSUS}
+      LABEL rotation
+      ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
     )
 
   endforeach()

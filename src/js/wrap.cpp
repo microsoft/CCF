@@ -31,6 +31,7 @@ namespace js
   JSClassID node_class_id = 0;
   JSClassID network_class_id = 0;
   JSClassID rpc_class_id = 0;
+  JSClassID host_class_id = 0;
 
   JSClassDef kv_class_def = {};
   JSClassExoticMethods kv_exotic_methods = {};
@@ -39,6 +40,7 @@ namespace js
   JSClassDef node_class_def = {};
   JSClassDef network_class_def = {};
   JSClassDef rpc_class_def = {};
+  JSClassDef host_class_def = {};
 
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -713,6 +715,59 @@ namespace js
     return JS_UNDEFINED;
   }
 
+  JSValue js_node_trigger_host_process_launch(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+    }
+
+    auto args = argv[0];
+
+    if (!JS_IsArray(ctx, args))
+    {
+      return JS_ThrowTypeError(ctx, "First argument must be an array");
+    }
+
+    std::vector<std::string> process_args;
+
+    auto len_atom = JS_NewAtom(ctx, "length");
+    auto len_val = JS_GetProperty(ctx, args, len_atom);
+    JS_FreeAtom(ctx, len_atom);
+    uint32_t len = 0;
+    JS_ToUint32(ctx, &len, len_val);
+    JS_FreeValue(ctx, len_val);
+
+    if (len == 0)
+    {
+      return JS_ThrowRangeError(
+        ctx, "First argument must be a non-empty array");
+    }
+
+    for (uint32_t i = 0; i < len; i++)
+    {
+      auto arg_val = JS_GetPropertyUint32(ctx, args, i);
+      if (!JS_IsString(arg_val))
+      {
+        JS_FreeValue(ctx, arg_val);
+        return JS_ThrowTypeError(
+          ctx, "First argument must be an array of strings, found non-string");
+      }
+      auto arg_cstr = JS_ToCString(ctx, arg_val);
+      process_args.push_back(arg_cstr);
+      JS_FreeCString(ctx, arg_cstr);
+      JS_FreeValue(ctx, arg_val);
+    }
+
+    auto node = static_cast<ccf::AbstractNodeState*>(
+      JS_GetOpaque(this_val, host_class_id));
+
+    node->trigger_host_process_launch(process_args);
+
+    return JS_UNDEFINED;
+  }
+
   // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
   // with a synchronous interface.
   static const JSCFunctionListEntry js_body_proto_funcs[] = {
@@ -743,6 +798,9 @@ namespace js
 
     JS_NewClassID(&rpc_class_id);
     rpc_class_def.class_name = "RPC";
+
+    JS_NewClassID(&host_class_id);
+    host_class_def.class_name = "Host";
   }
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -951,6 +1009,7 @@ namespace js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
+    ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     JSContext* ctx)
   {
@@ -1116,6 +1175,20 @@ namespace js
           0));
     }
 
+    if (host_node_state != nullptr)
+    {
+      auto host = JS_NewObjectClass(ctx, host_class_id);
+      JS_SetOpaque(host, host_node_state);
+      JS_SetPropertyStr(ctx, ccf, "host", host);
+
+      JS_SetPropertyStr(
+        ctx,
+        host,
+        "triggerSubprocess",
+        JS_NewCFunction(
+          ctx, js_node_trigger_host_process_launch, "triggerSubprocess", 1));
+    }
+
     if (network_state != nullptr)
     {
       if (txctx == nullptr)
@@ -1158,6 +1231,7 @@ namespace js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
+    ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     JSContext* ctx)
   {
@@ -1173,6 +1247,7 @@ namespace js
         transaction_id,
         receipt,
         node_state,
+        host_node_state,
         network_state,
         ctx));
 
@@ -1238,6 +1313,16 @@ namespace js
       {
         throw std::logic_error(
           "Failed to register JS class definition for rpc");
+      }
+    }
+
+    // Register class for host
+    {
+      auto ret = JS_NewClass(rt, host_class_id, &host_class_def);
+      if (ret != 0)
+      {
+        throw std::logic_error(
+          "Failed to register JS class definition for host");
       }
     }
   }

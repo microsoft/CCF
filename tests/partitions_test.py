@@ -9,6 +9,7 @@ import suite.test_requirements as reqs
 from ccf.tx_id import TxID
 import time
 from infra.checker import check_can_progress
+import pprint
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -79,9 +80,6 @@ def test_isolate_primary_from_one_backup(network, args):
     # issue a write transaction instead of just reading the TxID of the latest entry
     network.txs.issue(network)
 
-    # Wait for all
-    # network.wait_for_all_nodes_to_commit(primary=primary)
-
     # Isolate first backup from primary so that first backup becomes candidate
     # in a new term and wins the election
     # Note: Managed manually
@@ -127,7 +125,8 @@ def test_isolate_and_reconnect_primary(network, args):
             if current_tx.seqno >= new_tx.seqno:
                 return network
             time.sleep(0.1)
-        assert False, f"Stuck at {r}"
+        details = c.get("/node/commit").body.json()
+        assert False, f"Stuck at {r}: {pprint.pformat(details)}"
 
 
 def run(args):
@@ -144,7 +143,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        # test_invalid_partitions(network, args)
+        test_invalid_partitions(network, args)
         test_partition_majority(network, args)
         test_isolate_primary_from_one_backup(network, args)
         for _ in range(5):

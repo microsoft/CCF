@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [2.0.0-dev0]
 
 ### Added
 
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added node start-up check for `cchost` and enclave compatibility, which should both always be from the same release for a single node (#2532).
 - Added a new `/node/version` endpoint to return the CCF version of a node (#2582).
 - Added a new `/node/metrics` endpoint which includes the count of active and peak concurrent sessions handled by the node (#2596).
+- Added experimental JavaScript API `ccf.host.triggerSubprocess()` (#2461).
 
 ### Changed
 
@@ -22,6 +23,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Requests with a url-encoded query string are now forwarded correctly from backups to the primary (#2587).
 - Signed requests with a url-encoded query string are now handled correctly rather than rejected (#2592).
 - Fixed consistency issue between ledger files on different nodes when snapshotting is active (#2607).
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.15.0 to 0.16.1 (#2609)
+
+## [1.0.3]
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.15.0 to 0.16.1 (#2609)
 
 ## [1.0.2]
 
@@ -882,6 +893,8 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[ccf-2.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev0
+[1.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.3
 [1.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.2
 [1.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.1
 [1.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0

@@ -579,6 +579,26 @@ TEST_CASE("view-change-tracker timeout tests")
     REQUIRE(vct.should_send_view_change(std::chrono::seconds(100)));
     REQUIRE(vct.get_target_view() == 2);
   }
+
+  INFO("Check skip_view message resets the timeout correctly");
+  {
+    aft::ViewChangeTracker vct(nullptr, std::chrono::seconds(10));
+    REQUIRE(vct.should_send_view_change(std::chrono::seconds(11)));
+    REQUIRE(vct.get_target_view() == 1);
+    REQUIRE(vct.should_send_view_change(std::chrono::seconds(12)) == false);
+    REQUIRE(vct.get_target_view() == 1);
+
+    aft::SkipViewMsg sv;
+    sv.view = vct.get_target_view() + 1;
+    vct.received_skip_view(sv);
+    REQUIRE(vct.should_send_view_change(std::chrono::seconds(13)) == false);
+    REQUIRE(vct.get_target_view() == 1);
+
+    sv.view = vct.get_target_view();
+    vct.received_skip_view(sv);
+    REQUIRE(vct.should_send_view_change(std::chrono::seconds(13)));
+    REQUIRE(vct.get_target_view() == 2);
+  }
 }
 
 TEST_CASE("view-change-tracker statemachine tests")
@@ -648,19 +668,18 @@ TEST_CASE("test progress_tracker apply_view_change")
     REQUIRE_CALL(store_mock, verify_view_change_request(_, _, _, _))
       .RETURN(false);
     ccf::ViewChangeRequest v;
-    bool result =
+    auto result =
       pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 1);
-    REQUIRE(result == false);
+    REQUIRE(result == ccf::ProgressTracker::ApplyViewChangeMessageResult::FAIL);
   }
 
-  INFO("Unknown seqno");
+  INFO("Seqno above last prepared");
   {
-    REQUIRE_CALL(store_mock, verify_view_change_request(_, _, _, _))
-      .RETURN(true);
     ccf::ViewChangeRequest v;
-    bool result =
+    auto result =
       pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 999);
-    REQUIRE(result == false);
+    REQUIRE(
+      result == ccf::ProgressTracker::ApplyViewChangeMessageResult::SKIP_VIEW);
   }
 
   INFO("View-change matches - known node");
@@ -671,9 +690,9 @@ TEST_CASE("test progress_tracker apply_view_change")
     ccf::ViewChangeRequest v;
     v.signatures.push_back(ccf::NodeSignature(kv::test::PrimaryNodeId));
 
-    bool result =
+    auto result =
       pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 42);
-    REQUIRE(result);
+    REQUIRE(result == ccf::ProgressTracker::ApplyViewChangeMessageResult::OK);
   }
 
   INFO("View-change matches - unknown node");
@@ -683,11 +702,34 @@ TEST_CASE("test progress_tracker apply_view_change")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(false);
 
     ccf::ViewChangeRequest v;
-    v.signatures.push_back(ccf::NodeSignature(kv::test::PrimaryNodeId));
+    v.signatures.push_back(ccf::NodeSignature(kv::test::FourthBackupNodeId));
 
-    bool result =
+    auto result =
       pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 42);
-    REQUIRE(result == false);
+    REQUIRE(result == ccf::ProgressTracker::ApplyViewChangeMessageResult::FAIL);
+  }
+}
+
+TEST_CASE("Can rollback out of date progress tracker entires")
+{
+  using trompeloeil::_;
+
+  INFO("Cannot rollback too many progress tracker entries");
+  {
+    ccf::View view = 0;
+    auto store = std::make_unique<StoreMock>();
+    StoreMock& store_mock = *store.get();
+    auto pt = std::make_unique<ccf::ProgressTracker>(
+      std::move(store), kv::test::FirstBackupNodeId);
+    auto& ref_pt = *pt.get();
+
+    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
+      .RETURN(true)
+      .TIMES(AT_LEAST(2));
+
+    ordered_execution(kv::test::FirstBackupNodeId, pt);
+
+    ref_pt.rollback(ref_pt.get_rollback_seqno(), view);
   }
 }
 
@@ -717,7 +759,7 @@ TEST_CASE("Sending evidence out of band")
         REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
       }
 
-      auto data = vct.get_serialized_view_change_confirmation(view);
+      auto data = vct.get_serialized_view_change_confirmation(view, true);
       std::shared_ptr<ccf::ProgressTrackerStore> store =
         std::make_unique<StoreMock>();
 
@@ -729,15 +771,24 @@ TEST_CASE("Sending evidence out of band")
           verify_view_change_request(_, _, _, _))
           .RETURN(true)
           .TIMES(AT_LEAST(1));
-
+        REQUIRE_CALL(
+          *reinterpret_cast<StoreMock*>(store.get()),
+          verify_view_change_request_confirmation(_, _))
+          .RETURN(true);
+        ccf::NodeId from;
         REQUIRE(vct_2.add_unknown_primary_evidence(
-          {data.data(), data.size()}, view, node_count));
+          {data.data(), data.size()}, view, from, node_count));
         REQUIRE(vct_2.check_evidence(view));
       }
       else
       {
+        REQUIRE_CALL(
+          *reinterpret_cast<StoreMock*>(store.get()),
+          verify_view_change_request_confirmation(_, _))
+          .RETURN(true);
+        ccf::NodeId from;
         REQUIRE(!vct_2.add_unknown_primary_evidence(
-          {data.data(), data.size()}, view, node_count));
+          {data.data(), data.size()}, view, from, node_count));
         REQUIRE(!vct_2.check_evidence(view));
       }
       REQUIRE(!vct_2.check_evidence(view + 1));
