@@ -136,7 +136,7 @@ namespace ccf
   {
     static std::string format(const std::string& core)
     {
-      return fmt::format("=[{}]=", core);
+      return fmt::format("m[{}]", core);
     }
   };
   using MemberId = EntityId<MemberIdFormatter>;
@@ -145,7 +145,7 @@ namespace ccf
   {
     static std::string format(const std::string& core)
     {
-      return fmt::format("-[{}]-", core);
+      return fmt::format("u[{}]", core);
     }
   };
   using UserId = EntityId<UserIdFormatter>;
@@ -154,7 +154,7 @@ namespace ccf
   {
     static std::string format(const std::string& core)
     {
-      return fmt::format("<[{}]>", core);
+      return fmt::format("n[{}]", core);
     }
   };
   using NodeId = EntityId<NodeIdFormatter>;
