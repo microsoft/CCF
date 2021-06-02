@@ -121,7 +121,7 @@ def test_isolate_and_reconnect_primary(network, args):
         # will catch up straight away.
         # See https://github.com/microsoft/CCF/issues/2616#issuecomment-852253179
         # for more detail
-        timeout = network.election_duration * 3
+        timeout = network.election_duration * 4
         r = c.get("/node/commit")
         end_time = time.time() + timeout
         while time.time() < end_time:
