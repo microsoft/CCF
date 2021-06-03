@@ -9,6 +9,7 @@
 
 namespace ccf
 {
+  template <typename FmtExtender = void>
   struct EntityId
   {
   public:
@@ -90,12 +91,15 @@ namespace ccf
     }
   };
 
-  inline void to_json(nlohmann::json& j, const EntityId& entity_id)
+  template <typename FmtExtender>
+  inline void to_json(nlohmann::json& j, const EntityId<FmtExtender>& entity_id)
   {
     j = entity_id.value();
   }
 
-  inline void from_json(const nlohmann::json& j, EntityId& entity_id)
+  template <typename FmtExtender>
+  inline void from_json(
+    const nlohmann::json& j, EntityId<FmtExtender>& entity_id)
   {
     if (j.is_string())
     {
@@ -108,12 +112,15 @@ namespace ccf
     }
   }
 
-  inline std::string schema_name(const EntityId&)
+  template <typename FmtExtender>
+  inline std::string schema_name(const EntityId<FmtExtender>&)
   {
     return "EntityId";
   }
 
-  inline void fill_json_schema(nlohmann::json& schema, const EntityId&)
+  template <typename FmtExtender>
+  inline void fill_json_schema(
+    nlohmann::json& schema, const EntityId<FmtExtender>&)
   {
     schema["type"] = "string";
 
@@ -121,27 +128,59 @@ namespace ccf
     // formats, even not those defined by the OpenAPI Specification"
     // https://swagger.io/docs/specification/data-models/data-types/#format
     schema["format"] = "hex";
-    schema["pattern"] = fmt::format("^[a-f0-9]{{{}}}$", EntityId::LENGTH);
+    schema["pattern"] =
+      fmt::format("^[a-f0-9]{{{}}}$", EntityId<FmtExtender>::LENGTH);
   }
 
-  using MemberId = EntityId;
-  using UserId = EntityId;
-  using NodeId = EntityId;
+  struct MemberIdFormatter
+  {
+    static std::string format(const std::string& core)
+    {
+      return fmt::format("m[{}]", core);
+    }
+  };
+  using MemberId = EntityId<MemberIdFormatter>;
+
+  struct UserIdFormatter
+  {
+    static std::string format(const std::string& core)
+    {
+      return fmt::format("u[{}]", core);
+    }
+  };
+  using UserId = EntityId<UserIdFormatter>;
+
+  struct NodeIdFormatter
+  {
+    static std::string format(const std::string& core)
+    {
+      return fmt::format("n[{}]", core);
+    }
+  };
+  using NodeId = EntityId<NodeIdFormatter>;
 }
 
 namespace std
 {
+  template <typename FmtExtender>
   static inline std::ostream& operator<<(
-    std::ostream& os, const ccf::EntityId& entity_id)
+    std::ostream& os, const ccf::EntityId<FmtExtender>& entity_id)
   {
-    os << entity_id.value();
+    if constexpr (std::is_same_v<FmtExtender, void>)
+    {
+      os << entity_id.value();
+    }
+    else
+    {
+      os << FmtExtender::format(entity_id.value());
+    }
     return os;
   }
 
-  template <>
-  struct hash<ccf::EntityId>
+  template <typename FmtExtender>
+  struct hash<ccf::EntityId<FmtExtender>>
   {
-    size_t operator()(const ccf::EntityId& entity_id) const
+    size_t operator()(const ccf::EntityId<FmtExtender>& entity_id) const
     {
       return std::hash<std::string>{}(entity_id.value());
     }
