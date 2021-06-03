@@ -1973,6 +1973,12 @@ namespace aft
       switch (r)
       {
         case kv::TxHistory::Result::OK:
+        case kv::TxHistory::Result::FAIL:
+        {
+          break;
+        }
+        /*
+        case kv::TxHistory::Result::OK:
         {
           break;
         }
@@ -1982,6 +1988,7 @@ namespace aft
           rollback(last_committable_index());
           break;
         }
+        */
         case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
         {
           SignaturesReceivedAck r = {
