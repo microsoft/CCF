@@ -94,13 +94,13 @@ namespace kv
      * Returns nullopt when there is no value, because the key has no value
      * (never existed or has been removed). Note that this is always talking
      * about the version of previously applied state and not the same values
-     * as @c get or @c has. This transaction's pending writes have no version
-     * yet, and this method does not talk about them.
+     * as @c get or @c has. This current transaction's pending writes have no
+     * version yet, and this method does not talk about them.
      *
      * @param key Key to read
      *
      * @return Optional containing version of applied transaction which last
-     * wrote at this key, or nullopt if this key has no associated value
+     * wrote at this key, or nullopt if such a version does not exist
      */
     std::optional<Version> get_version_of_previous_write(const K& key)
     {

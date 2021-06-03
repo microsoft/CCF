@@ -9,15 +9,17 @@
 
 namespace kv
 {
-  /** Defines the schema of a table within the @c kv::Store, exposing associated
-   * types.
+  /** Defines the schema of a map within the @c kv::Store, exposing associated
+   * types. This map is an unordered associative container of key-value pairs.
+   * Each key, if defined, is associated with a value, and can be used to
+   * efficiently lookup that value.
    *
    * K defines the type of the Key which indexes each entry, while V is the type
    * of the Value associated with a given Key. KSerialiser and VSerialiser
    * determine how each K and V are serialised and deserialised, so they may be
    * written to the ledger and replicated by the consensus algorithm. Note that
    * equality is always evaluated on the serialised form; if unequal Ks produce
-   * the same serialisation, they will coincide within this table. Serialiser
+   * the same serialisation, they will coincide within this map. Serialiser
    * which leverages existing JSON serialisation is provided by CCF.
    */
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>

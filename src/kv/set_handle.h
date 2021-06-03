@@ -43,7 +43,7 @@ namespace kv
      * @param key Key to read
      *
      * @return Optional containing version of applied transaction which last
-     * wrote at this key, or nullopt if this key is not present
+     * wrote at this key, or nullopt if such a version does not exist
      */
     std::optional<Version> get_version_of_previous_write(const K& key)
     {
@@ -101,7 +101,7 @@ namespace kv
      * This will always insert a value, producing a new write and updating
      * future calls to @c ReadableSetHandle::get_version_of_previous_write, even
      * if this key was already present.
-     * 
+     *
      * @param key Key to insert
      */
     void insert(const K& key)

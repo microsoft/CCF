@@ -19,6 +19,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     ServiceConfiguration, recovery_threshold, consensus)
 
-  // The there is always only one active configuration, so this is a single Value
+  // The there is always only one active configuration, so this is a single
+  // Value
   using Configuration = ServiceValue<ServiceConfiguration>;
 }

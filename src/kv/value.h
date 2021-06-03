@@ -7,9 +7,20 @@
 #include "serialise_entry_json.h"
 #include "value_handle.h"
 
-// TODO: Docs
 namespace kv
 {
+  /** Defines the schema of a value type within the @c kv::Store. This value
+   * type is a container for an optional single element of type V. This may be
+   * undefined if the value has not been written to the KV, or else it has the
+   * value from the current or last-applied transaction.
+   *
+   * V defines the type of the contained Value. VSerialiser determines how
+   * this V is serialised and deserialised, so it may be written to the ledger
+   * and replicated by the consensus algorithm.
+   *
+   * This is implemented as a @c kv::Map from Unit to V, and the serialisation
+   * of the unit key is overridable with the Unit template parameter.
+   */
   template <
     typename V,
     typename VSerialiser,

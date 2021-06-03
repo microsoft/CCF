@@ -7,9 +7,21 @@
 #include "serialise_entry_json.h"
 #include "set_handle.h"
 
-// TODO: Docs
 namespace kv
 {
+  /** Defines the schema of a set type within the @c kv::Store. This set is an
+   * unordered container of unique keys. Each key is either present or missing
+   * within the set, and key presence can be efficiently tested.
+   *
+   * K defines the type of each entry in this set. KSerialiser determines how
+   * each K is serialised and deserialised, so they may be written to the ledger
+   * and replicated by the consensus algorithm. Note that equality is always
+   * evaluated on the serialised form; if unequal Ks produce the same
+   * serialisation, they will coincide within this set.
+   *
+   * This is implemented as a @c kv::Map from K to Unit, and the serialisation
+   * of the unit values is overridable with the Unit template parameter.
+   */
   template <
     typename K,
     typename KSerialiser,
