@@ -101,7 +101,7 @@ namespace kv
      * previous value was identical, this produces a serialised write in the
      * ledger.
      *
-     * @param value Value
+     * @param value New entry to assign to this Value
      */
     void put(const V& value)
     {

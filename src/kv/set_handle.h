@@ -55,10 +55,10 @@ namespace kv
      *
      * @see kv::ReadableMapHandle::foreach
      *
-     * @tparam F Functor class, taking (const K& k) and returning a
+     * @tparam F Functor type. Should usually be derived implicitly from f
+     * @param f Functor instance, taking (const K& k) and returning a
      * bool. Return value determines whether the iteration should continue
-     * (true) or stop (false).
-     * @param f Functor instance
+     * (true) or stop (false)
      */
     template <class F>
     void foreach(F&& f)

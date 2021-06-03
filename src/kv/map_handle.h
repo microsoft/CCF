@@ -130,10 +130,10 @@ namespace kv
      * visibility described above only applies to the keys and values passed to
      * this functor.
      *
-     * @tparam F Functor class, taking (const K& k, const V& v) and returning a
-     * bool. Return value determines whether the iteration should continue
-     * (true) or stop (false).
-     * @param f Functor instance
+     * @tparam F Functor type. Should usually be derived implicitly from f
+     * @param f Functor instance, taking (const K& k, const V& v) and returning
+     * a bool. Return value determines whether the iteration should continue
+     * (true) or stop (false)
      */
     template <class F>
     void foreach(F&& f)
@@ -178,8 +178,8 @@ namespace kv
      * If the key already exists, the previous value will be replaced with the
      * new value.
      *
-     * @param key Key
-     * @param value Value
+     * @param key Key at which to insert
+     * @param value Associated value to be inserted
      */
     void put(const K& key, const V& value)
     {
@@ -192,7 +192,7 @@ namespace kv
      * It is safe to call this on non-existent keys - it will simply return
      * false.
      *
-     * @param key Key
+     * @param key Key to be removed
      *
      * @return true if the key had a value previously
      */
