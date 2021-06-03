@@ -70,8 +70,6 @@ namespace kv
         max_conflict_version = version - 1;
       }
 
-      // TODO: fix this
-      //ccf::View serialiser_view = 2;
       ccf::View serialiser_view = view;
       if (replicated_view.has_value())
       {

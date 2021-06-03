@@ -2501,8 +2501,11 @@ namespace aft
       if (consensus_type == ConsensusType::BFT)
       {
         auto progress_tracker = store->get_progress_tracker();
+        ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+        /*
         ccf::SeqNo rollback_level = std::min(
           progress_tracker->get_rollback_seqno(), last_committable_index());
+        */
 
         rollback(rollback_level);
         view_change_tracker->set_current_view_change(state->current_view);

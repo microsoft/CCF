@@ -265,7 +265,6 @@ namespace kv
         tx_header.size,
         size_);
 
-      // TODO: This is the header
       auto gcm_hdr_data = data_;
 
       switch (tx_header.version)

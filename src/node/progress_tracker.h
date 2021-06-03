@@ -492,7 +492,7 @@ namespace ccf
 
       for (const auto& sig : cert.sigs)
       {
-        // We may have received a nonce but nonce but not the signature from a
+        // We may have received a nonce but not the signature from a
         // node, in this case we do not want to include the empty signature
         if (!sig.second.sig.empty())
         {
