@@ -499,7 +499,7 @@ namespace ccf
       };
 
       make_endpoint(
-        "promote", HTTP_POST, json_adapter(promote), no_auth_required)
+        "promote", HTTP_POST, json_adapter(promote), {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
 
