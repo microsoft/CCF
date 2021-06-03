@@ -50,10 +50,14 @@ def test_replace_all_nodes(network, args):
         timeout=10,
     )
 
-    new_primary, _ = network.wait_for_new_primary(primary)
     for node in new_nodes:
         LOG.info("Waiting for node {} to join", node.local_node_id)
         node.wait_for_node_to_join(timeout=10)
+
+    new_primary, _ = network.wait_for_new_primary(primary)
+    # TODO: clean up!
+    time.sleep(30)
+    new_primary, _ = network.find_primary()
     check_can_progress(new_primary)
 
     for node in current_nodes:
@@ -98,7 +102,7 @@ def run(args):
         network.start_and_join(args)
 
         # Replace all nodes repeatedly and check the network still operates
-        if args.consensus != "bft" and False:
+        if args.consensus != "bft":
             LOG.info(f"Replacing all nodes {args.rotation_replacements} times")
             for i in range(args.rotation_replacements):
                 LOG.warning(f"Replacement {i}")
