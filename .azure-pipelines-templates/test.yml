@@ -5,10 +5,9 @@ parameters:
   suffix: ""
 
 steps:
-  # TODO: Re-enable before merging. Only commented out to get more timeout on partition tests
   - script: |
       set -ex
-      ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -R tutorial
+      ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
     env:
       METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
       CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
@@ -19,7 +18,7 @@ steps:
   - ${{ if ne(parameters.suffix, 'Perf') }}:
       - script: |
           set -ex
-          sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -L partitions --repeat-until-fail 100"
+          sudo bash -c "source env/bin/activate && ctest -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -L partitions"
         env:
           CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
         condition: succeededOrFailed()
