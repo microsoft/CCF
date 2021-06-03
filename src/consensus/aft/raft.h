@@ -1977,18 +1977,6 @@ namespace aft
         {
           break;
         }
-        /*
-        case kv::TxHistory::Result::OK:
-        {
-          break;
-        }
-        case kv::TxHistory::Result::FAIL:
-        {
-          LOG_FAIL_FMT("FAILED in try_send_sig_ack rolling back to {}", last_committable_index());
-          rollback(last_committable_index());
-          break;
-        }
-        */
         case kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK:
         {
           SignaturesReceivedAck r = {
@@ -2509,11 +2497,6 @@ namespace aft
       {
         auto progress_tracker = store->get_progress_tracker();
         ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
-        /*
-        ccf::SeqNo rollback_level = std::min(
-          progress_tracker->get_rollback_seqno(), last_committable_index());
-        */
-
         rollback(rollback_level);
         view_change_tracker->set_current_view_change(state->current_view);
       }

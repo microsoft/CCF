@@ -38,10 +38,11 @@ bool encrypt_round_trip(
   std::vector<uint8_t> decrypted(plain.size());
 
   kv::Term term = 1;
+  kv::Term ret_term = 0;
   encryptor.encrypt(plain, aad, header, cipher, {term, version});
-  encryptor.decrypt(cipher, aad, header, decrypted, version, term);
+  encryptor.decrypt(cipher, aad, header, decrypted, version, ret_term);
 
-  return plain == decrypted;
+  return plain == decrypted && ret_term = term;
 }
 
 bool corrupt_serialised_tx(
