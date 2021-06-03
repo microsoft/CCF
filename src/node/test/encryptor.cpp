@@ -42,7 +42,7 @@ bool encrypt_round_trip(
   encryptor.encrypt(plain, aad, header, cipher, {term, version});
   encryptor.decrypt(cipher, aad, header, decrypted, version, ret_term);
 
-  return plain == decrypted && ret_term = term;
+  return plain == decrypted && ret_term == term;
 }
 
 bool corrupt_serialised_tx(
