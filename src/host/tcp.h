@@ -68,7 +68,7 @@ namespace asynchost
       BINDING,
       BINDING_FAILED,
       CONNECTING_RESOLVING,
-      CONNECTING, // 6
+      CONNECTING,
       CONNECTED,
       DISCONNECTED,
       RESOLVING_FAILED,
