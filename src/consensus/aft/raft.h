@@ -294,10 +294,10 @@ namespace aft
       }
     }
 
-    size_t num_eligigble_voters() const
+    size_t num_eligible_voters() const
     {
       size_t r = 0;
-      for (const auto& id, _] : nodes)
+      for (const auto& [id, _] : nodes)
       {
         if (is_eligible_voter(id))
         {
@@ -463,6 +463,17 @@ namespace aft
 
     void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
+      LOG_TRACE_FMT(
+        "Adding a configuration at {} of {} nodes", idx, conf.size());
+      for (auto& [id, info] : conf)
+      {
+        LOG_TRACE_FMT(
+          "  {} = {}:{} ({})",
+          id,
+          info.hostname,
+          info.port,
+          info.catching_up ? "passive" : "active");
+      }
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       // It is safe to call is_follower() by construction as the consensus
       // can only change from leader or follower while in a view-change during
@@ -511,7 +522,7 @@ namespace aft
 
     uint32_t node_count() const
     {
-      return get_latest_configuration_unsafe().size();
+      return num_eligible_voters();
     }
 
     ccf::SeqNo get_confirmed_matching_index(const NodeId& id) const
@@ -2712,7 +2723,7 @@ namespace aft
       // Need 50% + 1 of the total nodes, which are the other nodes plus us.
       votes_for_me.insert(from);
 
-      size_t n = num_eligigble_voters();
+      size_t n = num_eligible_voters();
       size_t threshold = (n / 2) + 1;
 
       LOG_INFO_FMT(
