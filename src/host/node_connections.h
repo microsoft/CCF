@@ -134,7 +134,7 @@ namespace asynchost
         auto search = parent.associated.find(n);
         if (search != parent.associated.end() && search->second.first == id)
         {
-          // Incoming connection is already associated n
+          // Incoming connection is already associated with n
           return;
         }
 
