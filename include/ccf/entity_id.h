@@ -5,6 +5,9 @@
 #include "ds/json.h"
 #include "ds/serialized.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+#include <sstream>
 #include <string>
 
 namespace ccf
@@ -183,6 +186,27 @@ namespace std
     size_t operator()(const ccf::EntityId<FmtExtender>& entity_id) const
     {
       return std::hash<std::string>{}(entity_id.value());
+    }
+  };
+}
+
+namespace fmt
+{
+  template <typename FmtExtender>
+  struct formatter<ccf::EntityId<FmtExtender>>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ccf::EntityId<FmtExtender>& v, FormatContext& ctx)
+    {
+      std::stringstream ss;
+      ss << v;
+      return format_to(ctx.out(), ss.str());
     }
   };
 }
