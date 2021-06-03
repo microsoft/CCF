@@ -682,8 +682,6 @@ namespace kv
       }
       std::tie(v, max_conflict_version) = v_.value();
 
-      LOG_INFO_FMT("AAAAA view:{}", view);
-
       // Throw away any local commits that have not propagated via the
       // consensus.
       rollback(v - 1);
@@ -955,7 +953,7 @@ namespace kv
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
-          LOG_FAIL_FMT(
+          LOG_DEBUG_FMT(
             "Want to commit for term {} but term is {}", txid.term, term);
 
           return CommitResult::FAIL_NO_REPLICATE;

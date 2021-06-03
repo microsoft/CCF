@@ -40,7 +40,6 @@ namespace crypto
       *reinterpret_cast<uint64_t*>(iv) = seq;
     }
 
-    // TODO: inverse of this
     void set_iv_term(uint64_t term)
     {
       if (term > 0x7FFFFFFF)
@@ -55,8 +54,6 @@ namespace crypto
 
     uint64_t get_term() const
     {
-      //return ((0x7FFFFFFF) & (*reinterpret_cast<const uint32_t*>(&iv + IV_DELIMITER)));
-      //return ((0x7FFFFFFF) & *reinterpret_cast<const uint32_t*>(&iv));
       return *reinterpret_cast<const uint32_t*>(iv + IV_DELIMITER);
     }
 
