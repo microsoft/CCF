@@ -438,16 +438,6 @@ namespace ccf
             "No configured consensus");
         }
 
-        if (
-          !this->context.get_node_state().is_primary() &&
-          consensus->type() != ConsensusType::BFT)
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Only the primary can promote nodes");
-        }
-
         if (this->context.get_node_state().is_primary())
         {
           const auto committed_seqno = consensus->get_committed_seqno_unsafe();
@@ -499,7 +489,10 @@ namespace ccf
       };
 
       make_endpoint(
-        "promote", HTTP_POST, json_adapter(promote), {std::make_shared<NodeCertAuthnPolicy>()})
+        "promote",
+        HTTP_POST,
+        json_adapter(promote),
+        {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
 
