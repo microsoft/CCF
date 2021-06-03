@@ -320,12 +320,7 @@ namespace aft
       {
         active_nodes_.insert(id());
       }
-#ifndef NDEBUG
-      std::stringstream ss;
-      for (auto& m : active_nodes_)
-        ss << " " << m;
-      LOG_DEBUG_FMT("Active nodes:{}", ss.str());
-#endif
+      LOG_DEBUG_FMT("Active nodes: {}", fmt::join(active_nodes_, ", "));
       auto it = active_nodes_.begin();
       std::advance(it, (view - starting_view_change) % active_nodes_.size());
       return *it;
