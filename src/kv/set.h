@@ -55,6 +55,9 @@ namespace kv
   template <typename K>
   using RawCopySerialisedSet = TypedSet<K, kv::serialisers::BlitSerialiser<K>>;
 
+  /** Short name for default-serialised sets, using JSON serialisers. Support
+   * for custom types can be added through the DECLARE_JSON... macros.
+   */
   template <typename K>
   using Set = JsonSerialisedSet<K>;
 }

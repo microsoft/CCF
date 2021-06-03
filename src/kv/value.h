@@ -55,6 +55,9 @@ namespace kv
   using RawCopySerialisedValue =
     TypedValue<V, kv::serialisers::BlitSerialiser<V>>;
 
+  /** Short name for default-serialised values, using JSON serialisers. Support
+   * for custom types can be added through the DECLARE_JSON... macros.
+   */
   template <typename V>
   using Value = JsonSerialisedValue<V>;
 }
