@@ -470,7 +470,7 @@ namespace ccf
       if (!is_open_)
       {
         auto service = tx.ro<Service>(Tables::SERVICE);
-        auto s = service->get_globally_committed(0);
+        auto s = service->get_globally_committed();
         if (
           s.has_value() && s.value().status == ServiceStatus::OPEN &&
           service_identity != nullptr && s.value().cert == *service_identity)

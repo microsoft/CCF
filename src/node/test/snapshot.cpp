@@ -60,12 +60,12 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     // mini-tree in a signature and the hash of the signature
     auto tx = source_store.create_read_only_tx();
     auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
-    REQUIRE(signatures->has(0));
-    auto sig = signatures->get(0).value();
+    REQUIRE(signatures->has());
+    auto sig = signatures->get().value();
     auto serialised_tree =
       tx.ro<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
-    REQUIRE(serialised_tree->has(0));
-    auto tree = serialised_tree->get(0);
+    REQUIRE(serialised_tree->has());
+    auto tree = serialised_tree->get();
 
     auto serialised_signature = source_consensus->get_latest_data().value();
     auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);

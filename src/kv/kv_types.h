@@ -499,20 +499,20 @@ namespace kv
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
-  class AbstractMapHandle
+  class AbstractHandle
   {
   public:
-    virtual ~AbstractMapHandle() = default;
+    virtual ~AbstractHandle() = default;
   };
 
-  struct NamedMap
+  struct NamedHandleMixin
   {
   protected:
     std::string name;
 
   public:
-    NamedMap(const std::string& s) : name(s) {}
-    virtual ~NamedMap() = default;
+    NamedHandleMixin(const std::string& s) : name(s) {}
+    virtual ~NamedHandleMixin() = default;
 
     const std::string& get_name() const
     {
@@ -522,7 +522,7 @@ namespace kv
 
   class AbstractStore;
   class AbstractMap : public std::enable_shared_from_this<AbstractMap>,
-                      public NamedMap
+                      public NamedHandleMixin
   {
   public:
     class Snapshot
@@ -533,7 +533,7 @@ namespace kv
       virtual SecurityDomain get_security_domain() = 0;
     };
 
-    using NamedMap::NamedMap;
+    using NamedHandleMixin::NamedHandleMixin;
     virtual ~AbstractMap() {}
     virtual bool operator==(const AbstractMap& that) const = 0;
     virtual bool operator!=(const AbstractMap& that) const = 0;

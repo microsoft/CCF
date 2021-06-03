@@ -609,7 +609,7 @@ namespace ccf
 
               auto tx = network.tables->create_read_only_tx();
               auto signatures = tx.ro(network.signatures);
-              auto sig = signatures->get(0);
+              auto sig = signatures->get();
               if (!sig.has_value())
               {
                 throw std::logic_error(
@@ -1277,7 +1277,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
 
       auto service = tx.rw<Service>(Tables::SERVICE);
-      auto service_info = service->get(0);
+      auto service_info = service->get();
       if (!service_info.has_value())
       {
         throw std::logic_error(
@@ -1301,7 +1301,7 @@ namespace ccf
         // shares
         share_manager.clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
-        service->put(0, service_info.value());
+        service->put(service_info.value());
         return;
       }
       else if (is_part_of_network())
