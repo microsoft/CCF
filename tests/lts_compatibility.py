@@ -347,17 +347,17 @@ if __name__ == "__main__":
 
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
-    # compatibility_report["live compatibility"] = {}
-    # latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
-    # following_lts_version = run_live_compatibility_with_following(
-    #     args, repo, env.branch
-    # )
-    # compatibility_report["live compatibility"].update(
-    #     {"with latest": latest_lts_version}
-    # )
-    # compatibility_report["live compatibility"].update(
-    #     {"with following": following_lts_version}
-    # )
+    compatibility_report["live compatibility"] = {}
+    latest_lts_version = run_live_compatibility_with_latest(args, repo, env.branch)
+    following_lts_version = run_live_compatibility_with_following(
+        args, repo, env.branch
+    )
+    compatibility_report["live compatibility"].update(
+        {"with latest": latest_lts_version}
+    )
+    compatibility_report["live compatibility"].update(
+        {"with following": following_lts_version}
+    )
 
     if args.check_ledger_compatibility:
         compatibility_report["data compatibility"] = {}
