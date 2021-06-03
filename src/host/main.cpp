@@ -270,10 +270,8 @@ int main(int argc, char** argv)
       "--raft-election-timeout-ms",
       raft_election_timeout,
       "Raft election timeout in milliseconds. If a follower does not receive "
-      "any "
-      "heartbeat from the leader after this timeout, the follower triggers a "
-      "new "
-      "election.")
+      "any heartbeat from the leader after this timeout, the follower triggers "
+      "a new election.")
     ->capture_default_str();
 
   size_t bft_view_change_timeout = 5000;
@@ -283,8 +281,7 @@ int main(int argc, char** argv)
       bft_view_change_timeout,
       "bft view change timeout in milliseconds. If a backup does not receive "
       "the pre-prepare message for a request forwarded to the primary after "
-      "this "
-      "timeout, the backup triggers a new view change.")
+      "this timeout, the backup triggers a new view change.")
     ->capture_default_str();
 
   size_t bft_status_interval = 100;
@@ -305,8 +302,8 @@ int main(int argc, char** argv)
       client_connection_timeout,
       "TCP client connection timeout in milliseconds after which a"
       "non-established client connection is automatically re-created. This "
-      "should be set to value significantly less than the consensus election "
-      "timeout")
+      "should be set to a significantly lower value than the "
+      "--raft-election-timeout-ms.")
     ->capture_default_str();
 
   size_t max_msg_size = 24;
