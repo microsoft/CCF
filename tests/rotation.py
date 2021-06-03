@@ -98,7 +98,7 @@ def run(args):
         network.start_and_join(args)
 
         # Replace all nodes repeatedly and check the network still operates
-        if args.consensus != "bft":
+        if args.consensus != "bft" and False:
             LOG.info(f"Replacing all nodes {args.rotation_replacements} times")
             for i in range(args.rotation_replacements):
                 LOG.warning(f"Replacement {i}")

@@ -552,7 +552,14 @@ namespace aft
           return false;
 
         if (retirement_committable_idx.has_value())
+        {
+          CCF_ASSERT_FMT(
+            index > retirement_committable_idx.value(),
+            "Index {} unexpectedly lower than retirement_committable_idx {}",
+            index,
+            retirement_committable_idx.value());
           return false;
+        }
 
         LOG_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
@@ -569,9 +576,15 @@ namespace aft
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
-          if (retirement_idx.has_value() && index >= retirement_idx.value())
+          if (retirement_idx.has_value())
           {
+            CCF_ASSERT_FMT(
+              index >= retirement_idx.value(),
+              "Index {} unexpectedly lower than retirement_idx {}",
+              index,
+              retirement_idx.value());
             retirement_committable_idx = index;
+            LOG_INFO_FMT("Node retirement committable at {}", index);
           }
           committable_indices.push_back(index);
 
@@ -1592,9 +1605,15 @@ namespace aft
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
-            if (retirement_idx.has_value() && i >= retirement_idx.value())
+            if (retirement_idx.has_value())
             {
+              CCF_ASSERT_FMT(
+                i >= retirement_idx.value(),
+                "Index {} unexpectedly lower than retirement_idx {}",
+                i,
+                retirement_idx.value());
               retirement_committable_idx = i;
+              LOG_INFO_FMT("Node retirement committable at {}", i);
             }
             committable_indices.push_back(i);
 

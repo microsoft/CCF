@@ -53,5 +53,5 @@ def check_can_progress(node, timeout=3):
             if current_tx.seqno > original_tx.seqno:
                 return current_tx
             time.sleep(0.1)
-        details = c.get("/node/commit").body.json()
+        details = c.get("/node/consensus").body.json()
         assert False, f"Stuck at {r}: {pprint.pformat(details)}"

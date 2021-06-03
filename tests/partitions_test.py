@@ -125,7 +125,7 @@ def test_isolate_and_reconnect_primary(network, args):
             if current_tx.seqno >= new_tx.seqno:
                 return network
             time.sleep(0.1)
-        details = c.get("/node/commit").body.json()
+        details = c.get("/node/consensus").body.json()
         assert False, f"Stuck at {r}: {pprint.pformat(details)}"
 
 
