@@ -295,7 +295,7 @@ int main(int argc, char** argv)
       "defined by this timer interval.")
     ->capture_default_str();
 
-  size_t client_connection_timeout = 1000;
+  size_t client_connection_timeout = 2000;
   app
     .add_option(
       "--client-connection-timeout-ms",
