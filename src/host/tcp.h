@@ -95,7 +95,6 @@ namespace asynchost
       }
     };
 
-    uv_os_sock_t sock;
     bool is_client;
     size_t connection_timeout = 0;
     Status status;
@@ -330,7 +329,6 @@ namespace asynchost
         case CONNECTING_FAILED:
         case RECONNECTING:
         {
-          LOG_FAIL_FMT("Status: {}: buffering... {}", status, len);
           pending_writes.emplace_back(req, len);
           break;
         }
@@ -372,25 +370,19 @@ namespace asynchost
 
       if (is_client)
       {
+        uv_os_sock_t sock;
         if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
         {
           LOG_FAIL_FMT("socket creation failed: {}", strerror(errno));
           return false;
         }
 
-        int yes = 1;
-        assert(
-          setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == 0);
-
-        uint32_t conn_timeout_ms = connection_timeout;
         setsockopt(
           sock,
           IPPROTO_TCP,
           TCP_USER_TIMEOUT,
-          &conn_timeout_ms,
-          sizeof(conn_timeout_ms));
-
-        LOG_FAIL_FMT("fd: {}", sock);
+          &connection_timeout,
+          sizeof(connection_timeout));
 
         if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
         {
@@ -554,7 +546,6 @@ namespace asynchost
           status));
       }
 
-      LOG_FAIL_FMT("tcp: {} -> {}", from, to);
       status = to;
     }
 
@@ -670,8 +661,6 @@ namespace asynchost
     {
       auto self = static_cast<TCPImpl*>(req->handle->data);
       delete req;
-
-      LOG_FAIL_FMT("on connect: {}", rc);
 
       if (rc == UV_ECANCELED)
       {
@@ -830,7 +819,6 @@ namespace asynchost
 
       if (client_addr_base != nullptr)
       {
-        LOG_FAIL_FMT("Reconnect with client host!");
         assert_status(FRESH, BINDING);
         client_bind();
       }
