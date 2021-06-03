@@ -490,7 +490,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Missing node state");
+            fmt::format("Unknown node {}", in.node_id));
         }
 
         node_info->status = NodeStatus::TRUSTED;
