@@ -257,7 +257,7 @@ namespace ccf
         auto nodes = args.tx.rw(this->network.nodes);
         auto service = args.tx.rw(this->network.service);
 
-        auto active_service = service->get(0);
+        auto active_service = service->get();
         if (!active_service.has_value())
         {
           return make_error(
@@ -421,7 +421,7 @@ namespace ccf
             0);
 
         auto signatures = args.tx.template ro<Signatures>(Tables::SIGNATURES);
-        auto sig = signatures->get(0);
+        auto sig = signatures->get();
         if (!sig.has_value())
         {
           result.last_signed_seqno = 0;
@@ -520,7 +520,7 @@ namespace ccf
       auto network_status = [this](auto& args, nlohmann::json&&) {
         GetNetworkInfo::Out out;
         auto service = args.tx.ro(network.service);
-        auto service_state = service->get(0);
+        auto service_state = service->get();
         if (service_state.has_value())
         {
           const auto& service_value = service_state.value();
