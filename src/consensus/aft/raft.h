@@ -296,10 +296,10 @@ namespace aft
 
     size_t num_eligigble_voters() const
     {
-      size_t r = (catching_up || retiring) ? 0 : 1;
-      for (const auto& [_, state] : nodes)
+      size_t r = 0;
+      for (const auto& id, _] : nodes)
       {
-        if (!state.catching_up)
+        if (is_eligible_voter(id))
         {
           r++;
         }
