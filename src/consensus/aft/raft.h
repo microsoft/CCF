@@ -145,8 +145,7 @@ namespace aft
     std::unordered_map<ccf::NodeId, NodeState> nodes;
 
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
-    std::optional<ccf::SeqNo> retirement_commit_idx = std::nullopt;
-    bool added = false;
+    std::optional<ccf::SeqNo> retirement_committable_idx = std::nullopt;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -444,16 +443,21 @@ namespace aft
       {
         guard.lock();
       }
-      
-      // This should only be called when the spin lock is held.
-      if (!added && conf.find(state->my_node_id) != conf.end())
-        added = true;
 
-      if (added && conf.find(state->my_node_id) == conf.end() &&
-          !retirement_idx.has_value())
+      // This should only be called when the spin lock is held.
+
+      if (
+        !configurations.empty() &&
+        configurations.back().nodes.find(state->my_node_id) !=
+          configurations.back().nodes.end() &&
+        conf.find(state->my_node_id) == conf.end())
       {
-        LOG_INFO_FMT("XXXXXXXXXXXXXXXXXXXXXXX RETIRING AT {}", idx);
-        retirement_idx = idx; 
+        CCF_ASSERT_FMT(
+          !retirement_idx.has_value(),
+          "retirement_idx already set to {}",
+          retirement_idx.value());
+        retirement_idx = idx;
+        LOG_INFO_FMT("Node retiring at {}", idx);
       }
 
       configurations.push_back({idx, std::move(conf)});
@@ -547,7 +551,7 @@ namespace aft
         if (index != state->last_idx + 1)
           return false;
 
-        if (retirement_commit_idx.has_value())
+        if (retirement_committable_idx.has_value())
           return false;
 
         LOG_DEBUG_FMT(
@@ -567,7 +571,7 @@ namespace aft
         {
           if (retirement_idx.has_value() && index >= retirement_idx.value())
           {
-            retirement_commit_idx = index;
+            retirement_committable_idx = index;
           }
           committable_indices.push_back(index);
 
@@ -1120,10 +1124,7 @@ namespace aft
 
       if (replica_state == kv::ReplicaState::Retired && start_idx >= end_idx)
       {
-        // When the local node is retired and the remote node has
-        // acked all entries that the local node wanted to replicate,
-        // the channel is no longer useful and can be closed.
-        channels->destroy_channel(to);
+        // Continue to replicate, but do not send heartbeats if we are retired
         return;
       }
 
@@ -1317,7 +1318,7 @@ namespace aft
         return;
       }
 
-      if (retirement_commit_idx.has_value())
+      if (retirement_committable_idx.has_value())
       {
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return;
@@ -1593,7 +1594,7 @@ namespace aft
             auto prev_lci = last_committable_index();
             if (retirement_idx.has_value() && i >= retirement_idx.value())
             {
-              retirement_commit_idx = i;
+              retirement_committable_idx = i;
             }
             committable_indices.push_back(i);
 
@@ -2425,11 +2426,6 @@ namespace aft
 
     void become_candidate()
     {
-      if (replica_state == kv::ReplicaState::Retired)
-      {
-        return;
-      }
-
       replica_state = kv::ReplicaState::Candidate;
       leader_id.reset();
       voted_for = state->my_node_id;
@@ -2509,12 +2505,6 @@ namespace aft
 
     void become_follower(Term term)
     {
-      if (replica_state == kv::ReplicaState::Retired)
-      {
-        return;
-      }
-
-      replica_state = kv::ReplicaState::Follower;
       leader_id.reset();
       restart_election_timeout();
 
@@ -2536,8 +2526,12 @@ namespace aft
 
       is_new_follower = true;
 
-      LOG_INFO_FMT(
-        "Becoming follower {}: {}", state->my_node_id, state->current_view);
+      if (replica_state != kv::ReplicaState::Retired)
+      {
+        replica_state = kv::ReplicaState::Follower;
+        LOG_INFO_FMT(
+          "Becoming follower {}: {}", state->my_node_id, state->current_view);
+      }
     }
 
     void become_retired()
@@ -2669,7 +2663,9 @@ namespace aft
         return;
 
       state->commit_idx = idx;
-      if (retirement_commit_idx.has_value() && idx >= retirement_commit_idx.value())
+      if (
+        retirement_committable_idx.has_value() &&
+        idx >= retirement_committable_idx.value())
       {
         become_retired();
       }
@@ -2755,9 +2751,11 @@ namespace aft
         retirement_idx = std::nullopt;
       }
 
-      if (retirement_commit_idx.has_value() && retirement_commit_idx.value() > idx)
+      if (
+        retirement_committable_idx.has_value() &&
+        retirement_committable_idx.value() > idx)
       {
-        retirement_commit_idx = std::nullopt;
+        retirement_committable_idx = std::nullopt;
       }
 
       // Rollback configurations.
@@ -2861,7 +2859,7 @@ namespace aft
         LOG_INFO_FMT("Removed raft self {}", state->my_node_id);
         if (replica_state == kv::ReplicaState::Leader)
         {
-          become_retired();
+          // become_retired();
         }
       }
     }
