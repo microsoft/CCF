@@ -253,7 +253,7 @@ namespace ccf
   {
     try
     {
-      auto member_certs = tx.ro<ccf::UserCerts>(Tables::MEMBER_CERTS);
+      auto member_certs = tx.ro<ccf::MemberCerts>(Tables::MEMBER_CERTS);
       auto mc = member_certs->get(member_id);
       if (!mc.has_value())
       {
