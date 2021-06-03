@@ -39,7 +39,7 @@ bool encrypt_round_trip(
 
   kv::Term term = 1;
   encryptor.encrypt(plain, aad, header, cipher, {term, version});
-  encryptor.decrypt(cipher, aad, header, decrypted, version);
+  encryptor.decrypt(cipher, aad, header, decrypted, version, term);
 
   return plain == decrypted;
 }
@@ -210,14 +210,19 @@ TEST_CASE("Additional data")
   // Decrypting cipher at version 10
   std::vector<uint8_t> decrypted_cipher;
   REQUIRE(encryptor.decrypt(
-    cipher, additional_data, serialised_header, decrypted_cipher, version));
+    cipher, additional_data, serialised_header, decrypted_cipher, version, term));
   REQUIRE(plain == decrypted_cipher);
 
   // Tampering with additional data: decryption fails
   additional_data[100] = 0xAA;
   std::vector<uint8_t> decrypted_cipher2;
   REQUIRE_FALSE(encryptor.decrypt(
-    cipher, additional_data, serialised_header, decrypted_cipher2, version));
+    cipher,
+    additional_data,
+    serialised_header,
+    decrypted_cipher2,
+    version,
+    term));
 
   // mbedtls 2.16+ does not produce plain text if decryption fails
   REQUIRE(decrypted_cipher2.empty());

@@ -1678,7 +1678,8 @@ namespace aft
                 ds->get_request(),
                 request_tracker,
                 state->last_idx,
-                ds->get_max_conflict_version());
+                ds->get_max_conflict_version(),
+                ds->get_term());
             }
             else
             {
@@ -1730,7 +1731,8 @@ namespace aft
                   msg->data.ds->get_request(),
                   self->request_tracker,
                   msg->data.last_idx,
-                  msg->data.ds->get_max_conflict_version());
+                  msg->data.ds->get_max_conflict_version(),
+                  msg->data.ds->get_term());
 
                 if (threading::ThreadMessaging::thread_count == 1)
                 {
@@ -1770,7 +1772,8 @@ namespace aft
               ds->get_request(),
               request_tracker,
               state->last_idx,
-              ds->get_max_conflict_version());
+              ds->get_max_conflict_version(),
+              ds->get_term());
           }
           break;
         }

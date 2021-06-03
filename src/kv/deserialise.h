@@ -21,6 +21,7 @@ namespace kv
       bool public_only,
       kv::Version& v,
       kv::Version& max_conflict_version,
+      kv::Term& view,
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
       bool ignore_strict_versions = false) = 0;
@@ -60,11 +61,13 @@ namespace kv
     ApplyResult apply() override
     {
       kv::Version max_conflict_version;
+      kv::Term view;
       if (!store->fill_maps(
             data,
             public_only,
             v,
             max_conflict_version,
+            view,
             changes,
             new_maps,
             true))
@@ -469,6 +472,7 @@ namespace kv
       std::unique_ptr<CommittableTx> tx_,
       kv::Version v_,
       kv::Version max_conflict_version_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -485,6 +489,7 @@ namespace kv
     {
       max_conflict_version = max_conflict_version_;
       tx = std::move(tx_);
+      term = view_;
     }
 
     ApplyResult apply() override

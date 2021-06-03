@@ -39,7 +39,8 @@ namespace aft
       bool is_create_request,
       ccf::SeqNo prescribed_commit_version = kv::NoVersion,
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
-      ccf::SeqNo max_conflict_version = kv::NoVersion) = 0;
+      ccf::SeqNo max_conflict_version = kv::NoVersion,
+      ccf::View replicated_view = kv::NoVersion) = 0;
 
     virtual std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args,
@@ -49,7 +50,8 @@ namespace aft
       aft::Request& request,
       std::shared_ptr<aft::RequestTracker> request_tracker,
       ccf::SeqNo prescribed_commit_version,
-      ccf::SeqNo max_conflict_version) = 0;
+      ccf::SeqNo max_conflict_version,
+      ccf::View replicated_view) = 0;
   };
 
   class ExecutorImpl : public Executor
@@ -74,7 +76,8 @@ namespace aft
       bool is_create_request,
       ccf::SeqNo prescribed_commit_version = kv::NoVersion,
       std::shared_ptr<aft::RequestTracker> request_tracker = nullptr,
-      ccf::SeqNo max_conflict_version = kv::NoVersion) override;
+      ccf::SeqNo max_conflict_version = kv::NoVersion,
+      ccf::View replicated_view = kv::NoVersion) override;
 
     std::unique_ptr<aft::RequestMessage> create_request_message(
       const kv::TxHistory::RequestCallbackArgs& args,
@@ -84,7 +87,8 @@ namespace aft
       aft::Request& request,
       std::shared_ptr<aft::RequestTracker> request_tracker,
       ccf::SeqNo prescribed_commit_version,
-      ccf::SeqNo max_conflict_version) override;
+      ccf::SeqNo max_conflict_version,
+      ccf::View replicated_view) override;
 
   private:
     std::shared_ptr<State> state;
