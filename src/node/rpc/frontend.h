@@ -592,7 +592,11 @@ namespace ccf
     {
       auto tx = tables.create_tx();
       return process_bft(
-        ctx, tx, prescribed_commit_version, max_conflict_version, replicated_view);
+        ctx,
+        tx,
+        prescribed_commit_version,
+        max_conflict_version,
+        replicated_view);
     }
 
     /** Process a serialised command with the associated RPC context via BFT
@@ -632,7 +636,12 @@ namespace ccf
       };
 
       auto rep = process_command(
-        ctx, tx, fn, prescribed_commit_version, max_conflict_version, replicated_view);
+        ctx,
+        tx,
+        fn,
+        prescribed_commit_version,
+        max_conflict_version,
+        replicated_view);
 
       version = tx.get_version();
       return {std::move(rep.value()), version};

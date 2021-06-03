@@ -211,7 +211,12 @@ TEST_CASE("Additional data")
   // Decrypting cipher at version 10
   std::vector<uint8_t> decrypted_cipher;
   REQUIRE(encryptor.decrypt(
-    cipher, additional_data, serialised_header, decrypted_cipher, version, term));
+    cipher,
+    additional_data,
+    serialised_header,
+    decrypted_cipher,
+    version,
+    term));
   REQUIRE(plain == decrypted_cipher);
 
   // Tampering with additional data: decryption fails
