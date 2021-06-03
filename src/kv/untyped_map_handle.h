@@ -22,7 +22,7 @@ namespace kv::untyped
   using SnapshotChangeSet = kv::
     SnapshotChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
 
-  class MapHandle : public kv::AbstractMapHandle
+  class MapHandle : public kv::AbstractHandle
   {
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or

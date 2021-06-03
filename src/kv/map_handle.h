@@ -81,7 +81,7 @@ namespace kv
      *
      * @param key Key to read
      *
-     * @return bool true if key exists
+     * @return Boolean true iff key exists
      */
     bool has(const K& key)
     {
@@ -93,14 +93,14 @@ namespace kv
      *
      * Returns nullopt when there is no value, because the key has no value
      * (never existed or has been removed). Note that this is always talking
-     * about the version of previously committed state and not the same values
-     * as @c get or @c has - this transaction's pending writes have no version
-     * yet, and this method does not talk about them.
+     * about the version of previously applied state and not the same values
+     * as @c get or @c has. This current transaction's pending writes have no
+     * version yet, and this method does not talk about them.
      *
      * @param key Key to read
      *
      * @return Optional containing version of applied transaction which last
-     * wrote at this key, or nullopt if this key has no associated value
+     * wrote at this key, or nullopt if such a version does not exist
      */
     std::optional<Version> get_version_of_previous_write(const K& key)
     {
@@ -130,10 +130,10 @@ namespace kv
      * visibility described above only applies to the keys and values passed to
      * this functor.
      *
-     * @tparam F Functor class, taking (const K& k, const V& v) and returning a
-     * bool. Return value determines whether the iteration should continue
-     * (true) or stop (false).
-     * @param f Functor instance
+     * @tparam F Functor type. Should usually be derived implicitly from f
+     * @param f Functor instance, taking (const K& k, const V& v) and returning
+     * a bool. Return value determines whether the iteration should continue
+     * (true) or stop (false)
      */
     template <class F>
     void foreach(F&& f)
@@ -178,8 +178,8 @@ namespace kv
      * If the key already exists, the previous value will be replaced with the
      * new value.
      *
-     * @param key Key
-     * @param value Value
+     * @param key Key at which to insert
+     * @param value Associated value to be inserted
      */
     void put(const K& key, const V& value)
     {
@@ -192,7 +192,7 @@ namespace kv
      * It is safe to call this on non-existent keys - it will simply return
      * false.
      *
-     * @param key Key
+     * @param key Key to be removed
      *
      * @return true if the key had a value previously
      */
@@ -215,7 +215,7 @@ namespace kv
    * @see kv::WriteableMapHandle
    */
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class MapHandle : public AbstractMapHandle,
+  class MapHandle : public AbstractHandle,
                     public ReadableMapHandle<K, V, KSerialiser, VSerialiser>,
                     public WriteableMapHandle<K, V, KSerialiser, VSerialiser>
   {

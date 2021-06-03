@@ -3,6 +3,8 @@
 #pragma once
 
 #include "kv/map.h"
+#include "kv/set.h"
+#include "kv/value.h"
 
 namespace ccf
 {
@@ -18,4 +20,16 @@ namespace ccf
     V,
     kv::serialisers::BlitSerialiser,
     kv::serialisers::JsonSerialiser>;
+
+  template <typename V>
+  using ServiceValue = kv::ValueSerialisedWith<
+    V,
+    kv::serialisers::JsonSerialiser,
+    kv::serialisers::ZeroBlitUnitCreator>;
+
+  template <typename K>
+  using ServiceSet = kv::SetSerialisedWith<
+    K,
+    kv::serialisers::BlitSerialiser,
+    kv::serialisers::ZeroBlitUnitCreator>;
 }

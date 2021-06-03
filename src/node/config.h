@@ -19,7 +19,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     ServiceConfiguration, recovery_threshold, consensus)
 
-  // The key for this table is always 0 as there is always only one active
-  // configuration.
-  using Configuration = ServiceMap<size_t, ServiceConfiguration>;
+  // The there is always only one active configuration, so this is a single
+  // Value
+  using Configuration = ServiceValue<ServiceConfiguration>;
 }

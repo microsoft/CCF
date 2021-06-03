@@ -54,10 +54,9 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     PrimarySignature, seqno, view, commit_seqno, commit_view, root)
 
-  // Signatures are always stored at key `0`
-  using Signatures = ServiceMap<size_t, PrimarySignature>;
+  // Most recent signature is a single Value in the KV
+  using Signatures = ServiceValue<PrimarySignature>;
 
-  // Serialised Merkle tree is always stored at key `0`
-  using SerialisedMerkleTree =
-    kv::RawCopySerialisedMap<size_t, std::vector<uint8_t>>;
+  // Serialised Merkle tree at most recent signature is a single Value in the KV
+  using SerialisedMerkleTree = kv::RawCopySerialisedValue<std::vector<uint8_t>>;
 }

@@ -57,7 +57,7 @@ namespace kv
     // with a near-identical API if we return `shared_ptr`s, and assuming that
     // we don't actually care about returning exactly the same Handle instance
     // if `rw` is called multiple times
-    using PossibleHandles = std::list<std::unique_ptr<AbstractMapHandle>>;
+    using PossibleHandles = std::list<std::unique_ptr<AbstractHandle>>;
     std::map<std::string, PossibleHandles> all_handles;
 
     // In most places we use NoVersion to indicate an invalid version. In this
@@ -83,7 +83,7 @@ namespace kv
       {
         PossibleHandles handles;
         auto typed_handle = new THandle(change_set, name);
-        handles.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_handle));
+        handles.emplace_back(std::unique_ptr<AbstractHandle>(typed_handle));
         all_handles[name] = std::move(handles);
         return typed_handle;
       }
@@ -99,7 +99,7 @@ namespace kv
           }
         }
         auto typed_handle = new THandle(change_set, name);
-        handles.emplace_back(std::unique_ptr<AbstractMapHandle>(typed_handle));
+        handles.emplace_back(std::unique_ptr<AbstractHandle>(typed_handle));
         return typed_handle;
       }
     }
