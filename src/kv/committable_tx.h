@@ -300,7 +300,7 @@ namespace kv
 
     void set_replicated_view(ccf::View view_)
     {
-      view = view_;
+      replicated_view = view_;
     }
 
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
