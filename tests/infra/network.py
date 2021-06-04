@@ -904,6 +904,34 @@ class Network:
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
 
+    def wait_for_new_primary_in(self, expected_node_ids, nodes=None, timeout_multiplier=2):
+        # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
+        # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
+        timeout = self.election_duration * timeout_multiplier
+        LOG.info(
+            f"Waiting up to {timeout}s for a new primary in {expected_node_ids} to be elected..."
+        )
+        end_time = time.time() + timeout
+        error = TimeoutError
+        logs = []
+        while time.time() < end_time:
+            try:
+                logs = []
+                new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
+                if new_primary.node_id in expected_node_ids:
+                    flush_info(logs, None)
+                    LOG.info(
+                        f"New primary is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                    )
+                    return (new_primary, new_term)
+            except PrimaryNotFound:
+                error = PrimaryNotFound
+            except Exception:
+                pass
+            time.sleep(0.1)
+        flush_info(logs, None)
+        raise error(f"A new primary was not elected after {timeout} seconds")
+
     def wait_for_commit_proof(self, node, seqno, timeout=3):
         # Wait that the target seqno has a commit proof on a specific node.
         # This is achieved by first waiting for a commit over seqno, issuing

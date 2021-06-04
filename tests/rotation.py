@@ -18,10 +18,12 @@ def test_replace_all_nodes(network, args):
     current_nodes = network.get_joined_nodes()
     current_node_ids = [node.node_id for node in current_nodes]
 
-    new_nodes = [
-        network.create_and_add_pending_node(args.package, "local://localhost", args)
-        for _ in range(3)
-    ]
+    def make_node():
+        node = network.create_node("local://localhost")
+        network.join_node(node, args.package, args, timeout=3)
+        return node
+
+    new_nodes = [make_node(), make_node(), make_node()]
     new_node_ids = [node.node_id for node in new_nodes]
 
     trust_new_nodes = [
@@ -49,10 +51,7 @@ def test_replace_all_nodes(network, args):
         LOG.info("Waiting for node {} to join", node.local_node_id)
         node.wait_for_node_to_join(timeout=10)
 
-    new_primary, _ = network.wait_for_new_primary(primary)
-    # TODO: clean up!
-    time.sleep(60)
-    new_primary, _ = network.find_primary()
+    new_primary, _ = network.wait_for_new_primary_in(new_node_ids)
     check_can_progress(new_primary)
 
     for node in current_nodes:
@@ -101,6 +100,8 @@ def run(args):
             for i in range(args.rotation_replacements):
                 LOG.warning(f"Replacement {i}")
                 test_replace_all_nodes(network, args)
+
+        return
 
         # Replace primary repeatedly and check the network still operates
         if args.consensus != "bft":
