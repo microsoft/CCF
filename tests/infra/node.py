@@ -75,6 +75,7 @@ class Node:
         debug=False,
         perf=False,
         node_port=None,
+        version=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -87,12 +88,14 @@ class Node:
         self.suspended = False
         self.node_id = None
         self.node_client_host = None
+        self.version = version
 
         if host.startswith("local://"):
             self.remote_impl = infra.remote.LocalRemote
-            self.node_client_host = str(
-                ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
-            )
+            if not version or version > 1:
+                self.node_client_host = str(
+                    ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
+                )
         elif host.startswith("ssh://"):
             self.remote_impl = infra.remote.SSHRemote
         else:
@@ -390,6 +393,10 @@ class Node:
         }
 
     def client(self, identity=None, signing_identity=None, **kwargs):
+        if self.network_state == NodeNetworkState.stopped:
+            raise RuntimeError(
+                f"Cannot create client for node {self.local_node_id} as node is stopped"
+            )
         akwargs = self.session_auth(identity)
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[
