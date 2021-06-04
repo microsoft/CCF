@@ -6,6 +6,10 @@ jobs:
     ${{ insert }}: ${{ parameters.env }}
 
     steps:
+      - script: |
+          sudo rm -rf build
+        displayName: "Cleanup"
+
       - checkout: self
         clean: true
         fetchDepth: 10000
