@@ -144,7 +144,9 @@ namespace aft
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
 
+    // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
+    // Earliest index at which this node's retirement can be committed
     std::optional<ccf::SeqNo> retirement_committable_idx = std::nullopt;
 
     size_t entry_size_not_limited = 0;

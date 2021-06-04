@@ -8,7 +8,6 @@ import reconfiguration
 import time
 from infra.checker import check_can_progress
 from ccf.clients import CCFConnectionException
-import pprint
 
 from loguru import logger as LOG
 
@@ -16,8 +15,6 @@ from loguru import logger as LOG
 @reqs.description("Replace all nodes in a single transaction")
 @reqs.at_least_n_nodes(3)
 def test_replace_all_nodes(network, args):
-    pprint.pprint(network.nodes)
-
     current_nodes = network.get_joined_nodes()
     current_node_ids = [node.node_id for node in current_nodes]
 
@@ -37,8 +34,6 @@ def test_replace_all_nodes(network, args):
     ]
     replace_nodes = {"actions": trust_new_nodes + remove_old_nodes}
 
-    pprint.pprint(replace_nodes)
-
     primary, _ = network.find_primary()
     proposal = network.consortium.get_any_active_member().propose(
         primary, replace_nodes
@@ -56,7 +51,7 @@ def test_replace_all_nodes(network, args):
 
     new_primary, _ = network.wait_for_new_primary(primary)
     # TODO: clean up!
-    time.sleep(30)
+    time.sleep(60)
     new_primary, _ = network.find_primary()
     check_can_progress(new_primary)
 
@@ -64,7 +59,6 @@ def test_replace_all_nodes(network, args):
         node.stop()
         network.nodes.remove(node)
 
-    pprint.pprint(network.nodes)
     return network
 
 
