@@ -11,6 +11,7 @@ from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict, List
 import json
 import base64
 from dataclasses import dataclass
+import abc
 
 from loguru import logger as LOG  # type: ignore
 from cryptography.x509 import load_pem_x509_certificate
@@ -107,7 +108,6 @@ class PublicDomain:
         self._max_conflict_version = self._read_version()
 
         if self._is_snapshot:
-            LOG.error("Reading snapshot header")
             self._read_snapshot_header()
 
         self._tables = {}
@@ -118,6 +118,12 @@ class PublicDomain:
 
     def _read_version(self):
         return unpack(self._buffer, "<q")
+
+    def get_version_size(self):
+        return struct.calcsize("<q")
+
+    def _read_versioned_value(self, size):
+        return (self._read_version(), self._buffer.read(size - self.get_version_size()))
 
     def _read_size(self):
         return unpack(self._buffer, "<Q")
@@ -140,40 +146,35 @@ class PublicDomain:
         view_history_size = self._read_size()
         self._view_history = unpack_array(self._buffer, "<Q", view_history_size)
 
+    def _read_snapshot_entry_padding(self, size):
+        padding = -size % 8  # Pad to 8 bytes
+        self._buffer.read(padding)
+
     def _read_snapshot_key(self):
         size = self._read_size()
         key = self._buffer.read(size)
-        LOG.error(key)
-        padding = 8 - (size % 8) if (size % 8) else 0
-        LOG.info(f"Padding: {padding}, size: {size}")
-        self._buffer.read(padding)
+        self._read_snapshot_entry_padding(size)
         return key
 
     def _read_snapshot_versioned_value(self):
         size = self._read_size()
-        LOG.success(self._read_version())
-        value = self._buffer.read(size - 8)
-        padding = 8 - (size % 8) if (size % 8) else 0
-        LOG.success(f"Padding: {padding}, size: {size}")
-        self._buffer.read(padding)
-        LOG.error(f"Value: {value}")
+        _, value = self._read_versioned_value(size)
+        self._read_snapshot_entry_padding(size)
         return value
 
     def _read(self):
         while True:
             try:
                 map_name = self._read_string()
-                LOG.error(f"Map name: {map_name}")
             except EOFError:
                 break
 
             records = {}
-            LOG.success(f"Map: {map_name}")
             self._tables[map_name] = records
 
             if self._is_snapshot:
                 # map snapshot version
-                LOG.error(self._read_version())
+                self._read_version()
 
                 # size of map entry
                 map_size = self._read_size()
@@ -183,7 +184,6 @@ class PublicDomain:
                     k = self._read_snapshot_key()
                     val = self._read_snapshot_versioned_value()
                     records[k] = val
-
             else:
                 # read_version
                 self._read_version()
@@ -208,7 +208,7 @@ class PublicDomain:
 
     def get_tables(self) -> dict:
         """
-        Returns a dictionary of all public tables (with their content) in a :py:class:`ccf.ledger.Transaction`.
+        Return a dictionary of all public tables (with their content) in a :py:class:`ccf.ledger.Transaction`.
 
         :return: Dictionary of public tables with their content.
         """
@@ -216,7 +216,7 @@ class PublicDomain:
 
     def get_seqno(self) -> int:
         """
-        Returns the sequence number at which the transaction was recorded in the ledger.
+        Return the sequence number at which the transaction was recorded in the ledger.
         """
         return self._version
 
@@ -439,7 +439,56 @@ class TransactionHeader:
         )
 
 
-class Transaction:
+class Entry(abc.ABC):
+    _file: Optional[BinaryIO] = None
+    _header: TransactionHeader
+    _public_domain_size: int = 0
+    _public_domain: Optional[PublicDomain] = None
+    _file_size: int = 0
+    gcm_header: Optional[GcmHeader] = None
+
+    @abc.abstractmethod
+    def __init__(self, filename: str):
+        self._file = open(filename, mode="rb")
+        if self._file is None:
+            raise RuntimeError(f"File {filename} could not be opened")
+
+    def _read_header(self):
+        # read the transaction header
+        buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
+        self._header = TransactionHeader(buffer)
+
+        # read the AES GCM header
+        buffer = _byte_read_safe(self._file, GcmHeader.size())
+        self.gcm_header = GcmHeader(buffer)
+
+        # read the size of the public domain
+        buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
+        self._public_domain_size = to_uint_64(buffer)
+
+    def get_public_domain(self) -> Optional[PublicDomain]:
+        """
+        Retrieve the public (i.e. non-encrypted) domain for that entry.
+
+        Note: If the entry is private-only, nothing is returned.
+
+        :return: :py:class:`ccf.ledger.PublicDomain`
+        """
+        if self._public_domain == None:
+            buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
+            self._public_domain = PublicDomain(buffer)
+        return self._public_domain
+
+    def get_private_domain_size(self) -> int:
+        """
+        Retrieve the size of the private (i.e. encrypted) domain for that transaction.
+        """
+        return self._header.size - (
+            GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
+        )
+
+
+class Transaction(Entry):
     """
     A transaction represents one entry in the CCF ledger.
     """
@@ -454,7 +503,7 @@ class Transaction:
     _tx_offset: int = 0
     _ledger_validator: LedgerValidator
 
-    def __init__(self, filename: str, ledger_validator: LedgerValidator):
+    def __init__(self, filename: str, ledger_validator: LedgerValidator = None):
         self._ledger_validator = ledger_validator
         self._file = open(filename, mode="rb")
         if self._file is None:
@@ -481,46 +530,13 @@ class Transaction:
 
     def _read_header(self):
         self._tx_offset = self._file.tell()
-
-        # read the transaction header
-        buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
-        self._header = TransactionHeader(buffer)
-
+        super()._read_header()
         self._next_offset += self._header.size
         self._next_offset += TransactionHeader.get_size()
 
-        # read the AES GCM header
-        buffer = _byte_read_safe(self._file, GcmHeader.size())
-        self.gcm_header = GcmHeader(buffer)
-
-        # read the size of the public domain
-        buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
-        self._public_domain_size = to_uint_64(buffer)
-
-    def get_public_domain(self) -> Optional[PublicDomain]:
-        """
-        Retrieve the public (i.e. non-encrypted) domain for that transaction.
-
-        Note: If the transaction is private-only, nothing is returned.
-
-        :return: :py:class:`ccf.ledger.PublicDomain`
-        """
-        if self._public_domain == None:
-            buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
-            self._public_domain = PublicDomain(buffer)
-        return self._public_domain
-
-    def get_private_domain_size(self) -> int:
-        """
-        Retrieve the size of the private (i.e. encrypted) domain for that transaction.
-        """
-        return self._header.size - (
-            GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
-        )
-
     def get_raw_tx(self) -> bytes:
         """
-        Returns raw transaction bytes.
+        Return raw transaction bytes.
 
         :return: Raw transaction bytes.
         """
@@ -557,60 +573,13 @@ class Transaction:
         return self
 
 
-class Snapshot:
-
-    _file: Optional[BinaryIO] = None
-    _public_domain_size: int = 0
-    _public_domain: Optional[PublicDomain] = None
-    _file_size: int = 0
-    gcm_header: Optional[GcmHeader] = None
-    _ledger_validator: LedgerValidator
-
+class Snapshot(Entry):
     def __init__(self, filename: str):
         self._file = open(filename, mode="rb")
         if self._file is None:
             raise RuntimeError(f"Snapshot file {filename} could not be opened")
-
         self._file_size = os.path.getsize(filename)
-
-        LOG.error(f"File size: {self._file_size}")
-
-        self._read_header()
-
-    def _read_header(self):
-        # read the transaction header
-        buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
-        self._header = TransactionHeader(buffer)
-
-        # read the AES GCM header
-        buffer = _byte_read_safe(self._file, GcmHeader.size())
-        self.gcm_header = GcmHeader(buffer)
-
-        # read the size of the public domain
-        buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
-        self._public_domain_size = to_uint_64(buffer)
-        LOG.error(f"Public domain size: {self._public_domain_size}")
-
-    def get_public_domain(self) -> Optional[PublicDomain]:
-        """
-        Retrieve the public (i.e. non-encrypted) domain for that transaction.
-
-        Note: If the transaction is private-only, nothing is returned.
-
-        :return: :py:class:`ccf.ledger.PublicDomain`
-        """
-        if self._public_domain == None:
-            buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
-            self._public_domain = PublicDomain(buffer)
-        return self._public_domain
-
-    def get_private_domain_size(self) -> int:
-        """
-        Retrieve the size of the private (i.e. encrypted) domain for that transaction.
-        """
-        return self._header.size - (
-            GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
-        )
+        super()._read_header()
 
     def __del__(self):
         self._file.close()
@@ -731,7 +700,7 @@ class Ledger:
 
     def get_transaction(self, seqno: int) -> Transaction:
         """
-        Returns the :py:class:`ccf.Ledger.Transaction` recorded in the ledger at the given sequence number.
+        Return the :py:class:`ccf.Ledger.Transaction` recorded in the ledger at the given sequence number.
 
         Note that the transaction returned may not yet be verified by a
         signature transaction nor committed by the service.
@@ -765,7 +734,7 @@ class Ledger:
 
     def get_latest_public_state(self) -> Tuple[dict, int]:
         """
-        Returns the current public state of the service.
+        Return the current public state of the service.
 
         Note that the public state returned may not yet be verified by a
         signature transaction nor committed by the service.
