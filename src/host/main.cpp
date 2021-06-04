@@ -457,6 +457,7 @@ int main(int argc, char** argv)
   }
 
   const auto cli_config = app.config_to_str(true, false);
+  LOG_INFO_FMT("Version: {}", ccf::ccf_version);
   LOG_INFO_FMT("Run with following options:\n{}", cli_config);
 
   uint32_t oe_flags = 0;

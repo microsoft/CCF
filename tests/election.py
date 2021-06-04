@@ -43,7 +43,7 @@ def test_kill_primary(network, args):
         except CCFConnectionException:
             LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
 
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
+    new_primary, new_term = network.wait_for_new_primary(primary)
     LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
 
     return network

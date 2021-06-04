@@ -113,6 +113,7 @@ class Network:
         txs=None,
         jwt_issuer=None,
         library_dir=".",
+        version=None,
     ):
         if existing_network is None:
             self.consortium = None
@@ -149,6 +150,7 @@ class Network:
             )
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
+        self.version = version
 
         try:
             os.remove("/tmp/vscode-gdb.sh")
@@ -156,14 +158,16 @@ class Network:
             pass
 
         for host in hosts:
-            self.create_node(host)
+            self.create_node(host, version=self.version)
 
     def _get_next_local_node_id(self):
         if len(self.nodes):
             return self.nodes[-1].local_node_id + 1
         return self.node_offset
 
-    def create_node(self, host):
+    def create_node(
+        self, host, binary_dir=None, library_dir=None, node_port=None, version=None
+    ):
         node_id = self._get_next_local_node_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
@@ -172,7 +176,14 @@ class Network:
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
         node = infra.node.Node(
-            node_id, host, self.binary_dir, self.library_dir, debug, perf
+            node_id,
+            host,
+            binary_dir or self.binary_dir,
+            library_dir or self.library_dir,
+            debug,
+            perf,
+            node_port=node_port,
+            version=version,
         )
         self.nodes.append(node)
         return node
@@ -497,11 +508,14 @@ class Network:
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
 
-    def stop_all_nodes(self, skip_verification=False):
+    def stop_all_nodes(self, skip_verification=False, verbose_verification=False):
         if not skip_verification:
             # Verify that all txs committed on the service can be read
             if self.txs is not None:
-                self.txs.verify(self)
+                log_capture = None if verbose_verification else []
+                self.txs.verify(self, log_capture=log_capture)
+                if verbose_verification:
+                    flush_info(log_capture, None)
 
         fatal_error_found = False
 
@@ -569,33 +583,28 @@ class Network:
             else:
                 raise NodeShutdownError("Fatal error found during node shutdown")
 
-    def create_and_add_pending_node(
+    def join_node(
         self,
+        node,
         lib_name,
-        host,
         args,
         target_node=None,
         timeout=JOIN_TIMEOUT,
         **kwargs,
     ):
-        """
-        Create a new node and add it to the network. Note that the new node
-        still needs to be trusted by members to complete the join protocol.
-        """
-        new_node = self.create_node(host)
-
         self._add_node(
-            new_node,
+            node,
             lib_name,
             args,
             target_node,
             **kwargs,
         )
+
         primary, _ = self.find_primary()
         try:
             self.consortium.wait_for_node_to_exist_in_store(
                 primary,
-                new_node.node_id,
+                node.node_id,
                 timeout=timeout,
                 node_status=(
                     NodeStatus.PENDING
@@ -604,9 +613,9 @@ class Network:
                 ),
             )
         except TimeoutError as e:
-            LOG.error(f"New pending node {new_node.node_id} failed to join the network")
-            errors, _ = new_node.stop()
-            self.nodes.remove(new_node)
+            LOG.error(f"New pending node {node.node_id} failed to join the network")
+            errors, _ = node.stop()
+            self.nodes.remove(node)
             if errors:
                 # Throw accurate exceptions if known errors found in
                 for error in errors:
@@ -616,49 +625,30 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-        return new_node
-
-    def create_and_trust_node(
-        self,
-        lib_name,
-        host,
-        args,
-        target_node=None,
-        **kwargs,
-    ):
-        """
-        Create a new node, add it to the network and let members vote to trust
-        it so that it becomes part of the consensus protocol.
-        """
-        new_node = self.create_and_add_pending_node(
-            lib_name,
-            host,
-            args,
-            target_node,
-            **kwargs,
-        )
-
+    def trust_node(self, node, args):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
                     primary,
-                    new_node.node_id,
+                    node.node_id,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node
             # was added as pending. Only wait for the join timer for the
             # joining node to retrieve network secrets.
-            new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
+            node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
         except (ValueError, TimeoutError):
-            LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
-            new_node.stop()
+            LOG.error(f"New trusted node {node.node_id} failed to join the network")
+            node.stop()
             raise
 
-        new_node.network_state = infra.node.NodeNetworkState.joined
-        self.wait_for_all_nodes_to_catch_up(primary)
+        node.network_state = infra.node.NodeNetworkState.joined
+        self.wait_for_all_nodes_to_catch_up(primary=primary)
 
-        return new_node
+    def retire_node(self, remote_node, node_to_retire):
+        self.consortium.retire_node(remote_node, node_to_retire)
+        self.nodes.remove(node_to_retire)
 
     def create_user(self, local_user_id, curve, record=True):
         infra.proc.ccall(
@@ -725,7 +715,7 @@ class Network:
     def _get_node_by_service_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, timeout=3, log_capture=None):
+    def find_primary(self, nodes=None, timeout=3, log_capture=None):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
@@ -735,9 +725,11 @@ class Network:
 
         logs = []
 
+        asked_nodes = nodes or self.get_joined_nodes()
+
         end_time = time.time() + timeout
         while time.time() < end_time:
-            for node in self.get_joined_nodes():
+            for node in asked_nodes:
                 with node.client() as c:
                     try:
                         logs = []
@@ -752,7 +744,7 @@ class Network:
 
                     except CCFConnectionException:
                         LOG.warning(
-                            f"Could not successfully connect to node {node.node_id}. Retrying..."
+                            f"Could not successfully connect to node {node.local_node_id}. Retrying..."
                         )
 
             if primary_id is not None:
@@ -862,12 +854,12 @@ class Network:
         expected = [commits[0]] * len(commits)
         assert expected == commits, f"Multiple commit values: {commits}"
 
-    def wait_for_new_primary(self, old_primary_id, timeout_multiplier=2):
+    def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
         timeout = self.election_duration * timeout_multiplier
         LOG.info(
-            f"Waiting up to {timeout}s for a new primary (different from {old_primary_id}) to be elected..."
+            f"Waiting up to {timeout}s for a new primary different from {old_primary.local_node_id} ({old_primary.node_id}) to be elected..."
         )
         end_time = time.time() + timeout
         error = TimeoutError
@@ -875,9 +867,12 @@ class Network:
         while time.time() < end_time:
             try:
                 logs = []
-                new_primary, new_term = self.find_primary(log_capture=logs)
-                if new_primary.node_id != old_primary_id:
+                new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
+                if new_primary.node_id != old_primary.node_id:
                     flush_info(logs, None)
+                    LOG.info(
+                        f"New primary is {new_primary.local_node_id} ({new_primary.node_id}) in term {new_term}"
+                    )
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
@@ -992,6 +987,7 @@ def network(
     txs=None,
     jwt_issuer=None,
     library_directory=".",
+    version=None,
 ):
     """
     Context manager for Network class.
@@ -1018,6 +1014,7 @@ def network(
         perf_nodes=perf_nodes,
         txs=txs,
         jwt_issuer=jwt_issuer,
+        version=version,
     )
     try:
         yield net

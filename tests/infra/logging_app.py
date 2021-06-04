@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.checker
+import infra.jwt_issuer
 import time
 import http
 import random
@@ -133,8 +134,7 @@ class LoggingTxs:
         if wait_for_sync:
             network.wait_for_node_commit_sync()
 
-    def verify(self, network=None, node=None, timeout=3):
-        LOG.info("Verifying all logging txs")
+    def verify(self, network=None, node=None, timeout=3, log_capture=None):
         if network is not None:
             self.network = network
         if self.network is None:
@@ -157,6 +157,7 @@ class LoggingTxs:
                     entry["view"],
                     priv=False,
                     timeout=timeout,
+                    log_capture=log_capture,
                 )
 
             for priv_idx, priv_value in self.priv.items():
@@ -171,10 +172,22 @@ class LoggingTxs:
                         priv=True,
                         historical=(v != priv_value[-1]),
                         timeout=timeout,
+                        log_capture=log_capture,
                     )
 
+        LOG.info("Successfully verified logging txs")
+
     def _verify_tx(
-        self, node, idx, msg, seqno, view, priv=True, historical=False, timeout=3
+        self,
+        node,
+        idx,
+        msg,
+        seqno,
+        view,
+        priv=True,
+        historical=False,
+        log_capture=None,
+        timeout=3,
     ):
         if historical and not priv:
             raise ValueError(
@@ -195,9 +208,11 @@ class LoggingTxs:
         start_time = time.time()
         while time.time() < (start_time + timeout):
             with node.client(self.user) as c:
-                ccf.commit.wait_for_commit(c, seqno, view, timeout)
+                ccf.commit.wait_for_commit(
+                    c, seqno, view, timeout, log_capture=log_capture
+                )
 
-                rep = c.get(f"{cmd}?id={idx}", headers=headers)
+                rep = c.get(f"{cmd}?id={idx}", headers=headers, log_capture=log_capture)
                 if rep.status_code == http.HTTPStatus.OK:
                     expected_result = {"msg": msg}
                     assert (
