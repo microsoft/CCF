@@ -106,7 +106,6 @@ if __name__ == "__main__":
         LOG.info(f"Reading snapshot from {snapshot_file}")
         snapshot = ccf.ledger.Snapshot(snapshot_file)
         dump_entry(snapshot, table_filter)
-
     else:
         ledger_dirs = args.paths
         ledger = ccf.ledger.Ledger(ledger_dirs)
