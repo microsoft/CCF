@@ -329,7 +329,7 @@ TEST_CASE("Record primary signature")
   using trompeloeil::_;
 
   kv::NodeId my_node_id = kv::test::PrimaryNodeId;
-  ccf::View view = 1;
+  ccf::View view = 0;
   ccf::SeqNo seqno = 42;
   crypto::Sha256Hash root;
   std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
@@ -367,7 +367,7 @@ TEST_CASE("Record primary signature")
         .TIMES(1);
 
       auto result = pt.add_signature(
-        {view - 1, seqno},
+        {view, seqno},
         kv::test::FirstBackupNodeId,
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
@@ -376,7 +376,7 @@ TEST_CASE("Record primary signature")
         false);
       REQUIRE(result == kv::TxHistory::Result::OK);
       result = pt.record_primary(
-        {view, seqno},
+        {view + 1, seqno},
         kv::test::PrimaryNodeId,
         false,
         root,
@@ -387,7 +387,12 @@ TEST_CASE("Record primary signature")
 
     {
       auto result = pt.record_primary(
-        {view, seqno}, kv::test::PrimaryNodeId, true, root, primary_sig, nonce);
+        {view + 1, seqno},
+        kv::test::PrimaryNodeId,
+        true,
+        root,
+        primary_sig,
+        nonce);
       REQUIRE(result == kv::TxHistory::Result::OK);
     }
   }

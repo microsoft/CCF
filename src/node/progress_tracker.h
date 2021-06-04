@@ -77,6 +77,10 @@ namespace ccf
       auto it = certificates.find(tx_id.seqno);
       if (it == certificates.end() || am_i_primary)
       {
+        // If a primary is behind and becomes a backup (without becoming aware
+        // of this) the old primary could attempt to sign a seqno that the new
+        // primary signed. In this case clear an prepares that we could have
+        // received.
         if (it != certificates.end())
         {
           certificates.erase(it);

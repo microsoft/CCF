@@ -140,7 +140,8 @@ namespace aft
       if (view != vc.view)
       {
         LOG_INFO_FMT(
-          "Add unknown evidence - views do not match view:{}, vc.view:{}, from",
+          "Add unknown evidence - received views do not match local view:{}, "
+          "vc.view:{}, from",
           view,
           vc.view,
           from);
