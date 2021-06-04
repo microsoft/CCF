@@ -8,7 +8,6 @@
 #include "kv/committable_tx.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "map.h"
 #include "node/entities.h"
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
@@ -312,13 +311,14 @@ namespace kv
 
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
     {
-      if (v < commit_version())
+      auto cv = compacted_version();
+      if (v < cv)
       {
         throw std::logic_error(fmt::format(
-          "Cannot snapshot at version {} which is earlier than committed "
-          "version {} ",
+          "Cannot snapshot at version {} which is earlier than last "
+          "compacted version {} ",
           v,
-          commit_version()));
+          cv));
       }
 
       if (v > current_version())
@@ -913,7 +913,7 @@ namespace kv
       return {term, version};
     }
 
-    Version commit_version() override
+    Version compacted_version() override
     {
       // Must lock in case the store is being compacted.
       std::lock_guard<SpinLock> vguard(version_lock);
@@ -955,7 +955,9 @@ namespace kv
         }
 
         if (globally_committable && txid.version > last_committable)
+        {
           last_committable = txid.version;
+        }
 
         pending_txs.insert(
           {txid.version,
@@ -968,7 +970,9 @@ namespace kv
         {
           auto search = pending_txs.find(last_replicated + offset);
           if (search == pending_txs.end())
+          {
             break;
+          }
 
           auto& [pending_tx_, committable_] = search->second;
           auto [success_, data_, hooks_] = pending_tx_->call();
@@ -982,7 +986,9 @@ namespace kv
           // execute in order with a read_version that's version - 1, so even
           // two contiguous signatures are fine
           if (success_ != CommitResult::SUCCESS)
+          {
             LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
+          }
 
           if (h)
           {
@@ -998,7 +1004,9 @@ namespace kv
         }
 
         if (batch.size() == 0)
+        {
           return CommitResult::SUCCESS;
+        }
 
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;

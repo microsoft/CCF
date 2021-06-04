@@ -30,6 +30,12 @@ namespace ccf
       return;
     }
 
+    void trigger_host_process_launch(
+      const std::vector<std::string>& args) override
+    {
+      return;
+    }
+
     bool is_part_of_public_network() const override
     {
       return is_public;
@@ -98,6 +104,11 @@ namespace ccf
     std::optional<kv::Version> get_startup_snapshot_seqno() override
     {
       return std::nullopt;
+    }
+
+    SessionMetrics get_session_metrics() override
+    {
+      return {};
     }
   };
 

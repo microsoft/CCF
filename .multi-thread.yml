@@ -16,8 +16,8 @@ pr:
 resources:
   containers:
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.15.0
-      options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
+      image: ccfciteam/ccf-ci:oe0.16.1
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache
 
 jobs:
   - template: .azure-pipelines-templates/common.yml
@@ -29,6 +29,6 @@ jobs:
       cmake_args: "-DCOMPILE_TARGETS=sgx -DWORKER_THREADS=2"
       suffix: "MultiThread"
       artifact_name: "MultiThread"
-      ctest_filter: '-LE "perf"'
+      ctest_filter: '-LE "perf|partitions"'
       ctest_timeout: "0" # No timeout
 

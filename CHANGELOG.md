@@ -5,6 +5,96 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- Added a new `--client-connection-timeout-ms` command line argument to `cchost` to specify the maximum time a node should wait before re-establishing failed client connections. This should be set to a significantly lower value than `--raft-election-timeout-ms` (#2618).
+- Add `kv::Value` and `kv::Set`, as a more error-proof alternative to `kv::Map`s which had a single key or meaningless values (#2599).
+
+## [2.0.0-dev0]
+
+### Added
+
+- Added `get_untrusted_host_time_v1` API. This can be used to retrieve a timestamp during endpoint execution, accurate to within a few milliseconds. Note that this timestamp comes directly from the host so is not trusted, and should not be used to make sensitive decisions within a transaction (#2550).
+- Added `get_quotes_for_all_trusted_nodes_v1` API. This returns the ID and quote for all nodes which are currently trusted and participating in the service, for live audit (#2511).
+- Added node start-up check for `cchost` and enclave compatibility, which should both always be from the same release for a single node (#2532).
+- Added a new `/node/version` endpoint to return the CCF version of a node (#2582).
+- Added a new `/node/metrics` endpoint which includes the count of active and peak concurrent sessions handled by the node (#2596).
+- Added experimental JavaScript API `ccf.host.triggerSubprocess()` (#2461).
+
+### Changed
+
+- The curve-id selected for the identity of joining nodes no longer needs to match that of the network (#2525).
+- The per-node session cap behaviour has changed. The `--max-open-sessions` is now a soft cap on the number of sessions. Beyond this, new sessions will receive a HTTP 503 error immediately after completing the TLS handshake. The existing hard cap (where sessions are closed immediately, before the TLS handshake) is still available, under the new argument `--max-open-sessions-hard` (#2583).
+- Requests with a url-encoded query string are now forwarded correctly from backups to the primary (#2587).
+- Signed requests with a url-encoded query string are now handled correctly rather than rejected (#2592).
+- Fixed consistency issue between ledger files on different nodes when snapshotting is active (#2607).
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.15.0 to 0.16.1 (#2609)
+
+## [1.0.3]
+
+### Dependency
+
+- Upgrade OpenEnclave from 0.15.0 to 0.16.1 (#2609)
+
+## [1.0.2]
+
+### Bugfix
+
+- Fixed consistency issue between ledger files on different nodes when snapshotting is active (#2607).
+
+## [1.0.1]
+
+### Bugfix
+
+- Requests with a url-encoded query string are now forwarded correctly from backups to the primary (#2587).
+- Signed requests with a url-encoded query string are now handled correctly rather than rejected (#2592).
+
+## [1.0.0]
+
+The Confidential Consortium Framework CCF is an open-source framework for building a new category of secure, highly available, and performant applications that focus on multi-party compute and data.
+
+This is the first long term support release for CCF. The 1.0 branch will only receive security and critical bug fixes, please see our [release policy](https://microsoft.github.io/CCF/main/overview/release_policy.html) for more detail.
+
+Active development will continue on the `main` branch, and regular development snapshots including new features will continue to be published.
+
+Browse our [documentation](https://microsoft.github.io/CCF/main/index.html) to get started with CCF, or [open a discussion on GitHub](https://github.com/microsoft/CCF/discussions) if you have any questions.
+
+## [1.0.0-rc3]
+
+### Changed
+
+- Rename `Store::commit_version()` to the more accurate `Store::compacted_version()` (#1355).
+
+## [1.0.0-rc2]
+
+### Changed
+
+- Adjust release pipeline to cope with GitHub renaming debian packages containing tildes.
+
+## [1.0.0-rc1]
+
+### Changed
+
+- By default, CCF is now installed under `/opt/ccf` rather than `/opt/ccf-x.y.z`.
+
+## [0.99.4]
+
+### Fixed
+
+- Fixed use of `--curve-id` argument to `cchost`, which can now start a network with both node and service identities using curve `secp256r1` (#2516).
+
+## [0.99.3]
+
+### Added
+
+- `kv::MapHandle::size()` can be used to get the number of entries in a given map.
+- `kv::MapHandle::clear()` can be used to remove all entries from a map.
+
 ## [0.99.2]
 
 ### Changed
@@ -810,6 +900,17 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[ccf-2.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev0
+[1.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.3
+[1.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.2
+[1.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.1
+[1.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0
+[1.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc3
+[1.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc2
+[1.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.0-rc1
+[0.99.4]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.4
+[0.99.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.3
+[0.99.2]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.2
 [0.99.1]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.1
 [0.99.0]: https://github.com/microsoft/CCF/releases/tag/ccf-0.99.0
 [0.19.3]: https://github.com/microsoft/CCF/releases/tag/ccf-0.19.3

@@ -267,7 +267,7 @@ namespace ccf
         return true;
       });
 
-      auto recovery_threshold = config->get(0)->recovery_threshold;
+      auto recovery_threshold = config->get()->recovery_threshold;
       if (recovery_threshold > shares.size())
       {
         throw std::logic_error(fmt::format(
@@ -428,7 +428,7 @@ namespace ccf
     {
       auto service = tx.rw(network.service);
       auto submitted_shares = tx.rw(network.submitted_shares);
-      auto active_service = service->get(0);
+      auto active_service = service->get();
       if (!active_service.has_value())
       {
         throw std::logic_error("Failed to get active service");
@@ -440,13 +440,7 @@ namespace ccf
           submitted_recovery_share,
           network.ledger_secrets->get_latest(tx).second));
 
-      size_t submitted_shares_count = 0;
-      submitted_shares->foreach(
-        [&submitted_shares_count](const MemberId, const std::vector<uint8_t>&) {
-          submitted_shares_count++;
-          return true;
-        });
-
+      const size_t submitted_shares_count = submitted_shares->size();
       return submitted_shares_count;
     }
 

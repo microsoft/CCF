@@ -19,15 +19,15 @@ namespace ccf
   namespace
   {
     std::optional<ccf::TxID> txid_from_query_string(
-      ccf::endpoints::EndpointContext& args)
+      ccf::endpoints::EndpointContext& ctx)
     {
       const auto parsed_query =
-        http::parse_query(args.rpc_ctx->get_request_query());
+        http::parse_query(ctx.rpc_ctx->get_request_query());
 
       const auto it = parsed_query.find(tx_id_param_key);
       if (it == parsed_query.end())
       {
-        args.rpc_ctx->set_error(
+        ctx.rpc_ctx->set_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidQueryParameterValue,
           fmt::format(
@@ -40,7 +40,7 @@ namespace ccf
       const auto tx_id_opt = ccf::TxID::from_str(txid_str);
       if (!tx_id_opt.has_value())
       {
-        args.rpc_ctx->set_error(
+        ctx.rpc_ctx->set_error(
           HTTP_STATUS_BAD_REQUEST,
           ccf::errors::InvalidQueryParameterValue,
           fmt::format(
@@ -88,7 +88,7 @@ namespace ccf
       "commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
-      .set_auto_schema<void, GetCommit::Out>()
+      .set_auto_schema<GetCommit>()
       .install();
 
     auto get_tx_status = [this](auto& ctx, nlohmann::json&&) {
@@ -153,10 +153,10 @@ namespace ccf
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .install();
 
-    auto get_code = [](auto& args, nlohmann::json&&) {
+    auto get_code = [](auto& ctx, nlohmann::json&&) {
       GetCode::Out out;
 
-      auto codes_ids = args.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
+      auto codes_ids = ctx.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
       codes_ids->foreach(
         [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& cs) {
           auto digest = ds::to_hex(cd.data);
@@ -252,14 +252,14 @@ namespace ccf
       };
 
     auto get_receipt =
-      [](auto& args, ccf::historical::StatePtr historical_state) {
+      [](auto& ctx, ccf::historical::StatePtr historical_state) {
         const auto [pack, params] =
-          ccf::jsonhandler::get_json_params(args.rpc_ctx);
+          ccf::jsonhandler::get_json_params(ctx.rpc_ctx);
 
         ccf::Receipt out;
         historical_state->receipt->describe(out);
-        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ccf::jsonhandler::set_response(out, args.rpc_ctx, pack);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ccf::jsonhandler::set_response(out, ctx.rpc_ctx, pack);
       };
 
     make_endpoint(

@@ -37,6 +37,16 @@ export const wrapKey = ccf.wrapKey;
  */
 export const digest = ccf.digest;
 
+/**
+ * @inheritDoc CCF.isValidX509CertBundle
+ */
+export const isValidX509CertBundle = ccf.isValidX509CertBundle;
+
+/**
+ * @inheritDoc CCF.isValidX509CertChain
+ */
+export const isValidX509CertChain = ccf.isValidX509CertChain;
+
 export {
   WrapAlgoParams,
   AesKwpParams,

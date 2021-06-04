@@ -10,6 +10,7 @@ from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict, List
 
 import json
 import base64
+from dataclasses import dataclass
 
 from loguru import logger as LOG  # type: ignore
 from cryptography.x509 import load_pem_x509_certificate
@@ -23,7 +24,6 @@ from ccf.tx_id import TxID
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
-LEDGER_TRANSACTION_SIZE = 4
 LEDGER_DOMAIN_SIZE = 8
 LEDGER_HEADER_SIZE = 8
 
@@ -40,10 +40,6 @@ class NodeStatus(Enum):
     PENDING = "Pending"
     TRUSTED = "Trusted"
     RETIRED = "Retired"
-
-
-def to_uint_32(buffer):
-    return struct.unpack("@I", buffer)[0]
 
 
 def to_uint_64(buffer):
@@ -235,7 +231,7 @@ def _byte_read_safe(file, num_of_bytes):
 
 
 class TxBundleInfo(NamedTuple):
-    """Bundle for transaction information required for validation """
+    """Bundle for transaction information required for validation"""
 
     merkle_tree: MerkleTree
     existing_root: bytes
@@ -399,13 +395,56 @@ class LedgerValidator:
             raise InvalidRootException
 
 
+@dataclass
+class TransactionHeader:
+    VERSION_LENGTH = 1
+    FLAGS_LENGTH = 1
+    SIZE_LENGTH = 6
+
+    # 1-byte entry version
+    version: int
+
+    # 1-byte flags
+    flags: int
+
+    # 6-byte transaction size
+    size: int
+
+    def __init__(self, buffer):
+        if len(buffer) < TransactionHeader.get_size():
+            raise ValueError("Incomplete transaction header")
+
+        self.version = int.from_bytes(
+            buffer[: TransactionHeader.VERSION_LENGTH], byteorder="little"
+        )
+
+        self.flags = int.from_bytes(
+            buffer[
+                TransactionHeader.VERSION_LENGTH : TransactionHeader.VERSION_LENGTH
+                + TransactionHeader.FLAGS_LENGTH
+            ],
+            byteorder="little",
+        )
+        self.size = int.from_bytes(
+            buffer[-TransactionHeader.SIZE_LENGTH :], byteorder="little"
+        )
+
+    @staticmethod
+    def get_size():
+        return (
+            TransactionHeader.VERSION_LENGTH
+            + TransactionHeader.FLAGS_LENGTH
+            + TransactionHeader.SIZE_LENGTH
+        )
+
+
 class Transaction:
     """
     A transaction represents one entry in the CCF ledger.
     """
 
     _file: Optional[BinaryIO] = None
-    _total_size: int = 0
+    _header: TransactionHeader
     _public_domain_size: int = 0
     _next_offset: int = LEDGER_HEADER_SIZE
     _public_domain: Optional[PublicDomain] = None
@@ -440,12 +479,14 @@ class Transaction:
         self._file.close()
 
     def _read_header(self):
-        # read the size of the transaction
-        buffer = _byte_read_safe(self._file, LEDGER_TRANSACTION_SIZE)
         self._tx_offset = self._file.tell()
-        self._total_size = to_uint_32(buffer)
-        self._next_offset += self._total_size
-        self._next_offset += LEDGER_TRANSACTION_SIZE
+
+        # read the transaction header
+        buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
+        self._header = TransactionHeader(buffer)
+
+        self._next_offset += self._header.size
+        self._next_offset += TransactionHeader.get_size()
 
         # read the AES GCM header
         buffer = _byte_read_safe(self._file, GcmHeader.size())
@@ -472,7 +513,7 @@ class Transaction:
         """
         Retrieve the size of the private (i.e. encrypted) domain for that transaction.
         """
-        return self._total_size - (
+        return self._header.size - (
             GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
         )
 
@@ -485,11 +526,13 @@ class Transaction:
         assert self._file is not None
 
         # remember where the pointer is in the file before we go back for the transaction bytes
-        header = self._file.tell()
+        save_pos = self._file.tell()
         self._file.seek(self._tx_offset)
-        buffer = _byte_read_safe(self._file, self._total_size)
+        buffer = _byte_read_safe(
+            self._file, TransactionHeader.get_size() + self._header.size
+        )
         # return to original filepointer and return the transaction bytes
-        self._file.seek(header)
+        self._file.seek(save_pos)
         return buffer
 
     def _complete_read(self):
@@ -606,13 +649,30 @@ class Ledger:
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
 
-    def __init__(self, directories: List[str]):
+    @classmethod
+    def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
+        elements = (
+            os.path.basename(filename)
+            .replace(".committed", "")
+            .replace("ledger_", "")
+            .split("-")
+        )
+        if len(elements) == 2:
+            return (int(elements[0]), int(elements[1]))
+        elif len(elements) == 1:
+            return (int(elements[0]), None)
+        else:
+            assert False, elements
+
+    def __init__(self, directories: List[str], committed_only: bool = True):
 
         self._filenames = []
 
         ledger_files = []
         for directory in directories:
             for path in os.listdir(directory):
+                if committed_only and not path.endswith(".committed"):
+                    continue
                 chunk = os.path.join(directory, path)
                 if os.path.isfile(chunk):
                     ledger_files.append(chunk)
@@ -621,15 +681,15 @@ class Ledger:
         # the ledger is verified in sequence
         self._filenames = sorted(
             ledger_files,
-            key=lambda x: int(
-                os.path.basename(x)
-                .replace(".committed", "")
-                .replace("ledger_", "")
-                .split("-")[0]
-            ),
+            key=lambda x: Ledger._range_from_filename(x)[0],
         )
 
         self._reset_iterators()
+
+    @property
+    def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
+        last_chunk_name = self._filenames[-1]
+        return Ledger._range_from_filename(last_chunk_name)
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1

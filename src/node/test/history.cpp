@@ -109,10 +109,10 @@ TEST_CASE("Check signature verification")
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
     auto txs = primary_store.create_tx();
-    auto tx = txs.rw(signatures);
+    auto sigs = txs.rw(signatures);
     ccf::PrimarySignature bogus(kv::test::PrimaryNodeId, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
-    tx->put(0, bogus);
+    sigs->put(bogus);
     REQUIRE(txs.commit() == kv::CommitResult::FAIL_NO_REPLICATE);
   }
 }

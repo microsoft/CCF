@@ -43,6 +43,16 @@ namespace ccf
     };
   };
 
+  struct GetVersion
+  {
+    using In = void;
+
+    struct Out
+    {
+      std::string ccf_version;
+    };
+  };
+
   struct CreateNetworkNodeToNode
   {
     struct In

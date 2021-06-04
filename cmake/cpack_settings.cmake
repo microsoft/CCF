@@ -9,9 +9,18 @@ set(CPACK_RESOURCE_FILE_LICENSE "${CCF_DIR}/LICENSE")
 set(CPACK_PACKAGE_VERSION ${CCF_RELEASE_VERSION})
 set(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 
+if(CCF_VERSION_SUFFIX)
+  set(CPACK_DEBIAN_PACKAGE_VERSION
+      "${CCF_RELEASE_VERSION}~${CCF_VERSION_SUFFIX}"
+  )
+  message(
+    STATUS "Debian package will include suffix: ${CPACK_DEBIAN_PACKAGE_VERSION}"
+  )
+endif()
+
 # CPack variables for Debian packages
 set(CPACK_DEBIAN_PACKAGE_DEPENDS
-    "open-enclave (>=0.15.0), libuv1 (>= 1.18.0), libc++1-8, libc++abi1-8"
+    "open-enclave (>=0.16.1), libuv1 (>= 1.18.0), libc++1-8, libc++abi1-8"
 )
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 

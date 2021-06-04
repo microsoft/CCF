@@ -169,6 +169,7 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+    ${CCF_DIR}/src/enclave/enclave_time.cpp
 )
 
 find_library(CRYPTO_LIBRARY crypto)
@@ -413,6 +414,14 @@ function(add_e2e_test)
         TEST ${PARSED_ARGS_NAME}
         APPEND
         PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
+      )
+    endif()
+
+    if("${PARSED_ARGS_LABEL}" STREQUAL "partitions")
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1"
       )
     endif()
 

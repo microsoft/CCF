@@ -46,7 +46,7 @@ Metadata
 
 The ``app.json`` file of an app bundle has the following structure:
 
-.. code-block:: json
+.. code-block:: js
 
     {
       "endpoints": {
@@ -73,7 +73,7 @@ Each endpoint object contains the following information:
 - ``"js_module"``: The path to the module containing the endpoint handler, relative to the ``src/`` folder.
 - ``"js_function"``: The name of the endpoint handler function. This must be the name of a function exported by
   the ``js_module``.
-- ``"authn_policies"``: A list of :ref:`authentication policies <build_apps/auth>` to be applied before the endpoint
+- ``"authn_policies"``: A list of :ref:`authentication policies <build_apps/auth/index:User Authentication>` to be applied before the endpoint
   is executed. An empty list indicates an unauthenticated endpoint which can be called by anyone. Possible entries are:
   
   - ``"user_cert"``

@@ -16,7 +16,6 @@
 #include "kv/kv_types.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
-#include "start_type.h"
 #include "tls/tls.h"
 
 #include <chrono>
@@ -48,7 +47,8 @@ struct CCFConfig
   ccf::NodeInfoNetwork node_info_network = {};
   std::string domain;
   size_t snapshot_tx_interval;
-  size_t max_open_sessions;
+  size_t max_open_sessions_soft;
+  size_t max_open_sessions_hard;
 
   // Only if joining or recovering
   std::vector<uint8_t> startup_snapshot;
@@ -105,7 +105,8 @@ DECLARE_JSON_REQUIRED_FIELDS(
   node_info_network,
   domain,
   snapshot_tx_interval,
-  max_open_sessions,
+  max_open_sessions_soft,
+  max_open_sessions_hard,
   startup_snapshot,
   startup_snapshot_evidence_seqno,
   signature_intervals,
@@ -140,7 +141,7 @@ enum AdminMessage : ringbuffer::Message
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::log_msg,
-  std::chrono::milliseconds,
+  std::chrono::microseconds,
   std::string,
   size_t,
   logger::Level,
@@ -151,3 +152,21 @@ DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
 DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::tick);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::work_stats, std::string);
+
+/// Messages sent from app endpoints
+enum AppMessage : ringbuffer::Message
+{
+  /// Start an arbitrary process on the host. Enclave -> Host
+  DEFINE_RINGBUFFER_MSG_TYPE(launch_host_process)
+};
+
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  AppMessage::launch_host_process, std::string);
+
+struct LaunchHostProcessMessage
+{
+  std::vector<std::string> args;
+};
+
+DECLARE_JSON_TYPE(LaunchHostProcessMessage);
+DECLARE_JSON_REQUIRED_FIELDS(LaunchHostProcessMessage, args);

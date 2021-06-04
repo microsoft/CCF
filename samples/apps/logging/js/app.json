@@ -26,6 +26,26 @@
         "openapi": {}
       }
     },
+    "/log/private/all": {
+      "delete": {
+        "js_module": "logging.js",
+        "js_function": "clear_private",
+        "forwarding_required": "always",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
+    "/log/private/count": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "count_private",
+        "forwarding_required": "always",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "readonly",
+        "openapi": {}
+      }
+    },
     "/log/private/historical": {
       "get": {
         "js_module": "logging.js",
@@ -69,6 +89,26 @@
         "forwarding_required": "always",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
+        "openapi": {}
+      }
+    },
+    "/log/public/all": {
+      "delete": {
+        "js_module": "logging.js",
+        "js_function": "clear_public",
+        "forwarding_required": "always",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    },
+    "/log/public/count": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "count_public",
+        "forwarding_required": "always",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "readonly",
         "openapi": {}
       }
     }

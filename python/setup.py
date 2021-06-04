@@ -1,8 +1,13 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from setuptools import setup  # type: ignore
 from os import path
+from setuptools import setup  # type: ignore
+
+# pylint: disable=import-error
+import version  # type: ignore
+
+import versionifier
 
 PACKAGE_NAME = "ccf"
 UTILITIES_PATH = "utils"
@@ -12,12 +17,12 @@ path_here = path.abspath(path.dirname(__file__))
 with open(path.join(path_here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
-with open('requirements.txt') as f:
+with open("requirements.txt") as f:
     requirements = f.read().splitlines()
 
 setup(
     name=PACKAGE_NAME,
-    version="@CCF_RELEASE_VERSION@",
+    version=str(versionifier.to_python_version(version.CCF_VERSION)),
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",

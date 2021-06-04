@@ -62,16 +62,16 @@ public:
   {
     open();
 
-    auto empty_function = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto empty_function = [this](auto& ctx) {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint(
       "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
       .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
 
-    auto empty_function_signed = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto empty_function_signed = [this](auto& ctx) {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint(
       "empty_function_signed",
@@ -81,8 +81,8 @@ public:
       .set_forwarding_required(ccf::endpoints::ForwardingRequired::Sometimes)
       .install();
 
-    auto empty_function_no_auth = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto empty_function_no_auth = [this](auto& ctx) {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint(
       "empty_function_no_auth",
@@ -150,18 +150,18 @@ public:
   {
     open();
 
-    auto get_only = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto get_only = [this](auto& ctx) {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("get_only", HTTP_GET, get_only).install();
 
-    auto post_only = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto post_only = [this](auto& ctx) {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("post_only", HTTP_POST, post_only).install();
 
-    auto put_or_delete = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto put_or_delete = [this](auto& ctx) {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("put_or_delete", HTTP_PUT, put_or_delete).install();
     make_endpoint("put_or_delete", HTTP_DELETE, put_or_delete).install();
@@ -179,23 +179,23 @@ public:
   {
     open();
 
-    auto maybe_commit = [this](ccf::endpoints::EndpointContext& args) {
+    auto maybe_commit = [this](ccf::endpoints::EndpointContext& ctx) {
       const auto parsed =
-        serdes::unpack(args.rpc_ctx->get_request_body(), default_pack);
+        serdes::unpack(ctx.rpc_ctx->get_request_body(), default_pack);
 
       const auto new_value = parsed["value"].get<size_t>();
-      auto vs = args.tx.rw(values);
+      auto vs = ctx.tx.rw(values);
       vs->put(0, new_value);
 
       const auto apply_it = parsed.find("apply");
       if (apply_it != parsed.end())
       {
         const auto should_apply = apply_it->get<bool>();
-        args.rpc_ctx->set_apply_writes(should_apply);
+        ctx.rpc_ctx->set_apply_writes(should_apply);
       }
 
       const auto status = parsed["status"].get<http_status>();
-      args.rpc_ctx->set_response_status(status);
+      ctx.rpc_ctx->set_response_status(status);
     };
     make_endpoint("maybe_commit", HTTP_POST, maybe_commit).install();
   }
@@ -208,15 +208,15 @@ public:
   {
     open();
 
-    auto command = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto command = [this](auto& ctx) {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     endpoints
       .make_command_endpoint("command", HTTP_POST, command, no_auth_required)
       .install();
 
-    auto read_only = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto read_only = [this](auto& ctx) {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     endpoints
       .make_read_only_endpoint(
@@ -236,10 +236,10 @@ public:
   {
     open();
 
-    auto endpoint = [this](auto& args) {
-      nlohmann::json response_body = args.rpc_ctx->get_request_path_params();
-      args.rpc_ctx->set_response_body(response_body.dump(2));
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto endpoint = [this](auto& ctx) {
+      nlohmann::json response_body = ctx.rpc_ctx->get_request_path_params();
+      ctx.rpc_ctx->set_response_body(response_body.dump(2));
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("{foo}/{bar}/{baz}", HTTP_POST, endpoint).install();
   }
@@ -256,8 +256,8 @@ public:
   {
     open();
 
-    auto empty_function = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto empty_function = [this](auto& ctx) {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     member_endpoints
       .make_endpoint(
@@ -278,8 +278,8 @@ public:
   {
     open();
 
-    auto empty_function = [this](auto& args) {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto empty_function = [this](auto& ctx) {
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     endpoints
       .make_endpoint(
@@ -298,7 +298,7 @@ class RpcContextRecorder
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
   crypto::Pem last_caller_cert;
-  std::optional<EntityId> last_caller_id = std::nullopt;
+  std::optional<std::string> last_caller_id = std::nullopt;
 
   void record_ctx(ccf::endpoints::EndpointContext& ctx)
   {
@@ -327,9 +327,9 @@ public:
   {
     open();
 
-    auto empty_function = [this](auto& args) {
-      record_ctx(args);
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto empty_function = [this](auto& ctx) {
+      record_ctx(ctx);
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -337,9 +337,9 @@ public:
       "empty_function", HTTP_POST, empty_function, {user_cert_auth_policy})
       .install();
 
-    auto empty_function_no_auth = [this](auto& args) {
-      record_ctx(args);
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto empty_function_no_auth = [this](auto& ctx) {
+      record_ctx(ctx);
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
       .install();
@@ -356,9 +356,9 @@ public:
   {
     open();
 
-    auto empty_function = [this](auto& args) {
-      record_ctx(args);
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto empty_function = [this](auto& ctx) {
+      record_ctx(ctx);
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -382,9 +382,9 @@ public:
   {
     open();
 
-    auto empty_function = [this](auto& args) {
-      record_ctx(args);
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    auto empty_function = [this](auto& ctx) {
+      record_ctx(ctx);
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -1400,7 +1400,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(user_frontend_primary.last_caller_cert == user_caller);
-  CHECK(user_frontend_primary.last_caller_id.value() == user_id);
+  CHECK(user_frontend_primary.last_caller_id.value() == user_id.value());
 }
 
 TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
@@ -1446,7 +1446,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(member_frontend_primary.last_caller_cert == member_caller);
-  CHECK(member_frontend_primary.last_caller_id.value() == member_id);
+  CHECK(member_frontend_primary.last_caller_id.value() == member_id.value());
 }
 
 class TestConflictFrontend : public BaseTestFrontend
@@ -1458,9 +1458,18 @@ public:
   {
     open();
 
-    auto conflict_once = [this](auto& args) {
-      static bool conflict_next = true;
-      if (conflict_next)
+    auto conflict = [this](auto& ctx) {
+      size_t retry_count =
+        std::stoi(ctx.rpc_ctx->get_request_header("test-retry-count")
+                    .value()); // This header only exists in the context of
+                               // this test
+
+      static size_t execution_count = 0;
+
+      auto conflict_map = ctx.tx.template rw<Values>("test_values_conflict");
+      conflict_map->get(0); // Record a read dependency
+
+      if (execution_count++ < retry_count)
       {
         // Warning: Never do this in a real application!
         // Create another transaction that conflicts with the frontend one
@@ -1468,18 +1477,68 @@ public:
         auto conflict_map = tx.template rw<Values>("test_values_conflict");
         conflict_map->put(0, 42);
         REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-        conflict_next = false;
+
+        // Indicate that the execution conflicted
+        ctx.rpc_ctx->set_response_header("test-has-conflicted", "true");
+      }
+      else
+      {
+        // No response header if no conflict
+        execution_count = 0;
       }
 
-      auto conflict_map = args.tx.template rw<Values>("test_values_conflict");
-      conflict_map->get(0); // Record a read dependency
+      ctx.rpc_ctx->set_response_header("test-execution-count", execution_count);
+
       conflict_map->put(0, 0);
 
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_endpoint("conflict_once", HTTP_POST, conflict_once).install();
+    make_endpoint("conflict", HTTP_POST, conflict).install();
   }
 };
+
+TEST_CASE("Retry on conflict")
+{
+  NetworkState network;
+  prepare_callers(network);
+  TestConflictFrontend frontend(*network.tables);
+
+  auto req = create_simple_request("conflict");
+
+  constexpr size_t ccf_max_attempts = 30; // Defined by CCF (frontend.h)
+
+  INFO("Does not each execution limit");
+  {
+    size_t retry_count = ccf_max_attempts - 1;
+    req.set_header("test-retry-count", fmt::format("{}", retry_count));
+    auto serialized_call = req.build_request();
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+
+    // Response headers are cleared once conflict is resolved
+    CHECK(
+      response.headers.find("test-has-conflicted") == response.headers.end());
+    CHECK(response.headers["test-execution-count"] == "0");
+  }
+
+  INFO("Reaches execution limit");
+  {
+    size_t retry_count = ccf_max_attempts + 1;
+    req.set_header("test-retry-count", fmt::format("{}", retry_count));
+    auto serialized_call = req.build_request();
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_SERVICE_UNAVAILABLE);
+
+    CHECK(response.headers["test-has-conflicted"] == "true");
+    CHECK(
+      response.headers["test-execution-count"] ==
+      fmt::format("{}", ccf_max_attempts));
+  }
+}
 
 int main(int argc, char** argv)
 {

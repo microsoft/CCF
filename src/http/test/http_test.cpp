@@ -48,7 +48,7 @@ DOCTEST_TEST_CASE("Complete request")
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == method);
-    DOCTEST_CHECK(m.path == url);
+    DOCTEST_CHECK(m.url == url);
     DOCTEST_CHECK(m.body == r);
   }
 }
@@ -237,10 +237,11 @@ DOCTEST_TEST_CASE("URL parsing")
   const auto& m = sp.received.front();
   DOCTEST_CHECK(m.method == HTTP_POST);
   DOCTEST_CHECK(m.body == body);
-  DOCTEST_CHECK(m.path == path);
-  DOCTEST_CHECK(m.query.find("balance=42") != std::string::npos);
-  DOCTEST_CHECK(m.query.find("id=100") != std::string::npos);
-  DOCTEST_CHECK(m.query.find("&") != std::string::npos);
+  const auto [path_, query_, fragment_] = http::split_url_path(m.url);
+  DOCTEST_CHECK(path_ == path);
+  DOCTEST_CHECK(query_.find("balance=42") != std::string::npos);
+  DOCTEST_CHECK(query_.find("id=100") != std::string::npos);
+  DOCTEST_CHECK(query_.find("&") != std::string::npos);
 }
 
 DOCTEST_TEST_CASE("Pessimal transport")
@@ -330,9 +331,12 @@ DOCTEST_TEST_CASE("Escaping")
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == HTTP_GET);
-    DOCTEST_CHECK(m.path == "/foo/bar");
-    DOCTEST_CHECK(m.query == "this=that&awkward=escaped string :;-=?!\"%#");
-    DOCTEST_CHECK(m.fragment == "AndThisFragment :;-=?!\"%#");
+    const auto [path_, query_, fragment_] = http::split_url_path(m.url);
+    DOCTEST_CHECK(path_ == "/foo/bar");
+    DOCTEST_CHECK(
+      http::url_decode(query_) ==
+      "this=that&awkward=escaped string :;-=?!\"%#");
+    DOCTEST_CHECK(http::url_decode(fragment_) == "AndThisFragment :;-=?!\"%#");
   }
 
   {
@@ -350,9 +354,11 @@ DOCTEST_TEST_CASE("Escaping")
     DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == HTTP_GET);
-    DOCTEST_CHECK(m.path == "/hello%20world");
+    const auto [path_, query_, fragment_] = http::split_url_path(m.url);
+    DOCTEST_CHECK(path_ == "/hello%20world");
     DOCTEST_CHECK(
-      m.query == "hello world=hello world&saluton mondo=saluton mondo");
+      http::url_decode(query_) ==
+      "hello world=hello world&saluton mondo=saluton mondo");
   }
 }
 
@@ -528,14 +534,12 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
 
   virtual void handle_request(
     llhttp_method method,
-    const std::string_view& path,
-    const std::string& query,
-    const std::string& fragment,
+    const std::string_view& url,
     http::HeaderMap&& headers,
     std::vector<uint8_t>&& body) override
   {
     const auto signed_req = http::HttpSignatureVerifier::parse(
-      llhttp_method_name(method), path, query, headers, body);
+      llhttp_method_name(method), url, headers, body);
 
     if (signed_req.has_value())
     {
@@ -543,7 +547,7 @@ struct SignedRequestProcessor : public http::SimpleRequestProcessor
     }
 
     http::SimpleRequestProcessor::handle_request(
-      method, path, query, fragment, std::move(headers), std::move(body));
+      method, url, std::move(headers), std::move(body));
   }
 };
 

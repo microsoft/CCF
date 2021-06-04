@@ -13,9 +13,6 @@
 
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
 and performant applications that focus on multi-party compute and data.
-CCF can enable high-scale, confidential networks that meet key enterprise requirements — providing a means to accelerate production and enterprise adoption of consortium based blockchain and multi-party compute technology.
-
-Leveraging the power of trusted execution environments (TEEs), decentralised systems concepts, and cryptography, CCF enables enterprise-ready multiparty computation or blockchains.
 
 ## Get Started with CCF
 
@@ -29,7 +26,7 @@ Leveraging the power of trusted execution environments (TEEs), decentralised sys
 ## Learn More
 
 - Browse the [documentation](https://microsoft.github.io/CCF/)
-- Read the [Technical Report](CCF-TECHNICAL-REPORT.pdf) for a more detailed description
+- Read the [Research Papers](https://microsoft.github.io/CCF/main/research)
 - Learn more about [Azure Confidential Computing](https://azure.microsoft.com/solutions/confidential-compute/) offerings like Azure DC-series (which support Intel SGX TEE) and the [Open Enclave](https://github.com/openenclave/openenclave) SDK
 
 ## Third-party components

@@ -93,16 +93,16 @@ namespace ccfapp
     }
 
     JSValue create_caller_obj(
-      ccf::endpoints::EndpointContext& args, JSContext* ctx)
+      ccf::endpoints::EndpointContext& endpoint_ctx, JSContext* ctx)
     {
-      if (args.caller == nullptr)
+      if (endpoint_ctx.caller == nullptr)
       {
         return JS_NULL;
       }
 
       auto caller = JS_NewObject(ctx);
 
-      if (auto jwt_ident = args.try_get_caller<ccf::JwtAuthnIdentity>())
+      if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
       {
         JS_SetPropertyStr(
           ctx,
@@ -126,7 +126,8 @@ namespace ccfapp
         return caller;
       }
       else if (
-        auto empty_ident = args.try_get_caller<ccf::EmptyAuthnIdentity>())
+        auto empty_ident =
+          endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
       {
         JS_SetPropertyStr(
           ctx,
@@ -137,12 +138,12 @@ namespace ccfapp
       }
 
       char const* policy_name = nullptr;
-      EntityId id;
+      std::string id;
       bool is_member = false;
 
       if (
         auto user_cert_ident =
-          args.try_get_caller<ccf::UserCertAuthnIdentity>())
+          endpoint_ctx.try_get_caller<ccf::UserCertAuthnIdentity>())
       {
         policy_name = get_policy_name_from_ident(user_cert_ident);
         id = user_cert_ident->user_id;
@@ -150,7 +151,7 @@ namespace ccfapp
       }
       else if (
         auto member_cert_ident =
-          args.try_get_caller<ccf::MemberCertAuthnIdentity>())
+          endpoint_ctx.try_get_caller<ccf::MemberCertAuthnIdentity>())
       {
         policy_name = get_policy_name_from_ident(member_cert_ident);
         id = member_cert_ident->member_id;
@@ -158,7 +159,7 @@ namespace ccfapp
       }
       else if (
         auto user_sig_ident =
-          args.try_get_caller<ccf::UserSignatureAuthnIdentity>())
+          endpoint_ctx.try_get_caller<ccf::UserSignatureAuthnIdentity>())
       {
         policy_name = get_policy_name_from_ident(user_sig_ident);
         id = user_sig_ident->user_id;
@@ -166,7 +167,7 @@ namespace ccfapp
       }
       else if (
         auto member_sig_ident =
-          args.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
+          endpoint_ctx.try_get_caller<ccf::MemberSignatureAuthnIdentity>())
       {
         policy_name = get_policy_name_from_ident(member_sig_ident);
         id = member_sig_ident->member_id;
@@ -184,11 +185,11 @@ namespace ccfapp
 
       if (is_member)
       {
-        result = get_member_data_v1(args.tx, id, data);
+        result = get_member_data_v1(endpoint_ctx.tx, id, data);
       }
       else
       {
-        result = get_user_data_v1(args.tx, id, data);
+        result = get_user_data_v1(endpoint_ctx.tx, id, data);
       }
 
       if (result == ccf::ApiResult::InternalError)
@@ -200,11 +201,11 @@ namespace ccfapp
       crypto::Pem cert;
       if (is_member)
       {
-        result = get_user_cert_v1(args.tx, id, cert);
+        result = get_user_cert_v1(endpoint_ctx.tx, id, cert);
       }
       else
       {
-        result = get_member_cert_v1(args.tx, id, cert);
+        result = get_member_cert_v1(endpoint_ctx.tx, id, cert);
       }
 
       if (result == ccf::ApiResult::InternalError)
@@ -227,13 +228,13 @@ namespace ccfapp
     }
 
     JSValue create_request_obj(
-      ccf::endpoints::EndpointContext& args, JSContext* ctx)
+      ccf::endpoints::EndpointContext& endpoint_ctx, JSContext* ctx)
     {
       auto request = JS_NewObject(ctx);
 
       auto headers = JS_NewObject(ctx);
       for (auto& [header_name, header_value] :
-           args.rpc_ctx->get_request_headers())
+           endpoint_ctx.rpc_ctx->get_request_headers())
       {
         JS_SetPropertyStr(
           ctx,
@@ -243,14 +244,14 @@ namespace ccfapp
       }
       JS_SetPropertyStr(ctx, request, "headers", headers);
 
-      const auto& request_query = args.rpc_ctx->get_request_query();
+      const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
       auto query_str =
         JS_NewStringLen(ctx, request_query.c_str(), request_query.size());
       JS_SetPropertyStr(ctx, request, "query", query_str);
 
       auto params = JS_NewObject(ctx);
       for (auto& [param_name, param_value] :
-           args.rpc_ctx->get_request_path_params())
+           endpoint_ctx.rpc_ctx->get_request_path_params())
       {
         JS_SetPropertyStr(
           ctx,
@@ -260,19 +261,20 @@ namespace ccfapp
       }
       JS_SetPropertyStr(ctx, request, "params", params);
 
-      const auto& request_body = args.rpc_ctx->get_request_body();
+      const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
       auto body_ = JS_NewObjectClass(ctx, js::body_class_id);
       JS_SetOpaque(body_, (void*)&request_body);
       JS_SetPropertyStr(ctx, request, "body", body_);
 
-      JS_SetPropertyStr(ctx, request, "caller", create_caller_obj(args, ctx));
+      JS_SetPropertyStr(
+        ctx, request, "caller", create_caller_obj(endpoint_ctx, ctx));
 
       return request;
     }
 
     void execute_request(
       const ccf::endpoints::EndpointProperties& props,
-      ccf::endpoints::EndpointContext& args)
+      ccf::endpoints::EndpointContext& endpoint_ctx)
     {
       if (props.mode == ccf::endpoints::Mode::Historical)
       {
@@ -284,35 +286,36 @@ namespace ccfapp
 
         ccf::historical::adapter(
           [this, &props](
-            ccf::endpoints::EndpointContext& args,
+            ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
             auto tx = state->store->create_tx();
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
-            do_execute_request(props, args, tx, tx_id, receipt);
+            do_execute_request(props, endpoint_ctx, tx, tx_id, receipt);
           },
           context.get_historical_state(),
-          is_tx_committed)(args);
+          is_tx_committed)(endpoint_ctx);
       }
       else
       {
-        do_execute_request(props, args, args.tx, std::nullopt, nullptr);
+        do_execute_request(
+          props, endpoint_ctx, endpoint_ctx.tx, std::nullopt, nullptr);
       }
     }
 
     void do_execute_request(
       const ccf::endpoints::EndpointProperties& props,
-      ccf::endpoints::EndpointContext& args,
+      ccf::endpoints::EndpointContext& endpoint_ctx,
       kv::Tx& target_tx,
       const std::optional<ccf::TxID>& transaction_id,
       ccf::historical::TxReceiptPtr receipt)
     {
-      const auto modules = args.tx.ro(this->network.modules);
+      const auto modules = endpoint_ctx.tx.ro(this->network.modules);
 
       auto handler_script = modules->get(props.js_module);
       if (!handler_script.has_value())
       {
-        args.rpc_ctx->set_error(
+        endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           fmt::format("Endpoint module not found: {}.", props.js_module));
@@ -322,7 +325,7 @@ namespace ccfapp
       js::Runtime rt;
       rt.add_ccf_classdefs();
 
-      JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
+      JSModuleLoaderArg js_module_loader_arg{&this->network, &endpoint_ctx.tx};
       JS_SetModuleLoaderFunc(
         rt, nullptr, js_module_loader, &js_module_loader_arg);
 
@@ -333,12 +336,14 @@ namespace ccfapp
       js::populate_global_console(ctx);
       js::populate_global_ccf(
         &txctx,
-        args.rpc_ctx.get(),
+        endpoint_ctx.rpc_ctx.get(),
         transaction_id,
         receipt,
         nullptr,
+        &context.get_node_state(),
         nullptr,
         ctx);
+      js::populate_global_openenclave(ctx);
 
       // Compile module
       std::string code = handler_script.value();
@@ -351,7 +356,7 @@ namespace ccfapp
       }
       catch (std::exception& exc)
       {
-        args.rpc_ctx->set_error(
+        endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           exc.what());
@@ -359,7 +364,7 @@ namespace ccfapp
       }
 
       // Call exported function
-      auto request = create_request_obj(args, ctx);
+      auto request = create_request_obj(endpoint_ctx, ctx);
       int argc = 1;
       JSValueConst* argv = (JSValueConst*)&request;
       auto val = ctx(JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv));
@@ -369,7 +374,7 @@ namespace ccfapp
       if (JS_IsException(val))
       {
         js::js_dump_error(ctx);
-        args.rpc_ctx->set_error(
+        endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           "Exception thrown while executing.");
@@ -379,7 +384,7 @@ namespace ccfapp
       // Handle return value: {body, headers, statusCode}
       if (!JS_IsObject(val))
       {
-        args.rpc_ctx->set_error(
+        endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           ccf::errors::InternalError,
           "Invalid endpoint function return value (not an object).");
@@ -409,7 +414,7 @@ namespace ccfapp
         }
         if (array_buffer)
         {
-          args.rpc_ctx->set_response_header(
+          endpoint_ctx.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE,
             http::headervalues::contenttype::OCTET_STREAM);
           response_body =
@@ -420,14 +425,14 @@ namespace ccfapp
           const char* cstr = nullptr;
           if (JS_IsString(response_body_js))
           {
-            args.rpc_ctx->set_response_header(
+            endpoint_ctx.rpc_ctx->set_response_header(
               http::headers::CONTENT_TYPE,
               http::headervalues::contenttype::TEXT);
             cstr = JS_ToCString(ctx, response_body_js);
           }
           else
           {
-            args.rpc_ctx->set_response_header(
+            endpoint_ctx.rpc_ctx->set_response_header(
               http::headers::CONTENT_TYPE,
               http::headervalues::contenttype::JSON);
             JSValue rval =
@@ -435,7 +440,7 @@ namespace ccfapp
             if (JS_IsException(rval))
             {
               js::js_dump_error(ctx);
-              args.rpc_ctx->set_error(
+              endpoint_ctx.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 "Invalid endpoint function return value (error during JSON "
@@ -448,7 +453,7 @@ namespace ccfapp
           if (!cstr)
           {
             js::js_dump_error(ctx);
-            args.rpc_ctx->set_error(
+            endpoint_ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               "Invalid endpoint function return value (error during string "
@@ -460,7 +465,7 @@ namespace ccfapp
 
           response_body = std::vector<uint8_t>(str.begin(), str.end());
         }
-        args.rpc_ctx->set_response_body(std::move(response_body));
+        endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
       }
 
       // Response headers
@@ -485,13 +490,14 @@ namespace ccfapp
             auto prop_val_cstr = JS_ToCString(ctx, prop_val);
             if (!prop_val_cstr)
             {
-              args.rpc_ctx->set_error(
+              endpoint_ctx.rpc_ctx->set_error(
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
                 "Invalid endpoint function return value (header value type).");
               return;
             }
-            args.rpc_ctx->set_response_header(prop_name_cstr, prop_val_cstr);
+            endpoint_ctx.rpc_ctx->set_response_header(
+              prop_name_cstr, prop_val_cstr);
             JS_FreeCString(ctx, prop_val_cstr);
           }
           js_free(ctx, props);
@@ -506,7 +512,7 @@ namespace ccfapp
         {
           if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)
           {
-            args.rpc_ctx->set_error(
+            endpoint_ctx.rpc_ctx->set_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               ccf::errors::InternalError,
               "Invalid endpoint function return value (status code type).");
@@ -514,7 +520,7 @@ namespace ccfapp
           }
           response_status_code = JS_VALUE_GET_INT(status_code_js.val);
         }
-        args.rpc_ctx->set_response_status(response_status_code);
+        endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
       }
 
       return;
@@ -632,16 +638,16 @@ namespace ccfapp
 
     void execute_endpoint(
       ccf::endpoints::EndpointDefinitionPtr e,
-      ccf::endpoints::EndpointContext& args) override
+      ccf::endpoints::EndpointContext& endpoint_ctx) override
     {
       auto endpoint = dynamic_cast<const JSDynamicEndpoint*>(e.get());
       if (endpoint != nullptr)
       {
-        execute_request(endpoint->properties, args);
+        execute_request(endpoint->properties, endpoint_ctx);
         return;
       }
 
-      ccf::endpoints::EndpointRegistry::execute_endpoint(e, args);
+      ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
     }
 
     // Since we do our own dispatch within the default handler, report the
@@ -666,11 +672,6 @@ namespace ccfapp
             ds::openapi::path(document, key.uri_path),
             http_verb.value(),
             false);
-          LOG_INFO_FMT(
-            "Building OpenAPI for {} {}", key.verb.c_str(), key.uri_path);
-          const auto dumped = document.dump(2);
-          LOG_INFO_FMT(
-            "Starting from: {}", std::string(dumped.begin(), dumped.end()));
           if (!properties.openapi.empty())
           {
             for (const auto& [k, v] : properties.openapi.items())

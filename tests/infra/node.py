@@ -12,9 +12,11 @@ import ccf.ledger
 import os
 import socket
 import re
-import time
+import ipaddress
 
 from loguru import logger as LOG
+
+BASE_NODE_CLIENT_HOST = "127.100.0.0"
 
 
 class NodeNetworkState(Enum):
@@ -72,6 +74,7 @@ class Node:
         library_dir=".",
         debug=False,
         perf=False,
+        node_port=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -83,9 +86,13 @@ class Node:
         self.common_dir = None
         self.suspended = False
         self.node_id = None
+        self.node_client_host = None
 
         if host.startswith("local://"):
             self.remote_impl = infra.remote.LocalRemote
+            self.node_client_host = str(
+                ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
+            )
         elif host.startswith("ssh://"):
             self.remote_impl = infra.remote.SSHRemote
         else:
@@ -104,7 +111,7 @@ class Node:
         else:
             self.pubhost = self.host
             self.pubport = self.rpc_port
-        self.node_port = None
+        self.node_port = node_port
 
     def __hash__(self):
         return self.local_node_id
@@ -196,11 +203,12 @@ class Node:
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
-            str(self.local_node_id),
+            self.local_node_id,
             self.host,
             self.pubhost,
             self.node_port,
             self.rpc_port,
+            self.node_client_host,
             self.remote_impl,
             enclave_type,
             workspace,
@@ -245,7 +253,7 @@ class Node:
         else:
             # BFT consensus should deterministically compute the primary id from the
             # consensus view, so node ids are monotonic in this case
-            self.node_id = "{:0>8}".format(self.local_node_id)
+            self.node_id = "{:0>64}".format(self.local_node_id)
 
         self._read_ports()
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
@@ -284,6 +292,7 @@ class Node:
             if self.suspended:
                 self.resume()
             self.network_state = NodeNetworkState.stopped
+            LOG.info(f"Stopping node {self.local_node_id}")
             return self.remote.stop()
         return [], []
 
@@ -307,37 +316,22 @@ class Node:
                 assert (
                     rep.status_code == 200
                 ), f"An error occured after node {self.local_node_id} joined the network: {rep.body}"
+                self.network_state = infra.node.NodeNetworkState.joined
         except ccf.clients.CCFConnectionException as e:
             raise TimeoutError(
                 f"Node {self.local_node_id} failed to join the network"
             ) from e
 
-    def get_ledger_public_state_at(self, seqno, timeout=3):
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            try:
-                ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
-                tx = ledger.get_transaction(seqno)
-                return tx.get_public_domain().get_tables()
-            except Exception:
-                time.sleep(0.1)
+    def get_ledger_public_tables_at(self, seqno):
+        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+        assert ledger.last_committed_chunk_range[1] >= seqno
+        tx = ledger.get_transaction(seqno)
+        return tx.get_public_domain().get_tables()
 
-        raise TimeoutError(
-            f"Could not read transaction at seqno {seqno} from ledger {self.remote.ledger_paths()}"
-        )
-
-    def get_latest_ledger_public_state(self, timeout=3):
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            try:
-                ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
-                return ledger.get_latest_public_state()
-            except Exception:
-                time.sleep(0.1)
-
-        raise TimeoutError(
-            f"Could not read latest state from ledger {self.remote.ledger_paths()}"
-        )
+    def get_ledger_public_state_at(self, seqno):
+        ledger = ccf.ledger.Ledger(self.remote.ledger_paths())
+        assert ledger.last_committed_chunk_range[1] >= seqno
+        return ledger.get_latest_public_state()
 
     def get_ledger(self, include_read_only_dirs=False):
         """

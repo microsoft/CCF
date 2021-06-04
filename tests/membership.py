@@ -23,7 +23,7 @@ def test_add_member(network, args, recovery_member=True):
 
     new_member = network.consortium.generate_and_add_new_member(
         primary,
-        curve=infra.network.ParticipantsCurve(args.participants_curve).next(),
+        curve=infra.network.EllipticCurve(args.participants_curve).next(),
         member_data=member_data,
         recovery_member=recovery_member,
     )

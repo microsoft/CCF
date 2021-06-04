@@ -44,6 +44,7 @@ namespace ws
 
     ccf::RESTVerb verb = ws::Verb::WEBSOCKET;
 
+    std::string url = {};
     std::string path = {};
     std::string method = {};
 
@@ -145,6 +146,11 @@ namespace ws
       return std::nullopt;
     }
 
+    virtual const std::string& get_request_url() const override
+    {
+      return url;
+    }
+
     virtual void set_response_body(const std::vector<uint8_t>& body) override
     {
       response_body = body;
@@ -194,6 +200,15 @@ namespace ws
 
       // Default is to apply any 2xx status
       return http::status_success(response_status);
+    }
+
+    virtual void reset_response() override
+    {
+      seqno = 0;
+      view = 0;
+      response_body.clear();
+      response_status = HTTP_STATUS_OK;
+      explicit_apply_writes.reset();
     }
 
     virtual std::vector<uint8_t> serialise_response() const override

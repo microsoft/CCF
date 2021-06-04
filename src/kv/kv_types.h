@@ -93,6 +93,47 @@ namespace kv
     Nodes nodes;
   };
 
+  inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
+  {
+    j["address"] = fmt::format("{}:{}", ni.hostname, ni.port);
+  }
+
+  inline void from_json(const nlohmann::json& j, Configuration::NodeInfo& ni)
+  {
+    const std::string addr(j["address"]);
+    const auto& [h, p] = nonstd::split_1(addr, ":");
+    ni.hostname = h;
+    ni.port = p;
+  }
+
+  enum class ReplicaState
+  {
+    Leader,
+    Follower,
+    Candidate,
+    Retired
+  };
+
+  DECLARE_JSON_ENUM(
+    ReplicaState,
+    {{ReplicaState::Leader, "Leader"},
+     {ReplicaState::Follower, "Follower"},
+     {ReplicaState::Candidate, "Candidate"},
+     {ReplicaState::Retired, "Retired"}});
+
+  DECLARE_JSON_TYPE(Configuration);
+  DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes);
+
+  struct ConsensusDetails
+  {
+    std::vector<Configuration> configs = {};
+    std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
+    ReplicaState state;
+  };
+
+  DECLARE_JSON_TYPE(ConsensusDetails);
+  DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks, state);
+
   class ConfigurableConsensus
   {
   public:
@@ -100,6 +141,7 @@ namespace kv
       ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
+    virtual ConsensusDetails get_details() = 0;
   };
 
   class ConsensusHook
@@ -276,7 +318,7 @@ namespace kv
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
-    virtual void append(const std::vector<uint8_t>& replicated) = 0;
+    virtual void append(const std::vector<uint8_t>& data) = 0;
     virtual void rollback(Version v, kv::Term) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
@@ -457,20 +499,20 @@ namespace kv
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
-  class AbstractMapHandle
+  class AbstractHandle
   {
   public:
-    virtual ~AbstractMapHandle() = default;
+    virtual ~AbstractHandle() = default;
   };
 
-  struct NamedMap
+  struct NamedHandleMixin
   {
   protected:
     std::string name;
 
   public:
-    NamedMap(const std::string& s) : name(s) {}
-    virtual ~NamedMap() = default;
+    NamedHandleMixin(const std::string& s) : name(s) {}
+    virtual ~NamedHandleMixin() = default;
 
     const std::string& get_name() const
     {
@@ -480,7 +522,7 @@ namespace kv
 
   class AbstractStore;
   class AbstractMap : public std::enable_shared_from_this<AbstractMap>,
-                      public NamedMap
+                      public NamedHandleMixin
   {
   public:
     class Snapshot
@@ -491,7 +533,7 @@ namespace kv
       virtual SecurityDomain get_security_domain() = 0;
     };
 
-    using NamedMap::NamedMap;
+    using NamedHandleMixin::NamedHandleMixin;
     virtual ~AbstractMap() {}
     virtual bool operator==(const AbstractMap& that) const = 0;
     virtual bool operator!=(const AbstractMap& that) const = 0;
@@ -559,7 +601,7 @@ namespace kv
     virtual Version current_version() = 0;
     virtual TxID current_txid() = 0;
 
-    virtual Version commit_version() = 0;
+    virtual Version compacted_version() = 0;
 
     virtual std::shared_ptr<AbstractMap> get_map(
       Version v, const std::string& map_name) = 0;

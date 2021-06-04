@@ -184,6 +184,7 @@ namespace enclave
       const std::string_view& name) = 0;
 
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
+    virtual const std::string& get_request_url() const = 0;
 
     /// Response details
     virtual void set_response_body(const std::vector<uint8_t>& body) = 0;
@@ -221,6 +222,8 @@ namespace enclave
 
     virtual void set_apply_writes(bool apply) = 0;
     virtual bool should_apply_writes() const = 0;
+
+    virtual void reset_response() = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
   };

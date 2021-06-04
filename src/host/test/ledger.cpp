@@ -5,6 +5,7 @@
 
 #include "ds/serialized.h"
 #include "host/snapshot.h"
+#include "kv/serialised_entry_format.h"
 
 #include <doctest/doctest.h>
 #include <string>
@@ -57,11 +58,6 @@ struct LedgerEntry
 {
   T value_ = 0;
 
-  uint8_t* data()
-  {
-    return reinterpret_cast<uint8_t*>(&value_);
-  }
-
   auto value() const
   {
     return value_;
@@ -74,10 +70,8 @@ struct LedgerEntry
 
   LedgerEntry() = default;
   LedgerEntry(T v) : value_(v) {}
-  LedgerEntry(const std::vector<uint8_t>& raw)
+  LedgerEntry(const uint8_t* data, size_t size)
   {
-    const uint8_t* data = raw.data();
-    size_t size = raw.size();
     value_ = serialized::read<T>(data, size);
   }
 };
@@ -111,15 +105,17 @@ void verify_framed_entries_range(
   const std::vector<uint8_t>& framed_entries, size_t from, size_t to)
 {
   size_t idx = from;
-  for (int i = 0; i < framed_entries.size();)
+  for (size_t pos = 0; pos < framed_entries.size();)
   {
-    const uint8_t* data = &framed_entries[i];
-    size_t size = framed_entries.size() - i;
+    const uint8_t* data = &framed_entries[pos];
+    size_t size = framed_entries.size() - pos;
 
-    auto frame = serialized::read<frame_header_type>(data, size);
-    auto entry = serialized::read(data, size, frame);
-    REQUIRE(TestLedgerEntry(entry).value() == idx);
-    i += frame_header_size + frame;
+    auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
+    auto header_size = header.size;
+    REQUIRE(header_size == sizeof(TestLedgerEntry));
+
+    REQUIRE(TestLedgerEntry(data, size).value() == idx);
+    pos += kv::serialised_entry_header_size + sizeof(TestLedgerEntry);
     idx++;
   }
 
@@ -128,7 +124,17 @@ void verify_framed_entries_range(
 
 void read_entry_from_ledger(Ledger& ledger, size_t idx)
 {
-  REQUIRE(TestLedgerEntry(ledger.read_entry(idx).value()).value() == idx);
+  auto framed_entry = ledger.read_entry(idx);
+  REQUIRE(framed_entry.has_value());
+
+  auto& entry = framed_entry.value();
+  const uint8_t* data = entry.data();
+  auto size = entry.size();
+  auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
+  auto header_size = header.size;
+  REQUIRE(header_size == sizeof(TestLedgerEntry));
+
+  REQUIRE(TestLedgerEntry(data, size).value() == idx);
 }
 
 void read_entries_range_from_ledger(Ledger& ledger, size_t from, size_t to)
@@ -165,10 +171,22 @@ public:
   void write(bool is_committable, bool force_chunk = false)
   {
     auto e = TestLedgerEntry(++last_idx);
+    std::vector<uint8_t> framed_entry(
+      kv::serialised_entry_header_size + sizeof(TestLedgerEntry));
+    auto data = framed_entry.data();
+    auto size = framed_entry.size();
+
+    kv::SerialisedEntryHeader header;
+    header.set_size(sizeof(TestLedgerEntry));
+
+    serialized::write(data, size, header);
+    serialized::write(data, size, e);
     REQUIRE(
       ledger.write_entry(
-        e.data(), sizeof(TestLedgerEntry), is_committable, force_chunk) ==
-      last_idx);
+        framed_entry.data(),
+        framed_entry.size(),
+        is_committable,
+        force_chunk) == last_idx);
   }
 
   void truncate(size_t idx)
@@ -193,10 +211,10 @@ size_t get_entries_per_chunk(size_t chunk_threshold)
 {
   // The number of entries per chunk is a function of the threshold (minus the
   // size of the fixes space for the offset at the size of each file) and the
-  // size of each _framed_ entry
+  // size of each entry
   return ceil(
     (static_cast<float>(chunk_threshold - sizeof(size_t))) /
-    (frame_header_size + sizeof(TestLedgerEntry)));
+    (kv::serialised_entry_header_size + sizeof(TestLedgerEntry)));
 }
 
 // Assumes that no entries have been written yet
@@ -741,6 +759,7 @@ TEST_CASE("Limit number of open files")
 
   INFO("Close and commit latest file");
   {
+    entry_submitter.write(true);
     entry_submitter.write(true);
     entry_submitter.write(true);
     last_idx = entry_submitter.get_last_idx();

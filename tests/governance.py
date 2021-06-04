@@ -17,6 +17,16 @@ import json
 from loguru import logger as LOG
 
 
+@reqs.description("Test consensus status")
+def test_consensus_status(network, args):
+    primary, _ = network.find_nodes()
+    with primary.client() as c:
+        r = c.get("/node/consensus")
+        assert r.status_code == 200
+        assert r.body.json()["details"]["state"] == "Leader"
+    return network
+
+
 @reqs.description("Test quotes")
 @reqs.supports_methods("quotes/self", "quotes")
 def test_quote(network, args):
@@ -113,9 +123,7 @@ def test_no_quote(network, args):
 @reqs.description("Check member data")
 def test_member_data(network, args):
     assert args.initial_operator_count > 0
-    primary, _ = network.find_nodes()
-
-    latest_public_tables, _ = primary.get_latest_ledger_public_state()
+    latest_public_tables, _ = network.get_latest_ledger_public_state()
     members_info = latest_public_tables["public:ccf.gov.members.info"]
 
     md_count = 0
@@ -155,7 +163,7 @@ def test_service_principals(network, args):
     principal_id = "0xdeadbeef"
 
     # Initially, there is nothing in this table
-    latest_public_tables, _ = node.get_latest_ledger_public_state()
+    latest_public_tables, _ = network.get_latest_ledger_public_state()
     assert "public:ccf.gov.service_principals" not in latest_public_tables
 
     # Create and accept a proposal which populates an entry in this table
@@ -173,7 +181,7 @@ def test_service_principals(network, args):
     network.consortium.vote_using_majority(node, proposal, ballot)
 
     # Confirm it can be read
-    latest_public_tables, _ = node.get_latest_ledger_public_state()
+    latest_public_tables, _ = network.get_latest_ledger_public_state()
     assert (
         json.loads(
             latest_public_tables["public:ccf.gov.service_principals"][
@@ -191,7 +199,7 @@ def test_service_principals(network, args):
     network.consortium.vote_using_majority(node, proposal, ballot)
 
     # Confirm it is gone
-    latest_public_tables, _ = node.get_latest_ledger_public_state()
+    latest_public_tables, _ = network.get_latest_ledger_public_state()
     assert (
         principal_id.encode()
         not in latest_public_tables["public:ccf.gov.service_principals"]
@@ -211,6 +219,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        network = test_consensus_status(network, args)
         network = test_node_ids(network, args)
         network = test_member_data(network, args)
         network = test_quote(network, args)

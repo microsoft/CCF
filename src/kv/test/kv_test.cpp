@@ -3,9 +3,12 @@
 #include "ccf/app_interface.h"
 #include "ds/logger.h"
 #include "kv/kv_serialiser.h"
+#include "kv/map.h"
+#include "kv/set.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "kv/value.h"
 #include "node/entities.h"
 #include "node/history.h"
 
@@ -161,6 +164,467 @@ TEST_CASE("Reads/writes and deletions")
   }
 }
 
+TEST_CASE("sets and values")
+{
+  kv::Store kv_store;
+
+  {
+    INFO("kv::Set");
+    kv::Set<std::string> set("public:set");
+    constexpr auto k1 = "key1";
+    constexpr auto k2 = "key2";
+
+    {
+      INFO("Read own writes");
+      auto tx = kv_store.create_tx();
+      auto set_handle = tx.rw(set);
+
+      REQUIRE(!set_handle->contains(k1));
+      REQUIRE(set_handle->size() == 0);
+
+      set_handle->insert(k1);
+      REQUIRE(set_handle->contains(k1));
+      REQUIRE(set_handle->size() == 1);
+
+      REQUIRE(!set_handle->contains(k2));
+      set_handle->insert(k2);
+      REQUIRE(set_handle->contains(k2));
+      REQUIRE(set_handle->size() == 2);
+
+      REQUIRE(set_handle->remove(k2));
+      REQUIRE(!set_handle->contains(k2));
+      REQUIRE(set_handle->size() == 1);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Read previous writes");
+      auto tx = kv_store.create_tx();
+      auto set_handle = tx.ro(set);
+      REQUIRE(set_handle->contains(k1));
+      REQUIRE(!set_handle->contains(k2));
+      REQUIRE(set_handle->size() == 1);
+      std::set<std::string> std_set;
+      set_handle->foreach([&std_set](const std::string& entry) {
+        std_set.insert(entry);
+        return true;
+      });
+      REQUIRE(std_set.size() == 1);
+      REQUIRE(std_set.find(k1) != std_set.end());
+      REQUIRE(std_set.find(k2) == std_set.end());
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Remove keys");
+      auto tx = kv_store.create_tx();
+      auto set_handle = tx.rw(set);
+
+      REQUIRE(set_handle->contains(k1));
+      REQUIRE(set_handle->size() == 1);
+
+      REQUIRE(!set_handle->remove(k2));
+      REQUIRE(set_handle->contains(k1));
+      REQUIRE(set_handle->size() == 1);
+
+      REQUIRE(set_handle->remove(k1));
+      REQUIRE(!set_handle->contains(k1));
+      REQUIRE(set_handle->size() == 0);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
+
+  {
+    INFO("kv::Value");
+    kv::Value<std::string> val1("public:value1");
+    kv::Value<std::string> val2("public:value2");
+
+    const auto v1 = "hello";
+    const auto v2 = "world";
+    const auto v3 = "saluton";
+
+    {
+      INFO("Read own writes");
+      auto tx = kv_store.create_tx();
+
+      auto h1 = tx.rw(val1);
+      REQUIRE(!h1->has());
+      h1->put(v1);
+      REQUIRE(h1->has());
+      REQUIRE(*h1->get() == v1);
+
+      auto h2 = tx.rw(val2);
+      REQUIRE(!h2->has());
+      h2->put(v2);
+      REQUIRE(h2->has());
+      REQUIRE(*h2->get() == v2);
+
+      h2->put(v3);
+      REQUIRE(h2->has());
+      REQUIRE(*h2->get() == v3);
+
+      h2->clear();
+      REQUIRE(!h2->has());
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Read previous writes");
+      auto tx = kv_store.create_tx();
+
+      auto h1 = tx.ro(val1);
+      REQUIRE(h1->has());
+      REQUIRE(*h1->get() == v1);
+
+      auto h2 = tx.rw(val2);
+      REQUIRE(!h2->has());
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Remove previous writes");
+      auto tx = kv_store.create_tx();
+
+      auto h1 = tx.rw(val1);
+      REQUIRE(h1->has());
+      h1->clear();
+      REQUIRE(!h1->has());
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
+
+  {
+    // Sanity check that transactions can handle a mix of maps, sets, and values
+    INFO("Mixed");
+
+    using TMap = kv::Map<std::string, size_t>;
+    using TSet = kv::Set<size_t>;
+    kv::Value<std::string> map_name_val("public:map_name");
+    kv::Value<std::string> set_name_val("public:set_name");
+
+    constexpr auto n_entries = 10;
+
+    {
+      INFO("Writing");
+      auto tx = kv_store.create_tx();
+
+      auto map_name_handle = tx.rw(map_name_val);
+      map_name_handle->put("public:my_test_map");
+
+      auto set_name_handle = tx.rw(set_name_val);
+      set_name_handle->put("public:values_from_my_test_map");
+
+      auto map_handle = tx.rw<TMap>(*map_name_handle->get());
+      auto set_handle = tx.rw<TSet>(*set_name_handle->get());
+      for (size_t i = 0; i < n_entries; ++i)
+      {
+        const auto n = i * i;
+        const char c[2] = {(char)('A' + i), 0};
+        map_handle->put(std::string(c), n);
+        set_handle->insert(n);
+      }
+
+      REQUIRE(map_handle->size() == n_entries);
+      REQUIRE(set_handle->size() == n_entries);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Read and modify");
+      auto tx = kv_store.create_tx();
+
+      auto map_name_handle = tx.rw(map_name_val);
+      REQUIRE(map_name_handle->has());
+
+      auto set_name_handle = tx.rw(set_name_val);
+      REQUIRE(set_name_handle->has());
+
+      auto map_handle = tx.rw<TMap>(*map_name_handle->get());
+      auto set_handle = tx.rw<TSet>(*set_name_handle->get());
+
+      REQUIRE(map_handle->size() == n_entries);
+      REQUIRE(set_handle->size() == n_entries);
+
+      map_handle->foreach(
+        [&map_handle, &set_handle](const std::string& k, const size_t& v) {
+          REQUIRE(set_handle->contains(v));
+
+          if (k[0] % 3 == 0)
+          {
+            REQUIRE(map_handle->remove(k));
+            REQUIRE(set_handle->remove(v));
+
+            const auto s = k + k;
+            const auto n = ~v;
+            map_handle->put(s, n);
+            set_handle->insert(n);
+          }
+
+          return true;
+        });
+
+      REQUIRE(map_handle->size() == n_entries);
+      REQUIRE(set_handle->size() == n_entries);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
+}
+
+struct CustomUnitCreator
+{
+  static kv::serialisers::SerialisedEntry get()
+  {
+    kv::serialisers::SerialisedEntry e;
+
+    for (size_t i = 0; i < 42; ++i)
+    {
+      e.push_back(i);
+    }
+
+    return e;
+  }
+};
+
+TEST_CASE("serialisation of Unit type")
+{
+  const auto value_name = "public:aa";
+  const auto set_name = "public:bb";
+
+  const auto v1 = "hello";
+  const auto v2 = "world";
+  const auto v3 = "saluton";
+
+  {
+    INFO("The default unit type allows migration to/from a kv::Map");
+
+    using TValue = kv::RawCopySerialisedValue<std::string>;
+    using TValueEquivalent = kv::RawCopySerialisedMap<size_t, std::string>;
+
+    using TSet = kv::RawCopySerialisedSet<std::string>;
+    using TSetEquivalent = kv::RawCopySerialisedMap<std::string, size_t>;
+
+    kv::Store kv_store;
+
+    {
+      auto tx = kv_store.create_tx();
+
+      auto val_handle = tx.rw<TValueEquivalent>(value_name);
+      val_handle->put(0, v1); // Will be visible in TValue handle
+      val_handle->put(1, v2); // Won't be
+
+      auto set_handle = tx.rw<TSetEquivalent>(set_name);
+      set_handle->put(v1, 0); // Will be visible in TSet handle
+      set_handle->put(v2, 1); // Will be visible in TSet handle, but would be
+                              // written with different value
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      auto tx = kv_store.create_tx();
+
+      auto val_handle = tx.rw<TValue>(value_name);
+      REQUIRE(val_handle->has());
+      REQUIRE(*val_handle->get() == v1);
+      val_handle->put(v3);
+
+      auto set_handle = tx.rw<TSet>(set_name);
+      REQUIRE(set_handle->contains(v1));
+      REQUIRE(set_handle->contains(v2));
+      set_handle->insert(v2);
+      set_handle->insert(v3);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      auto tx = kv_store.create_tx();
+
+      auto val_handle = tx.rw<TValueEquivalent>(value_name);
+      REQUIRE(val_handle->has(0));
+      REQUIRE(*val_handle->get(0) == v3);
+      REQUIRE(val_handle->has(1));
+      REQUIRE(*val_handle->get(1) == v2);
+
+      auto set_handle = tx.rw<TSetEquivalent>(set_name);
+      REQUIRE(set_handle->has(v1));
+      REQUIRE(*set_handle->get(v1) == 0);
+      REQUIRE(set_handle->has(v2));
+      REQUIRE(*set_handle->get(v2) == 0);
+      REQUIRE(set_handle->has(v3));
+      REQUIRE(*set_handle->get(v3) == 0);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
+
+  {
+    INFO("Custom UnitCreators produce distinct ledger entries");
+
+    using ValueA = kv::TypedValue<
+      std::string,
+      kv::serialisers::BlitSerialiser<std::string>,
+      kv::serialisers::ZeroBlitUnitCreator>;
+    std::vector<uint8_t> entry_a;
+    {
+      auto consensus = std::make_shared<kv::test::StubConsensus>();
+      kv::Store kv_store(consensus);
+      auto tx = kv_store.create_tx();
+      auto val_handle = tx.rw<ValueA>(value_name);
+      val_handle->put(v1);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      const auto e = consensus->get_latest_data();
+      REQUIRE(e.has_value());
+      entry_a = e.value();
+    }
+
+    using ValueB = kv::TypedValue<
+      std::string,
+      kv::serialisers::BlitSerialiser<std::string>,
+      kv::serialisers::EmptyUnitCreator>;
+    std::vector<uint8_t> entry_b;
+    {
+      auto consensus = std::make_shared<kv::test::StubConsensus>();
+      kv::Store kv_store(consensus);
+      auto tx = kv_store.create_tx();
+      auto val_handle = tx.rw<ValueB>(value_name);
+      val_handle->put(v1);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      const auto e = consensus->get_latest_data();
+      REQUIRE(e.has_value());
+      entry_b = e.value();
+    }
+
+    using ValueC = kv::TypedValue<
+      std::string,
+      kv::serialisers::BlitSerialiser<std::string>,
+      CustomUnitCreator>;
+    std::vector<uint8_t> entry_c;
+    {
+      auto consensus = std::make_shared<kv::test::StubConsensus>();
+      kv::Store kv_store(consensus);
+      auto tx = kv_store.create_tx();
+      auto val_handle = tx.rw<ValueC>(value_name);
+      val_handle->put(v1);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      const auto e = consensus->get_latest_data();
+      REQUIRE(e.has_value());
+      entry_c = e.value();
+    }
+
+    REQUIRE(entry_a != entry_b);
+    REQUIRE(entry_a != entry_c);
+    REQUIRE(entry_b != entry_c);
+  }
+}
+
+TEST_CASE("multiple handles")
+{
+  kv::Store kv_store;
+
+  MapTypes::NumString map("public:map");
+
+  constexpr auto k = 42;
+  constexpr auto v1 = "hello";
+  constexpr auto v2 = "saluton";
+
+  auto tx = kv_store.create_tx();
+
+  auto h1 = tx.ro(map);
+  auto h2 = tx.rw(map);
+  auto h3 = tx.wo(map);
+
+  REQUIRE(!h1->has(k));
+  REQUIRE(!h2->has(k));
+
+  h2->put(k, v1);
+
+  REQUIRE(h1->has(k));
+  REQUIRE(*h1->get(k) == v1);
+  REQUIRE(h2->has(k));
+  REQUIRE(*h2->get(k) == v1);
+
+  h3->put(k, v2);
+
+  REQUIRE(h1->has(k));
+  REQUIRE(*h1->get(k) == v2);
+  REQUIRE(h2->has(k));
+  REQUIRE(*h2->get(k) == v2);
+}
+
+TEST_CASE("clear")
+{
+  kv::Store kv_store;
+  MapTypes::StringString map("public:map");
+
+  const auto k1 = "k1";
+  const auto k2 = "k2";
+
+  const auto v = "v";
+
+  {
+    INFO("Setting committed state");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+    handle->put(k1, v);
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  SUBCASE("Basic")
+  {
+    {
+      INFO("Clear removes all entries");
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      handle->put(k2, v);
+
+      REQUIRE(handle->has(k1));
+      REQUIRE(handle->has(k2));
+
+      handle->clear();
+
+      REQUIRE(!handle->has(k1));
+      REQUIRE(!handle->has(k2));
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Clear is committed");
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+
+      REQUIRE(!handle->has(k1));
+      REQUIRE(!handle->has(k2));
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
+
+  SUBCASE("Clear conflicts correctly")
+  {
+    auto tx1 = kv_store.create_tx();
+    auto handle1 = tx1.rw(map);
+    handle1->clear();
+
+    INFO("Another transaction creates a key and commits");
+    auto tx2 = kv_store.create_tx();
+    auto handle2 = tx2.rw(map);
+    handle2->put(k2, v);
+    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+
+    INFO("clear() conflicts and must be retried");
+    REQUIRE(tx1.commit() == kv::CommitResult::FAIL_CONFLICT);
+  }
+}
+
 TEST_CASE("get_version_of_previous_write")
 {
   kv::Store kv_store;
@@ -282,6 +746,103 @@ TEST_CASE("get_version_of_previous_write")
 
     REQUIRE(ver1.value() == second_version);
     REQUIRE(ver2.value() == third_version);
+  }
+}
+
+TEST_CASE("size")
+{
+  kv::Store kv_store;
+  MapTypes::StringString map("public:map");
+
+  const auto k1 = "k1";
+  const auto k2 = "k2";
+  const auto k3 = "k3";
+
+  const auto v = "v";
+  const auto vv = "vv";
+
+  {
+    INFO("Only local modifications");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+
+    REQUIRE(handle->size() == 0);
+    handle->put(k1, v);
+    REQUIRE(handle->size() == 1);
+    handle->remove(k2);
+    REQUIRE(handle->size() == 1);
+    handle->remove(k1);
+    REQUIRE(handle->size() == 0);
+    handle->put(k2, v);
+    REQUIRE(handle->size() == 1);
+    handle->put(k2, vv);
+    REQUIRE(handle->size() == 1);
+    handle->put(k1, v);
+    REQUIRE(handle->size() == 2);
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    INFO("Combined with committed state");
+    auto tx = kv_store.create_tx();
+    auto handle = tx.rw(map);
+
+    REQUIRE(handle->size() == 2);
+    handle->put(k2, v);
+    REQUIRE(handle->size() == 2);
+    handle->put(k3, v);
+    REQUIRE(handle->size() == 3);
+    handle->remove(k1);
+    REQUIRE(handle->size() == 2);
+    handle->remove(k2);
+    REQUIRE(handle->size() == 1);
+    handle->remove(k3);
+    REQUIRE(handle->size() == 0);
+
+    {
+      INFO("size() is only affected by current transaction");
+      auto tx2 = kv_store.create_tx();
+      auto handle = tx2.rw(map);
+
+      REQUIRE(handle->size() == 2);
+      handle->remove(k2);
+      REQUIRE(handle->size() == 1);
+    }
+
+    REQUIRE(handle->size() == 0);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  }
+
+  {
+    INFO("Sanity check");
+    for (size_t i = 0; i < 20; ++i)
+    {
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      for (size_t j = 0; j < 1'000; ++j)
+      {
+        const auto key = std::to_string(rand() % 10'000);
+        if (rand() % 4 == 0)
+        {
+          handle->remove(key);
+        }
+        else
+        {
+          handle->put(key, v);
+        }
+      }
+
+      const auto claimed_size = handle->size();
+      size_t manual_size = 0;
+      handle->foreach([&manual_size](const auto&, const auto&) {
+        ++manual_size;
+        return true;
+      });
+
+      REQUIRE(claimed_size == manual_size);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
   }
 }
 
@@ -1115,7 +1676,8 @@ TEST_CASE("Deserialise return status")
   ccf::Nodes nodes(ccf::Tables::NODES);
   MapTypes::NumNum data("public:data");
 
-  auto kp = crypto::make_key_pair();
+  constexpr auto default_curve = crypto::CurveID::SECP384R1;
+  auto kp = crypto::make_key_pair(default_curve);
 
   auto history =
     std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
@@ -1138,8 +1700,8 @@ TEST_CASE("Deserialise return status")
     auto sig_handle = tx.rw(signatures);
     auto tree_handle = tx.rw(serialised_tree);
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
-    sig_handle->put(0, sigv);
-    tree_handle->put(0, {});
+    sig_handle->put(sigv);
+    tree_handle->put({});
     auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
 
@@ -1154,7 +1716,7 @@ TEST_CASE("Deserialise return status")
     auto sig_handle = tx.rw(signatures);
     auto data_handle = tx.rw(data);
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
-    sig_handle->put(0, sigv);
+    sig_handle->put(sigv);
     data_handle->put(43, 43);
     auto [success, data, hooks] = tx.commit_reserved();
     REQUIRE(success == kv::CommitResult::SUCCESS);
@@ -1330,7 +1892,7 @@ TEST_CASE("Private recovery map swap")
       REQUIRE(val.has_value());
       REQUIRE(val.value() == "45");
 
-      REQUIRE(s1.commit_version() == 3);
+      REQUIRE(s1.compacted_version() == 3);
     }
     {
       for (size_t i : {12, 13, 14, 15})
@@ -1808,7 +2370,7 @@ TEST_CASE("Store clear")
     REQUIRE(kv_store.get_map(current_version, map_b_name) != nullptr);
 
     REQUIRE(kv_store.current_version() != 0);
-    REQUIRE(kv_store.commit_version() != 0);
+    REQUIRE(kv_store.compacted_version() != 0);
     auto tx_id = kv_store.current_txid();
     REQUIRE(tx_id.term != 0);
     REQUIRE(tx_id.version != 0);
@@ -1823,7 +2385,7 @@ TEST_CASE("Store clear")
     REQUIRE(kv_store.get_map(current_version, map_b_name) == nullptr);
 
     REQUIRE(kv_store.current_version() == 0);
-    REQUIRE(kv_store.commit_version() == 0);
+    REQUIRE(kv_store.compacted_version() == 0);
     auto tx_id = kv_store.current_txid();
     REQUIRE(tx_id.term == 0);
     REQUIRE(tx_id.version == 0);

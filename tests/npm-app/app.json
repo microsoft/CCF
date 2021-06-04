@@ -243,6 +243,78 @@
         }
       }
     },
+    "/isValidX509CertBundle": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "isValidX509CertBundle",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "text/plain": {}
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/isValidX509CertChain": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "isValidX509CertChain",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "chain": {
+                      "type": "string"
+                    },
+                    "trusted": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/partition": {
       "post": {
         "js_module": "endpoints/partition.js",
@@ -300,6 +372,59 @@
               "description": "Protobuf encoded data",
               "content": {
                 "application/x-protobuf": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verifyOpenEnclaveEvidence": {
+      "post": {
+        "js_module": "endpoints/oe.js",
+        "js_function": "verifyOpenEnclaveEvidence",
+        "forwarding_required": "always",
+        "execute_outside_consensus": "never",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "format": {
+                      "type": "string"
+                    },
+                    "evidence": {
+                      "type": "string"
+                    },
+                    "endorsements": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "properties": {
+                      "claims": {
+                        "type": "object"
+                      },
+                      "customClaims": {
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
               }
             }
           }

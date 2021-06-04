@@ -70,7 +70,7 @@ class Request:
     def __str__(self):
         string = f"<cyan>{self.http_verb}</> <green>{self.path}</>"
         if self.headers:
-            string += f" {self.headers}"
+            string += f" <blue>{truncate(str(self.headers), max_len=25)}</>"
         if self.body is not None:
             string += f' {truncate(f"{self.body}")}'
 

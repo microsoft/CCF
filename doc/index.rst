@@ -71,6 +71,20 @@ CCF Documentation
 
     Contribute to the CCF GitHub repository.
 
+    ---
+
+    :fa:`book` :doc:`glossary`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Common terms used throughout the documentation and their definitions.
+
+    ---
+
+    :fa:`flask` :doc:`research`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    CCF-related research papers and technical reports.
+
 .. toctree::
     :maxdepth: 1
     :hidden:
@@ -83,3 +97,4 @@ CCF Documentation
     audit/index.rst
     contribute/index.rst
     glossary
+    research

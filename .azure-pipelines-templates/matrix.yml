@@ -31,11 +31,13 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|vegeta"'
+      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions"'
     SGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|vegeta"'
+      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions"'
     perf:
       ctest_args: '-L "benchmark|perf|vegeta"'
+    release:
+      ctest_args: '-LE "partitions"'
 
 jobs:
   # Debug
@@ -73,6 +75,7 @@ jobs:
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }}"
           suffix: "Release"
           artifact_name: "SGX_Release"
+          ctest_filter: "${{ parameters.test.release.ctest_args }}"
 
       - template: release.yml
         parameters:

@@ -81,8 +81,9 @@ namespace ccf
       }
     }
 
-    std::optional<std::vector<uint8_t>> forward_or_redirect_json(
+    std::optional<std::vector<uint8_t>> forward_or_redirect(
       std::shared_ptr<enclave::RpcContext> ctx,
+      kv::ReadOnlyTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       if (cmd_forwarder && !ctx->session->is_forwarded)
@@ -130,7 +131,6 @@ namespace ccf
               "RPC could not be redirected to unknown primary.");
           }
 
-          auto tx = tables.create_tx();
           auto nodes = tx.ro<Nodes>(Tables::NODES);
           auto info = nodes->get(primary_id.value());
 
@@ -249,7 +249,7 @@ namespace ccf
                    endpoints::ExecuteOutsideConsensus::Locally))))
             {
               ctx->session->is_forwarding = true;
-              return forward_or_redirect_json(ctx, endpoint);
+              return forward_or_redirect(ctx, tx, endpoint);
             }
             break;
           }
@@ -257,7 +257,7 @@ namespace ccf
           case endpoints::ForwardingRequired::Always:
           {
             ctx->session->is_forwarding = true;
-            return forward_or_redirect_json(ctx, endpoint);
+            return forward_or_redirect(ctx, tx, endpoint);
           }
         }
       }
@@ -273,6 +273,10 @@ namespace ccf
       {
         if (attempts > 0)
         {
+          // If the endpoint has already been executed, the effects of its
+          // execution should be dropped
+          tx = tables.create_tx();
+          ctx->reset_response();
           set_root_on_proposals(*ctx, tx);
           endpoints.increment_metrics_retries(endpoint);
         }
@@ -342,7 +346,6 @@ namespace ccf
 
             case kv::CommitResult::FAIL_CONFLICT:
             {
-              tx = tables.create_tx();
               break;
             }
 
@@ -363,7 +366,6 @@ namespace ccf
           // compaction. Reset and retry
           LOG_DEBUG_FMT(
             "Transaction execution conflicted with compaction: {}", e.what());
-          tx = tables.create_tx();
           continue;
         }
         catch (RpcException& e)
@@ -468,7 +470,7 @@ namespace ccf
       if (!is_open_)
       {
         auto service = tx.ro<Service>(Tables::SERVICE);
-        auto s = service->get_globally_committed(0);
+        auto s = service->get_globally_committed();
         if (
           s.has_value() && s.value().status == ServiceStatus::OPEN &&
           service_identity != nullptr && s.value().cert == *service_identity)

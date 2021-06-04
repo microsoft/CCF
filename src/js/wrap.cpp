@@ -7,6 +7,7 @@
 #include "enclave/rpc_context.h"
 #include "js/conv.cpp"
 #include "js/crypto.cpp"
+#include "js/oe.cpp"
 #include "kv/untyped_map.h"
 #include "node/jwt.h"
 #include "node/rpc/call_types.h"
@@ -30,6 +31,7 @@ namespace js
   JSClassID node_class_id = 0;
   JSClassID network_class_id = 0;
   JSClassID rpc_class_id = 0;
+  JSClassID host_class_id = 0;
 
   JSClassDef kv_class_def = {};
   JSClassExoticMethods kv_exotic_methods = {};
@@ -38,6 +40,7 @@ namespace js
   JSClassDef node_class_def = {};
   JSClassDef network_class_def = {};
   JSClassDef rpc_class_def = {};
+  JSClassDef host_class_def = {};
 
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -88,6 +91,20 @@ namespace js
       js_dump_error(ctx);
 
     return buf;
+  }
+
+  static JSValue js_kv_map_size_getter(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst*)
+  {
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
+    const uint64_t size = handle->size();
+    if (size > INT64_MAX)
+    {
+      return JS_ThrowInternalError(
+        ctx, "Map size (%lu) is too large to represent in int64", size);
+    }
+    return JS_NewInt64(ctx, (int64_t)size);
   }
 
   static JSValue js_kv_map_delete(
@@ -145,6 +162,29 @@ namespace js
     JSContext* ctx, JSValueConst, int, JSValueConst*)
   {
     return JS_ThrowTypeError(ctx, "Cannot call set on read-only map");
+  }
+
+  static JSValue js_kv_map_clear(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    auto handle = static_cast<KVMap::Handle*>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
+
+    if (argc != 0)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 0", argc);
+    }
+
+    handle->clear();
+
+    return JS_UNDEFINED;
+  }
+
+  static JSValue js_kv_map_clear_read_only(
+    JSContext* ctx, JSValueConst, int, JSValueConst*)
+  {
+    return JS_ThrowTypeError(ctx, "Cannot call clear on read-only map");
   }
 
   static JSValue js_kv_map_foreach(
@@ -264,19 +304,39 @@ namespace js
     JS_SetPropertyStr(
       ctx, view_val, "get", JS_NewCFunction(ctx, js_kv_map_get, "get", 1));
 
+    auto size_atom = JS_NewAtom(ctx, "size");
+    JS_DefinePropertyGetSet(
+      ctx,
+      view_val,
+      size_atom,
+      JS_NewCFunction2(
+        ctx,
+        js_kv_map_size_getter,
+        "size",
+        0,
+        JS_CFUNC_getter,
+        JS_CFUNC_getter_magic),
+      JS_UNDEFINED,
+      0);
+    JS_FreeAtom(ctx, size_atom);
+
     auto setter = js_kv_map_set;
     auto deleter = js_kv_map_delete;
+    auto clearer = js_kv_map_clear;
 
     if (read_only)
     {
       setter = js_kv_map_set_read_only;
       deleter = js_kv_map_delete_read_only;
+      clearer = js_kv_map_clear_read_only;
     }
 
     JS_SetPropertyStr(
       ctx, view_val, "set", JS_NewCFunction(ctx, setter, "set", 2));
     JS_SetPropertyStr(
       ctx, view_val, "delete", JS_NewCFunction(ctx, deleter, "delete", 1));
+    JS_SetPropertyStr(
+      ctx, view_val, "clear", JS_NewCFunction(ctx, clearer, "clear", 0));
 
     JS_SetPropertyStr(
       ctx,
@@ -655,6 +715,59 @@ namespace js
     return JS_UNDEFINED;
   }
 
+  JSValue js_node_trigger_host_process_launch(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    if (argc != 1)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
+    }
+
+    auto args = argv[0];
+
+    if (!JS_IsArray(ctx, args))
+    {
+      return JS_ThrowTypeError(ctx, "First argument must be an array");
+    }
+
+    std::vector<std::string> process_args;
+
+    auto len_atom = JS_NewAtom(ctx, "length");
+    auto len_val = JS_GetProperty(ctx, args, len_atom);
+    JS_FreeAtom(ctx, len_atom);
+    uint32_t len = 0;
+    JS_ToUint32(ctx, &len, len_val);
+    JS_FreeValue(ctx, len_val);
+
+    if (len == 0)
+    {
+      return JS_ThrowRangeError(
+        ctx, "First argument must be a non-empty array");
+    }
+
+    for (uint32_t i = 0; i < len; i++)
+    {
+      auto arg_val = JS_GetPropertyUint32(ctx, args, i);
+      if (!JS_IsString(arg_val))
+      {
+        JS_FreeValue(ctx, arg_val);
+        return JS_ThrowTypeError(
+          ctx, "First argument must be an array of strings, found non-string");
+      }
+      auto arg_cstr = JS_ToCString(ctx, arg_val);
+      process_args.push_back(arg_cstr);
+      JS_FreeCString(ctx, arg_cstr);
+      JS_FreeValue(ctx, arg_val);
+    }
+
+    auto node = static_cast<ccf::AbstractNodeState*>(
+      JS_GetOpaque(this_val, host_class_id));
+
+    node->trigger_host_process_launch(process_args);
+
+    return JS_UNDEFINED;
+  }
+
   // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
   // with a synchronous interface.
   static const JSCFunctionListEntry js_body_proto_funcs[] = {
@@ -685,6 +798,9 @@ namespace js
 
     JS_NewClassID(&rpc_class_id);
     rpc_class_def.class_name = "RPC";
+
+    JS_NewClassID(&host_class_id);
+    host_class_def.class_name = "Host";
   }
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -865,12 +981,35 @@ namespace js
     JS_FreeValue(ctx, global_obj);
   }
 
+  static JSValue create_openenclave_obj(JSContext* ctx)
+  {
+    auto openenclave = JS_NewObject(ctx);
+
+    JS_SetPropertyStr(
+      ctx,
+      openenclave,
+      "verifyOpenEnclaveEvidence",
+      JS_NewCFunction(
+        ctx, js_verify_open_enclave_evidence, "verifyOpenEnclaveEvidence", 3));
+
+    return openenclave;
+  }
+
+  void populate_global_openenclave(JSContext* ctx)
+  {
+    auto global_obj = JS_GetGlobalObject(ctx);
+    JS_SetPropertyStr(
+      ctx, global_obj, "openenclave", create_openenclave_obj(ctx));
+    JS_FreeValue(ctx, global_obj);
+  }
+
   JSValue create_ccf_obj(
     TxContext* txctx,
     enclave::RpcContext* rpc_ctx,
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
+    ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     JSContext* ctx)
   {
@@ -909,8 +1048,15 @@ namespace js
     JS_SetPropertyStr(
       ctx,
       ccf,
-      "isValidX509Chain",
-      JS_NewCFunction(ctx, js_is_valid_pem, "isValidX509Chain", 1));
+      "isValidX509CertBundle",
+      JS_NewCFunction(
+        ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "isValidX509CertChain",
+      JS_NewCFunction(
+        ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
 
@@ -1029,6 +1175,20 @@ namespace js
           0));
     }
 
+    if (host_node_state != nullptr)
+    {
+      auto host = JS_NewObjectClass(ctx, host_class_id);
+      JS_SetOpaque(host, host_node_state);
+      JS_SetPropertyStr(ctx, ccf, "host", host);
+
+      JS_SetPropertyStr(
+        ctx,
+        host,
+        "triggerSubprocess",
+        JS_NewCFunction(
+          ctx, js_node_trigger_host_process_launch, "triggerSubprocess", 1));
+    }
+
     if (network_state != nullptr)
     {
       if (txctx == nullptr)
@@ -1071,6 +1231,7 @@ namespace js
     const std::optional<ccf::TxID>& transaction_id,
     ccf::historical::TxReceiptPtr receipt,
     ccf::AbstractNodeState* node_state,
+    ccf::AbstractNodeState* host_node_state,
     ccf::NetworkState* network_state,
     JSContext* ctx)
   {
@@ -1086,6 +1247,7 @@ namespace js
         transaction_id,
         receipt,
         node_state,
+        host_node_state,
         network_state,
         ctx));
 
@@ -1151,6 +1313,16 @@ namespace js
       {
         throw std::logic_error(
           "Failed to register JS class definition for rpc");
+      }
+    }
+
+    // Register class for host
+    {
+      auto ret = JS_NewClass(rt, host_class_id, &host_class_def);
+      if (ret != 0)
+      {
+        throw std::logic_error(
+          "Failed to register JS class definition for host");
       }
     }
   }

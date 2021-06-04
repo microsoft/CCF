@@ -1,4 +1,5 @@
 import { assert } from "chai";
+import * as crypto from "crypto";
 import "../src/polyfill.js";
 import {
   AesKwpParams,
@@ -6,7 +7,11 @@ import {
   RsaOaepAesKwpParams,
   RsaOaepParams,
 } from "../src/global.js";
-import { unwrapKey } from "./crypto.js";
+import {
+  unwrapKey,
+  generateSelfSignedCert,
+  generateCertChain,
+} from "./crypto.js";
 
 beforeEach(function () {
   // clear KV before each test
@@ -100,6 +105,45 @@ describe("polyfill", function () {
       const digest = ccf.digest("SHA-256", ccf.strToBuf(data));
       const actual = Buffer.from(digest).toString("hex");
       assert.equal(actual, expected);
+    });
+  });
+  describe("isValidX509CertBundle", function (this) {
+    const supported = "X509Certificate" in crypto;
+    it("returns true for valid certs", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pem1 = generateSelfSignedCert();
+      const pem2 = generateSelfSignedCert();
+      assert.isTrue(ccf.isValidX509CertBundle(pem1));
+      assert.isTrue(ccf.isValidX509CertBundle(pem1 + "\n" + pem2));
+    });
+    it("returns false for invalid certs", function () {
+      if (!supported) {
+        this.skip();
+      }
+      assert.isFalse(ccf.isValidX509CertBundle("garbage"));
+    });
+  });
+  describe("isValidX509CertChain", function (this) {
+    const supported = "X509Certificate" in crypto;
+    it("returns true for valid cert chains", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pems = generateCertChain(3);
+      const chain = [pems[0], pems[1]].join("\n");
+      const trusted = pems[2];
+      assert.isTrue(ccf.isValidX509CertChain(chain, trusted));
+    });
+    it("returns false for invalid cert chains", function () {
+      if (!supported) {
+        this.skip();
+      }
+      const pems = generateCertChain(3);
+      const chain = pems[0];
+      const trusted = pems[2];
+      assert.isFalse(ccf.isValidX509CertChain(chain, trusted));
     });
   });
   describe("kv", function () {

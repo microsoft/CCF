@@ -27,6 +27,18 @@ Map
 .. doxygentypedef:: kv::Map
    :project: CCF
 
+.. doxygenclass:: kv::TypedValue
+   :project: CCF
+
+.. doxygentypedef:: kv::Value
+   :project: CCF
+
+.. doxygenclass:: kv::TypedSet
+   :project: CCF
+
+.. doxygentypedef:: kv::Set
+   :project: CCF
+
 Transaction
 -----------
 
@@ -38,16 +50,38 @@ Transaction
    :project: CCF
    :members: rw, ro, wo
 
-Handle
-------
+Handles
+-------
 
 .. doxygenclass:: kv::ReadableMapHandle
    :project: CCF
-   :members: get, has, foreach, get_version_of_previous_write
+   :members:
 
 .. doxygenclass:: kv::WriteableMapHandle
    :project: CCF
-   :members: put, remove
+   :members:
 
 .. doxygenclass:: kv::MapHandle
+   :project: CCF
+
+.. doxygenclass:: kv::ReadableValueHandle
+   :project: CCF
+   :members:
+
+.. doxygenclass:: kv::WriteableValueHandle
+   :project: CCF
+   :members:
+
+.. doxygenclass:: kv::ValueHandle
+   :project: CCF
+
+.. doxygenclass:: kv::ReadableSetHandle
+   :project: CCF
+   :members:
+
+.. doxygenclass:: kv::WriteableSetHandle
+   :project: CCF
+   :members:
+
+.. doxygenclass:: kv::SetHandle
    :project: CCF

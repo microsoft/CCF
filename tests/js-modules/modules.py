@@ -70,7 +70,7 @@ def test_app_bundle(network, args):
 
         assert (
             raw_module_name
-            in primary.get_ledger_public_state_at(set_js_proposal.completed_seqno)[
+            in network.get_ledger_public_state_at(set_js_proposal.completed_seqno)[
                 "public:ccf.gov.modules"
             ]
         ), "Module was not added"
@@ -101,7 +101,7 @@ def test_app_bundle(network, args):
         assert r.status_code == http.HTTPStatus.NOT_FOUND, r.status_code
 
     assert (
-        primary.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
+        network.get_ledger_public_state_at(remove_js_proposal.completed_seqno)[
             "public:ccf.gov.modules"
         ][raw_module_name]
         is None
@@ -186,7 +186,7 @@ def test_npm_app(network, args):
 
     LOG.info("Building ccf-app npm package (dependency)")
     ccf_pkg_dir = os.path.join(PARENT_DIR, "..", "js", "ccf-app")
-    subprocess.run(["npm", "install"], cwd=ccf_pkg_dir, check=True)
+    subprocess.run(["npm", "install", "--no-package-lock"], cwd=ccf_pkg_dir, check=True)
 
     LOG.info("Building npm app")
     app_dir = os.path.join(PARENT_DIR, "npm-app")
@@ -323,7 +323,7 @@ def test_npm_app(network, args):
 
         r = c.post("/app/rpc/apply_writes")
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
-        val = primary.get_ledger_public_state_at(r.seqno)["public:apply_writes"][
+        val = network.get_ledger_public_state_at(r.seqno)["public:apply_writes"][
             "foo".encode()
         ]
         assert val == b"bar", val
@@ -347,6 +347,80 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         body = r.body.json()
         assert body["msg"].startswith("token signing key not found"), r.body
+
+        priv_key_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem = infra.crypto.generate_cert(priv_key_pem)
+        r = c.post("/app/isValidX509CertBundle", pem)
+        assert r.body.json(), r.body
+        r = c.post("/app/isValidX509CertBundle", pem + "\n" + pem)
+        assert r.body.json(), r.body
+        r = c.post("/app/isValidX509CertBundle", "garbage")
+        assert not r.body.json(), r.body
+
+        priv_key_pem1, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem1 = infra.crypto.generate_cert(priv_key_pem1, cn="1", ca=True)
+        priv_key_pem2, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem2 = infra.crypto.generate_cert(
+            priv_key_pem2,
+            cn="2",
+            ca=True,
+            issuer_priv_key_pem=priv_key_pem1,
+            issuer_cn="1",
+        )
+        priv_key_pem3, _ = infra.crypto.generate_rsa_keypair(2048)
+        pem3 = infra.crypto.generate_cert(
+            priv_key_pem3, cn="3", issuer_priv_key_pem=priv_key_pem2, issuer_cn="2"
+        )
+        # validates chains with target being trusted directly
+        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem3})
+        assert r.body.json(), r.body
+        # validates chains without intermediates
+        r = c.post("/app/isValidX509CertChain", {"chain": pem2, "trusted": pem1})
+        assert r.body.json(), r.body
+        # validates chains with intermediates
+        r = c.post(
+            "/app/isValidX509CertChain", {"chain": pem3 + "\n" + pem2, "trusted": pem1}
+        )
+        assert r.body.json(), r.body
+        # validates partial chains (pem2 is an intermediate)
+        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem2})
+        assert r.body.json(), r.body
+        # fails to reach trust anchor
+        r = c.post("/app/isValidX509CertChain", {"chain": pem3, "trusted": pem1})
+        assert not r.body.json(), r.body
+
+        r = c.get("/node/quotes/self")
+        primary_quote_info = r.body.json()
+        if not primary_quote_info["raw"]:
+            LOG.info("Skipping /app/verifyOpenEnclaveEvidence test, virtual mode")
+        else:
+            # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
+            OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
+            r = c.post(
+                "/app/verifyOpenEnclaveEvidence",
+                {
+                    "format": OE_FORMAT_UUID_SGX_ECDSA,
+                    "evidence": primary_quote_info["raw"],
+                    "endorsements": primary_quote_info["endorsements"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            body = r.body.json()
+            assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
+            assert "sgx_report_data" in body["customClaims"], body
+
+            # again but without endorsements
+            r = c.post(
+                "/app/verifyOpenEnclaveEvidence",
+                {
+                    "format": OE_FORMAT_UUID_SGX_ECDSA,
+                    "evidence": primary_quote_info["raw"],
+                },
+            )
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            body = r.body.json()
+            assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
+            assert "sgx_report_data" in body["customClaims"], body
 
         validate_openapi(c)
 

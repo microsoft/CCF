@@ -7,6 +7,8 @@
 #include "dns.h"
 #include "proxy.h"
 
+#include <optional>
+
 namespace asynchost
 {
   class TCPImpl;
@@ -25,6 +27,7 @@ namespace asynchost
       LOG_INFO_FMT("Listening on {}:{}", host, service);
     }
     virtual void on_accept(TCP&) {}
+    virtual void on_bind_failed() {}
     virtual void on_connect() {}
     virtual void on_connect_failed() {}
     virtual void on_read(size_t, uint8_t*&) {}
@@ -62,6 +65,8 @@ namespace asynchost
       FRESH,
       LISTENING_RESOLVING,
       LISTENING,
+      BINDING,
+      BINDING_FAILED,
       CONNECTING_RESOLVING,
       CONNECTING,
       CONNECTED,
@@ -90,12 +95,17 @@ namespace asynchost
       }
     };
 
+    bool is_client;
+    size_t connection_timeout = 0;
     Status status;
     std::unique_ptr<TCPBehaviour> behaviour;
     std::vector<PendingWrite> pending_writes;
 
     std::string host;
     std::string service;
+    std::optional<std::string> client_host = std::nullopt;
+
+    addrinfo* client_addr_base = nullptr;
     addrinfo* addr_base = nullptr;
     addrinfo* addr_current = nullptr;
 
@@ -119,10 +129,15 @@ namespace asynchost
       }
     }
 
-    TCPImpl() : status(FRESH)
+    TCPImpl(bool is_client_ = false, size_t connection_timeout_ = 0) :
+      is_client(is_client_),
+      connection_timeout(connection_timeout_),
+      status(FRESH)
     {
       if (!init())
+      {
         throw std::logic_error("uv tcp initialization failed");
+      }
 
       uv_handle.data = this;
     }
@@ -130,7 +145,13 @@ namespace asynchost
     ~TCPImpl()
     {
       if (addr_base != nullptr)
+      {
         uv_freeaddrinfo(addr_base);
+      }
+      if (client_addr_base != nullptr)
+      {
+        uv_freeaddrinfo(client_addr_base);
+      }
     }
 
   public:
@@ -154,16 +175,102 @@ namespace asynchost
       return service;
     }
 
-    bool connect(const std::string& host, const std::string& service)
+    void client_bind()
     {
-      assert_status(FRESH, CONNECTING_RESOLVING);
-      return resolve(host, service, false);
+      int rc;
+      if ((rc = uv_tcp_bind(&uv_handle, client_addr_base->ai_addr, 0)) < 0)
+      {
+        assert_status(BINDING, BINDING_FAILED);
+        LOG_FAIL_FMT("uv_tcp_bind failed: {}", uv_strerror(rc));
+        behaviour->on_bind_failed();
+      }
+      else
+      {
+        assert_status(BINDING, CONNECTING_RESOLVING);
+        if (addr_current != nullptr)
+        {
+          connect_resolved();
+        }
+        else
+        {
+          resolve(this->host, this->service, false);
+        }
+      }
+    }
+
+    static void on_client_resolved(
+      uv_getaddrinfo_t* req, int rc, struct addrinfo*)
+    {
+      static_cast<TCPImpl*>(req->data)->on_client_resolved(req, rc);
+    }
+
+    void on_client_resolved(uv_getaddrinfo_t* req, int rc)
+    {
+      if (!uv_is_closing((uv_handle_t*)&uv_handle))
+      {
+        if (rc < 0)
+        {
+          assert_status(BINDING, BINDING_FAILED);
+          LOG_DEBUG_FMT("TCP client resolve failed: {}", uv_strerror(rc));
+          behaviour->on_bind_failed();
+        }
+        else
+        {
+          client_addr_base = req->addrinfo;
+          client_bind();
+        }
+      }
+
+      delete req;
+    }
+
+    bool connect(
+      const std::string& host,
+      const std::string& service,
+      const std::optional<std::string>& client_host = std::nullopt)
+    {
+      // If a client host is set, bind to this first. Otherwise, connect
+      // straight away.
+      if (client_host.has_value())
+      {
+        this->client_host = client_host;
+        this->host = host;
+        this->service = service;
+
+        if (client_addr_base != nullptr)
+        {
+          uv_freeaddrinfo(client_addr_base);
+          client_addr_base = nullptr;
+        }
+
+        status = BINDING;
+        if (!DNS::resolve(
+              client_host.value(), "0", this, on_client_resolved, false))
+        {
+          status = BINDING_FAILED;
+          return false;
+        }
+      }
+      else
+      {
+        assert_status(FRESH, CONNECTING_RESOLVING);
+        return resolve(host, service, false);
+      }
+
+      return true;
     }
 
     bool reconnect()
     {
       switch (status)
       {
+        case BINDING_FAILED:
+        {
+          // Try again, from the start.
+          LOG_DEBUG_FMT("Reconnect from initial state");
+          assert_status(BINDING_FAILED, BINDING);
+          return connect(host, service, client_host);
+        }
         case RESOLVING_FAILED:
         case CONNECTING_FAILED:
         {
@@ -214,6 +321,8 @@ namespace asynchost
 
       switch (status)
       {
+        case BINDING:
+        case BINDING_FAILED:
         case CONNECTING_RESOLVING:
         case CONNECTING:
         case RESOLVING_FAILED:
@@ -251,12 +360,35 @@ namespace asynchost
     bool init()
     {
       assert_status(FRESH, FRESH);
-      int rc;
 
+      int rc;
       if ((rc = uv_tcp_init(uv_default_loop(), &uv_handle)) < 0)
       {
         LOG_FAIL_FMT("uv_tcp_init failed: {}", uv_strerror(rc));
         return false;
+      }
+
+      if (is_client)
+      {
+        uv_os_sock_t sock;
+        if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+        {
+          LOG_FAIL_FMT("socket creation failed: {}", strerror(errno));
+          return false;
+        }
+
+        setsockopt(
+          sock,
+          IPPROTO_TCP,
+          TCP_USER_TIMEOUT,
+          &connection_timeout,
+          sizeof(connection_timeout));
+
+        if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
+        {
+          LOG_FAIL_FMT("uv_tcp_open failed: {}", uv_strerror(rc));
+          return false;
+        }
       }
 
       if ((rc = uv_tcp_keepalive(&uv_handle, 1, 30)) < 0)
@@ -452,6 +584,7 @@ namespace asynchost
       // uv_close cb will abort).
       if (uv_is_closing((uv_handle_t*)&uv_handle))
       {
+        LOG_DEBUG_FMT("on_resolved: closing");
         uv_freeaddrinfo(req->addrinfo);
         delete req;
         return;
@@ -460,7 +593,7 @@ namespace asynchost
       if (rc < 0)
       {
         status = RESOLVING_FAILED;
-        LOG_TRACE_FMT("TCP resolve failed: {}", uv_strerror(rc));
+        LOG_DEBUG_FMT("TCP resolve failed: {}", uv_strerror(rc));
         behaviour->on_resolve_failed();
       }
       else
@@ -528,6 +661,14 @@ namespace asynchost
     {
       auto self = static_cast<TCPImpl*>(req->handle->data);
       delete req;
+
+      if (rc == UV_ECANCELED)
+      {
+        // Break reconnection loop early if cancelled
+        LOG_FAIL_FMT("on_connect: cancelled");
+        return;
+      }
+
       self->on_connect(rc);
     }
 
@@ -546,7 +687,9 @@ namespace asynchost
         assert_status(CONNECTING, CONNECTED);
 
         if (!read_start())
+        {
           return;
+        }
 
         for (auto& w : pending_writes)
         {
@@ -569,7 +712,9 @@ namespace asynchost
         LOG_FAIL_FMT("uv_read_start failed: {}", uv_strerror(rc));
 
         if (behaviour)
+        {
           behaviour->on_disconnect();
+        }
 
         return false;
       }
@@ -672,8 +817,16 @@ namespace asynchost
         return;
       }
 
-      assert_status(FRESH, CONNECTING_RESOLVING);
-      connect_resolved();
+      if (client_addr_base != nullptr)
+      {
+        assert_status(FRESH, BINDING);
+        client_bind();
+      }
+      else
+      {
+        assert_status(FRESH, CONNECTING_RESOLVING);
+        connect_resolved();
+      }
     }
   };
 

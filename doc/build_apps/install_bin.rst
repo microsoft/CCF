@@ -23,7 +23,7 @@ These dependencies can be conveniently installed using the ``ansible`` playbooks
 
     $ cd <ccf_path>/getting_started/setup_vm/
     $ ./run.sh driver.yml # Only on SGX-enabled hardware
-    $ ./run.sh app-run.yml
+    $ ./run.sh app-dev.yml
 
 Install
 -------
@@ -34,7 +34,10 @@ The CCF Debian package (``ccf_<version>_amd64.deb``) contains the libraries and 
 
 .. code-block:: bash
 
-    $ export CCF_VERSION=0.14.0
+    # Set CCF_VERSION to most recent release
+    $ export CCF_VERSION=$(curl -ILs -o /dev/null -w %{url_effective} https://github.com/microsoft/CCF/releases/latest | sed 's/^.*ccf-//')
+    # Alternatively, set this manually, e.g.
+    # export CCF_VERSION=1.0.0
     $ wget https://github.com/microsoft/CCF/releases/download/ccf-${CCF_VERSION}/ccf_${CCF_VERSION}_amd64.deb
     $ sudo apt install ./ccf_${CCF_VERSION}_amd64.deb
 
@@ -42,10 +45,10 @@ Assuming that CCF was installed under ``/opt``, the following commands can be ru
 
 .. code-block:: bash
 
-    $ /opt/ccf-${CCF_VERSION}/bin/cchost --version
+    $ /opt/ccf/bin/cchost --version
     CCF host: ccf-<version>
 
-    $ /opt/ccf-${CCF_VERSION}/bin/sandbox.sh
+    $ /opt/ccf/bin/sandbox.sh
     No package/app specified. Defaulting to installed JS logging app
     Setting up Python environment...
     Python environment successfully setup

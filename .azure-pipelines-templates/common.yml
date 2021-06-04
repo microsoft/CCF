@@ -6,6 +6,10 @@ jobs:
     ${{ insert }}: ${{ parameters.env }}
 
     steps:
+      - script: |
+          sudo rm -rf build
+        displayName: "Cleanup"
+
       - checkout: self
         clean: true
         fetchDepth: 10000
@@ -20,6 +24,7 @@ jobs:
 
       - template: test.yml
         parameters:
+          suffix: ${{ parameters.suffix }}
           ctest_filter: ${{ parameters.ctest_filter }}
           suite_name_suffix: "${{ parameters.target }} ${{ parameters.suffix }}"
           ctest_timeout: ${{ parameters.ctest_timeout }}

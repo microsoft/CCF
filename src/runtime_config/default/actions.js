@@ -124,15 +124,15 @@ function checkJwks(value, field) {
         "-----BEGIN CERTIFICATE-----\n" +
         b64der +
         "\n-----END CERTIFICATE-----";
-      checkX509CertChain(pem, `${field}.keys[${i}].x5c[${j}]`);
+      checkX509CertBundle(pem, `${field}.keys[${i}].x5c[${j}]`);
     }
   }
 }
 
-function checkX509CertChain(value, field) {
-  if (!ccf.isValidX509Chain(value)) {
+function checkX509CertBundle(value, field) {
+  if (!ccf.isValidX509CertBundle(value)) {
     throw new Error(
-      `${field} must be a valid X509 certificate (chain) in PEM format`
+      `${field} must be a valid X509 certificate (bundle) in PEM format`
     );
   }
 }
@@ -174,7 +174,7 @@ const actions = new Map([
     "set_member",
     new Action(
       function (args) {
-        checkX509CertChain(args.cert, "cert");
+        checkX509CertBundle(args.cert, "cert");
         checkType(args.member_data, "object?", "member_data");
         // Also check that public encryption key is well formed, if it exists
       },
@@ -232,9 +232,8 @@ const actions = new Map([
       },
       function (args) {
         const rawMemberId = ccf.strToBuf(args.member_id);
-        const rawMemberInfo = ccf.kv["public:ccf.gov.members.info"].get(
-          rawMemberId
-        );
+        const rawMemberInfo =
+          ccf.kv["public:ccf.gov.members.info"].get(rawMemberId);
         if (rawMemberInfo === undefined) {
           return; // Idempotent
         }
@@ -311,7 +310,7 @@ const actions = new Map([
     "set_user",
     new Action(
       function (args) {
-        checkX509CertChain(args.cert, "cert");
+        checkX509CertBundle(args.cert, "cert");
         checkType(args.user_data, "object?", "user_data");
       },
       function (args) {
@@ -571,7 +570,7 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.name, "string", "name");
-        checkX509CertChain(args.cert_bundle, "cert_bundle");
+        checkX509CertBundle(args.cert_bundle, "cert_bundle");
       },
       function (args) {
         const name = args.name;
@@ -741,7 +740,8 @@ const actions = new Map([
         const nodeInfo = ccf.bufToJsonCompatible(node);
         if (nodeInfo.status === "Pending") {
           nodeInfo.status = "Trusted";
-          nodeInfo.ledger_secret_seqno = ccf.network.getLatestLedgerSecretSeqno();
+          nodeInfo.ledger_secret_seqno =
+            ccf.network.getLatestLedgerSecretSeqno();
           ccf.kv["public:ccf.gov.nodes.info"].set(
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(nodeInfo)

@@ -4,12 +4,11 @@ import infra.e2e_args
 import infra.network
 import infra.proc
 import infra.logging_app as app
-from ccf.tx_id import TxID
 import suite.test_requirements as reqs
-import time
 import tempfile
 from shutil import copy
 import os
+from infra.checker import check_can_progress
 
 from loguru import logger as LOG
 
@@ -34,23 +33,6 @@ def count_nodes(configs, network):
     return len(nodes)
 
 
-def check_can_progress(node, timeout=3):
-    with node.client() as c:
-        r = c.get("/node/commit")
-        original_tx = TxID.from_str(r.body.json()["transaction_id"])
-        with node.client("user0") as uc:
-            uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            current_tx = TxID.from_str(
-                c.get("/node/commit").body.json()["transaction_id"]
-            )
-            if current_tx.seqno > original_tx.seqno:
-                return
-            time.sleep(0.1)
-        assert False, f"Stuck at {r}"
-
-
 @reqs.description("Adding a valid node without snapshot")
 def test_add_node(network, args):
     new_node = network.create_and_trust_node(
@@ -66,6 +48,32 @@ def test_add_node(network, args):
             s.body.json()["startup_seqno"] == 0
         ), "Node started without snapshot but reports startup seqno != 0"
     assert new_node
+    return network
+
+
+@reqs.description("Adding a node on different curve")
+def test_add_node_on_other_curve(network, args):
+    original_curve = args.curve_id
+    args.curve_id = (
+        infra.network.EllipticCurve.secp256r1
+        if original_curve is None
+        else original_curve.next()
+    )
+    network = test_add_node(network, args)
+    args.curve_id = original_curve
+    return network
+
+
+@reqs.description("Changing curve used for identity of new nodes and new services")
+def test_change_curve(network, args):
+    # NB: This doesn't actually test things, it just changes the configuration
+    # for future tests. Expects to be part of an interesting suite
+    original_curve = args.curve_id
+    args.curve_id = (
+        infra.network.EllipticCurve.secp256r1
+        if original_curve is None
+        else original_curve.next()
+    )
     return network
 
 
@@ -132,18 +140,25 @@ def test_add_node_from_snapshot(
 @reqs.supports_methods("log/private")
 def test_add_as_many_pending_nodes(network, args):
     # Should not change the raft consensus rules (i.e. majority)
+    primary, _ = network.find_primary()
     number_new_nodes = len(network.nodes)
     LOG.info(
         f"Adding {number_new_nodes} pending nodes - consensus rules should not change"
     )
 
-    for _ in range(number_new_nodes):
+    new_nodes = [
         network.create_and_add_pending_node(
             args.package,
             "local://localhost",
             args,
         )
-    check_can_progress(network.find_primary()[0])
+        for _ in range(number_new_nodes)
+    ]
+    check_can_progress(primary)
+
+    for new_node in new_nodes:
+        network.consortium.retire_node(primary, new_node)
+        network.nodes.remove(new_node)
     return network
 
 
@@ -166,8 +181,7 @@ def test_retire_primary(network, args):
 
     primary, backup = network.find_primary_and_any_backup()
     network.consortium.retire_node(primary, primary)
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    network.wait_for_new_primary(primary)
     check_can_progress(backup)
     network.nodes.remove(primary)
     post_count = count_nodes(node_configs(network), network)
@@ -209,8 +223,100 @@ def test_node_filter(network, args):
     return network
 
 
+@reqs.description("Get node CCF version")
+def test_version(network, args):
+    nodes = network.get_joined_nodes()
+
+    for node in nodes:
+        with node.client() as c:
+            r = c.get("/node/version")
+            assert r.body.json()["ccf_version"] == args.ccf_version
+
+
+@reqs.description("Replace a node on the same addresses")
+@reqs.at_least_n_nodes(3)  # Should be at_least_f_failures(1)
+def test_node_replacement(network, args):
+    primary, backups = network.find_nodes()
+
+    nodes = network.get_joined_nodes()
+    node_to_replace = backups[-1]
+    f = infra.e2e_args.max_f(args, len(nodes))
+    f_backups = backups[:f]
+
+    # Retire one node
+    network.consortium.retire_node(primary, node_to_replace)
+    node_to_replace.stop()
+    network.nodes.remove(node_to_replace)
+    check_can_progress(primary)
+
+    # Add in a node using the same address
+    replacement_node = network.create_and_trust_node(
+        args.package,
+        f"local://{node_to_replace.host}:{node_to_replace.rpc_port}",
+        args,
+        node_port=node_to_replace.node_port,
+        from_snapshot=False,
+    )
+
+    assert replacement_node.node_id != node_to_replace.node_id
+    assert replacement_node.host == node_to_replace.host
+    assert replacement_node.node_port == node_to_replace.node_port
+    assert replacement_node.rpc_port == node_to_replace.rpc_port
+    LOG.info(
+        f"Stopping {len(f_backups)} other nodes to make progress depend on the replacement"
+    )
+    for other_backup in f_backups:
+        other_backup.suspend()
+    # Confirm the network can make progress
+    check_can_progress(primary)
+    for other_backup in f_backups:
+        other_backup.resume()
+
+    return network
+
+
+@reqs.description("Join straddling a primary retirement")
+@reqs.at_least_n_nodes(3)
+def test_join_straddling_primary_replacement(network, args):
+    # We need a fourth node before we attempt the replacement, otherwise
+    # we will reach a situation where two out four nodes in the voting quorum
+    # are unable to participate (one retired and one not yet joined).
+    test_add_node(network, args)
+    primary, _ = network.find_primary()
+    new_node = network.create_and_add_pending_node(
+        args.package, "local://localhost", args
+    )
+
+    proposal_body = {
+        "actions": [
+            {
+                "name": "transition_node_to_trusted",
+                "args": {"node_id": new_node.node_id},
+            },
+            {"name": "remove_node", "args": {"node_id": primary.node_id}},
+        ]
+    }
+
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(
+        primary,
+        proposal,
+        {"ballot": "export function vote (proposal, proposer_id) { return true }"},
+        timeout=10,
+    )
+
+    network.wait_for_new_primary(primary)
+    new_node.wait_for_node_to_join(timeout=10)
+
+    primary.stop()
+    network.nodes.remove(primary)
+    return network
+
+
 def run(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -221,8 +327,12 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        test_join_straddling_primary_replacement(network, args)
+        test_version(network, args)
+        test_node_replacement(network, args)
         test_add_node_from_backup(network, args)
         test_add_node(network, args)
+        test_add_node_on_other_curve(network, args)
         test_retire_backup(network, args)
         test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
@@ -242,7 +352,7 @@ def run(args):
 
 
 def run_join_old_snapshot(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     nodes = ["local://localhost"]
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -282,7 +392,7 @@ def run_join_old_snapshot(args):
             # Kill primary and wait for a new one: new primary is
             # guaranteed to have started from the new snapshot
             primary.stop()
-            network.wait_for_new_primary(primary.node_id)
+            network.wait_for_new_primary(primary)
 
             # Start new node from the old snapshot
             try:
@@ -301,9 +411,16 @@ def run_join_old_snapshot(args):
 
 if __name__ == "__main__":
 
-    args = infra.e2e_args.cli_args()
+    def add(parser):
+        parser.add_argument(
+            "--ccf-version",
+            help="Expected CCF version",
+            type=str,
+        )
+
+    args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.initial_user_count = 1
 
     run(args)
