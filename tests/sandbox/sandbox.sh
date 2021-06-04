@@ -7,7 +7,7 @@ set -e
 VENV_DIR=${VENV_DIR:-.venv_ccf_sandbox}
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
-VERSION_FILE="${PATH_HERE}"/../share/VERSION
+VERSION_FILE="${PATH_HERE}"/../share/VERSION_LONG
 
 is_package_specified=false
 is_js_bundle_specified=false
@@ -48,6 +48,7 @@ if [ -f "${VERSION_FILE}" ]; then
     BINARY_DIR=${PATH_HERE}
     START_NETWORK_SCRIPT="${PATH_HERE}"/start_network.py
     VERSION=$(<"${VERSION_FILE}")
+    VERSION=${VERSION#"ccf-"}
     if [ ${is_package_specified} == false ] && [ ${is_js_bundle_specified} == false ]; then
         # Only on install tree, default to installed js logging app
         echo "No package/app specified. Defaulting to installed JS logging app"
