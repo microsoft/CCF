@@ -250,9 +250,10 @@ namespace ccf
       auto r = tx.commit();
       if (r != kv::CommitResult::SUCCESS)
       {
-        LOG_FAIL_FMT("Failed to write new_view, view:{}", new_view.view);
-        throw ccf_logic_error(
-          fmt::format("Failed to write new_view, view:{}", new_view.view));
+        std::string msg =
+          fmt::format("Failed to write new_view, view:{}", new_view.view);
+        LOG_FAIL_FMT("{}", msg);
+        throw ccf_logic_error(msg);
       }
 
       return tx.commit_version();
