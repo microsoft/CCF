@@ -140,6 +140,25 @@ class PublicDomain:
         view_history_size = self._read_size()
         self._view_history = unpack_array(self._buffer, "<Q", view_history_size)
 
+    def _read_snapshot_key(self):
+        size = self._read_size()
+        key = self._buffer.read(size)
+        LOG.error(key)
+        padding = 8 - (size % 8) if (size % 8) else 0
+        LOG.info(f"Padding: {padding}, size: {size}")
+        self._buffer.read(padding)
+        return key
+
+    def _read_snapshot_versioned_value(self):
+        size = self._read_size()
+        LOG.success(self._read_version())
+        value = self._buffer.read(size - 8)
+        padding = 8 - (size % 8) if (size % 8) else 0
+        LOG.success(f"Padding: {padding}, size: {size}")
+        self._buffer.read(padding)
+        LOG.error(f"Value: {value}")
+        return value
+
     def _read(self):
         while True:
             try:
@@ -149,39 +168,21 @@ class PublicDomain:
                 break
 
             records = {}
+            LOG.success(f"Map: {map_name}")
             self._tables[map_name] = records
 
             if self._is_snapshot:
                 # map snapshot version
                 LOG.error(self._read_version())
 
-                # overall size of map entry
+                # size of map entry
                 map_size = self._read_size()
-
-                LOG.success(f"Map size: {map_size}")
-
                 start_map_pos = self._buffer.tell()
-                LOG.warning(f"start pos: {start_map_pos}")
 
                 while self._buffer.tell() - start_map_pos < map_size:
-                    # read key
-                    size = self._read_size()
-                    key = self._buffer.read(size)
-                    LOG.error(key)
-                    padding = 8 - (size % 8) if (size % 8) else 0
-                    LOG.success(f"Padding: {padding}, size: {size}")
-                    self._buffer.read(padding)
-
-                    # read valueV
-                    size = self._read_size()
-                    LOG.success(self._read_version())
-                    value = self._buffer.read(size - 8)
-                    padding = 8 - (size % 8) if (size % 8) else 0
-                    LOG.success(f"Padding: {padding}, size: {size}")
-                    self._buffer.read(padding)
-                    LOG.error(f"Value: {value}")
-                    input("")
-                    # LOG.success("Size: {}", size)
+                    k = self._read_snapshot_key()
+                    val = self._read_snapshot_versioned_value()
+                    records[k] = val
 
             else:
                 # read_version
@@ -577,6 +578,10 @@ class Snapshot:
         self._read_header()
 
     def _read_header(self):
+        # read the transaction header
+        buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
+        self._header = TransactionHeader(buffer)
+
         # read the AES GCM header
         buffer = _byte_read_safe(self._file, GcmHeader.size())
         self.gcm_header = GcmHeader(buffer)
@@ -598,6 +603,14 @@ class Snapshot:
             buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
             self._public_domain = PublicDomain(buffer)
         return self._public_domain
+
+    def get_private_domain_size(self) -> int:
+        """
+        Retrieve the size of the private (i.e. encrypted) domain for that transaction.
+        """
+        return self._header.size - (
+            GcmHeader.size() + LEDGER_DOMAIN_SIZE + self._public_domain_size
+        )
 
     def __del__(self):
         self._file.close()
