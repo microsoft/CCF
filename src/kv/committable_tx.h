@@ -70,14 +70,18 @@ namespace kv
         max_conflict_version = version - 1;
       }
 
+      /*
       ccf::View serialiser_view = view;
       if (replicated_view.has_value())
       {
         serialiser_view = replicated_view.value();
       }
+      */
 
+      // KvStoreSerialiser replicated_serialiser(
+      //  e, {serialiser_view, version}, max_conflict_version);
       KvStoreSerialiser replicated_serialiser(
-        e, {serialiser_view, version}, max_conflict_version);
+        e, {view, version}, max_conflict_version);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -300,7 +304,7 @@ namespace kv
 
     void set_replicated_view(ccf::View view_)
     {
-      replicated_view = view_;
+      view = view_;
     }
 
     void set_req_id(const kv::TxHistory::RequestID& req_id_)

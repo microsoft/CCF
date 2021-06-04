@@ -949,7 +949,7 @@ namespace kv
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
-        if (txid.term != term)
+        if (txid.term != term && consensus->is_primary())
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
