@@ -147,7 +147,7 @@ class PublicDomain:
         self._view_history = unpack_array(self._buffer, "<Q", view_history_size)
 
     def _read_snapshot_entry_padding(self, size):
-        padding = -size % 8  # Pad to 8 bytes
+        padding = -size % 8  # Padded to 8 bytes
         self._buffer.read(padding)
 
     def _read_snapshot_key(self):
@@ -493,21 +493,15 @@ class Transaction(Entry):
     A transaction represents one entry in the CCF ledger.
     """
 
-    _file: Optional[BinaryIO] = None
-    _header: TransactionHeader
-    _public_domain_size: int = 0
     _next_offset: int = LEDGER_HEADER_SIZE
-    _public_domain: Optional[PublicDomain] = None
-    _file_size: int = 0
-    gcm_header: Optional[GcmHeader] = None
     _tx_offset: int = 0
-    _ledger_validator: LedgerValidator
+    _ledger_validator: Optional[LedgerValidator] = None
 
-    def __init__(self, filename: str, ledger_validator: LedgerValidator = None):
+    def __init__(
+        self, filename: str, ledger_validator: Optional[LedgerValidator] = None
+    ):
+        super().__init__(filename)
         self._ledger_validator = ledger_validator
-        self._file = open(filename, mode="rb")
-        if self._file is None:
-            raise RuntimeError(f"Ledger file {filename} could not be opened")
 
         try:
             self._file_size = int.from_bytes(
@@ -574,10 +568,12 @@ class Transaction(Entry):
 
 
 class Snapshot(Entry):
+    """
+    Utility used to parse the content of a snapshot file.
+    """
+
     def __init__(self, filename: str):
-        self._file = open(filename, mode="rb")
-        if self._file is None:
-            raise RuntimeError(f"Snapshot file {filename} could not be opened")
+        super().__init__(filename)
         self._file_size = os.path.getsize(filename)
         super()._read_header()
 

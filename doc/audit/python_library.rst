@@ -21,7 +21,7 @@ This page describes the Python API of the :py:class:`ccf.ledger` module which ca
         ...
         Ledger verification complete. Found 15 signatures, and verified till 2.52
 
-    Or alternatively, ``read_ledger.py`` can parse the content of a snapshot file:
+    Alternatively, ``read_ledger.py`` can parse the content of a snapshot file:
 
     .. code-block:: bash
 
@@ -42,7 +42,7 @@ First, the path to the ledger directories should be set:
 
     ledger_dirs = ["</path/to/ledger/dir>"] # List of a single ledger directory
 
-.. note:: By default, ledger directories is created under the node directory.
+.. note:: By default, ledger directories are created under the node directory.
 
 Then, import the ledger module and instantiate a :py:class:`ccf.ledger` object:
 
