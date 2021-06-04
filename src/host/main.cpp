@@ -270,10 +270,8 @@ int main(int argc, char** argv)
       "--raft-election-timeout-ms",
       raft_election_timeout,
       "Raft election timeout in milliseconds. If a follower does not receive "
-      "any "
-      "heartbeat from the leader after this timeout, the follower triggers a "
-      "new "
-      "election.")
+      "any heartbeat from the leader after this timeout, the follower triggers "
+      "a new election.")
     ->capture_default_str();
 
   size_t bft_view_change_timeout = 5000;
@@ -283,8 +281,7 @@ int main(int argc, char** argv)
       bft_view_change_timeout,
       "bft view change timeout in milliseconds. If a backup does not receive "
       "the pre-prepare message for a request forwarded to the primary after "
-      "this "
-      "timeout, the backup triggers a new view change.")
+      "this timeout, the backup triggers a new view change.")
     ->capture_default_str();
 
   size_t bft_status_interval = 100;
@@ -296,6 +293,17 @@ int main(int argc, char** argv)
       "messages "
       "containing their status to all other known nodes at regular intervals "
       "defined by this timer interval.")
+    ->capture_default_str();
+
+  size_t client_connection_timeout = 2000;
+  app
+    .add_option(
+      "--client-connection-timeout-ms",
+      client_connection_timeout,
+      "TCP client connection timeout in milliseconds after which a"
+      "non-established client connection is automatically re-created. This "
+      "should be set to a significantly lower value than the "
+      "--raft-election-timeout-ms.")
     ->capture_default_str();
 
   size_t max_msg_size = 24;
@@ -656,7 +664,8 @@ int main(int argc, char** argv)
       writer_factory,
       node_address.hostname,
       node_address.port,
-      node_client_interface);
+      node_client_interface,
+      client_connection_timeout);
     if (!node_address_file.empty())
     {
       files::dump(
@@ -664,7 +673,7 @@ int main(int argc, char** argv)
         node_address_file);
     }
 
-    asynchost::RPCConnections rpc(writer_factory);
+    asynchost::RPCConnections rpc(writer_factory, client_connection_timeout);
     rpc.register_message_handlers(bp.get_dispatcher());
     rpc.listen(0, rpc_address.hostname, rpc_address.port);
     if (!rpc_address_file.empty())

@@ -293,6 +293,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="CCF version of local checkout",
         type=str,
     )
+    parser.add_argument(
+        "--client-connection-timeout-ms",
+        help="TCP client connection timeout in ms",
+        default=None,
+    )
 
     add(parser)
 

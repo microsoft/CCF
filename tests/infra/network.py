@@ -99,6 +99,7 @@ class Network:
         "jwt_key_refresh_interval_s",
         "common_read_only_ledger_dir",
         "curve_id",
+        "client_connection_timeout_ms",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -1053,8 +1054,6 @@ def network(
             raise
     finally:
         LOG.info("Stopping network")
-        # To prevent https://github.com/microsoft/CCF/issues/2571, at
-        # the cost of additional messages in the node logs
+        net.stop_all_nodes(skip_verification=True)
         if init_partitioner:
             net.partitioner.cleanup()
-        net.stop_all_nodes(skip_verification=False)

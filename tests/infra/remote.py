@@ -582,6 +582,7 @@ class CCFRemote(object):
         max_open_sessions_hard=None,
         jwt_key_refresh_interval_s=None,
         curve_id=None,
+        client_connection_timeout_ms=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -697,6 +698,9 @@ class CCFRemote(object):
 
         if curve_id is not None:
             cmd += [f"--curve-id={curve_id.name}"]
+
+        if client_connection_timeout_ms:
+            cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
 
         if start_type == StartType.new:
             cmd += [
