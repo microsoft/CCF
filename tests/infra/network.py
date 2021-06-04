@@ -904,7 +904,9 @@ class Network:
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
 
-    def wait_for_new_primary_in(self, expected_node_ids, nodes=None, timeout_multiplier=2):
+    def wait_for_new_primary_in(
+        self, expected_node_ids, nodes=None, timeout_multiplier=2
+    ):
         # We arbitrarily pick twice the election duration to protect ourselves against the somewhat
         # but not that rare cases when the first round of election fails (short timeout are particularly susceptible to this)
         timeout = self.election_duration * timeout_multiplier
