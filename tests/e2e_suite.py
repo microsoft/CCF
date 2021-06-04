@@ -148,7 +148,7 @@ def run(args):
 
         elapsed -= test_elapsed
 
-    network.stop_all_nodes()
+    network.stop_all_nodes(verbose_verification=False)
     jwt_server.stop()
 
     if success:

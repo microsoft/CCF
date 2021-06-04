@@ -4,33 +4,13 @@ import infra.e2e_args
 import infra.network
 import infra.path
 import infra.proc
+import infra.utils
 import suite.test_requirements as reqs
 import os
-import subprocess
-import hashlib
 from infra.checker import check_can_progress
 
+
 from loguru import logger as LOG
-
-
-def get_code_id(args, package):
-    lib_path = infra.path.build_lib_path(package, args.enclave_type)
-
-    if args.enclave_type == "virtual":
-        return hashlib.sha256(lib_path.encode()).hexdigest()
-    else:
-        res = subprocess.run(
-            [os.path.join(args.oe_binary, "oesign"), "dump", "-e", lib_path],
-            capture_output=True,
-            check=True,
-        )
-        lines = [
-            line
-            for line in res.stdout.decode().split(os.linesep)
-            if line.startswith("mrenclave=")
-        ]
-
-        return lines[0].split("=")[1]
 
 
 @reqs.description("Verify node evidence")
@@ -70,17 +50,15 @@ def test_add_node_with_bad_code(network, args):
         "liblogging" if args.package == "libjs_generic" else "libjs_generic"
     )
 
-    new_code_id = get_code_id(
-        args,
-        replacement_package,
+    new_code_id = infra.utils.get_code_id(
+        args.enclave_type, args.oe_binary, replacement_package
     )
 
     LOG.info(f"Adding a node with unsupported code id {new_code_id}")
     code_not_found_exception = None
     try:
-        network.create_and_add_pending_node(
-            replacement_package, "local://localhost", args, timeout=3
-        )
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, replacement_package, args, timeout=3)
     except infra.network.CodeIdNotFound as err:
         code_not_found_exception = err
 
@@ -101,8 +79,12 @@ def test_update_all_nodes(network, args):
 
     primary, _ = network.find_nodes()
 
-    first_code_id = get_code_id(args, args.package)
-    new_code_id = get_code_id(args, replacement_package)
+    first_code_id = infra.utils.get_code_id(
+        args.enclave_type, args.oe_binary, args.package
+    )
+    new_code_id = infra.utils.get_code_id(
+        args.enclave_type, args.oe_binary, replacement_package
+    )
 
     if args.enclave_type == "virtual":
         # Pretend this was already present
@@ -139,21 +121,20 @@ def test_update_all_nodes(network, args):
 
     LOG.info("Start fresh nodes running new code")
     for _ in range(0, len(old_nodes)):
-        new_node = network.create_and_trust_node(
-            replacement_package, "local://localhost", args
-        )
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, replacement_package, args)
+        network.trust_node(new_node, args)
         assert new_node
 
     LOG.info("Retire original nodes running old code")
     for node in old_nodes:
         primary, _ = network.find_nodes()
-        network.consortium.retire_node(primary, node)
+        network.retire_node(primary, node)
         # Elections take (much) longer than a backup removal which is just
         # a commit, so we need to adjust our timeout accordingly, hence this branch
         if node.node_id == primary.node_id:
             new_primary, _ = network.wait_for_new_primary(primary)
             primary = new_primary
-        network.nodes.remove(node)
         node.stop()
 
     LOG.info("Check the network is still functional")
@@ -174,7 +155,9 @@ def test_proposal_invalidation(network, args):
         pending_proposals.append(new_member_proposal.proposal_id)
 
     LOG.info("Add temporary code ID")
-    temp_code_id = get_code_id(args, get_replacement_package(args))
+    temp_code_id = infra.utils.get_code_id(
+        args.enclave_type, args.oe_binary, get_replacement_package(args)
+    )
     network.consortium.add_new_code(primary, temp_code_id)
 
     LOG.info("Confirm open proposals are dropped")

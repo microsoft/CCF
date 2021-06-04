@@ -8,3 +8,4 @@ openapi-spec-validator
 PyJWT
 docutils
 python-iptables
+PyGithub
