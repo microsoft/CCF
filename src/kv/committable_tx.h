@@ -70,16 +70,6 @@ namespace kv
         max_conflict_version = version - 1;
       }
 
-      /*
-      ccf::View serialiser_view = view;
-      if (replicated_view.has_value())
-      {
-        serialiser_view = replicated_view.value();
-      }
-      */
-
-      // KvStoreSerialiser replicated_serialiser(
-      //  e, {serialiser_view, version}, max_conflict_version);
       KvStoreSerialiser replicated_serialiser(
         e, {view, version}, max_conflict_version);
 

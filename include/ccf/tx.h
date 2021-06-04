@@ -69,7 +69,6 @@ namespace kv
     // std::optional with nullopt representing "not yet fetched".
     std::optional<Version> read_version = std::nullopt;
     ccf::View view = ccf::VIEW_UNKNOWN;
-    // std::optional<ccf::View> replicated_view;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
 
