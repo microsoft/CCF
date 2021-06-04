@@ -34,6 +34,9 @@ namespace ccfapp
     kv::Tx* tx;
   };
 
+  thread_local std::unordered_map<std::string, std::vector<uint8_t>>
+    module_bytecode_cache;
+
   static JSModuleDef* js_module_loader(
     JSContext* ctx, const char* module_name, void* opaque)
   {
@@ -44,36 +47,72 @@ namespace ccfapp
       module_name_kv.insert(0, "/");
     }
 
-    LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
+    JSValue module_val;
 
-    auto arg = (JSModuleLoaderArg*)opaque;
-
-    const auto modules = arg->tx->ro(arg->network->modules);
-    auto module = modules->get(module_name_kv);
-    if (!module.has_value())
+    if (module_bytecode_cache.count(module_name_kv) == 0)
     {
-      JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
-      return nullptr;
-    }
-    auto& js = module.value();
+      LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
 
-    const char* buf = js.c_str();
-    size_t buf_len = js.size();
-    JSValue func_val = JS_Eval(
-      ctx,
-      buf,
-      buf_len,
-      module_name,
-      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-    if (JS_IsException(func_val))
+      auto arg = (JSModuleLoaderArg*)opaque;
+
+      const auto modules = arg->tx->ro(arg->network->modules);
+      auto module = modules->get(module_name_kv);
+      if (!module.has_value())
+      {
+        JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
+        return nullptr;
+      }
+      auto& js = module.value();
+
+      const char* buf = js.c_str();
+      size_t buf_len = js.size();
+      module_val = JS_Eval(
+        ctx,
+        buf,
+        buf_len,
+        module_name,
+        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+      if (JS_IsException(module_val))
+      {
+        js::js_dump_error(ctx);
+        return nullptr;
+      }
+
+      uint8_t* out_buf;
+      size_t out_buf_len;
+      int flags = JS_WRITE_OBJ_BYTECODE;
+      out_buf = JS_WriteObject(ctx, &out_buf_len, module_val, flags);
+      if (!out_buf)
+      {
+        js::js_dump_error(ctx);
+        return nullptr;
+      }
+      module_bytecode_cache.insert(
+        {module_name_kv, std::vector<uint8_t>(out_buf, out_buf + out_buf_len)});
+      js_free(ctx, out_buf);
+    }
+    else
     {
-      js::js_dump_error(ctx);
-      return nullptr;
+      LOG_TRACE_FMT("Loading module from cache '{}'", module_name_kv);
+
+      auto& bytecode = module_bytecode_cache[module_name_kv];
+      module_val = JS_ReadObject(
+        ctx, bytecode.data(), bytecode.size(), JS_READ_OBJ_BYTECODE);
+      if (JS_IsException(module_val))
+      {
+        js::js_dump_error(ctx);
+        return nullptr;
+      }
+      if (JS_ResolveModule(ctx, module_val) < 0)
+      {
+        throw std::runtime_error(fmt::format(
+          "Failed to resolve module dependencies for {}", module_name_kv));
+      }
     }
 
-    auto m = (JSModuleDef*)JS_VALUE_GET_PTR(func_val);
+    auto m = (JSModuleDef*)JS_VALUE_GET_PTR(module_val);
     // module already referenced, decrement ref count
-    JS_FreeValue(ctx, func_val);
+    JS_FreeValue(ctx, module_val);
     return m;
   }
 

@@ -900,20 +900,63 @@ namespace js
     return function(code, "default", path);
   }
 
+  thread_local std::unordered_map<std::string, std::vector<uint8_t>>
+    module_bytecode_cache;
+
   JSValue Context::function(
     const std::string& code, const std::string& func, const std::string& path)
   {
-    JSValue module = JS_Eval(
-      ctx,
-      code.c_str(),
-      code.size(),
-      path.c_str(),
-      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    JSValue module;
 
-    if (JS_IsException(module))
+    if (module_bytecode_cache.count(path) == 0)
     {
-      js_dump_error(ctx);
-      throw std::runtime_error(fmt::format("Failed to compile {}", path));
+      LOG_TRACE_FMT("Loading entrypoint module '{}'", path);
+
+      module = JS_Eval(
+        ctx,
+        code.c_str(),
+        code.size(),
+        path.c_str(),
+        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+
+      if (JS_IsException(module))
+      {
+        js_dump_error(ctx);
+        throw std::runtime_error(fmt::format("Failed to compile {}", path));
+      }
+
+      uint8_t* out_buf;
+      size_t out_buf_len;
+      int flags = JS_WRITE_OBJ_BYTECODE;
+      out_buf = JS_WriteObject(ctx, &out_buf_len, module, flags);
+      if (!out_buf)
+      {
+        js::js_dump_error(ctx);
+        throw std::runtime_error(
+          fmt::format("Failed to serialize bytecode for {}", path));
+      }
+      module_bytecode_cache.insert(
+        {path, std::vector<uint8_t>(out_buf, out_buf + out_buf_len)});
+      js_free(ctx, out_buf);
+    }
+    else
+    {
+      LOG_TRACE_FMT("Loading entrypoint module from cache '{}'", path);
+
+      auto& bytecode = module_bytecode_cache[path];
+      module = JS_ReadObject(
+        ctx, bytecode.data(), bytecode.size(), JS_READ_OBJ_BYTECODE);
+      if (JS_IsException(module))
+      {
+        js::js_dump_error(ctx);
+        throw std::runtime_error(
+          fmt::format("Failed to deserialize bytecode for {}", path));
+      }
+      if (JS_ResolveModule(ctx, module) < 0)
+      {
+        throw std::runtime_error(
+          fmt::format("Failed to resolve module dependencies for {}", path));
+      }
     }
 
     auto eval_val = JS_EvalFunction(ctx, module);
