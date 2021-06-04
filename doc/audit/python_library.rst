@@ -36,7 +36,7 @@ Tutorial
 
 This tutorial demonstrates how to parse the ledger produced by a CCF node. It shows a very basic example which loops through all transactions in the ledger and counts how many times all keys in a target key-value store table are updated.
 
-First, the path to the ledger directories should be set:
+First, the paths to the ledger directories should be set:
 
 .. code-block:: python
 
