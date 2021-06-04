@@ -24,7 +24,7 @@ namespace ccf::historical
   {
     auto tx = sig_store->create_read_only_tx();
     auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
-    return signatures->get(0);
+    return signatures->get();
   }
 
   static std::optional<std::vector<uint8_t>> get_tree(const StorePtr& sig_store)
@@ -32,7 +32,7 @@ namespace ccf::historical
     auto tx = sig_store->create_read_only_tx();
     auto tree =
       tx.ro<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
-    return tree->get(0);
+    return tree->get();
   }
 
   class StateCache : public AbstractStateCache

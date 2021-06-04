@@ -8,7 +8,6 @@
 #include "kv/committable_tx.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "map.h"
 #include "node/entities.h"
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
