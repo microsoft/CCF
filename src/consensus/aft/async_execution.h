@@ -310,23 +310,20 @@ namespace aft
     NodeCatchUpCallback(
       const ccf::NodeId& from_,
       ConfigurationTracker& config_tracker_,
-      const TxID from_txid_,
-      const TxID node_txid_) :
+      const SeqNo seq_no_) :
       from(from_),
       config_tracker(config_tracker_),
-      txid(from_txid_),
-      node_txid(node_txid_)
+      seq_no(seq_no_)
     {}
 
     void execute() override
     {
-      config_tracker.update_node_progress(from, txid, node_txid);
+      config_tracker.update_node_progress(from, seq_no);
     }
 
   private:
     ccf::NodeId from;
     ConfigurationTracker& config_tracker;
-    TxID txid;
-    TxID node_txid;
+    SeqNo seq_no;
   };
 }

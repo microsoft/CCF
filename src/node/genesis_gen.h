@@ -57,6 +57,8 @@ namespace ccf
         ni.status = NodeStatus::RETIRED;
         nodes->put(nid, ni);
       }
+
+      // TODO: Do we need to add an empty configuration?
     }
 
     bool is_recovery_member(const MemberId& member_id)
@@ -199,8 +201,8 @@ namespace ccf
         member_to_remove->status == MemberStatus::ACTIVE &&
         is_recovery_member(member_id))
       {
-        // Because the member to remove is active, there is at least one active
-        // member (i.e. get_active_recovery_members_count_after >= 0)
+        // Because the member to remove is active, there is at least one
+        // active member (i.e. get_active_recovery_members_count_after >= 0)
         size_t get_active_recovery_members_count_after =
           get_active_recovery_members().size() - 1;
         auto recovery_threshold = get_recovery_threshold();
@@ -447,8 +449,8 @@ namespace ccf
       if (service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
         // While waiting for recovery shares, the recovery threshold cannot be
-        // modified. Otherwise, the threshold could be passed without triggering
-        // the end of recovery procedure
+        // modified. Otherwise, the threshold could be passed without
+        // triggering the end of recovery procedure
         LOG_FAIL_FMT(
           "Cannot set recovery threshold: service is currently waiting for "
           "recovery shares");

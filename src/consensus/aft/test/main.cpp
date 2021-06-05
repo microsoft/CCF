@@ -49,9 +49,8 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     election_timeout,
     ms(1000));
 
-  kv::Configuration::Nodes config;
-  config.try_emplace(node_id);
-  r0.add_configuration(0, config);
+  kv::Configuration::Nodes nodes = {node_id};
+  r0.add_configuration({0, nodes});
 
   DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
 
@@ -94,9 +93,8 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     election_timeout,
     ms(1000));
 
-  kv::Configuration::Nodes config;
-  config[node_id] = {};
-  r0.add_configuration(0, config);
+  kv::Configuration::Nodes nodes = {node_id};
+  r0.add_configuration({0, nodes});
 
   DOCTEST_INFO("Become leader after election timeout");
 
@@ -182,13 +180,10 @@ DOCTEST_TEST_CASE(
     ms(50),
     ms(1000));
 
-  kv::Configuration::Nodes config;
-  config[node_id0] = {};
-  config[node_id1] = {};
-  config[node_id2] = {};
-  r0.add_configuration(0, config);
-  r1.add_configuration(0, config);
-  r2.add_configuration(0, config);
+  kv::Configuration::Nodes config = {node_id0, node_id1, node_id2};
+  r0.add_configuration({0, config});
+  r1.add_configuration({0, config});
+  r2.add_configuration({0, config});
 
   auto by_0 = [](auto const& lhs, auto const& rhs) -> bool {
     return get<0>(lhs) < get<0>(rhs);
@@ -396,13 +391,10 @@ DOCTEST_TEST_CASE(
     ms(50),
     ms(1000));
 
-  kv::Configuration::Nodes config;
-  config[node_id0] = {};
-  config[node_id1] = {};
-  config[node_id2] = {};
-  r0.add_configuration(0, config);
-  r1.add_configuration(0, config);
-  r2.add_configuration(0, config);
+  kv::Configuration::Nodes config = {node_id0, node_id1, node_id2};
+  r0.add_configuration({0, config});
+  r1.add_configuration({0, config});
+  r2.add_configuration({0, config});
 
   map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
@@ -590,11 +582,12 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     ms(50),
     ms(1000));
 
-  kv::Configuration::Nodes config;
-  config[node_id0] = {};
-  config[node_id1] = {};
-  r0.add_configuration(0, config);
-  r1.add_configuration(0, config);
+  kv::Configuration::Nodes config = {node_id0, node_id1};
+
+  for (auto r : {&r0, &r1})
+  {
+    r->add_configuration({0, config});
+  }
 
   map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
@@ -670,13 +663,12 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 
   DOCTEST_INFO("Node 2 joins the ensemble");
 
-  kv::Configuration::Nodes config1;
-  config1[node_id0] = {};
-  config1[node_id1] = {};
-  config1[node_id2] = {};
-  r0.add_configuration(0, config1);
-  r1.add_configuration(0, config1);
-  r2.add_configuration(0, config1);
+  kv::Configuration::Nodes config1 = {node_id0, node_id1, node_id2};
+
+  for (auto r : {&r0, &r1, &r2})
+  {
+    r->add_configuration({0, config1});
+  }
 
   nodes[node_id2] = &r2;
 
@@ -746,11 +738,9 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     ms(100),
     ms(1000));
 
-  kv::Configuration::Nodes config0;
-  config0[node_id0] = {};
-  config0[node_id1] = {};
-  r0.add_configuration(0, config0);
-  r1.add_configuration(0, config0);
+  kv::Configuration::Nodes config0 = {node_id0, node_id1};
+  r0.add_configuration({0, config0});
+  r1.add_configuration({0, config0});
 
   map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
@@ -995,11 +985,9 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     ms(50),
     ms(1000));
 
-  kv::Configuration::Nodes config0;
-  config0[node_id0] = {};
-  config0[node_id1] = {};
-  r0.add_configuration(0, config0);
-  r1.add_configuration(0, config0);
+  kv::Configuration::Nodes config0 = {node_id0, node_id1};
+  r0.add_configuration({0, config0});
+  r1.add_configuration({0, config0});
 
   map<ccf::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
@@ -1090,13 +1078,11 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   DOCTEST_INFO("Node 2 joins the ensemble");
 
-  kv::Configuration::Nodes config1;
-  config1[node_id0] = {};
-  config1[node_id1] = {};
-  config1[node_id2] = {};
-  r0.add_configuration(0, config1);
-  r1.add_configuration(0, config1);
-  r2.add_configuration(0, config1);
+  kv::Configuration::Nodes config1 = {node_id0, node_id1, node_id2};
+  for (auto& r : {&r0, &r1, &r2})
+  {
+    r->add_configuration({0, config1});
+  }
 
   nodes[node_id2] = &r2;
 

@@ -148,19 +148,29 @@ namespace kv::test
 
     void recv_message(const NodeId& from, OArray&& oa) override {}
 
-    void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) override
+    void add_configuration(const Configuration& conf) override {}
+
+    const std::set<NodeId>& get_latest_configuration_unsafe() const override
+    {
+      static std::set<NodeId> n;
+      return n;
+    }
+
+    const std::set<NodeId>& get_latest_configuration() override
+    {
+      static std::set<NodeId> n;
+      return n;
+    }
+
+    const ccf::NodeInfo& get_node_info(const NodeId& id) const override
+    {
+      static ccf::NodeInfo n;
+      return n;
+    }
+
+    void update_node(
+      const NodeId& id, const std::optional<ccf::NodeInfo>& info) override
     {}
-
-    Configuration::Nodes get_latest_configuration_unsafe() const override
-    {
-      return {};
-    }
-
-    Configuration::Nodes get_latest_configuration() override
-    {
-      return {};
-    }
 
     ConsensusDetails get_details() override
     {

@@ -12,92 +12,147 @@
 #include "kv/store.h"
 #include "node/config.h"
 #include "node/entities.h"
-#include "node/nodes.h"
 #include "node/rpc/node_call_types.h"
 #include "node/rpc/serdes.h"
 #include "rpc/serialization.h"
+
+#include <algorithm>
 
 using namespace ccf;
 
 namespace aft
 {
-  using Index = uint64_t;
-
   struct NodeState
   {
-    kv::Configuration::NodeInfo node_info;
+    ccf::NodeInfo node_info;
 
-    // the highest index sent to the node
-    Index sent_idx;
+    // the highest sequence number sent to the node
+    SeqNo sent_idx;
 
-    // the highest matching index with the node that was confirmed
-    Index match_idx;
-
-    // Flag indicating whether this node is still catching up; before that it's
-    // not an eligible voter.
-    bool catching_up;
+    // the highest matching sequence number with the node that was confirmed
+    SeqNo match_idx;
 
     NodeState() = default;
 
     NodeState(
-      const kv::Configuration::NodeInfo& node_info_,
-      Index sent_idx_,
-      Index match_idx_ = 0,
+      const ccf::NodeInfo& node_info_,
+      SeqNo sent_idx_,
+      SeqNo match_idx_ = 0,
       bool catching_up_ = true) :
       node_info(node_info_),
       sent_idx(sent_idx_),
-      match_idx(match_idx_),
-      catching_up(catching_up_)
+      match_idx(match_idx_)
     {}
   };
 
   class ConfigurationTracker
   {
   public:
-    const NodeId& node_id;
+    NodeId node_id;
     ConsensusType consensus_type;
     std::shared_ptr<kv::AbstractStore> store;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
     crypto::KeyPairPtr node_sign_kp;
-    const crypto::Pem& node_cert;
-    std::unordered_map<ccf::NodeId, aft::NodeState>& nodes;
+    const Pem& node_cert; // For followers, this may change from self-signed to
+                          // network-signed.
+    std::unordered_map<ccf::NodeId, aft::NodeState> nodes;
     std::list<kv::Configuration> configurations;
+    std::set<NodeId> passive_nodes;
 
   public:
     ConfigurationTracker(
-      const NodeId& node_id_,
+      NodeId node_id_,
       ConsensusType consensus_type_,
-      std::unordered_map<ccf::NodeId, aft::NodeState>& nodes_,
       std::shared_ptr<kv::AbstractStore> store_,
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      const crypto::KeyPairPtr& node_sign_kp_,
-      const crypto::Pem& node_cert_) :
+      crypto::KeyPairPtr node_sign_kp_,
+      const Pem& node_cert_) :
       node_id(node_id_),
       consensus_type(consensus_type_),
       store(store_),
       rpcsessions(rpcsessions_),
       rpc_map(rpc_map_),
       node_sign_kp(node_sign_kp_),
-      node_cert(node_cert_),
-      nodes(nodes_)
+      node_cert(node_cert_)
     {
       if (!node_sign_kp_)
-        LOG_INFO_FMT("NO SIGNING KEY!");
+        LOG_FAIL_FMT("No signing key");
       if (!rpc_map)
-        LOG_INFO_FMT("NO RPC MAP!");
+        LOG_FAIL_FMT("No RPC map");
     }
 
     ~ConfigurationTracker() {}
 
+    void update_node(const NodeId& id, const std::optional<ccf::NodeInfo>& info)
+    {
+      if (info.has_value())
+      {
+        LOG_DEBUG_FMT("Update {} ({})", id, info->status);
+        auto nit = nodes.find(id);
+        if (nit == nodes.end())
+          nodes.emplace(id, NodeState(info.value(), 0));
+        else
+          nit->second.node_info = info.value();
+      }
+      else
+      {
+        LOG_DEBUG_FMT("Remove {}", id);
+        nodes.erase(id);
+      }
+    }
+
+    void update_node_progress(const NodeId& from, const SeqNo& seq_no)
+    {
+      assert(consensus_type == ConsensusType::BFT);
+      auto nit = nodes.find(from);
+      if (nit != nodes.end())
+      {
+        nit->second.match_idx = std::max(nit->second.match_idx, seq_no);
+      }
+    }
+
+    const std::set<NodeId>& current() const
+    {
+      assert(configurations.size() > 0);
+      return configurations.front().nodes;
+    }
+
+    NodeState& state(const NodeId& id)
+    {
+      auto nit = nodes.find(id);
+      assert(nit != nodes.end());
+      return nit->second;
+    }
+
+    const NodeState& state(const NodeId& id) const
+    {
+      auto nit = nodes.find(id);
+      assert(nit != nodes.end());
+      return nit->second;
+    }
+
+    const NodeInfo& info(const NodeId& id) const
+    {
+      auto nit = nodes.find(id);
+      assert(nit != nodes.end());
+      return nit->second.node_info;
+    }
+
     // Examine all configurations that are followed by a globally committed
     // configuration.
-    bool commit(Index idx)
+    std::pair<std::set<NodeId>, std::set<NodeId>> commit(SeqNo seq_no)
     {
-      LOG_TRACE_FMT("Configurations: commit {}!", idx);
+      LOG_TRACE_FMT("Configurations: commit {}!", seq_no);
 
-      bool r = false;
+      std::pair<std::set<NodeId>, std::set<NodeId>> r;
+
+      // Check whether the next configuration can be activated according to
+      // quorum rules. If so, pop and finalize.
+
+      std::set<NodeId> before = current();
+
       while (true)
       {
         auto conf = configurations.begin();
@@ -108,11 +163,32 @@ namespace aft
         if (next == configurations.end())
           break;
 
-        if (idx < next->idx)
+        if (seq_no < next->seq_no)
           break;
 
+        // TODO: Check 2f+1 of the new config are caught up
+
         configurations.pop_front();
-        r = true;
+      }
+
+      auto& after = current();
+
+      // Nodes added
+      for (auto& id : after)
+      {
+        if (before.find(id) == before.end())
+        {
+          r.first.insert(id);
+        }
+      }
+
+      // Nodes removed
+      for (auto& id : before)
+      {
+        if (after.find(id) == after.end())
+        {
+          r.second.insert(id);
+        }
       }
 
       LOG_TRACE_FMT("Configurations: {}", to_string());
@@ -120,50 +196,56 @@ namespace aft
       return r;
     }
 
-    bool rollback(Index idx)
+    bool rollback(SeqNo seq_no)
     {
-      LOG_TRACE_FMT("Configurations: rollback to {}", idx);
       bool r = false;
-      while (!configurations.empty() && (configurations.back().idx > idx))
+      while (!configurations.empty() && (configurations.back().seq_no > seq_no))
       {
         configurations.pop_back();
         r = true;
       }
-      LOG_TRACE_FMT("Configurations: {}", to_string());
+      LOG_TRACE_FMT(
+        "Configurations: rolled back to {}: {}", seq_no, to_string());
       return r;
     }
 
-    void add(size_t idx, const kv::Configuration::Nodes&& config)
+    void add(const kv::Configuration& config)
     {
-      LOG_TRACE_FMT("Configurations: {}", to_string());
-      check_for_promotions(config);
-      if (config != configurations.back().nodes)
-        configurations.push_back({idx, std::move(config)});
-      LOG_TRACE_FMT("Configurations: {}", to_string());
-    }
-
-    bool empty() const
-    {
-      return configurations.empty();
-    }
-
-    kv::Configuration::Nodes get_latest_configuration_unsafe() const
-    {
-      if (configurations.empty())
+      LOG_TRACE_FMT(
+        "Configurations: add configuration of {} nodes @ {}",
+        config.nodes.size(),
+        config.seq_no);
+      for (auto& id : config.nodes)
       {
-        return {};
+        auto nit = nodes.find(id);
+        if (nit == nodes.end())
+        {
+          LOG_FAIL_FMT("New node without info: {}", id);
+          nodes.emplace(id, NodeState());
+        }
+        else
+          LOG_TRACE_FMT(
+            "  {} = {}:{}",
+            id,
+            nit->second.node_info.nodehost,
+            nit->second.node_info.nodeport);
       }
+      configurations.push_back(std::move(config));
+      check_for_promotions(config);
+    }
 
-      return configurations.back().nodes;
+    void abort(kv::Version id)
+    {
+      // TODO.
     }
 
     bool promote_if_possible(
-      const NodeId& id, const TxID& txid, const TxID& primary_txid)
+      const NodeId& id, const SeqNo& seq_no, const SeqNo& primary_seq_no)
     {
+      // Check if enough new nodes have caught up to finalize the next config.
+
       auto nit = nodes.find(id);
-      if (
-        nit != nodes.end() && nit->second.catching_up &&
-        !(txid < primary_txid) && store != nullptr)
+      if (store != nullptr && nit != nodes.end() && seq_no >= primary_seq_no)
       {
         return record_promotion(id);
       }
@@ -171,94 +253,43 @@ namespace aft
       return true;
     }
 
-    void update_node_progress(
-      const NodeId& from, const TxID& txid, const TxID& node_txid)
+    std::set<NodeId> all_nodes()
     {
-      assert(consensus_type == ConsensusType::BFT);
-      auto nit = nodes.find(from);
-      if (nit != nodes.end())
-      {
-        nit->second.match_idx = std::max(nit->second.match_idx, txid.seqno);
-      }
-    }
-
-    std::set<NodeId> active_node_ids()
-    {
-      // Find all nodes present in any active configuration.
-      std::set<NodeId> result;
-      auto an = active_nodes();
-      for (const auto& [id, _] : an)
-        result.insert(id);
-      return result;
-    }
-
-    kv::Configuration::Nodes active_nodes() const
-    {
-      kv::Configuration::Nodes r;
-
-      for (auto& conf : configurations)
-      {
-        for (auto node : conf.nodes)
-        {
-          auto nit = nodes.find(node.first);
-          if (nit != nodes.end() && !nit->second.catching_up)
-          {
-            r.emplace(node.first, node.second);
-          }
-        }
-      }
-
-      return r;
-    }
-
-    kv::Configuration::Nodes all_nodes()
-    {
-      kv::Configuration::Nodes r;
+      std::set<NodeId> r;
 
       for (const auto& c : configurations)
       {
-        for (const auto& [id, info] : c.nodes)
+        for (const auto& id : c.nodes)
         {
-          r[id] = info;
+          r.insert(id);
         }
       }
 
       return r;
     }
 
-    Index cft_watermark(
-      kv::Version last_idx, std::unordered_map<NodeId, aft::NodeState>& nodes)
+    SeqNo cft_watermark(kv::Version last_idx)
     {
-      LOG_TRACE_FMT(
-        "Configurations: CFT watermark; configurations: {}", to_string());
-      Index r = std::numeric_limits<Index>::max();
+      SeqNo r = std::numeric_limits<SeqNo>::max();
 
       for (auto& c : configurations)
       {
-        assert(c.nodes.size() > 0);
-
         // The majority must be checked separately for each active
         // configuration.
-        std::vector<Index> match;
+        std::vector<SeqNo> match;
         match.reserve(c.nodes.size() + 1);
 
-        for (const auto& node : c.nodes)
+        for (const auto& id : c.nodes)
         {
-          auto nit = nodes.find(node.first);
-
-          if (node.first == node_id)
+          LOG_TRACE_FMT("CFTWM check: {}", id);
+          if (id == node_id)
           {
-            LOG_TRACE_FMT("CFTWM check: {}={}", node_id, last_idx);
             match.push_back(last_idx);
-          }
-          else if (nit->second.catching_up)
-          {
-            LOG_TRACE_FMT("CFTWM not eligible: {}", nit->first);
           }
           else
           {
-            LOG_TRACE_FMT(
-              "CFTWM check: {}={}", node.first, nit->second.match_idx);
+            auto nit = nodes.find(id);
+            assert(nit != nodes.end());
             match.push_back(nit->second.match_idx);
           }
         }
@@ -274,17 +305,12 @@ namespace aft
           r = std::min(confirmed, r);
         }
 
-#ifndef NDEBUG
-        std::stringstream ss;
-        for (auto& m : match)
-          ss << m << " ";
         LOG_TRACE_FMT(
-          "last_idx={} confirmed={} r={} match={}",
+          "last_idx={} confirmed={} r={} matches=[{}]",
           last_idx,
           confirmed,
           r,
-          ss.str());
-#endif
+          fmt::join(match, ", "));
       }
 
       return r;
@@ -296,8 +322,8 @@ namespace aft
       for (auto c : configurations)
       {
         bool first = true;
-        ss << "[";
-        for (const auto& [id, _] : c.nodes)
+        ss << "{";
+        for (const auto& id : c.nodes)
         {
           if (first)
             first = false;
@@ -307,10 +333,10 @@ namespace aft
           auto nit = nodes.find(id);
           if (nit == nodes.end() && id != node_id)
             ss << "!";
-          else if (nit != nodes.end() && nit->second.catching_up)
-            ss << "*";
+          // else if (nit != nodes.end())
+          //   ss << "*";
         }
-        ss << "]@" << c.idx << " ";
+        ss << "}@" << c.seq_no << " ";
       }
       return ss.str();
     }
@@ -372,40 +398,41 @@ namespace aft
       return rs == HTTP_STATUS_OK;
     }
 
-    void check_for_promotions(const kv::Configuration::Nodes& config)
+    void check_for_promotions(const kv::Configuration& config)
     {
-      for (const auto& [id, info] : nodes)
-      {
-        LOG_DEBUG_FMT("Promo check node {}: {}", id, info.catching_up);
-      }
+      // for (const auto& [id, info] : nodes)
+      // {
+      //   LOG_DEBUG_FMT("Promo check {}: {}", id, info.node_info.status);
+      // }
 
-      for (const auto& [id, info] : config)
-      {
-        LOG_DEBUG_FMT("In config: {}: {}", id, info.catching_up);
-        if (!info.catching_up)
-        {
-          auto nit = nodes.find(id);
-          if (nit != nodes.end() && nit->second.catching_up)
-          {
-            LOG_DEBUG_FMT("Observing promotion: {}", id);
-            nit->second.catching_up = false;
-          }
-        }
-      }
+      // for (const auto& [id, info] : config.nodes)
+      // {
+      //   LOG_DEBUG_FMT("In config: {}: {}", id, info.catching_up);
+      //   if (!info.catching_up)
+      //   {
+      //     auto nit = nodes.find(id);
+      //     if (nit != nodes.end() && nit->second.catching_up)
+      //     {
+      //       LOG_DEBUG_FMT("Observing promotion: {}", id);
+      //       nit->second.catching_up = false;
+      //     }
+      //   }
+      // }
     }
 
     static void promote_cb(
       ConfigurationTracker& configuration_tracker,
       NodeId from,
-      TxID txid,
-      TxID primary_txid)
+      SeqNo seq_no,
+      SeqNo primary_seq_no)
     {
-      if (!configuration_tracker.promote_if_possible(from, txid, primary_txid))
+      if (!configuration_tracker.promote_if_possible(
+            from, seq_no, primary_seq_no))
       {
         threading::ThreadMessaging::thread_messaging.add_task(
-          [&configuration_tracker, from, txid, primary_txid]() {
+          [&configuration_tracker, from, seq_no, primary_seq_no]() {
             ConfigurationTracker::promote_cb(
-              configuration_tracker, from, txid, primary_txid);
+              configuration_tracker, from, seq_no, primary_seq_no);
           });
       }
     }

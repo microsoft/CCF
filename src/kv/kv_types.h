@@ -8,6 +8,7 @@
 #include "crypto/pem.h"
 #include "ds/nonstd.h"
 #include "enclave/consensus_type.h"
+#include "node/node_info.h"
 #include "serialiser_declare.h"
 
 #include <array>
@@ -74,48 +75,12 @@ namespace kv
 
   struct Configuration
   {
-    struct NodeInfo
-    {
-      std::string hostname;
-      std::string port;
-      bool catching_up;
-
-      NodeInfo() = default;
-
-      NodeInfo(
-        const std::string& hostname_,
-        const std::string& port_,
-        bool catching_up_) :
-        hostname(hostname_),
-        port(port_),
-        catching_up(catching_up_)
-      {}
-
-      bool operator==(const struct NodeInfo& other) const
-      {
-        return hostname == other.hostname && port == other.port &&
-          catching_up == other.catching_up;
-      }
-    };
-
-    using Nodes = std::unordered_map<NodeId, NodeInfo>;
-
-    ccf::SeqNo idx;
+    using Nodes = std::set<NodeId>;
+    ccf::SeqNo seq_no;
     Nodes nodes;
   };
-
-  inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
-  {
-    j["address"] = fmt::format("{}:{}", ni.hostname, ni.port);
-  }
-
-  inline void from_json(const nlohmann::json& j, Configuration::NodeInfo& ni)
-  {
-    const std::string addr(j["address"]);
-    const auto& [h, p] = nonstd::split_1(addr, ":");
-    ni.hostname = h;
-    ni.port = p;
-  }
+  DECLARE_JSON_TYPE(Configuration);
+  DECLARE_JSON_REQUIRED_FIELDS(Configuration, seq_no, nodes);
 
   enum class ReplicaState
   {
@@ -132,9 +97,6 @@ namespace kv
      {ReplicaState::Candidate, "Candidate"},
      {ReplicaState::Retired, "Retired"}});
 
-  DECLARE_JSON_TYPE(Configuration);
-  DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes);
-
   struct ConsensusDetails
   {
     std::vector<Configuration> configs = {};
@@ -148,10 +110,12 @@ namespace kv
   class ConfigurableConsensus
   {
   public:
-    virtual void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
-    virtual Configuration::Nodes get_latest_configuration() = 0;
-    virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
+    virtual void add_configuration(const Configuration& conf) = 0;
+    virtual const std::set<NodeId>& get_latest_configuration() = 0;
+    virtual const std::set<NodeId>& get_latest_configuration_unsafe() const = 0;
+    virtual void update_node(
+      const NodeId& id, const std::optional<ccf::NodeInfo>& info) = 0;
+    virtual const ccf::NodeInfo& get_node_info(const NodeId& id) const = 0;
     virtual ConsensusDetails get_details() = 0;
   };
 

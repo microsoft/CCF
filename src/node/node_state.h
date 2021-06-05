@@ -1941,7 +1941,15 @@ namespace ccf
         network.nodes.wrap_map_hook(
           [](kv::Version version, const Nodes::Write& w)
             -> kv::ConsensusHookPtr {
-            return std::make_unique<ConfigurationChangeHook>(version, w);
+            return std::make_unique<NodeChangeHook>(version, w);
+          }));
+
+      network.tables->set_map_hook(
+        network.network_configurations.get_name(),
+        network.network_configurations.wrap_map_hook(
+          [](ccf::SeqNo seq_no, const NetworkConfigurations::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<ConfigurationChangeHook>(seq_no, w);
           }));
 
       setup_basic_hooks();

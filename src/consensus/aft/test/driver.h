@@ -4,6 +4,7 @@
 
 #include "consensus/aft/raft.h"
 #include "ds/logger.h"
+#include "kv/kv_types.h"
 
 #include <chrono>
 #include <set>
@@ -38,7 +39,7 @@ private:
 public:
   RaftDriver(size_t number_of_nodes)
   {
-    kv::Configuration::Nodes configuration;
+    kv::Configuration::Nodes nodes;
 
     for (size_t i = 0; i < number_of_nodes; ++i)
     {
@@ -63,12 +64,12 @@ public:
         ms(i * 100));
 
       _nodes.emplace(node_id, NodeDriver{kv, raft});
-      configuration.try_emplace(node_id);
+      nodes.insert(node_id);
     }
 
     for (auto& node : _nodes)
     {
-      node.second.raft->add_configuration(0, configuration);
+      node.second.raft->add_configuration({0, nodes});
     }
   }
 

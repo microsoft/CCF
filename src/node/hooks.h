@@ -4,90 +4,64 @@
 
 #include "ds/logger.h"
 #include "kv/kv_types.h"
+#include "node/network_configurations.h"
 #include "node/nodes.h"
 
 namespace ccf
 {
-  struct NodeAddr
+  class NodeChangeHook : public kv::ConsensusHook
   {
-    std::string hostname;
-    std::string port;
-    bool catching_up;
-  };
-
-  class ConfigurationChangeHook : public kv::ConsensusHook
-  {
-    kv::Version version;
-    std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
+    std::unordered_map<NodeId, std::optional<ccf::NodeInfo>> updates;
 
   public:
-    ConfigurationChangeHook(kv::Version version_, const Nodes::Write& w) :
-      version(version_)
+    NodeChangeHook(ccf::SeqNo seq_no, const Nodes::Write& w)
     {
-      for (const auto& [node_id, opt_ni] : w)
+      for (const auto& [id, info] : w)
       {
-        LOG_TRACE_FMT("ConfigurationChangeHook(): {}", node_id);
-
-        const auto& ni = opt_ni.value();
-        switch (ni.status)
-        {
-          case NodeStatus::PENDING:
-          {
-            // Pending nodes are not added to consensus until they are
-            // trusted
-            break;
-          }
-          case NodeStatus::CATCHING_UP:
-          {
-            cfg_delta.try_emplace(
-              node_id, NodeAddr{ni.nodehost, ni.nodeport, true});
-            break;
-          }
-          case NodeStatus::TRUSTED:
-          {
-            cfg_delta.try_emplace(
-              node_id, NodeAddr{ni.nodehost, ni.nodeport, false});
-            break;
-          }
-          case NodeStatus::RETIRED:
-          {
-            cfg_delta.try_emplace(node_id, std::nullopt);
-            break;
-          }
-          default:
-          {
-          }
-        }
+        updates.emplace(id, info);
       }
     }
 
     void call(kv::ConfigurableConsensus* consensus) override
     {
-      auto configuration = consensus->get_latest_configuration_unsafe();
-
-      LOG_INFO_FMT("ConfigurationChangeHook::call()");
-
-      for (const auto& [node_id, opt_ni] : cfg_delta)
+      for (const auto& [id, info] : updates)
       {
-        if (opt_ni.has_value())
-        {
-          LOG_INFO_FMT(
-            "+ {} {}",
-            node_id,
-            (opt_ni->catching_up ? "catching up" : "trusted"));
-          configuration[node_id] = {
-            opt_ni->hostname, opt_ni->port, opt_ni->catching_up};
-        }
-        else
-        {
-          LOG_INFO_FMT("- {}", node_id);
-          configuration.erase(node_id);
-        }
+        consensus->update_node(id, info);
       }
+    }
+  };
 
-      if (!cfg_delta.empty())
+  class ConfigurationChangeHook : public kv::ConsensusHook
+  {
+    std::list<kv::Configuration> configurations;
+
+  public:
+    ConfigurationChangeHook(
+      ccf::SeqNo seq_no, const NetworkConfigurations::Write& w)
+    {
+      // Note: if multiple configurations are added in one transaction, then
+      // they are assigned the same id/seq_no here.
+
+      for (const auto& [id, opt_cfg] : w)
       {
-        consensus->add_configuration(version, configuration);
+        kv::Configuration c;
+        c.seq_no = seq_no;
+        if (opt_cfg.has_value())
+        {
+          for (const auto& node_id : opt_cfg.value().nodes)
+          {
+            c.nodes.insert(node_id);
+          }
+        }
+        configurations.push_back(std::move(c));
+      }
+    }
+
+    void call(kv::ConfigurableConsensus* consensus) override
+    {
+      for (auto c : configurations)
+      {
+        consensus->add_configuration(std::move(c));
       }
     }
   };

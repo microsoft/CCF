@@ -885,10 +885,11 @@ namespace ccf
         {
           auto cfg = consensus->get_latest_configuration();
           nlohmann::json c;
-          for (auto& [nid, ninfo] : cfg)
+          for (auto& nid : cfg)
           {
             nlohmann::json n;
-            n["address"] = fmt::format("{}:{}", ninfo.hostname, ninfo.port);
+            auto ninfo = consensus->get_node_info(nid);
+            n["address"] = fmt::format("{}:{}", ninfo.nodehost, ninfo.nodeport);
             c[nid.value()] = n;
           }
           args.rpc_ctx->set_response_body(c.dump());

@@ -118,7 +118,7 @@ namespace aft
 
     std::set<ccf::NodeId> active_nodes() override
     {
-      return aft->active_node_ids();
+      return aft->active_nodes();
     }
 
     void recv_message(const ccf::NodeId& from, OArray&& data) override
@@ -126,20 +126,30 @@ namespace aft
       return aft->recv_message(from, std::move(data));
     }
 
-    void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) override
+    void add_configuration(const Configuration& conf) override
     {
-      aft->add_configuration(seqno, conf);
+      aft->add_configuration(conf);
     }
 
-    Configuration::Nodes get_latest_configuration() override
+    const std::set<NodeId>& get_latest_configuration() override
     {
       return aft->get_latest_configuration();
     }
 
-    Configuration::Nodes get_latest_configuration_unsafe() const override
+    const std::set<NodeId>& get_latest_configuration_unsafe() const override
     {
       return aft->get_latest_configuration_unsafe();
+    }
+
+    void update_node(
+      const NodeId& id, const std::optional<ccf::NodeInfo>& info) override
+    {
+      aft->update_node(id, info);
+    }
+
+    const ccf::NodeInfo& get_node_info(const NodeId& id) const override
+    {
+      return aft->get_node_info(id);
     }
 
     kv::ConsensusDetails get_details() override

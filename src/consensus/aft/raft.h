@@ -131,9 +131,7 @@ namespace aft
 
     // Configurations
     aft::ConfigurationTracker configuration_tracker;
-    std::unordered_map<ccf::NodeId, aft::NodeState> nodes;
     bool catching_up = false;
-    bool retiring = false;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -159,7 +157,6 @@ namespace aft
     std::shared_ptr<SnapshotterProxy> snapshotter;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
-    std::set<ccf::NodeId> backup_nodes;
 
   public:
     Aft(
@@ -202,7 +199,6 @@ namespace aft
       configuration_tracker(
         state_->my_node_id,
         consensus_type,
-        nodes,
         kv_store_,
         rpc_sessions_,
         rpc_map_,
@@ -256,14 +252,9 @@ namespace aft
       }
     }
 
-    std::set<ccf::NodeId> active_node_ids()
+    std::set<ccf::NodeId> active_nodes()
     {
-      if (backup_nodes.empty())
-      {
-        backup_nodes = configuration_tracker.active_node_ids();
-      }
-
-      return backup_nodes;
+      return configuration_tracker.current();
     }
 
     ccf::NodeId id()
@@ -283,28 +274,13 @@ namespace aft
 
     bool is_eligible_voter(const ccf::NodeId& from) const
     {
-      if (from == state->my_node_id)
-      {
-        return !catching_up && !retiring;
-      }
-      else
-      {
-        auto it = nodes.find(from);
-        return it != nodes.end() && !it->second.catching_up;
-      }
+      auto nodes = configuration_tracker.current();
+      return nodes.find(from) != nodes.end();
     }
 
     size_t num_eligible_voters() const
     {
-      size_t r = 0;
-      for (const auto& [id, _] : nodes)
-      {
-        if (is_eligible_voter(id))
-        {
-          r++;
-        }
-      }
-      return r;
+      return configuration_tracker.current().size();
     }
 
     ccf::NodeId get_primary(ccf::View view)
@@ -315,8 +291,8 @@ namespace aft
 
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
-      auto active_nodes_ = active_node_ids();
-      if (!catching_up && !retiring)
+      auto active_nodes_ = configuration_tracker.current();
+      if (!catching_up)
       {
         active_nodes_.insert(id());
       }
@@ -461,7 +437,12 @@ namespace aft
       return state->view_history.initialise(term_history);
     }
 
-    void add_configuration(Index idx, const Configuration::Nodes& conf)
+    void update_node(const NodeId& id, const std::optional<ccf::NodeInfo>& info)
+    {
+      configuration_tracker.update_node(id, info);
+    }
+
+    void add_configuration(const Configuration& conf)
     {
       LOG_TRACE_FMT(
         "Adding a configuration at {} of {} nodes", idx, conf.size());
@@ -484,24 +465,25 @@ namespace aft
       {
         guard.lock();
       }
-      // This should only be called when the spin lock is held.
-      auto nit = conf.find(id());
-      catching_up = nit != conf.end() && nit->second.catching_up;
-      configuration_tracker.add(idx, std::move(conf));
-      LOG_DEBUG_FMT("catching_up={}", catching_up);
-      backup_nodes.clear();
-      create_and_remove_node_state();
+      configuration_tracker.add(std::move(conf));
+      auto news = configuration_tracker.commit(state->last_idx);
+      config_update(news.first, news.second);
     }
 
-    Configuration::Nodes get_latest_configuration_unsafe() const
+    const std::set<NodeId>& get_latest_configuration_unsafe() const
     {
-      return configuration_tracker.get_latest_configuration_unsafe();
+      return configuration_tracker.configurations.back().nodes;
     }
 
-    Configuration::Nodes get_latest_configuration()
+    const std::set<NodeId>& get_latest_configuration()
     {
       std::lock_guard<std::mutex> guard(state->lock);
       return get_latest_configuration_unsafe();
+    }
+
+    const ccf::NodeInfo& get_node_info(const NodeId& id) const
+    {
+      return configuration_tracker.info(id);
     }
 
     kv::ConsensusDetails get_details()
@@ -513,9 +495,12 @@ namespace aft
       {
         details.configs.push_back(config);
       }
-      for (auto& [k, v] : nodes)
+      for (auto& id : configuration_tracker.current())
       {
-        details.acks[k] = v.match_idx;
+        if (id != state->my_node_id)
+        {
+          details.acks[id] = configuration_tracker.state(id).match_idx;
+        }
       }
       return details;
     }
@@ -527,8 +512,7 @@ namespace aft
 
     ccf::SeqNo get_confirmed_matching_index(const NodeId& id) const
     {
-      auto it = nodes.find(id);
-      return it == nodes.end() ? SEQNO_UNKNOWN : it->second.match_idx;
+      return configuration_tracker.state(id).match_idx;
     }
 
     template <typename T>
@@ -613,16 +597,20 @@ namespace aft
           update_batch_size();
           entry_count = 0;
           entry_size_not_limited = 0;
-          for (const auto& it : nodes)
+          for (const auto& id : configuration_tracker.current())
           {
-            LOG_DEBUG_FMT("Sending updates to follower {}", it.first.trim());
-            send_append_entries(it.first, it.second.sent_idx + 1);
+            if (id != state->my_node_id)
+            {
+              LOG_DEBUG_FMT("Sending updates to follower {}", id.trim());
+              send_append_entries(
+                id, configuration_tracker.state(id).sent_idx + 1);
+            }
           }
         }
       }
 
       // If we are the only node, attempt to commit immediately.
-      if (nodes.size() == 0)
+      if (configuration_tracker.current().size() <= 1)
       {
         update_commit();
       }
@@ -701,12 +689,8 @@ namespace aft
             NodeCaughtUpMsg r =
               channels->template recv_authenticated_with_load<NodeCaughtUpMsg>(
                 from, data, size);
-
             aee = std::make_unique<NodeCatchUpCallback>(
-              from,
-              configuration_tracker,
-              TxID({r.view, r.seqno}),
-              TxID({state->current_view, state->last_idx}));
+              from, configuration_tracker, r.seqno);
             break;
           }
 
@@ -865,13 +849,14 @@ namespace aft
           CCF_ASSERT_FMT(size == 0, "Did not write everything");
 
           LOG_INFO_FMT("Sending view change msg view:{}", vcm.view);
-          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          for (auto it = configuration_tracker.current().begin();
+               it != configuration_tracker.current().end();
+               ++it)
           {
-            auto to = it->first;
-            if (to != state->my_node_id)
+            if (*it != state->my_node_id)
             {
               channels->send_authenticated(
-                to, ccf::NodeMsgType::consensus_msg, m);
+                *it, ccf::NodeMsgType::consensus_msg, m);
             }
           }
 
@@ -903,9 +888,13 @@ namespace aft
 
           update_batch_size();
           // Send newly available entries to all nodes.
-          for (const auto& it : nodes)
+          for (const auto& id : configuration_tracker.current())
           {
-            send_append_entries(it.first, it.second.sent_idx + 1);
+            if (id != state->my_node_id)
+            {
+              send_append_entries(
+                id, configuration_tracker.state(id).sent_idx + 1);
+            }
           }
         }
       }
@@ -918,6 +907,8 @@ namespace aft
           LOG_DEBUG_FMT(
             "Starting election: eligible?={}",
             is_eligible_voter(state->my_node_id));
+          LOG_DEBUG_FMT(
+            "Configurations: {}", configuration_tracker.to_string());
           // Start an election.
           become_candidate();
         }
@@ -930,8 +921,8 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      auto node = configuration_tracker.nodes.find(from);
+      if (node == configuration_tracker.nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
@@ -989,8 +980,8 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      auto node = configuration_tracker.nodes.find(from);
+      if (node == configuration_tracker.nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
@@ -1032,8 +1023,8 @@ namespace aft
 
     void recv_skip_view(const ccf::NodeId& from, SkipViewMsg r)
     {
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      auto node = configuration_tracker.nodes.find(from);
+      if (node == configuration_tracker.nodes.end())
       {
         LOG_FAIL_FMT(
           "Recv skip view to {} from {}: unknown node",
@@ -1211,8 +1202,6 @@ namespace aft
                           term_of_idx,
                           contains_new_view};
 
-      auto& node = nodes.at(to);
-
       // The host will append log entries to this message when it is
       // sent to the destination node.
       if (!channels->send_authenticated(
@@ -1222,7 +1211,7 @@ namespace aft
       }
 
       // Record the most recent index we have sent to this node.
-      node.sent_idx = end_idx;
+      configuration_tracker.state(to).sent_idx = end_idx;
     }
 
     struct AsyncExecution
@@ -1281,7 +1270,7 @@ namespace aft
       bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
       {
-        if (active_node_ids().size() == 0)
+        if (configuration_tracker.current().size() == 0)
         {
           // The replica is just starting up, we want to check that this replica
           // is part of the network we joined but that is dependent on Byzantine
@@ -1988,8 +1977,10 @@ namespace aft
       {
         NodeCaughtUpMsg ncamsg = {
           {raft_node_caught_up}, state->current_view, state->last_idx};
-        for (const auto& [node_id, _] : nodes)
+        for (const auto& node_id : configuration_tracker.current())
         {
+          if (node_id == state->my_node_id)
+            continue;
           channels->send_authenticated(
             node_id, ccf::NodeMsgType::consensus_msg, ncamsg);
         }
@@ -2029,12 +2020,11 @@ namespace aft
         node_count(),
         is_primary());
 
-      for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      for (auto& id : configuration_tracker.current())
       {
-        auto to = it->first;
-        if (to != state->my_node_id)
+        if (id != state->my_node_id)
         {
-          channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, r);
+          channels->send_authenticated(id, ccf::NodeMsgType::consensus_msg, r);
         }
       }
 
@@ -2043,7 +2033,8 @@ namespace aft
 
     bool is_known(const NodeId& id) const
     {
-      return nodes.find(id) != nodes.end();
+      return configuration_tracker.nodes.find(id) !=
+        configuration_tracker.nodes.end();
     }
 
     void recv_append_entries_signed_response(
@@ -2085,13 +2076,12 @@ namespace aft
         {
           SignaturesReceivedAck r = {
             {bft_signature_received_ack}, tx_id.view, tx_id.seqno};
-          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          for (auto& id : configuration_tracker.current())
           {
-            auto to = it->first;
-            if (to != state->my_node_id)
+            if (id != state->my_node_id)
             {
               channels->send_authenticated(
-                to, ccf::NodeMsgType::consensus_msg, r);
+                id, ccf::NodeMsgType::consensus_msg, r);
             }
           }
 
@@ -2162,13 +2152,12 @@ namespace aft
           NonceRevealMsg r = {
             {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce};
 
-          for (auto it = nodes.begin(); it != nodes.end(); ++it)
+          for (auto& id : configuration_tracker.current())
           {
-            auto to = it->first;
-            if (to != state->my_node_id)
+            if (id != state->my_node_id)
             {
               channels->send_authenticated(
-                to, ccf::NodeMsgType::consensus_msg, r);
+                id, ccf::NodeMsgType::consensus_msg, r);
             }
           }
           progress_tracker->add_nonce_reveal(
@@ -2218,8 +2207,8 @@ namespace aft
         return;
       }
 
-      auto node = nodes.find(from);
-      if (node == nodes.end())
+      auto node = configuration_tracker.nodes.find(from);
+      if (node == configuration_tracker.nodes.end())
       {
         // Ignore if we don't recognise the node.
         LOG_FAIL_FMT(
@@ -2311,15 +2300,12 @@ namespace aft
         from.trim(),
         r.last_log_idx);
 
-      if (is_primary() && node->second.catching_up)
+      if (is_primary()) // && node->second.catching_up)
       {
         threading::ThreadMessaging::thread_messaging.add_task(
           [this, from, r]() {
             ConfigurationTracker::promote_cb(
-              configuration_tracker,
-              from,
-              {r.term, r.last_log_idx},
-              {state->current_view, state->commit_idx});
+              configuration_tracker, from, r.last_log_idx, state->commit_idx);
           });
       }
 
@@ -2532,7 +2518,7 @@ namespace aft
 
     void become_candidate()
     {
-      if (replica_state == kv::ReplicaState::Retired || retiring)
+      if (replica_state == kv::ReplicaState::Retired)
       {
         return;
       }
@@ -2553,24 +2539,25 @@ namespace aft
 
       if (consensus_type != ConsensusType::BFT)
       {
-        for (auto it = nodes.begin(); it != nodes.end(); ++it)
+        for (auto& id : configuration_tracker.current())
         {
-          if (it->first == state->my_node_id)
+          if (id == state->my_node_id)
             continue;
 
-          channels->create_channel(
-            it->first,
-            it->second.node_info.hostname,
-            it->second.node_info.port);
+          // TODO: Change to list of eligibles
 
-          if (is_eligible_voter(it->first))
+          auto info = configuration_tracker.info(id);
+          channels->create_channel(id, info.nodehost, info.nodeport);
+
+          LOG_DEBUG_FMT("{} eligible?", id);
+
+          if (is_eligible_voter(id))
           {
-            send_request_vote(it->first);
+            send_request_vote(id);
           }
           else
           {
-            LOG_INFO_FMT(
-              "Not requesting a vote from ineligible voter {}", it->first);
+            LOG_INFO_FMT("Not requesting a vote from ineligible voter {}", id);
           }
         }
       }
@@ -2578,7 +2565,7 @@ namespace aft
 
     void become_leader()
     {
-      if (replica_state == kv::ReplicaState::Retired || retiring)
+      if (replica_state == kv::ReplicaState::Retired)
       {
         return;
       }
@@ -2612,7 +2599,7 @@ namespace aft
         state->commit_idx,
         state->last_idx);
 
-      for (const auto& [node_id, info] : nodes)
+      for (const auto& [node_id, info] : configuration_tracker.nodes)
         LOG_TRACE_FMT("Node: {} {}", node_id, info.match_idx);
 
       LOG_TRACE_FMT("Configurations: {}", configuration_tracker.to_string());
@@ -2620,7 +2607,7 @@ namespace aft
       catching_up = false;
 
       // Immediately commit if there are no other nodes.
-      if (nodes.size() == 0)
+      if (configuration_tracker.current().size() <= 1)
       {
         commit(state->last_idx);
         return;
@@ -2629,19 +2616,21 @@ namespace aft
       // Reset next, match, and sent indices for all nodes.
       auto next = state->last_idx + 1;
 
-      for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      for (auto& id : configuration_tracker.current())
       {
-        it->second.match_idx = 0;
-        it->second.sent_idx = next - 1;
+        auto& st = configuration_tracker.state(id);
+        st.match_idx = 0;
+        st.sent_idx = next - 1;
 
         // Send an empty append_entries to all nodes.
-        send_append_entries(it->first, next);
+        if (id != state->my_node_id)
+          send_append_entries(id, next);
       }
     }
 
     void become_follower(Term term)
     {
-      if (replica_state == kv::ReplicaState::Retired || retiring)
+      if (replica_state == kv::ReplicaState::Retired)
       {
         return;
       }
@@ -2681,27 +2670,6 @@ namespace aft
     {
       catching_up = false;
 
-#if 0
-      // To guarantee liveness during reconfiguration, we need something of this
-      // sort (e.g. when replacing the whole network in one reconfiguration).
-      // This is not enough though; we would need to check that n/2+1 of the new
-      // nodes have seen enough of the new configuration to make sure we don't
-      // lose any transactions.
-      if (configuration_tracker.configurations.size() > 1)
-      {
-        std::stringstream ss;
-        for (const auto& [id, info] : nodes)
-        {
-          if (info.catching_up)
-            ss << " " << id;
-        }
-        LOG_INFO_FMT(
-          "Delaying retirement during reconfiguration; nodes catching up:{}",
-          ss.str());
-        retiring = true;
-      }
-      else
-#endif
       {
         replica_state = kv::ReplicaState::Retired;
         leader_id.reset();
@@ -2753,8 +2721,7 @@ namespace aft
       }
 
       // Obtain CFT watermarks
-      new_commit_cft_idx =
-        configuration_tracker.cft_watermark(state->last_idx, nodes);
+      new_commit_cft_idx = configuration_tracker.cft_watermark(state->last_idx);
 
       LOG_DEBUG_FMT(
         "In update_commit, new_commit_cft_idx: {}, new_commit_bft_idx:{}. "
@@ -2849,11 +2816,8 @@ namespace aft
 
       LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id.trim(), idx);
 
-      if (configuration_tracker.commit(idx))
-      {
-        backup_nodes.clear();
-        create_and_remove_node_state();
-      }
+      auto news = configuration_tracker.commit(idx);
+      config_update(news.first, news.second);
     }
 
     Index get_commit_watermark_idx()
@@ -2893,11 +2857,7 @@ namespace aft
       }
 
       // Rollback configurations.
-      if (configuration_tracker.rollback(idx))
-      {
-        backup_nodes.clear();
-        create_and_remove_node_state();
-      }
+      configuration_tracker.rollback(idx);
 
       if (consensus_type == ConsensusType::BFT)
       {
@@ -2906,92 +2866,49 @@ namespace aft
       }
     }
 
-    void create_and_remove_node_state()
+    void config_update(
+      const std::set<NodeId>& added, const std::set<NodeId>& removed)
     {
-      // Find all nodes present in any active configuration.
-      Configuration::Nodes all_nodes = configuration_tracker.all_nodes();
+      for (auto& id : added)
+      { // A new node is sent only future entries initially. If it does not
+        // have prior data, it will communicate that back to the leader.
+        auto index = state->last_idx + 1;
 
-      for (const auto& [id, info] : all_nodes)
-      {
-        LOG_DEBUG_FMT(
-          "N: {} {}", id, info.catching_up ? "catching up" : "trusted");
-      }
-
-      // Remove all nodes in the node state that are not present in any active
-      // configuration.
-      std::vector<ccf::NodeId> to_remove;
-
-      for (const auto& [id, _] : nodes)
-      {
-        if (all_nodes.find(id) == all_nodes.end())
+        if (
+          replica_state == kv::ReplicaState::Leader ||
+          consensus_type == ConsensusType::BFT)
         {
-          to_remove.push_back(id);
+          auto info = get_node_info(id);
+          channels->create_channel(id, info.nodehost, info.nodeport);
         }
+
+        if (replica_state == kv::ReplicaState::Leader)
+        {
+          send_append_entries(id, index);
+        }
+
+        LOG_INFO_FMT("Added raft node {}", id);
       }
 
-      for (auto node_id : to_remove)
+      for (auto& id : removed)
       {
         if (
           replica_state == kv::ReplicaState::Leader ||
           consensus_type == ConsensusType::BFT)
         {
-          channels->destroy_channel(node_id);
+          channels->destroy_channel(id);
         }
-        nodes.erase(node_id);
-        LOG_INFO_FMT("Removed raft node {}", node_id);
+
+        LOG_INFO_FMT("Removed raft node {}", id);
       }
 
-      // Add all nodes that are not already present in the node state.
-      bool self_is_active = false;
-
-      for (const auto& [id, info] : all_nodes)
+      if (replica_state == kv::ReplicaState::Leader)
       {
-        if (id == state->my_node_id)
-        {
-          self_is_active = true;
-          continue;
-        }
-
-        if (nodes.find(id) == nodes.end())
-        {
-          // A new node is sent only future entries initially. If it does not
-          // have prior data, it will communicate that back to the leader.
-          auto index = state->last_idx + 1;
-          auto er = nodes.try_emplace(id, info, index, 0, info.catching_up);
-
-          if (er.second)
-          {
-            LOG_DEBUG_FMT(
-              "{}: {} (was {})",
-              er.first->first,
-              er.first->second.catching_up,
-              info.catching_up);
-          }
-
-          if (
-            replica_state == kv::ReplicaState::Leader ||
-            consensus_type == ConsensusType::BFT)
-          {
-            channels->create_channel(id, info.hostname, info.port);
-          }
-
-          if (replica_state == kv::ReplicaState::Leader)
-          {
-            send_append_entries(id, index);
-          }
-
-          LOG_INFO_FMT("Added raft node {}", id);
-        }
-      }
-
-      if (!self_is_active && !catching_up)
-      {
-        if (replica_state == kv::ReplicaState::Leader)
+        auto c = configuration_tracker.current();
+        if (c.find(state->my_node_id) == c.end())
         {
           become_retired();
         }
-        else
-          LOG_INFO_FMT("Removed raft self {}", state->my_node_id);
       }
     }
   };
