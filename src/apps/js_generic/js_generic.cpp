@@ -35,7 +35,7 @@ namespace ccfapp
   };
 
   thread_local std::unordered_map<std::string, std::vector<uint8_t>>
-    module_bytecode_cache;
+    bytecode_cache;
 
   static JSModuleDef* js_module_loader(
     JSContext* ctx, const char* module_name, void* opaque)
@@ -49,7 +49,7 @@ namespace ccfapp
 
     JSValue module_val;
 
-    if (module_bytecode_cache.count(module_name_kv) == 0)
+    if (bytecode_cache.count(module_name_kv) == 0)
     {
       LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
 
@@ -87,7 +87,7 @@ namespace ccfapp
         js::js_dump_error(ctx);
         return nullptr;
       }
-      module_bytecode_cache.insert(
+      bytecode_cache.insert(
         {module_name_kv, std::vector<uint8_t>(out_buf, out_buf + out_buf_len)});
       js_free(ctx, out_buf);
     }
@@ -95,7 +95,7 @@ namespace ccfapp
     {
       LOG_TRACE_FMT("Loading module from cache '{}'", module_name_kv);
 
-      auto& bytecode = module_bytecode_cache[module_name_kv];
+      auto& bytecode = bytecode_cache[module_name_kv];
       module_val = JS_ReadObject(
         ctx, bytecode.data(), bytecode.size(), JS_READ_OBJ_BYTECODE);
       if (JS_IsException(module_val))
@@ -349,18 +349,6 @@ namespace ccfapp
       const std::optional<ccf::TxID>& transaction_id,
       ccf::historical::TxReceiptPtr receipt)
     {
-      const auto modules = endpoint_ctx.tx.ro(this->network.modules);
-
-      auto handler_script = modules->get(props.js_module);
-      if (!handler_script.has_value())
-      {
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format("Endpoint module not found: {}.", props.js_module));
-        return;
-      }
-
       js::Runtime rt;
       rt.add_ccf_classdefs();
 
@@ -384,14 +372,17 @@ namespace ccfapp
         ctx);
       js::populate_global_openenclave(ctx);
 
-      // Compile module
-      std::string code = handler_script.value();
-      const std::string path = props.js_module;
+      // A proxy module is used so that the endpoint module
+      // benefits from bytecode caching through the module loader.
+      std::string code = fmt::format(
+            "import{{{} as f}}from'./{}';export default r=>f(r)",
+            props.js_function,
+            props.js_module);
 
       JSValue export_func;
       try
       {
-        export_func = ctx.function(code, props.js_function, path);
+        export_func = ctx.default_function(code, "[root]");
       }
       catch (std::exception& exc)
       {
