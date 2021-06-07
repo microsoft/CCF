@@ -915,7 +915,12 @@ namespace js
       js_dump_error(ctx);
       throw std::runtime_error(fmt::format("Failed to compile {}", path));
     }
+    return function(module, func, path);
+  }
 
+  JSValue Context::function(
+    JSValue module, const std::string& func, const std::string& path)
+  {
     auto eval_val = JS_EvalFunction(ctx, module);
     if (JS_IsException(eval_val))
     {

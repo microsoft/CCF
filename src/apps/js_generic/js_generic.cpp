@@ -29,18 +29,11 @@ namespace ccfapp
 
   // Modules
 
-  struct JSModuleLoaderArg
-  {
-    ccf::NetworkTables* network;
-    kv::Tx* tx;
-  };
-
-  std::unordered_map<std::string, std::shared_ptr<std::vector<uint8_t>>>
-    bytecode_cache;
-  std::mutex bytecode_cache_mutex;
-
-  static JSModuleDef* js_module_loader(
-    JSContext* ctx, const char* module_name, void* opaque)
+  static JSValue js_load_module(
+    JSContext* ctx,
+    const char* module_name,
+    ccf::NetworkTables* network,
+    kv::Tx* tx)
   {
     // QuickJS resolves relative paths but in some cases omits leading slashes.
     std::string module_name_kv(module_name);
@@ -49,27 +42,28 @@ namespace ccfapp
       module_name_kv.insert(0, "/");
     }
 
-    JSValue module_val;
+    const auto modules = tx->ro(network->modules);
+    const auto modules_bytecode = tx->rw(network->modules_bytecode);
 
-    std::shared_ptr<std::vector<uint8_t>> bytecode;
+    auto module_version =
+      modules->get_version_of_previous_write(module_name_kv);
+    if (!module_version.has_value())
     {
-      const std::lock_guard<std::mutex> lock(bytecode_cache_mutex);
-      bytecode = bytecode_cache[module_name_kv];
+      throw std::runtime_error(
+        fmt::format("module '{}' not found in kv", module_name));
     }
 
-    if (bytecode == nullptr)
+    auto bytecode_version =
+      modules_bytecode->get_version_of_previous_write(module_name_kv);
+    auto has_bytecode = bytecode_version.value_or(0) > module_version.value();
+
+    JSValue module_val;
+
+    if (!has_bytecode)
     {
       LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
 
-      auto arg = (JSModuleLoaderArg*)opaque;
-
-      const auto modules = arg->tx->ro(arg->network->modules);
       auto module = modules->get(module_name_kv);
-      if (!module.has_value())
-      {
-        JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
-        return nullptr;
-      }
       auto& js = module.value();
 
       const char* buf = js.c_str();
@@ -83,7 +77,8 @@ namespace ccfapp
       if (JS_IsException(module_val))
       {
         js::js_dump_error(ctx);
-        return nullptr;
+        throw std::runtime_error(
+          fmt::format("failed to compile module '{}'", module_name));
       }
 
       uint8_t* out_buf;
@@ -93,33 +88,57 @@ namespace ccfapp
       if (!out_buf)
       {
         js::js_dump_error(ctx);
-        return nullptr;
+        throw std::runtime_error(fmt::format(
+          "failed to serialize bytecode for module '{}'", module_name));
       }
-      {
-        const std::lock_guard<std::mutex> lock(bytecode_cache_mutex);
-        bytecode_cache.insert({module_name_kv,
-                               std::make_shared<std::vector<uint8_t>>(
-                                 out_buf, out_buf + out_buf_len)});
-      }
+      modules_bytecode->put(
+        module_name_kv, std::vector<uint8_t>(out_buf, out_buf + out_buf_len));
       js_free(ctx, out_buf);
     }
     else
     {
       LOG_TRACE_FMT("Loading module from cache '{}'", module_name_kv);
 
-      auto& bytecode = bytecode_cache[module_name_kv];
+      auto bytecode = modules_bytecode->get(module_name_kv);
       module_val = JS_ReadObject(
         ctx, bytecode->data(), bytecode->size(), JS_READ_OBJ_BYTECODE);
       if (JS_IsException(module_val))
       {
         js::js_dump_error(ctx);
-        return nullptr;
+        throw std::runtime_error(fmt::format(
+          "failed to deserialize bytecode for module '{}'", module_name));
       }
       if (JS_ResolveModule(ctx, module_val) < 0)
       {
+        js::js_dump_error(ctx);
         throw std::runtime_error(fmt::format(
-          "Failed to resolve module dependencies for {}", module_name_kv));
+          "failed to resolve dependencies for module '{}'", module_name));
       }
+    }
+    return module_val;
+  }
+
+  struct JSModuleLoaderArg
+  {
+    ccf::NetworkTables* network;
+    kv::Tx* tx;
+  };
+
+  static JSModuleDef* js_module_loader(
+    JSContext* ctx, const char* module_name, void* opaque)
+  {
+    auto arg = (JSModuleLoaderArg*)opaque;
+
+    JSValue module_val;
+    try
+    {
+      module_val = js_load_module(ctx, module_name, arg->network, arg->tx);
+    }
+    catch (const std::exception& exc)
+    {
+      JS_ThrowReferenceError(ctx, "%s", exc.what());
+      js::js_dump_error(ctx);
+      return nullptr;
     }
 
     auto m = (JSModuleDef*)JS_VALUE_GET_PTR(module_val);
@@ -384,19 +403,15 @@ namespace ccfapp
         ctx);
       js::populate_global_openenclave(ctx);
 
-      // A proxy module is used so that the endpoint module
-      // benefits from bytecode caching through the module loader.
-      std::string code = fmt::format(
-        "import{{{} as f}}from'./{}';export default r=>f(r)",
-        props.js_function,
-        props.js_module);
-
       JSValue export_func;
       try
       {
-        export_func = ctx.default_function(code, "[root]");
+        auto module_val = js_load_module(
+          ctx, props.js_module.c_str(), &this->network, &target_tx);
+        export_func =
+          ctx.function(module_val, props.js_function, props.js_module);
       }
-      catch (std::exception& exc)
+      catch (const std::exception& exc)
       {
         endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,

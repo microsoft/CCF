@@ -13,4 +13,6 @@ namespace ccf
 {
   using Module = std::string;
   using Modules = kv::RawCopySerialisedMap<std::string, Module>;
+  using ModulesBytecode =
+    kv::RawCopySerialisedMap<std::string, std::vector<uint8_t>>;
 }
