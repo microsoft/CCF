@@ -310,7 +310,7 @@ namespace ccf
               tables.next_version();
               return std::make_tuple(prescribed_commit_version, kv::NoVersion);
             };
-            tx.set_replicated_view(replicated_view);
+            tx.set_view(replicated_view);
             result = tx.commit(
               track_read_versions, version_resolver, max_conflict_version);
           }

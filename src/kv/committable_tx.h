@@ -292,7 +292,7 @@ namespace kv
       view = term_;
     }
 
-    void set_replicated_view(ccf::View view_)
+    void set_view(ccf::View view_)
     {
       view = view_;
     }
