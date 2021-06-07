@@ -12,6 +12,7 @@
 #include "named_auth_policies.h"
 
 #include <memory>
+#include <mutex>
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
 #include <stdexcept>
@@ -34,8 +35,9 @@ namespace ccfapp
     kv::Tx* tx;
   };
 
-  thread_local std::unordered_map<std::string, std::vector<uint8_t>>
+  std::unordered_map<std::string, std::shared_ptr<std::vector<uint8_t>>>
     bytecode_cache;
+  std::mutex bytecode_cache_mutex;
 
   static JSModuleDef* js_module_loader(
     JSContext* ctx, const char* module_name, void* opaque)
@@ -49,7 +51,13 @@ namespace ccfapp
 
     JSValue module_val;
 
-    if (bytecode_cache.count(module_name_kv) == 0)
+    std::shared_ptr<std::vector<uint8_t>> bytecode;
+    {
+      const std::lock_guard<std::mutex> lock(bytecode_cache_mutex);
+      bytecode = bytecode_cache[module_name_kv];
+    }
+
+    if (bytecode == nullptr)
     {
       LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
 
@@ -87,8 +95,12 @@ namespace ccfapp
         js::js_dump_error(ctx);
         return nullptr;
       }
-      bytecode_cache.insert(
-        {module_name_kv, std::vector<uint8_t>(out_buf, out_buf + out_buf_len)});
+      {
+        const std::lock_guard<std::mutex> lock(bytecode_cache_mutex);
+        bytecode_cache.insert({module_name_kv,
+                               std::make_shared<std::vector<uint8_t>>(
+                                 out_buf, out_buf + out_buf_len)});
+      }
       js_free(ctx, out_buf);
     }
     else
@@ -97,7 +109,7 @@ namespace ccfapp
 
       auto& bytecode = bytecode_cache[module_name_kv];
       module_val = JS_ReadObject(
-        ctx, bytecode.data(), bytecode.size(), JS_READ_OBJ_BYTECODE);
+        ctx, bytecode->data(), bytecode->size(), JS_READ_OBJ_BYTECODE);
       if (JS_IsException(module_val))
       {
         js::js_dump_error(ctx);
@@ -375,9 +387,9 @@ namespace ccfapp
       // A proxy module is used so that the endpoint module
       // benefits from bytecode caching through the module loader.
       std::string code = fmt::format(
-            "import{{{} as f}}from'./{}';export default r=>f(r)",
-            props.js_function,
-            props.js_module);
+        "import{{{} as f}}from'./{}';export default r=>f(r)",
+        props.js_function,
+        props.js_module);
 
       JSValue export_func;
       try
