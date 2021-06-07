@@ -12,7 +12,6 @@
 #include "named_auth_policies.h"
 
 #include <memory>
-#include <mutex>
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
 #include <stdexcept>
@@ -407,7 +406,7 @@ namespace ccfapp
       try
       {
         auto module_val = js_load_module(
-          ctx, props.js_module.c_str(), &this->network, &target_tx);
+          ctx, props.js_module.c_str(), &this->network, &endpoint_ctx.tx);
         export_func =
           ctx.function(module_val, props.js_function, props.js_module);
       }
