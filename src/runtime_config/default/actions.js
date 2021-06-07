@@ -516,14 +516,11 @@ const actions = new Map([
       },
       function (args) {
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
+        const modulesBytecodeMap = ccf.kv["public:ccf.gov.modules_bytecode"];
         const endpointsMap = ccf.kv["public:ccf.gov.endpoints"];
-        // kv should expose .clear()
-        modulesMap.forEach((_, k) => {
-          modulesMap.delete(k);
-        });
-        endpointsMap.forEach((_, k) => {
-          endpointsMap.delete(k);
-        });
+        modulesMap.clear();
+        modulesBytecodeMap.clear();
+        endpointsMap.clear();
 
         const bundle = args.bundle;
         for (const module of bundle.modules) {
@@ -554,14 +551,11 @@ const actions = new Map([
       function (args) {},
       function (args) {
         const modulesMap = ccf.kv["public:ccf.gov.modules"];
+        const modulesBytecodeMap = ccf.kv["public:ccf.gov.modules_bytecode"];
         const endpointsMap = ccf.kv["public:ccf.gov.endpoints"];
-        // kv should expose .clear()
-        modulesMap.forEach((_, k) => {
-          modulesMap.delete(k);
-        });
-        endpointsMap.forEach((_, k) => {
-          endpointsMap.delete(k);
-        });
+        modulesMap.clear();
+        modulesBytecodeMap.clear();
+        endpointsMap.clear();
       }
     ),
   ],
