@@ -292,6 +292,11 @@ namespace kv
       view = term_;
     }
 
+    void set_view(ccf::View view_)
+    {
+      view = view_;
+    }
+
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
     {
       req_id = req_id_;

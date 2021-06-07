@@ -812,7 +812,7 @@ namespace aft
           if (
             aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
               view_change_tracker->add_request_view_change(
-                *vc, id(), new_view, seqno, node_count()) &&
+                *vc, id(), new_view, node_count()) &&
             get_primary(new_view) == id())
           {
             // We need to reobtain the lock when writing to the ledger so we
@@ -900,7 +900,7 @@ namespace aft
       if (
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
           view_change_tracker->add_request_view_change(
-            v, from, r.view, r.seqno, node_count()) &&
+            v, from, r.view, node_count()) &&
         get_primary(r.view) == id())
       {
         append_new_view(r.view);
@@ -1678,7 +1678,8 @@ namespace aft
                 ds->get_request(),
                 request_tracker,
                 state->last_idx,
-                ds->get_max_conflict_version());
+                ds->get_max_conflict_version(),
+                ds->get_term());
             }
             else
             {
@@ -1730,7 +1731,8 @@ namespace aft
                   msg->data.ds->get_request(),
                   self->request_tracker,
                   msg->data.last_idx,
-                  msg->data.ds->get_max_conflict_version());
+                  msg->data.ds->get_max_conflict_version(),
+                  msg->data.ds->get_term());
 
                 if (threading::ThreadMessaging::thread_count == 1)
                 {
@@ -1770,7 +1772,8 @@ namespace aft
               ds->get_request(),
               request_tracker,
               state->last_idx,
-              ds->get_max_conflict_version());
+              ds->get_max_conflict_version(),
+              ds->get_term());
           }
           break;
         }
