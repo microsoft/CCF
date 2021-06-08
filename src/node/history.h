@@ -318,7 +318,7 @@ namespace ccf
         auto progress_tracker = store.get_progress_tracker();
         CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
         auto r = progress_tracker->record_primary(
-          txid, id, root, primary_sig, hashed_nonce);
+          txid, id, true, root, primary_sig, hashed_nonce);
         if (r != kv::TxHistory::Result::OK)
         {
           throw ccf::ccf_logic_error(fmt::format(
@@ -663,6 +663,7 @@ namespace ccf
       result = progress_tracker->record_primary(
         {sig.view, sig.seqno},
         sig.node,
+        false,
         sig.root,
         sig.sig,
         sig.hashed_nonce,

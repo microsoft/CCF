@@ -51,6 +51,7 @@ namespace ccf
     kv::TxHistory::Result record_primary(
       ccf::TxID tx_id,
       NodeId node_id,
+      bool am_i_primary,
       crypto::Sha256Hash& root,
       std::vector<uint8_t>& sig,
       Nonce hashed_nonce,
@@ -74,8 +75,17 @@ namespace ccf
         sig);
 
       auto it = certificates.find(tx_id.seqno);
-      if (it == certificates.end())
+      if (it == certificates.end() || am_i_primary)
       {
+        // If a primary is behind and becomes a backup (without becoming aware
+        // of this) the old primary could attempt to sign a seqno that the new
+        // primary signed. In this case clear any prepares that we could have
+        // received.
+        if (it != certificates.end())
+        {
+          certificates.erase(it);
+        }
+
         CommitCert cert(root, my_nonce);
         cert.have_primary_signature = true;
         BftNodeSignature bft_node_sig(sig, node_id, hashed_nonce);
@@ -104,30 +114,27 @@ namespace ccf
           cert, bft_node_sig, tx_id.view, tx_id.seqno, node_id);
         cert.my_nonce = my_nonce;
         cert.have_primary_signature = true;
-        for (auto& sig : cert.sigs)
+        for (auto sig = cert.sigs.begin(); sig != cert.sigs.end();)
         {
           if (
-            !sig.second.is_primary &&
+            !sig->second.is_primary &&
             !store->verify_signature(
-              sig.second.node,
+              sig->second.node,
               cert.root,
-              sig.second.sig.size(),
-              sig.second.sig.data()))
+              sig->second.sig.size(),
+              sig->second.sig.data()))
           {
-            // NOTE: We need to handle this case but for now having this make a
-            // test fail will be very handy
-            throw ccf::ccf_logic_error(fmt::format(
-              "record_primary: Signature verification from {} FAILED, view:{}, "
-              "seqno:{}",
-              sig.first,
-              tx_id.view,
-              tx_id.seqno));
+            sig = cert.sigs.erase(sig);
           }
-          LOG_TRACE_FMT(
-            "Signature verification from {} passed, view:{}, seqno:{}",
-            sig.second.node,
-            tx_id.view,
-            tx_id.seqno);
+          else
+          {
+            LOG_TRACE_FMT(
+              "Signature verification from {} passed, view:{}, seqno:{}",
+              sig->second.node,
+              tx_id.view,
+              tx_id.seqno);
+            ++sig;
+          }
         }
         cert.sigs.insert(
           std::pair<NodeId, BftNodeSignature>(node_id, bft_node_sig));
@@ -484,17 +491,28 @@ namespace ccf
 
       auto& cert = it->second;
       auto m = std::make_unique<ViewChangeRequest>();
+      m->seqno = highest_prepared_level.seqno;
+      m->root = cert.root;
 
-      auto it_view_change_view = it->second.view_change_sig.find(view);
-      if (it_view_change_view != it->second.view_change_sig.end())
+      for (const auto& sig : cert.sigs)
       {
-        for (const auto& sig : it_view_change_view->second)
+        // We may have received a nonce but not the signature from a
+        // node, in this case we do not want to include the empty signature
+        if (!sig.second.sig.empty())
         {
           m->signatures.push_back(sig.second);
         }
       }
 
-      store->sign_view_change_request(*m, view, highest_prepared_level.seqno);
+      store->sign_view_change_request(*m, view);
+      LOG_INFO_FMT(
+        "Creating ViewChangeRequest view:{}, seqno:{}, root:{}, sig.size:{}, "
+        "sig:{}",
+        view,
+        m->seqno,
+        m->root,
+        m->signature.size(),
+        m->signature);
       return std::make_tuple(std::move(m), highest_prepared_level.seqno);
     }
 
@@ -527,29 +545,14 @@ namespace ccf
         LOG_FAIL_FMT("Failed to verify view-change from:{}", from);
         return ApplyViewChangeMessageResult::FAIL;
       }
-      LOG_TRACE_FMT(
+      LOG_INFO_FMT(
         "Applying view-change from:{}, view:{}, seqno:{}", from, view, seqno);
-
-      auto it = certificates.find(seqno);
-
-      if (it == certificates.end() || !it->second.have_primary_signature)
-      {
-        LOG_INFO_FMT(
-          "Received view-change for view:{} and seqno:{} that I am not aware "
-          "of, from:{}, last_prepared:{} ",
-          view,
-          seqno,
-          from,
-          highest_prepared_level.seqno);
-        return ApplyViewChangeMessageResult::FAIL;
-      }
-
       bool verified_signatures = true;
 
       for (auto& sig : view_change.signatures)
       {
         if (!store->verify_signature(
-              sig.node, it->second.root, sig.sig.size(), sig.sig.data()))
+              sig.node, view_change.root, sig.sig.size(), sig.sig.data()))
         {
           LOG_FAIL_FMT(
             "signatures do not match, view-change from:{}, view:{}, seqno:{}, "
@@ -558,29 +561,12 @@ namespace ccf
             view,
             seqno,
             sig.node,
-            it->second.root,
+            view_change.root,
             sig.sig,
             sig.sig.size());
           verified_signatures = false;
           continue;
         }
-
-        auto it_view_change_view = it->second.view_change_sig.find(view);
-        if (it_view_change_view == it->second.view_change_sig.end())
-        {
-          auto ret = it->second.view_change_sig.insert(
-            std::pair<ccf::View, std::map<NodeId, BftNodeSignature>>(view, {}));
-          it_view_change_view = ret.first;
-        }
-
-        if (
-          it_view_change_view->second.find(sig.node) !=
-          it_view_change_view->second.end())
-        {
-          continue;
-        }
-        it_view_change_view->second.insert(
-          std::pair<NodeId, BftNodeSignature>(sig.node, sig));
       }
 
       return verified_signatures ? ApplyViewChangeMessageResult::OK :
@@ -588,27 +574,22 @@ namespace ccf
     }
 
     bool apply_new_view(
-      const NodeId& from,
-      uint32_t node_count,
-      ccf::View& view_,
-      ccf::SeqNo& seqno_)
+      const NodeId& from, uint32_t node_count, ccf::View& view_)
     {
       std::unique_lock<SpinLock> guard(lock);
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
       ccf::View view = new_view->view;
-      ccf::SeqNo seqno = new_view->seqno;
 
       if (
         new_view->view_change_messages.size() <
         ccf::get_message_threshold(node_count))
       {
         LOG_FAIL_FMT(
-          "Not enough ViewChangeRequests from:{}, new_view view:{}, seqno:{}, "
+          "Not enough ViewChangeRequests from:{}, new_view view:{}, "
           "num_requests:{}",
           from,
           view,
-          seqno,
           new_view->view_change_messages.size());
         return false;
       }
@@ -618,13 +599,21 @@ namespace ccf
         NodeId id = vcp.first;
         ccf::ViewChangeRequest& vc = vcp.second;
 
-        if (!store->verify_view_change_request(vc, id, view, seqno))
+        bool result = store->verify_view_change_request(vc, id, view, vc.seqno);
+        LOG_INFO_FMT(
+          "Verify view-change id:{},view:{}, seqno:{}, from:{}, result:{}",
+          id,
+          view,
+          vc.seqno,
+          from,
+          result);
+        if (!result)
         {
           LOG_FAIL_FMT(
             "Failed to verify view-change id:{},view:{}, seqno:{}, from:{}",
             id,
             view,
-            seqno,
+            vc.seqno,
             from);
           return false;
         }
@@ -638,9 +627,6 @@ namespace ccf
       }
 
       view_ = view;
-      seqno_ = seqno;
-      last_view_change_seqno = seqno;
-
       return true;
     }
 
@@ -680,7 +666,7 @@ namespace ccf
     ccf::SeqNo get_rollback_seqno() const
     {
       std::unique_lock<SpinLock> guard(lock);
-      return std::max(highest_commit_level, last_view_change_seqno);
+      return highest_commit_level;
     }
 
   private:
@@ -688,7 +674,6 @@ namespace ccf
     std::shared_ptr<crypto::Entropy> entropy;
     ccf::SeqNo highest_commit_level = 0;
     ccf::TxID highest_prepared_level = {0, 0};
-    ccf::SeqNo last_view_change_seqno = 0;
 
     std::map<ccf::SeqNo, CommitCert> certificates;
     mutable SpinLock lock;
