@@ -44,7 +44,7 @@ def test_replace_all_nodes(network, args):
         primary,
         proposal,
         {"ballot": "export function vote (proposal, proposer_id) { return true }"},
-        timeout=15,
+        wait_for_global_commit=False,
     )
 
     for node in new_nodes:
@@ -95,11 +95,11 @@ def run(args):
         network.start_and_join(args)
 
         # Replace all nodes repeatedly and check the network still operates
-        # if args.consensus != "bft":
-        #     LOG.info(f"Replacing all nodes {args.rotation_replacements} times")
-        #     for i in range(args.rotation_replacements):
-        #         LOG.warning(f"Replacement {i}")
-        #         test_replace_all_nodes(network, args)
+        if args.consensus != "bft":
+            LOG.info(f"Replacing all nodes {args.rotation_replacements} times")
+            for i in range(args.rotation_replacements):
+                LOG.warning(f"Replacement {i}")
+                test_replace_all_nodes(network, args)
 
         # Replace primary repeatedly and check the network still operates
         if args.consensus != "bft":
