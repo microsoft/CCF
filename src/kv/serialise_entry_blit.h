@@ -20,6 +20,22 @@ namespace kv::serialisers
       {
         return SerialisedEntry(t.begin(), t.end());
       }
+      else if constexpr (std::is_same_v<
+                           T,
+                           std::pair<std::string, std::vector<uint8_t>>>)
+      {
+        const auto& [str, vec] = t;
+        uint64_t str_size = str.size();
+        auto size = sizeof(str_size) + str_size + vec.size() * sizeof(vec[0]);
+        SerialisedEntry s(size);
+        auto offset = 0;
+        std::memcpy(s.data() + offset, (uint8_t*)&str_size, sizeof(str_size));
+        offset += sizeof(str_size);
+        std::memcpy(s.data() + offset, str.data(), str_size);
+        offset += str_size;
+        std::memcpy(s.data() + offset, vec.data(), vec.size());
+        return s;
+      }
       else if constexpr (std::is_integral_v<T>)
       {
         SerialisedEntry s(sizeof(t));
@@ -55,6 +71,30 @@ namespace kv::serialisers
         }
         std::copy_n(rep.begin(), t.size(), t.begin());
         return t;
+      }
+      else if constexpr (std::is_same_v<
+                           T,
+                           std::pair<std::string, std::vector<uint8_t>>>)
+      {
+        uint64_t str_size;
+        if (rep.size() < sizeof(str_size))
+        {
+          throw std::logic_error(fmt::format(
+            "Wrong serialised size {} for deserialisation of pair",
+            rep.size()));
+        }
+        std::memcpy((uint8_t*)&str_size, rep.data(), sizeof(str_size));
+        if (str_size > rep.size() - sizeof(str_size))
+        {
+          throw std::logic_error(fmt::format(
+            "Wrong serialised size {} for deserialisation of pair",
+            rep.size()));
+        }
+        auto str_begin = rep.begin() + sizeof(str_size);
+        auto str_end = str_begin + str_size;
+        std::string str{str_begin, str_end};
+        std::vector<uint8_t> vec{str_end, rep.end()};
+        return {str, vec};
       }
       else if constexpr (std::is_integral_v<T>)
       {

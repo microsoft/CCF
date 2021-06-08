@@ -4,6 +4,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/user_frontend.h"
+#include "ccf/version.h"
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
@@ -31,6 +32,7 @@ namespace ccfapp
   static JSValue js_load_module(
     JSContext* ctx,
     const char* module_name,
+    ccf::AbstractNodeState* node_state,
     ccf::NetworkTables* network,
     kv::Tx* tx)
   {
@@ -48,13 +50,21 @@ namespace ccfapp
       modules->get_version_of_previous_write(module_name_kv);
     if (!module_version.has_value())
     {
-      throw std::runtime_error(
-        fmt::format("module '{}' not found in kv", module_name));
+      throw std::runtime_error(fmt::format(
+        "No such module: '{}' in ", module_name, ccf::Tables::MODULES));
     }
 
     auto bytecode_version =
       modules_bytecode->get_version_of_previous_write(module_name_kv);
     auto has_bytecode = bytecode_version.value_or(0) > module_version.value();
+
+    std::optional<ccf::ModuleBytecode> bytecode;
+    if (has_bytecode)
+    {
+      bytecode = modules_bytecode->get(module_name_kv);
+      if (bytecode->first != std::string(ccf::quickjs_version))
+        has_bytecode = false;
+    }
 
     JSValue module_val;
 
@@ -77,41 +87,48 @@ namespace ccfapp
       {
         js::js_dump_error(ctx);
         throw std::runtime_error(
-          fmt::format("failed to compile module '{}'", module_name));
+          fmt::format("Failed to compile module '{}'", module_name));
       }
 
-      uint8_t* out_buf;
-      size_t out_buf_len;
-      int flags = JS_WRITE_OBJ_BYTECODE;
-      out_buf = JS_WriteObject(ctx, &out_buf_len, module_val, flags);
-      if (!out_buf)
+      if (node_state->is_primary())
       {
-        js::js_dump_error(ctx);
-        throw std::runtime_error(fmt::format(
-          "failed to serialize bytecode for module '{}'", module_name));
+        uint8_t* out_buf;
+        size_t out_buf_len;
+        int flags = JS_WRITE_OBJ_BYTECODE;
+        out_buf = JS_WriteObject(ctx, &out_buf_len, module_val, flags);
+        if (!out_buf)
+        {
+          js::js_dump_error(ctx);
+          throw std::runtime_error(fmt::format(
+            "Failed to serialize bytecode for module '{}'", module_name));
+        }
+        modules_bytecode->put(
+          module_name_kv,
+          {ccf::quickjs_version,
+           std::vector<uint8_t>(out_buf, out_buf + out_buf_len)});
+        js_free(ctx, out_buf);
       }
-      modules_bytecode->put(
-        module_name_kv, std::vector<uint8_t>(out_buf, out_buf + out_buf_len));
-      js_free(ctx, out_buf);
     }
     else
     {
       LOG_TRACE_FMT("Loading module from cache '{}'", module_name_kv);
 
-      auto bytecode = modules_bytecode->get(module_name_kv);
       module_val = JS_ReadObject(
-        ctx, bytecode->data(), bytecode->size(), JS_READ_OBJ_BYTECODE);
+        ctx,
+        bytecode->second.data(),
+        bytecode->second.size(),
+        JS_READ_OBJ_BYTECODE);
       if (JS_IsException(module_val))
       {
         js::js_dump_error(ctx);
         throw std::runtime_error(fmt::format(
-          "failed to deserialize bytecode for module '{}'", module_name));
+          "Failed to deserialize bytecode for module '{}'", module_name));
       }
       if (JS_ResolveModule(ctx, module_val) < 0)
       {
         js::js_dump_error(ctx);
         throw std::runtime_error(fmt::format(
-          "failed to resolve dependencies for module '{}'", module_name));
+          "Failed to resolve dependencies for module '{}'", module_name));
       }
     }
     return module_val;
@@ -119,6 +136,7 @@ namespace ccfapp
 
   struct JSModuleLoaderArg
   {
+    ccf::AbstractNodeState* node_state;
     ccf::NetworkTables* network;
     kv::Tx* tx;
   };
@@ -131,7 +149,8 @@ namespace ccfapp
     JSValue module_val;
     try
     {
-      module_val = js_load_module(ctx, module_name, arg->network, arg->tx);
+      module_val = js_load_module(
+        ctx, module_name, arg->node_state, arg->network, arg->tx);
     }
     catch (const std::exception& exc)
     {
@@ -382,7 +401,8 @@ namespace ccfapp
       js::Runtime rt;
       rt.add_ccf_classdefs();
 
-      JSModuleLoaderArg js_module_loader_arg{&this->network, &endpoint_ctx.tx};
+      JSModuleLoaderArg js_module_loader_arg{
+        &context.get_node_state(), &this->network, &endpoint_ctx.tx};
       JS_SetModuleLoaderFunc(
         rt, nullptr, js_module_loader, &js_module_loader_arg);
 
@@ -406,7 +426,11 @@ namespace ccfapp
       try
       {
         auto module_val = js_load_module(
-          ctx, props.js_module.c_str(), &this->network, &endpoint_ctx.tx);
+          ctx,
+          props.js_module.c_str(),
+          &context.get_node_state(),
+          &this->network,
+          &endpoint_ctx.tx);
         export_func =
           ctx.function(module_val, props.js_function, props.js_module);
       }

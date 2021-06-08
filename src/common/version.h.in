@@ -13,6 +13,7 @@ namespace ccf
   //
 
   static constexpr auto ccf_version = "@CCF_VERSION@";
+  static constexpr auto quickjs_version = "@QUICKJS_VERSION@";
 
   // clang-format on
 }
