@@ -87,7 +87,8 @@ namespace kv
     Leader,
     Follower,
     Candidate,
-    Retired
+    Retired,
+    Learner
   };
 
   DECLARE_JSON_ENUM(
@@ -95,7 +96,8 @@ namespace kv
     {{ReplicaState::Leader, "Leader"},
      {ReplicaState::Follower, "Follower"},
      {ReplicaState::Candidate, "Candidate"},
-     {ReplicaState::Retired, "Retired"}});
+     {ReplicaState::Retired, "Retired"},
+     {ReplicaState::Learner, "Learner"}});
 
   struct ConsensusDetails
   {
@@ -616,3 +618,44 @@ namespace kv
     virtual size_t commit_gap() = 0;
   };
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<kv::ReplicaState>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const kv::ReplicaState& state, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    switch (state)
+    {
+      case (kv::ReplicaState::Leader):
+      {
+        return format_to(ctx.out(), "Leader");
+      }
+      case (kv::ReplicaState::Follower):
+      {
+        return format_to(ctx.out(), "Follower");
+      }
+      case (kv::ReplicaState::Candidate):
+      {
+        return format_to(ctx.out(), "Candidate");
+      }
+      case (kv::ReplicaState::Retired):
+      {
+        return format_to(ctx.out(), "Retired");
+      }
+      case (kv::ReplicaState::Learner):
+      {
+        return format_to(ctx.out(), "Learner");
+      }
+    }
+  }
+};
+FMT_END_NAMESPACE

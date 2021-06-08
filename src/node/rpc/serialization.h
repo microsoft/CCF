@@ -40,6 +40,8 @@ namespace ccf
 
   DECLARE_JSON_TYPE(PromoteNodeToTrusted::In)
   DECLARE_JSON_REQUIRED_FIELDS(PromoteNodeToTrusted::In, node_id);
+  DECLARE_JSON_TYPE(PromoteConfiguration::In)
+  DECLARE_JSON_REQUIRED_FIELDS(PromoteConfiguration::In, configuration);
 
   DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)

@@ -15,15 +15,13 @@ namespace ccf
     TRUSTED = 1,
     RETIRED = 2,
     CATCHING_UP = 3,
-    RETIRING = 4,
   };
   DECLARE_JSON_ENUM(
     NodeStatus,
     {{NodeStatus::PENDING, "Pending"},
      {NodeStatus::TRUSTED, "Trusted"},
      {NodeStatus::RETIRED, "Retired"},
-     {NodeStatus::CATCHING_UP, "CatchingUp"},
-     {NodeStatus::RETIRING, "Retiring"}});
+     {NodeStatus::CATCHING_UP, "CatchingUp"}});
 
   struct NodeInfo : NodeInfoNetwork
   {
@@ -63,21 +61,17 @@ struct formatter<ccf::NodeStatus>
       {
         return format_to(ctx.out(), "PENDING");
       }
-      case (ccf::NodeStatus::CATCHING_UP):
-      {
-        return format_to(ctx.out(), "CATCHING_UP");
-      }
       case (ccf::NodeStatus::TRUSTED):
       {
         return format_to(ctx.out(), "TRUSTED");
       }
-      case (ccf::NodeStatus::RETIRING):
-      {
-        return format_to(ctx.out(), "RETIRING");
-      }
       case (ccf::NodeStatus::RETIRED):
       {
         return format_to(ctx.out(), "RETIRED");
+      }
+      case (ccf::NodeStatus::CATCHING_UP):
+      {
+        return format_to(ctx.out(), "CATCHING_UP");
       }
     }
   }

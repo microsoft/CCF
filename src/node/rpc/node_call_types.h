@@ -123,6 +123,14 @@ namespace ccf
     };
   };
 
+  struct PromoteConfiguration
+  {
+    struct In
+    {
+      kv::Configuration configuration;
+    };
+  };
+
   struct MemoryUsage
   {
     using In = void;

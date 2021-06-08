@@ -12,12 +12,5 @@
 
 namespace ccf
 {
-  struct NetworkConfiguration
-  {
-    std::set<NodeId> nodes;
-  };
-  DECLARE_JSON_TYPE(NetworkConfiguration);
-  DECLARE_JSON_REQUIRED_FIELDS(NetworkConfiguration, nodes);
-
-  using NetworkConfigurations = ServiceMap<size_t, NetworkConfiguration>;
+  using NetworkConfigurations = ServiceMap<size_t, kv::Configuration>;
 }

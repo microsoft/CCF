@@ -143,7 +143,7 @@ def test_add_and_remove_multiple_nodes(network, args, n=1, m=1, timeout=3):
 
 
 def test_replace_network(network, args, timeout=3):
-    n = len(network.nodes)
+    n = len(network.get_joined_nodes())
     test_add_and_remove_multiple_nodes(network, args, n, n, timeout)
 
 
@@ -397,7 +397,7 @@ def test_join_straddling_primary_replacement(network, args):
         timeout=10,
     )
 
-    network.wait_for_new_primary(primary, args=args)
+    network.wait_for_new_primary(primary, args=args, timeout_multiplier=2)
     new_node.wait_for_node_to_join(timeout=10)
 
     primary.stop()
@@ -450,7 +450,7 @@ def run(args):
             test_node_filter(network, args)
 
         elif args.consensus == "bft":
-            # test_join_straddling_primary_replacement(network, args)  # Fails to find new primary
+            test_join_straddling_primary_replacement(network, args)
             test_node_replacement(network, args)
             # test_add_node_from_backup(network, args)  # Join-tx gets rolled back every time it tries
             test_add_node(network, args)

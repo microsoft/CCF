@@ -57,8 +57,6 @@ namespace ccf
         ni.status = NodeStatus::RETIRED;
         nodes->put(nid, ni);
       }
-
-      // TODO: Do we need to add an empty configuration?
     }
 
     bool is_recovery_member(const MemberId& member_id)
@@ -272,7 +270,7 @@ namespace ccf
     void add_node(const NodeId& id, const NodeInfo& node_info)
     {
       auto config = tx.ro(tables.config);
-      auto c0 = config->get(0);
+      auto c0 = config->get();
       if (c0 && c0->consensus == BFT)
       {
         // Increment the node id (only used in BFT)

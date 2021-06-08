@@ -182,7 +182,7 @@ namespace aft
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
-      replica_state(kv::ReplicaState::Follower),
+      replica_state(kv::ReplicaState::Learner),
       timeout_elapsed(0),
 
       state(state_),
@@ -272,15 +272,19 @@ namespace aft
       return replica_state == kv::ReplicaState::Follower;
     }
 
+    bool is_learner()
+    {
+      return replica_state == kv::ReplicaState::Learner;
+    }
+
     bool is_eligible_voter(const ccf::NodeId& from) const
     {
-      auto nodes = configuration_tracker.current();
-      return nodes.find(from) != nodes.end();
+      return configuration_tracker.is_eligible_voter(from);
     }
 
     size_t num_eligible_voters() const
     {
-      return configuration_tracker.current().size();
+      return configuration_tracker.num_eligible_voters();
     }
 
     ccf::NodeId get_primary(ccf::View view)
@@ -439,7 +443,13 @@ namespace aft
 
     void update_node(const NodeId& id, const std::optional<ccf::NodeInfo>& info)
     {
-      configuration_tracker.update_node(id, info);
+      config_update(configuration_tracker.update_node(id, info));
+      if (
+        is_learner() && id == state->my_node_id &&
+        info->status == ccf::NodeStatus::TRUSTED)
+      {
+        replica_state = kv::ReplicaState::Follower;
+      }
     }
 
     void add_configuration(const Configuration& conf)
@@ -466,8 +476,11 @@ namespace aft
         guard.lock();
       }
       configuration_tracker.add(std::move(conf));
-      auto news = configuration_tracker.commit(state->last_idx);
-      config_update(news.first, news.second);
+
+      // Nodes added during startup are trusted immediately, so we need to
+      // commit this immediately.
+      config_update(
+        configuration_tracker.commit(state->last_idx, is_primary()));
     }
 
     const std::set<NodeId>& get_latest_configuration_unsafe() const
@@ -605,6 +618,13 @@ namespace aft
               send_append_entries(
                 id, configuration_tracker.state(id).sent_idx + 1);
             }
+          }
+          for (const auto& id : configuration_tracker.learners())
+          {
+            assert(id != state->my_node_id);
+            LOG_DEBUG_FMT("Sending updates to learner {}", id.trim());
+            send_append_entries(
+              id, configuration_tracker.state(id).sent_idx + 1);
           }
         }
       }
@@ -896,17 +916,23 @@ namespace aft
                 id, configuration_tracker.state(id).sent_idx + 1);
             }
           }
+          for (const auto& id : configuration_tracker.learners())
+          {
+            assert(id != state->my_node_id);
+            send_append_entries(
+              id, configuration_tracker.state(id).sent_idx + 1);
+          }
         }
       }
       else if (consensus_type != ConsensusType::BFT)
       {
         if (
           replica_state != kv::ReplicaState::Retired &&
+          replica_state != kv::ReplicaState::Learner &&
+          is_eligible_voter(state->my_node_id) &&
           timeout_elapsed >= election_timeout)
         {
-          LOG_DEBUG_FMT(
-            "Starting election: eligible?={}",
-            is_eligible_voter(state->my_node_id));
+          LOG_DEBUG_FMT("Starting election");
           LOG_DEBUG_FMT(
             "Configurations: {}", configuration_tracker.to_string());
           // Start an election.
@@ -2300,15 +2326,6 @@ namespace aft
         from.trim(),
         r.last_log_idx);
 
-      if (is_primary()) // && node->second.catching_up)
-      {
-        threading::ThreadMessaging::thread_messaging.add_task(
-          [this, from, r]() {
-            ConfigurationTracker::promote_cb(
-              configuration_tracker, from, r.last_log_idx, state->commit_idx);
-          });
-      }
-
       update_commit();
     }
 
@@ -2541,23 +2558,13 @@ namespace aft
       {
         for (auto& id : configuration_tracker.current())
         {
-          if (id == state->my_node_id)
-            continue;
-
-          // TODO: Change to list of eligibles
-
-          auto info = configuration_tracker.info(id);
-          channels->create_channel(id, info.nodehost, info.nodeport);
-
-          LOG_DEBUG_FMT("{} eligible?", id);
-
-          if (is_eligible_voter(id))
+          if (
+            id != state->my_node_id &&
+            configuration_tracker.is_eligible_voter(id))
           {
+            auto info = configuration_tracker.info(id);
+            channels->create_channel(id, info.nodehost, info.nodeport);
             send_request_vote(id);
-          }
-          else
-          {
-            LOG_INFO_FMT("Not requesting a vote from ineligible voter {}", id);
           }
         }
       }
@@ -2635,7 +2642,8 @@ namespace aft
         return;
       }
 
-      replica_state = kv::ReplicaState::Follower;
+      if (replica_state != kv::ReplicaState::Learner)
+        replica_state = kv::ReplicaState::Follower;
       leader_id.reset();
       restart_election_timeout();
 
@@ -2816,8 +2824,8 @@ namespace aft
 
       LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id.trim(), idx);
 
-      auto news = configuration_tracker.commit(idx);
-      config_update(news.first, news.second);
+      auto news = configuration_tracker.commit(idx, is_primary());
+      config_update(news);
     }
 
     Index get_commit_watermark_idx()
@@ -2866,11 +2874,35 @@ namespace aft
       }
     }
 
-    void config_update(
-      const std::set<NodeId>& added, const std::set<NodeId>& removed)
+    void config_update(const ConfigurationTracker::News& news)
     {
-      for (auto& id : added)
-      { // A new node is sent only future entries initially. If it does not
+      LOG_DEBUG_FMT(
+        "Configurations: update: +{{{}}} -{{{}}} replica_state={}",
+        fmt::join(news.to_add, ", "),
+        fmt::join(news.to_remove, ", "),
+        replica_state);
+
+      if (replica_state == kv::ReplicaState::Learner)
+      {
+        if (news.to_add.find(state->my_node_id) != news.to_add.end())
+        {
+          LOG_INFO_FMT("Configurations: self-promote");
+          threading::ThreadMessaging::thread_messaging.add_task(
+            [& ct = this->configuration_tracker, id = state->my_node_id]() {
+              ConfigurationTracker::promote_node_cb(ct, id);
+            });
+        }
+        return;
+      }
+
+      for (auto& id : news.to_add)
+      {
+        if (id == state->my_node_id)
+        {
+          continue;
+        }
+
+        // A new node is sent only future entries initially. If it does not
         // have prior data, it will communicate that back to the leader.
         auto index = state->last_idx + 1;
 
@@ -2890,8 +2922,17 @@ namespace aft
         LOG_INFO_FMT("Added raft node {}", id);
       }
 
-      for (auto& id : removed)
+      bool retire = false;
+
+      for (auto& id : news.to_remove)
       {
+        if (id == state->my_node_id)
+        {
+          LOG_INFO_FMT("Removed raft self {}", id);
+          retire = true;
+          continue;
+        }
+
         if (
           replica_state == kv::ReplicaState::Leader ||
           consensus_type == ConsensusType::BFT)
@@ -2902,13 +2943,11 @@ namespace aft
         LOG_INFO_FMT("Removed raft node {}", id);
       }
 
-      if (replica_state == kv::ReplicaState::Leader)
+      if (replica_state == kv::ReplicaState::Leader && retire)
       {
         auto c = configuration_tracker.current();
-        if (c.find(state->my_node_id) == c.end())
-        {
-          become_retired();
-        }
+        assert(c.find(state->my_node_id) == c.end());
+        become_retired();
       }
     }
   };

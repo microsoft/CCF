@@ -195,6 +195,7 @@ namespace ccf
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get()};
       }
+
       return make_success(rep);
     }
 
@@ -416,7 +417,7 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      auto promote = [this](auto& args, const nlohmann::json& params) {
+      auto promote_node = [this](auto& args, const nlohmann::json& params) {
         const auto in = params.get<PromoteNodeToTrusted::In>();
 
         if (
@@ -427,7 +428,7 @@ namespace ccf
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
-            "Target node should be part of network to promote nodes");
+            "Node should be part of network to promote nodes");
         }
 
         if (!consensus)
@@ -454,7 +455,7 @@ namespace ccf
         }
 
         auto service = args.tx.ro(this->network.service);
-        auto active_service = service->get(0);
+        auto active_service = service->get();
 
         if (!active_service.has_value())
         {
@@ -483,15 +484,101 @@ namespace ccf
             fmt::format("Unknown node {}", in.node_id));
         }
 
-        node_info->status = NodeStatus::TRUSTED;
-        nodes->put(in.node_id, *node_info);
+        if (node_info->status == NodeStatus::CATCHING_UP)
+        {
+          node_info->status = NodeStatus::TRUSTED;
+          nodes->put(in.node_id, *node_info);
+        }
+
         return make_success(true);
       };
 
       make_endpoint(
-        "promote",
+        "promote_node",
         HTTP_POST,
-        json_adapter(promote),
+        json_adapter(promote_node),
+        {std::make_shared<NodeCertAuthnPolicy>()})
+        .set_openapi_hidden(true)
+        .install();
+
+      auto promote_configuration =
+        [this](auto& args, const nlohmann::json& params) {
+          const auto in = params.get<PromoteConfiguration::In>();
+
+          if (!this->context.get_node_state().is_primary())
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Only the primary can promote configurations");
+          }
+
+          if (!consensus)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "No configured consensus");
+          }
+
+          auto service = args.tx.ro(this->network.service);
+          auto active_service = service->get();
+
+          if (!active_service.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "No service is available to promote configuration");
+          }
+
+          if (active_service->status != ServiceStatus::OPEN)
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::FrontendNotOpen,
+              "Service must be open to promote nodes");
+          }
+
+          auto nodes = args.tx.rw(this->network.nodes);
+          for (auto& id : in.configuration.nodes)
+          {
+            auto node = nodes->get(id);
+            if (!node.has_value())
+            {
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                fmt::format("Unknown node id {}", id));
+            }
+            else
+            {
+              auto nv = node.value();
+              if (nv.status == NodeStatus::CATCHING_UP)
+              {
+                nv.status = NodeStatus::TRUSTED;
+                nodes->put(id, nv);
+              }
+            }
+          }
+
+          auto cfgs = args.tx.rw(this->network.network_configurations);
+
+          size_t max_id = 0;
+          cfgs->foreach([&max_id](const auto& id, const auto&) {
+            if (id > max_id)
+              max_id = id;
+            return true;
+          });
+
+          cfgs->put(max_id + 1, in.configuration);
+          return make_success(true);
+        };
+
+      make_endpoint(
+        "promote_configuration",
+        HTTP_POST,
+        json_adapter(promote_configuration),
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
@@ -619,6 +706,11 @@ namespace ccf
           {
             out.current_view = consensus->get_view();
             auto primary_id = consensus->primary();
+            LOG_DEBUG_FMT(
+              "have_primary={} primary={} view_change_in_progress={}",
+              primary_id.has_value(),
+              (primary_id.has_value() ? primary_id.value() : NodeId("none")),
+              consensus->view_change_in_progress());
             if (primary_id.has_value() && !consensus->view_change_in_progress())
             {
               out.primary_id = primary_id.value();

@@ -12,10 +12,12 @@ namespace ccf
   class NodeChangeHook : public kv::ConsensusHook
   {
     std::unordered_map<NodeId, std::optional<ccf::NodeInfo>> updates;
+    SeqNo seq_no;
 
   public:
     NodeChangeHook(ccf::SeqNo seq_no, const Nodes::Write& w)
     {
+      this->seq_no = seq_no;
       for (const auto& [id, info] : w)
       {
         updates.emplace(id, info);
@@ -28,41 +30,26 @@ namespace ccf
       {
         consensus->update_node(id, info);
       }
-    }
-  };
 
-  class ConfigurationChangeHook : public kv::ConsensusHook
-  {
-    std::list<kv::Configuration> configurations;
-
-  public:
-    ConfigurationChangeHook(
-      ccf::SeqNo seq_no, const NetworkConfigurations::Write& w)
-    {
-      // Note: if multiple configurations are added in one transaction, then
-      // they are assigned the same id/seq_no here.
-
-      for (const auto& [id, opt_cfg] : w)
+      auto ltst = consensus->get_latest_configuration_unsafe();
+      kv::Configuration c;
+      c.seq_no = seq_no;
+      c.nodes = ltst;
+      for (const auto& [id, info] : updates)
       {
-        kv::Configuration c;
-        c.seq_no = seq_no;
-        if (opt_cfg.has_value())
+        if (
+          info->status == NodeStatus::CATCHING_UP ||
+          info->status == NodeStatus::TRUSTED)
         {
-          for (const auto& node_id : opt_cfg.value().nodes)
-          {
-            c.nodes.insert(node_id);
-          }
+          c.nodes.insert(id);
         }
-        configurations.push_back(std::move(c));
+        else if (info->status == NodeStatus::RETIRED)
+        {
+          c.nodes.erase(id);
+        }
       }
-    }
-
-    void call(kv::ConfigurableConsensus* consensus) override
-    {
-      for (auto c : configurations)
-      {
+      if (c.nodes != ltst)
         consensus->add_configuration(std::move(c));
-      }
     }
   };
 }

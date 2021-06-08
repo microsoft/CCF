@@ -7,6 +7,7 @@
 #include "ccf/tx_id.h"
 #include "consensus/aft/raft_types.h"
 #include "ds/logger.h"
+#include "enclave/consensus_type.h"
 #include "enclave/rpc_sessions.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
@@ -58,7 +59,7 @@ namespace aft
                           // network-signed.
     std::unordered_map<ccf::NodeId, aft::NodeState> nodes;
     std::list<kv::Configuration> configurations;
-    std::set<NodeId> passive_nodes;
+    std::set<NodeId> learners_;
 
   public:
     ConfigurationTracker(
@@ -85,22 +86,73 @@ namespace aft
 
     ~ConfigurationTracker() {}
 
-    void update_node(const NodeId& id, const std::optional<ccf::NodeInfo>& info)
+    typedef struct
+    {
+      std::set<NodeId> to_add;
+      std::set<NodeId> to_remove;
+    } News;
+
+    News update_node(const NodeId& id, const std::optional<ccf::NodeInfo>& info)
     {
       if (info.has_value())
       {
-        LOG_DEBUG_FMT("Update {} ({})", id, info->status);
+        LOG_DEBUG_FMT("Nodes: update {}: {}", id, info->status);
         auto nit = nodes.find(id);
         if (nit == nodes.end())
           nodes.emplace(id, NodeState(info.value(), 0));
         else
           nit->second.node_info = info.value();
+
+        switch (info->status)
+        {
+          case NodeStatus::CATCHING_UP:
+          {
+            LOG_DEBUG_FMT("Nodes: New learner: {}", id);
+            learners_.insert(id);
+            return {{id}, {}};
+            break;
+          }
+          case NodeStatus::TRUSTED:
+          {
+            auto lit = learners_.find(id);
+            if (lit != learners_.end())
+            {
+              bool own = *lit == node_id;
+              learners_.erase(lit);
+              if (own)
+              {
+                // Observing own promotion, nothing else to do
+                return {{}, {}};
+              }
+              return {{id}, {}};
+            }
+            else
+            {
+              // Node is trusted immediately, without learner phase
+              if (configurations.empty())
+              {
+                configurations.push_back({0, {}});
+              }
+              configurations.front().nodes.insert(id);
+              return {{id}, {}};
+            }
+            break;
+          }
+          default:
+            return {{}, {}};
+            break;
+        }
       }
       else
       {
-        LOG_DEBUG_FMT("Remove {}", id);
+        LOG_DEBUG_FMT("Nodes: remove {}", id);
         nodes.erase(id);
+        learners_.erase(id);
+        return {{}, {id}};
       }
+
+      LOG_DEBUG_FMT("Configurations: {}", to_string());
+      return {{}, {}};
     }
 
     void update_node_progress(const NodeId& from, const SeqNo& seq_no)
@@ -115,8 +167,37 @@ namespace aft
 
     const std::set<NodeId>& current() const
     {
-      assert(configurations.size() > 0);
+      if (configurations.size() == 0)
+      {
+        static std::set<NodeId> n = {};
+        return n;
+      }
+
       return configurations.front().nodes;
+    }
+
+    const std::set<NodeId>& learners() const
+    {
+      return learners_;
+    }
+
+    bool is_eligible_voter(const NodeId& id) const
+    {
+      const auto& cn = current();
+      return cn.find(id) != cn.end() && learners_.find(id) == learners_.end();
+    }
+
+    size_t num_eligible_voters() const
+    {
+      size_t r = 0;
+      for (const auto& id : current())
+      {
+        if (learners_.find(id) == learners_.end())
+        {
+          r++;
+        }
+      }
+      return r;
     }
 
     NodeState& state(const NodeId& id)
@@ -140,16 +221,47 @@ namespace aft
       return nit->second.node_info;
     }
 
+    size_t num_trusted(const kv::Configuration& c)
+    {
+      size_t r = 0;
+      for (auto& id : c.nodes)
+      {
+        auto nit = nodes.find(id);
+        if (
+          nit != nodes.end() &&
+          nit->second.node_info.status == ccf::NodeStatus::TRUSTED)
+        {
+          r++;
+        }
+      }
+      return r;
+    }
+
+    bool above_threshold(size_t n, const kv::Configuration& c)
+    {
+      switch (consensus_type)
+      {
+        case CFT:
+          return n >= (c.nodes.size() / 2 + 1);
+        case BFT:
+          return n >= (c.nodes.size() / 3 + 1);
+        default:
+          return false;
+      }
+    }
+
+    bool enough_trusted(const kv::Configuration& c)
+    {
+      return above_threshold(num_trusted(c), c);
+    }
+
     // Examine all configurations that are followed by a globally committed
     // configuration.
-    std::pair<std::set<NodeId>, std::set<NodeId>> commit(SeqNo seq_no)
+    News commit(SeqNo seq_no, bool is_primary)
     {
       LOG_TRACE_FMT("Configurations: commit {}!", seq_no);
 
-      std::pair<std::set<NodeId>, std::set<NodeId>> r;
-
-      // Check whether the next configuration can be activated according to
-      // quorum rules. If so, pop and finalize.
+      News r;
 
       std::set<NodeId> before = current();
 
@@ -166,9 +278,41 @@ namespace aft
         if (seq_no < next->seq_no)
           break;
 
-        // TODO: Check 2f+1 of the new config are caught up
+        LOG_TRACE_FMT(
+          "Configurations: checking next configuration: {{{}}} num_trusted={}",
+          fmt::join(next->nodes, ", "),
+          num_trusted(*next));
 
-        configurations.pop_front();
+        if (is_primary)
+        {
+          if (!enough_trusted(*next))
+          {
+            LOG_TRACE_FMT(
+              "Configurations: not enough trusted nodes for next "
+              "configuration");
+            break;
+          }
+          else
+          {
+            LOG_DEBUG_FMT(
+              "Configurations: quorum reached, promoting rest of "
+              "next configuration");
+            threading::ThreadMessaging::thread_messaging.add_task(
+              [this, cfg = *next]() { promote_configuration_cb(*this, cfg); });
+          }
+        }
+
+        if (num_trusted(*next) == next->nodes.size())
+        {
+          LOG_TRACE_FMT(
+            "Configurations: all nodes trusted, switching to next "
+            "configuration");
+          configurations.pop_front();
+        }
+        else
+        {
+          break;
+        }
       }
 
       auto& after = current();
@@ -178,7 +322,7 @@ namespace aft
       {
         if (before.find(id) == before.end())
         {
-          r.first.insert(id);
+          r.to_add.insert(id);
         }
       }
 
@@ -187,7 +331,7 @@ namespace aft
       {
         if (after.find(id) == after.end())
         {
-          r.second.insert(id);
+          r.to_remove.insert(id);
         }
       }
 
@@ -217,6 +361,7 @@ namespace aft
         config.seq_no);
       for (auto& id : config.nodes)
       {
+        // Depends on entries to `nodes` being update prior to here.
         auto nit = nodes.find(id);
         if (nit == nodes.end())
         {
@@ -224,33 +369,15 @@ namespace aft
           nodes.emplace(id, NodeState());
         }
         else
+        {
           LOG_TRACE_FMT(
             "  {} = {}:{}",
             id,
             nit->second.node_info.nodehost,
             nit->second.node_info.nodeport);
+        }
       }
       configurations.push_back(std::move(config));
-      check_for_promotions(config);
-    }
-
-    void abort(kv::Version id)
-    {
-      // TODO.
-    }
-
-    bool promote_if_possible(
-      const NodeId& id, const SeqNo& seq_no, const SeqNo& primary_seq_no)
-    {
-      // Check if enough new nodes have caught up to finalize the next config.
-
-      auto nit = nodes.find(id);
-      if (store != nullptr && nit != nodes.end() && seq_no >= primary_seq_no)
-      {
-        return record_promotion(id);
-      }
-
-      return true;
     }
 
     std::set<NodeId> all_nodes()
@@ -268,52 +395,64 @@ namespace aft
       return r;
     }
 
+    SeqNo cft_watermark(kv::Version last_idx, const kv::Configuration& c)
+    {
+      // The majority must be checked separately for each active
+      // configuration.
+      std::vector<SeqNo> matches;
+      matches.reserve(c.nodes.size() + 1);
+
+      for (const auto& id : c.nodes)
+      {
+        if (id == node_id)
+        {
+          LOG_TRACE_FMT("CFTWM check: {}={}", id, last_idx);
+          matches.push_back(last_idx);
+        }
+        else
+        {
+          auto nit = nodes.find(id);
+          assert(nit != nodes.end());
+          LOG_TRACE_FMT("CFTWM check: {}={}", id, nit->second.match_idx);
+          matches.push_back(nit->second.match_idx);
+        }
+      }
+
+      size_t confirmed = 0;
+      if (!matches.empty())
+      {
+        sort(matches.begin(), matches.end());
+        switch (consensus_type)
+        {
+          case CFT:
+            confirmed = matches.at((matches.size() - 1) / 2);
+            break;
+          case BFT:
+            confirmed = matches.at((matches.size() - 1) / 3);
+            break;
+        }
+      }
+
+      LOG_TRACE_FMT(
+        "last_idx={} confirmed={} matches=[{}]",
+        last_idx,
+        confirmed,
+        fmt::join(matches, ", "));
+
+      return confirmed;
+    }
+
     SeqNo cft_watermark(kv::Version last_idx)
     {
       SeqNo r = std::numeric_limits<SeqNo>::max();
 
       for (auto& c : configurations)
       {
-        // The majority must be checked separately for each active
-        // configuration.
-        std::vector<SeqNo> match;
-        match.reserve(c.nodes.size() + 1);
-
-        for (const auto& id : c.nodes)
-        {
-          LOG_TRACE_FMT("CFTWM check: {}", id);
-          if (id == node_id)
-          {
-            match.push_back(last_idx);
-          }
-          else
-          {
-            auto nit = nodes.find(id);
-            assert(nit != nodes.end());
-            match.push_back(nit->second.match_idx);
-          }
-        }
-
-        // `match` may be empty if multiple joining nodes are not caught up and
-        // the current node is leaving, or when the whole network is being
-        // replaced.
-        size_t confirmed = 0;
-        if (!match.empty())
-        {
-          sort(match.begin(), match.end());
-          confirmed = match.at((match.size() - 1) / 2);
-          r = std::min(confirmed, r);
-        }
-
-        LOG_TRACE_FMT(
-          "last_idx={} confirmed={} r={} matches=[{}]",
-          last_idx,
-          confirmed,
-          r,
-          fmt::join(match, ", "));
+        size_t confirmed = cft_watermark(last_idx, c);
+        r = std::min(confirmed, r);
       }
 
-      return r;
+      return r == std::numeric_limits<SeqNo>::max() ? 0 : r;
     }
 
     std::string to_string() const
@@ -341,22 +480,45 @@ namespace aft
       return ss.str();
     }
 
-    bool record_promotion(const NodeId& node_id)
+    bool request_promote_node(const NodeId& node_id)
     {
-      LOG_INFO_FMT(
-        "Promoting {} to TRUSTED as it has caught up with us", node_id);
+      LOG_DEBUG_FMT("Promoting {} to TRUSTED", node_id);
 
-      // Serialize request object
       PromoteNodeToTrusted::In ps = {node_id};
 
       http::Request request(fmt::format(
-        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "promote"));
+        "/{}/{}",
+        ccf::get_actor_prefix(ccf::ActorsType::nodes),
+        "promote_node"));
+      request.set_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+
+      auto body = serdes::pack(ps, serdes::Pack::Text);
+      request.set_body(&body);
+      return make_request(request);
+    }
+
+    bool request_promote_configuration(const kv::Configuration& configuration)
+    {
+      LOG_DEBUG_FMT("Promoting next configuration");
+
+      PromoteConfiguration::In ps = {configuration};
+
+      http::Request request(fmt::format(
+        "/{}/{}",
+        ccf::get_actor_prefix(ccf::ActorsType::nodes),
+        "promote_configuration"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
       auto body = serdes::pack(ps, serdes::Pack::Text);
       request.set_body(&body);
 
+      return make_request(request);
+    }
+
+    bool make_request(http::Request& request)
+    {
       auto node_cert_der = crypto::cert_pem_to_der(node_cert);
       const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
 
@@ -398,42 +560,49 @@ namespace aft
       return rs == HTTP_STATUS_OK;
     }
 
-    void check_for_promotions(const kv::Configuration& config)
+    static void promote_node_cb(
+      ConfigurationTracker& configuration_tracker,
+      NodeId id,
+      size_t retries = 10)
     {
-      // for (const auto& [id, info] : nodes)
-      // {
-      //   LOG_DEBUG_FMT("Promo check {}: {}", id, info.node_info.status);
-      // }
-
-      // for (const auto& [id, info] : config.nodes)
-      // {
-      //   LOG_DEBUG_FMT("In config: {}: {}", id, info.catching_up);
-      //   if (!info.catching_up)
-      //   {
-      //     auto nit = nodes.find(id);
-      //     if (nit != nodes.end() && nit->second.catching_up)
-      //     {
-      //       LOG_DEBUG_FMT("Observing promotion: {}", id);
-      //       nit->second.catching_up = false;
-      //     }
-      //   }
-      // }
+      if (!configuration_tracker.request_promote_node(id))
+      {
+        if (retries > 0)
+        {
+          threading::ThreadMessaging::thread_messaging.add_task(
+            [&configuration_tracker, id, retries]() {
+              ConfigurationTracker::promote_node_cb(
+                configuration_tracker, id, retries - 1);
+            });
+        }
+        else
+        {
+          LOG_DEBUG_FMT(
+            "Failed request, giving up as there are no more retries left");
+        }
+      }
     }
 
-    static void promote_cb(
+    static void promote_configuration_cb(
       ConfigurationTracker& configuration_tracker,
-      NodeId from,
-      SeqNo seq_no,
-      SeqNo primary_seq_no)
+      kv::Configuration cfg,
+      size_t retries = 10)
     {
-      if (!configuration_tracker.promote_if_possible(
-            from, seq_no, primary_seq_no))
+      if (!configuration_tracker.request_promote_configuration(cfg))
       {
-        threading::ThreadMessaging::thread_messaging.add_task(
-          [&configuration_tracker, from, seq_no, primary_seq_no]() {
-            ConfigurationTracker::promote_cb(
-              configuration_tracker, from, seq_no, primary_seq_no);
-          });
+        if (retries > 0)
+        {
+          threading::ThreadMessaging::thread_messaging.add_task(
+            [&configuration_tracker, cfg, retries]() {
+              ConfigurationTracker::promote_configuration_cb(
+                configuration_tracker, cfg, retries - 1);
+            });
+        }
+        else
+        {
+          LOG_DEBUG_FMT(
+            "Failed request, giving up as there are no more retries left");
+        }
       }
     }
   };
