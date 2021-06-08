@@ -284,6 +284,13 @@ namespace aft
       return replica_state == kv::ReplicaState::Leader;
     }
 
+    bool can_replicate()
+    {
+      std::lock_guard<SpinLock> guard(state->lock);
+      return replica_state == kv::ReplicaState::Leader &&
+        !retirement_committable_idx.has_value();
+    }
+
     bool is_follower()
     {
       return replica_state == kv::ReplicaState::Follower;

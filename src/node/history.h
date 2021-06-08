@@ -557,7 +557,7 @@ namespace ccf
 
             auto consensus = self->store.get_consensus();
             if (
-              (consensus != nullptr) && consensus->is_primary() &&
+              (consensus != nullptr) && consensus->can_replicate() &&
               self->store.commit_gap() > 0 && time > time_of_last_signature &&
               (time - time_of_last_signature) > sig_ms_interval)
             {
