@@ -57,7 +57,7 @@ if [ ! -f "scripts/env/bin/activate" ]
 fi
 
 source scripts/env/bin/activate
-pip --disable-pip-version-check install -U black pylint mypy 1>/dev/null
+pip --disable-pip-version-check install -U black pylint "mypy<0.900" 1>/dev/null
 
 echo "Python format"
 if [ $FIX -ne 0 ]; then
