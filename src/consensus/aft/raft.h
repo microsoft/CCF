@@ -371,7 +371,7 @@ namespace aft
       ledger->init(index);
       snapshotter->set_last_snapshot_idx(index);
 
-      become_follower(term);
+      become_aware_of_new_term(term);
     }
 
     Index get_last_idx()
@@ -984,8 +984,7 @@ namespace aft
         return;
       }
 
-      // Become a follower in the new term.
-      become_follower(r.view);
+      become_aware_of_new_term(r.view);
     }
 
     void recv_skip_view(const ccf::NodeId& from, SkipViewMsg r)
@@ -1279,13 +1278,11 @@ namespace aft
         state->current_view == r.term &&
         replica_state == kv::ReplicaState::Candidate)
       {
-        // Become a follower in this term.
-        become_follower(r.term);
+        become_aware_of_new_term(r.term);
       }
       else if (state->current_view < r.term)
       {
-        // Become a follower in the new term.
-        become_follower(r.term);
+        become_aware_of_new_term(r.term);
       }
       else if (state->current_view > r.term)
       {
@@ -2175,7 +2172,7 @@ namespace aft
       }
       else if (state->current_view < r.term)
       {
-        // We are behind, convert to a follower.
+        // We are behind, update our state.
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: more recent term ({} "
           "> {})",
@@ -2183,7 +2180,7 @@ namespace aft
           from,
           r.term,
           state->current_view);
-        become_follower(r.term);
+        become_aware_of_new_term(r.term);
         return;
       }
       else if (state->current_view != r.term)
@@ -2305,14 +2302,13 @@ namespace aft
       }
       else if (state->current_view < r.term)
       {
-        // Become a follower in the new term.
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: their term is later ({} < {})",
           state->my_node_id,
           from,
           state->current_view,
           r.term);
-        become_follower(r.term);
+        become_aware_of_new_term(r.term);
       }
 
       if ((voted_for.has_value()) && (voted_for.value() != from))
@@ -2401,7 +2397,6 @@ namespace aft
 
       if (state->current_view < r.term)
       {
-        // Become a follower in the new term.
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: their term is more recent "
           "({} < {})",
@@ -2409,7 +2404,7 @@ namespace aft
           from,
           state->current_view,
           r.term);
-        become_follower(r.term);
+        become_aware_of_new_term(r.term);
         return;
       }
       else if (state->current_view != r.term)
@@ -2527,7 +2522,10 @@ namespace aft
       }
     }
 
-    void become_follower(Term term)
+    // Called when a replica becomes aware of the existence of a new term
+    // If retired already, state remains unchanged, but the replica otherwise
+    // becomes a follower in the new term.
+    void become_aware_of_new_term(Term term)
     {
       leader_id.reset();
       restart_election_timeout();
