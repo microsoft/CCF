@@ -51,7 +51,7 @@ namespace ccfapp
     if (!module_version.has_value())
     {
       throw std::runtime_error(fmt::format(
-        "No such module: '{}' in ", module_name, ccf::Tables::MODULES));
+        "No such module: '{}' in {}", module_name, ccf::Tables::MODULES));
     }
 
     auto bytecode_version =

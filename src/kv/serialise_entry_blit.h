@@ -25,15 +25,12 @@ namespace kv::serialisers
                            std::pair<std::string, std::vector<uint8_t>>>)
       {
         const auto& [str, vec] = t;
-        uint64_t str_size = str.size();
-        auto size = sizeof(str_size) + str_size + vec.size() * sizeof(vec[0]);
+        auto size = sizeof(size_t) + str.size() + sizeof(size_t) + vec.size();
         SerialisedEntry s(size);
-        auto offset = 0;
-        std::memcpy(s.data() + offset, (uint8_t*)&str_size, sizeof(str_size));
-        offset += sizeof(str_size);
-        std::memcpy(s.data() + offset, str.data(), str_size);
-        offset += str_size;
-        std::memcpy(s.data() + offset, vec.data(), vec.size());
+        auto data = s.data();
+        serialized::write(data, size, str);
+        serialized::write(data, size, vec.size());
+        serialized::write(data, size, vec.data(), vec.size());
         return s;
       }
       else if constexpr (std::is_integral_v<T>)
@@ -76,24 +73,11 @@ namespace kv::serialisers
                            T,
                            std::pair<std::string, std::vector<uint8_t>>>)
       {
-        uint64_t str_size;
-        if (rep.size() < sizeof(str_size))
-        {
-          throw std::logic_error(fmt::format(
-            "Wrong serialised size {} for deserialisation of pair",
-            rep.size()));
-        }
-        std::memcpy((uint8_t*)&str_size, rep.data(), sizeof(str_size));
-        if (str_size > rep.size() - sizeof(str_size))
-        {
-          throw std::logic_error(fmt::format(
-            "Wrong serialised size {} for deserialisation of pair",
-            rep.size()));
-        }
-        auto str_begin = rep.begin() + sizeof(str_size);
-        auto str_end = str_begin + str_size;
-        std::string str{str_begin, str_end};
-        std::vector<uint8_t> vec{str_end, rep.end()};
+        auto data = rep.data();
+        auto size = rep.size();
+        auto str = serialized::read<std::string>(data, size);
+        auto vec_size = serialized::read<size_t>(data, size);
+        auto vec = serialized::read(data, size, vec_size);
         return {str, vec};
       }
       else if constexpr (std::is_integral_v<T>)
