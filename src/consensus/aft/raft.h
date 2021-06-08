@@ -286,7 +286,11 @@ namespace aft
 
     bool can_replicate()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
+      if (!(consensus_type == ConsensusType::BFT && is_follower()))
+      {
+        guard.lock();
+      }
       return replica_state == kv::ReplicaState::Leader &&
         !retirement_committable_idx.has_value();
     }
