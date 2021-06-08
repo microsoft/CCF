@@ -548,7 +548,7 @@ namespace ccf
         }
 
         auto sig = ctx.tx.rw(this->network.signatures);
-        const auto s = sig->get(0);
+        const auto s = sig->get();
         if (!s)
         {
           mas->put(caller_identity.member_id, MemberAck({}, signed_request));
@@ -631,7 +631,7 @@ namespace ccf
               "No ACK record exists for caller {}.", member_id.value()));
         }
 
-        auto s = sig->get(0);
+        auto s = sig->get();
         if (s)
         {
           ma->state_digest = s->root.hex_str();

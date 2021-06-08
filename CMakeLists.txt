@@ -742,6 +742,10 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     CONSENSUS cft
     LABEL partitions
+    # Higher snapshot interval as the test currently assumes that no
+    # transactions are emitted while partitions are up. To be removed when
+    # https://github.com/microsoft/CCF/issues/2577 is implemented
+    ADDITIONAL_ARGS --snapshot-tx-interval 10000
   )
 
   if(NOT SAN)
@@ -797,6 +801,21 @@ if(BUILD_TESTS)
     SCRIPT ${CMAKE_SOURCE_DIR}/samples/apps/forum/ci.sh
     CONSENSUS cft
     LABEL forum
+  )
+
+  list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
+       ${CCF_VERSION}
+  )
+  if(LONG_TESTS)
+    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
+  endif()
+
+  add_e2e_test(
+    NAME lts_compatibility
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+    CONSENSUS cft
+    LABEL e2e
+    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
   )
 
   foreach(CONSENSUS ${CONSENSUSES})

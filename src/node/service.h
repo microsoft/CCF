@@ -31,7 +31,7 @@ namespace ccf
   DECLARE_JSON_TYPE(ServiceInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
 
-  // As there is only one service active at a given time, the key for the
-  // Service table is always 0.
-  using Service = ServiceMap<size_t, ServiceInfo>;
+  // As there is only one service active at a given time, it is stored in single
+  // Value in the KV
+  using Service = ServiceValue<ServiceInfo>;
 }

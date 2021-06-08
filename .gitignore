@@ -30,3 +30,4 @@ package-lock.json
 .cache
 include/ccf/version.h
 python/version.py
+**/compatibility_report.json

@@ -108,8 +108,8 @@ namespace ccf
       auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.version);
-      signatures->put(0, sig_value);
-      serialised_tree->put(0, {});
+      signatures->put(sig_value);
+      serialised_tree->put({});
       return sig.commit_reserved();
     }
   };
@@ -318,7 +318,7 @@ namespace ccf
         auto progress_tracker = store.get_progress_tracker();
         CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
         auto r = progress_tracker->record_primary(
-          txid, id, root, primary_sig, hashed_nonce);
+          txid, id, true, root, primary_sig, hashed_nonce);
         if (r != kv::TxHistory::Result::OK)
         {
           throw ccf::ccf_logic_error(fmt::format(
@@ -356,9 +356,8 @@ namespace ccf
         progress_tracker->record_primary_signature(txid, primary_sig);
       }
 
-      signatures->put(0, sig_value);
+      signatures->put(sig_value);
       serialised_tree->put(
-        0,
         history.serialise_tree(commit_txid.previous_version, txid.version - 1));
       return sig.commit_reserved();
     }
@@ -614,7 +613,7 @@ namespace ccf
       auto tx = store.create_read_only_tx();
       auto tree_h = tx.template ro<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
-      auto tree = tree_h->get(0);
+      auto tree = tree_h->get();
       if (!tree.has_value())
       {
         LOG_FAIL_FMT("No tree found in serialised tree map");
@@ -664,6 +663,7 @@ namespace ccf
       result = progress_tracker->record_primary(
         {sig.view, sig.seqno},
         sig.node,
+        false,
         sig.root,
         sig.sig,
         sig.hashed_nonce,
@@ -682,7 +682,7 @@ namespace ccf
       auto signatures =
         tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto nodes = tx.template ro<ccf::Nodes>(ccf::Tables::NODES);
-      auto sig = signatures->get(0);
+      auto sig = signatures->get();
       if (!sig.has_value())
       {
         LOG_FAIL_FMT("No signature found in signatures map");

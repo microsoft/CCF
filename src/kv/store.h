@@ -8,7 +8,6 @@
 #include "kv/committable_tx.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "map.h"
 #include "node/entities.h"
 #include "node/progress_tracker.h"
 #include "node/signatures.h"
@@ -389,7 +388,8 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      auto v_ = d.init(data.data(), data.size(), is_historical);
+      kv::Term term;
+      auto v_ = d.init(data.data(), data.size(), term, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -657,6 +657,7 @@ namespace kv
       bool public_only,
       kv::Version& v,
       kv::Version& max_conflict_version,
+      kv::Term& view,
       OrderedChanges& changes,
       MapCollection& new_maps,
       bool ignore_strict_versions = false) override
@@ -673,7 +674,7 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      auto v_ = d.init(data.data(), data.size(), is_historical);
+      auto v_ = d.init(data.data(), data.size(), view, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -762,6 +763,7 @@ namespace kv
       else
       {
         kv::Version v;
+        kv::Term view;
         kv::Version max_conflict_version;
         OrderedChanges changes;
         MapCollection new_maps;
@@ -770,6 +772,7 @@ namespace kv
               public_only,
               v,
               max_conflict_version,
+              view,
               changes,
               new_maps,
               true))
@@ -849,6 +852,7 @@ namespace kv
             std::make_unique<CommittableTx>(this),
             v,
             max_conflict_version,
+            view,
             std::move(changes),
             std::move(new_maps));
         }
@@ -945,7 +949,7 @@ namespace kv
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
-        if (txid.term != term)
+        if (txid.term != term && consensus->is_primary())
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.

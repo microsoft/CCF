@@ -127,6 +127,8 @@ class Partitioner:
         }
 
         # Isolates all node client sockets
+        if not node.node_client_host:
+            raise ValueError(f"Node {node.local_node_id} does not support partitioning")
         client_rule = {
             **base_rule,
             "src": node.node_client_host,

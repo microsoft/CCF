@@ -15,14 +15,9 @@ namespace aft
   {
     struct ViewChange
     {
-      ViewChange(ccf::View view_, ccf::SeqNo seqno_) :
-        view(view_),
-        seqno(seqno_),
-        new_view_sent(false)
-      {}
+      ViewChange(ccf::View view_) : view(view_), new_view_sent(false) {}
 
       ccf::View view;
-      ccf::SeqNo seqno;
       bool new_view_sent;
 
       std::map<ccf::NodeId, ccf::ViewChangeRequest> received_view_changes;
@@ -91,13 +86,12 @@ namespace aft
       ccf::ViewChangeRequest& v,
       const ccf::NodeId& from,
       ccf::View view,
-      ccf::SeqNo seqno,
       uint32_t node_count)
     {
       auto it = view_changes.find(view);
       if (it == view_changes.end())
       {
-        ViewChange view_change(view, seqno);
+        ViewChange view_change(view);
         std::tie(it, std::ignore) =
           view_changes.emplace(view, std::move(view_change));
       }
@@ -119,7 +113,7 @@ namespace aft
     ccf::SeqNo write_view_change_confirmation_append_entry(ccf::View view)
     {
       ccf::ViewChangeConfirmation nv =
-        create_view_change_confirmation_msg(view);
+        create_view_change_confirmation_msg(view, true);
       return store->write_view_change_confirmation(nv);
     }
 
@@ -145,6 +139,12 @@ namespace aft
 
       if (view != vc.view)
       {
+        LOG_INFO_FMT(
+          "Add unknown evidence - received views do not match local view:{}, "
+          "vc.view:{}, from",
+          view,
+          vc.view,
+          from);
         return false;
       }
 
@@ -155,20 +155,32 @@ namespace aft
 
       if (!store->verify_view_change_request_confirmation(vc, from))
       {
+        LOG_INFO_FMT(
+          "Add unknown evidence - bad view change confirmation, from:{}", from);
         return false;
       }
 
       if (
         vc.view_change_messages.size() < ccf::get_message_threshold(node_count))
       {
+        LOG_INFO_FMT(
+          "Add unknown evidence - not enough evidence, need:{}, have:{}, "
+          "from:{}",
+          vc.view_change_messages.size(),
+          ccf::get_message_threshold(node_count),
+          from);
         return false;
       }
 
       for (auto it : vc.view_change_messages)
       {
         if (!store->verify_view_change_request(
-              it.second, it.first, vc.view, vc.seqno))
+              it.second, it.first, vc.view, it.second.seqno))
         {
+          LOG_INFO_FMT(
+            "Add unknown evidence - bad view change request, from:{}, view:{}",
+            from,
+            vc.view);
           return false;
         }
       }
@@ -227,10 +239,15 @@ namespace aft
       }
 
       auto& vc = it->second;
-      ccf::ViewChangeConfirmation nv(vc.view, vc.seqno);
+      ccf::ViewChangeConfirmation nv(vc.view);
 
       for (auto it : vc.received_view_changes)
       {
+        LOG_INFO_FMT(
+          "Adding to view:{}, from:{}, seqno:{}",
+          view,
+          it.first,
+          it.second.seqno);
         nv.view_change_messages.emplace(it.first, it.second);
       }
 

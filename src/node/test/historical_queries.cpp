@@ -120,7 +120,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto tx = ts.kv_store->create_tx();
     auto config = tx.rw<ccf::Configuration>(ccf::Tables::CONFIGURATION);
     size_t recovery_threshold = 1;
-    config->put(0, {recovery_threshold});
+    config->put({recovery_threshold});
     auto member_info = tx.rw<ccf::MemberInfo>(ccf::Tables::MEMBER_INFO);
     auto member_public_encryption_keys = tx.rw<ccf::MmeberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
