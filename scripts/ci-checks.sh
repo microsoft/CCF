@@ -74,5 +74,5 @@ echo "Python lint"
 git ls-files tests/ python/ | grep -e '\.py$' | xargs python -m pylint
 
 echo "Python types"
-echo y | mypy --install-types
+echo y | mypy --install-types --incremental
 git ls-files python/ | grep -e '\.py$' | xargs mypy

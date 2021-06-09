@@ -23,7 +23,7 @@ def test_replace_all_nodes(network, args):
         network.join_node(node, args.package, args, timeout=3)
         return node
 
-    new_nodes = [make_node(), make_node(), make_node()]
+    new_nodes = [make_node() for _ in range(len(current_nodes))]
     new_node_ids = [node.node_id for node in new_nodes]
 
     trust_new_nodes = [
