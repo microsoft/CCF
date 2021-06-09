@@ -2853,13 +2853,10 @@ namespace aft
       }
 
       // Add all active nodes that are not already present in the node state.
-      bool self_is_active = false;
-
       for (auto node_info : active_nodes)
       {
         if (node_info.first == state->my_node_id)
         {
-          self_is_active = true;
           continue;
         }
 
@@ -2886,15 +2883,6 @@ namespace aft
           }
 
           LOG_INFO_FMT("Added raft node {}", node_info.first);
-        }
-      }
-
-      if (!self_is_active)
-      {
-        LOG_INFO_FMT("Removed raft self {}", state->my_node_id);
-        if (replica_state == kv::ReplicaState::Leader)
-        {
-          // become_retired();
         }
       }
     }
