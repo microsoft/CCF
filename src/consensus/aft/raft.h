@@ -457,8 +457,10 @@ namespace aft
         guard.lock();
       }
 
-      // This should only be called when the spin lock is held.
-
+      // Detect when we are retired by observing a configuration
+      // from which we are absent following a configuration in which
+      // we were included. Note that this relies on retirement being
+      // a final state, and node identities never being re-used.
       if (
         !configurations.empty() &&
         configurations.back().nodes.find(state->my_node_id) !=
