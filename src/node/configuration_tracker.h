@@ -353,20 +353,21 @@ namespace aft
       return r;
     }
 
-    void add(const kv::Configuration& config)
+    News add(const kv::Configuration& config)
     {
+      News r;
       LOG_TRACE_FMT(
         "Configurations: add configuration of {} nodes @ {}",
         config.nodes.size(),
         config.seq_no);
       for (auto& id : config.nodes)
       {
-        // Depends on entries to `nodes` being update prior to here.
         auto nit = nodes.find(id);
         if (nit == nodes.end())
         {
           LOG_FAIL_FMT("New node without info: {}", id);
           nodes.emplace(id, NodeState());
+          r.to_add.insert(id);
         }
         else
         {
@@ -378,6 +379,7 @@ namespace aft
         }
       }
       configurations.push_back(std::move(config));
+      return r;
     }
 
     std::set<NodeId> all_nodes()

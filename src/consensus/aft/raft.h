@@ -466,6 +466,11 @@ namespace aft
           info.catching_up ? "passive" : "active");
       }
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
+
+      auto seq_no = conf.seq_no;
+      bool this_included =
+        conf.nodes.find(state->my_node_id) != conf.nodes.end();
+
       // It is safe to call is_follower() by construction as the consensus
       // can only change from leader or follower while in a view-change during
       // which time transaction cannot be executed.
@@ -475,12 +480,20 @@ namespace aft
       {
         guard.lock();
       }
-      configuration_tracker.add(std::move(conf));
+      config_update(configuration_tracker.add(std::move(conf)));
 
-      // Nodes added during startup are trusted immediately, so we need to
+      // Nodes added during startup are trusted immediately and we need to
       // commit this immediately.
-      config_update(
-        configuration_tracker.commit(state->last_idx, is_primary()));
+      if (
+        replica_state == kv::ReplicaState::Learner &&
+        state->current_view == 0 && state->last_idx == 0 && seq_no == 0)
+      {
+        config_update(configuration_tracker.commit(0, true));
+        if (this_included)
+        {
+          replica_state = kv::ReplicaState::Follower;
+        }
+      }
     }
 
     const std::set<NodeId>& get_latest_configuration_unsafe() const
@@ -2623,15 +2636,25 @@ namespace aft
       // Reset next, match, and sent indices for all nodes.
       auto next = state->last_idx + 1;
 
+      // Send an empty append_entries to all nodes.
       for (auto& id : configuration_tracker.current())
       {
         auto& st = configuration_tracker.state(id);
         st.match_idx = 0;
         st.sent_idx = next - 1;
-
-        // Send an empty append_entries to all nodes.
         if (id != state->my_node_id)
+        {
           send_append_entries(id, next);
+        }
+      }
+      // And learners
+      for (auto& id : configuration_tracker.learners())
+      {
+        assert(id != state->my_node_id);
+        auto& st = configuration_tracker.state(id);
+        st.match_idx = 0;
+        st.sent_idx = next - 1;
+        send_append_entries(id, next);
       }
     }
 
