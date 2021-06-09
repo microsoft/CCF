@@ -1344,7 +1344,9 @@ namespace aft
       }
 
       // Then check if those append entries extend past our retirement
-      if (retirement_committable_idx.has_value() && r.idx > retirement_committable_idx)
+      if (
+        retirement_committable_idx.has_value() &&
+        r.idx > retirement_committable_idx)
       {
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return;
