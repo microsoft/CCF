@@ -57,7 +57,7 @@ if [ ! -f "scripts/env/bin/activate" ]
 fi
 
 source scripts/env/bin/activate
-pip --disable-pip-version-check install -U black pylint "mypy<0.900" 1>/dev/null
+pip --disable-pip-version-check install -U black pylint mypy 1>/dev/null
 
 echo "Python format"
 if [ $FIX -ne 0 ]; then
@@ -74,4 +74,5 @@ echo "Python lint"
 git ls-files tests/ python/ | grep -e '\.py$' | xargs python -m pylint
 
 echo "Python types"
+echo y | mypy --install-types
 git ls-files python/ | grep -e '\.py$' | xargs mypy
