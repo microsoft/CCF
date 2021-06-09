@@ -116,7 +116,9 @@ namespace kv
     virtual const std::set<NodeId>& get_latest_configuration() = 0;
     virtual const std::set<NodeId>& get_latest_configuration_unsafe() const = 0;
     virtual void update_node(
-      const NodeId& id, const std::optional<ccf::NodeInfo>& info) = 0;
+      ccf::SeqNo seq_no,
+      const NodeId& id,
+      const std::optional<ccf::NodeInfo>& info) = 0;
     virtual const ccf::NodeInfo& get_node_info(const NodeId& id) const = 0;
     virtual ConsensusDetails get_details() = 0;
   };

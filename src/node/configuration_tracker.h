@@ -59,7 +59,9 @@ namespace aft
                           // network-signed.
     std::unordered_map<ccf::NodeId, aft::NodeState> nodes;
     std::list<kv::Configuration> configurations;
+    std::set<NodeId> active_;
     std::set<NodeId> learners_;
+    std::set<NodeId> receivers_;
 
   public:
     ConfigurationTracker(
@@ -114,6 +116,8 @@ namespace aft
           }
           case NodeStatus::TRUSTED:
           {
+            active_.clear();
+            receivers_.clear();
             auto lit = learners_.find(id);
             if (lit != learners_.end())
             {
@@ -165,7 +169,7 @@ namespace aft
       }
     }
 
-    const std::set<NodeId>& current() const
+    const std::set<NodeId>& voters() const
     {
       if (configurations.size() == 0)
       {
@@ -181,16 +185,50 @@ namespace aft
       return learners_;
     }
 
+    const std::set<NodeId>& active()
+    {
+      if (active_.empty())
+      {
+        for (const auto& cfg : configurations)
+        {
+          for (const auto& id : cfg.nodes)
+          {
+            if (learners_.find(id) == learners_.end())
+            {
+              active_.insert(id);
+            }
+          }
+        }
+      }
+
+      return active_;
+    }
+
+    std::set<NodeId> receivers()
+    {
+      if (receivers_.empty())
+      {
+        receivers_ = active();
+        for (const auto& id : learners())
+        {
+          receivers_.insert(id);
+        }
+        receivers_.erase(node_id);
+      }
+
+      return receivers_;
+    }
+
     bool is_eligible_voter(const NodeId& id) const
     {
-      const auto& cn = current();
-      return cn.find(id) != cn.end() && learners_.find(id) == learners_.end();
+      const auto& vs = voters();
+      return vs.find(id) != vs.end() && learners_.find(id) == learners_.end();
     }
 
     size_t num_eligible_voters() const
     {
       size_t r = 0;
-      for (const auto& id : current())
+      for (const auto& id : voters())
       {
         if (learners_.find(id) == learners_.end())
         {
@@ -231,28 +269,29 @@ namespace aft
           nit != nodes.end() &&
           nit->second.node_info.status == ccf::NodeStatus::TRUSTED)
         {
+          LOG_DEBUG_FMT("{}: trusted", id);
           r++;
         }
       }
       return r;
     }
 
-    bool above_threshold(size_t n, const kv::Configuration& c)
+    bool enough_trusted(const kv::Configuration& c)
     {
+      size_t n = num_trusted(c);
+
+      // The exceptions (<= 2/3 nodes) enable adding nodes to tiny networks
+      // which by themselves wouldn't have enough nodes to get quorum for a
+      // transition to a larger configuration. Needs discussion.
       switch (consensus_type)
       {
         case CFT:
-          return n >= (c.nodes.size() / 2 + 1);
+          return (n >= (c.nodes.size() / 2 + 1)) || c.nodes.size() <= 2;
         case BFT:
-          return n >= (c.nodes.size() / 3 + 1);
+          return n >= (c.nodes.size() / 3 + 1) || c.nodes.size() <= 3;
         default:
           return false;
       }
-    }
-
-    bool enough_trusted(const kv::Configuration& c)
-    {
-      return above_threshold(num_trusted(c), c);
     }
 
     // Examine all configurations that are followed by a globally committed
@@ -263,7 +302,7 @@ namespace aft
 
       News r;
 
-      std::set<NodeId> before = current();
+      std::set<NodeId> before = active();
 
       while (true)
       {
@@ -308,6 +347,8 @@ namespace aft
             "Configurations: all nodes trusted, switching to next "
             "configuration");
           configurations.pop_front();
+          active_.clear();
+          receivers_.clear();
         }
         else
         {
@@ -315,7 +356,7 @@ namespace aft
         }
       }
 
-      auto& after = current();
+      std::set<NodeId> after = active();
 
       // Nodes added
       for (auto& id : after)
@@ -348,6 +389,8 @@ namespace aft
         configurations.pop_back();
         r = true;
       }
+      active_.clear();
+      receivers_.clear();
       LOG_TRACE_FMT(
         "Configurations: rolled back to {}: {}", seq_no, to_string());
       return r;
@@ -379,6 +422,8 @@ namespace aft
         }
       }
       configurations.push_back(std::move(config));
+      active_.clear();
+      receivers_.clear();
       return r;
     }
 

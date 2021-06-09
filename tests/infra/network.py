@@ -659,7 +659,7 @@ class Network:
             node.stop()
             raise
 
-        self.wait_for_trusted_and_committed(primary, node, timeout)
+        self.wait_for_trusted_and_committed(node, primary, timeout)
 
     def retire_node(self, remote_node, node_to_retire):
         self.consortium.retire_node(remote_node, node_to_retire)

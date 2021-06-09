@@ -254,7 +254,7 @@ namespace aft
 
     std::set<ccf::NodeId> active_nodes()
     {
-      return configuration_tracker.current();
+      return configuration_tracker.active();
     }
 
     ccf::NodeId id()
@@ -295,14 +295,14 @@ namespace aft
 
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
-      auto active_nodes_ = configuration_tracker.current();
+      auto voters_ = configuration_tracker.voters();
       if (!catching_up)
       {
-        active_nodes_.insert(id());
+        voters_.insert(id());
       }
-      LOG_DEBUG_FMT("Active nodes: {}", fmt::join(active_nodes_, ", "));
-      auto it = active_nodes_.begin();
-      std::advance(it, (view - starting_view_change) % active_nodes_.size());
+      LOG_DEBUG_FMT("Active nodes: {}", fmt::join(voters_, ", "));
+      auto it = voters_.begin();
+      std::advance(it, (view - starting_view_change) % voters_.size());
       return *it;
     }
 
@@ -441,13 +441,19 @@ namespace aft
       return state->view_history.initialise(term_history);
     }
 
-    void update_node(const NodeId& id, const std::optional<ccf::NodeInfo>& info)
+    void update_node(
+      SeqNo seq_no, const NodeId& id, const std::optional<ccf::NodeInfo>& info)
     {
-      config_update(configuration_tracker.update_node(id, info));
+      config_update(configuration_tracker.update_node(id, info), seq_no);
       if (
         is_learner() && id == state->my_node_id &&
         info->status == ccf::NodeStatus::TRUSTED)
       {
+        // We observe our own promotion and switch from learner to follower.
+        // Even if the commit that triggers this promotion is later rolled back,
+        // the node will stay a follower and will not revert to being a learner
+        // (it will roll back correctly though).
+        LOG_DEBUG_FMT("Observing own promotion, becoming follower");
         replica_state = kv::ReplicaState::Follower;
       }
     }
@@ -480,7 +486,7 @@ namespace aft
       {
         guard.lock();
       }
-      config_update(configuration_tracker.add(std::move(conf)));
+      config_update(configuration_tracker.add(std::move(conf)), seq_no);
 
       // Nodes added during startup are trusted immediately and we need to
       // commit this immediately.
@@ -488,7 +494,7 @@ namespace aft
         replica_state == kv::ReplicaState::Learner &&
         state->current_view == 0 && state->last_idx == 0 && seq_no == 0)
       {
-        config_update(configuration_tracker.commit(0, true));
+        config_update(configuration_tracker.commit(0, true), seq_no);
         if (this_included)
         {
           replica_state = kv::ReplicaState::Follower;
@@ -521,7 +527,7 @@ namespace aft
       {
         details.configs.push_back(config);
       }
-      for (auto& id : configuration_tracker.current())
+      for (auto& id : configuration_tracker.active())
       {
         if (id != state->my_node_id)
         {
@@ -623,19 +629,9 @@ namespace aft
           update_batch_size();
           entry_count = 0;
           entry_size_not_limited = 0;
-          for (const auto& id : configuration_tracker.current())
+          for (const auto& id : configuration_tracker.receivers())
           {
-            if (id != state->my_node_id)
-            {
-              LOG_DEBUG_FMT("Sending updates to follower {}", id.trim());
-              send_append_entries(
-                id, configuration_tracker.state(id).sent_idx + 1);
-            }
-          }
-          for (const auto& id : configuration_tracker.learners())
-          {
-            assert(id != state->my_node_id);
-            LOG_DEBUG_FMT("Sending updates to learner {}", id.trim());
+            LOG_DEBUG_FMT("Sending updates to follower {}", id.trim());
             send_append_entries(
               id, configuration_tracker.state(id).sent_idx + 1);
           }
@@ -643,7 +639,7 @@ namespace aft
       }
 
       // If we are the only node, attempt to commit immediately.
-      if (configuration_tracker.current().size() <= 1)
+      if (configuration_tracker.active().size() <= 1)
       {
         update_commit();
       }
@@ -882,14 +878,12 @@ namespace aft
           CCF_ASSERT_FMT(size == 0, "Did not write everything");
 
           LOG_INFO_FMT("Sending view change msg view:{}", vcm.view);
-          for (auto it = configuration_tracker.current().begin();
-               it != configuration_tracker.current().end();
-               ++it)
+          for (auto id : configuration_tracker.active())
           {
-            if (*it != state->my_node_id)
+            if (id != state->my_node_id)
             {
               channels->send_authenticated(
-                *it, ccf::NodeMsgType::consensus_msg, m);
+                id, ccf::NodeMsgType::consensus_msg, m);
             }
           }
 
@@ -921,17 +915,8 @@ namespace aft
 
           update_batch_size();
           // Send newly available entries to all nodes.
-          for (const auto& id : configuration_tracker.current())
+          for (const auto& id : configuration_tracker.receivers())
           {
-            if (id != state->my_node_id)
-            {
-              send_append_entries(
-                id, configuration_tracker.state(id).sent_idx + 1);
-            }
-          }
-          for (const auto& id : configuration_tracker.learners())
-          {
-            assert(id != state->my_node_id);
             send_append_entries(
               id, configuration_tracker.state(id).sent_idx + 1);
           }
@@ -1309,7 +1294,7 @@ namespace aft
       bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
       {
-        if (configuration_tracker.current().size() == 0)
+        if (configuration_tracker.active().size() <= 1)
         {
           // The replica is just starting up, we want to check that this replica
           // is part of the network we joined but that is dependent on Byzantine
@@ -2016,7 +2001,7 @@ namespace aft
       {
         NodeCaughtUpMsg ncamsg = {
           {raft_node_caught_up}, state->current_view, state->last_idx};
-        for (const auto& node_id : configuration_tracker.current())
+        for (const auto& node_id : configuration_tracker.active())
         {
           if (node_id == state->my_node_id)
             continue;
@@ -2059,7 +2044,7 @@ namespace aft
         node_count(),
         is_primary());
 
-      for (auto& id : configuration_tracker.current())
+      for (auto& id : configuration_tracker.active())
       {
         if (id != state->my_node_id)
         {
@@ -2115,7 +2100,7 @@ namespace aft
         {
           SignaturesReceivedAck r = {
             {bft_signature_received_ack}, tx_id.view, tx_id.seqno};
-          for (auto& id : configuration_tracker.current())
+          for (auto& id : configuration_tracker.active())
           {
             if (id != state->my_node_id)
             {
@@ -2191,7 +2176,7 @@ namespace aft
           NonceRevealMsg r = {
             {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce};
 
-          for (auto& id : configuration_tracker.current())
+          for (auto& id : configuration_tracker.active())
           {
             if (id != state->my_node_id)
             {
@@ -2569,7 +2554,7 @@ namespace aft
 
       if (consensus_type != ConsensusType::BFT)
       {
-        for (auto& id : configuration_tracker.current())
+        for (auto& id : configuration_tracker.voters())
         {
           if (
             id != state->my_node_id &&
@@ -2627,7 +2612,7 @@ namespace aft
       catching_up = false;
 
       // Immediately commit if there are no other nodes.
-      if (configuration_tracker.current().size() <= 1)
+      if (configuration_tracker.active().size() <= 1)
       {
         commit(state->last_idx);
         return;
@@ -2637,20 +2622,8 @@ namespace aft
       auto next = state->last_idx + 1;
 
       // Send an empty append_entries to all nodes.
-      for (auto& id : configuration_tracker.current())
+      for (auto& id : configuration_tracker.receivers())
       {
-        auto& st = configuration_tracker.state(id);
-        st.match_idx = 0;
-        st.sent_idx = next - 1;
-        if (id != state->my_node_id)
-        {
-          send_append_entries(id, next);
-        }
-      }
-      // And learners
-      for (auto& id : configuration_tracker.learners())
-      {
-        assert(id != state->my_node_id);
         auto& st = configuration_tracker.state(id);
         st.match_idx = 0;
         st.sent_idx = next - 1;
@@ -2847,8 +2820,7 @@ namespace aft
 
       LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id.trim(), idx);
 
-      auto news = configuration_tracker.commit(idx, is_primary());
-      config_update(news);
+      config_update(configuration_tracker.commit(idx, is_primary()), idx);
     }
 
     Index get_commit_watermark_idx()
@@ -2897,7 +2869,7 @@ namespace aft
       }
     }
 
-    void config_update(const ConfigurationTracker::News& news)
+    void config_update(const ConfigurationTracker::News& news, SeqNo cfg_seq_no)
     {
       LOG_DEBUG_FMT(
         "Configurations: update: +{{{}}} -{{{}}} replica_state={}",
@@ -2907,7 +2879,9 @@ namespace aft
 
       if (replica_state == kv::ReplicaState::Learner)
       {
-        if (news.to_add.find(state->my_node_id) != news.to_add.end())
+        if (
+          news.to_add.find(state->my_node_id) != news.to_add.end() &&
+          state->commit_idx >= cfg_seq_no)
         {
           LOG_INFO_FMT("Configurations: self-promote");
           threading::ThreadMessaging::thread_messaging.add_task(
@@ -2968,7 +2942,7 @@ namespace aft
 
       if (replica_state == kv::ReplicaState::Leader && retire)
       {
-        auto c = configuration_tracker.current();
+        auto c = configuration_tracker.active();
         assert(c.find(state->my_node_id) == c.end());
         become_retired();
       }

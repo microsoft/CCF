@@ -142,9 +142,11 @@ namespace aft
     }
 
     void update_node(
-      const NodeId& id, const std::optional<ccf::NodeInfo>& info) override
+      SeqNo seq_no,
+      const NodeId& id,
+      const std::optional<ccf::NodeInfo>& info) override
     {
-      aft->update_node(id, info);
+      aft->update_node(seq_no, id, info);
     }
 
     const ccf::NodeInfo& get_node_info(const NodeId& id) const override

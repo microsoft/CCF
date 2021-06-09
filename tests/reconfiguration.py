@@ -52,10 +52,9 @@ def test_add_node(network, args):
 @reqs.description("Adding multiple valid nodes without snapshots")
 @reqs.at_least_n_nodes(3)
 def test_add_multiple_nodes(network, args, n=2, timeout=3):
-    new_nodes = [
-        network.create_and_add_pending_node(args.package, "local://localhost", args)
-        for _ in range(n)
-    ]
+    new_nodes = [network.create_node("local://localhost") for _ in range(n)]
+    for n in new_nodes:
+        network.join_node(n, args.package, args)
     new_node_ids = [node.node_id for node in new_nodes]
     trust_new_nodes = [
         {"name": "transition_node_to_trusted", "args": {"node_id": node_id}}
@@ -86,10 +85,9 @@ def test_add_and_remove_multiple_nodes(network, args, n=1, m=1, timeout=3):
     current_node_ids = [n.node_id for n in current_nodes]
     LOG.info(f"Current nodes: {current_node_ids}")
 
-    new_nodes = [
-        network.create_and_add_pending_node(args.package, "local://localhost", args)
-        for _ in range(n)
-    ]
+    new_nodes = [network.create_node("local://localhost") for _ in range(n)]
+    for n in new_nodes:
+        network.join_node(n, args.package, args)
     new_node_ids = [node.node_id for node in new_nodes]
     trust_new_nodes = [
         {"name": "transition_node_to_trusted", "args": {"node_id": node_id}}
@@ -373,6 +371,7 @@ def test_join_straddling_primary_replacement(network, args):
     # we will reach a situation where two out four nodes in the voting quorum
     # are unable to participate (one retired and one not yet joined).
     test_add_node(network, args)
+
     primary, _ = network.find_primary()
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args)
@@ -399,6 +398,7 @@ def test_join_straddling_primary_replacement(network, args):
 
     network.wait_for_new_primary(primary, args=args, timeout_multiplier=2)
     new_node.wait_for_node_to_join(timeout=10)
+    # network.wait_for_trusted_and_committed(primary, new_node)
 
     primary.stop()
     network.nodes.remove(primary)
@@ -450,21 +450,21 @@ def run(args):
             test_node_filter(network, args)
 
         elif args.consensus == "bft":
-            test_join_straddling_primary_replacement(network, args)
-            test_node_replacement(network, args)
-            # test_add_node_from_backup(network, args)  # Join-tx gets rolled back every time it tries
+            # test_join_straddling_primary_replacement(network, args)
+            # test_node_replacement(network, args)
+            # test_add_node_from_backup(network, args)
             test_add_node(network, args)
-            test_add_node_on_other_curve(network, args)
-            test_retire_backup(network, args)
+            # test_add_node_on_other_curve(network, args)
+            # test_retire_backup(network, args)
             # test_add_as_many_pending_nodes(network, args) # Too many nodes and transactions, runs into timeouts and buffer size exhaustions
-            test_add_node(network, args)
-            test_retire_primary(network, args)
+            # test_add_node(network, args)
+            # test_retire_primary(network, args)
 
             # These get stuck because of signature verification problems
             # test_add_multiple_nodes(network, args, n=2)
             # test_add_and_remove_multiple_nodes(network, args, n=1, m=1)
 
-            test_node_filter(network, args)
+            # test_node_filter(network, args)
 
         else:
             raise ValueError("Unknown consensus")

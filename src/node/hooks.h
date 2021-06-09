@@ -28,7 +28,7 @@ namespace ccf
     {
       for (const auto& [id, info] : updates)
       {
-        consensus->update_node(id, info);
+        consensus->update_node(seq_no, id, info);
       }
 
       auto ltst = consensus->get_latest_configuration_unsafe();

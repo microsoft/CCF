@@ -169,7 +169,9 @@ namespace kv::test
     }
 
     void update_node(
-      const NodeId& id, const std::optional<ccf::NodeInfo>& info) override
+      ccf::SeqNo seq_no,
+      const NodeId& id,
+      const std::optional<ccf::NodeInfo>& info) override
     {}
 
     ConsensusDetails get_details() override
