@@ -136,11 +136,11 @@ if __name__ == "__main__":
             "--rotation-replacements",
             help="Number of times to replace all nodes",
             type=int,
-            default=3,
+            default=10,
         )
 
     args = infra.e2e_args.cli_args(add=add)
     args.package = "liblogging"
-    args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.initial_member_count = 1
     run(args)

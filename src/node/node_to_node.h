@@ -210,7 +210,9 @@ namespace ccf
     {
       auto n2n_channel = channels->get(to);
       // Sending after a channel has been destroyed is a bug.
-      assert(n2n_channel);
+      // assert(n2n_channel);
+      if (!n2n_channel)
+        return false;
       return n2n_channel->send(type, {data, size});
     }
 

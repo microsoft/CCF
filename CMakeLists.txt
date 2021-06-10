@@ -849,7 +849,7 @@ if(BUILD_TESTS)
     )
 
     if(LONG_TESTS)
-      set(ROTATION_TEST_ARGS --rotation-retirements 10 --rotation-suspensions
+      set(ROTATION_TEST_ARGS --rotation-retirements 10 --rotation-replacements
                              10
       )
     endif()
