@@ -5,9 +5,7 @@ import infra.network
 import infra.proc
 import suite.test_requirements as reqs
 import reconfiguration
-import time
 from infra.checker import check_can_progress
-from ccf.clients import CCFConnectionException
 
 from loguru import logger as LOG
 
@@ -20,7 +18,7 @@ def test_replace_all_nodes(network, args):
 
     def make_node():
         node = network.create_node("local://localhost")
-        network.join_node(node, args.package, args, timeout=3)
+        network.join_node(node, args.package, args, timeout=3, from_snapshot=False)
         return node
 
     new_nodes = [make_node() for _ in range(len(current_nodes))]
@@ -51,7 +49,7 @@ def test_replace_all_nodes(network, args):
         LOG.info("Waiting for node {} to join", node.local_node_id)
         node.wait_for_node_to_join(timeout=10)
 
-    new_primary, _ = network.wait_for_new_primary_in(new_node_ids)
+    new_primary, _ = network.wait_for_new_primary_in(new_node_ids, timeout_multiplier=3)
     check_can_progress(new_primary)
 
     for node in current_nodes:
@@ -59,6 +57,7 @@ def test_replace_all_nodes(network, args):
         network.nodes.remove(node)
 
     return network
+
 
 def run(args):
     with infra.network.network(
@@ -95,7 +94,7 @@ if __name__ == "__main__":
             "--rotation-replacements",
             help="Number of times to replace all nodes",
             type=int,
-            default=10,
+            default=3,
         )
 
     args = infra.e2e_args.cli_args(add=add)

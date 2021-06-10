@@ -212,7 +212,11 @@ namespace ccf
       // Sending after a channel has been destroyed is a bug.
       // assert(n2n_channel);
       if (!n2n_channel)
+      {
+        LOG_TRACE_FMT(
+          "Trying to send {} to {} after channel is destroyed", type, to);
         return false;
+      }
       return n2n_channel->send(type, {data, size});
     }
 
@@ -274,7 +278,8 @@ namespace ccf
       // with the lower ID wins.
 
       auto n2n_channel = channels->get(from);
-      n2n_channel->consume_initiator_key_share(data, size, self < from);
+      if (n2n_channel)
+        n2n_channel->consume_initiator_key_share(data, size, self < from);
     }
 
     void process_key_exchange_response(
@@ -282,7 +287,8 @@ namespace ccf
     {
       LOG_DEBUG_FMT("key_exchange_response from {}", from);
       auto n2n_channel = channels->get(from);
-      n2n_channel->consume_responder_key_share(data, size);
+      if (n2n_channel)
+        n2n_channel->consume_responder_key_share(data, size);
     }
 
     void process_key_exchange_final(
@@ -290,7 +296,8 @@ namespace ccf
     {
       LOG_DEBUG_FMT("key_exchange_final from {}", from);
       auto n2n_channel = channels->get(from);
-      if (!n2n_channel->check_peer_key_share_signature(data, size))
+      if (
+        n2n_channel && !n2n_channel->check_peer_key_share_signature(data, size))
       {
         n2n_channel->reset();
       }
