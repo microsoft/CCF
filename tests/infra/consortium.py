@@ -518,33 +518,12 @@ class Consortium:
                 current_status == status.value
             ), f"Service status {current_status} (expected {status.value})"
 
-    def _check_node_exists(self, remote_node, node_id, node_status=None, retries=5):
-        with remote_node.client(connection_timeout=1) as c:
-            r = None
-            while retries > 0:
-                try:
-                    r = c.get(f"/node/network/nodes/{node_id}")
-                except (TimeoutError, CCFConnectionException):
-                    LOG.info("Query timeout - retrying")
+    def _check_node_exists(self, remote_node, node_id, node_status=None):
+        with remote_node.client() as c:
+            r = c.get(f"/node/network/nodes/{node_id}")
 
-                if r is None or r.status_code != 200:
-                    # Node may not have joined the network yet, or it may be
-                    # too busy to answer the request in time, so try again.
-                    retries -= 1
-                elif (
-                    node_status == NodeStatus.TRUSTED
-                    and r is not None
-                    and r.status_code == http.HTTPStatus.OK.value
-                    and r.body.json()["status"] == "CatchingUp"
-                ):
-                    time.sleep(0.5)  # Doesn't count!
-                else:
-                    break
-
-            if (
-                r is None
-                or r.status_code != http.HTTPStatus.OK.value
-                or (node_status and r.body.json()["status"] != node_status.value)
+            if r.status_code != http.HTTPStatus.OK.value or (
+                node_status and r.body.json()["status"] != node_status.value
             ):
                 return False
 
