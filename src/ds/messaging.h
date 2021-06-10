@@ -4,7 +4,6 @@
 
 #include "logger.h"
 #include "ring_buffer.h"
-#include "spin_lock.h"
 
 #include <atomic>
 #include <condition_variable>
