@@ -402,6 +402,10 @@ if(BUILD_TESTS)
       merkle_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
     )
 
+    add_unit_test(
+      identity_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/identity.cpp
+    )
+
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
