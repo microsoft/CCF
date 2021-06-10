@@ -35,7 +35,7 @@ namespace aft
 
     bool is_backup() override
     {
-      return aft->is_follower();
+      return aft->is_follower() || aft->is_learner();
     }
 
     void force_become_primary() override

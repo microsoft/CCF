@@ -296,10 +296,6 @@ namespace aft
       // This will not work once we have reconfiguration support
       // https://github.com/microsoft/CCF/issues/1852
       auto voters_ = configuration_tracker.voters();
-      if (!catching_up)
-      {
-        voters_.insert(id());
-      }
       LOG_DEBUG_FMT("Active nodes: {}", fmt::join(voters_, ", "));
       auto it = voters_.begin();
       std::advance(it, (view - starting_view_change) % voters_.size());
@@ -481,7 +477,8 @@ namespace aft
       // can only change from leader or follower while in a view-change during
       // which time transaction cannot be executed.
       if (
-        consensus_type == ConsensusType::BFT && is_follower() &&
+        consensus_type == ConsensusType::BFT &&
+        (is_follower() || is_learner()) &&
         threading::ThreadMessaging::thread_count > 1)
       {
         guard.lock();
@@ -554,7 +551,8 @@ namespace aft
         entries,
       Term term)
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
+      if (
+        consensus_type == ConsensusType::BFT && (is_follower() || is_learner()))
       {
         // Already under lock in the current BFT path
         for (auto& [_, __, ___, hooks] : entries)
@@ -848,7 +846,7 @@ namespace aft
 
         if (
           !view_change_tracker->is_view_change_in_progress(time) &&
-          is_follower() && (has_bft_timeout_occurred(time)) &&
+          (is_follower() || is_learner()) && (has_bft_timeout_occurred(time)) &&
           view_change_tracker->should_send_view_change(time))
         {
           // We have not seen a request executed within an expected period of
@@ -1294,7 +1292,7 @@ namespace aft
       bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
       {
-        if (configuration_tracker.active().size() <= 1)
+        if (configuration_tracker.active().size() == 0)
         {
           // The replica is just starting up, we want to check that this replica
           // is part of the network we joined but that is dependent on Byzantine
