@@ -98,7 +98,12 @@ namespace aft
     {
       if (info.has_value())
       {
-        LOG_DEBUG_FMT("Nodes: update {}: {}", id, info->status);
+        LOG_DEBUG_FMT(
+          "Nodes: update {}: {} {}:{}",
+          id,
+          info->status,
+          info->nodehost,
+          info->nodeport);
         auto nit = nodes.find(id);
         if (nit == nodes.end())
           nodes.emplace(id, NodeState(info.value(), 0));
@@ -202,6 +207,28 @@ namespace aft
       }
 
       return active_;
+    }
+
+    bool is_in_config(const NodeId& id) const
+    {
+      for (const auto& cfg : configurations)
+      {
+        if (cfg.nodes.find(id) != cfg.nodes.end())
+        {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    bool is_learner(const NodeId& id) const
+    {
+      return learners_.find(id) != learners_.end();
+    }
+
+    bool is_promotable(const NodeId& id) const
+    {
+      return is_learner(id) && is_in_config(id);
     }
 
     std::set<NodeId> receivers()

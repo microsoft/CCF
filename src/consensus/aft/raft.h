@@ -28,6 +28,7 @@
 #include "crypto/pem.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
+#include "enclave/consensus_type.h"
 #include "impl/execution.h"
 #include "impl/request_message.h"
 #include "impl/state.h"
@@ -441,6 +442,7 @@ namespace aft
       SeqNo seq_no, const NodeId& id, const std::optional<ccf::NodeInfo>& info)
     {
       config_update(configuration_tracker.update_node(id, info), seq_no);
+
       if (
         is_learner() && id == state->my_node_id &&
         info->status == ccf::NodeStatus::TRUSTED)
@@ -451,6 +453,15 @@ namespace aft
         // (it will roll back correctly though).
         LOG_DEBUG_FMT("Observing own promotion, becoming follower");
         replica_state = kv::ReplicaState::Follower;
+
+        if (consensus_type == ConsensusType::BFT)
+        {
+          for (auto id : configuration_tracker.receivers())
+          {
+            auto info = get_node_info(id);
+            channels->create_channel(id, info.nodehost, info.nodeport);
+          }
+        }
       }
     }
 
@@ -2859,15 +2870,17 @@ namespace aft
     void config_update(const ConfigurationTracker::News& news, SeqNo cfg_seq_no)
     {
       LOG_DEBUG_FMT(
-        "Configurations: update: +{{{}}} -{{{}}} replica_state={}",
+        "Configurations: update: +{{{}}} -{{{}}} replica_state={} "
+        "cfg_seq_no={}",
         fmt::join(news.to_add, ", "),
         fmt::join(news.to_remove, ", "),
-        replica_state);
+        replica_state,
+        cfg_seq_no);
 
       if (replica_state == kv::ReplicaState::Learner)
       {
         if (
-          news.to_add.find(state->my_node_id) != news.to_add.end() &&
+          configuration_tracker.is_promotable(state->my_node_id) &&
           state->commit_idx >= cfg_seq_no)
         {
           LOG_INFO_FMT("Configurations: self-promote");

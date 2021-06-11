@@ -497,7 +497,8 @@ namespace ccf
         "promote_node",
         HTTP_POST,
         json_adapter(promote_node),
-        {std::make_shared<NodeCertAuthnPolicy>()})
+        // {std::make_shared<NodeCertAuthnPolicy>()})
+        no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .set_openapi_hidden(true)
         .install();
@@ -580,7 +581,8 @@ namespace ccf
         "promote_configuration",
         HTTP_POST,
         json_adapter(promote_configuration),
-        {std::make_shared<NodeCertAuthnPolicy>()})
+        // {std::make_shared<NodeCertAuthnPolicy>()})
+        no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Always)
         .set_openapi_hidden(true)
         .install();
