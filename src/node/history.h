@@ -736,6 +736,7 @@ namespace ccf
     void rollback(kv::Version v, kv::Term t) override
     {
       std::lock_guard<std::mutex> guard(state_lock);
+      LOG_TRACE_FMT("Rollback to {}.{}", term, v);
       term = t;
       replicated_state_tree.retract(v);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
