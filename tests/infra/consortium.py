@@ -392,14 +392,24 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def set_js_app(self, remote_node, app_bundle_path):
-        proposal_body, careful_vote = self.make_proposal("set_js_app", app_bundle_path)
+    def set_js_app(self, remote_node, app_bundle_path, disable_bytecode_cache=False):
+        proposal_body, careful_vote = self.make_proposal(
+            "set_js_app", app_bundle_path, disable_bytecode_cache
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         # Large apps take a long time to process - wait longer than normal for commit
         return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=10)
 
     def remove_js_app(self, remote_node):
         proposal_body, careful_vote = ccf.proposal_generator.remove_js_app()
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def refresh_js_app_bytecode_cache(self, remote_node):
+        (
+            proposal_body,
+            careful_vote,
+        ) = ccf.proposal_generator.refresh_js_app_bytecode_cache()
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 

@@ -53,6 +53,79 @@ def test_module_import(network, args):
     return network
 
 
+@reqs.description("Test module bytecode caching")
+def test_bytecode_cache(network, args):
+    primary, _ = network.find_nodes()
+
+    bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
+
+    LOG.info("Verifying that app works without bytecode cache")
+    proposal = network.consortium.set_js_app(
+        primary, bundle_dir, disable_bytecode_cache=True
+    )
+
+    raw_module_name = "/test_module.js".encode()
+    assert (
+        network.get_ledger_public_state_at(proposal.completed_seqno)
+        .get("public:ccf.gov.modules_quickjs_bytecode", {})
+        .get(raw_module_name)
+        is None
+    ), "Module bytecode exists but should not"
+
+    with primary.client("user0") as c:
+        r = c.post("/app/test_module", {})
+        assert r.status_code == http.HTTPStatus.CREATED, r.status_code
+        assert r.body.text() == "Hello world!"
+
+    LOG.info("Verifying that app works with bytecode cache")
+    proposal = network.consortium.set_js_app(
+        primary, bundle_dir, disable_bytecode_cache=False
+    )
+
+    assert (
+        network.get_ledger_public_state_at(proposal.completed_seqno)[
+            "public:ccf.gov.modules_quickjs_bytecode"
+        ][raw_module_name]
+        is not None
+    ), "Module bytecode is missing"
+
+    with primary.client("user0") as c:
+        r = c.post("/app/test_module", {})
+        assert r.status_code == http.HTTPStatus.CREATED, r.status_code
+        assert r.body.text() == "Hello world!"
+
+    LOG.info("Verifying that redeploying app cleans bytecode cache")
+    proposal = network.consortium.set_js_app(
+        primary, bundle_dir, disable_bytecode_cache=True
+    )
+
+    assert (
+        network.get_ledger_public_state_at(proposal.completed_seqno)[
+            "public:ccf.gov.modules_quickjs_bytecode"
+        ][raw_module_name]
+        is None
+    ), "Module bytecode exists but should not"
+
+    LOG.info(
+        "Verifying that bytecode cache can be enabled/refreshed without app re-deploy"
+    )
+    proposal = network.consortium.refresh_js_app_bytecode_cache(primary)
+
+    assert (
+        network.get_ledger_public_state_at(proposal.completed_seqno)[
+            "public:ccf.gov.modules_quickjs_bytecode"
+        ][raw_module_name]
+        is not None
+    ), "Module bytecode is missing"
+
+    with primary.client("user0") as c:
+        r = c.post("/app/test_module", {})
+        assert r.status_code == http.HTTPStatus.CREATED, r.status_code
+        assert r.body.text() == "Hello world!"
+
+    return network
+
+
 @reqs.description("Test js app bundle")
 def test_app_bundle(network, args):
     primary, _ = network.find_nodes()
@@ -469,6 +542,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         network = test_module_import(network, args)
+        network = test_bytecode_cache(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
         network = test_npm_app(network, args)
