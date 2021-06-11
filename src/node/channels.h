@@ -10,7 +10,6 @@
 #include "ds/hex.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
-#include "ds/spin_lock.h"
 #include "entities.h"
 #include "node_types.h"
 #include "tls/key_exchange.h"
@@ -890,7 +889,7 @@ namespace ccf
     crypto::KeyPairPtr node_kp;
     const crypto::Pem& node_cert;
     NodeId self;
-    SpinLock lock;
+    std::mutex lock;
 
   public:
     ChannelManager(
@@ -912,7 +911,7 @@ namespace ccf
       const std::string& service,
       size_t message_limit = Channel::default_message_limit)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       auto search = channels.find(peer_id);
       if (search == channels.end())
       {
@@ -963,7 +962,7 @@ namespace ccf
 
     void destroy_channel(const NodeId& peer_id)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       auto search = channels.find(peer_id);
       if (search == channels.end())
       {
@@ -978,13 +977,13 @@ namespace ccf
 
     void destroy_all_channels()
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       channels.clear();
     }
 
     void close_all_outgoing()
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       for (auto& c : channels)
       {
         if (c.second && c.second->is_outgoing())
@@ -996,7 +995,7 @@ namespace ccf
 
     std::shared_ptr<Channel> get(const NodeId& peer_id)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       auto search = channels.find(peer_id);
       if (search != channels.end())
       {

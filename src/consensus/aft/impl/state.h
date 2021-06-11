@@ -6,7 +6,6 @@
 #include "crypto/key_pair.h"
 #include "crypto/verifier.h"
 #include "ds/logger.h"
-#include "ds/spin_lock.h"
 #include "kv/kv_types.h"
 #include "node/rpc/tx_status.h"
 
@@ -103,7 +102,7 @@ namespace aft
       new_view_idx(0)
     {}
 
-    SpinLock lock;
+    std::mutex lock;
     std::map<ccf::NodeId, std::shared_ptr<Replica>> configuration;
 
     ccf::NodeId my_node_id;

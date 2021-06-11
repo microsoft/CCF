@@ -6,7 +6,6 @@
 #include "consensus/aft/request.h"
 #include "crypto/verifier.h"
 #include "ds/buffer.h"
-#include "ds/spin_lock.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
@@ -32,7 +31,7 @@ namespace ccf
     endpoints::EndpointRegistry& endpoints;
 
   private:
-    SpinLock open_lock;
+    std::mutex open_lock;
     bool is_open_ = false;
 
     kv::Consensus* consensus;
@@ -447,7 +446,7 @@ namespace ccf
 
     void open(std::optional<crypto::Pem*> identity = std::nullopt) override
     {
-      std::lock_guard<SpinLock> mguard(open_lock);
+      std::lock_guard<std::mutex> mguard(open_lock);
       // open() without an identity unconditionally opens the frontend.
       // If an identity is passed, the frontend must instead wait for
       // the KV to read that this is identity is present and open,
@@ -468,7 +467,7 @@ namespace ccf
 
     bool is_open(kv::Tx& tx) override
     {
-      std::lock_guard<SpinLock> mguard(open_lock);
+      std::lock_guard<std::mutex> mguard(open_lock);
       if (!is_open_)
       {
         auto service = tx.ro<Service>(Tables::SERVICE);

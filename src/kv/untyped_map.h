@@ -4,7 +4,6 @@
 
 #include "ds/dl_list.h"
 #include "ds/logger.h"
-#include "ds/spin_lock.h"
 #include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"
 #include "kv/untyped_map_handle.h"
@@ -81,7 +80,7 @@ namespace kv::untyped
     CommitHook global_hook = nullptr;
     MapHook hook = nullptr;
     std::list<std::pair<Version, Write>> commit_deltas;
-    SpinLock sl;
+    std::mutex sl;
     const SecurityDomain security_domain;
     const bool replicated;
     const bool include_conflict_read_version;
