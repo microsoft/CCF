@@ -406,7 +406,9 @@ class Node:
             "signing_auth": self.identity(name),
         }
 
-    def client(self, identity=None, signing_identity=None, interface_idx=None, **kwargs):
+    def client(
+        self, identity=None, signing_identity=None, interface_idx=None, **kwargs
+    ):
         if self.network_state == NodeNetworkState.stopped:
             raise RuntimeError(
                 f"Cannot create client for node {self.local_node_id} as node is stopped"

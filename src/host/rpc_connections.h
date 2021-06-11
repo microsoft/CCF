@@ -258,6 +258,7 @@ namespace asynchost
     tls::ConnID get_next_id()
     {
       auto id = next_id++;
+      const auto initial = id;
 
       if (next_id < 0)
         next_id = 1;
@@ -268,6 +269,12 @@ namespace asynchost
 
         if (id < 0)
           id = 1;
+
+        if (id == initial)
+        {
+          throw std::runtime_error(
+            "Exhausted all IDs for host RPC connections");
+        }
       }
 
       return id;

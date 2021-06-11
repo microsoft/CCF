@@ -89,9 +89,10 @@ namespace enclave
       }
     };
 
-    tls::ConnID get_next_id()
+    tls::ConnID get_next_client_id()
     {
       auto id = next_client_session_id--;
+      const auto initial = id;
 
       if (next_client_session_id > 0)
         next_client_session_id = -1;
@@ -102,6 +103,12 @@ namespace enclave
 
         if (id > 0)
           id = -1;
+
+        if (id == initial)
+        {
+          throw std::runtime_error(
+            "Exhausted all IDs for enclave client sessions");
+        }
       }
 
       return id;
@@ -194,7 +201,8 @@ namespace enclave
         per_listen_interface.max_open_sessions_hard)
       {
         LOG_INFO_FMT(
-          "Refusing session {} inside the enclave - already have {} sessions "
+          "Refusing TLS session {} inside the enclave - already have {} "
+          "sessions "
           "from interface {} and limit is {}",
           id,
           listen_interface_id,
@@ -209,7 +217,8 @@ namespace enclave
         per_listen_interface.max_open_sessions_soft)
       {
         LOG_INFO_FMT(
-          "Soft refusing session {} inside the enclave - already have {} "
+          "Soft refusing session {} (returning 503) inside the enclave - "
+          "already have {} "
           "sessions from interface {} and limit is {}",
           id,
           listen_interface_id,
@@ -285,7 +294,7 @@ namespace enclave
     {
       std::lock_guard<std::mutex> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
-      auto id = get_next_id();
+      auto id = get_next_client_id();
 
       LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
 

@@ -6,6 +6,7 @@
 #include "ds/nonstd.h"
 
 #include <CLI11/CLI11.hpp>
+#include <charconv>
 #include <optional>
 
 #define FMT_HEADER_ONLY
@@ -32,19 +33,24 @@ namespace cli
       found == std::string::npos ? default_port : addr.substr(found + 1);
 
     // Check if port is in valid range
-    int port_int;
-    try
-    {
-      port_int = std::stoi(std::string(port));
-    }
-    catch (const std::exception&)
-    {
-      throw CLI::ValidationError(option_name, "Port is not a number");
-    }
-    if (port_int < 0 || port_int > 65535)
+    uint16_t port_n;
+    const auto [_, ec] =
+      std::from_chars(port.data(), port.data() + port.size(), port_n);
+    if (ec == std::errc::invalid_argument)
     {
       throw CLI::ValidationError(
-        option_name, "Port number is not in range 0-65535");
+        option_name, fmt::format("Port '{}' is not a number", port));
+    }
+    else if (ec == std::errc::result_out_of_range)
+    {
+      throw CLI::ValidationError(
+        option_name,
+        fmt::format("Port '{}'  number is not in range 0-65535", port));
+    }
+    else if (ec != std::errc())
+    {
+      throw CLI::ValidationError(
+        option_name, fmt::format("Error parsing port '{}'", port));
     }
 
     parsed.hostname = hostname;
