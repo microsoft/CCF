@@ -362,6 +362,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default="1tx",
         choices=("1tx", "2tx"),
     )
+    parser.add_argument(
+        "--max-message-size",
+        help="Maximum ring buffer message size (log)",
+        default=None,
+    )
 
     add(parser)
 

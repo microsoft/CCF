@@ -3,8 +3,15 @@
 #pragma once
 
 #include "node/entities.h"
+#include "node/resharing.h"
 #include "node/session_metrics.h"
 #include "node_call_types.h"
+
+namespace SplitIdentity
+{
+  template <typename NID>
+  class Context;
+}
 
 namespace ccf
 {
@@ -50,5 +57,7 @@ namespace ccf
       CodeDigest& code_digest) = 0;
     virtual std::optional<kv::Version> get_startup_snapshot_seqno() = 0;
     virtual SessionMetrics get_session_metrics() = 0;
+    virtual std::shared_ptr<CCFSplitIdContext> get_identity_context() = 0;
+    virtual std::shared_ptr<ResharingTracker> get_resharing_tracker() = 0;
   };
 }

@@ -13,7 +13,7 @@ namespace ccf
   {
   public:
     virtual void add_network_configuration(
-      const kv::NetworkConfiguration& config) = 0;
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& config) = 0;
     virtual void add_resharing_result(
       ccf::SeqNo seqno,
       kv::ReconfigurationId rid,
@@ -22,10 +22,11 @@ namespace ccf
       kv::ReconfigurationId rid, ccf::SeqNo idx) const = 0;
     virtual ResharingResult get_resharing_result(
       kv::ReconfigurationId rid) const = 0;
-    virtual void reshare(const kv::NetworkConfiguration& config) = 0;
-    virtual std::optional<kv::ReconfigurationId> find_reconfiguration(
-      const kv::Configuration::Nodes& nodes) const = 0;
-
+    virtual void reshare(
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& config) = 0;
+    virtual void start_next_session() {}
+    virtual void set_active_config(const kv::NetworkConfiguration& cfg) = 0;
+    virtual const kv::NetworkConfiguration& active_config() const = 0;
     virtual void rollback(aft::Index idx) = 0;
     virtual void compact(aft::Index idx) = 0;
   };

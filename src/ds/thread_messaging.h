@@ -350,4 +350,62 @@ namespace threading
       return finished.load();
     }
   };
+
+  struct RetryUntilMsg
+  {
+    RetryUntilMsg(
+      std::function<bool()> f,
+      std::chrono::milliseconds interval,
+      uint64_t id) :
+      f(f),
+      interval(interval),
+      id(id)
+    {}
+    std::function<bool()> f;
+    std::chrono::milliseconds interval;
+    uint64_t id;
+  };
+
+  static uint64_t next_task_id = 0;
+
+  inline void retry_until(
+    std::function<bool()> f, std::chrono::milliseconds interval)
+  {
+    auto id = next_task_id++;
+    LOG_TRACE_FMT("Scheduling new task {}", id);
+    auto msg = std::make_unique<threading::Tmsg<RetryUntilMsg>>(
+      [](std::unique_ptr<threading::Tmsg<RetryUntilMsg>> msg) {
+        bool r = false;
+        try
+        {
+          r = msg->data.f();
+        }
+        catch (std::exception& ex)
+        {
+          LOG_TRACE_FMT("Caught exception: {}", ex.what());
+          r = false;
+        }
+        catch (...)
+        {
+          LOG_TRACE_FMT("Caught unknown exception");
+          r = false;
+        }
+        if (!r)
+        {
+          LOG_TRACE_FMT("Rescheduling failed task {}", msg->data.id);
+          auto interval = msg->data.interval;
+          threading::ThreadMessaging::thread_messaging.add_task_after(
+            std::move(msg), interval);
+        }
+        else
+        {
+          LOG_TRACE_FMT("Not rescheduling successful task {}", msg->data.id);
+        }
+      },
+      f,
+      interval,
+      id);
+    threading::ThreadMessaging::thread_messaging.add_task_after(
+      std::move(msg), interval);
+  }
 };

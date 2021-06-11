@@ -16,6 +16,7 @@
 #include "node/rpc/forwarder.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
+#include "node/splitid_endpoints.h"
 #include "oe_init.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"

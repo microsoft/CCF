@@ -121,6 +121,16 @@ namespace ccf
     {
       return {};
     }
+
+    virtual std::shared_ptr<CCFSplitIdContext> get_identity_context() override
+    {
+      return nullptr;
+    }
+
+    virtual std::shared_ptr<ResharingTracker> get_resharing_tracker() override
+    {
+      return nullptr;
+    }
   };
 
   class StubNodeStateCache : public historical::AbstractStateCache

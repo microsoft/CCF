@@ -22,14 +22,16 @@
 #include "hooks.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/config.h"
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
+#include "node/resharing.h"
 #include "node/rpc/serdes.h"
+#include "node/splitid_context.h"
 #include "node_to_node.h"
-#include "resharing.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
@@ -149,6 +151,11 @@ namespace ccf
     //
     std::shared_ptr<JwtKeyAutoRefresh> jwt_key_auto_refresh;
 
+    //
+    // Split/shared Identity
+    //
+    std::shared_ptr<CCFSplitIdContext> splitid_context;
+    std::shared_ptr<ccf::SplitIdentityResharingTracker> resharing_tracker;
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
     // Set to the snapshot seqno when a node starts from one and remembered for
     // the lifetime of the node
@@ -1961,19 +1968,15 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto resharing_tracker = nullptr;
-      if (consensus_config.consensus_type == ConsensusType::BFT)
-      {
-        std::make_shared<ccf::SplitIdentityResharingTracker>(
-          shared_state,
-          rpc_map,
-          node_sign_kp,
-          self_signed_node_cert,
-          endorsed_node_cert);
-      }
-
       auto node_client = std::make_shared<HTTPNodeClient>(
-        rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
+        rpc_map,
+        rpcsessions,
+        node_sign_kp,
+        self_signed_node_cert,
+        endorsed_node_cert);
+
+      setup_splitid(node_client);
+      setup_resharing_tracker();
 
       kv::ReplicaState initial_state =
         (reconfiguration_type == ReconfigurationType::TWO_TRANSACTION &&
@@ -1993,7 +1996,7 @@ namespace ccf
         std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,
         std::move(view_change_tracker),
-        std::move(resharing_tracker),
+        resharing_tracker,
         node_client,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
@@ -2089,6 +2092,36 @@ namespace ccf
       }
     }
 
+    void setup_splitid(std::shared_ptr<HTTPNodeClient> node_client)
+    {
+      if (network.consensus_type == ConsensusType::BFT)
+      {
+        LOG_TRACE_FMT("SPLITID: {}: setup", self);
+        std::shared_ptr<SplitIdentity::RequestAdapter<ccf::NodeId>>
+          splitid_request_adapter =
+            std::make_shared<CCFRequestAdapter>(node_client, self);
+        splitid_context = std::make_shared<CCFSplitIdContext>(
+          self,
+          network.tables,
+          splitid_request_adapter,
+          node_sign_kp->get_evp_pkey());
+
+        threading::retry_until(
+          [ctx = splitid_context]() { return ctx->register_public_key(); },
+          std::chrono::seconds(1));
+      }
+    }
+
+    void setup_resharing_tracker()
+    {
+      if (network.consensus_type == ConsensusType::BFT)
+      {
+        resharing_tracker =
+          std::make_shared<ccf::SplitIdentityResharingTracker>(
+            self, network.tables, splitid_context);
+      }
+    }
+
     void read_ledger_idx(consensus::Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(
@@ -2102,6 +2135,16 @@ namespace ccf
     void ledger_truncate(consensus::Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
+    }
+
+    virtual std::shared_ptr<CCFSplitIdContext> get_identity_context() override
+    {
+      return splitid_context;
+    }
+
+    virtual std::shared_ptr<ResharingTracker> get_resharing_tracker() override
+    {
+      return resharing_tracker;
     }
   };
 }

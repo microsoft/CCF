@@ -13,6 +13,7 @@
 #include "node/rpc/call_types.h"
 #include "node/rpc/serdes.h"
 #include "node/rpc/serialization.h"
+#include "node/splitid_context.h"
 #include "service_map.h"
 
 #include <optional>
@@ -36,8 +37,6 @@ namespace ccf
       {
         if (opt_rr.has_value())
         {
-          LOG_DEBUG_FMT(
-            "Resharings: new resharing result for configuration #{}.", rid);
           results.try_emplace(rid, opt_rr.value());
         }
       }
@@ -54,86 +53,75 @@ namespace ccf
 
   class SplitIdentityResharingTracker : public ResharingTracker
   {
-  public:
-    enum class SessionState
+  protected:
+    typedef struct
     {
-      STARTED,
-      FINISHED
-    };
-
-    class ResharingSession
-    {
-    public:
-      SessionState state = SessionState::STARTED;
+      SeqNo seq_no;
+      uint64_t sid;
       kv::NetworkConfiguration config;
+    } ResharingSession;
 
-      ResharingSession(const kv::NetworkConfiguration& config_) :
-        config(config_)
-      {}
-    };
-
+  public:
     SplitIdentityResharingTracker(
-      std::shared_ptr<aft::State> shared_state_,
-      std::shared_ptr<enclave::RPCMap> rpc_map_,
-      crypto::KeyPairPtr node_sign_kp_,
-      const crypto::Pem& self_signed_node_cert_,
-      const std::optional<crypto::Pem>& endorsed_node_cert_) :
-      shared_state(shared_state_),
-      rpc_map(rpc_map_),
-      node_sign_kp(node_sign_kp_),
-      self_signed_node_cert(self_signed_node_cert_),
-      endorsed_node_cert(endorsed_node_cert_)
+      const ccf::NodeId& nid_,
+      std::shared_ptr<kv::Store> store_,
+      std::shared_ptr<CCFSplitIdContext> splitid_context_) :
+      nid(nid_),
+      splitid_context(splitid_context_),
+      first_id_sampled(false)
     {}
 
     virtual ~SplitIdentityResharingTracker() {}
 
+    virtual void set_active_config(const kv::NetworkConfiguration& cfg) override
+    {}
+
+    virtual const kv::NetworkConfiguration& active_config() const override
+    {
+      return active_config_;
+    }
+
     virtual void add_network_configuration(
-      const kv::NetworkConfiguration& config) override
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& config) override
     {
-      configs[config.rid] = config;
-    }
-
-    virtual void reshare(const kv::NetworkConfiguration& config) override
-    {
-      auto rid = config.rid;
-      LOG_DEBUG_FMT("Resharings: start resharing for configuration #{}", rid);
-      sessions.emplace(rid, ResharingSession(config));
-
-      const auto& node_cert = endorsed_node_cert.has_value() ?
-        endorsed_node_cert.value() :
-        self_signed_node_cert;
-      auto msg = std::make_unique<threading::Tmsg<UpdateResharingTaskMsg>>(
-        update_resharing_cb, rid, rpc_map, node_sign_kp, node_cert);
-
-      threading::ThreadMessaging::thread_messaging.add_task(
-        threading::ThreadMessaging::get_execution_thread(
-          threading::MAIN_THREAD_ID),
-        std::move(msg));
-    }
-
-    virtual std::optional<kv::ReconfigurationId> find_reconfiguration(
-      const kv::Configuration::Nodes& nodes) const override
-    {
-      // We're searching for a configuration with the same set of nodes as
-      // `nodes`. We currently don't have an easy way to look up the
-      // reconfiguration ID, which would make this unnecessary.
-      for (auto& [rid, nc] : configs)
+      if (config.nodes.size() >= 3)
       {
-        bool have_all = true;
-        for (auto& [nid, byid] : nodes)
-        {
-          if (nc.nodes.find(nid) == nc.nodes.end())
-          {
-            have_all = false;
-            break;
-          }
-        }
-        if (have_all)
-        {
-          return rid;
-        }
+        LOG_DEBUG_FMT(
+          "Resharings: add network configuration/queue resharing for {}",
+          config);
+        std::lock_guard<std::mutex> guard(lock);
+        sessions.push_back({seqno, 0, config});
       }
-      return std::nullopt;
+    }
+
+    virtual void reshare(
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& config) override
+    {
+      LOG_DEBUG_FMT("Resharings: queue resharing for configuration {}", config);
+
+      if (config.nodes.size() < 3)
+      {
+        LOG_FAIL_FMT(
+          "Resharings: configuration too small, need at least 3 nodes");
+        return;
+      }
+
+      std::lock_guard<std::mutex> guard(lock);
+      if (!first_id_sampled)
+      {
+        assert(sessions.size() == 1 && sessions.front().sid == 0);
+        std::vector<ccf::NodeId> nids;
+        for (auto& nid : config.nodes)
+        {
+          nids.push_back(nid);
+        }
+        sessions.front().sid = splitid_context->sample(nids, config.rid);
+        first_id_sampled = true;
+      }
+      else if (sessions.size() == 1)
+      {
+        start_next_session();
+      }
     }
 
     virtual bool have_resharing_result_for(
@@ -150,23 +138,45 @@ namespace ccf
     {
       LOG_DEBUG_FMT(
         "Resharings: adding resharing result for configuration #{}", rid);
-      results.emplace(rid, result);
-      sessions.erase(rid);
+      std::lock_guard<std::mutex> guard(lock);
+
+      ResharingResult r = result;
+      r.seqno = seqno;
+      results.emplace(rid, r);
+
+      for (auto& s : sessions)
+      {
+        LOG_DEBUG_FMT("Current sessions: sid={} cfg={}", s.sid, s.config);
+      }
+
+      if (rid != sessions.front().config.rid)
+      {
+        // Is it possible that a result gets submitted twice?
+        LOG_DEBUG_FMT(
+          "Resharings: possibly duplicate result submission for {}?", rid);
+        // throw std::logic_error("unexpected reconfiguration id");
+      }
+      else
+      {
+        active_config_ = sessions.front().config;
+        sessions.pop_front();
+      }
+    }
+
+    virtual void start_next_session() override
+    {
+      if (!sessions.empty())
+      {
+        auto next_config = sessions.front().config;
+        LOG_DEBUG_FMT("SPLITID: Trigger resharing for {}", next_config);
+        sessions.front().sid = splitid_context->reshare(
+          active_config_.to_vector(), next_config.to_vector(), next_config.rid);
+      }
     }
 
     virtual void compact(Index idx) override
     {
-      for (auto it = sessions.begin(); it != sessions.end();)
-      {
-        if (it->first <= idx)
-        {
-          it = sessions.erase(it);
-        }
-        else
-        {
-          it++;
-        }
-      }
+      splitid_context->on_compact();
     }
 
     virtual ResharingResult get_resharing_result(
@@ -186,7 +196,6 @@ namespace ccf
       {
         if (it->second.seqno > idx)
         {
-          assert(sessions.find(it->first) == sessions.end());
           it = results.erase(it);
         }
         else
@@ -194,126 +203,29 @@ namespace ccf
           it++;
         }
       }
-    }
 
-    struct UpdateResharingTaskMsg
-    {
-      UpdateResharingTaskMsg(
-        kv::ReconfigurationId rid_,
-        std::shared_ptr<enclave::RPCMap> rpc_map_,
-        crypto::KeyPairPtr node_sign_kp_,
-        const crypto::Pem& node_cert_,
-        size_t retries_ = 10) :
-        rid(rid_),
-        rpc_map(rpc_map_),
-        node_sign_kp(node_sign_kp_),
-        node_cert(node_cert_),
-        retries(retries_)
-      {}
-
-      kv::ReconfigurationId rid;
-      std::shared_ptr<enclave::RPCMap> rpc_map;
-      crypto::KeyPairPtr node_sign_kp;
-      const crypto::Pem& node_cert;
-      size_t retries;
-    };
-
-  protected:
-    std::shared_ptr<aft::State> shared_state;
-    std::shared_ptr<enclave::RPCMap> rpc_map;
-    crypto::KeyPairPtr node_sign_kp;
-    const crypto::Pem& self_signed_node_cert;
-    const std::optional<crypto::Pem>& endorsed_node_cert;
-    std::unordered_map<kv::ReconfigurationId, ResharingSession> sessions;
-    std::unordered_map<kv::ReconfigurationId, ResharingResult> results;
-    std::unordered_map<kv::ReconfigurationId, kv::NetworkConfiguration> configs;
-
-    static inline bool make_request(
-      http::Request& request,
-      std::shared_ptr<enclave::RPCMap> rpc_map,
-      crypto::KeyPairPtr node_sign_kp,
-      const crypto::Pem& node_cert)
-    {
-      auto node_cert_der = crypto::cert_pem_to_der(node_cert);
-      const auto key_id = crypto::Sha256Hash(node_cert_der).hex_str();
-
-      http::sign_request(request, node_sign_kp, key_id);
-      std::vector<uint8_t> packed = request.build_request();
-      auto node_session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, node_cert.raw());
-      auto ctx = enclave::make_rpc_context(node_session, packed);
-
-      const auto actor_opt = http::extract_actor(*ctx);
-      if (!actor_opt.has_value())
+      for (auto it = sessions.begin(); it != sessions.end();)
       {
-        throw std::logic_error("Unable to get actor");
-      }
-
-      const auto actor = rpc_map->resolve(actor_opt.value());
-      auto frontend_opt = rpc_map->find(actor);
-      if (!frontend_opt.has_value())
-      {
-        throw std::logic_error(
-          "RpcMap::find returned invalid (empty) frontend");
-      }
-
-      auto frontend = frontend_opt.value();
-      frontend->process(ctx);
-
-      auto rs = ctx->get_response_status();
-
-      if (rs != HTTP_STATUS_OK)
-      {
-        auto ser_res = ctx->serialise_response();
-        std::string str((char*)ser_res.data(), ser_res.size());
-        LOG_FAIL_FMT("request failed: {}", str);
-      }
-
-      return rs == HTTP_STATUS_OK;
-    }
-
-    static inline bool request_update_resharing(
-      kv::ReconfigurationId rid,
-      std::shared_ptr<enclave::RPCMap> rpc_map,
-      crypto::KeyPairPtr node_sign_kp,
-      const crypto::Pem& node_cert)
-    {
-      ccf::UpdateResharing::In ps = {rid};
-
-      http::Request request(fmt::format(
-        "/{}/{}",
-        ccf::get_actor_prefix(ccf::ActorsType::nodes),
-        "update-resharing"));
-      request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-
-      auto body = serdes::pack(ps, serdes::Pack::Text);
-      request.set_body(&body);
-      return make_request(request, rpc_map, node_sign_kp, node_cert);
-    }
-
-    static void update_resharing_cb(
-      std::unique_ptr<threading::Tmsg<UpdateResharingTaskMsg>> msg)
-    {
-      if (!request_update_resharing(
-            msg->data.rid,
-            msg->data.rpc_map,
-            msg->data.node_sign_kp,
-            msg->data.node_cert))
-      {
-        if (--msg->data.retries > 0)
+        if (it->seq_no > idx)
         {
-          threading::ThreadMessaging::thread_messaging.add_task(
-            threading::ThreadMessaging::get_execution_thread(
-              threading::MAIN_THREAD_ID),
-            std::move(msg));
+          it = sessions.erase(it);
         }
         else
         {
-          LOG_DEBUG_FMT(
-            "Failed request, giving up as there are no more retries left");
+          it++;
         }
       }
+
+      splitid_context->on_rollback();
     }
+
+  protected:
+    const ccf::NodeId& nid;
+    std::unordered_map<kv::ReconfigurationId, ResharingResult> results;
+    std::deque<ResharingSession> sessions;
+    std::shared_ptr<CCFSplitIdContext> splitid_context;
+    bool first_id_sampled;
+    std::mutex lock;
+    kv::NetworkConfiguration active_config_;
   };
 }

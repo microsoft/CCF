@@ -42,7 +42,7 @@ namespace kv
 
     kv::TxHistory::RequestID req_id;
 
-    std::vector<uint8_t> serialise(bool include_reads = false)
+    virtual std::vector<uint8_t> serialise(bool include_reads = false)
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
@@ -106,7 +106,7 @@ namespace kv
      *
      * @return transaction outcome
      */
-    CommitResult commit(
+    virtual CommitResult commit(
       bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr,
@@ -385,6 +385,20 @@ namespace kv
 
       committed = true;
       return {CommitResult::SUCCESS, serialise(), std::move(hooks)};
+    }
+  };
+
+  // Non-serialising transactions are used in local, non-replicated stores that
+  // need to keep data in memory, but never serialise it.
+  class NonSerialisingTx : public CommittableTx
+  {
+  public:
+    NonSerialisingTx(AbstractStore* _store) : CommittableTx(_store) {}
+    virtual ~NonSerialisingTx() {}
+
+    virtual std::vector<uint8_t> serialise(bool include_reads = false) override
+    {
+      return {};
     }
   };
 }

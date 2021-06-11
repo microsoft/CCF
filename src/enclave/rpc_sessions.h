@@ -326,6 +326,15 @@ namespace enclave
       return session;
     }
 
+    uint64_t add_session(std::shared_ptr<Endpoint> session)
+    {
+      std::lock_guard<std::mutex> guard(lock);
+      auto id = get_next_client_id();
+      sessions.insert(std::make_pair(id, std::make_pair("", session)));
+      sessions_peak = std::max(sessions_peak, sessions.size());
+      return id;
+    }
+
     void register_message_handlers(
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {

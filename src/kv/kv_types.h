@@ -183,6 +183,16 @@ namespace kv
     {
       return rid < other.rid;
     }
+
+    std::vector<ccf::NodeId> to_vector() const
+    {
+      std::vector<ccf::NodeId> r;
+      for (auto& nid : nodes)
+      {
+        r.push_back(nid);
+      }
+      return r;
+    }
   };
 
   DECLARE_JSON_TYPE(kv::NetworkConfiguration);

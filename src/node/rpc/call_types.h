@@ -127,7 +127,7 @@ namespace ccf
     };
   };
 
-  struct UpdateResharing
+  struct CompleteResharing
   {
     struct In
     {

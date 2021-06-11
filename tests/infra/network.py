@@ -109,6 +109,7 @@ class Network:
         "initial_node_cert_validity_days",
         "max_allowed_node_cert_validity_days",
         "reconfiguration_type",
+        "max_message_size",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

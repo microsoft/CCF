@@ -698,13 +698,39 @@ namespace aft
 
       if (resharing_tracker)
       {
-        assert(resharing_tracker);
-        resharing_tracker->add_network_configuration(netconfig);
+        resharing_tracker->add_network_configuration(seqno, netconfig);
         if (is_primary())
         {
-          resharing_tracker->reshare(netconfig);
+          resharing_tracker->reshare(seqno, netconfig);
         }
       }
+    }
+
+    std::optional<kv::ReconfigurationId> find_network_configuration(
+      const kv::Configuration::Nodes& nodes) const
+    {
+      for (const auto& [rid, nc] : network_configurations)
+      {
+        if (nodes.size() == nc.nodes.size())
+        {
+          bool found_all_nids = true;
+
+          for (const auto& nid : nc.nodes)
+          {
+            if (nodes.find(nid) == nodes.end())
+            {
+              found_all_nids = false;
+              break;
+            }
+          }
+
+          if (found_all_nids)
+          {
+            return rid;
+          }
+        }
+      }
+      return std::nullopt;
     }
 
     void add_resharing_result(
@@ -718,6 +744,11 @@ namespace aft
       {
         assert(resharing_tracker);
         resharing_tracker->add_resharing_result(seqno, rid, result);
+
+        if (is_primary())
+        {
+          resharing_tracker->start_next_session();
+        }
       }
     }
 
@@ -881,10 +912,16 @@ namespace aft
           (globally_committable ? " committable" : ""),
           hooks->size());
 
+        // Hooks may need to take the state lock if they trigger RPCs (via
+        // frontend::process), so we temporarily release it.
+        state->lock.unlock();
+
         for (auto& hook : *hooks)
         {
           hook->call(this);
         }
+
+        state->lock.lock();
 
         bool force_ledger_chunk = false;
         if (globally_committable)
@@ -3390,15 +3427,20 @@ namespace aft
         if (require_identity_for_reconfig)
         {
           assert(resharing_tracker);
-          auto rr = resharing_tracker->find_reconfiguration(next->nodes);
-          if (
-            !rr.has_value() ||
-            !resharing_tracker->have_resharing_result_for(rr.value(), idx))
+
+          if (next->nodes.size() >= 3)
           {
-            LOG_TRACE_FMT(
-              "Configurations: not switching to next configuration, resharing "
-              "not completed yet.");
-            break;
+            auto rr = find_network_configuration(next->nodes);
+            if (
+              !rr.has_value() ||
+              !resharing_tracker->have_resharing_result_for(rr.value(), idx))
+            {
+              LOG_TRACE_FMT(
+                "Configurations: not switching to next configuration ({}), "
+                "resharing not completed yet.",
+                rr.has_value() ? rr.value() : -1);
+              break;
+            }
           }
         }
 
@@ -3470,6 +3512,14 @@ namespace aft
               replica_state = kv::ReplicaState::Follower;
             }
 
+            if (resharing_tracker)
+            {
+              auto ncit = network_configurations.find(next->rid);
+              if (ncit != network_configurations.end())
+              {
+                resharing_tracker->set_active_config(ncit->second);
+              }
+            }
             configurations.pop_front();
           }
           else
@@ -3498,11 +3548,6 @@ namespace aft
             break;
           }
         }
-      }
-
-      if (resharing_tracker)
-      {
-        resharing_tracker->compact(idx);
       }
 
       if (changed)
@@ -3629,6 +3674,11 @@ namespace aft
             it++;
           }
         }
+      }
+
+      if (resharing_tracker)
+      {
+        resharing_tracker->rollback(idx);
       }
 
       if (changed)

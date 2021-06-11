@@ -119,7 +119,7 @@ The following example illustrates one possible execution of an addition of two n
         Note right of Node 0: Tx ID 3.43 commits (meets quorum in Cfg 0 and 1)
         Note right of Node 0: Active configs := [Cfg 1]
 
-Joining a small number of nodes to a large network will lead to almost-instant promotion of the joining node if both the existing and the new configuration have a sufficient number of nodes for quorums. Learners also help to improve the liveness of the system, because they do not necessarily have to receive the entire ledger from the leader immediately. Further, the two transactions on the ledger make it clear that the configuration change was not instant and it allows for other mechanisms to gate the switch to a new configuration on the committment to a number of other transactions on the ledger, for instance those required for the successful establishment of a Byzantine network identity.
+Joining a small number of nodes to a large network will lead to almost-instant promotion of the joining node if both the existing and the new configuration have a sufficient number of nodes for quorums. Learners also help to improve the liveness of the system, because they do not necessarily have to receive the entire ledger from the leader immediately. Further, the two transactions on the ledger make it clear that the configuration change was not instant and it allows for other mechanisms to gate the switch to a new configuration on the committment to a number of other transactions on the ledger, for instance those required for the successful establishment of a split network identity.
 
 
 The following diagram illustrates retirement of the leader:

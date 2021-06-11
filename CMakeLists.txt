@@ -403,8 +403,9 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      identity_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/identity.cpp
+      splitid_test ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/exported/splitid/test/splitid.cpp
     )
+    target_compile_options(splitid_test PUBLIC -fno-omit-frame-pointer)
 
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
@@ -712,6 +713,13 @@ if(BUILD_TESTS)
   if(ENABLE_2TX_RECONFIG)
     list(APPEND RECONFIG_TEST_ARGS --include-2tx-reconfig)
   endif()
+  add_e2e_test(
+    NAME splitid_e2e
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/splitid.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
+  )
+
   add_e2e_test(
     NAME reconfiguration_test_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py

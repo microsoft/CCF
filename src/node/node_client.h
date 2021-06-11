@@ -4,6 +4,7 @@
 
 #include "consensus/aft/raft_types.h"
 #include "crypto/pem.h"
+#include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
 
 namespace ccf
@@ -12,6 +13,7 @@ namespace ccf
   {
   protected:
     std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<enclave::RPCSessions> rpc_sessions;
     crypto::KeyPairPtr node_sign_kp;
     const crypto::Pem& self_signed_node_cert;
     const std::optional<crypto::Pem>& endorsed_node_cert = std::nullopt;
@@ -19,10 +21,12 @@ namespace ccf
   public:
     NodeClient(
       std::shared_ptr<enclave::RPCMap> rpc_map_,
+      std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       crypto::KeyPairPtr node_sign_kp_,
       const crypto::Pem& self_signed_node_cert_,
       const std::optional<crypto::Pem>& endorsed_node_cert_) :
       rpc_map(rpc_map_),
+      rpc_sessions(rpc_sessions_),
       node_sign_kp(node_sign_kp_),
       self_signed_node_cert(self_signed_node_cert_),
       endorsed_node_cert(endorsed_node_cert_)
@@ -30,6 +34,10 @@ namespace ccf
 
     virtual ~NodeClient() {}
 
-    virtual bool make_request(http::Request& request) = 0;
+    virtual bool make_request(
+      http::Request& request,
+      std::optional<
+        std::function<bool(const http::SimpleResponseProcessor::Response&)>>
+        response_callback = std::nullopt) = 0;
   };
 }
