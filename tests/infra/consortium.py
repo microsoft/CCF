@@ -13,7 +13,6 @@ import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
-from ccf.clients import CCFConnectionException
 from ccf.ledger import NodeStatus
 import ccf.proposal_generator
 import ccf.ledger
