@@ -122,8 +122,12 @@ namespace http
 
             auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
             response.set_header(
-              http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-            auto body = fmt::format("Unable to parse data as a HTTP request. Error details are below.\n\n{}", e.what());
+              http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::TEXT);
+            auto body = fmt::format(
+              "Unable to parse data as a HTTP request. Error details are "
+              "below.\n\n{}",
+              e.what());
             response.set_body((const uint8_t*)body.data(), body.size());
             send_raw(response.build_response());
 
