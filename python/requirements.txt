@@ -3,3 +3,4 @@ requests >= 2.24, == 2.*
 requests-http-signature >= 0.2, == 0.*
 websocket-client >= 0.57, == 0.*
 cryptography >= 3.2, == 3.*
+types-requests

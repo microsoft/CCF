@@ -26,7 +26,6 @@
 #include "async_executor.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
-#include "ds/spin_lock.h"
 #include "impl/execution.h"
 #include "impl/request_message.h"
 #include "impl/state.h"
@@ -43,6 +42,7 @@
 #include <algorithm>
 #include <deque>
 #include <list>
+#include <mutex>
 #include <random>
 #include <unordered_map>
 #include <vector>
@@ -239,7 +239,7 @@ namespace aft
 
     bool view_change_in_progress()
     {
-      std::unique_lock<SpinLock> guard(state->lock);
+      std::unique_lock<std::mutex> guard(state->lock);
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
@@ -308,7 +308,7 @@ namespace aft
     {
       // When receiving append entries as a follower, all security domains will
       // be deserialised
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       public_only = false;
     }
 
@@ -322,7 +322,7 @@ namespace aft
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       state->current_view += starting_view_change;
       become_leader();
     }
@@ -341,7 +341,7 @@ namespace aft
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       state->current_view = term;
       state->last_idx = index;
       state->commit_idx = commit_idx_;
@@ -356,7 +356,7 @@ namespace aft
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
 
       state->last_idx = index;
       state->commit_idx = index;
@@ -376,26 +376,26 @@ namespace aft
 
     Index get_commit_idx()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return state->commit_idx;
     }
 
     Term get_term()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return state->current_view;
     }
 
     std::pair<Term, Index> get_commit_term_and_idx()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return {get_term_internal(state->commit_idx), state->commit_idx};
     }
 
     std::optional<kv::Consensus::SignableTxIndices>
     get_signable_commit_term_and_idx()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       if (state->commit_idx >= election_index)
       {
         kv::Consensus::SignableTxIndices r;
@@ -412,7 +412,7 @@ namespace aft
 
     Term get_term(Index idx)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return get_term_internal(idx);
     }
 
@@ -430,7 +430,7 @@ namespace aft
 
     void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
-      std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
+      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       // It is safe to call is_follower() by construction as the consensus
       // can only change from leader or follower while in a view-change during
       // which time transaction cannot be executed.
@@ -458,14 +458,14 @@ namespace aft
 
     Configuration::Nodes get_latest_configuration()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return get_latest_configuration_unsafe();
     }
 
     kv::ConsensusDetails get_details()
     {
       kv::ConsensusDetails details;
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       details.state = replica_state;
       for (auto& config : configurations)
       {
@@ -503,7 +503,7 @@ namespace aft
         return true;
       }
 
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
 
       if (replica_state != kv::ReplicaState::Leader)
       {
@@ -748,7 +748,7 @@ namespace aft
     void periodic(std::chrono::milliseconds elapsed)
     {
       {
-        std::unique_lock<SpinLock> guard(state->lock);
+        std::unique_lock<std::mutex> guard(state->lock);
         timeout_elapsed += elapsed;
         if (is_execution_pending)
         {
@@ -760,7 +760,7 @@ namespace aft
 
     void do_periodic()
     {
-      std::unique_lock<SpinLock> guard(state->lock);
+      std::unique_lock<std::mutex> guard(state->lock);
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
@@ -1174,7 +1174,7 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
-      std::unique_lock<SpinLock> guard(state->lock);
+      std::unique_lock<std::mutex> guard(state->lock);
 
       LOG_DEBUG_FMT(
         "Received append entries: {}.{} to {}.{} (from {} in term {})",
@@ -1439,7 +1439,7 @@ namespace aft
       std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
     {
       auto self = msg->data.self;
-      std::unique_lock<SpinLock> guard(self->state->lock);
+      std::unique_lock<std::mutex> guard(self->state->lock);
       self->apply_execution_message(std::move(msg));
     }
 
@@ -2101,7 +2101,7 @@ namespace aft
     void recv_append_entries_response(
       const ccf::NodeId& from, AppendEntriesResponse r)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       // Ignore if we're not the leader.
 
       if (replica_state != kv::ReplicaState::Leader)
@@ -2224,7 +2224,7 @@ namespace aft
 
     void recv_request_vote(const ccf::NodeId& from, RequestVote r)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
 
       // Ignore if we don't recognise the node.
       auto node = nodes.find(from);
@@ -2324,7 +2324,7 @@ namespace aft
     void recv_request_vote_response(
       const ccf::NodeId& from, RequestVoteResponse r)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
 
       if (replica_state != kv::ReplicaState::Candidate)
       {

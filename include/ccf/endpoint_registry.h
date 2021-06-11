@@ -161,7 +161,7 @@ namespace ccf::endpoints
       std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
 
-    SpinLock metrics_lock;
+    std::mutex metrics_lock;
     std::map<std::string, std::map<std::string, Metrics>> metrics;
 
     EndpointRegistry::Metrics& get_metrics_for_endpoint(
