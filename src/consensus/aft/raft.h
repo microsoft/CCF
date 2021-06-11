@@ -456,17 +456,6 @@ namespace aft
 
     void add_configuration(const Configuration& conf)
     {
-      LOG_TRACE_FMT(
-        "Adding a configuration at {} of {} nodes", idx, conf.size());
-      for (auto& [id, info] : conf)
-      {
-        LOG_TRACE_FMT(
-          "  {} = {}:{} ({})",
-          id,
-          info.hostname,
-          info.port,
-          info.catching_up ? "passive" : "active");
-      }
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
 
       auto seq_no = conf.seq_no;
