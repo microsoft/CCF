@@ -223,7 +223,7 @@ namespace http
       else if (err_no != HPE_OK)
       {
         throw std::runtime_error(fmt::format(
-          "HTTP parsing failed: '{}: {}' while parsing fragment '{}'",
+          "HTTP parsing failed: '{}: {}' while parsing fragment:\n{}",
           llhttp_errno_name(err_no),
           llhttp_get_error_reason(&parser),
           std::string((char const*)data, size)));
