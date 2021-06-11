@@ -6,7 +6,6 @@
 #include "ccf/tx.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
-#include "map.h"
 
 #include <list>
 
@@ -291,6 +290,11 @@ namespace kv
       // overwritten
       all_changes.merge(change_list_);
       view = term_;
+    }
+
+    void set_view(ccf::View view_)
+    {
+      view = view_;
     }
 
     void set_req_id(const kv::TxHistory::RequestID& req_id_)

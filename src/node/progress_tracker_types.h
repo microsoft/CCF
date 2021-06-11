@@ -71,7 +71,7 @@ namespace ccf
       uint32_t sig_size,
       uint8_t* sig) = 0;
     virtual void sign_view_change_request(
-      ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno) = 0;
+      ViewChangeRequest& view_change, ccf::View view) = 0;
     virtual bool verify_view_change_request(
       ViewChangeRequest& view_change,
       const NodeId& from,
@@ -191,9 +191,9 @@ namespace ccf
     }
 
     void sign_view_change_request(
-      ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno) override
+      ViewChangeRequest& view_change, ccf::View view) override
     {
-      crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
+      crypto::Sha256Hash h = hash_view_change(view_change, view);
       view_change.signature = kp.sign_hash(h.h.data(), h.h.size());
     }
 
@@ -203,7 +203,7 @@ namespace ccf
       ccf::View view,
       ccf::SeqNo seqno) override
     {
-      crypto::Sha256Hash h = hash_view_change(view_change, view, seqno);
+      crypto::Sha256Hash h = hash_view_change(view_change, view);
 
       kv::ReadOnlyTx tx(&store);
       auto ni_tv = tx.ro(nodes);
@@ -250,14 +250,10 @@ namespace ccf
       auto r = tx.commit();
       if (r != kv::CommitResult::SUCCESS)
       {
-        LOG_FAIL_FMT(
-          "Failed to write new_view, view:{}, seqno:{}",
-          new_view.view,
-          new_view.seqno);
-        throw ccf_logic_error(fmt::format(
-          "Failed to write new_view, view:{}, seqno:{}",
-          new_view.view,
-          new_view.seqno));
+        std::string msg =
+          fmt::format("Failed to write new_view, view:{}", new_view.view);
+        LOG_FAIL_FMT("{}", msg);
+        throw ccf_logic_error(msg);
       }
 
       return tx.commit_version();
@@ -268,7 +264,6 @@ namespace ccf
       auto ch = crypto::make_incremental_sha256();
 
       ch->update(new_view.view);
-      ch->update(new_view.seqno);
 
       for (auto it : new_view.view_change_messages)
       {
@@ -287,12 +282,13 @@ namespace ccf
     NewViewsMap new_views;
 
     crypto::Sha256Hash hash_view_change(
-      const ViewChangeRequest& v, ccf::View view, ccf::SeqNo seqno) const
+      const ViewChangeRequest& v, ccf::View view) const
     {
       auto ch = crypto::make_incremental_sha256();
 
       ch->update(view);
-      ch->update(seqno);
+      ch->update(v.seqno);
+      ch->update(v.root);
 
       for (auto& s : v.signatures)
       {

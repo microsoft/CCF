@@ -99,10 +99,14 @@ namespace asynchost
     std::unordered_map<tls::ConnID, TCP> sockets;
     tls::ConnID next_id = 1;
 
+    size_t client_connection_timeout;
     ringbuffer::WriterPtr to_enclave;
 
   public:
-    RPCConnections(ringbuffer::AbstractWriterFactory& writer_factory) :
+    RPCConnections(
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      size_t client_connection_timeout_) :
+      client_connection_timeout(client_connection_timeout_),
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 
@@ -148,7 +152,7 @@ namespace asynchost
         return false;
       }
 
-      TCP s;
+      auto s = TCP(true, client_connection_timeout);
       s->set_behaviour(std::make_unique<ClientBehaviour>(*this, id));
 
       if (!s->connect(host, service))

@@ -9,11 +9,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Added a new `--client-connection-timeout-ms` command line argument to `cchost` to specify the maximum time a node should wait before re-establishing failed client connections. This should be set to a significantly lower value than `--raft-election-timeout-ms` (#2618).
+- Add `kv::Value` and `kv::Set`, as a more error-proof alternative to `kv::Map`s which had a single key or meaningless values (#2599).
+
+## [2.0.0-dev0]
+
+### Added
+
 - Added `get_untrusted_host_time_v1` API. This can be used to retrieve a timestamp during endpoint execution, accurate to within a few milliseconds. Note that this timestamp comes directly from the host so is not trusted, and should not be used to make sensitive decisions within a transaction (#2550).
 - Added `get_quotes_for_all_trusted_nodes_v1` API. This returns the ID and quote for all nodes which are currently trusted and participating in the service, for live audit (#2511).
 - Added node start-up check for `cchost` and enclave compatibility, which should both always be from the same release for a single node (#2532).
 - Added a new `/node/version` endpoint to return the CCF version of a node (#2582).
 - Added a new `/node/metrics` endpoint which includes the count of active and peak concurrent sessions handled by the node (#2596).
+- Added experimental JavaScript API `ccf.host.triggerSubprocess()` (#2461).
 
 ### Changed
 
@@ -892,6 +900,7 @@ Some discrepancies with the TR remain, and are being tracked under https://githu
 
 Initial pre-release
 
+[ccf-2.0.0-dev0]: https://github.com/microsoft/CCF/releases/tag/ccf-2.0.0-dev0
 [1.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.3
 [1.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.2
 [1.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-1.0.1

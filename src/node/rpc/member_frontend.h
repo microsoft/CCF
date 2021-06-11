@@ -214,7 +214,14 @@ namespace ccf
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_console(context);
         js::populate_global_ccf(
-          &txctx, nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
+          &txctx,
+          nullptr,
+          std::nullopt,
+          nullptr,
+          nullptr,
+          nullptr,
+          nullptr,
+          context);
         auto ballot_func = context.function(
           mb,
           "vote",
@@ -256,7 +263,14 @@ namespace ccf
         rt.add_ccf_classdefs();
         js::TxContext txctx{&tx, js::TxAccess::GOV_RO};
         js::populate_global_ccf(
-          &txctx, nullptr, std::nullopt, nullptr, nullptr, nullptr, js_context);
+          &txctx,
+          nullptr,
+          std::nullopt,
+          nullptr,
+          nullptr,
+          nullptr,
+          nullptr,
+          js_context);
         auto resolve_func = js_context.function(
           constitution, "resolve", "public:ccf.gov.constitution[0]");
         JSValue argv[3];
@@ -366,6 +380,7 @@ namespace ccf
               std::nullopt,
               nullptr,
               &context.get_node_state(),
+              nullptr,
               &network,
               js_context);
             auto apply_func = js_context.function(
@@ -533,7 +548,7 @@ namespace ccf
         }
 
         auto sig = ctx.tx.rw(this->network.signatures);
-        const auto s = sig->get(0);
+        const auto s = sig->get();
         if (!s)
         {
           mas->put(caller_identity.member_id, MemberAck({}, signed_request));
@@ -616,7 +631,7 @@ namespace ccf
               "No ACK record exists for caller {}.", member_id.value()));
         }
 
-        auto s = sig->get(0);
+        auto s = sig->get();
         if (s)
         {
           ma->state_digest = s->root.hex_str();
@@ -1003,7 +1018,14 @@ namespace ccf
         js::Context context(rt);
         rt.add_ccf_classdefs();
         js::populate_global_ccf(
-          nullptr, nullptr, std::nullopt, nullptr, nullptr, nullptr, context);
+          nullptr,
+          nullptr,
+          std::nullopt,
+          nullptr,
+          nullptr,
+          nullptr,
+          nullptr,
+          context);
 
         auto validate_func = context.function(
           validate_script, "validate", "public:ccf.gov.constitution[0]");

@@ -34,9 +34,9 @@ public:
     verify_signature,
     bool(const kv::NodeId&, crypto::Sha256Hash&, uint32_t, uint8_t*),
     override);
-  MAKE_MOCK3(
+  MAKE_MOCK2(
     sign_view_change_request,
-    void(ccf::ViewChangeRequest& view_change, ccf::View view, ccf::SeqNo seqno),
+    void(ccf::ViewChangeRequest& view_change, ccf::View view),
     override);
   MAKE_MOCK4(
     verify_view_change_request,
@@ -79,6 +79,7 @@ void ordered_execution(
     auto result = pt->record_primary(
       {view, seqno},
       kv::test::PrimaryNodeId,
+      false,
       root,
       primary_sig,
       hashed_nonce,
@@ -325,24 +326,76 @@ TEST_CASE("Request tracker")
 
 TEST_CASE("Record primary signature")
 {
+  using trompeloeil::_;
+
   kv::NodeId my_node_id = kv::test::PrimaryNodeId;
   ccf::View view = 0;
   ccf::SeqNo seqno = 42;
   crypto::Sha256Hash root;
+  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
   ccf::Nonce nonce;
+  ccf::Nonce hashed_nonce;
+  uint32_t node_count = 4;
   std::vector<uint8_t> primary_sig;
 
-  ccf::ProgressTracker pt(nullptr, my_node_id);
+  INFO("Can record primary signature");
+  {
+    ccf::ProgressTracker pt(nullptr, my_node_id);
 
-  auto result = pt.record_primary(
-    {view, seqno}, kv::test::PrimaryNodeId, root, primary_sig, nonce);
-  REQUIRE(result == kv::TxHistory::Result::OK);
+    auto result = pt.record_primary(
+      {view, seqno}, kv::test::PrimaryNodeId, true, root, primary_sig, nonce);
+    REQUIRE(result == kv::TxHistory::Result::OK);
 
-  primary_sig = {1};
-  result = pt.record_primary_signature({view, seqno}, primary_sig);
-  REQUIRE(result == kv::TxHistory::Result::OK);
-  result = pt.record_primary_signature({view, seqno + 1}, primary_sig);
-  REQUIRE(result != kv::TxHistory::Result::OK);
+    primary_sig = {1};
+    result = pt.record_primary_signature({view, seqno}, primary_sig);
+    REQUIRE(result == kv::TxHistory::Result::OK);
+    result = pt.record_primary_signature({view, seqno + 1}, primary_sig);
+    REQUIRE(result != kv::TxHistory::Result::OK);
+  }
+
+  INFO(
+    "Can record primary signature after receiving signatures for previous "
+    "view");
+  {
+    auto store = std::make_unique<StoreMock>();
+    StoreMock& store_mock = *store.get();
+    ccf::ProgressTracker pt(std::move(store), my_node_id);
+
+    {
+      REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
+        .RETURN(true)
+        .TIMES(1);
+
+      auto result = pt.add_signature(
+        {view, seqno},
+        kv::test::FirstBackupNodeId,
+        MBEDTLS_ECDSA_MAX_LEN,
+        sig,
+        hashed_nonce,
+        node_count,
+        false);
+      REQUIRE(result == kv::TxHistory::Result::OK);
+      result = pt.record_primary(
+        {view + 1, seqno},
+        kv::test::PrimaryNodeId,
+        false,
+        root,
+        primary_sig,
+        nonce);
+      REQUIRE(result == kv::TxHistory::Result::OK);
+    }
+
+    {
+      auto result = pt.record_primary(
+        {view + 1, seqno},
+        kv::test::PrimaryNodeId,
+        true,
+        root,
+        primary_sig,
+        nonce);
+      REQUIRE(result == kv::TxHistory::Result::OK);
+    }
+  }
 }
 
 TEST_CASE("View Changes")
@@ -373,11 +426,11 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
-      .TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change_request(_, _)).TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, seqno},
       kv::test::PrimaryNodeId,
+      false,
       root,
       primary_sig,
       hashed_nonce,
@@ -425,11 +478,11 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
-      .TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change_request(_, _)).TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, new_seqno},
       kv::test::PrimaryNodeId,
+      false,
       root,
       primary_sig,
       hashed_nonce,
@@ -478,11 +531,11 @@ TEST_CASE("View Changes")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
       .RETURN(true)
       .TIMES(AT_LEAST(2));
-    REQUIRE_CALL(store_mock, sign_view_change_request(_, _, _))
-      .TIMES(AT_LEAST(2));
+    REQUIRE_CALL(store_mock, sign_view_change_request(_, _)).TIMES(AT_LEAST(2));
     auto result = pt.record_primary(
       {view, new_seqno},
       kv::test::PrimaryNodeId,
+      false,
       root,
       primary_sig,
       hashed_nonce,
@@ -614,7 +667,7 @@ TEST_CASE("view-change-tracker statemachine tests")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, view, seqno, node_count);
+      auto r = vct.add_request_view_change(v, node_id, view, node_count);
       if (i == 2)
       {
         REQUIRE(
@@ -639,7 +692,7 @@ TEST_CASE("view-change-tracker statemachine tests")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, i, seqno, node_count);
+      auto r = vct.add_request_view_change(v, node_id, i, node_count);
       REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
       i++;
     }
@@ -702,11 +755,34 @@ TEST_CASE("test progress_tracker apply_view_change")
     REQUIRE_CALL(store_mock, verify_signature(_, _, _, _)).RETURN(false);
 
     ccf::ViewChangeRequest v;
-    v.signatures.push_back(ccf::NodeSignature(kv::test::PrimaryNodeId));
+    v.signatures.push_back(ccf::NodeSignature(kv::test::FourthBackupNodeId));
 
     auto result =
       pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 42);
     REQUIRE(result == ccf::ProgressTracker::ApplyViewChangeMessageResult::FAIL);
+  }
+}
+
+TEST_CASE("Can rollback out of date progress tracker entires")
+{
+  using trompeloeil::_;
+
+  INFO("Cannot rollback too many progress tracker entries");
+  {
+    ccf::View view = 0;
+    auto store = std::make_unique<StoreMock>();
+    StoreMock& store_mock = *store.get();
+    auto pt = std::make_unique<ccf::ProgressTracker>(
+      std::move(store), kv::test::FirstBackupNodeId);
+    auto& ref_pt = *pt.get();
+
+    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
+      .RETURN(true)
+      .TIMES(AT_LEAST(2));
+
+    ordered_execution(kv::test::FirstBackupNodeId, pt);
+
+    ref_pt.rollback(ref_pt.get_rollback_seqno(), view);
   }
 }
 
@@ -725,7 +801,7 @@ TEST_CASE("Sending evidence out of band")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, view, seqno, node_count);
+      auto r = vct.add_request_view_change(v, node_id, view, node_count);
       if (i == 2)
       {
         REQUIRE(
@@ -736,7 +812,7 @@ TEST_CASE("Sending evidence out of band")
         REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
       }
 
-      auto data = vct.get_serialized_view_change_confirmation(view);
+      auto data = vct.get_serialized_view_change_confirmation(view, true);
       std::shared_ptr<ccf::ProgressTrackerStore> store =
         std::make_unique<StoreMock>();
 
@@ -748,15 +824,24 @@ TEST_CASE("Sending evidence out of band")
           verify_view_change_request(_, _, _, _))
           .RETURN(true)
           .TIMES(AT_LEAST(1));
-
+        REQUIRE_CALL(
+          *reinterpret_cast<StoreMock*>(store.get()),
+          verify_view_change_request_confirmation(_, _))
+          .RETURN(true);
+        ccf::NodeId from;
         REQUIRE(vct_2.add_unknown_primary_evidence(
-          {data.data(), data.size()}, view, node_count));
+          {data.data(), data.size()}, view, from, node_count));
         REQUIRE(vct_2.check_evidence(view));
       }
       else
       {
+        REQUIRE_CALL(
+          *reinterpret_cast<StoreMock*>(store.get()),
+          verify_view_change_request_confirmation(_, _))
+          .RETURN(true);
+        ccf::NodeId from;
         REQUIRE(!vct_2.add_unknown_primary_evidence(
-          {data.data(), data.size()}, view, node_count));
+          {data.data(), data.size()}, view, from, node_count));
         REQUIRE(!vct_2.check_evidence(view));
       }
       REQUIRE(!vct_2.check_evidence(view + 1));

@@ -563,18 +563,6 @@ if(BUILD_TESTS)
       all
   )
 
-  if(LONG_TESTS)
-    set(ROTATION_TEST_ARGS --rotation-retirements 10 --rotation-suspensions 10)
-  endif()
-
-  add_e2e_test(
-    NAME rotation_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-    CONSENSUS cft
-    LABEL rotation
-    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-  )
-
   add_e2e_test(
     NAME committable_suffix_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
@@ -638,6 +626,15 @@ if(BUILD_TESTS)
       ${CONSTITUTION_ARGS} --constitution
       ${CCF_DIR}/src/runtime_config/test/service_principals_actions.js
   )
+  add_e2e_test(
+    NAME launch_host_process_test
+    PYTHON_SCRIPT
+      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
+  )
+
   add_e2e_test(
     NAME governance_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
@@ -745,6 +742,10 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
     CONSENSUS cft
     LABEL partitions
+    # Higher snapshot interval as the test currently assumes that no
+    # transactions are emitted while partitions are up. To be removed when
+    # https://github.com/microsoft/CCF/issues/2577 is implemented
+    ADDITIONAL_ARGS --snapshot-tx-interval 10000
   )
 
   if(NOT SAN)
@@ -802,6 +803,21 @@ if(BUILD_TESTS)
     LABEL forum
   )
 
+  list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
+       ${CCF_VERSION}
+  )
+  if(LONG_TESTS)
+    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
+  endif()
+
+  add_e2e_test(
+    NAME lts_compatibility
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+    CONSENSUS cft
+    LABEL e2e
+    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
@@ -830,6 +846,18 @@ if(BUILD_TESTS)
       LABEL vegeta
       CONFIGURATIONS long_stress
       ADDITIONAL_ARGS -p liblogging --duration 45m
+    )
+
+    if(LONG_TESTS)
+      set(ROTATION_TEST_ARGS --rotation-retirements 10)
+    endif()
+
+    add_e2e_test(
+      NAME rotation_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
+      CONSENSUS ${CONSENSUS}
+      LABEL rotation
+      ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
     )
 
   endforeach()

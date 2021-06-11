@@ -27,7 +27,7 @@ parameters:
     perf:
       cmake_args: '-DBUILD_UNIT_TESTS=OFF -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
     release:
-      cmake_args: "-DTLS_TEST=ON -DENABLE_BFT=OFF"
+      cmake_args: "-DTLS_TEST=ON -DLONG_TESTS=ON -DENABLE_BFT=OFF"
 
   test:
     NoSGX:
@@ -36,6 +36,8 @@ parameters:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions"'
     perf:
       ctest_args: '-L "benchmark|perf|vegeta"'
+    release:
+      ctest_args: '-LE "partitions"'
 
 jobs:
   # Debug
@@ -73,6 +75,7 @@ jobs:
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }}"
           suffix: "Release"
           artifact_name: "SGX_Release"
+          ctest_filter: "${{ parameters.test.release.ctest_args }}"
 
       - template: release.yml
         parameters:

@@ -581,6 +581,7 @@ class CCFRemote(object):
         max_open_sessions_hard=None,
         jwt_key_refresh_interval_s=None,
         curve_id=None,
+        client_connection_timeout_ms=None,
         additional_raw_node_args=None,
     ):
         """
@@ -604,6 +605,11 @@ class CCFRemote(object):
         )
 
         self.read_only_ledger_dir = read_only_ledger_dir
+        self.read_only_ledger_dir_name = (
+            os.path.basename(self.read_only_ledger_dir)
+            if self.read_only_ledger_dir
+            else None
+        )
         self.common_read_only_ledger_dir = common_read_only_ledger_dir
 
         self.snapshot_dir = os.path.normpath(snapshot_dir) if snapshot_dir else None
@@ -683,9 +689,7 @@ class CCFRemote(object):
             cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
 
         if self.read_only_ledger_dir is not None:
-            cmd += [
-                f"--read-only-ledger-dir={os.path.basename(self.read_only_ledger_dir)}"
-            ]
+            cmd += [f"--read-only-ledger-dir={self.read_only_ledger_dir_name}"]
             data_files += [os.path.join(self.common_dir, self.read_only_ledger_dir)]
 
         if self.common_read_only_ledger_dir is not None:
@@ -693,6 +697,9 @@ class CCFRemote(object):
 
         if curve_id is not None:
             cmd += [f"--curve-id={curve_id.name}"]
+
+        if client_connection_timeout_ms:
+            cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
 
         if additional_raw_node_args:
             for s in additional_raw_node_args:
@@ -854,8 +861,8 @@ class CCFRemote(object):
 
     def ledger_paths(self):
         paths = [os.path.join(self.remote.root, self.ledger_dir_name)]
-        if self.read_only_ledger_dir is not None:
-            paths += [os.path.join(self.remote.root, self.read_only_ledger_dir)]
+        if self.read_only_ledger_dir_name is not None:
+            paths += [os.path.join(self.remote.root, self.read_only_ledger_dir_name)]
         return paths
 
 

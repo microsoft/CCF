@@ -75,6 +75,7 @@ class Node:
         debug=False,
         perf=False,
         node_port=None,
+        version=None,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -88,12 +89,14 @@ class Node:
         self.node_id = None
         self.node_client_host = None
         self.interfaces = []
+        self.version = version
 
         if host.protocol == "local":
             self.remote_impl = infra.remote.LocalRemote
-            self.node_client_host = str(
-                ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
-            )
+            if not version or version > 1:
+                self.node_client_host = str(
+                    ipaddress.ip_address(BASE_NODE_CLIENT_HOST) + self.local_node_id
+                )
         elif host.protocol == "ssh":
             self.remote_impl = infra.remote.SSHRemote
         else:
@@ -263,7 +266,7 @@ class Node:
         else:
             # BFT consensus should deterministically compute the primary id from the
             # consensus view, so node ids are monotonic in this case
-            self.node_id = "{:0>8}".format(self.local_node_id)
+            self.node_id = "{:0>64}".format(self.local_node_id)
 
         self._read_ports()
         LOG.info(f"Node {self.local_node_id} started: {self.node_id}")
@@ -403,9 +406,11 @@ class Node:
             "signing_auth": self.identity(name),
         }
 
-    def client(
-        self, identity=None, signing_identity=None, interface_idx=None, **kwargs
-    ):
+    def client(self, identity=None, signing_identity=None, interface_idx=None, **kwargs):
+        if self.network_state == NodeNetworkState.stopped:
+            raise RuntimeError(
+                f"Cannot create client for node {self.local_node_id} as node is stopped"
+            )
         akwargs = self.session_auth(identity)
         akwargs.update(self.signing_auth(signing_identity))
         akwargs[

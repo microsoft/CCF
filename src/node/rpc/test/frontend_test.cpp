@@ -298,7 +298,7 @@ class RpcContextRecorder
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
   crypto::Pem last_caller_cert;
-  std::optional<EntityId> last_caller_id = std::nullopt;
+  std::optional<std::string> last_caller_id = std::nullopt;
 
   void record_ctx(ccf::endpoints::EndpointContext& ctx)
   {
@@ -540,7 +540,9 @@ TEST_CASE("process_bft")
   const auto prescribed_commit_version =
     bft_network.tables->current_version() + 1;
   const auto max_conflict_version = kv::NoVersion;
-  frontend.process_bft(ctx, prescribed_commit_version, max_conflict_version);
+  const auto replicated_view = ccf::VIEW_UNKNOWN;
+  frontend.process_bft(
+    ctx, prescribed_commit_version, max_conflict_version, replicated_view);
 
   auto tx = bft_network.tables->create_tx();
   auto aft_requests = tx.rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
@@ -1400,7 +1402,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(user_frontend_primary.last_caller_cert == user_caller);
-  CHECK(user_frontend_primary.last_caller_id.value() == user_id);
+  CHECK(user_frontend_primary.last_caller_id.value() == user_id.value());
 }
 
 TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
@@ -1446,7 +1448,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(member_frontend_primary.last_caller_cert == member_caller);
-  CHECK(member_frontend_primary.last_caller_id.value() == member_id);
+  CHECK(member_frontend_primary.last_caller_id.value() == member_id.value());
 }
 
 class TestConflictFrontend : public BaseTestFrontend

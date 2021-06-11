@@ -41,7 +41,7 @@ namespace enclave
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<tls::Cert> cert;
 
-    SpinLock lock;
+    std::mutex lock;
     std::unordered_map<
       tls::ConnID,
       std::pair<ListenInterfaceID, std::shared_ptr<Endpoint>>>
@@ -119,7 +119,7 @@ namespace enclave
 
     void update_listening_interface_caps(const ccf::NodeInfoNetwork& node_info)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       for (const auto& interface : node_info.rpc_interfaces)
       {
@@ -139,7 +139,7 @@ namespace enclave
     ccf::SessionMetrics get_session_metrics()
     {
       ccf::SessionMetrics sm;
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       sm.active = sessions.size();
       sm.peak = sessions_peak;
@@ -157,7 +157,7 @@ namespace enclave
 
     void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       // Caller authentication is done by each frontend by looking up
       // the caller's certificate in the relevant store table. The caller
@@ -169,7 +169,7 @@ namespace enclave
 
     void accept(tls::ConnID id, const ListenInterfaceID& listen_interface_id)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       if (sessions.find(id) != sessions.end())
       {
@@ -249,7 +249,7 @@ namespace enclave
 
     bool reply_async(tls::ConnID id, std::vector<uint8_t>&& data) override
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       auto search = sessions.find(id);
       if (search == sessions.end())
@@ -266,7 +266,7 @@ namespace enclave
 
     void remove_session(tls::ConnID id)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       LOG_DEBUG_FMT("Closing a session inside the enclave: {}", id);
       const auto search = sessions.find(id);
       if (search != sessions.end())
@@ -283,7 +283,7 @@ namespace enclave
     std::shared_ptr<ClientEndpoint> create_client(
       std::shared_ptr<tls::Cert> cert)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
       auto id = get_next_id();
 

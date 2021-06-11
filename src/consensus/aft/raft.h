@@ -26,7 +26,6 @@
 #include "async_executor.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
-#include "ds/spin_lock.h"
 #include "impl/execution.h"
 #include "impl/request_message.h"
 #include "impl/state.h"
@@ -43,6 +42,7 @@
 #include <algorithm>
 #include <deque>
 #include <list>
+#include <mutex>
 #include <random>
 #include <unordered_map>
 #include <vector>
@@ -239,7 +239,7 @@ namespace aft
 
     bool view_change_in_progress()
     {
-      std::unique_lock<SpinLock> guard(state->lock);
+      std::unique_lock<std::mutex> guard(state->lock);
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
@@ -308,7 +308,7 @@ namespace aft
     {
       // When receiving append entries as a follower, all security domains will
       // be deserialised
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       public_only = false;
     }
 
@@ -322,7 +322,7 @@ namespace aft
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       state->current_view += starting_view_change;
       become_leader();
     }
@@ -341,7 +341,7 @@ namespace aft
           "Can't force leadership if there is already a leader");
       }
 
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       state->current_view = term;
       state->last_idx = index;
       state->commit_idx = commit_idx_;
@@ -356,7 +356,7 @@ namespace aft
     {
       // This should only be called when the node resumes from a snapshot and
       // before it has received any append entries.
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
 
       state->last_idx = index;
       state->commit_idx = index;
@@ -376,26 +376,26 @@ namespace aft
 
     Index get_commit_idx()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return state->commit_idx;
     }
 
     Term get_term()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return state->current_view;
     }
 
     std::pair<Term, Index> get_commit_term_and_idx()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return {get_term_internal(state->commit_idx), state->commit_idx};
     }
 
     std::optional<kv::Consensus::SignableTxIndices>
     get_signable_commit_term_and_idx()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       if (state->commit_idx >= election_index)
       {
         kv::Consensus::SignableTxIndices r;
@@ -412,7 +412,7 @@ namespace aft
 
     Term get_term(Index idx)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return get_term_internal(idx);
     }
 
@@ -430,7 +430,7 @@ namespace aft
 
     void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
-      std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
+      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       // It is safe to call is_follower() by construction as the consensus
       // can only change from leader or follower while in a view-change during
       // which time transaction cannot be executed.
@@ -458,14 +458,14 @@ namespace aft
 
     Configuration::Nodes get_latest_configuration()
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return get_latest_configuration_unsafe();
     }
 
     kv::ConsensusDetails get_details()
     {
       kv::ConsensusDetails details;
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       details.state = replica_state;
       for (auto& config : configurations)
       {
@@ -503,7 +503,7 @@ namespace aft
         return true;
       }
 
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
 
       if (replica_state != kv::ReplicaState::Leader)
       {
@@ -748,7 +748,7 @@ namespace aft
     void periodic(std::chrono::milliseconds elapsed)
     {
       {
-        std::unique_lock<SpinLock> guard(state->lock);
+        std::unique_lock<std::mutex> guard(state->lock);
         timeout_elapsed += elapsed;
         if (is_execution_pending)
         {
@@ -760,7 +760,7 @@ namespace aft
 
     void do_periodic()
     {
-      std::unique_lock<SpinLock> guard(state->lock);
+      std::unique_lock<std::mutex> guard(state->lock);
       if (consensus_type == ConsensusType::BFT)
       {
         auto time = threading::ThreadMessaging::thread_messaging
@@ -812,7 +812,7 @@ namespace aft
           if (
             aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
               view_change_tracker->add_request_view_change(
-                *vc, id(), new_view, seqno, node_count()) &&
+                *vc, id(), new_view, node_count()) &&
             get_primary(new_view) == id())
           {
             // We need to reobtain the lock when writing to the ledger so we
@@ -900,7 +900,7 @@ namespace aft
       if (
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
           view_change_tracker->add_request_view_change(
-            v, from, r.view, r.seqno, node_count()) &&
+            v, from, r.view, node_count()) &&
         get_primary(r.view) == id())
       {
         append_new_view(r.view);
@@ -936,10 +936,15 @@ namespace aft
         LOG_FAIL_FMT("Received unrequested view change evidence from {}", from);
         return;
       }
-      state->requested_evidence_from.reset();
+      if (!view_change_tracker->add_unknown_primary_evidence(
+            {data, size}, r.view, from, node_count()))
+      {
+        LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
+        return;
+      }
 
-      view_change_tracker->add_unknown_primary_evidence(
-        {data, size}, r.view, node_count());
+      // Become a follower in the new term.
+      become_follower(r.view);
     }
 
     void recv_skip_view(const ccf::NodeId& from, SkipViewMsg r)
@@ -1169,7 +1174,7 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
-      std::unique_lock<SpinLock> guard(state->lock);
+      std::unique_lock<std::mutex> guard(state->lock);
 
       LOG_DEBUG_FMT(
         "Received append entries: {}.{} to {}.{} (from {} in term {})",
@@ -1434,7 +1439,7 @@ namespace aft
       std::unique_ptr<threading::Tmsg<AsyncExecution>> msg)
     {
       auto self = msg->data.self;
-      std::unique_lock<SpinLock> guard(self->state->lock);
+      std::unique_lock<std::mutex> guard(self->state->lock);
       self->apply_execution_message(std::move(msg));
     }
 
@@ -1673,7 +1678,8 @@ namespace aft
                 ds->get_request(),
                 request_tracker,
                 state->last_idx,
-                ds->get_max_conflict_version());
+                ds->get_max_conflict_version(),
+                ds->get_term());
             }
             else
             {
@@ -1725,7 +1731,8 @@ namespace aft
                   msg->data.ds->get_request(),
                   self->request_tracker,
                   msg->data.last_idx,
-                  msg->data.ds->get_max_conflict_version());
+                  msg->data.ds->get_max_conflict_version(),
+                  msg->data.ds->get_term());
 
                 if (threading::ThreadMessaging::thread_count == 1)
                 {
@@ -1765,7 +1772,8 @@ namespace aft
               ds->get_request(),
               request_tracker,
               state->last_idx,
-              ds->get_max_conflict_version());
+              ds->get_max_conflict_version(),
+              ds->get_term());
           }
           break;
         }
@@ -1873,6 +1881,11 @@ namespace aft
         to.trim(),
         state->last_idx,
         answer);
+
+      if (answer == AppendEntriesResponseType::REQUIRE_EVIDENCE)
+      {
+        state->requested_evidence_from = to;
+      }
 
       AppendEntriesResponse response = {{raft_append_entries_response},
                                         state->current_view,
@@ -2088,7 +2101,7 @@ namespace aft
     void recv_append_entries_response(
       const ccf::NodeId& from, AppendEntriesResponse r)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       // Ignore if we're not the leader.
 
       if (replica_state != kv::ReplicaState::Leader)
@@ -2156,7 +2169,6 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        state->requested_evidence_from = from;
         ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
                                     state->current_view};
 
@@ -2212,7 +2224,7 @@ namespace aft
 
     void recv_request_vote(const ccf::NodeId& from, RequestVote r)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
 
       // Ignore if we don't recognise the node.
       auto node = nodes.find(from);
@@ -2312,7 +2324,7 @@ namespace aft
     void recv_request_vote_response(
       const ccf::NodeId& from, RequestVoteResponse r)
     {
-      std::lock_guard<SpinLock> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
 
       if (replica_state != kv::ReplicaState::Candidate)
       {
@@ -2481,7 +2493,17 @@ namespace aft
       voted_for.reset();
       votes_for_me.clear();
 
-      rollback(last_committable_index());
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+        rollback(rollback_level);
+        view_change_tracker->set_current_view_change(state->current_view);
+      }
+      else
+      {
+        rollback(last_committable_index());
+      }
 
       is_new_follower = true;
 
@@ -2713,6 +2735,12 @@ namespace aft
       if (changed)
       {
         create_and_remove_node_state();
+      }
+
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        progress_tracker->rollback(idx, state->current_view);
       }
     }
 

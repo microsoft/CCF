@@ -52,6 +52,11 @@ namespace crypto
         static_cast<uint32_t>(term);
     }
 
+    uint64_t get_term() const
+    {
+      return *reinterpret_cast<const uint32_t*>(iv + IV_DELIMITER);
+    }
+
     void set_iv_snapshot(bool is_snapshot)
     {
       // Set very last bit in IV

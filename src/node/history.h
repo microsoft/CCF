@@ -108,8 +108,8 @@ namespace ccf
       auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.version);
-      signatures->put(0, sig_value);
-      serialised_tree->put(0, {});
+      signatures->put(sig_value);
+      serialised_tree->put({});
       return sig.commit_reserved();
     }
   };
@@ -318,7 +318,7 @@ namespace ccf
         auto progress_tracker = store.get_progress_tracker();
         CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
         auto r = progress_tracker->record_primary(
-          txid, id, root, primary_sig, hashed_nonce);
+          txid, id, true, root, primary_sig, hashed_nonce);
         if (r != kv::TxHistory::Result::OK)
         {
           throw ccf::ccf_logic_error(fmt::format(
@@ -356,9 +356,8 @@ namespace ccf
         progress_tracker->record_primary_signature(txid, primary_sig);
       }
 
-      signatures->put(0, sig_value);
+      signatures->put(sig_value);
       serialised_tree->put(
-        0,
         history.serialise_tree(commit_txid.previous_version, txid.version - 1));
       return sig.commit_reserved();
     }
@@ -504,7 +503,7 @@ namespace ccf
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
-    SpinLock state_lock;
+    std::mutex state_lock;
     kv::Term term = 0;
 
   public:
@@ -539,7 +538,7 @@ namespace ccf
         [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
           auto self = msg->data.self;
 
-          std::unique_lock<SpinLock> mguard(
+          std::unique_lock<std::mutex> mguard(
             self->signature_lock, std::defer_lock);
 
           const int64_t sig_ms_interval = self->sig_ms_interval;
@@ -607,14 +606,14 @@ namespace ccf
     bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
       // The history can be initialised after a snapshot has been applied by
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
       auto tx = store.create_read_only_tx();
       auto tree_h = tx.template ro<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
-      auto tree = tree_h->get(0);
+      auto tree = tree_h->get();
       if (!tree.has_value())
       {
         LOG_FAIL_FMT("No tree found in serialised tree map");
@@ -636,14 +635,14 @@ namespace ccf
 
     crypto::Sha256Hash get_replicated_state_root() override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
       return replicated_state_tree.get_root();
     }
 
     std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
       override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
       return {
         {term, static_cast<kv::Version>(replicated_state_tree.end_index())},
         replicated_state_tree.get_root()};
@@ -664,6 +663,7 @@ namespace ccf
       result = progress_tracker->record_primary(
         {sig.view, sig.seqno},
         sig.node,
+        false,
         sig.root,
         sig.sig,
         sig.hashed_nonce,
@@ -682,7 +682,7 @@ namespace ccf
       auto signatures =
         tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto nodes = tx.template ro<ccf::Nodes>(ccf::Tables::NODES);
-      auto sig = signatures->get(0);
+      auto sig = signatures->get();
       if (!sig.has_value())
       {
         LOG_FAIL_FMT("No signature found in signatures map");
@@ -723,19 +723,20 @@ namespace ccf
 
     std::vector<uint8_t> serialise_tree(size_t from, size_t to) override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
       return replicated_state_tree.serialise(from, to);
     }
 
     void set_term(kv::Term t) override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
       term = t;
     }
 
     void rollback(kv::Version v, kv::Term t) override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
+      LOG_TRACE_FMT("Rollback to {}.{}", term, v);
       term = t;
       replicated_state_tree.retract(v);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
@@ -743,7 +744,7 @@ namespace ccf
 
     void compact(kv::Version v) override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
       // Receipts can only be retrieved to the flushed index. Keep a range of
       // history so that a range of receipts are available.
       if (v > MAX_HISTORY_LEN)
@@ -757,11 +758,11 @@ namespace ccf
     std::chrono::milliseconds time_of_last_signature =
       std::chrono::milliseconds(0);
 
-    SpinLock signature_lock;
+    std::mutex signature_lock;
 
     void try_emit_signature() override
     {
-      std::unique_lock<SpinLock> mguard(signature_lock, std::defer_lock);
+      std::unique_lock<std::mutex> mguard(signature_lock, std::defer_lock);
       if (store.commit_gap() < sig_tx_interval || !mguard.try_lock())
       {
         return;
@@ -815,20 +816,20 @@ namespace ccf
 
     std::vector<uint8_t> get_proof(kv::Version index) override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
       return replicated_state_tree.get_proof(index).to_v();
     }
 
     bool verify_proof(const std::vector<uint8_t>& v) override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
       Proof proof(v);
       return replicated_state_tree.verify(proof);
     }
 
     std::vector<uint8_t> get_raw_leaf(uint64_t index) override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
       auto leaf = replicated_state_tree.get_leaf(index);
       return {leaf.h.begin(), leaf.h.end()};
     }
@@ -852,7 +853,7 @@ namespace ccf
 
     void append(const std::vector<uint8_t>& data) override
     {
-      std::lock_guard<SpinLock> guard(state_lock);
+      std::lock_guard<std::mutex> guard(state_lock);
       crypto::Sha256Hash rh({data.data(), data.size()});
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);

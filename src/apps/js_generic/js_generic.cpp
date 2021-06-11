@@ -138,7 +138,7 @@ namespace ccfapp
       }
 
       char const* policy_name = nullptr;
-      EntityId id;
+      std::string id;
       bool is_member = false;
 
       if (
@@ -340,6 +340,7 @@ namespace ccfapp
         transaction_id,
         receipt,
         nullptr,
+        &context.get_node_state(),
         nullptr,
         ctx);
       js::populate_global_openenclave(ctx);

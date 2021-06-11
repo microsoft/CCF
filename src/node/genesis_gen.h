@@ -135,7 +135,7 @@ namespace ccf
           id, member_pub_info.encryption_pub_key.value());
       }
 
-      auto s = signatures->get(0);
+      auto s = signatures->get();
       if (!s)
       {
         member_acks->put(id, MemberAck());
@@ -301,13 +301,13 @@ namespace ccf
     void create_service(const crypto::Pem& network_cert)
     {
       auto service = tx.rw(tables.service);
-      service->put(0, {network_cert, ServiceStatus::OPENING});
+      service->put({network_cert, ServiceStatus::OPENING});
     }
 
     bool is_service_created()
     {
       auto service = tx.ro(tables.service);
-      return service->get(0).has_value();
+      return service->get().has_value();
     }
 
     bool open_service()
@@ -325,7 +325,7 @@ namespace ccf
         return false;
       }
 
-      auto active_service = service->get(0);
+      auto active_service = service->get();
       if (!active_service.has_value())
       {
         LOG_FAIL_FMT("Failed to get active service");
@@ -347,7 +347,7 @@ namespace ccf
       }
 
       active_service->status = ServiceStatus::OPEN;
-      service->put(0, active_service.value());
+      service->put(active_service.value());
 
       return true;
     }
@@ -355,7 +355,7 @@ namespace ccf
     std::optional<ServiceStatus> get_service_status()
     {
       auto service = tx.ro(tables.service);
-      auto active_service = service->get(0);
+      auto active_service = service->get();
       if (!active_service.has_value())
       {
         LOG_FAIL_FMT("Failed to get active service");
@@ -391,7 +391,7 @@ namespace ccf
     auto get_last_signature()
     {
       auto signatures = tx.ro(tables.signatures);
-      return signatures->get(0);
+      return signatures->get();
     }
 
     void set_constitution(const std::string& constitution)
@@ -408,14 +408,14 @@ namespace ccf
     void init_configuration(const ServiceConfiguration& configuration)
     {
       auto config = tx.rw(tables.config);
-      if (config->get(0).has_value())
+      if (config->has())
       {
         throw std::logic_error(
           "Cannot initialise service configuration: configuration already "
           "exists");
       }
 
-      config->put(0, configuration);
+      config->put(configuration);
     }
 
     bool set_recovery_threshold(size_t threshold)
@@ -460,21 +460,21 @@ namespace ccf
         }
       }
 
-      auto current_config = config->get(0);
+      auto current_config = config->get();
       if (!current_config.has_value())
       {
         throw std::logic_error("Configuration should already be set");
       }
 
       current_config->recovery_threshold = threshold;
-      config->put(0, current_config.value());
+      config->put(current_config.value());
       return true;
     }
 
     size_t get_recovery_threshold()
     {
       auto config = tx.ro(tables.config);
-      auto current_config = config->get(0);
+      auto current_config = config->get();
       if (!current_config.has_value())
       {
         throw std::logic_error(
