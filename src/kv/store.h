@@ -284,17 +284,21 @@ namespace kv
       {
         case (kv::ReplicateType::ALL):
         {
+          LOG_INFO_FMT("OOOOOOOOO ALL");
           return true;
         }
 
         case (kv::ReplicateType::NONE):
         {
+          LOG_INFO_FMT("OOOOOOOOO NONE");
           return false;
         }
 
         case (kv::ReplicateType::SOME):
         {
-          return replicated_tables.find(name) != replicated_tables.end();
+          bool result = (replicated_tables.find(name) != replicated_tables.end());
+          LOG_INFO_FMT("OOOOOOOOOOOO name:{}, result:{}", name, result);
+          return result;
         }
 
         default:

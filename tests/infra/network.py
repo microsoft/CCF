@@ -215,7 +215,9 @@ class Network:
         }
 
         # Contact primary if no target node is set
+        LOG.error("AAAAA do we need to call find_primary")
         if target_node is None:
+            LOG.error("AAAAA calling find_primary")
             target_node, _ = self.find_primary(
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
@@ -520,7 +522,7 @@ class Network:
             # Verify that all txs committed on the service can be read
             if self.txs is not None:
                 log_capture = None if verbose_verification else []
-                self.txs.verify(self, log_capture=log_capture)
+                #self.txs.verify(self, log_capture=log_capture)
                 if verbose_verification:
                     flush_info(log_capture, None)
 
@@ -743,6 +745,7 @@ class Network:
                         res = c.get("/node/network", log_capture=logs)
                         assert res.status_code == http.HTTPStatus.OK.value, res
 
+                        LOG.error(f"BBBBBBBBB we got a response");
                         body = res.body.json()
                         view = body["current_view"]
                         primary_id = body["primary_id"]
@@ -763,6 +766,8 @@ class Network:
             raise PrimaryNotFound
 
         flush_info(logs, log_capture, 0)
+
+        LOG.error(f"BBBBBBBBB primary_id:{primary_id}:");
 
         return (self._get_node_by_service_id(primary_id), view)
 

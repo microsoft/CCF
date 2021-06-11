@@ -300,6 +300,7 @@ namespace ccf
       {
         self = crypto::Sha256Hash(node_sign_kp->public_key_der()).hex_str();
       }
+
     }
 
     QuoteVerificationResult verify_quote(
@@ -432,6 +433,18 @@ namespace ccf
         }
         case StartType::Recover:
         {
+          if (network.consensus_type == ConsensusType::BFT)
+          {
+            // BFT consensus requires a stable order of node IDs so that the
+            // primary node in a given view can be computed deterministically by
+            // all nodes in the network
+            // See https://github.com/microsoft/CCF/issues/1852
+
+            // Pad node id string to avoid memory alignment issues on
+            // node-to-node messages
+            self = NodeId("0000000000000000000000000000000000000000000000000000000000000004");
+          }
+
           node_info_network = config.node_info_network;
 
           network.identity =
@@ -1014,6 +1027,7 @@ namespace ccf
       }
 
       setup_consensus(true);
+      setup_progress_tracker();
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT(
@@ -1905,6 +1919,11 @@ namespace ccf
 
     void setup_raft(bool public_only = false)
     {
+      if (public_only)
+      {
+        auto id = NodeId("0000000000000000000000000000000000000000000000000000000000000004");
+        LOG_INFO_FMT("DDDDDDDDDDDDDDDD id:{}, self:{}", id, self);
+      }
       setup_n2n_channels();
       setup_cmd_forwarder();
       setup_tracker_store();
@@ -1913,6 +1932,7 @@ namespace ccf
       auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
+      LOG_INFO_FMT("My node id is {}", self);
       auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,

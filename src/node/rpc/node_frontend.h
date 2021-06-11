@@ -530,8 +530,13 @@ namespace ccf
           {
             out.current_view = consensus->get_view();
             auto primary_id = consensus->primary();
+            LOG_INFO_FMT(
+              "Response primary_id.has_value:{}, view_change_in_progress:{}",
+              primary_id.has_value(),
+              consensus->view_change_in_progress());
             if (primary_id.has_value() && !consensus->view_change_in_progress())
             {
+              LOG_INFO_FMT("Response primary_id:{}", primary_id.value());
               out.primary_id = primary_id.value();
             }
           }

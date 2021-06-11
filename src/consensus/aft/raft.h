@@ -392,7 +392,7 @@ namespace aft
 
     Index get_commit_idx()
     {
-      std::lock_guard<std::mutex> guard(state->lock);
+      //std::lock_guard<std::mutex> guard(state->lock);
       return state->commit_idx;
     }
 
@@ -428,7 +428,7 @@ namespace aft
 
     Term get_term(Index idx)
     {
-      std::lock_guard<std::mutex> guard(state->lock);
+      //std::lock_guard<std::mutex> guard(state->lock);
       return get_term_internal(idx);
     }
 
@@ -2819,7 +2819,10 @@ namespace aft
       if (consensus_type == ConsensusType::BFT)
       {
         auto progress_tracker = store->get_progress_tracker();
-        progress_tracker->rollback(idx, state->current_view);
+        if (progress_tracker != nullptr)
+        {
+          progress_tracker->rollback(idx, state->current_view);
+        }
       }
     }
 
