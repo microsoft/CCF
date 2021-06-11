@@ -3,6 +3,7 @@
 #include "js/wrap.h"
 
 #include "ccf/tx_id.h"
+#include "ccf/version.h"
 #include "ds/logger.h"
 #include "enclave/rpc_context.h"
 #include "js/conv.cpp"
@@ -768,6 +769,179 @@ namespace js
     return JS_UNDEFINED;
   }
 
+  JSValue load_app_module(JSContext* ctx, const char* module_name, kv::Tx* tx)
+  {
+    // QuickJS resolves relative paths but in some cases omits leading slashes.
+    std::string module_name_kv(module_name);
+    if (module_name_kv[0] != '/')
+    {
+      module_name_kv.insert(0, "/");
+    }
+
+    const auto modules = tx->ro<ccf::Modules>(ccf::Tables::MODULES);
+
+    std::optional<std::vector<uint8_t>> bytecode;
+    const auto modules_quickjs_bytecode = tx->ro<ccf::ModulesQuickJsBytecode>(
+      ccf::Tables::MODULES_QUICKJS_BYTECODE);
+    bytecode = modules_quickjs_bytecode->get(module_name_kv);
+    if (bytecode.has_value())
+    {
+      auto modules_quickjs_version = tx->ro<ccf::ModulesQuickJsVersion>(
+        ccf::Tables::MODULES_QUICKJS_VERSION);
+      if (modules_quickjs_version->get() != std::string(ccf::quickjs_version))
+        bytecode = std::nullopt;
+    }
+
+    JSValue module_val;
+
+    if (!bytecode.has_value())
+    {
+      LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
+
+      auto module = modules->get(module_name_kv);
+      auto& js = module.value();
+
+      const char* buf = js.c_str();
+      size_t buf_len = js.size();
+      module_val = JS_Eval(
+        ctx,
+        buf,
+        buf_len,
+        module_name,
+        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+      if (JS_IsException(module_val))
+      {
+        js::js_dump_error(ctx);
+        throw std::runtime_error(
+          fmt::format("Failed to compile module '{}'", module_name));
+      }
+    }
+    else
+    {
+      LOG_TRACE_FMT("Loading module from cache '{}'", module_name_kv);
+
+      module_val = JS_ReadObject(
+        ctx, bytecode->data(), bytecode->size(), JS_READ_OBJ_BYTECODE);
+      if (JS_IsException(module_val))
+      {
+        js::js_dump_error(ctx);
+        throw std::runtime_error(fmt::format(
+          "Failed to deserialize bytecode for module '{}'", module_name));
+      }
+      if (JS_ResolveModule(ctx, module_val) < 0)
+      {
+        js::js_dump_error(ctx);
+        throw std::runtime_error(fmt::format(
+          "Failed to resolve dependencies for module '{}'", module_name));
+      }
+    }
+    return module_val;
+  }
+
+  JSModuleDef* js_app_module_loader(
+    JSContext* ctx, const char* module_name, void* opaque)
+  {
+    auto tx = (kv::Tx*)opaque;
+
+    JSValue module_val;
+    try
+    {
+      module_val = load_app_module(ctx, module_name, tx);
+    }
+    catch (const std::exception& exc)
+    {
+      JS_ThrowReferenceError(ctx, "%s", exc.what());
+      js::js_dump_error(ctx);
+      return nullptr;
+    }
+
+    auto m = (JSModuleDef*)JS_VALUE_GET_PTR(module_val);
+    // module already referenced, decrement ref count
+    JS_FreeValue(ctx, module_val);
+    return m;
+  }
+
+  JSValue js_refresh_app_bytecode_cache(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    if (argc != 0)
+    {
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments but expected none", argc);
+    }
+
+    auto global_obj = JS_GetGlobalObject(ctx);
+    auto ccf = JS_GetPropertyStr(ctx, global_obj, "ccf");
+    auto kv = JS_GetPropertyStr(ctx, ccf, "kv");
+
+    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
+
+    if (tx_ctx_ptr->tx == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "No transaction available");
+    }
+
+    JS_FreeValue(ctx, kv);
+    JS_FreeValue(ctx, ccf);
+    JS_FreeValue(ctx, global_obj);
+
+    auto& tx = *tx_ctx_ptr->tx;
+
+    js::Runtime rt;
+    JS_SetModuleLoaderFunc(rt, nullptr, js::js_app_module_loader, &tx);
+    js::Context ctx2(rt);
+
+    auto modules = tx.ro<ccf::Modules>(ccf::Tables::MODULES);
+    auto quickjs_version =
+      tx.wo<ccf::ModulesQuickJsVersion>(ccf::Tables::MODULES_QUICKJS_VERSION);
+    auto quickjs_bytecode =
+      tx.wo<ccf::ModulesQuickJsBytecode>(ccf::Tables::MODULES_QUICKJS_BYTECODE);
+
+    quickjs_version->put(ccf::quickjs_version);
+    quickjs_bytecode->clear();
+
+    try
+    {
+      modules->foreach([&](const auto& name, const auto& src) {
+        JSValue module_val = JS_Eval(
+          ctx2,
+          src.c_str(),
+          src.size(),
+          name.c_str(),
+          JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+        if (JS_IsException(module_val))
+        {
+          js_dump_error(ctx2);
+          throw std::runtime_error(
+            fmt::format("Unable to compile JS module '{}'", name));
+        }
+
+        uint8_t* out_buf;
+        size_t out_buf_len;
+        int flags = JS_WRITE_OBJ_BYTECODE;
+        out_buf = JS_WriteObject(ctx2, &out_buf_len, module_val, flags);
+        if (!out_buf)
+        {
+          js_dump_error(ctx);
+          throw std::runtime_error(fmt::format(
+            "Unable to serialize bytecode for JS module '{}'", name));
+        }
+
+        quickjs_bytecode->put(name, {out_buf, out_buf + out_buf_len});
+
+        js_free(ctx2, out_buf);
+
+        return true;
+      });
+    }
+    catch (std::runtime_error& exc)
+    {
+      return JS_ThrowInternalError(ctx, "%s", exc.what());
+    }
+
+    return JS_UNDEFINED;
+  }
+
   // Partially replicates https://developer.mozilla.org/en-US/docs/Web/API/Body
   // with a synchronous interface.
   static const JSCFunctionListEntry js_body_proto_funcs[] = {
@@ -1064,6 +1238,13 @@ namespace js
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
+
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "refreshAppBytecodeCache",
+      JS_NewCFunction(
+        ctx, js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
 
     if (txctx != nullptr)
     {

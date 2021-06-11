@@ -82,6 +82,11 @@ namespace js
     int argc,
     [[maybe_unused]] JSValueConst* argv);
 
+  JSModuleDef* js_app_module_loader(
+    JSContext* ctx, const char* module_name, void* opaque);
+
+  JSValue load_app_module(JSContext* ctx, const char* module_name, kv::Tx* tx);
+
   class Runtime
   {
     JSRuntime* rt;

@@ -20,19 +20,6 @@ namespace kv::serialisers
       {
         return SerialisedEntry(t.begin(), t.end());
       }
-      else if constexpr (std::is_same_v<
-                           T,
-                           std::pair<std::string, std::vector<uint8_t>>>)
-      {
-        const auto& [str, vec] = t;
-        auto size = sizeof(size_t) + str.size() + sizeof(size_t) + vec.size();
-        SerialisedEntry s(size);
-        auto data = s.data();
-        serialized::write(data, size, str);
-        serialized::write(data, size, vec.size());
-        serialized::write(data, size, vec.data(), vec.size());
-        return s;
-      }
       else if constexpr (std::is_integral_v<T>)
       {
         SerialisedEntry s(sizeof(t));
@@ -68,17 +55,6 @@ namespace kv::serialisers
         }
         std::copy_n(rep.begin(), t.size(), t.begin());
         return t;
-      }
-      else if constexpr (std::is_same_v<
-                           T,
-                           std::pair<std::string, std::vector<uint8_t>>>)
-      {
-        auto data = rep.data();
-        auto size = rep.size();
-        auto str = serialized::read<std::string>(data, size);
-        auto vec_size = serialized::read<size_t>(data, size);
-        auto vec = serialized::read(data, size, vec_size);
-        return {str, vec};
       }
       else if constexpr (std::is_integral_v<T>)
       {

@@ -27,146 +27,6 @@ namespace ccfapp
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
-  // Modules
-
-  static JSValue js_load_module(
-    JSContext* ctx,
-    const char* module_name,
-    ccf::AbstractNodeState* node_state,
-    ccf::NetworkTables* network,
-    kv::Tx* tx)
-  {
-    // QuickJS resolves relative paths but in some cases omits leading slashes.
-    std::string module_name_kv(module_name);
-    if (module_name_kv[0] != '/')
-    {
-      module_name_kv.insert(0, "/");
-    }
-
-    const auto modules = tx->ro(network->modules);
-    const auto modules_bytecode = tx->rw(network->modules_bytecode);
-
-    auto module_version =
-      modules->get_version_of_previous_write(module_name_kv);
-    if (!module_version.has_value())
-    {
-      throw std::runtime_error(fmt::format(
-        "No such module: '{}' in {}", module_name, ccf::Tables::MODULES));
-    }
-
-    auto bytecode_version =
-      modules_bytecode->get_version_of_previous_write(module_name_kv);
-    auto has_bytecode = bytecode_version.value_or(0) > module_version.value();
-
-    std::optional<ccf::ModuleBytecode> bytecode;
-    if (has_bytecode)
-    {
-      bytecode = modules_bytecode->get(module_name_kv);
-      if (bytecode->first != std::string(ccf::quickjs_version))
-        has_bytecode = false;
-    }
-
-    JSValue module_val;
-
-    if (!has_bytecode)
-    {
-      LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
-
-      auto module = modules->get(module_name_kv);
-      auto& js = module.value();
-
-      const char* buf = js.c_str();
-      size_t buf_len = js.size();
-      module_val = JS_Eval(
-        ctx,
-        buf,
-        buf_len,
-        module_name,
-        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-      if (JS_IsException(module_val))
-      {
-        js::js_dump_error(ctx);
-        throw std::runtime_error(
-          fmt::format("Failed to compile module '{}'", module_name));
-      }
-
-      if (node_state->is_primary())
-      {
-        uint8_t* out_buf;
-        size_t out_buf_len;
-        int flags = JS_WRITE_OBJ_BYTECODE;
-        out_buf = JS_WriteObject(ctx, &out_buf_len, module_val, flags);
-        if (!out_buf)
-        {
-          js::js_dump_error(ctx);
-          throw std::runtime_error(fmt::format(
-            "Failed to serialize bytecode for module '{}'", module_name));
-        }
-        modules_bytecode->put(
-          module_name_kv,
-          {ccf::quickjs_version,
-           std::vector<uint8_t>(out_buf, out_buf + out_buf_len)});
-        js_free(ctx, out_buf);
-      }
-    }
-    else
-    {
-      LOG_TRACE_FMT("Loading module from cache '{}'", module_name_kv);
-
-      module_val = JS_ReadObject(
-        ctx,
-        bytecode->second.data(),
-        bytecode->second.size(),
-        JS_READ_OBJ_BYTECODE);
-      if (JS_IsException(module_val))
-      {
-        js::js_dump_error(ctx);
-        throw std::runtime_error(fmt::format(
-          "Failed to deserialize bytecode for module '{}'", module_name));
-      }
-      if (JS_ResolveModule(ctx, module_val) < 0)
-      {
-        js::js_dump_error(ctx);
-        throw std::runtime_error(fmt::format(
-          "Failed to resolve dependencies for module '{}'", module_name));
-      }
-    }
-    return module_val;
-  }
-
-  struct JSModuleLoaderArg
-  {
-    ccf::AbstractNodeState* node_state;
-    ccf::NetworkTables* network;
-    kv::Tx* tx;
-  };
-
-  static JSModuleDef* js_module_loader(
-    JSContext* ctx, const char* module_name, void* opaque)
-  {
-    auto arg = (JSModuleLoaderArg*)opaque;
-
-    JSValue module_val;
-    try
-    {
-      module_val = js_load_module(
-        ctx, module_name, arg->node_state, arg->network, arg->tx);
-    }
-    catch (const std::exception& exc)
-    {
-      JS_ThrowReferenceError(ctx, "%s", exc.what());
-      js::js_dump_error(ctx);
-      return nullptr;
-    }
-
-    auto m = (JSModuleDef*)JS_VALUE_GET_PTR(module_val);
-    // module already referenced, decrement ref count
-    JS_FreeValue(ctx, module_val);
-    return m;
-  }
-
-  // END modules
-
   class JSHandlers : public UserEndpointRegistry
   {
   private:
@@ -401,10 +261,8 @@ namespace ccfapp
       js::Runtime rt;
       rt.add_ccf_classdefs();
 
-      JSModuleLoaderArg js_module_loader_arg{
-        &context.get_node_state(), &this->network, &endpoint_ctx.tx};
       JS_SetModuleLoaderFunc(
-        rt, nullptr, js_module_loader, &js_module_loader_arg);
+        rt, nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
       js::Context ctx(rt);
       js::TxContext txctx{&target_tx, js::TxAccess::APP};
@@ -425,12 +283,8 @@ namespace ccfapp
       JSValue export_func;
       try
       {
-        auto module_val = js_load_module(
-          ctx,
-          props.js_module.c_str(),
-          &context.get_node_state(),
-          &this->network,
-          &endpoint_ctx.tx);
+        auto module_val =
+          js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
         export_func =
           ctx.function(module_val, props.js_function, props.js_module);
       }

@@ -61,7 +61,8 @@ namespace ccf
     MemberInfo member_info;
 
     Modules modules;
-    ModulesBytecode modules_bytecode;
+    ModulesQuickJsBytecode modules_quickjs_bytecode;
+    ModulesQuickJsVersion modules_quickjs_version;
     CodeIDs node_code_ids;
     MemberAcks member_acks;
     GovernanceHistory governance_history;
@@ -118,7 +119,8 @@ namespace ccf
       member_encryption_public_keys(Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS),
       member_info(Tables::MEMBER_INFO),
       modules(Tables::MODULES),
-      modules_bytecode(Tables::MODULES_BYTECODE),
+      modules_quickjs_bytecode(Tables::MODULES_QUICKJS_BYTECODE),
+      modules_quickjs_version(Tables::MODULES_QUICKJS_VERSION),
       node_code_ids(Tables::NODE_CODE_IDS),
       member_acks(Tables::MEMBER_ACKS),
       governance_history(Tables::GOV_HISTORY),
