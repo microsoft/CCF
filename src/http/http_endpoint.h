@@ -126,7 +126,7 @@ namespace http
             auto body = fmt::format("Unable to parse data as a HTTP request. Error details are below.\n\n{}", e.what());
             response.set_body((const uint8_t*)body.data(), body.size());
             send_raw(response.build_response());
-            
+
             close();
             break;
           }

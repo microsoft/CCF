@@ -212,7 +212,8 @@ namespace http
   public:
     void execute(const uint8_t* data, size_t size)
     {
-      auto err_no = llhttp_execute(&parser, (const char*)data, size);
+      const auto data_char = (const char*)data;
+      auto err_no = llhttp_execute(&parser, data_char, size);
 
       if (err_no == HPE_PAUSED_UPGRADE)
       {
@@ -223,9 +224,10 @@ namespace http
       else if (err_no != HPE_OK)
       {
         throw std::runtime_error(fmt::format(
-          "HTTP parsing failed: '{}: {}' while parsing fragment:\n{}",
+          "HTTP parsing failed ({}: {}) around byte {} of fragment:\n{}",
           llhttp_errno_name(err_no),
           llhttp_get_error_reason(&parser),
+          llhttp_get_error_pos(&parser) - data_char,
           std::string((char const*)data, size)));
       }
     }
