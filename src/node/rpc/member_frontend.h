@@ -1086,6 +1086,10 @@ namespace ccf
         // creations are in-flight and reading at the same version, all except
         // the first conflict and are re-executed. If we ever produce a
         // proposal ID which already exists, we must have a hash collision.
+        //
+        // This is current broken broken for BFT.
+        // https://github.com/microsoft/CCF/issues/2668
+        // if (consensus->type() == ConsensusType::CFT && pm->has(proposal_id))
         if (pm->has(proposal_id))
         {
           ctx.rpc_ctx->set_error(

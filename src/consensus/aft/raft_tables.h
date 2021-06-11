@@ -9,14 +9,6 @@
 
 namespace aft
 {
-  static constexpr auto replicate_type_raft = kv::ReplicateType::ALL;
-  static const std::unordered_set<std::string> replicated_tables_raft = {};
-
-  static constexpr auto replicate_type_bft = kv::ReplicateType::SOME;
-  static const std::unordered_set<std::string> replicated_tables_bft = {
-    ccf::Tables::AFT_REQUESTS,
-    ccf::Tables::SIGNATURES,
-    ccf::Tables::BACKUP_SIGNATURES,
-    ccf::Tables::NONCES,
-    ccf::Tables::NEW_VIEWS};
+  static constexpr auto replicate_type = kv::ReplicateType::ALL;
+  static const std::unordered_set<std::string> replicated_tables = {};
 }

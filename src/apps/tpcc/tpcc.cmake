@@ -22,13 +22,14 @@ if(BUILD_TESTS)
 
   set(TPCC_ITERATIONS 200000)
 
-  foreach(CONSENSUS ${CONSENSUSES})
-    add_perf_test(
-      NAME tpcc
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/tpcc.py
-      CLIENT_BIN ./tpcc_client
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS --transactions ${TPCC_ITERATIONS} --max-writes-ahead 250
-    )
-  endforeach()
+  # This is currently turned off for BFT because there is some kind of
+  # non-determistic execution in the TPCC benchmark.
+  # https://github.com/microsoft/CCF/issues/2662
+  add_perf_test(
+    NAME tpcc
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/tpcc.py
+    CLIENT_BIN ./tpcc_client
+    CONSENSUS cft
+    ADDITIONAL_ARGS --transactions ${TPCC_ITERATIONS} --max-writes-ahead 250
+  )
 endif()
