@@ -1450,18 +1450,7 @@ namespace aft
           return;
         }
 
-        /*
-        bool cft_only = false;
-        if (state->my_node_id == ccf::NodeId("0000000000000000000000000000000000000000000000000000000000000005"))
-        {
-          LOG_FAIL_FMT("XXXXXXXXXXXXXXXXXXX id:{}", state->my_node_id);
-          cft_only = true;
-        }
-        LOG_FAIL_FMT("YYYYYYYYYYYYYYYYYYY id:{}", state->my_node_id);
-        */
-
-        auto ds = store->apply(
-          entry, consensus_type, public_only);
+        auto ds = store->apply(entry, consensus_type, public_only);
         if (ds == nullptr)
         {
           LOG_FAIL_FMT(
@@ -2842,10 +2831,7 @@ namespace aft
       if (consensus_type == ConsensusType::BFT)
       {
         auto progress_tracker = store->get_progress_tracker();
-        if (progress_tracker != nullptr)
-        {
-          progress_tracker->rollback(idx, state->current_view);
-        }
+        progress_tracker->rollback(idx, state->current_view);
       }
     }
 

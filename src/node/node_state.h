@@ -1918,11 +1918,6 @@ namespace ccf
 
     void setup_raft(bool public_only = false)
     {
-      if (public_only)
-      {
-        auto id = NodeId("0000000000000000000000000000000000000000000000000000000000000004");
-        LOG_INFO_FMT("DDDDDDDDDDDDDDDD id:{}, self:{}", id, self);
-      }
       setup_n2n_channels();
       setup_cmd_forwarder();
       setup_tracker_store();

@@ -875,11 +875,6 @@ namespace kv
               std::move(new_maps));
           }
         }
-        else if (public_only)
-        {
-          exec = std::make_unique<CFTExecutionWrapper>(
-            this, get_history(), std::move(data), public_only);
-        }
         else
         {
           // we have deserialised an entry that didn't belong to the bft

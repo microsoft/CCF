@@ -24,9 +24,6 @@ def test(network, args, from_snapshot=False):
 
     network.stop_all_nodes()
 
-    LOG.error(f"number of nodes:{args.nodes}")
-    #raise TimeoutError
-
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
