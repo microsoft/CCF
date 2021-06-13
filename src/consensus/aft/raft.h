@@ -1087,7 +1087,6 @@ namespace aft
       {
         LOG_FAIL_FMT("Timeout waiting for request to be executed");
         request_tracker->print_oldeste_entry_hash();
-        throw std::logic_error("should not be here");
         // TODO: we need to remove tx that we execute when just "applying a tx"
         return true;
       }
