@@ -1258,7 +1258,14 @@ namespace aft
       bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
       {
-        if (active_nodes().size() == 0)
+        if (!state->public_only_from.has_value())
+        {
+          state->public_only_from = std::make_tuple(from, r.term);
+        }
+        if (
+          active_nodes().size() == 0 ||
+          (std::get<0>(state->public_only_from.value()) == from &&
+           std::get<1>(state->public_only_from.value()) == r.term))
         {
           // The replica is just starting up, we want to check that this replica
           // is part of the network we joined but that is dependent on Byzantine
@@ -1266,7 +1273,6 @@ namespace aft
         }
         else if (get_primary(r.term) != from)
         {
-          /*
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} at view:{} but the primary at "
             "this view should be {}",
@@ -1276,9 +1282,7 @@ namespace aft
             get_primary(r.term));
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
-          */
         }
-        /*
         else if (!view_change_tracker->check_evidence(r.term))
         {
           if (r.contains_new_view)
@@ -1298,7 +1302,6 @@ namespace aft
             return;
           }
         }
-        */
       }
 
       // First, check append entries term against our own term, becoming
