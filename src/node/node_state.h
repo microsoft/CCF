@@ -1128,6 +1128,7 @@ namespace ccf
 
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
+      // TODO: turn on forwarder request tracking;
 
       // Snapshots are only generated after recovery is complete
       snapshotter->set_snapshot_generation(true);

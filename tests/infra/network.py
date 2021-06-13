@@ -523,7 +523,7 @@ class Network:
             # Verify that all txs committed on the service can be read
             if self.txs is not None:
                 log_capture = None if verbose_verification else []
-                #self.txs.verify(self, log_capture=log_capture)
+                self.txs.verify(self, log_capture=log_capture)
                 if verbose_verification:
                     flush_info(log_capture, None)
 
@@ -692,7 +692,7 @@ class Network:
     def get_joined_nodes(self):
         return [node for node in self.nodes if node.is_joined()]
 
-    def wait_for_state(self, node, state, timeout=10):
+    def wait_for_state(self, node, state, timeout=3):
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:

@@ -227,6 +227,11 @@ namespace aft
         view_change_tracker->set_current_view_change(starting_view_change);
       }
 
+      if (request_tracker != nullptr && !public_only)
+      {
+        request_tracker->start_tracking_requests();
+      }
+
       if (consensus_type == ConsensusType::BFT)
       {
         // Initialize view history for bft. We start on view 2 and the first
@@ -326,6 +331,10 @@ namespace aft
       // be deserialised
       std::lock_guard<std::mutex> guard(state->lock);
       public_only = false;
+      if (request_tracker != nullptr && !public_only)
+      {
+        request_tracker->start_tracking_requests();
+      }
     }
 
     void force_become_leader()
@@ -1077,6 +1086,9 @@ namespace aft
         oldest_entry.value() + view_change_timeout < time)
       {
         LOG_FAIL_FMT("Timeout waiting for request to be executed");
+        request_tracker->print_oldeste_entry_hash();
+        throw std::logic_error("should not be here");
+        // TODO: we need to remove tx that we execute when just "applying a tx"
         return true;
       }
 
@@ -1839,19 +1851,21 @@ namespace aft
           }
           else
           {
-            try
-            {
-              executor->execute_request(
-                ds->get_request(),
-                request_tracker,
-                state->last_idx,
-                ds->get_max_conflict_version(),
-                ds->get_term());
-            }
-            catch(const std::exception& e)
-            {
-              LOG_FAIL_FMT("Got an except when execution for {}, e:{}", state->last_idx, e.what());
-            }
+            executor->execute_request(
+              ds->get_request(),
+              request_tracker,
+              state->last_idx,
+              ds->get_max_conflict_version(),
+              ds->get_term());
+          }
+          break;
+        }
+        case kv::ApplyResult::PASS_APPLY:
+        {
+          if (!ds->is_public_only())
+          {
+            LOG_INFO_FMT("removing hash for append entry, request_tracker:{}", request_tracker);
+            executor->mark_request_executed(ds->get_request(), request_tracker);
           }
           break;
         }
@@ -2178,7 +2192,10 @@ namespace aft
       progress_tracker->add_nonce_reveal(
         {r.term, r.idx}, r.nonce, from, node_count(), is_primary());
 
-      update_commit();
+      if (!public_only)
+      {
+        update_commit();
+      }
     }
 
     void recv_append_entries_response(

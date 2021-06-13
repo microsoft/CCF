@@ -117,6 +117,7 @@ namespace ccf
         }
       }
 
+      LOG_INFO_FMT("Request hash here");
       request_tracker->insert(
         msg.hash,
         threading::ThreadMessaging::thread_messaging.get_current_time_offset());
@@ -330,6 +331,7 @@ namespace ccf
               return;
             }
 
+            LOG_INFO_FMT("Request hash here");
             request_tracker->insert(
               hash->hash,
               threading::ThreadMessaging::thread_messaging
