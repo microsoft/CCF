@@ -1383,15 +1383,19 @@ namespace aft
 
       // Third, check index consistency, making sure entries are not in the past
       // or in the future
-      if (r.prev_idx < state->commit_idx)
+      if (
+        (consensus_type == ConsensusType::CFT &&
+         r.prev_idx < state->commit_idx) ||
+        r.prev_idx < state->bft_watermark_idx)
       {
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
+          "Recv append entries to {} from {} but prev_idx ({}), bft_watermark ({}) < commit_idx "
           "({})",
           state->my_node_id,
           from,
           r.prev_idx,
-          state->commit_idx);
+          state->commit_idx,
+          state->bft_watermark_idx);
         return;
       }
       else if (r.prev_idx > state->last_idx)

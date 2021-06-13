@@ -121,14 +121,15 @@ def run(args):
 
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
-            LOG.error(f"TTTTTTTTTTTTT i:{i}")
-            recovered_network = test(network, args, from_snapshot=True)
-            #if i % 2 == 0:
-            #    recovered_network = test_share_resilience(
-            #        network, args, from_snapshot=True
-            #    )
-            #else:
-            #    recovered_network = test(network, args, from_snapshot=False)
+            if i % 2 == 0:
+                if args.consensus != "bft":
+                    recovered_network = test_share_resilience(
+                        network, args, from_snapshot=True
+                    )
+                else:
+                    recovered_network = network
+            else:
+                recovered_network = test(network, args, from_snapshot=False)
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
 
@@ -144,7 +145,7 @@ and before applying new transactions, all transactions previously applied are
 checked. Note that the key for each logging message is unique (per table).
 """
         parser.add_argument(
-            "--recovery", help="Number of recoveries to perform", type=int, default=1
+            "--recovery", help="Number of recoveries to perform", type=int, default=2
         )
         parser.add_argument(
             "--msgs-per-recovery",

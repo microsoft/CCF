@@ -99,6 +99,8 @@ namespace aft
       current_view(0),
       last_idx(0),
       commit_idx(0),
+      cft_watermark_idx(0),
+      bft_watermark_idx(0),
       new_view_idx(0)
     {}
 
