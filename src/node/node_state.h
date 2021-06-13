@@ -300,7 +300,6 @@ namespace ccf
       {
         self = crypto::Sha256Hash(node_sign_kp->public_key_der()).hex_str();
       }
-
     }
 
     QuoteVerificationResult verify_quote(

@@ -1254,6 +1254,7 @@ namespace aft
         }
         else if (get_primary(r.term) != from)
         {
+          /*
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} at view:{} but the primary at "
             "this view should be {}",
@@ -1263,7 +1264,9 @@ namespace aft
             get_primary(r.term));
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
+          */
         }
+        /*
         else if (!view_change_tracker->check_evidence(r.term))
         {
           if (r.contains_new_view)
@@ -1283,6 +1286,7 @@ namespace aft
             return;
           }
         }
+        */
       }
 
       // First, check append entries term against our own term, becoming
@@ -1446,7 +1450,18 @@ namespace aft
           return;
         }
 
-        auto ds = store->apply(entry, consensus_type, public_only);
+        /*
+        bool cft_only = false;
+        if (state->my_node_id == ccf::NodeId("0000000000000000000000000000000000000000000000000000000000000005"))
+        {
+          LOG_FAIL_FMT("XXXXXXXXXXXXXXXXXXX id:{}", state->my_node_id);
+          cft_only = true;
+        }
+        LOG_FAIL_FMT("YYYYYYYYYYYYYYYYYYY id:{}", state->my_node_id);
+        */
+
+        auto ds = store->apply(
+          entry, consensus_type, public_only);
         if (ds == nullptr)
         {
           LOG_FAIL_FMT(
@@ -1835,12 +1850,19 @@ namespace aft
           }
           else
           {
-            executor->execute_request(
-              ds->get_request(),
-              request_tracker,
-              state->last_idx,
-              ds->get_max_conflict_version(),
-              ds->get_term());
+            try
+            {
+              executor->execute_request(
+                ds->get_request(),
+                request_tracker,
+                state->last_idx,
+                ds->get_max_conflict_version(),
+                ds->get_term());
+            }
+            catch(const std::exception& e)
+            {
+              LOG_FAIL_FMT("Got an except when execution for {}, e:{}", state->last_idx, e.what());
+            }
           }
           break;
         }
@@ -2241,6 +2263,7 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
+        LOG_INFO_FMT("ViewChangeConfirmation message requested by {}", from);
         ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
                                     state->current_view};
 

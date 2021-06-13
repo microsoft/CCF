@@ -486,6 +486,7 @@ class Network:
                 infra.node.State.PART_OF_PUBLIC_NETWORK.value,
                 timeout=args.ledger_recovery_timeout,
             )
+        LOG.success("All nodes marked as part of network")
         self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined public network")
 
@@ -691,7 +692,7 @@ class Network:
     def get_joined_nodes(self):
         return [node for node in self.nodes if node.is_joined()]
 
-    def wait_for_state(self, node, state, timeout=3):
+    def wait_for_state(self, node, state, timeout=10):
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
@@ -806,11 +807,13 @@ class Network:
         Wait for all nodes to have joined the network and committed all transactions
         executed on the primary.
         """
+        LOG.error("AAAAA")
         if not (primary or tx_id):
             raise ValueError("Either a valid TxID or primary node should be specified")
 
         end_time = time.time() + timeout
 
+        LOG.error("BBBBB")
         # If no TxID is specified, retrieve latest readable one
         if tx_id == None:
             while time.time() < end_time:
@@ -826,6 +829,7 @@ class Network:
                 tx_id.valid()
             ), f"Primary {primary.node_id} has not made any progress yet ({tx_id})"
 
+        LOG.error("CCCCC")
         caught_up_nodes = []
         logs = {}
         while time.time() < end_time:

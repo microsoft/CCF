@@ -24,6 +24,9 @@ def test(network, args, from_snapshot=False):
 
     network.stop_all_nodes()
 
+    LOG.error(f"number of nodes:{args.nodes}")
+    #raise TimeoutError
+
     recovered_network = infra.network.Network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
@@ -121,12 +124,14 @@ def run(args):
 
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
-            if i % 2 == 0:
-                recovered_network = test_share_resilience(
-                    network, args, from_snapshot=True
-                )
-            else:
-                recovered_network = test(network, args, from_snapshot=False)
+            LOG.error(f"TTTTTTTTTTTTT i:{i}")
+            recovered_network = test(network, args, from_snapshot=True)
+            #if i % 2 == 0:
+            #    recovered_network = test_share_resilience(
+            #        network, args, from_snapshot=True
+            #    )
+            #else:
+            #    recovered_network = test(network, args, from_snapshot=False)
             network = recovered_network
             LOG.success("Recovery complete on all nodes")
 
@@ -142,7 +147,7 @@ and before applying new transactions, all transactions previously applied are
 checked. Note that the key for each logging message is unique (per table).
 """
         parser.add_argument(
-            "--recovery", help="Number of recoveries to perform", type=int, default=2
+            "--recovery", help="Number of recoveries to perform", type=int, default=1
         )
         parser.add_argument(
             "--msgs-per-recovery",

@@ -858,11 +858,14 @@ namespace ccf
       {
         if (tx_id.seqno > highest_prepared_level.seqno)
         {
-          CCF_ASSERT_FMT(
-            tx_id.view >= highest_prepared_level.view,
-            "Prepared terms are moving backwards new_term:{}, current_term:{}",
-            tx_id.view,
-            highest_prepared_level.view);
+          if (tx_id.view < highest_prepared_level.view)
+          {
+            LOG_INFO_FMT(
+              "Prepared terms are moving backwards new_term:{}, "
+              "current_term:{}",
+              tx_id.view,
+              highest_prepared_level.view);
+          }
           highest_prepared_level = tx_id;
         }
 

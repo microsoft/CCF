@@ -1086,6 +1086,7 @@ namespace ccf
         // creations are in-flight and reading at the same version, all except
         // the first conflict and are re-executed. If we ever produce a
         // proposal ID which already exists, we must have a hash collision.
+        /*
         if (pm->has(proposal_id))
         {
           ctx.rpc_ctx->set_error(
@@ -1094,6 +1095,7 @@ namespace ccf
             "Proposal ID collision.");
           return;
         }
+        */
         pm->put(proposal_id, ctx.rpc_ctx->get_request_body());
 
         auto pi =
