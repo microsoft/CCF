@@ -121,5 +121,5 @@ if __name__ == "__main__":
                 dump_entry(transaction, table_filter)
 
         LOG.success(
-            f"Ledger verification complete. Found {ledger.signature_count()} signatures, and verified till {ledger.last_verified_txid()}"
+            f"Ledger verification complete. Found {ledger.signature_count()} signatures, and verified until {ledger.last_verified_txid()}"
         )
