@@ -57,8 +57,7 @@ def run(args):
             reconfiguration.test_add_node(network, args)
             # Suspend primary repeatedly and check the network still operates
             LOG.info(f"Suspending primary {args.rotation_suspensions} times")
-            # for i in range(args.rotation_suspensions):
-            for i in range(10):
+            for i in range(args.rotation_suspensions):
                 LOG.warning(f"Suspension {i}")
                 test_suspend_primary(network, args)
 
