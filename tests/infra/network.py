@@ -760,6 +760,16 @@ class Network:
 
         if primary_id is None:
             flush_info(logs, log_capture, 0)
+            for node in asked_nodes:
+                with node.client() as c:
+                    try:
+                        res = c.get("/node/consensus")
+                        assert res.status_code == http.HTTPStatus.OK.value, res
+                        LOG.warning(res.body.json())
+                    except CCFConnectionException:
+                        LOG.warning(
+                            f"Could not successfully connect to node {node.local_node_id}"
+                        )
             raise PrimaryNotFound
 
         flush_info(logs, log_capture, 0)
