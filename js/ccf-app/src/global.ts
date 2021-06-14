@@ -177,6 +177,18 @@ export interface CryptoKeyPair {
   publicKey: string;
 }
 
+export interface RsaPkcsParams {
+  name: "RSASSA-PKCS1-v1_5";
+  hash: DigestAlgorithm;
+}
+
+export interface EcdsaParams {
+  name: "ECDSA";
+  hash: DigestAlgorithm;
+}
+
+export type SigningAlgorithm = RsaPkcsParams | EcdsaParams;
+
 export type DigestAlgorithm = "SHA-256";
 
 export interface CCF {
@@ -230,6 +242,23 @@ export interface CCF {
     wrappingKey: ArrayBuffer,
     wrapAlgo: WrapAlgoParams
   ): ArrayBuffer;
+
+  /**
+   * Returns whether digital signature is valid.
+   * 
+   * @param algorithm Signing algorithm and parameters
+   * @param key A PEM-encoded public key or X.509 certificate
+   * @param signature Signature to verify
+   * @param data Data that was signed
+   * @throws Will throw an error if the key is not compatible with the
+   *  signing algorithm or if an unknown algorithm is used.
+   */
+  verifySignature(
+    algorithm: SigningAlgorithm,
+    key: ArrayBuffer,
+    signature: ArrayBuffer,
+    data: ArrayBuffer
+  ): boolean;
 
   /**
    * Generate a digest (hash) of the given data.
