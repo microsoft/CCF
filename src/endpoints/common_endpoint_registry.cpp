@@ -197,7 +197,7 @@ namespace ccf
       .install();
 
     auto endpoint_metrics_fn = [this](auto&, nlohmann::json&&) {
-      std::lock_guard<SpinLock> guard(metrics_lock);
+      std::lock_guard<std::mutex> guard(metrics_lock);
       EndpointMetrics::Out out;
       for (const auto& [path, verb_metrics] : metrics)
       {

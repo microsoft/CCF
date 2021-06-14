@@ -353,28 +353,28 @@ namespace ccf::endpoints
 
   void EndpointRegistry::increment_metrics_calls(const EndpointDefinitionPtr& e)
   {
-    std::lock_guard<SpinLock> guard(metrics_lock);
+    std::lock_guard<std::mutex> guard(metrics_lock);
     get_metrics_for_endpoint(e).calls++;
   }
 
   void EndpointRegistry::increment_metrics_errors(
     const EndpointDefinitionPtr& e)
   {
-    std::lock_guard<SpinLock> guard(metrics_lock);
+    std::lock_guard<std::mutex> guard(metrics_lock);
     get_metrics_for_endpoint(e).errors++;
   }
 
   void EndpointRegistry::increment_metrics_failures(
     const EndpointDefinitionPtr& e)
   {
-    std::lock_guard<SpinLock> guard(metrics_lock);
+    std::lock_guard<std::mutex> guard(metrics_lock);
     get_metrics_for_endpoint(e).failures++;
   }
 
   void EndpointRegistry::increment_metrics_retries(
     const EndpointDefinitionPtr& e)
   {
-    std::lock_guard<SpinLock> guard(metrics_lock);
+    std::lock_guard<std::mutex> guard(metrics_lock);
     get_metrics_for_endpoint(e).retries++;
   }
 }

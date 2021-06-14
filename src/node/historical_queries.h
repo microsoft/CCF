@@ -5,7 +5,6 @@
 #include "ccf/historical_queries_interface.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
-#include "ds/spin_lock.h"
 #include "kv/store.h"
 #include "node/encryptor.h"
 #include "node/history.h"
@@ -351,7 +350,7 @@ namespace ccf::historical
     };
 
     // Guard all access to internal state with this lock
-    SpinLock requests_lock;
+    std::mutex requests_lock;
 
     // Track all things currently requested by external callers
     std::map<RequestHandle, Request> requests;
@@ -612,7 +611,7 @@ namespace ccf::historical
       size_t num_following_indices,
       ExpiryDuration seconds_until_expiry)
     {
-      std::lock_guard<SpinLock> guard(requests_lock);
+      std::lock_guard<std::mutex> guard(requests_lock);
 
       const auto ms_until_expiry =
         std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -793,14 +792,14 @@ namespace ccf::historical
 
     bool drop_request(RequestHandle handle) override
     {
-      std::lock_guard<SpinLock> guard(requests_lock);
+      std::lock_guard<std::mutex> guard(requests_lock);
       const auto erased_count = requests.erase(handle);
       return erased_count > 0;
     }
 
     bool handle_ledger_entry(ccf::SeqNo seqno, const LedgerEntry& data)
     {
-      std::lock_guard<SpinLock> guard(requests_lock);
+      std::lock_guard<std::mutex> guard(requests_lock);
       const auto it = pending_fetches.find(seqno);
       if (it == pending_fetches.end())
       {
@@ -888,7 +887,7 @@ namespace ccf::historical
 
     void handle_no_entry(ccf::SeqNo seqno)
     {
-      std::lock_guard<SpinLock> guard(requests_lock);
+      std::lock_guard<std::mutex> guard(requests_lock);
 
       // The host failed or refused to give this entry. Currently just
       // forget about it and drop any requests which were looking for it - don't
@@ -905,7 +904,7 @@ namespace ccf::historical
 
     void tick(const std::chrono::milliseconds& elapsed_ms)
     {
-      std::lock_guard<SpinLock> guard(requests_lock);
+      std::lock_guard<std::mutex> guard(requests_lock);
       auto it = requests.begin();
       while (it != requests.end())
       {
