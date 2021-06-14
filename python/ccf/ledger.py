@@ -11,7 +11,6 @@ from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict, List
 import json
 import base64
 from dataclasses import dataclass
-import abc
 
 from loguru import logger as LOG  # type: ignore
 from cryptography.x509 import load_pem_x509_certificate
@@ -439,7 +438,7 @@ class TransactionHeader:
         )
 
 
-class Entry(abc.ABC):
+class Entry:
     _file: Optional[BinaryIO] = None
     _header: TransactionHeader
     _public_domain_size: int = 0
@@ -447,8 +446,10 @@ class Entry(abc.ABC):
     _file_size: int = 0
     gcm_header: Optional[GcmHeader] = None
 
-    @abc.abstractmethod
     def __init__(self, filename: str):
+        if type(self) == Entry:
+            raise TypeError("Entry is not instantiable")
+
         self._file = open(filename, mode="rb")
         if self._file is None:
             raise RuntimeError(f"File {filename} could not be opened")
