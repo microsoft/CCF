@@ -49,18 +49,18 @@ jobs:
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}"
           suffix: "Debug"
           artifact_name: "${{ target }}_Debug"
-          ctest_filter: "${{ parameters.test[target].ctest_args }}"
+          ctest_filter: '-R code_update_test --repeat-until-fail 10'
 
   # Performance
-  - ${{ if eq(parameters.perf_tests, 'run') }}:
-      - template: common.yml
-        parameters:
-          target: SGX
-          env: ${{ parameters.env.Perf }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
-          suffix: "Perf"
-          artifact_name: "SGX_Perf"
-          ctest_filter: "${{ parameters.test.perf.ctest_args }}"
+  # - ${{ if eq(parameters.perf_tests, 'run') }}:
+  #     - template: common.yml
+  #       parameters:
+  #         target: SGX
+  #         env: ${{ parameters.env.Perf }}
+  #         cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}"
+  #         suffix: "Perf"
+  #         artifact_name: "SGX_Perf"
+  #         ctest_filter: "${{ parameters.test.perf.ctest_args }}"
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
@@ -75,7 +75,7 @@ jobs:
           cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.release.cmake_args }}"
           suffix: "Release"
           artifact_name: "SGX_Release"
-          ctest_filter: "${{ parameters.test.release.ctest_args }}"
+          ctest_filter: '-R code_update_test --repeat-until-fail 10'
 
       - template: release.yml
         parameters:
