@@ -232,14 +232,10 @@ namespace aft
       auto it = view_changes.find(view);
       if (it == view_changes.end())
       {
-        /*
         LOG_FAIL_FMT(
           "Cannot write unknown view-change to ledger, view:{}", view);
         throw std::logic_error(fmt::format(
           "Cannot write unknown view-change to ledger, view:{}", view));
-        */
-
-        return ccf::ViewChangeConfirmation(view);
       }
 
       auto& vc = it->second;

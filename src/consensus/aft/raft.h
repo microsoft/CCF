@@ -401,7 +401,7 @@ namespace aft
 
     Index get_commit_idx()
     {
-      //std::lock_guard<std::mutex> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return state->commit_idx;
     }
 
@@ -437,7 +437,7 @@ namespace aft
 
     Term get_term(Index idx)
     {
-      //std::lock_guard<std::mutex> guard(state->lock);
+      std::lock_guard<std::mutex> guard(state->lock);
       return get_term_internal(idx);
     }
 
@@ -1393,8 +1393,9 @@ namespace aft
           state->my_node_id,
           from,
           r.prev_idx,
-          state->commit_idx,
-          state->bft_watermark_idx);
+          state->bft_watermark_idx,
+          state->commit_idx
+          );
         return;
       }
       else if (r.prev_idx > state->last_idx)
