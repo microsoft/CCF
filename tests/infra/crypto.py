@@ -176,7 +176,7 @@ def unwrap_key_rsa_oaep_aes_pad(
 
 
 def sign(algorithm: dict, key_pem: str, data: bytes) -> bytes:
-    key = load_pem_private_key(key_pem.encode("ascii"), default_backend())
+    key = load_pem_private_key(key_pem.encode("ascii"), None, default_backend())
     if algorithm["hash"] == "SHA-256":
         hash_alg = hashes.SHA256()
     else:
@@ -193,6 +193,7 @@ def sign(algorithm: dict, key_pem: str, data: bytes) -> bytes:
             raise ValueError("Unsupported signing algorithm")
     else:
         raise ValueError("Unsupported key type")
+
 
 def pub_key_pem_to_der(pem: str) -> bytes:
     cert = load_pem_public_key(pem.encode("ascii"), default_backend())

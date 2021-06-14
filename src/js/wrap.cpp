@@ -1044,6 +1044,11 @@ namespace js
     JS_SetPropertyStr(
       ctx, ccf, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
     JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "verifySignature",
+      JS_NewCFunction(ctx, js_verify_signature, "verifySignature", 4));
+    JS_SetPropertyStr(
       ctx, ccf, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
     JS_SetPropertyStr(
       ctx,

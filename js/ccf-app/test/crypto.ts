@@ -83,7 +83,7 @@ export function generateSelfSignedCert() {
   return {
     privateKey: keys.privateKey,
     publicKey: keys.publicKey,
-    cert: certPem
+    cert: certPem,
   };
 }
 

@@ -104,24 +104,55 @@ describe("polyfill", function () {
       const data = ccf.strToBuf("foo");
       signer.update(new Uint8Array(data));
       signer.end();
-      const signature = signer.sign(privateKey);
-      assert.isTrue(ccf.verifySignature({
-        name: "RSASSA-PKCS1-v1_5",
-        hash: "SHA-256"
-      }, ccf.strToBuf(cert), signature, data));
-      assert.isTrue(ccf.verifySignature({
-        name: "RSASSA-PKCS1-v1_5",
-        hash: "SHA-256"
-      }, ccf.strToBuf(publicKey), signature, data));
-      assert.isNotTrue(ccf.verifySignature({
-        name: "RSASSA-PKCS1-v1_5",
-        hash: "SHA-256"
-      }, ccf.strToBuf(cert), signature, ccf.strToBuf("bar")));
-      assert.throws(() => ccf.verifySignature({
-        name: "ECDSA",
-        hash: "SHA-256"
-      }, ccf.strToBuf(publicKey), signature, data));
-    })
+      const signature = signer.sign({
+        key: crypto.createPrivateKey(privateKey),
+        padding: crypto.constants.RSA_PKCS1_PADDING,
+      });
+      assert.isTrue(
+        ccf.verifySignature(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          cert,
+          signature,
+          data
+        )
+      );
+      assert.isTrue(
+        ccf.verifySignature(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+      assert.isNotTrue(
+        ccf.verifySignature(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          cert,
+          signature,
+          ccf.strToBuf("bar")
+        )
+      );
+      assert.throws(() =>
+        ccf.verifySignature(
+          {
+            name: "ECDSA",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+    });
     it("performs ECDSA validation correctly", function () {
       // Not validating EC with certs here as node-forge used in
       // generateSelfSignedCert() does not support EC keys.
@@ -140,21 +171,44 @@ describe("polyfill", function () {
       const data = ccf.strToBuf("foo");
       signer.update(new Uint8Array(data));
       signer.end();
-      const signature = signer.sign(privateKey);
-      assert.isTrue(ccf.verifySignature({
-        name: "ECDSA",
-        hash: "SHA-256"
-      }, ccf.strToBuf(publicKey), signature, data));
-      assert.isNotTrue(ccf.verifySignature({
-        name: "ECDSA",
-        hash: "SHA-256"
-      }, ccf.strToBuf(publicKey), signature, ccf.strToBuf("bar")));
-      assert.throws(() => ccf.verifySignature({
-        name: "RSASSA-PKCS1-v1_5",
-        hash: "SHA-256"
-      }, ccf.strToBuf(publicKey), signature, data));
-    })
-  })
+      const signature = signer.sign({
+        key: crypto.createPrivateKey(privateKey),
+      });
+      assert.isTrue(
+        ccf.verifySignature(
+          {
+            name: "ECDSA",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+      assert.isNotTrue(
+        ccf.verifySignature(
+          {
+            name: "ECDSA",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          ccf.strToBuf("bar")
+        )
+      );
+      assert.throws(() =>
+        ccf.verifySignature(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+    });
+  });
   describe("digest", function () {
     it("generates a valid SHA-256 hash", function () {
       const data = "Hello world!";

@@ -99,10 +99,10 @@ export function wrapKey(
 }
 
 interface VerifySignatureRequest {
-  algorithm: ccfcrypto.SigningAlgorithm,
-  key: string,
-  signature: Base64,
-  data: Base64
+  algorithm: ccfcrypto.SigningAlgorithm;
+  key: string;
+  signature: Base64;
+  data: Base64;
 }
 
 export function verifySignature(
@@ -110,9 +110,13 @@ export function verifySignature(
 ): ccfapp.Response<boolean> {
   const body = request.body.json();
   const result = ccfcrypto.verifySignature(
-    body.algorithm, ccfapp.string.encode(body.key), b64ToBuf(body.signature), b64ToBuf(body.data));
+    body.algorithm,
+    body.key,
+    b64ToBuf(body.signature),
+    b64ToBuf(body.data)
+  );
   return {
-    body: result
+    body: result,
   };
 }
 

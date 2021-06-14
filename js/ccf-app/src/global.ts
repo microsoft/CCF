@@ -245,7 +245,7 @@ export interface CCF {
 
   /**
    * Returns whether digital signature is valid.
-   * 
+   *
    * @param algorithm Signing algorithm and parameters
    * @param key A PEM-encoded public key or X.509 certificate
    * @param signature Signature to verify
@@ -255,7 +255,7 @@ export interface CCF {
    */
   verifySignature(
     algorithm: SigningAlgorithm,
-    key: ArrayBuffer,
+    key: string,
     signature: ArrayBuffer,
     data: ArrayBuffer
   ): boolean;

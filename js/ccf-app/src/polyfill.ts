@@ -170,26 +170,35 @@ class CCFPolyfill implements CCF {
 
   verifySignature(
     algorithm: SigningAlgorithm,
-    key: ArrayBuffer,
+    key: string,
     signature: ArrayBuffer,
     data: ArrayBuffer
   ): boolean {
-    const pubKey = crypto.createPublicKey(this.bufToStr(key));
-    if (pubKey.asymmetricKeyType == 'rsa') {
-      if (algorithm.name !== 'RSASSA-PKCS1-v1_5') {
+    let padding = undefined;
+    const pubKey = crypto.createPublicKey(key);
+    if (pubKey.asymmetricKeyType == "rsa") {
+      if (algorithm.name === "RSASSA-PKCS1-v1_5") {
+        padding = crypto.constants.RSA_PKCS1_PADDING;
+      } else {
         throw new Error("incompatible signing algorithm for given key type");
       }
-    } else if (pubKey.asymmetricKeyType == 'ec') {
-      if (algorithm.name !== 'ECDSA') {
+    } else if (pubKey.asymmetricKeyType == "ec") {
+      if (algorithm.name !== "ECDSA") {
         throw new Error("incompatible signing algorithm for given key type");
       }
     } else {
       throw new Error("unrecognized signing algorithm");
     }
-    const hashAlg = algorithm.hash.replace('-', '').toLowerCase();
+    const hashAlg = algorithm.hash.replace("-", "").toLowerCase();
     const verifier = crypto.createVerify(hashAlg);
     verifier.update(new Uint8Array(data));
-    return verifier.verify(pubKey, new Uint8Array(signature));
+    return verifier.verify(
+      {
+        key: pubKey,
+        padding: padding,
+      },
+      new Uint8Array(signature)
+    );
   }
 
   digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer {
