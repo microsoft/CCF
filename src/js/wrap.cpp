@@ -771,12 +771,13 @@ namespace js
 
   JSValue load_app_module(JSContext* ctx, const char* module_name, kv::Tx* tx)
   {
-    // QuickJS resolves relative paths but in some cases omits leading slashes.
     std::string module_name_kv(module_name);
     if (module_name_kv[0] != '/')
     {
       module_name_kv.insert(0, "/");
     }
+    // conforms to quickjs' default module filename normalizer
+    auto module_name_quickjs = module_name_kv.c_str() + 1;
 
     const auto modules = tx->ro<ccf::Modules>(ccf::Tables::MODULES);
 
@@ -807,7 +808,7 @@ namespace js
         ctx,
         buf,
         buf_len,
-        module_name,
+        module_name_quickjs,
         JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
       if (JS_IsException(module_val))
       {
@@ -903,18 +904,7 @@ namespace js
     try
     {
       modules->foreach([&](const auto& name, const auto& src) {
-        JSValue module_val = JS_Eval(
-          ctx2,
-          src.c_str(),
-          src.size(),
-          name.c_str(),
-          JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-        if (JS_IsException(module_val))
-        {
-          js_dump_error(ctx2);
-          throw std::runtime_error(
-            fmt::format("Unable to compile JS module '{}'", name));
-        }
+        JSValue module_val = load_app_module(ctx2, name.c_str(), &tx);
 
         uint8_t* out_buf;
         size_t out_buf_len;
