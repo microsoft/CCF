@@ -106,11 +106,11 @@ if __name__ == "__main__":
 
     if args.snapshot:
         snapshot_file = args.paths[0]
-        snapshot = ccf.ledger.Snapshot(snapshot_file)
-        LOG.info(
-            f"Reading snapshot from {snapshot_file} ({'' if snapshot.commit_seqno() else 'un'}committed)"
-        )
-        dump_entry(snapshot, table_filter)
+        with ccf.ledger.Snapshot(snapshot_file) as snapshot:
+            LOG.info(
+                f"Reading snapshot from {snapshot_file} ({'' if snapshot.commit_seqno() else 'un'}committed)"
+            )
+            dump_entry(snapshot, table_filter)
     else:
         ledger_dirs = args.paths
         ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=not args.uncommitted)

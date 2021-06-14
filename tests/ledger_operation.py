@@ -41,8 +41,10 @@ def test_parse_snapshot_file(network, args):
     network.txs.issue(network, number_txs=args.snapshot_tx_interval * 2)
     committed_snapshots_dir = network.get_committed_snapshots(primary)
     for snapshot in os.listdir(committed_snapshots_dir):
-        s = ccf.ledger.Snapshot(os.path.join(committed_snapshots_dir, snapshot))
-        assert len(s.get_public_domain().get_tables()), "No public table in snapshot"
+        with ccf.ledger.Snapshot(os.path.join(committed_snapshots_dir, snapshot)) as s:
+            assert len(
+                s.get_public_domain().get_tables()
+            ), "No public table in snapshot"
     return network
 
 

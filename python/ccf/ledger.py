@@ -453,8 +453,13 @@ class Entry(abc.ABC):
         if self._file is None:
             raise RuntimeError(f"File {filename} could not be opened")
 
-    # TODO: Fix
-    def __del__(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+    def close(self):
         self._file.close()
 
     def _read_header(self):
@@ -556,13 +561,15 @@ class Transaction(Entry):
 
     def __next__(self):
         if self._next_offset == self._file_size:
+            super().close()
             raise StopIteration()
 
         self._complete_read()
         self._read_header()
 
         # Adds every transaction to the ledger validator
-        # LedgerValidator does verification for every added transaction and throws when it finds any anomaly.
+        # LedgerValidator does verification for every added transaction
+        # and throws when it finds any anomaly.
         self._ledger_validator.add_transaction(self)
 
         return self
@@ -594,6 +601,7 @@ class LedgerChunk:
     Class used to parse and iterate over :py:class:`ccf.ledger.Transaction` in a CCF ledger chunk.
 
     :param str name: Name for a single ledger chunk.
+    :param LedgerValidator ledger_validator: :py:class:`LedgerValidator` instance used to verify ledger integrity.
     """
 
     _current_tx: Transaction

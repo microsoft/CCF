@@ -319,7 +319,8 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
             # Check that ledger and snapshots can be parsed
             ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
             for s in os.listdir(snapshot_dir):
-                ccf.ledger.Snapshot(os.path.join(snapshot_dir, s)).get_public_domain()
+                with ccf.ledger.Snapshot(os.path.join(snapshot_dir, s)) as snapshot:
+                    snapshot.get_public_domain()
 
     return lts_versions
 
