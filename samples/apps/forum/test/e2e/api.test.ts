@@ -6,7 +6,7 @@ import * as tmp from "tmp";
 import * as crypto from "crypto";
 import forge from "node-forge";
 import { assert } from "chai";
-import bent from "bent";
+import bent_ from "bent";
 import jwt from "jsonwebtoken";
 import papa from "papaparse";
 import { NODE_ADDR, setupMochaCCFSandbox } from "./util";
@@ -85,6 +85,21 @@ class FakeAuth {
       authorization: `Bearer ${token}`,
     };
   }
+}
+
+// Wrap bent to dump response body on errors.
+function bent(...args) {
+  async function wrap(...args2) {
+    try {
+      return await (<any>bent_)(...args)(...args2);
+    } catch (e) {
+      if (e.name === "StatusError") {
+        e.message += " " + (await e.text());
+      }
+      throw e;
+    }
+  }
+  return wrap;
 }
 
 // Note: In order to use a single CCF instance (and hence keep tests fast),
