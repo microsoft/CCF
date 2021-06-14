@@ -284,21 +284,17 @@ namespace kv
       {
         case (kv::ReplicateType::ALL):
         {
-          LOG_INFO_FMT("OOOOOOOOO ALL");
           return true;
         }
 
         case (kv::ReplicateType::NONE):
         {
-          LOG_INFO_FMT("OOOOOOOOO NONE");
           return false;
         }
 
         case (kv::ReplicateType::SOME):
         {
-          bool result = (replicated_tables.find(name) != replicated_tables.end());
-          LOG_INFO_FMT("OOOOOOOOOOOO name:{}, result:{}", name, result);
-          return result;
+          return replicated_tables.find(name) != replicated_tables.end();
         }
 
         default:
@@ -758,7 +754,6 @@ namespace kv
       ConsensusType consensus_type,
       bool public_only = false) override
     {
-      LOG_INFO_FMT("is public_only: {}", public_only);
       if (consensus_type == ConsensusType::CFT)
       {
         auto exec = std::make_unique<CFTExecutionWrapper>(

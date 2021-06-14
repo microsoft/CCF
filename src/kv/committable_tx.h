@@ -84,7 +84,6 @@ namespace kv
             map->get_security_domain() == domain && map->is_replicated() &&
             changeset->has_writes())
           {
-            LOG_INFO_FMT("serializing changes to map:{}", it.first);
             map->serialise_changes(
               changeset.get(), replicated_serialiser, include_reads);
           }
@@ -197,7 +196,7 @@ namespace kv
         // From here, we have received a unique commit version and made
         // modifications to our local kv. If we fail in any way, we cannot
         // recover.
-        //try
+        // try
         {
           auto data = serialise();
 

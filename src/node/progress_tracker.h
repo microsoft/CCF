@@ -865,6 +865,7 @@ namespace ccf
               "current_term:{}",
               tx_id.view,
               highest_prepared_level.view);
+            return false;
           }
           highest_prepared_level = tx_id;
         }

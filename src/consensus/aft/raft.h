@@ -1086,8 +1086,6 @@ namespace aft
         oldest_entry.value() + view_change_timeout < time)
       {
         LOG_FAIL_FMT("Timeout waiting for request to be executed");
-        request_tracker->print_oldeste_entry_hash();
-        // TODO: we need to remove tx that we execute when just "applying a tx"
         return true;
       }
 
@@ -1388,14 +1386,14 @@ namespace aft
         r.prev_idx < state->bft_watermark_idx)
       {
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idx ({}), bft_watermark ({}) < commit_idx "
+          "Recv append entries to {} from {} but prev_idx ({}), bft_watermark "
+          "({}) < commit_idx "
           "({})",
           state->my_node_id,
           from,
           r.prev_idx,
           state->bft_watermark_idx,
-          state->commit_idx
-          );
+          state->commit_idx);
         return;
       }
       else if (r.prev_idx > state->last_idx)
@@ -1871,7 +1869,6 @@ namespace aft
         {
           if (!ds->is_public_only())
           {
-            LOG_INFO_FMT("removing hash for append entry, request_tracker:{}", request_tracker);
             executor->mark_request_executed(ds->get_request(), request_tracker);
           }
           break;
@@ -2276,7 +2273,6 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        LOG_INFO_FMT("ViewChangeConfirmation message requested by {}", from);
         ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
                                     state->current_view};
 

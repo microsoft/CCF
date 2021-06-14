@@ -127,11 +127,6 @@ namespace aft
       return requests_list.get_head()->time;
     }
 
-    void print_oldeste_entry_hash()
-    {
-      LOG_INFO_FMT("Oldest entry hash {}", requests_list.get_head()->hash);
-    }
-
     bool is_empty()
     {
       std::unique_lock<std::mutex> guard(lock);

@@ -158,12 +158,6 @@ namespace ccf
         {wrapped_latest_ls,
          compute_encrypted_shares(tx, ls_wrapping_key),
          latest_ledger_secret->previous_secret_stored_version});
-         /*
-RecoverySharesInfo foo;
-      recovery_shares->put(
-        0,
-        foo);
-        */
     }
 
     void set_recovery_shares_info(

@@ -441,7 +441,9 @@ namespace ccf
 
             // Pad node id string to avoid memory alignment issues on
             // node-to-node messages
-            self = NodeId("0000000000000000000000000000000000000000000000000000000000000004");
+            self = NodeId(
+              "000000000000000000000000000000000000000000000000000000000000000"
+              "4");
           }
 
           node_info_network = config.node_info_network;
@@ -1128,7 +1130,6 @@ namespace ccf
 
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
-      // TODO: turn on forwarder request tracking;
 
       // Snapshots are only generated after recovery is complete
       snapshotter->set_snapshot_generation(true);
@@ -1927,7 +1928,6 @@ namespace ccf
       auto view_change_tracker = std::make_unique<aft::ViewChangeTracker>(
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
-      LOG_INFO_FMT("My node id is {}", self);
       auto shared_state = std::make_shared<aft::State>(self);
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,

@@ -161,7 +161,7 @@ namespace messaging
       }
 
       // Handlers may register or remove handlers, so iterator is invalidated
-      //try
+      // try
       {
         it->second(data, size);
       }

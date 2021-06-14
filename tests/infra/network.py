@@ -215,9 +215,7 @@ class Network:
         }
 
         # Contact primary if no target node is set
-        LOG.error("AAAAA do we need to call find_primary")
         if target_node is None:
-            LOG.error("AAAAA calling find_primary")
             target_node, _ = self.find_primary(
                 timeout=args.ledger_recovery_timeout if recovery else 3
             )
@@ -486,7 +484,6 @@ class Network:
                 infra.node.State.PART_OF_PUBLIC_NETWORK.value,
                 timeout=args.ledger_recovery_timeout,
             )
-        LOG.success("All nodes marked as part of network")
         self.wait_for_all_nodes_to_commit(primary=primary)
         LOG.success("All nodes joined public network")
 
@@ -746,7 +743,6 @@ class Network:
                         res = c.get("/node/network", log_capture=logs)
                         assert res.status_code == http.HTTPStatus.OK.value, res
 
-                        LOG.error(f"BBBBBBBBB we got a response");
                         body = res.body.json()
                         view = body["current_view"]
                         primary_id = body["primary_id"]
@@ -767,8 +763,6 @@ class Network:
             raise PrimaryNotFound
 
         flush_info(logs, log_capture, 0)
-
-        LOG.error(f"BBBBBBBBB primary_id:{primary_id}:");
 
         return (self._get_node_by_service_id(primary_id), view)
 
@@ -807,13 +801,11 @@ class Network:
         Wait for all nodes to have joined the network and committed all transactions
         executed on the primary.
         """
-        LOG.error("AAAAA")
         if not (primary or tx_id):
             raise ValueError("Either a valid TxID or primary node should be specified")
 
         end_time = time.time() + timeout
 
-        LOG.error("BBBBB")
         # If no TxID is specified, retrieve latest readable one
         if tx_id == None:
             while time.time() < end_time:
@@ -829,7 +821,6 @@ class Network:
                 tx_id.valid()
             ), f"Primary {primary.node_id} has not made any progress yet ({tx_id})"
 
-        LOG.error("CCCCC")
         caught_up_nodes = []
         logs = {}
         while time.time() < end_time:

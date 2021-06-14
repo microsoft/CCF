@@ -90,7 +90,7 @@ namespace kv
           changes.size() > 2 ||
           changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) == changes.end())
         {
-          LOG_FAIL_FMT("Failed to deserialise, size:{}", changes.size());
+          LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
           return ApplyResult::FAIL;
         }
