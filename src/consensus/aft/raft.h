@@ -475,6 +475,11 @@ namespace aft
       {
         details.acks[k] = v.match_idx;
       }
+      const auto vh = get_term_history(get_last_idx());
+      for (size_t i = 0; i < vh.size(); ++i)
+      {
+        details.view_history.push_back(std::make_pair(i, vh[i]));
+      }
       return details;
     }
 
