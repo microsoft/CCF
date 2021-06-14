@@ -1,7 +1,7 @@
 Key-Value Store How-To
 ======================
 
-The Key-Value :cpp:class:`kv::Store` is a collection of :cpp:class:`kv::Maps` that are available from all the end-points of an application. There is one unique ``Store`` created in the enclave of each node that is passed to the constructor of all applications.
+The Key-Value :cpp:class:`kv::Store` is a collection of :cpp:class:`kv::Map` objects that are available from all the end-points of an application. There is one unique ``Store`` created in the enclave of each node that is passed to the constructor of all applications.
 
 .. code-block:: cpp
 
@@ -10,7 +10,7 @@ The Key-Value :cpp:class:`kv::Store` is a collection of :cpp:class:`kv::Maps` th
 Creating a Map
 --------------
 
-A :cpp:type:`kv::Map` (often referred to as a ``Table``) is a collection of key-value pairs of a given type. The :cpp:type:`kv::Map` itself is identified by its name, which is used to lookup the map :cpp:type:`kv::Map` in a `cpp:class:`kv::Store` during a transaction.
+A :cpp:type:`kv::Map` (often referred to as a ``Table``) is a collection of key-value pairs of a given type. The :cpp:type:`kv::Map` itself is identified by its name, which is used to lookup the map :cpp:type:`kv::Map` in a :cpp:class:`kv::Store` during a transaction.
 
 If a ``Map`` with the given name did not previously exist, it will be created in this transaction..
 
@@ -34,7 +34,7 @@ By name:
 
     // Handle for map1
     auto map1_handle = tx.rw<kv::Map<string, string>>("map1");
-    
+
     // Handles for 2 other maps, one public and one private, with different types
     auto map2_handle = tx.rw<kv::Map<string, uint64_t>>("public:map2");
     auto map3_handle = tx.rw<kv::Map<uint64_t, MyCustomClass>>("map3");

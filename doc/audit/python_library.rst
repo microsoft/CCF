@@ -1,7 +1,7 @@
 Python Library
 ==============
 
-This page describes the Python API of the :py:class:`ccf.ledger` module which can be used by auditors to parse a CCF ledger. To install the `ccf` Python package, run:
+This page describes the Python API of the :py:class:`ccf.ledger` module which can be used by auditors to parse a CCF ledger. To install the ``ccf`` Python package, run:
 
 .. code-block:: bash
 
@@ -14,7 +14,7 @@ This page describes the Python API of the :py:class:`ccf.ledger` module which ca
 Tutorial
 --------
 
-This tutorial demonstrates how to parse the ledger produced by a CCF node. It shows a very basic example which loops through all transactions in the ledger and counts how many times all keys in a target key-value store table are updated.
+This tutorial demonstrates how to parse the ledger produced by a CCF node. It shows a very basic example which loops through all transactions in the ledger and displays the content of all updates to a well-known built-in table.
 
 First, the paths to the ledger directories should be set:
 
@@ -75,24 +75,25 @@ The ``read_ledger.py`` command line utility can be used to parse, verify the int
     ...
     Ledger verification complete. Found 15 signatures, and verified until 2.52 # Ledger integrity verified up to seqno 2.52
 
+By default, non-committed ledger files are ignored, unless the ``--uncommitted`` command line argument is specified.
+
 Alternatively, ``read_ledger.py`` can parse the content of a snapshot file:
 
 .. code-block:: bash
 
     $ read_ledger.py --snapshot /path/to/snapshot/file
-    Reading snapshot from /path/to/snapshot/file
+    Reading snapshot from /path/to/snapshot/file (committed)
       seqno 12 (15 public tables)
     ...
 
 .. note::
 
-    The output of the ``read_ledger.py`` utility can be filtered out using the ``--tables <regex>`` arguments, e.g.:
+    The output of the ``read_ledger.py`` utility can be filtered by key-value store :ref:`table <build_apps/kv/kv_how_to/Creating a Map>` using the ``--tables <regex>`` arguments, e.g.:
 
     .. code-block:: bash
 
         $ read_ledger.py /path/to/ledger/dir --tables ".*ccf.gov.proposals.*"
-        # Only displays governance proposal-related tables
-
+        # Only displays governance proposal related tables
 
 Example
 -------

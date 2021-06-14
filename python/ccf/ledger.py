@@ -453,6 +453,10 @@ class Entry(abc.ABC):
         if self._file is None:
             raise RuntimeError(f"File {filename} could not be opened")
 
+    # TODO: Fix
+    def __del__(self):
+        self._file.close()
+
     def _read_header(self):
         # read the transaction header
         buffer = _byte_read_safe(self._file, TransactionHeader.get_size())
@@ -519,9 +523,6 @@ class Transaction(Entry):
                     f"Could not read ledger header size in uncommitted ledger file '{filename}'"
                 )
 
-    def __del__(self):
-        self._file.close()
-
     def _read_header(self):
         self._tx_offset = self._file.tell()
         super()._read_header()
@@ -572,13 +573,20 @@ class Snapshot(Entry):
     Utility used to parse the content of a snapshot file.
     """
 
+    _filename: str
+
     def __init__(self, filename: str):
         super().__init__(filename)
+        self._filename = filename
         self._file_size = os.path.getsize(filename)
         super()._read_header()
 
-    def __del__(self):
-        self._file.close()
+    def commit_seqno(self):
+        try:
+            return int(self._filename.split("committed_")[1])
+        except IndexError:
+            # Snapshot is not yet committed
+            return None
 
 
 class LedgerChunk:

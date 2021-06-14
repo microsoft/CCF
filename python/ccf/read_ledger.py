@@ -98,17 +98,22 @@ if __name__ == "__main__":
         type=str,
         default=".*",
     )
+    parser.add_argument(
+        "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
+    )
     args = parser.parse_args()
     table_filter = re.compile(args.tables)
 
     if args.snapshot:
         snapshot_file = args.paths[0]
-        LOG.info(f"Reading snapshot from {snapshot_file}")
         snapshot = ccf.ledger.Snapshot(snapshot_file)
+        LOG.info(
+            f"Reading snapshot from {snapshot_file} ({'' if snapshot.commit_seqno() else 'un'}committed)"
+        )
         dump_entry(snapshot, table_filter)
     else:
         ledger_dirs = args.paths
-        ledger = ccf.ledger.Ledger(ledger_dirs)
+        ledger = ccf.ledger.Ledger(ledger_dirs, committed_only=not args.uncommitted)
 
         LOG.info(f"Reading ledger from {ledger_dirs}")
         LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
