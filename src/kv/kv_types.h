@@ -471,6 +471,7 @@ namespace kv
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
       Version version,
+      Term& term,
       bool historical_hint = false) = 0;
 
     virtual void rollback(Version version) = 0;

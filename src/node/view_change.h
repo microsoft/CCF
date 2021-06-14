@@ -13,13 +13,16 @@ namespace ccf
   struct ViewChangeRequest
   {
     std::vector<NodeSignature> signatures;
+    ccf::SeqNo seqno;
+    crypto::Sha256Hash root;
     std::vector<uint8_t> signature;
 
     ViewChangeRequest() = default;
 
     size_t get_serialized_size() const
     {
-      size_t size = sizeof(size_t) + sizeof(size_t) + signature.size();
+      size_t size = sizeof(size_t) + sizeof(size_t) + sizeof(ccf::SeqNo) +
+        sizeof(root) + signature.size();
 
       for (const auto& s : signatures)
       {
@@ -39,6 +42,11 @@ namespace ccf
         s.serialize(data, size);
       }
 
+      serialized::write(
+        data, size, reinterpret_cast<uint8_t*>(&seqno), sizeof(seqno));
+      serialized::write(
+        data, size, reinterpret_cast<uint8_t*>(&root), sizeof(root));
+
       size_t sig_size = signature.size();
       serialized::write(
         data, size, reinterpret_cast<uint8_t*>(&sig_size), sizeof(sig_size));
@@ -54,6 +62,8 @@ namespace ccf
         v.signatures.push_back(ccf::NodeSignature::deserialize(data, size));
       }
 
+      v.seqno = serialized::read<ccf::SeqNo>(data, size);
+      v.root = serialized::read<crypto::Sha256Hash>(data, size);
       size_t sig_size = serialized::read<size_t>(data, size);
       v.signature = serialized::read(data, size, sig_size);
 
@@ -61,25 +71,22 @@ namespace ccf
     }
   };
   DECLARE_JSON_TYPE(ViewChangeRequest);
-  DECLARE_JSON_REQUIRED_FIELDS(ViewChangeRequest, signatures, signature);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    ViewChangeRequest, signatures, seqno, root, signature);
 
   struct ViewChangeConfirmation
   {
     ccf::View view = 0;
-    ccf::SeqNo seqno = 0;
     std::vector<uint8_t> signature;
 
     std::map<NodeId, ViewChangeRequest> view_change_messages;
 
     ViewChangeConfirmation() = default;
-    ViewChangeConfirmation(ccf::View view_, ccf::SeqNo seqno_) :
-      view(view_),
-      seqno(seqno_)
-    {}
+    ViewChangeConfirmation(ccf::View view_) : view(view_) {}
   };
   DECLARE_JSON_TYPE(ViewChangeConfirmation);
   DECLARE_JSON_REQUIRED_FIELDS(
-    ViewChangeConfirmation, view, seqno, signature, view_change_messages);
+    ViewChangeConfirmation, view, signature, view_change_messages);
 
   // Always recorded at key 0
   using NewViewsMap = ServiceMap<size_t, ViewChangeConfirmation>;

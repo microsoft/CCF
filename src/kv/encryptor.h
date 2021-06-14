@@ -103,10 +103,12 @@ namespace kv
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
       Version version,
+      Term& term,
       bool historical_hint = false) override
     {
       S hdr;
       hdr.deserialise(serialised_header);
+      term = hdr.get_term();
       plain.resize(cipher.size());
 
       auto key =

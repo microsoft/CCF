@@ -4,7 +4,6 @@
 #include "common/enclave_interface_types.h"
 #include "ds/json.h"
 #include "ds/logger.h"
-#include "ds/spin_lock.h"
 #include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "enclave_time.h"
@@ -14,7 +13,7 @@
 #include <thread>
 
 // the central enclave object
-static SpinLock create_lock;
+static std::mutex create_lock;
 static std::atomic<enclave::Enclave*> e;
 
 #ifdef DEBUG_CONFIG
@@ -48,7 +47,7 @@ extern "C"
     size_t num_worker_threads,
     void* time_location)
   {
-    std::lock_guard<SpinLock> guard(create_lock);
+    std::lock_guard<std::mutex> guard(create_lock);
 
     if (e != nullptr)
     {
@@ -175,7 +174,7 @@ extern "C"
     {
       uint16_t tid;
       {
-        std::lock_guard<SpinLock> guard(create_lock);
+        std::lock_guard<std::mutex> guard(create_lock);
 
         tid = threading::ThreadMessaging::thread_count.fetch_add(1);
         threading::thread_ids.emplace(std::pair<std::thread::id, uint16_t>(

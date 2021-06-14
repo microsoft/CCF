@@ -31,7 +31,7 @@ namespace enclave
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<tls::Cert> cert;
 
-    SpinLock lock;
+    std::mutex lock;
     std::unordered_map<size_t, std::shared_ptr<Endpoint>> sessions;
     size_t sessions_peak;
 
@@ -89,7 +89,7 @@ namespace enclave
 
     void set_max_open_sessions(size_t soft_cap, size_t hard_cap)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       max_open_sessions_soft = soft_cap;
       max_open_sessions_hard = hard_cap;
 
@@ -99,7 +99,7 @@ namespace enclave
     void get_stats(
       size_t& current, size_t& peak, size_t& soft_cap, size_t& hard_cap)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       current = sessions.size();
       peak = sessions_peak;
       soft_cap = max_open_sessions_soft;
@@ -108,7 +108,7 @@ namespace enclave
 
     void set_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       // Caller authentication is done by each frontend by looking up
       // the caller's certificate in the relevant store table. The caller
@@ -120,7 +120,7 @@ namespace enclave
 
     void accept(size_t id)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       if (sessions.find(id) != sessions.end())
         throw std::logic_error(
@@ -167,7 +167,7 @@ namespace enclave
 
     bool reply_async(size_t id, std::vector<uint8_t>&& data) override
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       auto search = sessions.find(id);
       if (search == sessions.end())
@@ -184,7 +184,7 @@ namespace enclave
 
     void remove_session(size_t id)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       LOG_DEBUG_FMT("Closing a session inside the enclave: {}", id);
       sessions.erase(id);
     }
@@ -192,7 +192,7 @@ namespace enclave
     std::shared_ptr<ClientEndpoint> create_client(
       std::shared_ptr<tls::Cert> cert)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
       auto id = ++next_client_session_id;
 
