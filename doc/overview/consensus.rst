@@ -123,3 +123,49 @@ The election timeout on Node 1 expires, and causes Node 1 to call for an electio
 
 Two-transaction Reconfiguration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Two-transaction reconfiguration is an option that allows for simpler auditability and fault tolerance control. A reconfiguration is triggered by the same mechanism as in one-transaction reconfiguration, i.e. a change to ``public:ccf.gov.nodes.info``. It does however not become active immediately. Joining nodes are held in a ``LEARNER`` state in which they receive copies of the ledger, but they are not taken into account in commit-level decisions or leader selection until they are caught up sufficiently with the rest of the network. They recognize this fact by observing the commit of the reconfiguration transaction that includes its own addition to ``public:ccf.gov.nodes.info`` while replaying the reconfiguration transaction. This means that they have seen all preceding transactions up until their addition to the network.
+
+Once a node reaches this point, they submit an RPC call for promotion to the current leader, which changes their state from ``LEARNER`` to ``TRUSTED`` in ``public:ccf.gov.nodes.info``. When the number of nodes in the next scheduled configuration reaches the required quorum of acknowledgements, the new configuration becomes fully active and the leader confirms this by promoting the remaining nodes (which may still be catching up) to ``TRUSTED`` too. It is also at this point that nodes scheduled for retirement can safely begin to retire.
+
+This sample illustrates the addition of a single node to a one-node network with two-transaction reconfiguration:
+
+.. mermaid::
+
+    sequenceDiagram
+        participant Members
+        participant Node 0
+        participant Node 1
+
+        Note over Node 0: State in KV: TRUSTED
+        Note over Node 1: State in KV: PENDING
+
+        Note right of Node 0: Cfg 0: [Node 0]
+        Note right of Node 0: Active configs: [Cfg 0]
+
+        Members->>+Node 0: Vote for Node 1 to become LEARNER
+
+        Note right of Node 0: Reconfiguration Tx ID := 3.42
+        Note right of Node 0: Cfg 1 := [Node 0, Node 1]
+        Note right of Node 0: Active configs := [Cfg 0, Cfg 1]
+        Node 0-->>-Members: Success
+
+        Note over Node 1: State in KV := LEARNER
+
+        Node 0->>Node 1: Replicate 3.42
+        Node 1->>Node 0: Acknowledge 3.42
+        
+        Node 1->>+Node 0: Promote Node 1
+        Node 0-->>-Node 1: Success @ 3.44
+
+        Node 0->>Node 1: Replicate 3.44
+        Node 1->>Node 0: Acknowledge 3.44
+
+        Note over Node 1: State in KV := TRUSTED
+
+        Node 0->>Node 0: Promote Cfg 1 @ 3.46
+
+        Note right of Node 0: 3.46 commits (meets quorum in Cfg 0 and 1)
+        Note right of Node 0: Active configs := [Cfg 1]
+
+Joining a small number of nodes to a large, existing network will lead to almost-instant promotion of the joining node if both the existing and the new configuration have a sufficient number of nodes for quorums. Learners also help to improve the liveness of the system, because they do not necessarily have to receive the entire ledger from the leader immediately. Further, the two transactions on the ledger make it clear that the configuration change was not instant and it allows for other mechanisms to gate the switch to a new configuration on the committment to a number of other transactions on the ledger, for instance those required for the successful establishment of a Byzantine network identity.
