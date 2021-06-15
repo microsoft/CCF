@@ -31,7 +31,7 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions"'
+      ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions" -E code_update_test'
     SGX:
       ctest_args: '-LE "benchmark|perf|tlstest|vegeta|partitions"'
     perf:
