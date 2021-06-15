@@ -54,7 +54,7 @@ namespace ccf
     {
       auto refresh_msg = std::make_unique<threading::Tmsg<RefreshTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<RefreshTimeMsg>> msg) {
-          if (!msg->data.self.consensus->is_primary())
+          if (!msg->data.self.consensus->can_replicate())
           {
             LOG_DEBUG_FMT(
               "JWT key auto-refresh: Node is not primary, skipping");
@@ -83,7 +83,7 @@ namespace ccf
     {
       auto refresh_msg = std::make_unique<threading::Tmsg<RefreshTimeMsg>>(
         [](std::unique_ptr<threading::Tmsg<RefreshTimeMsg>> msg) {
-          if (!msg->data.self.consensus->is_primary())
+          if (!msg->data.self.consensus->can_replicate())
           {
             LOG_DEBUG_FMT(
               "JWT key one-off refresh: Node is not primary, skipping");

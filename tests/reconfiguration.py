@@ -9,6 +9,8 @@ import tempfile
 from shutil import copy
 import os
 from infra.checker import check_can_progress
+import ccf.ledger
+import json
 
 from loguru import logger as LOG
 
@@ -303,6 +305,42 @@ def test_join_straddling_primary_replacement(network, args):
     return network
 
 
+def test_retiring_nodes_emit_at_most_one_signature(network, args):
+    primary, _ = network.find_primary()
+
+    # Force ledger flush of all transactions so far
+    network.get_latest_ledger_public_state()
+    ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
+
+    retiring_nodes = set()
+    retired_nodes = set()
+    for chunk in ledger:
+        for tr in chunk:
+            tables = tr.get_public_domain().get_tables()
+            if ccf.ledger.NODES_TABLE_NAME in tables:
+                nodes = tables[ccf.ledger.NODES_TABLE_NAME]
+                for nid, info_ in nodes.items():
+                    info = json.loads(info_)
+                    if info["status"] == "Retired":
+                        retiring_nodes.add(nid)
+
+            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
+                sigs = tables[ccf.ledger.SIGNATURE_TX_TABLE_NAME]
+                assert len(sigs) == 1, sigs.keys()
+                (sig_,) = sigs.values()
+                sig = json.loads(sig_)
+                assert (
+                    sig["node"] not in retired_nodes
+                ), f"Unexpected signature from {sig['node']}"
+                retired_nodes |= retiring_nodes
+                retiring_nodes = set()
+
+    assert not retiring_nodes, (retiring_nodes, retired_nodes)
+    LOG.info("{} nodes retired throughout test", len(retired_nodes))
+
+    return network
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
@@ -337,6 +375,7 @@ def run(args):
             ), "New nodes shouldn't join from snapshot if snapshot evidence cannot be verified"
 
         test_node_filter(network, args)
+        test_retiring_nodes_emit_at_most_one_signature(network, args)
 
 
 def run_join_old_snapshot(args):

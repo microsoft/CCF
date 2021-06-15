@@ -1120,7 +1120,7 @@ namespace ccf
       snapshotter->set_snapshot_generation(true);
 
       // Open the service
-      if (consensus->is_primary())
+      if (consensus->can_replicate())
       {
         setup_one_off_secret_hook();
         auto tx = network.tables->create_tx();
@@ -1440,6 +1440,15 @@ namespace ccf
          sm.check(State::partOfPublicNetwork) ||
          sm.check(State::readingPrivateLedger)) &&
         consensus->is_primary());
+    }
+
+    bool can_replicate() override
+    {
+      return (
+        (sm.check(State::partOfNetwork) ||
+         sm.check(State::partOfPublicNetwork) ||
+         sm.check(State::readingPrivateLedger)) &&
+        consensus->can_replicate());
     }
 
     bool is_part_of_network() const override
