@@ -26,10 +26,10 @@ namespace kv
     // indicates the version at which the Map was created.
     using Maps = std::
       map<std::string, std::pair<kv::Version, std::shared_ptr<untyped::Map>>>;
-    SpinLock maps_lock;
+    std::mutex maps_lock;
     Maps maps;
 
-    SpinLock version_lock;
+    std::mutex version_lock;
     Version version = 0;
     Version last_new_map = kv::NoVersion;
     Version compacted = 0;
@@ -44,8 +44,8 @@ namespace kv
   public:
     void clear()
     {
-      std::lock_guard<SpinLock> mguard(maps_lock);
-      std::lock_guard<SpinLock> vguard(version_lock);
+      std::lock_guard<std::mutex> mguard(maps_lock);
+      std::lock_guard<std::mutex> vguard(version_lock);
 
       maps.clear();
       pending_txs.clear();
@@ -106,7 +106,7 @@ namespace kv
         return false;
       }
       {
-        std::lock_guard<SpinLock> vguard(version_lock);
+        std::lock_guard<std::mutex> vguard(version_lock);
         version = v;
         last_replicated = version;
       }
@@ -333,7 +333,7 @@ namespace kv
       auto snapshot = std::make_unique<StoreSnapshot>(v);
 
       {
-        std::lock_guard<SpinLock> mguard(maps_lock);
+        std::lock_guard<std::mutex> mguard(maps_lock);
 
         for (auto& it : maps)
         {
@@ -397,7 +397,7 @@ namespace kv
       }
       auto [v, _] = v_.value();
 
-      std::lock_guard<SpinLock> mguard(maps_lock);
+      std::lock_guard<std::mutex> mguard(maps_lock);
 
       for (auto& it : maps)
       {
@@ -490,7 +490,7 @@ namespace kv
       }
 
       {
-        std::lock_guard<SpinLock> vguard(version_lock);
+        std::lock_guard<std::mutex> vguard(version_lock);
         version = v;
         last_replicated = v;
         last_committable = v;
@@ -517,7 +517,7 @@ namespace kv
       // This is called when the store will never be rolled back to any
       // state before the specified version.
       // No transactions can be prepared or committed during compaction.
-      std::lock_guard<SpinLock> mguard(maps_lock);
+      std::lock_guard<std::mutex> mguard(maps_lock);
 
       if (v > current_version())
       {
@@ -543,7 +543,7 @@ namespace kv
       }
 
       {
-        std::lock_guard<SpinLock> vguard(version_lock);
+        std::lock_guard<std::mutex> vguard(version_lock);
         compacted = v;
 
         auto h = get_history();
@@ -565,10 +565,10 @@ namespace kv
       // This is called to roll the store back to the state it was in
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
-      std::lock_guard<SpinLock> mguard(maps_lock);
+      std::lock_guard<std::mutex> mguard(maps_lock);
 
       {
-        std::lock_guard<SpinLock> vguard(version_lock);
+        std::lock_guard<std::mutex> vguard(version_lock);
         if (v < compacted)
         {
           throw std::logic_error(fmt::format(
@@ -643,7 +643,7 @@ namespace kv
 
     void set_term(Term t) override
     {
-      std::lock_guard<SpinLock> vguard(version_lock);
+      std::lock_guard<std::mutex> vguard(version_lock);
       term = t;
       auto h = get_history();
       if (h)
@@ -702,7 +702,7 @@ namespace kv
       // rather than with the actual value read. As a result, they don't
       // need snapshot isolation on the map state, and so do not need to
       // lock each of the maps before creating the transaction.
-      std::lock_guard<SpinLock> mguard(maps_lock);
+      std::lock_guard<std::mutex> mguard(maps_lock);
 
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
@@ -907,21 +907,21 @@ namespace kv
     Version current_version() override
     {
       // Must lock in case the version or term is being incremented.
-      std::lock_guard<SpinLock> vguard(version_lock);
+      std::lock_guard<std::mutex> vguard(version_lock);
       return version;
     }
 
     TxID current_txid() override
     {
       // Must lock in case the version is being incremented.
-      std::lock_guard<SpinLock> vguard(version_lock);
+      std::lock_guard<std::mutex> vguard(version_lock);
       return {term, version};
     }
 
     Version compacted_version() override
     {
       // Must lock in case the store is being compacted.
-      std::lock_guard<SpinLock> vguard(version_lock);
+      std::lock_guard<std::mutex> vguard(version_lock);
       return compacted;
     }
 
@@ -948,7 +948,7 @@ namespace kv
       ccf::View replication_view = 0;
 
       {
-        std::lock_guard<SpinLock> vguard(version_lock);
+        std::lock_guard<std::mutex> vguard(version_lock);
         if (txid.term != term && consensus->is_primary())
         {
           // This can happen when a transaction started before a view change,
@@ -1027,7 +1027,7 @@ namespace kv
 
       if (c->replicate(batch, replication_view))
       {
-        std::lock_guard<SpinLock> vguard(version_lock);
+        std::lock_guard<std::mutex> vguard(version_lock);
         if (
           last_replicated == previous_last_replicated &&
           previous_rollback_count == rollback_count &&
@@ -1056,7 +1056,7 @@ namespace kv
 
     std::tuple<Version, Version> next_version(bool commit_new_map) override
     {
-      std::lock_guard<SpinLock> vguard(version_lock);
+      std::lock_guard<std::mutex> vguard(version_lock);
       Version v = next_version_internal();
 
       auto previous_last_new_map = last_new_map;
@@ -1070,13 +1070,13 @@ namespace kv
 
     Version next_version() override
     {
-      std::lock_guard<SpinLock> vguard(version_lock);
+      std::lock_guard<std::mutex> vguard(version_lock);
       return next_version_internal();
     }
 
     TxID next_txid() override
     {
-      std::lock_guard<SpinLock> vguard(version_lock);
+      std::lock_guard<std::mutex> vguard(version_lock);
 
       // Get the next global version. If we would go negative, wrap to 0.
       ++version;
@@ -1088,7 +1088,7 @@ namespace kv
 
     size_t commit_gap() override
     {
-      std::lock_guard<SpinLock> vguard(version_lock);
+      std::lock_guard<std::mutex> vguard(version_lock);
       return version - last_committable;
     }
 
@@ -1119,8 +1119,8 @@ namespace kv
         }
       }
 
-      std::lock_guard<SpinLock> this_maps_guard(maps_lock);
-      std::lock_guard<SpinLock> other_maps_guard(store.maps_lock);
+      std::lock_guard<std::mutex> this_maps_guard(maps_lock);
+      std::lock_guard<std::mutex> other_maps_guard(store.maps_lock);
 
       // Each entry is (Name, MyMap, TheirMap)
       using MapEntry = std::tuple<std::string, AbstractMap*, AbstractMap*>;

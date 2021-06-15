@@ -117,7 +117,7 @@ namespace ccf
     // this node's core state
     //
     StateMachine<State> sm;
-    SpinLock lock;
+    std::mutex lock;
 
     CurveID curve_id;
     crypto::KeyPairPtr node_sign_kp;
@@ -329,7 +329,7 @@ namespace ccf
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       sm.expect(State::uninitialized);
 
       consensus_config = consensus_config_;
@@ -346,7 +346,7 @@ namespace ccf
     //
     NodeCreateInfo create(StartType start_type, CCFConfig&& config_)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       sm.expect(State::initialized);
 
       config = std::move(config_);
@@ -492,7 +492,7 @@ namespace ccf
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
-          std::lock_guard<SpinLock> guard(lock);
+          std::lock_guard<std::mutex> guard(lock);
           if (!sm.check(State::pending))
           {
             return false;
@@ -725,7 +725,7 @@ namespace ccf
 
     void join()
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       sm.expect(State::pending);
       start_join_timer();
     }
@@ -762,7 +762,7 @@ namespace ccf
     //
     void start_ledger_recovery()
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       if (
         !sm.check(State::readingPublicLedger) &&
         !sm.check(State::verifyingSnapshot))
@@ -779,7 +779,7 @@ namespace ccf
 
     void recover_public_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       std::shared_ptr<kv::Store> store;
       if (sm.check(State::readingPublicLedger))
@@ -901,7 +901,7 @@ namespace ccf
 
     void verify_snapshot_end()
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       if (!sm.check(State::verifyingSnapshot))
       {
         LOG_FAIL_FMT(
@@ -1048,7 +1048,7 @@ namespace ccf
     //
     void recover_private_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       if (!sm.check(State::readingPrivateLedger))
       {
         LOG_FAIL_FMT(
@@ -1189,7 +1189,7 @@ namespace ccf
     //
     void recover_ledger_end()
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       if (is_reading_public_ledger())
       {
@@ -1274,7 +1274,7 @@ namespace ccf
 
     void transition_service_to_open(kv::Tx& tx) override
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       auto service = tx.rw<Service>(Tables::SERVICE);
       auto service_info = service->get();
@@ -1334,7 +1334,7 @@ namespace ccf
 
     void initiate_private_recovery(kv::Tx& tx) override
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
       auto restored_ledger_secrets = share_manager.restore_recovery_shares_info(
@@ -1478,7 +1478,7 @@ namespace ccf
 
     ExtendedState state() override
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       State s = sm.value();
       if (s == State::readingPrivateLedger)
       {
@@ -1492,7 +1492,7 @@ namespace ccf
 
     bool rekey_ledger(kv::Tx& tx) override
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       sm.expect(State::partOfNetwork);
 
       // The ledger should not be re-keyed when the service is not open because:
@@ -1526,7 +1526,7 @@ namespace ccf
 
     std::optional<kv::Version> get_startup_snapshot_seqno() override
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       return startup_seqno;
     }
 
@@ -1836,7 +1836,7 @@ namespace ccf
       // from. If the primary changes while the network is public-only, the
       // new primary should also know at which version the new ledger secret
       // is applicable from.
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       return last_recovered_signed_idx;
     }
 

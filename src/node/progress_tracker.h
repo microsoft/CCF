@@ -37,7 +37,7 @@ namespace ccf
       uint32_t node_count,
       bool is_primary)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       return add_signature_internal(
         tx_id,
         node_id,
@@ -57,7 +57,7 @@ namespace ccf
       Nonce hashed_nonce,
       uint32_t node_count = 0)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       auto n = entropy->random(hashed_nonce.h.size());
       Nonce my_nonce;
       std::copy(n.begin(), n.end(), my_nonce.h.begin());
@@ -158,7 +158,7 @@ namespace ccf
     kv::TxHistory::Result record_primary_signature(
       ccf::TxID tx_id, std::vector<uint8_t>& sig)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       auto it = certificates.find(tx_id.seqno);
       if (it == certificates.end())
       {
@@ -186,7 +186,7 @@ namespace ccf
     kv::TxHistory::Result receive_backup_signatures(
       ccf::TxID& tx_id, uint32_t node_count, bool is_primary)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       std::optional<ccf::BackupSignatures> sigs =
         store->get_backup_signatures();
       CCF_ASSERT(sigs.has_value(), "sigs does not have a value");
@@ -270,7 +270,7 @@ namespace ccf
 
     kv::TxHistory::Result receive_nonces()
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       std::optional<aft::RevealedNonces> nonces = store->get_nonces();
       CCF_ASSERT(nonces.has_value(), "nonces does not have a value");
       aft::RevealedNonces& nonces_value = nonces.value();
@@ -328,7 +328,7 @@ namespace ccf
     kv::TxHistory::Result add_signature_ack(
       ccf::TxID tx_id, const NodeId& node_id, uint32_t node_count = 0)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       auto it = certificates.find(tx_id.seqno);
       if (it == certificates.end())
       {
@@ -363,7 +363,7 @@ namespace ccf
       uint32_t node_count,
       bool is_primary)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       bool did_add = false;
       auto it = certificates.find(tx_id.seqno);
       if (it == certificates.end())
@@ -444,7 +444,7 @@ namespace ccf
 
     crypto::Sha256Hash get_node_hashed_nonce(ccf::TxID tx_id)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       return get_node_hashed_nonce_internal(tx_id);
     }
 
@@ -479,7 +479,7 @@ namespace ccf
     std::tuple<std::unique_ptr<ViewChangeRequest>, ccf::SeqNo>
     get_view_change_message(ccf::View view)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       auto it = certificates.find(highest_prepared_level.seqno);
       if (it == certificates.end())
       {
@@ -529,7 +529,7 @@ namespace ccf
       ccf::View view,
       ccf::SeqNo seqno)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       if (seqno > highest_prepared_level.seqno)
       {
         LOG_INFO_FMT(
@@ -576,7 +576,7 @@ namespace ccf
     bool apply_new_view(
       const NodeId& from, uint32_t node_count, ccf::View& view_)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
       ccf::View view = new_view->view;
@@ -632,13 +632,13 @@ namespace ccf
 
     Nonce get_node_nonce(ccf::TxID tx_id)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       return get_node_nonce_(tx_id);
     }
 
     void rollback(ccf::SeqNo rollback_seqno, ccf::View view)
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       ccf::SeqNo last_good_seqno = 0;
       for (auto it = certificates.begin(); it != certificates.end();)
       {
@@ -665,7 +665,7 @@ namespace ccf
 
     ccf::SeqNo get_rollback_seqno() const
     {
-      std::unique_lock<SpinLock> guard(lock);
+      std::unique_lock<std::mutex> guard(lock);
       return highest_commit_level;
     }
 
@@ -676,7 +676,7 @@ namespace ccf
     ccf::TxID highest_prepared_level = {0, 0};
 
     std::map<ccf::SeqNo, CommitCert> certificates;
-    mutable SpinLock lock;
+    mutable std::mutex lock;
 
     kv::TxHistory::Result add_signature_internal(
       ccf::TxID tx_id,

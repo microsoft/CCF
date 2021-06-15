@@ -80,6 +80,13 @@ def run(args):
                 reconfiguration.test_add_node(network, args)
                 reconfiguration.test_retire_primary(network, args)
 
+        if args.consensus == "bft":
+            reconfiguration.test_add_node(network, args)
+            # Suspend primary repeatedly and check the network still operates
+            LOG.info(f"Suspending primary {args.rotation_suspensions} times")
+            for i in range(args.rotation_suspensions):
+                LOG.warning(f"Suspension {i}")
+                test_suspend_primary(network, args)
 
 if __name__ == "__main__":
 

@@ -6,7 +6,6 @@
 #include "crypto/hash.h"
 #include "ds/ccf_assert.h"
 #include "ds/logger.h"
-#include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
 #include "entities.h"
 #include "kv/kv_types.h"
@@ -25,7 +24,7 @@ namespace ccf
 
   private:
     ringbuffer::WriterPtr to_host;
-    SpinLock lock;
+    std::mutex lock;
 
     std::shared_ptr<kv::Store> store;
 
@@ -173,21 +172,21 @@ namespace ccf
       // After public recovery, the first node should have restored all
       // snapshot indices in next_snapshot_indices so that snapshot
       // generation can continue at the correct interval
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       last_snapshot_idx = next_snapshot_indices.back();
     }
 
     void set_snapshot_generation(bool enabled)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
       snapshot_generation_enabled = enabled;
     }
 
     void set_last_snapshot_idx(consensus::Index idx)
     {
       // Should only be called once, after a snapshot has been applied
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       if (last_snapshot_idx != 0)
       {
@@ -206,7 +205,7 @@ namespace ccf
     {
       // Returns true if the committable idx will require the generation of a
       // snapshot, and thus a new ledger chunk
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       if ((idx - next_snapshot_indices.back()) >= snapshot_tx_interval)
       {
@@ -224,7 +223,7 @@ namespace ccf
       // at the last snapshottable index before idx, and schedule snapshot
       // serialisation on another thread (round-robin). Otherwise, only record
       // that a snapshot was generated.
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       update_indices(idx);
 
@@ -267,7 +266,7 @@ namespace ccf
 
     void rollback(consensus::Index idx)
     {
-      std::lock_guard<SpinLock> guard(lock);
+      std::lock_guard<std::mutex> guard(lock);
 
       while (!next_snapshot_indices.empty() &&
              (next_snapshot_indices.back() > idx))
