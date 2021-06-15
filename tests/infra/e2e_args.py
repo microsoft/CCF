@@ -289,6 +289,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=list(infra.network.EllipticCurve),
     )
     parser.add_argument(
+        "--bft-node-id",
+        help="bft node id passed to the node starting or recovering a network",
+        type=int,
+        default=-1,
+    )
+    parser.add_argument(
         "--ccf-version",
         help="CCF version of local checkout",
         type=str,

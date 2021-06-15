@@ -1255,14 +1255,14 @@ namespace aft
       bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
       {
-        if (!state->public_only_from.has_value())
+        if (!state->initial_primary.has_value())
         {
-          state->public_only_from = std::make_tuple(from, r.term);
+          state->initial_primary = std::make_tuple(from, r.term);
         }
         if (
           active_nodes().size() == 0 ||
-          (std::get<0>(state->public_only_from.value()) == from &&
-           std::get<1>(state->public_only_from.value()) == r.term))
+          (std::get<0>(state->initial_primary.value()) == from &&
+           std::get<1>(state->initial_primary.value()) == r.term))
         {
           // The replica is just starting up, we want to check that this replica
           // is part of the network we joined but that is dependent on Byzantine

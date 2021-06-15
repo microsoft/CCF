@@ -380,7 +380,7 @@ namespace ccf
 
             // Pad node id string to avoid memory alignment issues on
             // node-to-node messages
-            self = NodeId(fmt::format("{:#064}", 0));
+            self = NodeId(fmt::format("{:#064}", config.node_id));
           }
 
           setup_snapshotter();
@@ -441,9 +441,7 @@ namespace ccf
 
             // Pad node id string to avoid memory alignment issues on
             // node-to-node messages
-            self = NodeId(
-              "000000000000000000000000000000000000000000000000000000000000000"
-              "4");
+            self = NodeId(fmt::format("{:#064}", config.node_id));
           }
 
           node_info_network = config.node_info_network;

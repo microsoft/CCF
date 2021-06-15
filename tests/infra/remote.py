@@ -703,6 +703,8 @@ class CCFRemote(object):
             cmd += [f"--client-connection-timeout-ms={client_connection_timeout_ms}"]
 
         if start_type == StartType.new:
+            if consensus == "bft":
+                cmd += [f"--bft-node-id={local_node_id}"]
             cmd += [
                 "start",
                 "--network-cert-file=networkcert.pem",
@@ -739,6 +741,8 @@ class CCFRemote(object):
             data_files += [os.path.join(self.common_dir, "networkcert.pem")]
 
         elif start_type == StartType.recover:
+            if consensus == "bft":
+                cmd += [f"--bft-node-id={local_node_id}"]
             cmd += ["recover", "--network-cert-file=networkcert.pem"]
 
         else:

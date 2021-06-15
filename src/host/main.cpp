@@ -388,6 +388,14 @@ int main(int argc, char** argv)
     ->transform(CLI::CheckedTransformer(curve_id_map, CLI::ignore_case))
     ->capture_default_str();
 
+  uint32_t node_id = -1;
+  app
+    .add_option(
+      "--bft-node-id",
+      node_id,
+      "bft node id passed to the node starting or recovering a network")
+    ->capture_default_str();
+
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
@@ -730,6 +738,8 @@ int main(int argc, char** argv)
     ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
 
     ccf_config.curve_id = curve_id;
+    LOG_INFO_FMT("BBBBBBB host node_id {}", node_id);
+    ccf_config.node_id = node_id;
 
     if (*start)
     {
