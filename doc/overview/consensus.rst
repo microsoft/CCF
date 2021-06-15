@@ -81,6 +81,45 @@ This sample illustrates the addition of a single node to a one-node network:
         Note right of Node 0: 3.42 commits (meets quorum in Cfg 0 and 1)
         Note right of Node 0: Active configs := [Cfg 1]
 
+.. note:: This diagram assumes the reconfiguration transaction is committable. This is a simplification, in reality it is not. Instead the next signature is committable, which means that the reconfiguration transaction only commits when the next signature does.
+
+This sample illustrates replacing the node in a one-node network:
+
+.. mermaid::
+
+    sequenceDiagram
+        participant Members
+        participant Node 0
+        participant Node 1
+
+        Note over Node 0: State in KV: TRUSTED
+        Note over Node 1: State in KV: PENDING
+
+        Note right of Node 0: Cfg 0: [Node 0]
+        Note right of Node 0: Active configs: [Cfg 0]
+
+        Members->>+Node 0: Vote for Node 1 to become TRUSTED and Node 0 to become RETIRED
+
+        Note right of Node 0: Reconfiguration Tx ID := 3.42
+        Note right of Node 0: Cfg 1 := [Node 1]
+        Note right of Node 0: Active configs := [Cfg 0, Cfg 1]
+        Node 0-->>-Members: Success
+
+        Note over Node 0: State in KV := RETIRED
+
+        Node 1->>+Node 0: Poll join
+        Node 0-->>-Node 1: Trusted
+
+        Node 0->>Node 1: Replicate 3.42
+        Note over Node 1: State in KV := TRUSTED
+        Node 1->>Node 0: Acknowledge 3.42
+
+        Note right of Node 0: 3.42 commits (meets quorum in Cfg 0 and 1)
+        Note right of Node 0: Active configs := [Cfg 1]
+
+At this point, Node 0 is aware that its retirement has been committed. It therefore stops replicating and issuing heartbeats.
+
+The election timeout on Node 1 expires, and causes Node 1 to call for an election, which it wins immediately.
 
 Two-transaction Reconfiguration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
