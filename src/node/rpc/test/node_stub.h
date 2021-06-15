@@ -46,6 +46,11 @@ namespace ccf
       return true;
     }
 
+    bool can_replicate() override
+    {
+      return true;
+    }
+
     bool is_reading_public_ledger() const override
     {
       return false;
