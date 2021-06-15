@@ -2845,12 +2845,6 @@ namespace aft
 
       for (auto node_id : to_remove)
       {
-        if (
-          replica_state == kv::ReplicaState::Leader ||
-          consensus_type == ConsensusType::BFT)
-        {
-          channels->destroy_channel(node_id);
-        }
         nodes.erase(node_id);
         LOG_INFO_FMT("Removed raft node {}", node_id);
       }
