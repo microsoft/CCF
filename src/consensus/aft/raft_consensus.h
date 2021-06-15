@@ -33,6 +33,11 @@ namespace aft
       return aft->is_primary();
     }
 
+    bool can_replicate() override
+    {
+      return aft->can_replicate();
+    }
+
     bool is_backup() override
     {
       return aft->is_follower();
