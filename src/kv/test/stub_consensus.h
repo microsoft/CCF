@@ -194,6 +194,11 @@ namespace kv::test
     {
       return false;
     }
+
+    bool can_replicate() override
+    {
+      return false;
+    }
   };
 
   class PrimaryStubConsensus : public StubConsensus
@@ -204,6 +209,11 @@ namespace kv::test
     {}
 
     bool is_primary() override
+    {
+      return true;
+    }
+
+    bool can_replicate() override
     {
       return true;
     }
