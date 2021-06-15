@@ -239,10 +239,7 @@ js_source_path = "../src/js"
 jsdoc_config_path = "../src/js/tsconfig.json"
 
 # sphinxcontrib-mermaid options
-# NB: The docs say the <script> tag will no longer be needed
-# from 0.7, but this is not yet released
-mermaid_init_js = """<script>
-mermaid.initialize({startOnLoad:true});
+mermaid_init_js = """mermaid.initialize({startOnLoad:true});
 
 // Remove height from all mermaid diagrams
 window.addEventListener(
@@ -256,8 +253,7 @@ window.addEventListener(
     }
   },
   false
-);
-</script>"""
+);"""
 
 def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]):
     """
