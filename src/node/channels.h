@@ -439,7 +439,8 @@ namespace ccf
 
     bool consume_responder_key_share(const uint8_t* data, size_t size)
     {
-      LOG_TRACE_FMT("status == {}", status);
+      LOG_TRACE_FMT(
+        "consume_responder_key_share from {}, status == {}", peer_id, status);
 
       if (status != INITIATED && status != ESTABLISHED)
       {
@@ -534,7 +535,8 @@ namespace ccf
     bool consume_initiator_key_share(
       const uint8_t* data, size_t size, bool priority = false)
     {
-      LOG_TRACE_FMT("status == {}", status);
+      LOG_TRACE_FMT(
+        "consume_initiator_key_share from {}, status == {}", peer_id, status);
 
       if (status == INITIATED || status == ESTABLISHED)
       {
@@ -633,7 +635,10 @@ namespace ccf
 
     bool check_peer_key_share_signature(const uint8_t* data, size_t size)
     {
-      LOG_TRACE_FMT("status == {}", status);
+      LOG_TRACE_FMT(
+        "check_peer_key_share_signature from {}, status == {}",
+        peer_id,
+        status);
 
       if (status != WAITING_FOR_FINAL && status != ESTABLISHED)
       {
@@ -645,7 +650,11 @@ namespace ccf
       CBuffer sig = extract_buffer(data, size);
 
       if (!verify_peer_signature(oks, sig))
+      {
+        LOG_INFO_FMT("Failed to verify peer signature from {}", peer_id);
+
         return false;
+      }
 
       establish();
 
@@ -707,7 +716,11 @@ namespace ccf
     void initiate()
     {
       if (status == WAITING_FOR_FINAL)
+      {
+        LOG_INFO_FMT(
+          "Early return from initiate with {} - status is {}", peer_id, status);
         return;
+      }
 
       LOG_INFO_FMT("Initiating node channel with {}.", peer_id);
 
@@ -744,6 +757,11 @@ namespace ccf
     {
       if (status != ESTABLISHED)
       {
+        LOG_INFO_FMT(
+          "Queuing send of {} message to {} - status is {}",
+          type,
+          peer_id,
+          status);
         initiate();
         outgoing_msg = OutgoingMsg(type, aad, plain);
         return false;

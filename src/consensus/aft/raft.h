@@ -539,7 +539,7 @@ namespace aft
 
         LOG_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
-          state->my_node_id.trim(),
+          state->my_node_id,
           index,
           (globally_committable ? " committable" : ""),
           hooks->size());
@@ -572,7 +572,7 @@ namespace aft
           entry_size_not_limited = 0;
           for (const auto& it : nodes)
           {
-            LOG_DEBUG_FMT("Sending updates to follower {}", it.first.trim());
+            LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
         }
@@ -880,7 +880,7 @@ namespace aft
       ccf::ViewChangeRequest v =
         ccf::ViewChangeRequest::deserialize(data, size);
       LOG_INFO_FMT(
-        "Received view change from:{}, view:{}", from.trim(), r.view);
+        "Received view change from:{}, view:{}", from, r.view);
 
       auto progress_tracker = store->get_progress_tracker();
       auto result =
@@ -1117,8 +1117,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Send append entries from {} to {}: {} to {} ({})",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         start_idx,
         end_idx,
         state->commit_idx);
@@ -1187,7 +1187,7 @@ namespace aft
         r.prev_idx,
         r.term_of_idx,
         r.idx,
-        from.trim(),
+        from,
         r.term);
 
       // Don't check that the sender node ID is valid. Accept anything that
@@ -1336,8 +1336,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
-        state->my_node_id.trim(),
-        from.trim(),
+        state->my_node_id,
+        from,
         r.idx,
         r.prev_idx);
 
@@ -1375,7 +1375,7 @@ namespace aft
         }
 
         LOG_DEBUG_FMT(
-          "Replicating on follower {}: {}", state->my_node_id.trim(), i);
+          "Replicating on follower {}: {}", state->my_node_id, i);
 
         std::vector<uint8_t> entry;
         try
@@ -1882,8 +1882,8 @@ namespace aft
     {
       LOG_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         state->last_idx,
         answer);
 
@@ -1906,8 +1906,8 @@ namespace aft
     {
       LOG_DEBUG_FMT(
         "Send append entries signed response from {} to {} for index {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         state->last_idx);
 
       auto progress_tracker = store->get_progress_tracker();
@@ -2029,7 +2029,7 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
         "processing recv_signature_received_ack, from:{} view:{}, seqno:{}",
-        from.trim(),
+        from,
         r.term,
         r.idx);
 
@@ -2094,7 +2094,7 @@ namespace aft
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
       LOG_TRACE_FMT(
         "processing nonce_reveal, from:{} view:{}, seqno:{}",
-        from.trim(),
+        from,
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
@@ -2203,8 +2203,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Recv append entries response to {} from {} for index {}: success",
-        state->my_node_id.trim(),
-        from.trim(),
+        state->my_node_id,
+        from,
         r.last_log_idx);
       update_commit();
     }
@@ -2214,8 +2214,8 @@ namespace aft
       auto last_committable_idx = last_committable_index();
       LOG_INFO_FMT(
         "Send request vote from {} to {} at {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
@@ -2315,8 +2315,8 @@ namespace aft
     {
       LOG_INFO_FMT(
         "Send request vote response from {} to {}: {}",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         answer);
 
       RequestVoteResponse response = {
@@ -2661,7 +2661,7 @@ namespace aft
       store->compact(idx);
       ledger->commit(idx);
 
-      LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id.trim(), idx);
+      LOG_DEBUG_FMT("Commit on {}: {}", state->my_node_id, idx);
 
       // Examine all configurations that are followed by a globally committed
       // configuration.

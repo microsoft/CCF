@@ -684,7 +684,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
     CONSENSUS cft
     ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+                    ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --raft-election-timeout-ms 500
   )
 
   if(BUILD_SMALLBANK)

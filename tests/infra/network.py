@@ -758,6 +758,11 @@ class Network:
                 break
             time.sleep(0.1)
 
+        LOG.error(
+            f"!!! Asked {len(asked_nodes)} nodes to find primary ({nodes is None})"
+        )
+        LOG.error(f"!!! {[(node.local_node_id, node.node_id) for node in asked_nodes]}")
+
         if primary_id is None:
             flush_info(logs, log_capture, 0)
             for node in asked_nodes:
