@@ -738,7 +738,6 @@ int main(int argc, char** argv)
     ccf_config.jwt_key_refresh_interval_s = jwt_key_refresh_interval_s;
 
     ccf_config.curve_id = curve_id;
-    LOG_INFO_FMT("BBBBBBB host node_id {}", node_id);
     ccf_config.node_id = node_id;
 
     if (*start)
