@@ -286,7 +286,7 @@ namespace aft
 
     bool can_replicate()
     {
-      std::unique_lock<SpinLock> guard(state->lock, std::defer_lock);
+      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       if (!(consensus_type == ConsensusType::BFT && is_follower()))
       {
         guard.lock();

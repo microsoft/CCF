@@ -312,23 +312,20 @@ def test_retiring_nodes_emit_at_most_one_signature(network, args):
     network.get_latest_ledger_public_state()
     ledger = ccf.ledger.Ledger(primary.remote.ledger_paths())
 
-    NODES = "public:ccf.gov.nodes.info"
-    SIGS = "public:ccf.internal.signatures"
-
     retiring_nodes = set()
     retired_nodes = set()
     for chunk in ledger:
         for tr in chunk:
             tables = tr.get_public_domain().get_tables()
-            if NODES in tables:
-                nodes = tables[NODES]
+            if ccf.ledger.NODES_TABLE_NAME in tables:
+                nodes = tables[ccf.ledger.NODES_TABLE_NAME]
                 for nid, info_ in nodes.items():
                     info = json.loads(info_)
                     if info["status"] == "Retired":
                         retiring_nodes.add(nid)
 
-            if SIGS in tables:
-                sigs = tables[SIGS]
+            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in tables:
+                sigs = tables[ccf.ledger.SIGNATURE_TX_TABLE_NAME]
                 assert len(sigs) == 1, sigs.keys()
                 (sig_,) = sigs.values()
                 sig = json.loads(sig_)
