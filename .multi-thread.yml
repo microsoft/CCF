@@ -29,6 +29,6 @@ jobs:
       cmake_args: "-DCOMPILE_TARGETS=sgx -DWORKER_THREADS=2"
       suffix: "MultiThread"
       artifact_name: "MultiThread"
-      ctest_filter: '-LE "perf" -E "connections|rotation_test_bft"'
+      ctest_filter: '-LE "perf|partitions" -E "connections|rotation_test_bft"'
       ctest_timeout: "0" # No timeout
 
