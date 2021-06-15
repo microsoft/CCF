@@ -62,7 +62,9 @@ def run(args):
     if args.enforce_reqs is False:
         LOG.warning("Test requirements will be ignored")
 
-    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
+    jwt_issuer = infra.jwt_issuer.JwtIssuer(
+        "https://localhost", jwt_key_refresh_interval_s=args.jwt_key_refresh_interval_s
+    )
     jwt_server = jwt_issuer.start_openid_server()
     txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
     network = infra.network.Network(

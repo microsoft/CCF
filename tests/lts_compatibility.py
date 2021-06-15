@@ -70,7 +70,9 @@ def run_code_upgrade_from(
 
     args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
 
-    jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
+    jwt_issuer = infra.jwt_issuer.JwtIssuer(
+        "https://localhost", refresh_interval_s=args.jwt_key_refresh_interval_s
+    )
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(

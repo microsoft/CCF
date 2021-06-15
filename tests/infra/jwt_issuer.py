@@ -108,9 +108,17 @@ class JwtIssuer:
         cert = infra.crypto.generate_cert(key_priv, cn=cn)
         return (key_priv, key_pub), cert
 
-    def __init__(self, name=TEST_JWT_ISSUER_NAME, cert=None, cn=None):
+    def __init__(
+        self,
+        name=TEST_JWT_ISSUER_NAME,
+        cert=None,
+        cn=None,
+        jwt_key_refresh_interval_s=3,
+    ):
         self.name = name
         self.server = None
+        # Large timeout as JWT refresh verification involves reading ledger
+        self.refresh_interval_timeout = jwt_key_refresh_interval_s * 8
         # Auto-refresh ON if issuer name starts with "https://"
         self.auto_refresh = self.name.startswith("https://")
         stripped_host = self.name[len("https://") :] if self.auto_refresh else None
@@ -126,6 +134,7 @@ class JwtIssuer:
         (self.key_priv_pem, self.key_pub_pem), self.cert_pem = self._generate_cert()
         if self.server:
             self.server.set_jwks(self.create_jwks(kid))
+        LOG.info(f"Refreshed JWT keys for kid {kid}")
 
     def create_jwks(self, kid=TEST_JWT_KID, test_invalid_is_key=False):
         der_b64 = base64.b64encode(
@@ -173,9 +182,11 @@ class JwtIssuer:
     def issue_jwt(self, kid=TEST_JWT_KID, claims=None):
         return infra.crypto.create_jwt(claims or {}, self.key_priv_pem, kid)
 
-    def wait_for_refresh(self, network, kid=TEST_JWT_KID, timeout=3):
-        LOG.info(f"Waiting {timeout}s for JWT key refresh")
-        end_time = time.time() + timeout
+    def wait_for_refresh(self, network, kid=TEST_JWT_KID):
+        LOG.info(
+            f"Waiting {self.refresh_interval_timeout}s for JWT key refresh for kid {kid}"
+        )
+        end_time = time.time() + self.refresh_interval_timeout
         while time.time() < end_time:
             latest_public_state, _ = network.get_latest_ledger_public_state()
             latest_jwt_signing_key = latest_public_state[
@@ -186,5 +197,5 @@ class JwtIssuer:
             ):
                 return
         raise TimeoutError(
-            f"JWT public signing keys were not refreshed after {timeout}s"
+            f"JWT public signing keys were not refreshed after {self.refresh_interval_timeout}s"
         )
