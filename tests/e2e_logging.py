@@ -9,6 +9,7 @@ import infra.checker
 import infra.jwt_issuer
 import inspect
 import http
+from http.client import HTTPResponse
 import ssl
 import socket
 import os
@@ -57,19 +58,34 @@ def test(network, args, verify=True):
 def test_illegal(network, args, verify=True):
     primary, _ = network.find_primary()
 
-    # Send malformed HTTP traffic and check the connection is closed
-    cafile = os.path.join(network.common_dir, "networkcert.pem")
-    context = ssl.create_default_context(cafile=cafile)
-    context.load_cert_chain(
-        certfile=os.path.join(network.common_dir, "user0_cert.pem"),
-        keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
-    )
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn = context.wrap_socket(sock, server_side=False, server_hostname=primary.host)
-    conn.connect((primary.host, primary.pubport))
-    conn.sendall(b"NOTAVERB ")
-    rv = conn.recv(1024)
-    assert rv == b"", rv
+    def send_bad_raw_content(content):
+        # Send malformed HTTP traffic and check the connection is closed
+        cafile = os.path.join(network.common_dir, "networkcert.pem")
+        context = ssl.create_default_context(cafile=cafile)
+        context.load_cert_chain(
+            certfile=os.path.join(network.common_dir, "user0_cert.pem"),
+            keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
+        )
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        conn = context.wrap_socket(
+            sock, server_side=False, server_hostname=primary.host
+        )
+        conn.connect((primary.host, primary.pubport))
+        LOG.info(f"Sending: {content}")
+        conn.sendall(content)
+        response = HTTPResponse(conn)
+        response.begin()
+        assert response.status == http.HTTPStatus.BAD_REQUEST, response.status
+        response_body = response.read()
+        LOG.warning(response_body)
+        assert content in response_body, response
+
+    send_bad_raw_content(b"\x01")
+    send_bad_raw_content(b"\x01\x02\x03\x04")
+    send_bad_raw_content(b"NOTAVERB ")
+    send_bad_raw_content(b"POST / HTTP/42.42")
+    send_bad_raw_content(json.dumps({"hello": "world"}).encode())
+
     # Valid transactions are still accepted
     network.txs.issue(
         network=network,
