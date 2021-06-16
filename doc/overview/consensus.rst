@@ -177,3 +177,54 @@ This sample illustrates the addition of a single node to a one-node network with
         Note right of Node 0: Active configs := [Cfg 1]
 
 Joining a small number of nodes to a large, existing network will lead to almost-instant promotion of the joining node if both the existing and the new configuration have a sufficient number of nodes for quorums. Learners also help to improve the liveness of the system, because they do not necessarily have to receive the entire ledger from the leader immediately. Further, the two transactions on the ledger make it clear that the configuration change was not instant and it allows for other mechanisms to gate the switch to a new configuration on the committment to a number of other transactions on the ledger, for instance those required for the successful establishment of a Byzantine network identity.
+
+
+Replica State Machine
+---------------------
+
+Simplified
+~~~~~~~~~~
+
+Main states and transitions in CCF consensus. Note that while the implementation of the transitions differs between CFT and BFT, the states themselves do not.
+
+.. mermaid::
+
+    graph LR;
+        Init-->Leader;
+        Init-->Follower;
+        Follower-->Candidate;
+        Candidate-->Follower;
+        Candidate-->Leader;
+        Leader-->Retired;
+        Follower-->Retired;
+
+Retirement details
+~~~~~~~~~~~~~~~~~~
+
+The transition towards retirement involves two additional elements of state:
+
+- Retirement index (RI): Index at which node is set to ``Retired`` in ``public:ccf.gov.nodes.info``
+- Retirement Committable Index (RCI): Index at which the retirement transaction first becomes committable, ie. the first signature following the transaction.
+
+A node permanently transitions to ``Retired`` once it has observed commit reaching its Retirement Committable Index.
+
+.. mermaid::
+
+    graph LR;
+        Follower-->FRI[Follower w/ RI];
+        FRI-->Follower;
+        FRI-->FRCI[Follower w/ RCI];
+        FRCI-->Follower;
+        FRCI-->Retired;
+
+.. mermaid::
+
+    graph LR;
+        Leader-->LRI[Leader w/ RI];
+        LRI-->Follower;
+        LRI-->LRCI[Leader w/ RCI: reject new entries];
+        LRCI-->Follower;
+        LRCI-->Retired;
+
+Note that because the rollback triggered when a node becomes aware of a new term never preserves unsigned transactions,
+and because RCI is always the first signature after RI, RI and RCI are always both rolled back if RCI itself is rolled back.
