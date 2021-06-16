@@ -39,6 +39,7 @@ namespace ccf
       const std::vector<std::string>& args) = 0;
     virtual bool is_part_of_public_network() const = 0;
     virtual bool is_primary() const = 0;
+    virtual bool can_replicate() = 0;
     virtual bool is_reading_public_ledger() const = 0;
     virtual bool is_reading_private_ledger() const = 0;
     virtual bool is_verifying_snapshot() const = 0;

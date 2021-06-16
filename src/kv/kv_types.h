@@ -353,6 +353,11 @@ namespace kv
       return state == Primary;
     }
 
+    virtual bool can_replicate()
+    {
+      return state == Primary;
+    }
+
     virtual bool is_backup()
     {
       return state == Backup;
