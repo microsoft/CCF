@@ -643,7 +643,6 @@ class Ledger:
         self._fileindex = -1
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
-        self._is_parsed = False
 
     @classmethod
     def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
