@@ -2196,6 +2196,9 @@ namespace aft
       progress_tracker->add_nonce_reveal(
         {r.term, r.idx}, r.nonce, from, node_count(), is_primary());
 
+      // This function is called where we receive a nonce via a network message.
+      // When running in public_only mode we only want to move commitment
+      // forward from evidence on the ledger.
       if (!public_only)
       {
         update_commit();

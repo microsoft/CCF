@@ -164,6 +164,7 @@ namespace aft
 
     void start_tracking_requests()
     {
+      std::unique_lock<std::mutex> guard(lock);
       tracking_requests = true;
     }
 

@@ -84,7 +84,6 @@ struct CCFConfig
   size_t jwt_key_refresh_interval_s;
 
   crypto::CurveID curve_id;
-  uint32_t node_id;
 };
 
 DECLARE_JSON_TYPE(CCFConfig::SignatureIntervals);
@@ -116,8 +115,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   subject_name,
   subject_alternative_names,
   jwt_key_refresh_interval_s,
-  curve_id,
-  node_id);
+  curve_id);
 
 /// General administrative messages
 enum AdminMessage : ringbuffer::Message
