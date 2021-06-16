@@ -118,13 +118,18 @@ if __name__ == "__main__":
         LOG.info(f"Reading ledger from {ledger_dirs}")
         LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
 
-        for chunk in ledger:
+        try:
+            for chunk in ledger:
+                LOG.info(
+                    f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
+                )
+                for transaction in chunk:
+                    dump_entry(transaction, table_filter)
+        except Exception as e:
+            LOG.error(f"Error parsing ledger: {e}")
+        else:
+            LOG.success("Ledger verification complete")
+        finally:
             LOG.info(
-                f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
+                f"Found {ledger.signature_count()} signatures, and verified until {ledger.last_verified_txid()}"
             )
-            for transaction in chunk:
-                dump_entry(transaction, table_filter)
-
-        LOG.success(
-            f"Ledger verification complete. Found {ledger.signature_count()} signatures, and verified until {ledger.last_verified_txid()}"
-        )

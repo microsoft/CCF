@@ -221,11 +221,11 @@ class PublicDomain:
 
 
 def _byte_read_safe(file, num_of_bytes):
+    offset = file.tell()
     ret = file.read(num_of_bytes)
     if len(ret) != num_of_bytes:
         raise ValueError(
-            "Failed to read precise number of bytes: %u, actual = %u"
-            % (num_of_bytes, len(ret))
+            f"Failed to read precise number of bytes in {file.name} at offset {offset}: {len(ret)}/{num_of_bytes}"
         )
     return ret
 
@@ -643,6 +643,7 @@ class Ledger:
         self._fileindex = -1
         # Initialize LedgerValidator instance which will be passed to LedgerChunks.
         self._ledger_validator = LedgerValidator()
+        self._is_parsed = False
 
     @classmethod
     def _range_from_filename(cls, filename: str) -> Tuple[int, Optional[int]]:
@@ -702,25 +703,16 @@ class Ledger:
     def __iter__(self):
         return self
 
-    def signature_count(self):
-        return self._ledger_validator.signature_count
-
-    def last_verified_txid(self):
-        return TxID(
-            self._ledger_validator.last_verified_view,
-            self._ledger_validator.last_verified_seqno,
-        )
-
     def get_transaction(self, seqno: int) -> Transaction:
         """
-        Return the :py:class:`ccf.Ledger.Transaction` recorded in the ledger at the given sequence number.
+        Return the :py:class:`ccf.ledger.Transaction` recorded in the ledger at the given sequence number.
 
         Note that the transaction returned may not yet be verified by a
         signature transaction nor committed by the service.
 
         :param int seqno: Sequence number of the transaction to fetch.
 
-        :return: :py:class:`ccf.Ledger.Transaction`
+        :return: :py:class:`ccf.ledger.Transaction`
         """
         if seqno < 1:
             raise ValueError("Ledger first seqno is 1")
@@ -774,6 +766,29 @@ class Ledger:
                         public_tables[table_name] = records
 
         return public_tables, latest_seqno
+
+    def signature_count(self):
+        """
+        Return the number of verified signature transactions in the *parsed* ledger.
+
+        Note: The ledger should first be parsed before calling this function.
+
+        :return int: Number of verified signature transactions.
+        """
+        return self._ledger_validator.signature_count
+
+    def last_verified_txid(self):
+        """
+        Return the :py:class:`ccf.tx_id.TxID` of the last verified signature transaction in the *parsed* ledger.
+
+        Note: The ledger should first be parsed before calling this function.
+
+        :return: :py:class:`ccf.tx_id.TxID`
+        """
+        return TxID(
+            self._ledger_validator.last_verified_view,
+            self._ledger_validator.last_verified_seqno,
+        )
 
 
 class InvalidRootException(Exception):
