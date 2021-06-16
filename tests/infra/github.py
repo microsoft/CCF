@@ -45,9 +45,14 @@ def is_main_branch(branch_name):
     return branch_name == MAIN_BRANCH_NAME
 
 
+def strip_branch_name_suffix(branch_name):
+    return branch_name.split("_")[0]
+
+
 def strip_release_branch_name(branch_name):
     assert is_release_branch(branch_name), branch_name
-    return branch_name[len(BRANCH_RELEASE_PREFIX) :]
+    # Also discard "_suffix" if there is one
+    return strip_branch_name_suffix(branch_name[len(BRANCH_RELEASE_PREFIX) :])
 
 
 def get_major_version_from_release_branch_name(full_branch_name):
@@ -96,7 +101,7 @@ class Repository:
     def get_next_release_branch(self, release_branch_name):
         release_branches = self.get_release_branches_names()
         assert (
-            release_branch_name in release_branches
+            strip_branch_name_suffix(release_branch_name) in release_branches
         ), f"{release_branch_name} branch is not a valid release branch"
         after_index = release_branches.index(release_branch_name) + 1
         if after_index >= len(release_branches):
