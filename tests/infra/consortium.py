@@ -246,19 +246,18 @@ class Consortium:
                 )
                 proposal.increment_votes_for(member.service_id)
 
+        if response is None:
+            if proposal.view is None or proposal.seqno is None:
+                raise RuntimeError("Don't know what to wait for - no target TxID")
+            seqno = proposal.seqno
+            view = proposal.view
+        else:
+            seqno = response.seqno
+            view = response.view
+
         # Wait for proposal completion to be committed, even if no votes are issued
         if wait_for_global_commit:
             with remote_node.client() as c:
-                if response is None:
-                    if proposal.view is None or proposal.seqno is None:
-                        raise RuntimeError(
-                            "Don't know what to wait for - no target TxID"
-                        )
-                    seqno = proposal.seqno
-                    view = proposal.view
-                else:
-                    seqno = response.seqno
-                    view = response.view
                 ccf.commit.wait_for_commit(c, seqno, view, timeout=timeout)
 
         if proposal.state == ProposalState.ACCEPTED:

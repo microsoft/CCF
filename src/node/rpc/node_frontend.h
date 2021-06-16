@@ -300,7 +300,7 @@ namespace ccf
 
           if (
             consensus != nullptr && consensus->type() == ConsensusType::CFT &&
-            !this->context.get_node_state().is_primary())
+            !this->context.get_node_state().can_replicate())
           {
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
@@ -378,7 +378,7 @@ namespace ccf
         {
           if (
             consensus != nullptr && consensus->type() == ConsensusType::CFT &&
-            !this->context.get_node_state().is_primary())
+            !this->context.get_node_state().can_replicate())
           {
             auto primary_id = consensus->primary();
             if (primary_id.has_value())
@@ -762,7 +762,7 @@ namespace ccf
         .install();
 
       auto is_primary = [this](auto& args) {
-        if (this->context.get_node_state().is_primary())
+        if (this->context.get_node_state().can_replicate())
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         }

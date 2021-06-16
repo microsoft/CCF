@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Add `kv::Value` and `kv::Set`, as a more error-proof alternative to `kv::Map`s which had a single key or meaningless values (#2599).
 - Added JavaScript bytecode caching to avoid repeated compilation overhead. See the [documentation](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#deployment) for more information (#2643).
 
+### Changed
+
+- CCF now responds to HTTP requests that could not be parsed with a 400 response including error details (#2652).
+
 ## [2.0.0-dev0]
 
 ### Added

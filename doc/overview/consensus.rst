@@ -34,3 +34,53 @@ BFT parameters can be configured when starting up a network (see :doc:`here </op
 BFT is still under development and should not be enabled in a production environment. There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
 By default CCF runs with CFT. To run CCF with BFT the ``--consensus bft`` CLI argument must be provided when starting up the nodes (see :doc:`/operations/start_network` for starting up a network and nodes).
+
+Replica State Machine
+---------------------
+
+Simplified
+~~~~~~~~~~
+
+Main states and transitions in CCF consensus. Note that while the implementation of the transitions differs between CFT and BFT, the states themselves do not.
+
+.. mermaid::
+
+    graph LR;
+        Init-->Leader;
+        Init-->Follower;
+        Follower-->Candidate;
+        Candidate-->Follower;
+        Candidate-->Leader;
+        Leader-->Retired;
+        Follower-->Retired;
+
+Retirement details
+~~~~~~~~~~~~~~~~~~
+
+The transition towards retirement involves two additional elements of state:
+
+- Retirement index (RI): Index at which node is set to ``Retired`` in ``public:ccf.gov.nodes.info``
+- Retirement Committable Index (RCI): Index at which the retirement transaction first becomes committable, ie. the first signature following the transaction.
+
+A node permanently transitions to ``Retired`` once it has observed commit reaching its Retirement Committable Index.
+
+.. mermaid::
+
+    graph LR;
+        Follower-->FRI[Follower w/ RI];
+        FRI-->Follower;
+        FRI-->FRCI[Follower w/ RCI];
+        FRCI-->Follower;
+        FRCI-->Retired;
+
+.. mermaid::
+
+    graph LR;
+        Leader-->LRI[Leader w/ RI];
+        LRI-->Follower;
+        LRI-->LRCI[Leader w/ RCI: reject new entries];
+        LRCI-->Follower;
+        LRCI-->Retired;
+
+Note that because the rollback triggered when a node becomes aware of a new term never preserves unsigned transactions,
+and because RCI is always the first signature after RI, RI and RCI are always both rolled back if RCI itself is rolled back.
