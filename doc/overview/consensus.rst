@@ -76,10 +76,14 @@ This sample illustrates the addition of a single node to a one-node network:
 
         Node 0->>Node 1: Replicate 3.42
         Note over Node 1: State in KV := TRUSTED
+        Note right of Node 1: Active configs := [Cfg 0, Cfg 1]
         Node 1->>Node 0: Acknowledge 3.42
 
         Note right of Node 0: 3.42 commits (meets quorum in Cfg 0 and 1)
         Note right of Node 0: Active configs := [Cfg 1]
+
+        Node 0->>Node 1: Notify commit 3.42
+        Note right of Node 1: Active configs := [Cfg 1]
 
 .. note:: This diagram assumes the reconfiguration transaction is committable. This is a simplification, in reality it is not. Instead the next signature is committable, which means that the reconfiguration transaction only commits when the next signature does.
 
@@ -112,10 +116,14 @@ This sample illustrates replacing the node in a one-node network:
 
         Node 0->>Node 1: Replicate 3.42
         Note over Node 1: State in KV := TRUSTED
+        Note right of Node 1: Active configs := [Cfg 0, Cfg 1]
         Node 1->>Node 0: Acknowledge 3.42
 
         Note right of Node 0: 3.42 commits (meets quorum in Cfg 0 and 1)
         Note right of Node 0: Active configs := [Cfg 1]
+
+        Node 0->>Node 1: Notify commit 3.42
+        Note right of Node 1: Active configs := [Cfg 1]
 
 At this point, Node 0 is aware that its retirement has been committed. It therefore stops replicating and issuing heartbeats.
 
