@@ -222,7 +222,7 @@ namespace ccf
       update_history();
 
       const bool is_primary = (consensus == nullptr) ||
-        consensus->is_primary() || ctx->is_create_request;
+        consensus->can_replicate() || ctx->is_create_request;
       const bool forwardable = (consensus != nullptr) &&
         (consensus->type() == ConsensusType::CFT ||
          (consensus->type() != ConsensusType::CFT && !ctx->execute_on_node));
@@ -335,7 +335,7 @@ namespace ccf
                   ctx->set_tx_id(tx_id);
                 }
 
-                if (history != nullptr && consensus->is_primary())
+                if (history != nullptr && consensus->can_replicate())
                 {
                   history->try_emit_signature();
                 }
@@ -535,7 +535,7 @@ namespace ccf
         endpoint->properties.execute_outside_consensus !=
           ccf::endpoints::ExecuteOutsideConsensus::Never;
       const bool should_bft_distribute = is_bft && !is_local &&
-        (ctx->execute_on_node || consensus->is_primary());
+        (ctx->execute_on_node || consensus->can_replicate());
 
       // This decision is based on several things read from the KV
       // (request->is_local) which are true _now_ but may not
@@ -671,7 +671,7 @@ namespace ccf
         (endpoint != nullptr &&
          endpoint->properties.execute_outside_consensus ==
            endpoints::ExecuteOutsideConsensus::Primary &&
-         (consensus != nullptr && consensus->is_primary())))
+         (consensus != nullptr && consensus->can_replicate())))
       {
         auto rep = process_command(ctx, tx);
         if (!rep.has_value())
