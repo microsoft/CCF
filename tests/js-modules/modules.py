@@ -60,13 +60,13 @@ def test_bytecode_cache(network, args):
     bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
 
     LOG.info("Verifying that app works without bytecode cache")
-    network.consortium.set_js_app(
-        primary, bundle_dir, disable_bytecode_cache=True
-    )
+    network.consortium.set_js_app(primary, bundle_dir, disable_bytecode_cache=True)
 
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
-        assert r.body.json()["bytecode_size"] == 0, "Module bytecode exists but should not"
+        body = r.body.json()
+        assert body["bytecode_size"] == 0, "Module bytecode exists but should not"
+        assert not body["bytecode_used"], body
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
@@ -74,13 +74,13 @@ def test_bytecode_cache(network, args):
         assert r.body.text() == "Hello world!"
 
     LOG.info("Verifying that app works with bytecode cache")
-    network.consortium.set_js_app(
-        primary, bundle_dir, disable_bytecode_cache=False
-    )
+    network.consortium.set_js_app(primary, bundle_dir, disable_bytecode_cache=False)
 
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
-        assert r.body.json()["bytecode_size"] > 0, "Module bytecode is missing"
+        body = r.body.json()
+        assert body["bytecode_size"] > 0, "Module bytecode is missing"
+        assert body["bytecode_used"], body
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
@@ -88,13 +88,13 @@ def test_bytecode_cache(network, args):
         assert r.body.text() == "Hello world!"
 
     LOG.info("Verifying that redeploying app cleans bytecode cache")
-    network.consortium.set_js_app(
-        primary, bundle_dir, disable_bytecode_cache=True
-    )
+    network.consortium.set_js_app(primary, bundle_dir, disable_bytecode_cache=True)
 
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
-        assert r.body.json()["bytecode_size"] == 0, "Module bytecode exists but should not"
+        body = r.body.json()
+        assert body["bytecode_size"] == 0, "Module bytecode exists but should not"
+        assert not body["bytecode_used"], body
 
     LOG.info(
         "Verifying that bytecode cache can be enabled/refreshed without app re-deploy"
@@ -103,7 +103,9 @@ def test_bytecode_cache(network, args):
 
     with primary.client("user0") as c:
         r = c.get("/node/js_metrics")
-        assert r.body.json()["bytecode_size"] > 0, "Module bytecode is missing"
+        body = r.body.json()
+        assert body["bytecode_size"] > 0, "Module bytecode is missing"
+        assert body["bytecode_used"], body
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})

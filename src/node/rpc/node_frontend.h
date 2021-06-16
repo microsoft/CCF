@@ -58,11 +58,11 @@ namespace ccf
   struct JavaScriptMetrics
   {
     uint64_t bytecode_size;
-    std::optional<std::string> bytecode_version;
+    bool bytecode_used;
   };
 
   DECLARE_JSON_TYPE(JavaScriptMetrics)
-  DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_version)
+  DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used)
 
   class NodeEndpoints : public CommonEndpointRegistry
   {
@@ -212,7 +212,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "1.2.0";
+      openapi_info.document_version = "1.3.0";
     }
 
     void init_handlers() override
@@ -894,24 +894,28 @@ namespace ccf
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
         .set_auto_schema<void, NodeMetrics>()
         .install();
-      
+
       auto js_metrics = [this](auto& args, nlohmann::json&&) {
         auto bytecode_map = args.tx.ro(this->network.modules_quickjs_bytecode);
         auto version_val = args.tx.ro(this->network.modules_quickjs_version);
         uint64_t bytecode_size = 0;
-        bytecode_map->foreach([&bytecode_size](
-                       const auto&, const auto& bytecode) {
-          bytecode_size += bytecode.size();
-          return true;
-        });
+        bytecode_map->foreach(
+          [&bytecode_size](const auto&, const auto& bytecode) {
+            bytecode_size += bytecode.size();
+            return true;
+          });
         JavaScriptMetrics m;
         m.bytecode_size = bytecode_size;
-        m.bytecode_version = version_val->get();
+        m.bytecode_used =
+          version_val->get() == std::string(ccf::quickjs_version);
         return m;
       };
 
       make_read_only_endpoint(
-        "js_metrics", HTTP_GET, json_read_only_adapter(js_metrics), no_auth_required)
+        "js_metrics",
+        HTTP_GET,
+        json_read_only_adapter(js_metrics),
+        no_auth_required)
         .set_auto_schema<void, JavaScriptMetrics>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)

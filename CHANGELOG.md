@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added a new `--client-connection-timeout-ms` command line argument to `cchost` to specify the maximum time a node should wait before re-establishing failed client connections. This should be set to a significantly lower value than `--raft-election-timeout-ms` (#2618).
 - Add `kv::Value` and `kv::Set`, as a more error-proof alternative to `kv::Map`s which had a single key or meaningless values (#2599).
+- Added JavaScript bytecode caching to avoid repeated compilation overhead. See the [documentation](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#deployment) for more information (#2643).
 
 ## [2.0.0-dev0]
 
