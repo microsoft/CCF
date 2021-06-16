@@ -5,10 +5,10 @@ parameters:
   suffix: ""
 
 steps:
+  # TODO: Revert before merge!
   - script: |
       set -ex
-      ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
-    env:
+      ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test -R full_test_suite --repeat-until-fail 100
       METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
       CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
     displayName: CTest
