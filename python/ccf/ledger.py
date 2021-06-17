@@ -766,7 +766,7 @@ class Ledger:
 
         return public_tables, latest_seqno
 
-    def signature_count(self):
+    def signature_count(self) -> int:
         """
         Return the number of verified signature transactions in the *parsed* ledger.
 
