@@ -542,10 +542,6 @@ namespace ccf
         if (!priority)
           return true;
       }
-      else if (status == WAITING_FOR_FINAL)
-      {
-        return false;
-      }
 
       key_exchange_in_progress = true;
 
@@ -706,9 +702,6 @@ namespace ccf
 
     void initiate()
     {
-      if (status == WAITING_FOR_FINAL)
-        return;
-
       LOG_INFO_FMT("Initiating node channel with {}.", peer_id);
 
       key_exchange_in_progress = true;
