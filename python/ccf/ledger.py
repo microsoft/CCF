@@ -776,7 +776,7 @@ class Ledger:
         """
         return self._ledger_validator.signature_count
 
-    def last_verified_txid(self):
+    def last_verified_txid(self) -> TxID:
         """
         Return the :py:class:`ccf.tx_id.TxID` of the last verified signature transaction in the *parsed* ledger.
 
