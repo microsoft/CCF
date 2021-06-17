@@ -519,4 +519,74 @@ namespace kv
       return true;
     }
   };
+
+  class TxBFTApply : public BFTExecutionWrapper
+  {
+  private:
+    uint64_t max_conflict_version;
+    std::unique_ptr<CommittableTx> tx;
+
+  public:
+    TxBFTApply(
+      ExecutionWrapperStore* store_,
+      std::shared_ptr<TxHistory> history_,
+      const std::vector<uint8_t>& data_,
+      bool public_only_,
+      std::unique_ptr<CommittableTx> tx_,
+      kv::Version v_,
+      kv::Version max_conflict_version_,
+      ccf::View view_,
+      OrderedChanges&& changes_,
+      MapCollection&& new_maps_) :
+      BFTExecutionWrapper(
+        store_,
+        history_,
+        nullptr,
+        nullptr,
+        data_,
+        public_only_,
+        v_,
+        std::move(changes_),
+        std::move(new_maps_)),
+      max_conflict_version(max_conflict_version_)
+    {
+      max_conflict_version = max_conflict_version_;
+      tx = std::move(tx_);
+      term = view_;
+    }
+
+    ApplyResult apply() override
+    {
+      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      {
+        return ApplyResult::FAIL;
+      }
+
+      if (history)
+      {
+        history->append(data);
+      }
+
+      tx->set_change_list(std::move(changes), term);
+
+      auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+      auto req_v = aft_requests->get(0);
+      CCF_ASSERT(
+        req_v.has_value(),
+        "Deserialised append entry, but requests map is empty");
+      req = req_v.value();
+
+      return ApplyResult::PASS_APPLY;
+    }
+
+    kv::Version get_max_conflict_version() override
+    {
+      return max_conflict_version;
+    }
+
+    bool support_async_execution() override
+    {
+      return false;
+    }
+  };
 }
