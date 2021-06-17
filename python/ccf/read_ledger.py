@@ -126,7 +126,7 @@ if __name__ == "__main__":
                 for transaction in chunk:
                     dump_entry(transaction, table_filter)
         except Exception as e:
-            LOG.error(f"Error parsing ledger: {e}")
+            LOG.exception(f"Error parsing ledger: {e}")
         else:
             LOG.success("Ledger verification complete")
         finally:
