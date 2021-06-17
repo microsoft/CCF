@@ -1884,11 +1884,6 @@ namespace aft
           }
           break;
         }
-        case kv::ApplyResult::PASS_APPLY:
-        {
-          executor->mark_request_executed(ds->get_request(), request_tracker);
-          break;
-        }
         case kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
         case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
         {

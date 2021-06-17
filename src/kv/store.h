@@ -781,6 +781,7 @@ namespace kv
         }
 
         std::unique_ptr<BFTExecutionWrapper> exec;
+
         if (changes.find(ccf::Tables::SIGNATURES) != changes.end())
         {
           exec = std::make_unique<SignatureBFTExec>(
@@ -850,25 +851,17 @@ namespace kv
         }
         else if (changes.find(ccf::Tables::AFT_REQUESTS) != changes.end())
         {
-          if (public_only)
-          {
-            exec = std::make_unique<CFTExecutionWrapper>(
-              this, get_history(), std::move(data), public_only);
-          }
-          else
-          {
-            exec = std::make_unique<TxBFTExec>(
-              this,
-              get_history(),
-              std::move(data),
-              public_only,
-              std::make_unique<CommittableTx>(this),
-              v,
-              max_conflict_version,
-              view,
-              std::move(changes),
-              std::move(new_maps));
-          }
+          exec = std::make_unique<TxBFTExec>(
+            this,
+            get_history(),
+            std::move(data),
+            public_only,
+            std::make_unique<CommittableTx>(this),
+            v,
+            max_conflict_version,
+            view,
+            std::move(changes),
+            std::move(new_maps));
         }
         else
         {
