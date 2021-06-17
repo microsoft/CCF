@@ -28,6 +28,7 @@ class Consortium:
         common_dir,
         key_generator,
         share_script,
+        consensus,
         members_info=None,
         curve=None,
         public_state=None,
@@ -37,6 +38,7 @@ class Consortium:
         self.members = []
         self.key_generator = key_generator
         self.share_script = share_script
+        self.consensus = consensus
         self.members = []
         self.recovery_threshold = None
         self.authenticate_session = authenticate_session
@@ -449,7 +451,8 @@ class Consortium:
                 is_recovery = False
 
         proposal_body, careful_vote = self.make_proposal(
-            "transition_service_to_open", args={"nonce": str(uuid.uuid4())}
+            "transition_service_to_open",
+            args=None if self.consensus == "cft" else {"nonce": str(uuid.uuid4())},
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
