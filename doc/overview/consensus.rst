@@ -230,8 +230,11 @@ The following example illustrates one possible execution of an addition of two n
         Node 0-->>-Node 2: Success @ Tx ID 3.44
 
         Node 0->>Node 1: Replicate Tx ID 3.43
-        Note over Node 1: State in KV := TRUSTED
+        Note over Node 1: State in KV := UP_TO_DATE_LEARNER
         Node 1->>Node 0: Acknowledge Tx ID 3.43
+        Node 0->>Node 1: Replicate Tx ID 3.44
+        Note over Node 1: State in KV := TRUSTED
+        Node 1->>Node 0: Acknowledge Tx ID 3.44
         Node 0->>Node 2: Replicate Tx ID 3.44
         Note over Node 2: State in KV := TRUSTED
         Node 2->>Node 0: Acknowledge Tx ID 3.44
