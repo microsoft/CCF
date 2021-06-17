@@ -448,7 +448,9 @@ class Consortium:
             if r.body.json()["state"] == infra.node.State.PART_OF_NETWORK.value:
                 is_recovery = False
 
-        proposal_body, careful_vote = self.make_proposal("transition_service_to_open", args={"nonce": str(uuid.uuid4())})
+        proposal_body, careful_vote = self.make_proposal(
+            "transition_service_to_open", args={"nonce": str(uuid.uuid4())}
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, careful_vote, wait_for_global_commit=True

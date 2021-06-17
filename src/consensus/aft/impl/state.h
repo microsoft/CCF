@@ -118,7 +118,15 @@ namespace aft
     ViewHistory view_history;
     kv::Version new_view_idx;
     std::optional<ccf::NodeId> requested_evidence_from = std::nullopt;
-    std::optional<std::tuple<ccf::NodeId, ccf::View>> initial_primary =
+
+    // When running with BFT replicas do not know which replica to trust as the
+    // primary during recovery startup. So what we do is just trust the first
+    // replica that communicated with the replica in the view that it told us is
+    // correct. This is a liveness issue if there is a failure during recovery
+    // but CCF maintains integrity because it is derived from the members
+    // signing the ledger the replica will see and verify before opening the
+    // service.
+    std::optional<std::tuple<ccf::NodeId, ccf::View>> initial_recovery_primary =
       std::nullopt;
   };
 }

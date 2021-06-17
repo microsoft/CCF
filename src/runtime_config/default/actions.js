@@ -448,9 +448,7 @@ const actions = new Map([
   [
     "transition_service_to_open",
     new Action(
-      function (args) {
-        //checkNone(args);
-      },
+      function (args) {},
 
       function (args) {
         ccf.node.transitionServiceToOpen();

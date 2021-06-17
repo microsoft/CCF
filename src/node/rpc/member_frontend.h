@@ -1089,7 +1089,7 @@ namespace ccf
         //
         // This is current broken broken for BFT.
         // https://github.com/microsoft/CCF/issues/2668
-        //if (consensus->type() == ConsensusType::CFT && pm->has(proposal_id))
+        // if (consensus->type() == ConsensusType::CFT && pm->has(proposal_id))
         if (pm->has(proposal_id))
         {
           ctx.rpc_ctx->set_error(

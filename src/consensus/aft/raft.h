@@ -227,6 +227,12 @@ namespace aft
         view_change_tracker->set_current_view_change(starting_view_change);
       }
 
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        progress_tracker->set_is_public_only(public_only);
+      }
+
       if (request_tracker != nullptr && !public_only)
       {
         request_tracker->start_tracking_requests();
@@ -331,7 +337,12 @@ namespace aft
       // be deserialised
       std::lock_guard<std::mutex> guard(state->lock);
       public_only = false;
-      if (request_tracker != nullptr && !public_only)
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        progress_tracker->set_is_public_only(public_only);
+      }
+      if (request_tracker != nullptr)
       {
         request_tracker->start_tracking_requests();
       }
@@ -1255,14 +1266,14 @@ namespace aft
       bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
       {
-        if (!state->initial_primary.has_value())
+        if (!state->initial_recovery_primary.has_value())
         {
-          state->initial_primary = std::make_tuple(from, r.term);
+          state->initial_recovery_primary = std::make_tuple(from, r.term);
         }
         if (
           active_nodes().size() == 0 ||
-          (std::get<0>(state->initial_primary.value()) == from &&
-           std::get<1>(state->initial_primary.value()) == r.term))
+          (std::get<0>(state->initial_recovery_primary.value()) == from &&
+           std::get<1>(state->initial_recovery_primary.value()) == r.term))
         {
           // The replica is just starting up, we want to check that this replica
           // is part of the network we joined but that is dependent on Byzantine
@@ -2196,13 +2207,7 @@ namespace aft
       progress_tracker->add_nonce_reveal(
         {r.term, r.idx}, r.nonce, from, node_count(), is_primary());
 
-      // This function is called where we receive a nonce via a network message.
-      // When running in public_only mode we only want to move commitment
-      // forward from evidence on the ledger.
-      if (!public_only)
-      {
-        update_commit();
-      }
+      update_commit();
     }
 
     void recv_append_entries_response(
