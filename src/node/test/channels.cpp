@@ -514,6 +514,144 @@ TEST_CASE("Replay and out-of-order")
   }
 }
 
+TEST_CASE("Interrupted key exchange")
+{
+  auto network_kp = crypto::make_key_pair(default_curve);
+  auto network_cert = network_kp->self_sign("CN=Network");
+
+  auto channel1_kp = crypto::make_key_pair(default_curve);
+  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
+  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+
+  auto channel2_kp = crypto::make_key_pair(default_curve);
+  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
+  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+
+  auto channel1 =
+    Channel(wf1, network_cert, channel1_kp, channel1_cert, self, peer);
+  auto channel2 =
+    Channel(wf2, network_cert, channel2_kp, channel2_cert, peer, self);
+
+  std::vector<uint8_t> msg;
+  msg.push_back(0x42);
+  msg.push_back(0x1);
+  msg.push_back(0x10);
+  msg.push_back(0x0);
+  msg.push_back(0x1);
+  msg.push_back(0x42);
+
+  enum class DropStage
+  {
+    InitiationMessage,
+    ResponseMessage,
+    FinalMessage,
+    NoDrops,
+  };
+  for (const auto drop_stage : {DropStage::InitiationMessage,
+                                DropStage::ResponseMessage,
+                                DropStage::FinalMessage,
+                                DropStage::NoDrops})
+  {
+    INFO("Drop stage is ", (size_t)drop_stage);
+
+    channel1.reset();
+    channel2.reset();
+    REQUIRE(channel1.get_status() == INACTIVE);
+    REQUIRE(channel2.get_status() == INACTIVE);
+
+    channel1.initiate();
+
+    REQUIRE(channel1.get_status() == INITIATED);
+    REQUIRE(channel2.get_status() == INACTIVE);
+
+    auto initiator_key_share_msg = get_first(eio1, NodeMsgType::channel_msg);
+    if (drop_stage > DropStage::InitiationMessage)
+    {
+      REQUIRE(channel2.consume_initiator_key_share(
+        initiator_key_share_msg.unauthenticated_data()));
+
+      REQUIRE(channel1.get_status() == INITIATED);
+      REQUIRE(channel2.get_status() == WAITING_FOR_FINAL);
+
+      auto responder_key_share_msg = get_first(eio2, NodeMsgType::channel_msg);
+      if (drop_stage > DropStage::ResponseMessage)
+      {
+        REQUIRE(channel1.consume_responder_key_share(
+          responder_key_share_msg.unauthenticated_data()));
+
+        REQUIRE(channel1.get_status() == ESTABLISHED);
+        REQUIRE(channel2.get_status() == WAITING_FOR_FINAL);
+
+        auto initiator_key_exchange_final_msg =
+          get_first(eio1, NodeMsgType::channel_msg);
+        if (drop_stage > DropStage::FinalMessage)
+        {
+          REQUIRE(channel2.check_peer_key_share_signature(
+            initiator_key_exchange_final_msg.unauthenticated_data()));
+
+          REQUIRE(channel1.get_status() == ESTABLISHED);
+          REQUIRE(channel2.get_status() == ESTABLISHED);
+        }
+      }
+    }
+
+    INFO("Later attempts to connect should succeed");
+    {
+      SUBCASE("Node 1 attempts to connect")
+      {
+        std::cout << "Node 1 attempts to connect" << std::endl;
+        channel1.initiate();
+
+        REQUIRE(channel2.consume_initiator_key_share(
+          get_first(eio1, NodeMsgType::channel_msg).unauthenticated_data()));
+        REQUIRE(channel1.consume_responder_key_share(
+          get_first(eio2, NodeMsgType::channel_msg).unauthenticated_data()));
+        REQUIRE(channel2.check_peer_key_share_signature(
+          get_first(eio1, NodeMsgType::channel_msg).unauthenticated_data()));
+
+        REQUIRE(channel1.get_status() == ESTABLISHED);
+        REQUIRE(channel2.get_status() == ESTABLISHED);
+      }
+
+      SUBCASE("Node 2 attempts to connect")
+      {
+        std::cout << "Node 2 attempts to connect" << std::endl;
+        channel2.initiate();
+
+        REQUIRE(channel1.consume_initiator_key_share(
+          get_first(eio2, NodeMsgType::channel_msg).unauthenticated_data()));
+        REQUIRE(channel2.consume_responder_key_share(
+          get_first(eio1, NodeMsgType::channel_msg).unauthenticated_data()));
+        REQUIRE(channel1.check_peer_key_share_signature(
+          get_first(eio2, NodeMsgType::channel_msg).unauthenticated_data()));
+
+        REQUIRE(channel1.get_status() == ESTABLISHED);
+        REQUIRE(channel2.get_status() == ESTABLISHED);
+      }
+
+      REQUIRE(
+        channel1.send(NodeMsgType::consensus_msg, {msg.data(), msg.size()}));
+      auto msg1 = get_first(eio1, NodeMsgType::consensus_msg);
+      auto decrypted1 = channel2.recv_encrypted(
+        {msg1.authenticated_hdr.data(), msg1.authenticated_hdr.size()},
+        msg1.payload.data(),
+        msg1.payload.size());
+      REQUIRE(decrypted1.has_value());
+      REQUIRE(decrypted1.value() == msg);
+
+      REQUIRE(
+        channel2.send(NodeMsgType::consensus_msg, {msg.data(), msg.size()}));
+      auto msg2 = get_first(eio2, NodeMsgType::consensus_msg);
+      auto decrypted2 = channel1.recv_encrypted(
+        {msg2.authenticated_hdr.data(), msg2.authenticated_hdr.size()},
+        msg2.payload.data(),
+        msg2.payload.size());
+      REQUIRE(decrypted2.has_value());
+      REQUIRE(decrypted2.value() == msg);
+    }
+  }
+}
+
 TEST_CASE("Host connections")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
