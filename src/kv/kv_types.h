@@ -237,7 +237,8 @@ namespace kv
     PASS_NEW_VIEW = 6,
     PASS_SNAPSHOT_EVIDENCE = 7,
     PASS_ENCRYPTED_PAST_LEDGER_SECRET = 8,
-    FAIL = 9
+    PASS_APPLY = 9,
+    FAIL = 10
   };
 
   enum ReplicateType
