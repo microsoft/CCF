@@ -53,12 +53,9 @@ def check_can_progress(node, timeout=3):
 
 @reqs.description("Adding a valid node without snapshot")
 def test_add_node(network, args):
-    new_node = network.create_and_trust_node(
-        args.package,
-        "local://localhost",
-        args,
-        from_snapshot=False,
-    )
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.trust_node(new_node, args)
     with new_node.client() as c:
         s = c.get("/node/state")
         assert s.body.json()["node_id"] == new_node.node_id
@@ -72,13 +69,11 @@ def test_add_node(network, args):
 @reqs.description("Adding a valid node from a backup")
 @reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
-    new_node = network.create_and_trust_node(
-        args.package,
-        "local://localhost",
-        args,
-        target_node=network.find_any_backup(),
+    new_node = network.create_node("local://localhost")
+    network.join_node(
+        new_node, args.package, args, target_node=network.find_any_backup()
     )
-    assert new_node
+    network.trust_node(new_node, args)
     return network
 
 
@@ -105,15 +100,16 @@ def test_add_node_from_snapshot(
         # generates snapshots
         snapshot_dir = network.get_committed_snapshots(primary)
 
-    new_node = network.create_and_trust_node(
+    new_node = network.create_node("local://localhost")
+    network.join_node(
+        new_node,
         args.package,
-        "local://localhost",
         args,
         copy_ledger_read_only=copy_ledger_read_only,
         target_node=target_node,
         snapshot_dir=snapshot_dir,
     )
-    assert new_node
+    network.trust_node(new_node, args)
 
     if copy_ledger_read_only:
         with new_node.client() as c:
@@ -137,13 +133,18 @@ def test_add_as_many_pending_nodes(network, args):
         f"Adding {number_new_nodes} pending nodes - consensus rules should not change"
     )
 
+    new_nodes = []
     for _ in range(number_new_nodes):
-        network.create_and_add_pending_node(
-            args.package,
-            "local://localhost",
-            args,
-        )
-    check_can_progress(network.find_primary()[0])
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, from_snapshot=False)
+        new_nodes.append(new_node)
+
+    primary, _ = network.find_primary()
+
+    check_can_progress(primary)
+
+    for new_node in new_nodes:
+        network.retire_node(primary, new_node)
     return network
 
 
@@ -153,7 +154,7 @@ def test_add_as_many_pending_nodes(network, args):
 def test_retire_backup(network, args):
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
-    network.consortium.retire_node(primary, backup_to_retire)
+    network.retire_node(primary, backup_to_retire)
     backup_to_retire.stop()
     check_can_progress(primary)
     return network
@@ -165,11 +166,9 @@ def test_retire_primary(network, args):
     pre_count = count_nodes(node_configs(network), network)
 
     primary, backup = network.find_primary_and_any_backup()
-    network.consortium.retire_node(primary, primary)
-    new_primary, new_term = network.wait_for_new_primary(primary.node_id)
-    LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+    network.retire_node(primary, primary)
+    network.wait_for_new_primary(primary)
     check_can_progress(backup)
-    network.nodes.remove(primary)
     post_count = count_nodes(node_configs(network), network)
     assert pre_count == post_count + 1
     primary.stop()
@@ -189,9 +188,8 @@ def test_node_filter(network, args):
         trusted_before = get_nodes("Trusted")
         pending_before = get_nodes("Pending")
         retired_before = get_nodes("Retired")
-        new_node = network.create_and_add_pending_node(
-            args.package, "local://localhost", args, target_node=primary
-        )
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, target_node=primary)
         trusted_after = get_nodes("Trusted")
         pending_after = get_nodes("Pending")
         retired_after = get_nodes("Retired")
@@ -210,7 +208,7 @@ def test_node_filter(network, args):
 
 
 def run(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -242,7 +240,7 @@ def run(args):
 
 
 def run_join_old_snapshot(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     nodes = ["local://localhost"]
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -272,29 +270,31 @@ def run_join_old_snapshot(args):
             txs.issue(network, number_txs=args.snapshot_tx_interval)
 
             for _ in range(0, 2):
-                network.create_and_trust_node(
+                new_node = network.create_node("local://localhost")
+                network.join_node(
+                    new_node,
                     args.package,
-                    "local://localhost",
                     args,
                     from_snapshot=True,
                 )
+                network.trust_node(new_node, args)
 
             # Kill primary and wait for a new one: new primary is
             # guaranteed to have started from the new snapshot
             primary.stop()
-            network.wait_for_new_primary(primary.node_id)
+            network.wait_for_new_primary(primary)
 
             # Start new node from the old snapshot
             try:
-                network.create_and_trust_node(
+                new_node = network.create_node("local://localhost")
+                network.join_node(
+                    new_node,
                     args.package,
-                    "local://localhost",
                     args,
                     from_snapshot=True,
                     snapshot_dir=tmp_dir,
                     timeout=3,
                 )
-                assert False, "Node should not be able to join from old snapshot"
             except infra.network.StartupSnapshotIsOld:
                 pass
 

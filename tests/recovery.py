@@ -83,7 +83,7 @@ def test_share_resilience(network, args, from_snapshot=False):
         f"Shutting down node {primary.node_id} before submitting last recovery share"
     )
     primary.stop()
-    new_primary, _ = recovered_network.wait_for_new_primary(primary.node_id)
+    new_primary, _ = recovered_network.wait_for_new_primary(primary)
     assert (
         new_primary is not primary
     ), f"Primary {primary.node_id} should have changed after election"
@@ -105,7 +105,7 @@ def test_share_resilience(network, args, from_snapshot=False):
 
 
 def run(args):
-    txs = app.LoggingTxs()
+    txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
         args.binary_dir,

@@ -481,6 +481,7 @@ namespace asynchost
       {
         file_name = committed_file_name;
         committed = true;
+        LOG_DEBUG_FMT("Committed ledger file {}", file_name);
       }
 
       return true;
@@ -818,8 +819,9 @@ namespace asynchost
         require_new_file = true;
       }
 
-      LOG_DEBUG_FMT("Setting last known index to {}", idx);
+      LOG_INFO_FMT("Setting last known/commit index to {}", idx);
       last_idx = idx;
+      committed_idx = idx;
     }
 
     size_t get_last_idx() const

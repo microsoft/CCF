@@ -787,6 +787,21 @@ if(BUILD_TESTS)
     LABEL forum
   )
 
+  list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
+       ${CCF_VERSION}
+  )
+  if(LONG_TESTS)
+    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
+  endif()
+
+  add_e2e_test(
+    NAME lts_compatibility
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+    CONSENSUS cft
+    LABEL e2e
+    ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}

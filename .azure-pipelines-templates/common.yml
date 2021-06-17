@@ -36,4 +36,5 @@ jobs:
 
       - ${{ if eq(parameters.suffix, 'Release') }}:
           - template: publish_tls_report.yml
+          - template: publish_compatibility_report.yml
           - template: install.yml
