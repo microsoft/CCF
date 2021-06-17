@@ -135,4 +135,38 @@ namespace aft
       max_conflict_version,
       replicated_view);
   }
+
+  void ExecutorImpl::mark_request_executed(
+    aft::Request& request,
+    std::shared_ptr<aft::RequestTracker>& request_tracker)
+  {
+    auto req_ctx = create_request_ctx(request);
+    auto request_message = RequestMessage::deserialize(
+      std::move(request.raw), request.rid, std::move(req_ctx), nullptr);
+
+    std::shared_ptr<enclave::RpcContext>& ctx =
+      request_message->get_request_ctx().ctx;
+    ctx->bft_raw.resize(request_message->size());
+    request_message->serialize_message(
+      ctx->bft_raw.data(), ctx->bft_raw.size());
+
+    if (request_tracker != nullptr)
+    {
+      std::shared_ptr<enclave::RpcContext>& ctx =
+        request_message->get_request_ctx().ctx;
+      const auto& raw_request = ctx->get_serialised_request();
+      auto data_ = raw_request.data();
+      auto size_ = raw_request.size();
+
+      crypto::Sha256Hash hash({data_, size_});
+
+      if (!request_tracker->remove(hash))
+      {
+        request_tracker->insert_deleted(
+          hash,
+          threading::ThreadMessaging::thread_messaging
+            .get_current_time_offset());
+      }
+    }
+  }
 }

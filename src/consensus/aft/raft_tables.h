@@ -9,14 +9,9 @@
 
 namespace aft
 {
-  static constexpr auto replicate_type_raft = kv::ReplicateType::ALL;
-  static const std::unordered_set<std::string> replicated_tables_raft = {};
-
-  static constexpr auto replicate_type_bft = kv::ReplicateType::SOME;
-  static const std::unordered_set<std::string> replicated_tables_bft = {
-    ccf::Tables::AFT_REQUESTS,
-    ccf::Tables::SIGNATURES,
-    ccf::Tables::BACKUP_SIGNATURES,
-    ccf::Tables::NONCES,
-    ccf::Tables::NEW_VIEWS};
+  // The KV provides an option to select which tables are replicated and which
+  // are not. This feature is currently not used but should be required for
+  // Byzantine Identity. https://github.com/microsoft/CCF/issues/2683
+  static constexpr auto replicate_type = kv::ReplicateType::ALL;
+  static const std::unordered_set<std::string> replicated_tables = {};
 }
