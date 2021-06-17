@@ -30,8 +30,7 @@ def get_session_metrics(node, timeout=3):
             if r.status_code == http.HTTPStatus.OK:
                 return r.body.json()["sessions"]
             time.sleep(0.1)
-        else:
-            assert r.status_code == http.HTTPStatus.OK, r
+        assert r.status_code == http.HTTPStatus.OK, r
 
 
 def run(args):
