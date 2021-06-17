@@ -341,6 +341,11 @@ def config_inited(app, config):
             os.environ["SMV_METADATA_PATH"] = app.config.smv_metadata_path
             os.environ["SMV_CURRENT_VERSION"] = app.config.smv_current_version
         subprocess.run(
+            ["sed", "-i", "s/\^4.2.3/4.2.4/g", "package.json"],
+            cwd=js_pkg_dir,
+            check=True,
+        )
+        subprocess.run(
             ["npm", "install", "--no-package-lock", "--no-audit", "--no-fund"],
             cwd=js_pkg_dir,
             check=True,
