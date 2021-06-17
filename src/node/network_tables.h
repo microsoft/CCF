@@ -37,16 +37,8 @@ namespace ccf
   inline std::shared_ptr<kv::Store> make_store(
     const ConsensusType& consensus_type)
   {
-    if (consensus_type == ConsensusType::CFT)
-    {
-      return std::make_shared<kv::Store>(
-        aft::replicate_type_raft, aft::replicated_tables_raft);
-    }
-    else
-    {
-      return std::make_shared<kv::Store>(
-        aft::replicate_type_bft, aft::replicated_tables_bft);
-    }
+    return std::make_shared<kv::Store>(
+      aft::replicate_type, aft::replicated_tables);
   }
 
   struct NetworkTables
