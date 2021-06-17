@@ -52,6 +52,10 @@ namespace aft
       ccf::SeqNo prescribed_commit_version,
       ccf::SeqNo max_conflict_version,
       ccf::View replicated_view) = 0;
+
+    virtual void mark_request_executed(
+      aft::Request& request,
+      std::shared_ptr<aft::RequestTracker>& request_tracker) = 0;
   };
 
   class ExecutorImpl : public Executor
@@ -89,6 +93,10 @@ namespace aft
       ccf::SeqNo prescribed_commit_version,
       ccf::SeqNo max_conflict_version,
       ccf::View replicated_view) override;
+
+    void mark_request_executed(
+      aft::Request& request,
+      std::shared_ptr<aft::RequestTracker>& request_tracker) override;
 
   private:
     std::shared_ptr<State> state;

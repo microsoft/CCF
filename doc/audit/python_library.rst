@@ -88,7 +88,7 @@ Alternatively, ``read_ledger.py`` can parse the content of a snapshot file:
 
 .. note::
 
-    The output of the ``read_ledger.py`` utility can be filtered by key-value store :ref:`table <build_apps/kv/kv_how_to/Creating a Map>` using the ``--tables <regex>`` arguments, e.g.:
+    The output of the ``read_ledger.py`` utility can be filtered by :ref:`key-value store table <build_apps/kv/kv_how_to:Creating a Map>` using the ``--tables <regex>`` arguments, e.g.:
 
     .. code-block:: bash
 
