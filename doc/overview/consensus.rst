@@ -155,25 +155,28 @@ This sample illustrates the addition of a single node to a one-node network with
 
         Note right of Node 0: Reconfiguration Tx ID := 3.42
         Note right of Node 0: Cfg 1 := [Node 0, Node 1]
-        Note right of Node 0: Active configs := [Cfg 0, Cfg 1]
+        Note right of Node 0: Active configs := [Cfg 0]
         Node 0-->>-Members: Success
 
-        Note over Node 1: State in KV := LEARNER
 
         Node 0->>Node 1: Replicate Tx ID 3.42
+        Note over Node 1: State in KV := LEARNER
         Node 1->>Node 0: Acknowledge Tx ID 3.42
+
+        Node 0->>Node 1: Notify commit 3.42
         
         Node 1->>+Node 0: Ready-for-promotion RPC for Node 1
-        Node 0-->>-Node 1: Success @ Tx ID 3.44
+        Note over Node 0: Node 1 in KV := UP_TO_DATE_LEARNER
+        Note over Node 0: All nodes in Cfg 1 in KV := TRUSTED
+        Note right of Node 0: Active configs := [Cfg 0, Cfg 1]
+        Node 0-->>-Node 1: Success @ Tx ID 3.43
 
-        Node 0->>Node 1: Replicate Tx ID 3.44
-        Node 1->>Node 0: Acknowledge Tx ID 3.44
-
+        Node 0->>Node 1: Replicate Tx ID 3.43
         Note over Node 1: State in KV := TRUSTED
+        Node 1->>Node 0: Acknowledge Tx ID 3.43
 
-        Node 0->>Node 0: Promote Cfg 1 in new Tx ID 3.46
 
-        Note right of Node 0: Tx ID 3.46 commits (meets quorum in Cfg 0 and 1)
+        Note right of Node 0: Tx ID 3.43 commits (meets quorum in Cfg 0 and 1)
         Note right of Node 0: Active configs := [Cfg 1]
 
 Joining a small number of nodes to a large, existing network will lead to almost-instant promotion of the joining node if both the existing and the new configuration have a sufficient number of nodes for quorums. Learners also help to improve the liveness of the system, because they do not necessarily have to receive the entire ledger from the leader immediately. Further, the two transactions on the ledger make it clear that the configuration change was not instant and it allows for other mechanisms to gate the switch to a new configuration on the committment to a number of other transactions on the ledger, for instance those required for the successful establishment of a Byzantine network identity.
