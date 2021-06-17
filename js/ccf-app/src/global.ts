@@ -244,23 +244,6 @@ export interface CCF {
   ): ArrayBuffer;
 
   /**
-   * Returns whether digital signature is valid.
-   *
-   * @param algorithm Signing algorithm and parameters
-   * @param key A PEM-encoded public key or X.509 certificate
-   * @param signature Signature to verify
-   * @param data Data that was signed
-   * @throws Will throw an error if the key is not compatible with the
-   *  signing algorithm or if an unknown algorithm is used.
-   */
-  verifySignature(
-    algorithm: SigningAlgorithm,
-    key: string,
-    signature: ArrayBuffer,
-    data: ArrayBuffer
-  ): boolean;
-
-  /**
    * Generate a digest (hash) of the given data.
    */
   digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer;
@@ -279,6 +262,25 @@ export interface CCF {
    * The chain and trusted certificates are PEM-encoded bundles of X.509 certificates.
    */
   isValidX509CertChain(chain: string, trusted: string): boolean;
+
+  crypto: {
+    /**
+     * Returns whether digital signature is valid.
+     *
+     * @param algorithm Signing algorithm and parameters
+     * @param key A PEM-encoded public key or X.509 certificate
+     * @param signature Signature to verify
+     * @param data Data that was signed
+     * @throws Will throw an error if the key is not compatible with the
+     *  signing algorithm or if an unknown algorithm is used.
+     */
+    verifySignature(
+      algorithm: SigningAlgorithm,
+      key: string,
+      signature: ArrayBuffer,
+      data: ArrayBuffer
+    ): boolean;
+  };
 
   rpc: {
     /**

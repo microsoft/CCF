@@ -80,8 +80,8 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
 
 
 def generate_ec_keypair(curve_name: str) -> Tuple[str, str]:
-    if curve_name == "secp256k1":
-        curve = ec.SECP256K1()
+    if curve_name == "secp256r1":
+        curve = ec.SECP256R1()
     else:
         raise ValueError("unsupported curve")
     priv = ec.generate_private_key(

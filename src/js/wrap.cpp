@@ -1044,11 +1044,6 @@ namespace js
     JS_SetPropertyStr(
       ctx, ccf, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
     JS_SetPropertyStr(
-      ctx,
-      ccf,
-      "verifySignature",
-      JS_NewCFunction(ctx, js_verify_signature, "verifySignature", 4));
-    JS_SetPropertyStr(
       ctx, ccf, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
     JS_SetPropertyStr(
       ctx,
@@ -1064,6 +1059,15 @@ namespace js
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
     JS_SetPropertyStr(
       ctx, ccf, "pemToId", JS_NewCFunction(ctx, js_pem_to_id, "pemToId", 1));
+
+    auto crypto = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, ccf, "crypto", crypto);
+
+    JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "verifySignature",
+      JS_NewCFunction(ctx, js_verify_signature, "verifySignature", 4));
 
     if (txctx != nullptr)
     {

@@ -312,7 +312,7 @@ def test_npm_app(network, args):
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json() == False, r.body
 
-        key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair("secp256k1")
+        key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair("secp256r1")
         algorithm = {"name": "ECDSA", "hash": "SHA-256"}
         data = "foo".encode()
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)

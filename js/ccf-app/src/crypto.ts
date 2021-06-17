@@ -33,9 +33,9 @@ export const generateRsaKeyPair = ccf.generateRsaKeyPair;
 export const wrapKey = ccf.wrapKey;
 
 /**
- * @inheritDoc CCF.verifySignature
+ * @inheritDoc CCF.crypto.verifySignature
  */
-export const verifySignature = ccf.verifySignature;
+export const verifySignature = ccf.crypto.verifySignature;
 
 /**
  * @inheritDoc CCF.digest

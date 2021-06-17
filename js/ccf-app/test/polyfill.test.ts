@@ -109,7 +109,7 @@ describe("polyfill", function () {
         padding: crypto.constants.RSA_PKCS1_PADDING,
       });
       assert.isTrue(
-        ccf.verifySignature(
+        ccf.crypto.verifySignature(
           {
             name: "RSASSA-PKCS1-v1_5",
             hash: "SHA-256",
@@ -120,7 +120,7 @@ describe("polyfill", function () {
         )
       );
       assert.isTrue(
-        ccf.verifySignature(
+        ccf.crypto.verifySignature(
           {
             name: "RSASSA-PKCS1-v1_5",
             hash: "SHA-256",
@@ -131,7 +131,7 @@ describe("polyfill", function () {
         )
       );
       assert.isNotTrue(
-        ccf.verifySignature(
+        ccf.crypto.verifySignature(
           {
             name: "RSASSA-PKCS1-v1_5",
             hash: "SHA-256",
@@ -142,7 +142,7 @@ describe("polyfill", function () {
         )
       );
       assert.throws(() =>
-        ccf.verifySignature(
+        ccf.crypto.verifySignature(
           {
             name: "ECDSA",
             hash: "SHA-256",
@@ -157,7 +157,7 @@ describe("polyfill", function () {
       // Not validating EC with certs here as node-forge used in
       // generateSelfSignedCert() does not support EC keys.
       const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", {
-        namedCurve: "secp256k1",
+        namedCurve: "secp256r1",
         publicKeyEncoding: {
           type: "spki",
           format: "pem",
@@ -175,7 +175,7 @@ describe("polyfill", function () {
         key: crypto.createPrivateKey(privateKey),
       });
       assert.isTrue(
-        ccf.verifySignature(
+        ccf.crypto.verifySignature(
           {
             name: "ECDSA",
             hash: "SHA-256",
@@ -186,7 +186,7 @@ describe("polyfill", function () {
         )
       );
       assert.isNotTrue(
-        ccf.verifySignature(
+        ccf.crypto.verifySignature(
           {
             name: "ECDSA",
             hash: "SHA-256",
@@ -197,7 +197,7 @@ describe("polyfill", function () {
         )
       );
       assert.throws(() =>
-        ccf.verifySignature(
+        ccf.crypto.verifySignature(
           {
             name: "RSASSA-PKCS1-v1_5",
             hash: "SHA-256",
