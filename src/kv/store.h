@@ -834,6 +834,9 @@ namespace kv
         else if (
           changes.find(ccf::Tables::SHARES) != changes.end() || public_only)
         {
+          // The currently logic for creating shares uses entropy. This needs to
+          // be fixed to use this in a proper BFT way.
+          // https://github.com/microsoft/CCF/issues/2679
           exec = std::make_unique<TxBFTApply>(
             this,
             get_history(),
@@ -864,7 +867,7 @@ namespace kv
         {
           // we have deserialised an entry that didn't belong to the bft
           // requests nor the signatures table
-          for (auto& it : changes)
+          for (const auto& it : changes)
           {
             LOG_FAIL_FMT("Request contains unexpected table - {}", it.first);
           }
