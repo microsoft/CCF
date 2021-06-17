@@ -164,11 +164,6 @@ namespace kv
     {
       return false;
     }
-
-    bool is_public_only() override
-    {
-      return public_only;
-    }
   };
 
   class BFTExecutionWrapper : public AbstractExecutionWrapper
@@ -249,11 +244,6 @@ namespace kv
     virtual bool support_async_execution() override
     {
       return false;
-    }
-
-    virtual bool is_public_only() override
-    {
-      return public_only;
     }
   };
 
@@ -577,17 +567,14 @@ namespace kv
         history->append(data);
       }
 
-      if (!public_only)
-      {
-        tx->set_change_list(std::move(changes), term);
+      tx->set_change_list(std::move(changes), term);
 
-        auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
-        auto req_v = aft_requests->get(0);
-        CCF_ASSERT(
-          req_v.has_value(),
-          "Deserialised append entry, but requests map is empty");
-        req = req_v.value();
-      }
+      auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+      auto req_v = aft_requests->get(0);
+      CCF_ASSERT(
+        req_v.has_value(),
+        "Deserialised append entry, but requests map is empty");
+      req = req_v.value();
 
       return ApplyResult::PASS_APPLY;
     }

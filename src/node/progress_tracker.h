@@ -20,13 +20,10 @@ namespace ccf
   {
   public:
     ProgressTracker(
-      std::shared_ptr<ProgressTrackerStore> store_,
-      const NodeId& id_,
-      bool is_public_only_ = false) :
+      std::shared_ptr<ProgressTrackerStore> store_, const NodeId& id_) :
       store(store_),
       id(id_),
-      entropy(crypto::create_entropy()),
-      is_public_only(is_public_only_)
+      entropy(crypto::create_entropy())
     {}
 
     std::shared_ptr<ProgressTrackerStore> store;
@@ -153,8 +150,7 @@ namespace ccf
 
       if (node_count > 0 && can_send_sig_ack(cert, tx_id, node_count))
       {
-        return !is_public_only ? kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK :
-                                 kv::TxHistory::Result::OK;
+        return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
       return kv::TxHistory::Result::OK;
     }
@@ -245,9 +241,7 @@ namespace ccf
           }
           else if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
           {
-            success = !is_public_only ?
-              kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK :
-              kv::TxHistory::Result::OK;
+            success = kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
           }
         }
         else
@@ -357,8 +351,7 @@ namespace ccf
 
       if (can_send_reply_and_nonce(cert, node_count))
       {
-        return !is_public_only ? kv::TxHistory::Result::SEND_REPLY_AND_NONCE :
-                                 kv::TxHistory::Result::OK;
+        return kv::TxHistory::Result::SEND_REPLY_AND_NONCE;
       }
       return kv::TxHistory::Result::OK;
     }
@@ -676,12 +669,6 @@ namespace ccf
       return highest_commit_level;
     }
 
-    void set_is_public_only(bool public_only)
-    {
-      std::unique_lock<std::mutex> guard(lock);
-      is_public_only = public_only;
-    }
-
   private:
     NodeId id;
     std::shared_ptr<crypto::Entropy> entropy;
@@ -689,7 +676,6 @@ namespace ccf
     ccf::TxID highest_prepared_level = {0, 0};
 
     std::map<ccf::SeqNo, CommitCert> certificates;
-    bool is_public_only;
     mutable std::mutex lock;
 
     kv::TxHistory::Result add_signature_internal(
@@ -789,8 +775,7 @@ namespace ccf
           store->write_backup_signatures(sig_value);
           cert.wrote_sig_to_ledger = true;
         }
-        return !is_public_only ? kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK :
-                                 kv::TxHistory::Result::OK;
+        return kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK;
       }
       return kv::TxHistory::Result::OK;
     }
@@ -873,15 +858,11 @@ namespace ccf
       {
         if (tx_id.seqno > highest_prepared_level.seqno)
         {
-          if (tx_id.view < highest_prepared_level.view)
-          {
-            LOG_INFO_FMT(
-              "Prepared terms are moving backwards new_term:{}, "
-              "current_term:{}",
-              tx_id.view,
-              highest_prepared_level.view);
-            return false;
-          }
+          CCF_ASSERT_FMT(
+            tx_id.view >= highest_prepared_level.view,
+            "Prepared terms are moving backwards new_term:{}, current_term:{}",
+            tx_id.view,
+            highest_prepared_level.view);
           highest_prepared_level = tx_id;
         }
 

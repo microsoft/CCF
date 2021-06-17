@@ -509,6 +509,13 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME recovery_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    CONSENSUS cft
+    ADDITIONAL_ARGS --recovery 3
+  )
+
+  add_e2e_test(
     NAME recovery_test_curve_256
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS cft
@@ -821,12 +828,6 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME election_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    add_e2e_test(
-      NAME recovery_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
       CONSENSUS ${CONSENSUS}
     )
 

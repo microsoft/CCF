@@ -287,11 +287,6 @@ namespace aft
       {
         return false;
       }
-
-      bool is_public_only() override
-      {
-        return false;
-      }
     };
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
