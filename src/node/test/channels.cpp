@@ -18,7 +18,7 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
-constexpr auto buffer_size = 1024 * 16;
+constexpr auto buffer_size = 1024 * 8;
 
 auto in_buffer_1 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
 auto out_buffer_1 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -76,40 +76,48 @@ auto read_outbound_msgs(ringbuffer::Circuit& circuit)
 {
   std::vector<NodeOutboundMsg<T>> msgs;
 
-  circuit.read_from_inside().read(
-    -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
-      switch (m)
-      {
-        case node_outbound:
+  // A call to ringbuffer::Reader::read() may return 0 when there are still
+  // messages to read, when it reaches the end of the buffer. The next call to
+  // read() will correctly start at the beginning of the buffer and read these
+  // messages. So to make sure we always get the messages we expect in this
+  // test, read twice.
+  for (size_t i = 0; i < 2; ++i)
+  {
+    circuit.read_from_inside().read(
+      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
+        switch (m)
         {
-          serialized::read<NodeId::Value>(
-            data, size); // Ignore destination node id
-          auto msg_type = serialized::read<NodeMsgType>(data, size);
-          NodeId from = serialized::read<NodeId::Value>(data, size);
-          T aad;
-          if (size > sizeof(T))
-            aad = serialized::read<T>(data, size);
-          auto payload = serialized::read(data, size, size);
-          msgs.push_back(NodeOutboundMsg<T>{from, msg_type, aad, payload});
-          break;
+          case node_outbound:
+          {
+            serialized::read<NodeId::Value>(
+              data, size); // Ignore destination node id
+            auto msg_type = serialized::read<NodeMsgType>(data, size);
+            NodeId from = serialized::read<NodeId::Value>(data, size);
+            T aad;
+            if (size > sizeof(T))
+              aad = serialized::read<T>(data, size);
+            auto payload = serialized::read(data, size, size);
+            msgs.push_back(NodeOutboundMsg<T>{from, msg_type, aad, payload});
+            break;
+          }
+          case add_node:
+          {
+            LOG_DEBUG_FMT("Add node msg!");
+            break;
+          }
+          case remove_node:
+          {
+            LOG_DEBUG_FMT("Remove node msg!");
+            break;
+          }
+          default:
+          {
+            LOG_DEBUG_FMT("Outbound message is not expected: {}", m);
+            REQUIRE(false);
+          }
         }
-        case add_node:
-        {
-          LOG_DEBUG_FMT("Add node msg!");
-          break;
-        }
-        case remove_node:
-        {
-          LOG_DEBUG_FMT("Remove node msg!");
-          break;
-        }
-        default:
-        {
-          LOG_DEBUG_FMT("Outbound message is not expected: {}", m);
-          REQUIRE(false);
-        }
-      }
-    });
+      });
+  }
 
   return msgs;
 }
@@ -520,7 +528,11 @@ TEST_CASE("Interrupted key exchange")
   auto channel2 =
     Channel(wf2, network_cert, channel2_kp, channel2_cert, peer, self);
 
-  std::vector<uint8_t> msg(128, 0x42);
+  std::vector<uint8_t> msg;
+  msg.push_back(0x1);
+  msg.push_back(0x0);
+  msg.push_back(0x10);
+  msg.push_back(0x42);
 
   enum class DropStage
   {
@@ -529,13 +541,20 @@ TEST_CASE("Interrupted key exchange")
     FinalMessage,
     NoDrops,
   };
-  for (const auto drop_stage :
-       {// DropStage::InitiationMessage,
-        //                             DropStage::ResponseMessage,
-        //                             DropStage::FinalMessage,
-        DropStage::NoDrops})
+
+  DropStage drop_stage;
+  for (const auto drop_stage : {
+         DropStage::NoDrops,
+         DropStage::FinalMessage,
+         DropStage::ResponseMessage,
+         DropStage::InitiationMessage,
+       })
   {
     INFO("Drop stage is ", (size_t)drop_stage);
+
+    auto n = read_outbound_msgs<MsgType>(eio1).size() +
+      read_outbound_msgs<MsgType>(eio2).size();
+    REQUIRE(n == 0);
 
     channel1.reset();
     channel2.reset();
@@ -580,8 +599,9 @@ TEST_CASE("Interrupted key exchange")
 
     INFO("Later attempts to connect should succeed");
     {
-      SUBCASE("Node 1 attempts to connect")
+      SUBCASE("")
       {
+        INFO("Node 1 attempts to connect");
         channel1.initiate();
 
         REQUIRE(channel2.consume_initiator_key_share(
@@ -591,13 +611,10 @@ TEST_CASE("Interrupted key exchange")
           get_first(eio2, NodeMsgType::channel_msg).unauthenticated_data()));
         REQUIRE(channel2.check_peer_key_share_signature(
           get_first(eio1, NodeMsgType::channel_msg).unauthenticated_data()));
-
-        REQUIRE(channel1.get_status() == ESTABLISHED);
-        REQUIRE(channel2.get_status() == ESTABLISHED);
       }
-
-      SUBCASE("Node 2 attempts to connect")
+      else
       {
+        INFO("Node 2 attempts to connect");
         channel2.initiate();
 
         REQUIRE(channel1.consume_initiator_key_share(
@@ -607,10 +624,10 @@ TEST_CASE("Interrupted key exchange")
           get_first(eio1, NodeMsgType::channel_msg).unauthenticated_data()));
         REQUIRE(channel1.check_peer_key_share_signature(
           get_first(eio2, NodeMsgType::channel_msg).unauthenticated_data()));
-
-        REQUIRE(channel1.get_status() == ESTABLISHED);
-        REQUIRE(channel2.get_status() == ESTABLISHED);
       }
+
+      REQUIRE(channel1.get_status() == ESTABLISHED);
+      REQUIRE(channel2.get_status() == ESTABLISHED);
 
       MsgType aad;
       aad.fill(0x10);
