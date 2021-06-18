@@ -118,6 +118,13 @@ class Repository:
             raise ValueError(f"No release branch after {release_branch_name}")
         return release_branches[after_index]
 
+    def get_tags_with_releases(self):
+        # Only consider tags that have releases as perhaps a release is in progress
+        # (i.e. tag exists but hasn't got a release just yet)
+        all_released_tags = [r.tag_name for r in self.repo.get_releases()]
+        return [t for t in self.repo.get_tags() if t.name in all_released_tags]
+
+
     def get_release_for_tag(self, tag):
         releases = [r for r in self.repo.get_releases() if r.tag_name == tag.name]
         if not releases:
@@ -137,7 +144,7 @@ class Repository:
             TAG_RELEASE_PREFIX, release_branch_name.replace(".x", "([.\\d+]+)")
         )
         return sorted(
-            [tag for tag in self.repo.get_tags() if re.match(release_re, tag.name)],
+            [tag for tag in self.get_tags_with_releases() if re.match(release_re, tag.name)],
             key=cmp_to_key(
                 lambda t1, t2: get_version_from_tag_name(t1.name)
                 < get_version_from_tag_name(t2.name)
