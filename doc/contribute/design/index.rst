@@ -6,7 +6,6 @@ Design
 Node-to-Node Channels
 ---------------------
 
-
 .. note:: Only applicable for CFT consensus
 
 CCF nodes communicate over channels which terminate in each node’s enclave. Channels are used for two purposes:
@@ -26,44 +25,48 @@ Protocol
 .. mermaid::
 
     sequenceDiagram
+        participant Primary as Primary (P)
+        participant Backup as Backup (B)
 
-    participant Primary as Primary (P)
-    participant Backup as Backup (B)
-
-
-
-    Backup->>+Primary: Join request over TLS
-
-    Note left of Primary: Consortium trusts backup
-
-    Primary-->>+Backup: Service identity {S_priv, S_pub} over TLS
+        Backup->>+Primary: Join request over TLS
+        Note over Primary: Consortium trusts backup
+        Primary-->>+Backup: Service identity S = {S_priv, S_pub} over TLS
 
 
+        Note over Primary, Backup: Node-to-node channel establishment starts (over TCP)
 
-    Note over Primary, Backup: Node-to-node channel establishment starts (over TCP)
+        Primary->>+Backup: key_exchange_init: {P's public key share} signed with P's node cert (endorsed by S)
 
-    Primary->>+Backup: ECDH_pub_half_P signed with S_priv
+        Note over Backup: Verifies endorsement of P's cert with S_pub <br> verifies signature with P's cert
 
-    Note over Backup: Backup verifies signature with S_pub. [Shared Secret]
+        Backup->>+Primary: key_exchange_final: {B's public key share + P's public key share} signed with B's node cert (endorsed by S)
 
-    Backup->>+Primary: ECDH_pub_half_B signed with S_priv
+        Note over Primary: Verifies endorsement of B's cert with S_pub <br> verifies signature with B's cert
 
-    Note over Primary: Primary verifies signature with S_pub. [Shared Secret]
+        Note over Primary: Derives channel send and recv keys from shared secret
 
-    Note over Primary, Backup: Node-to-node channel established.
+        Primary->>+Backup: key_exchange_final: {P's public key share + B's public key share} signed with P's node cert (endorsed by S)
 
-    P and B initialise AES GCM context with Shared Secret.
+        Note over Backup: Verifies endorsement of P's cert with S_pub <br> verifies signature with P's cert
+
+        Note over Backup: Derives channel send and recv keys from shared secret
 
 
 
-    Note over Primary: Primary replicates ledger entries...
 
-    Note over Primary: Integrity protect consensus and header with channel AES GCM key
 
-    Note over Primary: Fetches encrypted entries from ledger
 
-    Primary->>+Backup: Integrity-protected consensus hdr + ledger entries
+        Note over Primary: Primary replicates ledger entries...
 
-    Note over Backup: Verifies integrity of header and apply ledger entries
+        Note over Primary: Integrity protect consensus and header with channel AES GCM key
+
+        Note over Primary: Fetches encrypted entries from ledger
+
+        Primary->>+Backup: Integrity-protected consensus hdr + ledger entries
+
+        Note over Backup: Verifies integrity of header and apply ledger entries
+
+
+        
 
 
