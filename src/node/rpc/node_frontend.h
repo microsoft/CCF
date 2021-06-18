@@ -924,6 +924,7 @@ namespace ccf
       auto version = [this](auto&, nlohmann::json&&) {
         GetVersion::Out result;
         result.ccf_version = ccf::ccf_version;
+        result.quickjs_version = ccf::quickjs_version;
         return make_success(result);
       };
 

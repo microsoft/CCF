@@ -237,10 +237,14 @@
         "properties": {
           "ccf_version": {
             "$ref": "#/components/schemas/string"
+          },
+          "quickjs_version": {
+            "$ref": "#/components/schemas/string"
           }
         },
         "required": [
-          "ccf_version"
+          "ccf_version",
+          "quickjs_version"
         ],
         "type": "object"
       },
