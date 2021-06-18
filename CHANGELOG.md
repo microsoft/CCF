@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added a new `--client-connection-timeout-ms` command line argument to `cchost` to specify the maximum time a node should wait before re-establishing failed client connections. This should be set to a significantly lower value than `--raft-election-timeout-ms` (#2618).
 - Add `kv::Value` and `kv::Set`, as a more error-proof alternative to `kv::Map`s which had a single key or meaningless values (#2599).
 - CCF now responds to HTTP requests that could not be parsed with a 400 response including error details (#2652).
+- Added `ccf.crypto.verifySignature()` for verifying digital signatures to the JavaScript API (#2661).
 
 ## [2.0.0-dev0]
 
