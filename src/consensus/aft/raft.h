@@ -227,6 +227,17 @@ namespace aft
         view_change_tracker->set_current_view_change(starting_view_change);
       }
 
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        progress_tracker->set_is_public_only(public_only);
+      }
+
+      if (request_tracker != nullptr && !public_only)
+      {
+        request_tracker->start_tracking_requests();
+      }
+
       if (consensus_type == ConsensusType::BFT)
       {
         // Initialize view history for bft. We start on view 2 and the first
@@ -326,6 +337,15 @@ namespace aft
       // be deserialised
       std::lock_guard<std::mutex> guard(state->lock);
       public_only = false;
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        progress_tracker->set_is_public_only(public_only);
+      }
+      if (request_tracker != nullptr)
+      {
+        request_tracker->start_tracking_requests();
+      }
     }
 
     void force_become_leader()
@@ -1246,7 +1266,14 @@ namespace aft
       bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
       {
-        if (active_nodes().size() == 0)
+        if (!state->initial_recovery_primary.has_value())
+        {
+          state->initial_recovery_primary = std::make_tuple(from, r.term);
+        }
+        if (
+          active_nodes().size() == 0 ||
+          (std::get<0>(state->initial_recovery_primary.value()) == from &&
+           std::get<1>(state->initial_recovery_primary.value()) == r.term))
         {
           // The replica is just starting up, we want to check that this replica
           // is part of the network we joined but that is dependent on Byzantine
@@ -1364,14 +1391,19 @@ namespace aft
 
       // Third, check index consistency, making sure entries are not in the past
       // or in the future
-      if (r.prev_idx < state->commit_idx)
+      if (
+        (consensus_type == ConsensusType::CFT &&
+         r.prev_idx < state->commit_idx) ||
+        r.prev_idx < state->bft_watermark_idx)
       {
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
+          "Recv append entries to {} from {} but prev_idx ({}), bft_watermark "
+          "({}) < commit_idx "
           "({})",
           state->my_node_id,
           from,
           r.prev_idx,
+          state->bft_watermark_idx,
           state->commit_idx);
         return;
       }
@@ -1844,7 +1876,15 @@ namespace aft
           }
           break;
         }
-
+        case kv::ApplyResult::PASS_APPLY:
+        {
+          if (!ds->is_public_only())
+          {
+            executor->mark_request_executed(ds->get_request(), request_tracker);
+          }
+          break;
+        }
+        case kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
         case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
         {
           break;

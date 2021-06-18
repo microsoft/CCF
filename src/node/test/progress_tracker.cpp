@@ -216,6 +216,11 @@ TEST_CASE("Request tracker")
     aft::RequestTracker t;
     crypto::Sha256Hash h;
     h.h.fill(0);
+
+    t.insert(h, std::chrono::milliseconds(0));
+    REQUIRE(!t.oldest_entry().has_value());
+    t.start_tracking_requests();
+
     for (uint32_t i = 0; i < 10; ++i)
     {
       h.h[0] = i;
@@ -239,6 +244,7 @@ TEST_CASE("Request tracker")
   INFO("Entry that was deleted is not tracked after it is added");
   {
     aft::RequestTracker t;
+    t.start_tracking_requests();
     crypto::Sha256Hash h;
     h.h.fill(0);
     REQUIRE(t.oldest_entry().has_value() == false);
@@ -268,6 +274,7 @@ TEST_CASE("Request tracker")
   INFO("Can enter multiple items");
   {
     aft::RequestTracker t;
+    t.start_tracking_requests();
     crypto::Sha256Hash h;
     h.h.fill(0);
 
@@ -307,6 +314,7 @@ TEST_CASE("Request tracker")
   INFO("Verify seqno and time of last sig stored correctly");
   {
     aft::RequestTracker t;
+    t.start_tracking_requests();
 
     auto r = t.get_seqno_time_last_request();
     REQUIRE(std::get<0>(r) == ccf::SEQNO_UNKNOWN);

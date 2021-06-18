@@ -122,9 +122,12 @@ def run(args):
             # Alternate between recovery with primary change and stable primary-ship,
             # with and without snapshots
             if i % 2 == 0:
-                recovered_network = test_share_resilience(
-                    network, args, from_snapshot=True
-                )
+                if args.consensus != "bft":
+                    recovered_network = test_share_resilience(
+                        network, args, from_snapshot=True
+                    )
+                else:
+                    recovered_network = network
             else:
                 recovered_network = test(network, args, from_snapshot=False)
             network = recovered_network
