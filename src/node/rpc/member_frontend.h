@@ -488,7 +488,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "1.0.0";
+      openapi_info.document_version = "1.1.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -944,6 +944,24 @@ namespace ccf
         json_adapter(refresh_jwt_keys),
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
+        .install();
+
+      using JWTKeyMap = std::map<JwtKeyId, crypto::Pem>;
+
+      auto get_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
+        auto keys = ctx.tx.template ro<JwtPublicSigningKeys>(
+          ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
+        JWTKeyMap kmap;
+        keys->foreach([&kmap](const auto& kid, const auto& kpem) {
+          kmap[kid] = crypto::cert_der_to_pem(kpem);
+          return false;
+        });
+
+        return make_success(kmap);
+      };
+      make_endpoint(
+        "jwt_keys/all", HTTP_GET, json_adapter(get_jwt_keys), no_auth_required)
+        .set_auto_schema<void, JWTKeyMap>()
         .install();
 
 #pragma clang diagnostic push
