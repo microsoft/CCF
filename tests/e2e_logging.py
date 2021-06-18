@@ -586,10 +586,6 @@ def test_metrics(network, args):
 @reqs.description("Read historical state")
 @reqs.supports_methods("log/private", "log/private/historical")
 def test_historical_query(network, args):
-    if args.consensus == "bft":
-        LOG.warning("Skipping historical queries in BFT")
-        return network
-
     network.txs.issue(network, number_txs=2)
     network.txs.issue(network, number_txs=2, repeat=True)
     network.txs.verify()
@@ -600,10 +596,6 @@ def test_historical_query(network, args):
 @reqs.description("Read historical receipts")
 @reqs.supports_methods("log/private", "log/private/historical_receipt")
 def test_historical_receipts(network, args):
-    if args.consensus == "bft":
-        LOG.warning("Skipping historical queries in BFT")
-        return network
-
     primary, backups = network.find_nodes()
     cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
     with open(cert_path) as c:
@@ -639,10 +631,6 @@ def test_historical_receipts(network, args):
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("log/private", "log/private/historical/range")
 def test_historical_query_range(network, args):
-    if args.consensus == "bft":
-        LOG.warning("Skipping historical queries in BFT")
-        return network
-
     if args.package != "liblogging":
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"

@@ -402,6 +402,7 @@ class Network:
             self.common_dir,
             self.key_generator,
             self.share_script,
+            args.consensus,
             initial_members_info,
             args.participants_curve,
             authenticate_session=not args.disable_member_session_auth,
@@ -476,6 +477,7 @@ class Network:
                 common_dir,
                 self.key_generator,
                 self.share_script,
+                args.consensus,
                 public_state=public_state,
             )
 
