@@ -166,7 +166,7 @@ def set_constitution(constitution_paths: List[str], **kwargs):
 
 
 @cli_proposal
-def set_js_app(bundle_path: str, **kwargs):
+def set_js_app(bundle_path: str, disable_bytecode_cache: bool = False, **kwargs):
     # read modules
     if os.path.isfile(bundle_path):
         tmp_dir = tempfile.TemporaryDirectory(prefix="ccf")
@@ -192,6 +192,7 @@ def set_js_app(bundle_path: str, **kwargs):
 
     proposal_args = {
         "bundle": {"metadata": metadata, "modules": modules},
+        "disable_bytecode_cache": disable_bytecode_cache,
     }
 
     return build_proposal("set_js_app", proposal_args, **kwargs)
@@ -213,6 +214,11 @@ def read_modules(modules_path: str) -> List[dict]:
             js = f.read()
             modules.append({"name": rel_module_name, "module": js})
     return modules
+
+
+@cli_proposal
+def refresh_js_app_bytecode_cache(**kwargs):
+    return build_proposal("refresh_js_app_bytecode_cache", **kwargs)
 
 
 @cli_proposal
@@ -362,6 +368,7 @@ if __name__ == "__main__":
         parameters = inspect.signature(func).parameters
         func_param_names = []
         for param_name, param in parameters.items():
+            param_name_or_flag = param_name
             add_argument_extras = {}
             if param.kind == param.VAR_POSITIONAL or param.kind == param.VAR_KEYWORD:
                 continue
@@ -372,12 +379,22 @@ if __name__ == "__main__":
             elif param.annotation == List[str]:
                 add_argument_extras["nargs"] = "+"
                 param_type = str  # type: ignore
+            elif param.annotation == bool:
+                assert param.default in [
+                    inspect.Parameter.empty,
+                    False,
+                ], f"{param_name} must have no default value or False"
+                param_type = None
+                param_name_or_flag = "--" + param_name.replace("_", "-")
+                add_argument_extras["action"] = "store_true"
             else:
                 param_type = param.annotation
             if param.default is None:
                 add_argument_extras["nargs"] = "?"
                 add_argument_extras["default"] = param.default  # type: ignore
-            subparser.add_argument(param_name, type=param_type, **add_argument_extras)  # type: ignore
+            if param_type is not None:
+                add_argument_extras["type"] = param_type  # type: ignore
+            subparser.add_argument(param_name_or_flag, **add_argument_extras)  # type: ignore
             func_param_names.append(param_name)
         subparser.set_defaults(func=func, param_names=func_param_names)
 

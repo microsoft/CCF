@@ -50,6 +50,7 @@ namespace ccf
     struct Out
     {
       std::string ccf_version;
+      std::string quickjs_version;
     };
   };
 

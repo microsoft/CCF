@@ -50,8 +50,8 @@ namespace tpcc
     int32_t id;
     int32_t im_id;
     float price;
-    std::array<char, MAX_NAME + 1> name;
-    std::array<char, MAX_DATA + 1> data;
+    std::array<char, MAX_NAME + 1> name = {0};
+    std::array<char, MAX_DATA + 1> data = {0};
 
     MSGPACK_DEFINE(id, im_id, price, name, data);
   };
@@ -84,12 +84,12 @@ namespace tpcc
     int32_t id;
     float tax;
     float ytd;
-    std::array<char, MAX_NAME + 1> name;
-    std::array<char, Address::MAX_STREET + 1> street_1;
-    std::array<char, Address::MAX_STREET + 1> street_2;
-    std::array<char, Address::MAX_STREET + 1> city;
-    std::array<char, Address::STATE + 1> state;
-    std::array<char, Address::ZIP + 1> zip;
+    std::array<char, MAX_NAME + 1> name = {0};
+    std::array<char, Address::MAX_STREET + 1> street_1 = {0};
+    std::array<char, Address::MAX_STREET + 1> street_2 = {0};
+    std::array<char, Address::MAX_STREET + 1> city = {0};
+    std::array<char, Address::STATE + 1> state = {0};
+    std::array<char, Address::ZIP + 1> zip = {0};
 
     MSGPACK_DEFINE(id, tax, ytd, name, street_1, street_2, city, state, zip);
   };
@@ -121,12 +121,12 @@ namespace tpcc
     float tax;
     float ytd;
     int32_t next_o_id;
-    std::array<char, MAX_NAME + 1> name;
-    std::array<char, Address::MAX_STREET + 1> street_1;
-    std::array<char, Address::MAX_STREET + 1> street_2;
-    std::array<char, Address::MAX_CITY + 1> city;
-    std::array<char, Address::STATE + 1> state;
-    std::array<char, Address::ZIP + 1> zip;
+    std::array<char, MAX_NAME + 1> name = {0};
+    std::array<char, Address::MAX_STREET + 1> street_1 = {0};
+    std::array<char, Address::MAX_STREET + 1> street_2 = {0};
+    std::array<char, Address::MAX_CITY + 1> city = {0};
+    std::array<char, Address::STATE + 1> state = {0};
+    std::array<char, Address::ZIP + 1> zip = {0};
 
     Key get_key()
     {
@@ -179,9 +179,15 @@ namespace tpcc
     int32_t order_cnt;
     int32_t remote_cnt;
     std::array<std::array<char, DIST + 1>, District::NUM_PER_WAREHOUSE> dist;
-    std::array<char, MAX_DATA + 1> data;
+    std::array<char, MAX_DATA + 1> data = {0};
 
-    Stock() = default;
+    Stock()
+    {
+      for (auto& d : dist)
+      {
+        d.fill(0);
+      }
+    }
 
     struct Key
     {
@@ -245,18 +251,18 @@ namespace tpcc
     float ytd_payment;
     int32_t payment_cnt;
     int32_t delivery_cnt;
-    std::array<char, MAX_FIRST + 1> first;
-    std::array<char, MIDDLE + 1> middle;
-    std::array<char, MAX_LAST + 1> last;
-    std::array<char, Address::MAX_STREET + 1> street_1;
-    std::array<char, Address::MAX_STREET + 1> street_2;
-    std::array<char, Address::MAX_CITY + 1> city;
-    std::array<char, Address::STATE + 1> state;
-    std::array<char, Address::ZIP + 1> zip;
-    std::array<char, PHONE + 1> phone;
-    std::array<char, DATETIME_SIZE + 1> since;
-    std::array<char, CREDIT + 1> credit;
-    std::array<char, MAX_DATA + 1> data;
+    std::array<char, MAX_FIRST + 1> first = {0};
+    std::array<char, MIDDLE + 1> middle = {0};
+    std::array<char, MAX_LAST + 1> last = {0};
+    std::array<char, Address::MAX_STREET + 1> street_1 = {0};
+    std::array<char, Address::MAX_STREET + 1> street_2 = {0};
+    std::array<char, Address::MAX_CITY + 1> city = {0};
+    std::array<char, Address::STATE + 1> state = {0};
+    std::array<char, Address::ZIP + 1> zip = {0};
+    std::array<char, PHONE + 1> phone = {0};
+    std::array<char, DATETIME_SIZE + 1> since = {0};
+    std::array<char, CREDIT + 1> credit = {0};
+    std::array<char, MAX_DATA + 1> data = {0};
 
     MSGPACK_DEFINE(
       id,
@@ -339,7 +345,7 @@ namespace tpcc
     int32_t carrier_id;
     int32_t ol_cnt;
     int32_t all_local;
-    std::array<char, DATETIME_SIZE + 1> entry_d;
+    std::array<char, DATETIME_SIZE + 1> entry_d = {0};
 
     MSGPACK_DEFINE(
       id, c_id, d_id, w_id, carrier_id, ol_cnt, all_local, entry_d);
@@ -381,8 +387,8 @@ namespace tpcc
     int32_t supply_w_id;
     int32_t quantity;
     float amount;
-    std::array<char, DATETIME_SIZE + 1> delivery_d;
-    std::array<char, Stock::DIST + 1> dist_info;
+    std::array<char, DATETIME_SIZE + 1> delivery_d = {0};
+    std::array<char, Stock::DIST + 1> dist_info = {0};
 
     MSGPACK_DEFINE(
       o_id,
@@ -467,8 +473,8 @@ namespace tpcc
     int32_t d_id;
     int32_t w_id;
     float amount;
-    std::array<char, DATETIME_SIZE + 1> date;
-    std::array<char, MAX_DATA + 1> data;
+    std::array<char, DATETIME_SIZE + 1> date = {0};
+    std::array<char, MAX_DATA + 1> data = {0};
 
     MSGPACK_DEFINE(c_id, c_d_id, c_w_id, d_id, w_id, amount, date, data);
   };
