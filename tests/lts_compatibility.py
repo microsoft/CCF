@@ -48,6 +48,38 @@ def get_bin_and_lib_dirs_for_install_path(install_path):
     )
 
 
+def set_js_args(args, from_install_path):
+    # Use from_version's app and constitution as new JS features may not be available
+    # on older versions
+    js_app_directory = (
+        "../samples/apps/logging/js"
+        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
+        else "samples/logging/js"
+    )
+    args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
+
+    constitution_directory = os.path.join(
+        from_install_path,
+        "../src/runtime_config/default"
+        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
+        else "bin",
+    )
+
+    def replace_constitution_fragment(args, fragment_name):
+        args.constitution[:] = [
+            os.path.join(constitution_directory, fragment_name)
+            if fragment_name in f
+            else f
+            for f in args.constitution
+        ]
+
+    # Note: Use resolve.js script from local checkout as only the trivial sandbox
+    # version is included in installation
+    replace_constitution_fragment(args, "actions.js")
+    replace_constitution_fragment(args, "apply.js")
+    replace_constitution_fragment(args, "validate.js")
+
+
 def run_code_upgrade_from(
     args,
     from_install_path,
@@ -62,13 +94,7 @@ def run_code_upgrade_from(
         to_install_path
     )
 
-    js_app_directory = (
-        "../samples/apps/logging/js"
-        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
-        else "samples/logging/js"
-    )
-
-    args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
+    set_js_args(args, from_install_path)
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
     with jwt_issuer.start_openid_server():
@@ -252,9 +278,7 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
                     lts_install_path
                 )
                 major_version = Version(version).release[0]
-                args.js_app_bundle = os.path.join(
-                    lts_install_path, "samples/logging/js"
-                )
+                set_js_args(args, lts_install_path)
             else:
                 version = args.ccf_version
                 binary_dir = LOCAL_CHECKOUT_DIRECTORY
@@ -318,9 +342,10 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
 
             # Check that ledger and snapshots can be parsed
             ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
-            for s in os.listdir(snapshot_dir):
-                with ccf.ledger.Snapshot(os.path.join(snapshot_dir, s)) as snapshot:
-                    snapshot.get_public_domain()
+            if snapshot_dir:
+                for s in os.listdir(snapshot_dir):
+                    with ccf.ledger.Snapshot(os.path.join(snapshot_dir, s)) as snapshot:
+                        snapshot.get_public_domain()
 
     return lts_versions
 
