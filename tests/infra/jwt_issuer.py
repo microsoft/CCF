@@ -17,14 +17,6 @@ def make_bearer_header(jwt):
     return {"authorization": "Bearer " + jwt}
 
 
-def make_pem_cert(pem_encoded):
-    lines = ["-----BEGIN CERTIFICATE-----"]
-    for i in range(0, len(pem_encoded), 64):
-        lines.append(pem_encoded[i : i + 64])
-    lines.append("-----END CERTIFICATE-----")
-    return "\n".join(lines) + "\n"
-
-
 class MyHTTPRequestHandler(BaseHTTPRequestHandler):
     def __init__(self, openid_server, *args):
         self.openid_server = openid_server
@@ -189,7 +181,7 @@ class JwtIssuer:
             while time.time() < end_time:
                 r = c.get("/gov/jwt_keys/all")
                 assert r.status_code == 200, r
-                stored_cert = make_pem_cert(r.body.json()[kid])
+                stored_cert = r.body.json()[kid]
                 if self.cert_pem == stored_cert:
                     return
         raise TimeoutError(

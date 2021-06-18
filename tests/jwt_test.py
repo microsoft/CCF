@@ -11,7 +11,6 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.jwt_issuer
-from infra.jwt_issuer import make_pem_cert
 
 from loguru import logger as LOG
 
@@ -79,7 +78,7 @@ def test_jwt_without_key_policy(network, args):
         with primary.client(network.consortium.get_any_active_member().local_id) as c:
             r = c.get("/gov/jwt_keys/all")
             assert r.status_code == 200, r
-            stored_cert = make_pem_cert(r.body.json()[kid])
+            stored_cert = r.body.json()[kid]
 
         assert infra.crypto.are_certs_equal(
             issuer.cert_pem, stored_cert
@@ -104,7 +103,7 @@ def test_jwt_without_key_policy(network, args):
         with primary.client(network.consortium.get_any_active_member().local_id) as c:
             r = c.get("/gov/jwt_keys/all")
             assert r.status_code == 200, r
-            stored_cert = make_pem_cert(r.body.json()[kid])
+            stored_cert = r.body.json()[kid]
 
         assert infra.crypto.are_certs_equal(
             issuer.cert_pem, stored_cert
@@ -249,7 +248,7 @@ def check_kv_jwt_key_matches(network, kid, cert_pem):
     if cert_pem is None:
         assert kid not in latest_jwt_signing_keys
     else:
-        stored_cert = make_pem_cert(latest_jwt_signing_keys[kid])
+        stored_cert = latest_jwt_signing_keys[kid]
         assert infra.crypto.are_certs_equal(
             cert_pem, stored_cert
         ), "input cert is not equal to stored cert"

@@ -946,14 +946,14 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
-      using JWTKeyMap = std::map<JwtKeyId, Cert>;
+      using JWTKeyMap = std::map<JwtKeyId, crypto::Pem>;
 
       auto get_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
         auto keys = ctx.tx.template ro<JwtPublicSigningKeys>(
           ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
         JWTKeyMap kmap;
         keys->foreach([&kmap](const auto& kid, const auto& kpem) {
-          kmap[kid] = kpem;
+          kmap[kid] = crypto::cert_der_to_pem(kpem);
           return false;
         });
 
