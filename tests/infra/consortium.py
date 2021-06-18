@@ -7,6 +7,7 @@ import http
 import json
 import random
 import re
+import uuid
 import infra.network
 import infra.proc
 import infra.checker
@@ -27,6 +28,7 @@ class Consortium:
         common_dir,
         key_generator,
         share_script,
+        consensus,
         members_info=None,
         curve=None,
         public_state=None,
@@ -36,6 +38,7 @@ class Consortium:
         self.members = []
         self.key_generator = key_generator
         self.share_script = share_script
+        self.consensus = consensus
         self.members = []
         self.recovery_threshold = None
         self.authenticate_session = authenticate_session
@@ -457,7 +460,10 @@ class Consortium:
             if r.body.json()["state"] == infra.node.State.PART_OF_NETWORK.value:
                 is_recovery = False
 
-        proposal_body, careful_vote = self.make_proposal("transition_service_to_open")
+        proposal_body, careful_vote = self.make_proposal(
+            "transition_service_to_open",
+            args=None if self.consensus == "cft" else {"nonce": str(uuid.uuid4())},
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, careful_vote, wait_for_global_commit=True
