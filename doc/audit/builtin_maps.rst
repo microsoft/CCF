@@ -270,7 +270,7 @@ JWT signing keys.
 
 **Key** JWT Key ID, represented as a string.
 
-**Value** JWT public key or certificate, represented as a PEM-encoded string.
+**Value** JWT public key or certificate, represented as a DER-encoded string.
 
 ``jwt.public_signing_key_issuer``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
