@@ -267,9 +267,7 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                 version = args.ccf_version
                 binary_dir = LOCAL_CHECKOUT_DIRECTORY
                 library_dir = LOCAL_CHECKOUT_DIRECTORY
-                major_version = infra.github.get_major_version_from_branch_name(
-                    local_branch
-                )
+                major_version = 1
 
             if not args.dry_run:
                 network_args = {
