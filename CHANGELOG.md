@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - CCF now responds to HTTP requests that could not be parsed with a 400 response including error details (#2652).
+- Added `GET /gov/jwt_keys/all` endpoint (#2519)
 
 ## [2.0.0-dev0]
 
