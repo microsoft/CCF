@@ -9,7 +9,6 @@ import election
 import code_update
 import membership
 import governance_history
-import jwt_test
 
 from inspect import signature, Parameter
 
