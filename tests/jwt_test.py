@@ -11,6 +11,7 @@ import infra.net
 import infra.e2e_args
 import suite.test_requirements as reqs
 import infra.jwt_issuer
+from infra.jwt_issuer import make_pem_cert
 
 from loguru import logger as LOG
 
@@ -26,14 +27,6 @@ def test_refresh_jwt_issuer(network, args):
     # Check that more transactions can be issued
     network.txs.issue(network)
     return network
-
-
-def make_pem_cert(pem_encoded):
-    lines = ["-----BEGIN CERTIFICATE-----"]
-    for i in range(0, len(pem_encoded), 64):
-        lines.append(pem_encoded[i : i + 64])
-    lines.append("-----END CERTIFICATE-----")
-    return "\n".join(lines) + "\n"
 
 
 @reqs.description("JWT without key policy")
