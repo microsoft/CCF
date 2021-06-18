@@ -1,13 +1,12 @@
 breathe
 sphinx<4,>=3
 sphinx_rtd_theme
-pygments-style-solarized
 bottle
 sphinx-autobuild
 sphinxcontrib-mermaid
 sphinx-multiversion
-pydata-sphinx-theme
 sphinx-copybutton
 sphinxcontrib.openapi
 sphinx-panels
 sphinx-js
+furo

@@ -88,7 +88,7 @@ language = None
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "solarizeddark"
+pygments_style = "colorful"
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -96,7 +96,7 @@ pygments_style = "solarizeddark"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "pydata_sphinx_theme"
+html_theme = "furo"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -118,7 +118,6 @@ html_static_path = ["_static"]
 # 'searchbox.html']``.
 #
 html_sidebars = {
-    "**": ["sidebar-nav-bs.html", "search-field.html"]
 }
 
 html_css_files = [
@@ -207,11 +206,6 @@ smv_outputdir_format = "{ref.name}"
 
 html_logo = "_static/ccf.svg"
 html_favicon = "_static/favicon.ico"
-
-html_theme_options = {
-    "github_url": "https://github.com/Microsoft/CCF",
-    "use_edit_page_button": True,
-}
 
 html_context = {
     "github_user": "Microsoft",
