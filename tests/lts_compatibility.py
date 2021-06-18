@@ -186,7 +186,7 @@ def run_live_compatibility_with_latest(args, repo, local_branch):
     lts_version, lts_install_path = repo.install_latest_lts_for_branch(
         os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch)
     )
-    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
+    local_major_version = 1
     LOG.info(
         f'From LTS {lts_version} to local "{local_branch}" branch (version: {local_major_version})'
     )
@@ -212,7 +212,7 @@ def run_live_compatibility_with_following(args, repo, local_branch):
         LOG.warning(f"No next LTS for local {local_branch} branch")
         return None
 
-    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
+    local_major_version = 1
     LOG.info(
         f'From local "{local_branch}" branch (version: {local_major_version}) to LTS {lts_version}'
     )
