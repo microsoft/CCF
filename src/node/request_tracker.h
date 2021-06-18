@@ -59,6 +59,11 @@ namespace aft
     void insert(const crypto::Sha256Hash& hash, std::chrono::milliseconds time)
     {
       std::unique_lock<std::mutex> guard(lock);
+      if (!tracking_requests)
+      {
+        return;
+      }
+
       if (remove(hash, hashes_without_requests, hashes_without_requests_list))
       {
         return;
@@ -70,6 +75,10 @@ namespace aft
       const crypto::Sha256Hash& hash, std::chrono::milliseconds time)
     {
       std::unique_lock<std::mutex> guard(lock);
+      if (!tracking_requests)
+      {
+        return;
+      }
 #ifndef NDEBUG
       Request r(hash);
       CCF_ASSERT_FMT(
@@ -83,6 +92,10 @@ namespace aft
     bool remove(const crypto::Sha256Hash& hash)
     {
       std::unique_lock<std::mutex> guard(lock);
+      if (!tracking_requests)
+      {
+        return false;
+      }
       return remove(hash, requests, requests_list);
     }
 
@@ -149,6 +162,12 @@ namespace aft
       hashes_without_requests_list.clear();
     }
 
+    void start_tracking_requests()
+    {
+      std::unique_lock<std::mutex> guard(lock);
+      tracking_requests = true;
+    }
+
   private:
     std::multiset<Request*, RequestComp> requests;
     snmalloc::DLList<Request, std::nullptr_t, true> requests_list;
@@ -160,6 +179,7 @@ namespace aft
     ccf::SeqNo seqno_last_signature = ccf::SEQNO_UNKNOWN;
     std::chrono::milliseconds time_last_signature =
       std::chrono::milliseconds(0);
+    bool tracking_requests = false;
     mutable std::mutex lock;
 
     static void insert(
