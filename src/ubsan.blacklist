@@ -9,5 +9,6 @@ src:*/3rdparty/internal/sss/hazmat.c
 src:*/3rdparty/exported/quickjs/quickjs.c
 src:*/3rdparty/exported/quickjs/quickjs.h
 src:*/3rdparty/exported/quickjs/cutils.c
+src:*/3rdparty/exported/quickjs/cutils.h
 
 #############################################################################
