@@ -8,5 +8,6 @@ src:*/3rdparty/test/msgpack/v2/create_object_visitor.hpp
 src:*/3rdparty/internal/sss/hazmat.c
 src:*/3rdparty/exported/quickjs/quickjs.c
 src:*/3rdparty/exported/quickjs/quickjs.h
+src:*/3rdparty/exported/quickjs/cutils.c
 
 #############################################################################
