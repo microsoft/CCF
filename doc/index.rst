@@ -24,10 +24,6 @@ CCF Documentation
       :alt: TypeScript
       :align: left
 
-    .. image:: img/empty.svg
-      :height: 10
-      :align: left
-
     .. image:: img/cpp.svg
       :width: 32
       :target: build_apps/example.html
@@ -98,3 +94,4 @@ CCF Documentation
     contribute/index.rst
     glossary
     research
+    GitHub Repository <https://github.com/microsoft/CCF>

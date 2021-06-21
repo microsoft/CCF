@@ -19,6 +19,7 @@ import sys
 import subprocess
 import pathlib
 
+
 from docutils import nodes
 
 sys.path.insert(0, os.path.abspath("../python"))
@@ -122,6 +123,10 @@ html_sidebars = {
 
 html_css_files = [
     "css/custom.css",
+]
+
+html_js_files = [
+    "https://kit.fontawesome.com/c75a35380d.js"
 ]
 
 

@@ -10,3 +10,4 @@ sphinxcontrib.openapi
 sphinx-panels
 sphinx-js
 furo
+sphinx_fontawesome
