@@ -12,6 +12,7 @@ import suite.test_requirements as reqs
 import ccf.ledger
 import os
 import json
+import time
 
 # pylint: disable=import-error, no-name-in-module
 from setuptools.extern.packaging.version import Version  # type: ignore
@@ -179,7 +180,11 @@ def run_code_upgrade_from(
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
             jwt_issuer.refresh_keys()
-            jwt_issuer.wait_for_refresh(network)
+            # Note: /gov/jwt_keys/all endpoint was added in 2.x
+            if node.version and node.version > 1:
+                jwt_issuer.wait_for_refresh(network)
+            else:
+                time.sleep(3)
 
             LOG.info("Apply transactions to hybrid network, with primary as new node")
             issue_activity_on_live_service(network, args)
