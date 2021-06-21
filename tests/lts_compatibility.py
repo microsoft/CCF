@@ -48,6 +48,38 @@ def get_bin_and_lib_dirs_for_install_path(install_path):
     )
 
 
+def set_js_args(args, from_install_path):
+    # Use from_version's app and constitution as new JS features may not be available
+    # on older versions
+    js_app_directory = (
+        "../samples/apps/logging/js"
+        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
+        else "samples/logging/js"
+    )
+    args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
+
+    constitution_directory = os.path.join(
+        from_install_path,
+        "../src/runtime_config/default"
+        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
+        else "bin",
+    )
+
+    def replace_constitution_fragment(args, fragment_name):
+        args.constitution[:] = [
+            os.path.join(constitution_directory, fragment_name)
+            if fragment_name in f
+            else f
+            for f in args.constitution
+        ]
+
+    # Note: Use resolve.js script from local checkout as only the trivial sandbox
+    # version is included in installation
+    replace_constitution_fragment(args, "actions.js")
+    replace_constitution_fragment(args, "apply.js")
+    replace_constitution_fragment(args, "validate.js")
+
+
 def run_code_upgrade_from(
     args,
     from_install_path,
@@ -62,13 +94,7 @@ def run_code_upgrade_from(
         to_install_path
     )
 
-    js_app_directory = (
-        "../samples/apps/logging/js"
-        if from_install_path == LOCAL_CHECKOUT_DIRECTORY
-        else "samples/logging/js"
-    )
-
-    args.js_app_bundle = os.path.join(from_install_path, js_app_directory)
+    set_js_args(args, from_install_path)
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer("https://localhost")
     with jwt_issuer.start_openid_server():
@@ -186,14 +212,18 @@ def run_live_compatibility_with_latest(args, repo, local_branch):
     lts_version, lts_install_path = repo.install_latest_lts_for_branch(
         os.getenv(ENV_VAR_LATEST_LTS_BRANCH_NAME, local_branch)
     )
-    LOG.info(f'From LTS {lts_version} to local "{local_branch}" branch')
-    run_code_upgrade_from(
-        args,
-        from_install_path=lts_install_path,
-        to_install_path=LOCAL_CHECKOUT_DIRECTORY,
-        from_major_version=Version(lts_version).release[0],
-        to_major_version=None,
+    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
+    LOG.info(
+        f'From LTS {lts_version} to local "{local_branch}" branch (version: {local_major_version})'
     )
+    if not args.dry_run:
+        run_code_upgrade_from(
+            args,
+            from_install_path=lts_install_path,
+            to_install_path=LOCAL_CHECKOUT_DIRECTORY,
+            from_major_version=Version(lts_version).release[0],
+            to_major_version=local_major_version,
+        )
     return lts_version
 
 
@@ -208,19 +238,23 @@ def run_live_compatibility_with_following(args, repo, local_branch):
         LOG.warning(f"No next LTS for local {local_branch} branch")
         return None
 
-    LOG.info(f'From local "{local_branch}" branch to LTS {lts_version}')
-    run_code_upgrade_from(
-        args,
-        from_install_path=LOCAL_CHECKOUT_DIRECTORY,
-        to_install_path=lts_install_path,
-        from_major_version=None,
-        to_major_version=Version(lts_version).release[0],
+    local_major_version = infra.github.get_major_version_from_branch_name(local_branch)
+    LOG.info(
+        f'From local "{local_branch}" branch (version: {local_major_version}) to LTS {lts_version}'
     )
+    if not args.dry_run:
+        run_code_upgrade_from(
+            args,
+            from_install_path=LOCAL_CHECKOUT_DIRECTORY,
+            to_install_path=lts_install_path,
+            from_major_version=local_major_version,
+            to_major_version=Version(lts_version).release[0],
+        )
     return lts_version
 
 
 @reqs.description("Run ledger compatibility since first LTS")
-def run_ledger_compatibility_since_first(args, use_snapshot):
+def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     """
     Tests that a service from the very first LTS can be recovered
     to the next LTS, and so forth, until the version of the local checkout.
@@ -252,76 +286,79 @@ def run_ledger_compatibility_since_first(args, use_snapshot):
                     lts_install_path
                 )
                 major_version = Version(version).release[0]
-                args.js_app_bundle = os.path.join(
-                    lts_install_path, "samples/logging/js"
-                )
+                set_js_args(args, lts_install_path)
             else:
                 version = args.ccf_version
                 binary_dir = LOCAL_CHECKOUT_DIRECTORY
                 library_dir = LOCAL_CHECKOUT_DIRECTORY
-                major_version = None
-
-            network_args = {
-                "hosts": args.nodes,
-                "binary_dir": binary_dir,
-                "library_dir": library_dir,
-                "txs": txs,
-                "jwt_issuer": jwt_issuer,
-                "version": major_version,
-            }
-            if idx == 0:
-                LOG.info(f"Starting new service (version: {version})")
-                network = infra.network.Network(**network_args)
-                network.start_and_join(args)
-            else:
-                LOG.info(f"Recovering service (new version: {version})")
-                network = infra.network.Network(
-                    **network_args, existing_network=network
+                major_version = infra.github.get_major_version_from_branch_name(
+                    local_branch
                 )
-                network.start_in_recovery(
-                    args,
-                    ledger_dir,
-                    committed_ledger_dir,
-                    snapshot_dir=snapshot_dir,
+
+            if not args.dry_run:
+                network_args = {
+                    "hosts": args.nodes,
+                    "binary_dir": binary_dir,
+                    "library_dir": library_dir,
+                    "txs": txs,
+                    "jwt_issuer": jwt_issuer,
+                    "version": major_version,
+                }
+                if idx == 0:
+                    LOG.info(f"Starting new service (version: {version})")
+                    network = infra.network.Network(**network_args)
+                    network.start_and_join(args)
+                else:
+                    LOG.info(f"Recovering service (new version: {version})")
+                    network = infra.network.Network(
+                        **network_args, existing_network=network
+                    )
+                    network.start_in_recovery(
+                        args,
+                        ledger_dir,
+                        committed_ledger_dir,
+                        snapshot_dir=snapshot_dir,
+                    )
+                    network.recover(args)
+
+                nodes = network.get_joined_nodes()
+                primary, _ = network.find_primary()
+
+                # Verify that all nodes run the expected CCF version
+                for node in nodes:
+                    # Note: /node/version endpoint was added in 2.x
+                    if not node.version or node.version > 1:
+                        with node.client() as c:
+                            r = c.get("/node/version")
+                            expected_version = node.version or args.ccf_version
+                            version = r.body.json()["ccf_version"]
+                            assert (
+                                r.body.json()["ccf_version"] == expected_version
+                            ), f"Node version is not {expected_version}"
+
+                # Rollover JWKS so that new primary must read historical CA bundle table
+                # and retrieve new keys via auto refresh
+                jwt_issuer.refresh_keys()
+                jwt_issuer.wait_for_refresh(network)
+
+                issue_activity_on_live_service(network, args)
+
+                snapshot_dir = (
+                    network.get_committed_snapshots(primary) if use_snapshot else None
                 )
-                network.recover(args)
+                ledger_dir, committed_ledger_dir = primary.get_ledger(
+                    include_read_only_dirs=True
+                )
+                network.stop_all_nodes(verbose_verification=False)
 
-            nodes = network.get_joined_nodes()
-            primary, _ = network.find_primary()
-
-            # Verify that all nodes run the expected CCF version
-            for node in nodes:
-                # Note: /node/version endpoint was added in 2.x
-                if not node.version or node.version > 1:
-                    with node.client() as c:
-                        r = c.get("/node/version")
-                        expected_version = node.version or args.ccf_version
-                        version = r.body.json()["ccf_version"]
-                        assert (
-                            r.body.json()["ccf_version"] == expected_version
-                        ), f"Node version is not {expected_version}"
-
-            # Rollover JWKS so that new primary must read historical CA bundle table
-            # and retrieve new keys via auto refresh
-            jwt_issuer.refresh_keys()
-            jwt_issuer.wait_for_refresh(network)
-
-            issue_activity_on_live_service(network, args)
-
-            snapshot_dir = (
-                network.get_committed_snapshots(primary) if use_snapshot else None
-            )
-            ledger_dir, committed_ledger_dir = primary.get_ledger(
-                include_read_only_dirs=True
-            )
-            network.stop_all_nodes(verbose_verification=False)
-
-            # Check that ledger and snapshots can be parsed
-            ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
-            if snapshot_dir:
-                for s in os.listdir(snapshot_dir):
-                    with ccf.ledger.Snapshot(os.path.join(snapshot_dir, s)) as snapshot:
-                        snapshot.get_public_domain()
+                # Check that ledger and snapshots can be parsed
+                ccf.ledger.Ledger([committed_ledger_dir]).get_latest_public_state()
+                if snapshot_dir:
+                    for s in os.listdir(snapshot_dir):
+                        with ccf.ledger.Snapshot(
+                            os.path.join(snapshot_dir, s)
+                        ) as snapshot:
+                            snapshot.get_public_domain()
 
     return lts_versions
 
@@ -333,6 +370,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "--compatibility-report-file", type=str, default="compatibility_report.json"
         )
+        parser.add_argument("--dry-run", action="store_true")
 
     args = infra.e2e_args.cli_args(add)
 
@@ -348,6 +386,9 @@ if __name__ == "__main__":
     # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
     # current branch on any environment (either local checkout or CI run)
     env = cimetrics.env.get_env()
+
+    if args.dry_run:
+        LOG.warning("Dry run: no compatibility check")
 
     compatibility_report = {}
     compatibility_report["version"] = args.ccf_version
@@ -365,17 +406,24 @@ if __name__ == "__main__":
 
     if args.check_ledger_compatibility:
         compatibility_report["data compatibility"] = {}
-        lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=False)
+        lts_versions = run_ledger_compatibility_since_first(
+            args, env.branch, use_snapshot=False
+        )
         compatibility_report["data compatibility"].update(
             {"with previous ledger": lts_versions}
         )
-        lts_versions = run_ledger_compatibility_since_first(args, use_snapshot=True)
+        lts_versions = run_ledger_compatibility_since_first(
+            args, env.branch, use_snapshot=True
+        )
         compatibility_report["data compatibility"].update(
             {"with previous snapshots": lts_versions}
         )
 
-    with open(args.compatibility_report_file, "w") as f:
-        json.dump(compatibility_report, f, indent=2)
-        LOG.info(f"Compatibility report written to {args.compatibility_report_file}")
+    if not args.dry_run:
+        with open(args.compatibility_report_file, "w") as f:
+            json.dump(compatibility_report, f, indent=2)
+            LOG.info(
+                f"Compatibility report written to {args.compatibility_report_file}"
+            )
 
     LOG.success(f"Compatibility report:\n {json.dumps(compatibility_report, indent=2)}")

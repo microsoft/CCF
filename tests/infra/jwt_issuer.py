@@ -175,16 +175,15 @@ class JwtIssuer:
 
     def wait_for_refresh(self, network, kid=TEST_JWT_KID, timeout=3):
         LOG.info(f"Waiting {timeout}s for JWT key refresh")
+        primary, _ = network.find_nodes()
         end_time = time.time() + timeout
-        while time.time() < end_time:
-            latest_public_state, _ = network.get_latest_ledger_public_state()
-            latest_jwt_signing_key = latest_public_state[
-                "public:ccf.gov.jwt.public_signing_keys"
-            ]
-            if self.cert_pem == infra.crypto.cert_der_to_pem(
-                latest_jwt_signing_key[kid.encode()]
-            ):
-                return
+        with primary.client(network.consortium.get_any_active_member().local_id) as c:
+            while time.time() < end_time:
+                r = c.get("/gov/jwt_keys/all")
+                assert r.status_code == 200, r
+                stored_cert = r.body.json()[kid]
+                if self.cert_pem == stored_cert:
+                    return
         raise TimeoutError(
             f"JWT public signing keys were not refreshed after {timeout}s"
         )

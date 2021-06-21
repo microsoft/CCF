@@ -713,7 +713,7 @@ class CCFRemote(object):
             for fragment in constitution:
                 cmd.append(f"--constitution={os.path.basename(fragment)}")
                 data_files += [
-                    os.path.join(os.path.basename(self.common_dir), fragment)
+                    os.path.join(self.common_dir, os.path.basename(fragment))
                 ]
             if members_info is None:
                 raise ValueError(

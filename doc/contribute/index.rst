@@ -30,10 +30,17 @@ The CCF team welcome contributions to any part of the framework, including this 
 
     ---
 
-    :fa:`cogs` :doc:`release_ccf`
+    :fa:`rocket` :doc:`release_ccf`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Release CCF or a patch to CCF.
+
+    ---
+
+    :fa:`map-marked-alt` :doc:`design/index`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Design documentation.
 
 .. toctree::
     :maxdepth: 1
@@ -43,3 +50,4 @@ The CCF team welcome contributions to any part of the framework, including this 
     /build_apps/build_setup
     build_ccf
     release_ccf
+    design/index

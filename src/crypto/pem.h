@@ -8,6 +8,7 @@
 #include <cstring>
 #include <exception>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 namespace crypto

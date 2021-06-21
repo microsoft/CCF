@@ -34,7 +34,6 @@ def test_jwt_without_key_policy(network, args):
 
     issuer = infra.jwt_issuer.JwtIssuer("my_issuer")
     kid = "my_kid"
-    raw_kid = kid.encode()
 
     LOG.info("Try to add JWT signing key without matching issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
@@ -72,40 +71,40 @@ def test_jwt_without_key_policy(network, args):
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as jwks_fp:
         json.dump(issuer.create_jwks(kid), jwks_fp)
         jwks_fp.flush()
-        set_jwt_proposal = network.consortium.set_jwt_public_signing_keys(
+        network.consortium.set_jwt_public_signing_keys(
             primary, issuer.name, jwks_fp.name
         )
 
-        stored_jwt_signing_key = network.get_ledger_public_state_at(
-            set_jwt_proposal.completed_seqno
-        )["public:ccf.gov.jwt.public_signing_keys"][raw_kid]
+        with primary.client(network.consortium.get_any_active_member().local_id) as c:
+            r = c.get("/gov/jwt_keys/all")
+            assert r.status_code == 200, r
+            stored_cert = r.body.json()[kid]
 
-        stored_cert = infra.crypto.cert_der_to_pem(stored_jwt_signing_key)
         assert infra.crypto.are_certs_equal(
             issuer.cert_pem, stored_cert
         ), "input cert is not equal to stored cert"
 
     LOG.info("Remove JWT issuer")
-    remove_jwt_proposal = network.consortium.remove_jwt_issuer(primary, issuer.name)
+    network.consortium.remove_jwt_issuer(primary, issuer.name)
 
-    assert (
-        network.get_ledger_public_state_at(remove_jwt_proposal.completed_seqno)[
-            "public:ccf.gov.jwt.public_signing_keys"
-        ][raw_kid]
-        is None
-    ), "JWT issuer was not removed"
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
+        r = c.get("/gov/jwt_keys/all")
+        assert r.status_code == 200, r
+        assert (
+            kid not in r.body.json()
+        ), f"JWT issuer was not removed {r.body.json()[kid]}"
 
     LOG.info("Add JWT issuer with initial keys")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
         json.dump({"issuer": issuer.name, "jwks": issuer.create_jwks(kid)}, metadata_fp)
         metadata_fp.flush()
-        set_jwt_issuer = network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
-        stored_jwt_signing_key = network.get_ledger_public_state_at(
-            set_jwt_issuer.completed_seqno
-        )["public:ccf.gov.jwt.public_signing_keys"][raw_kid]
+        with primary.client(network.consortium.get_any_active_member().local_id) as c:
+            r = c.get("/gov/jwt_keys/all")
+            assert r.status_code == 200, r
+            stored_cert = r.body.json()[kid]
 
-        stored_cert = infra.crypto.cert_der_to_pem(stored_jwt_signing_key)
         assert infra.crypto.are_certs_equal(
             issuer.cert_pem, stored_cert
         ), "input cert is not equal to stored cert"
@@ -224,30 +223,32 @@ def test_jwt_with_sgx_key_filter(network, args):
         jwks = {"keys": non_oe_jwks["keys"] + oe_jwks["keys"]}
         json.dump(jwks, jwks_fp)
         jwks_fp.flush()
-        set_jwt_proposal = network.consortium.set_jwt_public_signing_keys(
+        network.consortium.set_jwt_public_signing_keys(
             primary, oe_issuer.name, jwks_fp.name
         )
 
-        stored_jwt_signing_keys = network.get_ledger_public_state_at(
-            set_jwt_proposal.completed_seqno
-        )["public:ccf.gov.jwt.public_signing_keys"]
+        with primary.client(network.consortium.get_any_active_member().local_id) as c:
+            r = c.get("/gov/jwt_keys/all")
+            assert r.status_code == 200, r
+            stored_jwt_signing_keys = r.body.json()
 
-        assert non_oe_kid.encode() not in stored_jwt_signing_keys
-        assert oe_kid.encode() in stored_jwt_signing_keys
+        assert non_oe_kid not in stored_jwt_signing_keys, stored_jwt_signing_keys
+        assert oe_kid in stored_jwt_signing_keys, stored_jwt_signing_keys
 
     return network
 
 
 def check_kv_jwt_key_matches(network, kid, cert_pem):
-    latest_public_state, _ = network.get_latest_ledger_public_state()
-    latest_jwt_signing_key = latest_public_state[
-        "public:ccf.gov.jwt.public_signing_keys"
-    ]
+    primary, _ = network.find_nodes()
+    with primary.client(network.consortium.get_any_active_member().local_id) as c:
+        r = c.get("/gov/jwt_keys/all")
+        assert r.status_code == 200, r
+        latest_jwt_signing_keys = r.body.json()
 
     if cert_pem is None:
-        assert kid.encode() not in latest_jwt_signing_key
+        assert kid not in latest_jwt_signing_keys
     else:
-        stored_cert = infra.crypto.cert_der_to_pem(latest_jwt_signing_key[kid.encode()])
+        stored_cert = latest_jwt_signing_keys[kid]
         assert infra.crypto.are_certs_equal(
             cert_pem, stored_cert
         ), "input cert is not equal to stored cert"

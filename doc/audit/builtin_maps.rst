@@ -190,6 +190,24 @@ JavaScript modules, accessible by JavaScript endpoint functions.
 
 **Value** Contents of the module as a string.
 
+``modules_quickjs_bytecode``
+~~~~~~~~~~~
+
+JavaScript engine module cache, accessible by JavaScript endpoint functions.
+
+**Key** Module name as a string.
+
+**Value** Compiled bytecode as raw buffer.
+
+``modules_quickjs_version``
+~~~~~~~~~~~
+
+JavaScript engine version of the module cache, accessible by JavaScript endpoint functions.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value** QuickJS version as a string.
+
 ``endpoints``
 ~~~~~~~~~~~~~
 
@@ -252,7 +270,7 @@ JWT signing keys.
 
 **Key** JWT Key ID, represented as a string.
 
-**Value** JWT public key or certificate, represented as a PEM-encoded string.
+**Value** JWT public key or certificate, represented as a DER-encoded string.
 
 ``jwt.public_signing_key_issuer``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
