@@ -55,6 +55,15 @@ namespace ccf
   DECLARE_JSON_TYPE(NodeMetrics)
   DECLARE_JSON_REQUIRED_FIELDS(NodeMetrics, sessions)
 
+  struct JavaScriptMetrics
+  {
+    uint64_t bytecode_size;
+    bool bytecode_used;
+  };
+
+  DECLARE_JSON_TYPE(JavaScriptMetrics)
+  DECLARE_JSON_REQUIRED_FIELDS(JavaScriptMetrics, bytecode_size, bytecode_used)
+
   class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -203,7 +212,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "1.2.0";
+      openapi_info.document_version = "1.3.0";
     }
 
     void init_handlers() override
@@ -886,9 +895,36 @@ namespace ccf
         .set_auto_schema<void, NodeMetrics>()
         .install();
 
+      auto js_metrics = [this](auto& args, nlohmann::json&&) {
+        auto bytecode_map = args.tx.ro(this->network.modules_quickjs_bytecode);
+        auto version_val = args.tx.ro(this->network.modules_quickjs_version);
+        uint64_t bytecode_size = 0;
+        bytecode_map->foreach(
+          [&bytecode_size](const auto&, const auto& bytecode) {
+            bytecode_size += bytecode.size();
+            return true;
+          });
+        JavaScriptMetrics m;
+        m.bytecode_size = bytecode_size;
+        m.bytecode_used =
+          version_val->get() == std::string(ccf::quickjs_version);
+        return m;
+      };
+
+      make_read_only_endpoint(
+        "js_metrics",
+        HTTP_GET,
+        json_read_only_adapter(js_metrics),
+        no_auth_required)
+        .set_auto_schema<void, JavaScriptMetrics>()
+        .set_execute_outside_consensus(
+          ccf::endpoints::ExecuteOutsideConsensus::Locally)
+        .install();
+
       auto version = [this](auto&, nlohmann::json&&) {
         GetVersion::Out result;
         result.ccf_version = ccf::ccf_version;
+        result.quickjs_version = ccf::quickjs_version;
         return make_success(result);
       };
 

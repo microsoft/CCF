@@ -4,6 +4,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/user_frontend.h"
+#include "ccf/version.h"
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
@@ -25,59 +26,6 @@ namespace ccfapp
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"
-
-  // Modules
-
-  struct JSModuleLoaderArg
-  {
-    ccf::NetworkTables* network;
-    kv::Tx* tx;
-  };
-
-  static JSModuleDef* js_module_loader(
-    JSContext* ctx, const char* module_name, void* opaque)
-  {
-    // QuickJS resolves relative paths but in some cases omits leading slashes.
-    std::string module_name_kv(module_name);
-    if (module_name_kv[0] != '/')
-    {
-      module_name_kv.insert(0, "/");
-    }
-
-    LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
-
-    auto arg = (JSModuleLoaderArg*)opaque;
-
-    const auto modules = arg->tx->ro(arg->network->modules);
-    auto module = modules->get(module_name_kv);
-    if (!module.has_value())
-    {
-      JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
-      return nullptr;
-    }
-    auto& js = module.value();
-
-    const char* buf = js.c_str();
-    size_t buf_len = js.size();
-    JSValue func_val = JS_Eval(
-      ctx,
-      buf,
-      buf_len,
-      module_name,
-      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-    if (JS_IsException(func_val))
-    {
-      js::js_dump_error(ctx);
-      return nullptr;
-    }
-
-    auto m = (JSModuleDef*)JS_VALUE_GET_PTR(func_val);
-    // module already referenced, decrement ref count
-    JS_FreeValue(ctx, func_val);
-    return m;
-  }
-
-  // END modules
 
   class JSHandlers : public UserEndpointRegistry
   {
@@ -310,24 +258,11 @@ namespace ccfapp
       const std::optional<ccf::TxID>& transaction_id,
       ccf::historical::TxReceiptPtr receipt)
     {
-      const auto modules = endpoint_ctx.tx.ro(this->network.modules);
-
-      auto handler_script = modules->get(props.js_module);
-      if (!handler_script.has_value())
-      {
-        endpoint_ctx.rpc_ctx->set_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          ccf::errors::InternalError,
-          fmt::format("Endpoint module not found: {}.", props.js_module));
-        return;
-      }
-
       js::Runtime rt;
       rt.add_ccf_classdefs();
 
-      JSModuleLoaderArg js_module_loader_arg{&this->network, &endpoint_ctx.tx};
       JS_SetModuleLoaderFunc(
-        rt, nullptr, js_module_loader, &js_module_loader_arg);
+        rt, nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
       js::Context ctx(rt);
       js::TxContext txctx{&target_tx, js::TxAccess::APP};
@@ -345,16 +280,15 @@ namespace ccfapp
         ctx);
       js::populate_global_openenclave(ctx);
 
-      // Compile module
-      std::string code = handler_script.value();
-      const std::string path = props.js_module;
-
       JSValue export_func;
       try
       {
-        export_func = ctx.function(code, props.js_function, path);
+        auto module_val =
+          js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
+        export_func =
+          ctx.function(module_val, props.js_function, props.js_module);
       }
-      catch (std::exception& exc)
+      catch (const std::exception& exc)
       {
         endpoint_ctx.rpc_ctx->set_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
