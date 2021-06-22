@@ -11,7 +11,7 @@ CCF Documentation
       :align: left
       :target: concepts.html
 
-    Get started with CCF and its core concepts through a sample app.
+    Get started with the Confidential Consortium Framework and its core concepts.
 
     ---
 
@@ -30,7 +30,7 @@ CCF Documentation
       :alt: C++
       :align: left
 
-    Write application logic against the CCF Key-Value store.
+    Write application logic against the CCF Key-Value store in C++, JavaScript or TypeScript.
 
     ---
 
