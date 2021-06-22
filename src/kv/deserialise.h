@@ -182,7 +182,6 @@ namespace kv
     bool public_only;
     kv::Version v;
     Term term;
-    ccf::NodeId from;
     Version version;
     ccf::PrimarySignature sig;
     OrderedChanges changes;
@@ -451,8 +450,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      if (!progress_tracker->apply_new_view(
-            from, consensus->node_count(), term))
+      if (!progress_tracker->apply_new_view(consensus->node_count(), term))
       {
         LOG_FAIL_FMT("apply_new_view Failed");
         LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);

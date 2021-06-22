@@ -84,7 +84,8 @@ namespace ccf
 
     ViewChangeConfirmation() = default;
     ViewChangeConfirmation(ccf::View view_, const NodeId& primary_id_) :
-      view(view_), primary_id(primary_id_)
+      view(view_),
+      primary_id(primary_id_)
     {}
   };
   DECLARE_JSON_TYPE(ViewChangeConfirmation);

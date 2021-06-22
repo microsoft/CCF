@@ -495,7 +495,8 @@ namespace aft
       if (consensus_type == ConsensusType::BFT && !configurations.empty())
       {
         auto progress_tracker = store->get_progress_tracker();
-        auto target_primary = progress_tracker->get_primary_at_last_view_change();
+        auto target_primary =
+          progress_tracker->get_primary_at_last_view_change();
         for (; offset < configurations.back().nodes.size(); ++offset)
         {
           if (
@@ -1100,10 +1101,8 @@ namespace aft
       state->current_view = view;
       become_leader();
       state->new_view_idx =
-        view_change_tracker->write_view_change_confirmation_append_entry(view, id());
-
-      auto progress_tracker = store->get_progress_tracker();
-      progress_tracker->set_primary_at_last_view_change(view);
+        view_change_tracker->write_view_change_confirmation_append_entry(
+          view, id());
       view_change_tracker->clear(get_primary(view) == id(), view);
       request_tracker->clear();
     }
