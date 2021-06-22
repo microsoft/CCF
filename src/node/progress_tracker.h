@@ -685,7 +685,7 @@ namespace ccf
       is_public_only = public_only;
     }
 
-    void set_write_view_change(ccf::View view)
+    void set_primary_at_last_view_change(ccf::View view)
     {
       std::unique_lock<std::mutex> guard(lock);
       primary_at_last_view_change = std::make_tuple<ccf::NodeId, ccf::View>(NodeId(id), View(view));

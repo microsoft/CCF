@@ -91,7 +91,7 @@ namespace kv
 
     ccf::SeqNo idx;
     Nodes nodes;
-    uint32_t bft_offset = -1;
+    uint32_t bft_offset;
   };
 
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)

@@ -506,9 +506,6 @@ namespace aft
           }
         }
       }
-
-      LOG_INFO_FMT("TTTTTTTTTTTT offset:{}", offset);
-
       configurations.push_back({idx, std::move(conf), offset});
       backup_nodes.clear();
       create_and_remove_node_state();
@@ -1106,7 +1103,7 @@ namespace aft
         view_change_tracker->write_view_change_confirmation_append_entry(view, id());
 
       auto progress_tracker = store->get_progress_tracker();
-      progress_tracker->set_write_view_change(view);
+      progress_tracker->set_primary_at_last_view_change(view);
       view_change_tracker->clear(get_primary(view) == id(), view);
       request_tracker->clear();
     }
