@@ -73,12 +73,12 @@ This diagram shows the state machine for a channel on each node, with the messag
         INACTIVE --> INITIATED: initiate()
         INITIATED --> ESTABLISHED: key_exchange_response
 
-        INACTIVE --> WAITING_FOR_PRIMARY: key_exchange_init
-        INITIATED --> WAITING_FOR_PRIMARY: key_exchange_init (higher priority)
-        WAITING_FOR_PRIMARY --> ESTABLISHED: key_exchange_final
+        INACTIVE --> WAITING_FOR_FINAL: key_exchange_init
+        INITIATED --> WAITING_FOR_FINAL: key_exchange_init (higher priority)
+        WAITING_FOR_FINAL --> ESTABLISHED: key_exchange_final
 
         %%INITIATED --> INACTIVE: close()
-        %%WAITING_FOR_PRIMARY --> INACTIVE: close()
+        %%WAITING_FOR_FINAL --> INACTIVE: close()
         %%ESTABLISHED --> INACTIVE: close()
 
 The brief sequence diagram of a successful key exchange is as follows.
@@ -181,7 +181,7 @@ To be robust to this, I think we need to reason about what a node should do in r
         s_unknown(Unknown)
         s_inactive(state:=INACTIVE)
         s_initiated(state:=INITIATED)
-        s_waiting(state:=WAITING_FOR_PRIMARY)
+        s_waiting(state:=WAITING_FOR_FINAL)
         s_established(state:=ESTABLISHED)
 
         s_generate[Generate key]
