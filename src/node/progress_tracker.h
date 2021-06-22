@@ -581,12 +581,13 @@ namespace ccf
     }
 
     bool apply_new_view(
-      const NodeId& from, uint32_t node_count, ccf::View& view_)
+      NodeId& from_, uint32_t node_count, ccf::View& view_)
     {
       std::unique_lock<std::mutex> guard(lock);
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
       ccf::View view = new_view->view;
+      ccf::NodeId from = new_view->primary_id;
 
       if (
         new_view->view_change_messages.size() <
@@ -634,6 +635,8 @@ namespace ccf
       }
 
       view_ = view;
+      from_ = from;
+      primary_at_last_view_change = std::make_tuple<ccf::NodeId, ccf::View>(ccf::NodeId(from), View(view));
       return true;
     }
 
@@ -682,11 +685,26 @@ namespace ccf
       is_public_only = public_only;
     }
 
+    void set_write_view_change(ccf::View view)
+    {
+      std::unique_lock<std::mutex> guard(lock);
+      primary_at_last_view_change = std::make_tuple<ccf::NodeId, ccf::View>(NodeId(id), View(view));
+    }
+
+    std::tuple<ccf::NodeId, ccf::View> get_primary_at_last_view_change()
+    {
+      std::unique_lock<std::mutex> guard(lock);
+      return primary_at_last_view_change;
+    }
+
   private:
     NodeId id;
     std::shared_ptr<crypto::Entropy> entropy;
     ccf::SeqNo highest_commit_level = 0;
     ccf::TxID highest_prepared_level = {0, 0};
+    std::tuple<ccf::NodeId, ccf::View> primary_at_last_view_change =
+      std::make_tuple<ccf::NodeId, ccf::View>(
+        ccf::NodeId(fmt::format("{:#064}", 0)), 0);
 
     std::map<ccf::SeqNo, CommitCert> certificates;
     bool is_public_only;

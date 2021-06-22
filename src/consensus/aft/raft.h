@@ -317,12 +317,8 @@ namespace aft
         consensus_type == ConsensusType::BFT,
         "Computing primary id from view is only supported with BFT consensus");
 
-      // This will not work once we have reconfiguration support
-      // https://github.com/microsoft/CCF/issues/1852
-      auto active_nodes_ = active_nodes();
-      auto it = active_nodes_.begin();
-      std::advance(it, (view - starting_view_change) % active_nodes_.size());
-      return *it;
+      const auto& config = configurations.back();
+      return get_primary_at_config(view, config.bft_offset, config.nodes);
     }
 
     Index last_committable_index() const
@@ -495,7 +491,25 @@ namespace aft
         LOG_INFO_FMT("Node retiring at {}", idx);
       }
 
-      configurations.push_back({idx, std::move(conf)});
+      uint32_t offset = 0;
+      if (consensus_type == ConsensusType::BFT && !configurations.empty())
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        auto target_primary = progress_tracker->get_primary_at_last_view_change();
+        for (; offset < configurations.back().nodes.size(); ++offset)
+        {
+          if (
+            get_primary_at_config(std::get<1>(target_primary), offset, conf) ==
+            std::get<0>(target_primary))
+          {
+            break;
+          }
+        }
+      }
+
+      LOG_INFO_FMT("TTTTTTTTTTTT offset:{}", offset);
+
+      configurations.push_back({idx, std::move(conf), offset});
       backup_nodes.clear();
       create_and_remove_node_state();
     }
@@ -1072,13 +1086,27 @@ namespace aft
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
     }
 
+    ccf::NodeId get_primary_at_config(
+      ccf::View view, uint32_t offset, const Configuration::Nodes& conf)
+    {
+      CCF_ASSERT_FMT(
+        consensus_type == ConsensusType::BFT,
+        "Computing primary id from view is only supported with BFT consensus");
+
+      auto it = conf.begin();
+      std::advance(it, (view - starting_view_change + offset) % conf.size());
+      return it->first;
+    }
+
     void append_new_view(ccf::View view)
     {
       state->current_view = view;
       become_leader();
       state->new_view_idx =
-        view_change_tracker->write_view_change_confirmation_append_entry(view);
+        view_change_tracker->write_view_change_confirmation_append_entry(view, id());
 
+      auto progress_tracker = store->get_progress_tracker();
+      progress_tracker->set_write_view_change(view);
       view_change_tracker->clear(get_primary(view) == id(), view);
       request_tracker->clear();
     }
@@ -2281,7 +2309,7 @@ namespace aft
 
         std::vector<uint8_t> data =
           view_change_tracker->get_serialized_view_change_confirmation(
-            state->current_view);
+            state->current_view, id());
 
         data.insert(
           data.begin(),

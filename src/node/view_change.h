@@ -77,16 +77,19 @@ namespace ccf
   struct ViewChangeConfirmation
   {
     ccf::View view = 0;
+    NodeId primary_id;
     std::vector<uint8_t> signature;
 
     std::map<NodeId, ViewChangeRequest> view_change_messages;
 
     ViewChangeConfirmation() = default;
-    ViewChangeConfirmation(ccf::View view_) : view(view_) {}
+    ViewChangeConfirmation(ccf::View view_, const NodeId& primary_id_) :
+      view(view_), primary_id(primary_id_)
+    {}
   };
   DECLARE_JSON_TYPE(ViewChangeConfirmation);
   DECLARE_JSON_REQUIRED_FIELDS(
-    ViewChangeConfirmation, view, signature, view_change_messages);
+    ViewChangeConfirmation, view, primary_id, signature, view_change_messages);
 
   // Always recorded at key 0
   using NewViewsMap = ServiceMap<size_t, ViewChangeConfirmation>;
