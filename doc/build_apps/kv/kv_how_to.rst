@@ -1,7 +1,7 @@
 Key-Value Store How-To
 ======================
 
-The Key-Value :cpp:class:`kv::Store` is a collection of :cpp:class:`kv::Map` objects that are available from all the end-points of an application. There is one unique ``Store`` created in the enclave of each node that is passed to the constructor of all applications.
+The Key-Value :cpp:class:`kv::Store` is a collection of :cpp:type:`kv::Map` objects that are available from all the end-points of an application. There is one unique ``Store`` created in the enclave of each node that is passed to the constructor of all applications.
 
 .. code-block:: cpp
 
