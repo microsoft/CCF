@@ -495,13 +495,12 @@ namespace aft
       if (consensus_type == ConsensusType::BFT && !configurations.empty())
       {
         auto progress_tracker = store->get_progress_tracker();
-        auto target_primary =
-          progress_tracker->get_primary_at_last_view_change();
+        auto target = progress_tracker->get_primary_at_last_view_change();
         for (; offset < configurations.back().nodes.size(); ++offset)
         {
           if (
-            get_primary_at_config(std::get<1>(target_primary), offset, conf) ==
-            std::get<0>(target_primary))
+            get_primary_at_config(std::get<1>(target), offset, conf) ==
+            std::get<0>(target))
           {
             break;
           }
