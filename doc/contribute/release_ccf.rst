@@ -19,7 +19,7 @@ Create an LTS release
     1. Create a ``release/N.x`` branch from the head of ``main``
     2. Tag head of ``release/N.x`` as ``ccf-N.0.0-rc1``
     3. If necessary, apply patch process outline above with ``ccf-N.0.0-rc2`` etc
-    3. When ready, tag the head of ``release/N.x`` as ``ccf-N.0.0`` 
+    4. When ready, tag the head of ``release/N.x`` as ``ccf-N.0.0`` 
 
 Create a dev release
 ---------------------

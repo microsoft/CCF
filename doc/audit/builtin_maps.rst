@@ -191,7 +191,7 @@ JavaScript modules, accessible by JavaScript endpoint functions.
 **Value** Contents of the module as a string.
 
 ``modules_quickjs_bytecode``
-~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 JavaScript engine module cache, accessible by JavaScript endpoint functions.
 
@@ -200,7 +200,7 @@ JavaScript engine module cache, accessible by JavaScript endpoint functions.
 **Value** Compiled bytecode as raw buffer.
 
 ``modules_quickjs_version``
-~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 JavaScript engine version of the module cache, accessible by JavaScript endpoint functions.
 
