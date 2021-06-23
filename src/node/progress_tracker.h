@@ -77,7 +77,7 @@ namespace ccf
         root,
         sig);
 
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end() || am_i_primary)
       {
         // If a primary is behind and becomes a backup (without becoming aware
@@ -99,7 +99,7 @@ namespace ccf
           std::pair<NodeId, BftNodeSignature>(node_id, bft_node_sig));
 
         certificates.insert(
-          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, cert));
+          std::pair<ccf::TxID, CommitCert>(tx_id, cert));
 
         LOG_TRACE_FMT(
           "Adding new root for view:{}, seqno:{}", tx_id.view, tx_id.seqno);
@@ -163,7 +163,7 @@ namespace ccf
       ccf::TxID tx_id, std::vector<uint8_t>& sig)
     {
       std::unique_lock<std::mutex> guard(lock);
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
@@ -196,7 +196,7 @@ namespace ccf
       CCF_ASSERT(sigs.has_value(), "sigs does not have a value");
       auto sigs_value = sigs.value();
 
-      auto it = certificates.find(sigs_value.seqno);
+      auto it = certificates.find({sigs_value.view, sigs_value.seqno});
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
@@ -281,7 +281,7 @@ namespace ccf
       CCF_ASSERT(nonces.has_value(), "nonces does not have a value");
       aft::RevealedNonces& nonces_value = nonces.value();
 
-      auto it = certificates.find(nonces_value.tx_id.seqno);
+      auto it = certificates.find(nonces_value.tx_id);
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
@@ -335,14 +335,14 @@ namespace ccf
       ccf::TxID tx_id, const NodeId& node_id, uint32_t node_count = 0)
     {
       std::unique_lock<std::mutex> guard(lock);
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
         auto r = certificates.insert(
-          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, CommitCert()));
+          std::pair<ccf::TxID, CommitCert>(tx_id, CommitCert()));
         it = r.first;
       }
 
@@ -372,14 +372,14 @@ namespace ccf
     {
       std::unique_lock<std::mutex> guard(lock);
       bool did_add = false;
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
         auto r = certificates.insert(
-          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, CommitCert()));
+          std::pair<ccf::TxID, CommitCert>(tx_id, CommitCert()));
         it = r.first;
         did_add = true;
       }
@@ -487,7 +487,7 @@ namespace ccf
     get_view_change_message(ccf::View view)
     {
       std::unique_lock<std::mutex> guard(lock);
-      auto it = certificates.find(highest_prepared_level.seqno);
+      auto it = certificates.find(highest_prepared_level);
       if (it == certificates.end())
       {
         throw ccf::ccf_logic_error(fmt::format(
@@ -649,13 +649,16 @@ namespace ccf
       ccf::SeqNo last_good_seqno = 0;
       for (auto it = certificates.begin(); it != certificates.end();)
       {
-        if (it->first > rollback_seqno)
+        if (it->first.seqno > rollback_seqno)
         {
           it = certificates.erase(it);
         }
         else
         {
-          last_good_seqno = it->first;
+          if(last_good_seqno < it->first.seqno) 
+          {
+            last_good_seqno = it->first.seqno;
+          }
           ++it;
         }
       }
@@ -701,7 +704,21 @@ namespace ccf
     ccf::SeqNo highest_commit_level = 0;
     ccf::TxID highest_prepared_level = {0, 0};
 
-    std::map<ccf::SeqNo, CommitCert> certificates;
+    //std::map<ccf::SeqNo, CommitCert> certificates;
+
+    struct classcomp
+    {
+      bool operator()(const ccf::TxID& lhs, const ccf::TxID& rhs) const
+      {
+        if(lhs.view == rhs.view)
+        {
+          return lhs.seqno < rhs.seqno;
+        }
+        return lhs.view < rhs.view;
+      }
+    };
+
+    std::map<ccf::TxID, CommitCert, classcomp> certificates;
     bool is_public_only;
     mutable std::mutex lock;
 
@@ -719,14 +736,14 @@ namespace ccf
         node_id,
         tx_id.seqno,
         hashed_nonce);
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
         // At this point the appropriate Merkle root is not known. The signature
         // will be recorded and verified when the primary sends the apporiate
         // Merkle root.
         auto r = certificates.insert(
-          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, CommitCert()));
+          std::pair<ccf::TxID, CommitCert>(tx_id, CommitCert()));
         it = r.first;
       }
       else
@@ -810,7 +827,7 @@ namespace ccf
 
     Nonce get_node_nonce_(ccf::TxID tx_id)
     {
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
         throw ccf::ccf_logic_error(fmt::format(
@@ -925,18 +942,19 @@ namespace ccf
         if (should_clear_old_entries)
         {
           LOG_DEBUG_FMT("Removing all entries upto:{}", seqno);
-          for (auto it = certificates.begin();;)
+          for (auto it = certificates.begin(); it != certificates.end();)
           {
-            CCF_ASSERT(
-              it != certificates.end(),
-              "Should never deleted all certificates");
-
-            if (it->first == seqno)
+            if (it->first.seqno >= seqno)
             {
-              break;
+              ++it;
             }
-            it = certificates.erase(it);
+            else
+            {
+              it = certificates.erase(it);
+            }
           }
+          CCF_ASSERT(
+            !certificates.empty(), "Should never deleted all certificates");
         }
       }
     }

@@ -2045,8 +2045,16 @@ namespace aft
                                        static_cast<uint32_t>(sig.sig.size()),
                                        {}};
 
-      progress_tracker->get_node_hashed_nonce(
-        {state->current_view, state->last_idx}, r.hashed_nonce);
+      try
+      {
+        progress_tracker->get_node_hashed_nonce(
+          {state->current_view, state->last_idx}, r.hashed_nonce);
+      }
+      catch(const std::exception& e)
+      {
+        LOG_INFO_FMT("TTTTTT error:{}", e.what());
+        return;
+      }
 
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 

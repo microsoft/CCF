@@ -384,7 +384,7 @@ TEST_CASE("Record primary signature")
         false);
       REQUIRE(result == kv::TxHistory::Result::OK);
       result = pt.record_primary(
-        {view + 1, seqno},
+        {view, seqno},
         kv::test::PrimaryNodeId,
         false,
         root,
