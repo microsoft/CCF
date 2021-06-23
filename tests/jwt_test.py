@@ -112,11 +112,26 @@ def test_jwt_without_key_policy(network, args):
     return network
 
 
+def make_attested_cert(network, args):
+    oeutil = os.path.join(args.oe_binary, "oeutil")
+    privk = os.path.join(this_dir, "oe_cert_key.priv")
+    pubk = os.path.join(this_dir, "oe_cert_key.pub")
+    der = os.path.join(network.common_dir, "oe_cert.der")
+    infra.proc.ccall(
+        oeutil, "generate-evidence", "-f", "cert", privk, pubk, "-o", der
+    ).check_returncode()
+    pem = os.path.join(network.common_dir, "oe_cert.pem")
+    infra.proc.ccall(
+        "openssl", "x509", "-inform", "der", "-in", der, "-out", pem
+    ).check_returncode()
+    return pem
+
+
 @reqs.description("JWT with SGX key policy")
 def test_jwt_with_sgx_key_policy(network, args):
     primary, _ = network.find_nodes()
+    oe_cert_path = make_attested_cert(network, args)
 
-    oe_cert_path = os.path.join(this_dir, "oe_cert.pem")
     with open(oe_cert_path) as f:
         oe_cert_pem = f.read()
 
