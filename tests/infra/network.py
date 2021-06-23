@@ -17,6 +17,7 @@ import random
 from dataclasses import dataclass
 from math import ceil
 import http
+import pprint
 
 from loguru import logger as LOG
 
@@ -876,6 +877,10 @@ class Network:
                 break
             time.sleep(0.1)
         expected = [commits[0]] * len(commits)
+        if expected != commits:
+            for node in self.get_joined_nodes():
+                r = c.get("/node/consensus")
+                pprint.pprint(r.body.json())
         assert expected == commits, f"Multiple commit values: {commits}"
 
     def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):

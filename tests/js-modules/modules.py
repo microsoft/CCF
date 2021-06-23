@@ -346,6 +346,50 @@ def test_npm_app(network, args):
         )
         assert unwrapped == aes_key_to_wrap
 
+        key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
+        algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
+        data = "foo".encode()
+        signature = infra.crypto.sign(algorithm, key_priv_pem, data)
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() == True, r.body
+
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode("bar".encode()).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() == False, r.body
+
+        key_priv_pem, key_pub_pem = infra.crypto.generate_ec_keypair("secp256r1")
+        algorithm = {"name": "ECDSA", "hash": "SHA-256"}
+        data = "foo".encode()
+        signature = infra.crypto.sign(algorithm, key_priv_pem, data)
+        r = c.post(
+            "/app/verifySignature",
+            {
+                "algorithm": algorithm,
+                "key": key_pub_pem,
+                "signature": b64encode(signature).decode(),
+                "data": b64encode(data).decode(),
+            },
+        )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body.json() == True, r.body
+
         r = c.post(
             "/app/digest",
             {
