@@ -113,9 +113,13 @@ def test_jwt_without_key_policy(network, args):
 
 
 def make_attested_cert(network, args):
+    keygen = os.path.join(args.binary_dir, "keygenerator.sh")
     oeutil = os.path.join(args.oe_binary, "oeutil")
-    privk = os.path.join(this_dir, "oe_cert_key.priv")
-    pubk = os.path.join(this_dir, "oe_cert_key.pub")
+    infra.proc.ccall(
+        keygen, "--name", "attested", "--gen-enc-key", path=network.common_dir
+    ).check_returncode()
+    privk = os.path.join(network.common_dir, "attested_enc_privk.pem")
+    pubk = os.path.join(network.common_dir, "attested_enc_pubk.pem")
     der = os.path.join(network.common_dir, "oe_cert.der")
     infra.proc.ccall(
         oeutil, "generate-evidence", "-f", "cert", privk, pubk, "-o", der
@@ -140,7 +144,7 @@ def test_jwt_with_sgx_key_policy(network, args):
 
     matching_key_policy = {
         "sgx_claims": {
-            "signer_id": "ca9ad7331448980aa28890ce73e433638377f179ab4456b2fe237193193a8d0a",
+            "signer_id": "0db06a8126015c16dcad0f63b5bad4eb031e00fc2d08e2c11cbde3d30071f696",
             "attributes": "0300000000000000",
         }
     }
@@ -215,7 +219,7 @@ def test_jwt_with_sgx_key_policy(network, args):
 def test_jwt_with_sgx_key_filter(network, args):
     primary, _ = network.find_nodes()
 
-    oe_cert_path = os.path.join(this_dir, "oe_cert.pem")
+    oe_cert_path = make_attested_cert(network, args)
     with open(oe_cert_path) as f:
         oe_cert_pem = f.read()
 
