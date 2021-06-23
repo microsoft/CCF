@@ -1,4 +1,4 @@
 # https://help.github.com/en/articles/about-code-owners
 
 # Every review will request the CCF team as reviewer, unless a later match takes precedence
-* @Microsoft/ccf
+* @Microsoft/ccf-code-reviewers
