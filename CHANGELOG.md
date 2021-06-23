@@ -14,11 +14,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Added JavaScript bytecode caching to avoid repeated compilation overhead. See the [documentation](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#deployment) for more information (#2643).
 - Added new operator RPC `/node/js_metrics` returning the JavaScript bytecode size and whether the bytecode is used (#2643).
 - Added QuickJS version to RPC `/node/version` (#2643).
+- Added `GET /gov/jwt_keys/all` endpoint (#2519)
+- Added `ccf.crypto.verifySignature()` for verifying digital signatures to the JavaScript API (#2661).
 
 ### Changed
 
 - CCF now responds to HTTP requests that could not be parsed with a 400 response including error details (#2652).
-- Added `GET /gov/jwt_keys/all` endpoint (#2519)
 
 ## [2.0.0-dev0]
 

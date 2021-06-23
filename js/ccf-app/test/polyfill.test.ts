@@ -97,6 +97,118 @@ describe("polyfill", function () {
       assert.deepEqual(unwrapped, key);
     });
   });
+  describe("verifySignature", function () {
+    it("performs RSASSA-PKCS1-v1_5 validation correctly", function () {
+      const { cert, publicKey, privateKey } = generateSelfSignedCert();
+      const signer = crypto.createSign("sha256");
+      const data = ccf.strToBuf("foo");
+      signer.update(new Uint8Array(data));
+      signer.end();
+      const signature = signer.sign({
+        key: crypto.createPrivateKey(privateKey),
+        padding: crypto.constants.RSA_PKCS1_PADDING,
+      });
+      assert.isTrue(
+        ccf.crypto.verifySignature(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          cert,
+          signature,
+          data
+        )
+      );
+      assert.isTrue(
+        ccf.crypto.verifySignature(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+      assert.isNotTrue(
+        ccf.crypto.verifySignature(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          cert,
+          signature,
+          ccf.strToBuf("bar")
+        )
+      );
+      assert.throws(() =>
+        ccf.crypto.verifySignature(
+          {
+            name: "ECDSA",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+    });
+    it("performs ECDSA validation correctly", function () {
+      // Not validating EC with certs here as node-forge used in
+      // generateSelfSignedCert() does not support EC keys.
+      const { publicKey, privateKey } = crypto.generateKeyPairSync("ec", {
+        namedCurve: "secp256r1",
+        publicKeyEncoding: {
+          type: "spki",
+          format: "pem",
+        },
+        privateKeyEncoding: {
+          type: "pkcs8",
+          format: "pem",
+        },
+      });
+      const signer = crypto.createSign("sha256");
+      const data = ccf.strToBuf("foo");
+      signer.update(new Uint8Array(data));
+      signer.end();
+      const signature = signer.sign({
+        key: crypto.createPrivateKey(privateKey),
+      });
+      assert.isTrue(
+        ccf.crypto.verifySignature(
+          {
+            name: "ECDSA",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+      assert.isNotTrue(
+        ccf.crypto.verifySignature(
+          {
+            name: "ECDSA",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          ccf.strToBuf("bar")
+        )
+      );
+      assert.throws(() =>
+        ccf.crypto.verifySignature(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          publicKey,
+          signature,
+          data
+        )
+      );
+    });
+  });
   describe("digest", function () {
     it("generates a valid SHA-256 hash", function () {
       const data = "Hello world!";
@@ -113,8 +225,8 @@ describe("polyfill", function () {
       if (!supported) {
         this.skip();
       }
-      const pem1 = generateSelfSignedCert();
-      const pem2 = generateSelfSignedCert();
+      const pem1 = generateSelfSignedCert().cert;
+      const pem2 = generateSelfSignedCert().cert;
       assert.isTrue(ccf.isValidX509CertBundle(pem1));
       assert.isTrue(ccf.isValidX509CertBundle(pem1 + "\n" + pem2));
     });
