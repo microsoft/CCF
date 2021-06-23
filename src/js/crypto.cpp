@@ -3,6 +3,7 @@
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
+#include "js/wrap.h"
 #include "tls/ca.h"
 
 #include <quickjs/quickjs.h>
@@ -358,6 +359,117 @@ namespace js
     catch (...)
     {
       JS_ThrowRangeError(ctx, "caught unknown exception");
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+  }
+
+  static JSValue js_verify_signature(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 4)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 4", argc);
+
+    // API loosely modeled after
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/verify.
+
+    size_t signature_size;
+    uint8_t* signature = JS_GetArrayBuffer(ctx, &signature_size, argv[2]);
+    if (!signature)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    size_t data_size;
+    uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[3]);
+    if (!data)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    void* auto_free_ptr = JS_GetContextOpaque(ctx);
+    js::Context& auto_free = *(js::Context*)auto_free_ptr;
+
+    auto algorithm = argv[0];
+    JSValue algo_name_val =
+      auto_free(JS_GetPropertyStr(ctx, algorithm, "name"));
+    JSValue algo_hash_val =
+      auto_free(JS_GetPropertyStr(ctx, algorithm, "hash"));
+
+    auto algo_name_cstr = auto_free(JS_ToCString(ctx, algo_name_val));
+    if (!algo_name_cstr)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+    auto algo_hash_cstr = auto_free(JS_ToCString(ctx, algo_hash_val));
+    if (!algo_hash_cstr)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    auto key_cstr = auto_free(JS_ToCString(ctx, argv[1]));
+    if (!key_cstr)
+    {
+      js::js_dump_error(ctx);
+      return JS_EXCEPTION;
+    }
+
+    try
+    {
+      auto algo_name = std::string(algo_name_cstr);
+      auto algo_hash = std::string(algo_hash_cstr);
+      auto key = std::string(key_cstr);
+
+      crypto::MDType mdtype;
+      if (algo_hash == "SHA-256")
+      {
+        mdtype = crypto::MDType::SHA256;
+      }
+      else
+      {
+        JS_ThrowRangeError(
+          ctx, "Unsupported hash algorithm, supported: SHA-256");
+        js::js_dump_error(ctx);
+        return JS_EXCEPTION;
+      }
+
+      if (algo_name != "RSASSA-PKCS1-v1_5" && algo_name != "ECDSA")
+      {
+        JS_ThrowRangeError(
+          ctx,
+          "Unsupported signing algorithm, supported: RSASSA-PKCS1-v1_5, "
+          "ECDSA");
+        js::js_dump_error(ctx);
+        return JS_EXCEPTION;
+      }
+
+      auto is_cert = nonstd::starts_with(key, "-----BEGIN CERTIFICATE");
+
+      bool valid = false;
+
+      if (is_cert)
+      {
+        auto verifier = crypto::make_unique_verifier(key);
+        valid =
+          verifier->verify(data, data_size, signature, signature_size, mdtype);
+      }
+      else
+      {
+        auto public_key = crypto::make_public_key(key);
+        valid = public_key->verify(
+          data, data_size, signature, signature_size, mdtype);
+      }
+
+      return JS_NewBool(ctx, valid);
+    }
+    catch (std::exception& ex)
+    {
+      JS_ThrowRangeError(ctx, "%s", ex.what());
       js::js_dump_error(ctx);
       return JS_EXCEPTION;
     }
