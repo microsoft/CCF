@@ -787,6 +787,7 @@ namespace kv
           exec = std::make_unique<SignatureBFTExec>(
             this,
             get_history(),
+            get_consensus(),
             std::move(data),
             public_only,
             v,

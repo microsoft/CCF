@@ -301,7 +301,7 @@ namespace kv
 
     virtual ~TxHistory() {}
     virtual Result verify_and_sign(
-      ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
+      ccf::PrimarySignature& signature, Term* term, kv::Configuration::Nodes& nodes) = 0;
     virtual bool verify(
       Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
     virtual void try_emit_signature() = 0;

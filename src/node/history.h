@@ -134,7 +134,7 @@ namespace ccf
       version++;
     }
 
-    kv::TxHistory::Result verify_and_sign(PrimarySignature&, kv::Term*) override
+    kv::TxHistory::Result verify_and_sign(PrimarySignature&, kv::Term*, kv::Configuration::Nodes&) override
     {
       return kv::TxHistory::Result::OK;
     }
@@ -649,7 +649,7 @@ namespace ccf
     }
 
     kv::TxHistory::Result verify_and_sign(
-      PrimarySignature& sig, kv::Term* term = nullptr) override
+      PrimarySignature& sig, kv::Term* term, kv::Configuration::Nodes& config) override
     {
       if (!verify(term, &sig))
       {
@@ -667,7 +667,7 @@ namespace ccf
         sig.root,
         sig.sig,
         sig.hashed_nonce,
-        store.get_consensus()->node_count());
+        &config);
 
       sig.node = id;
       sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());

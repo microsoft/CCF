@@ -2062,7 +2062,7 @@ namespace aft
         r.signature_size,
         r.sig,
         r.hashed_nonce,
-        node_count(),
+        configurations.back().nodes,
         is_primary());
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
@@ -2099,7 +2099,7 @@ namespace aft
         r.signature_size,
         r.sig,
         r.hashed_nonce,
-        node_count(),
+        configurations.back().nodes,
         is_primary());
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
@@ -2131,7 +2131,7 @@ namespace aft
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
           auto result = progress_tracker->add_signature_ack(
-            tx_id, state->my_node_id, node_count());
+            tx_id, state->my_node_id, &configurations.back().nodes);
           try_send_reply_and_nonce(tx_id, result);
           break;
         }
@@ -2165,7 +2165,7 @@ namespace aft
         r.idx);
 
       auto result = progress_tracker->add_signature_ack(
-        {r.term, r.idx}, from, node_count());
+        {r.term, r.idx}, from, &configurations.back().nodes);
       try_send_reply_and_nonce({r.term, r.idx}, result);
     }
 
@@ -2202,7 +2202,8 @@ namespace aft
             }
           }
           progress_tracker->add_nonce_reveal(
-            tx_id, nonce.value(), state->my_node_id, node_count(), is_primary());
+            tx_id, nonce.value(), state->my_node_id, 
+            configurations.back().nodes, is_primary());
           break;
         }
         default:
@@ -2233,7 +2234,7 @@ namespace aft
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
-        {r.term, r.idx}, r.nonce, from, node_count(), is_primary());
+        {r.term, r.idx}, r.nonce, from, configurations.back().nodes, is_primary());
 
       update_commit();
     }
