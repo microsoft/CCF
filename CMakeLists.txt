@@ -811,6 +811,18 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${LTS_TEST_ARGS}
   )
 
+  if(LONG_TESTS)
+    set(ROTATION_TEST_ARGS --rotation-retirements 10)
+  endif()
+
+  add_e2e_test(
+    NAME rotation_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
+    CONSENSUS cft
+    LABEL rotation
+    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
@@ -845,20 +857,6 @@ if(BUILD_TESTS)
       LABEL vegeta
       CONFIGURATIONS long_stress
       ADDITIONAL_ARGS -p liblogging --duration 45m
-    )
-
-    if(LONG_TESTS)
-      set(ROTATION_TEST_ARGS --rotation-retirements 10 --rotation-suspensions
-                             10
-      )
-    endif()
-
-    add_e2e_test(
-      NAME rotation_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-      CONSENSUS ${CONSENSUS}
-      LABEL rotation
-      ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
     )
 
   endforeach()
