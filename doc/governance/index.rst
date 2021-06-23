@@ -1,14 +1,18 @@
 Governance
 ==========
 
-.. note::
-    See :doc:`/governance/js_gov` for pointers on converting from Lua to JS.
-
 This section describes how a consortium of trusted :term:`Members` governs an existing CCF network. It explains how members can submit proposals to CCF and how these proposals are accepted based on the rules defined in the :term:`Constitution`.
 
 Before creating a new CCF network, the identity of the initial member(s) of the consortium must be generated. See :ref:`governance/adding_member:Generating Member Keys and Certificates`.
 
 .. panels::
+
+    :fa:`scroll` :doc:`constitution`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Governance in CCF is implemented as a scriptable constitution.
+    
+    ---
 
     :fa:`hand-paper` :doc:`proposals`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -55,6 +59,7 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
     :hidden:
     :maxdepth: 1
 
+    constitution
     proposals
     open_network
     accept_recovery
@@ -62,7 +67,6 @@ Before creating a new CCF network, the identity of the initial member(s) of the 
     adding_member
     hsm_keys
     member_rpc_api
-    js_gov
 
 
 

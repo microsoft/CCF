@@ -24,9 +24,6 @@ Hope your day's going well. :)
     <img class="sidebar-logo only-dark" src="{{ pathto('_static/' + theme_dark_logo, 1) }}" alt="Dark Logo"/>
   </div>
   {%- endif %}
-  {% if not theme_sidebar_hide_name %}
-  <span class="sidebar-brand-text">Confidential Consortium Framework</span>
-  {%- endif %}
   {% endblock brand_content %}
 </a>
 
@@ -56,7 +53,7 @@ Hope your day's going well. :)
 </script>
 
 {% if versions %}
-<select name="versions" id="versions" class="custom-select custom-select-sm" style="width:50%" onchange="onVersionChange()">
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
     {%- for item in versions.branches|sort(attribute='name', reverse=True) %}
     <option value="{{ item.url }}">{{ item.name }} </option>
     {%- endfor %}
