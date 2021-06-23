@@ -428,8 +428,9 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         network = test_jwt_without_key_policy(network, args)
-        network = test_jwt_with_sgx_key_policy(network, args)
-        network = test_jwt_with_sgx_key_filter(network, args)
+        if args.enclave_type != "virtual":
+            network = test_jwt_with_sgx_key_policy(network, args)
+            network = test_jwt_with_sgx_key_filter(network, args)
         network = test_jwt_key_auto_refresh(network, args)
 
         # Check that auto refresh also works on backups
