@@ -2045,16 +2045,14 @@ namespace aft
                                        static_cast<uint32_t>(sig.sig.size()),
                                        {}};
 
-      try
+      std::optional<crypto::Sha256Hash> hashed_nonce;
+      progress_tracker->get_node_hashed_nonce(
+        {state->current_view, state->last_idx}, hashed_nonce);
+      if (!hashed_nonce.has_value())
       {
-        progress_tracker->get_node_hashed_nonce(
-          {state->current_view, state->last_idx}, r.hashed_nonce);
-      }
-      catch(const std::exception& e)
-      {
-        LOG_INFO_FMT("TTTTTT error:{}", e.what());
         return;
       }
+      r.hashed_nonce = hashed_nonce.value();
 
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
@@ -2182,13 +2180,17 @@ namespace aft
         }
         case kv::TxHistory::Result::SEND_REPLY_AND_NONCE:
         {
-          Nonce nonce;
+          std::optional<Nonce> nonce;
           auto progress_tracker = store->get_progress_tracker();
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
           nonce = progress_tracker->get_node_nonce(tx_id);
+          if (!nonce.has_value())
+          {
+            break;
+          }
           NonceRevealMsg r = {
-            {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce};
+            {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce.value()};
 
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
@@ -2200,7 +2202,7 @@ namespace aft
             }
           }
           progress_tracker->add_nonce_reveal(
-            tx_id, nonce, state->my_node_id, node_count(), is_primary());
+            tx_id, nonce.value(), state->my_node_id, node_count(), is_primary());
           break;
         }
         default:

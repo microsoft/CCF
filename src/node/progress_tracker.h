@@ -449,16 +449,21 @@ namespace ccf
       try_update_watermark(cert, tx_id.seqno, is_primary);
     }
 
-    crypto::Sha256Hash get_node_hashed_nonce(ccf::TxID tx_id)
+    std::optional<crypto::Sha256Hash> get_node_hashed_nonce(ccf::TxID tx_id)
     {
       std::unique_lock<std::mutex> guard(lock);
       return get_node_hashed_nonce_internal(tx_id);
     }
 
-    void get_node_hashed_nonce(ccf::TxID tx_id, crypto::Sha256Hash& hash)
+    void get_node_hashed_nonce(ccf::TxID tx_id, std::optional<crypto::Sha256Hash>& hash)
     {
-      Nonce nonce = get_node_nonce(tx_id);
-      hash_data(nonce, hash);
+      std::optional<Nonce> nonce = get_node_nonce(tx_id);
+      if (nonce.has_value())
+      {
+        crypto::Sha256Hash h;
+        hash_data(nonce.value(), h);
+        hash = h;
+      }
     }
 
     void set_node_id(const NodeId& id_)
@@ -637,7 +642,7 @@ namespace ccf
       return true;
     }
 
-    Nonce get_node_nonce(ccf::TxID tx_id)
+    std::optional<Nonce> get_node_nonce(ccf::TxID tx_id)
     {
       std::unique_lock<std::mutex> guard(lock);
       return get_node_nonce_(tx_id);
@@ -788,10 +793,11 @@ namespace ccf
 
       CCF_ASSERT(
         node_id != id ||
-          std::equal(
-            hashed_nonce.h.begin(),
-            hashed_nonce.h.end(),
-            get_node_hashed_nonce_internal(tx_id).h.begin()),
+          (get_node_hashed_nonce_internal(tx_id).has_value() &&
+           std::equal(
+             hashed_nonce.h.begin(),
+             hashed_nonce.h.end(),
+             get_node_hashed_nonce_internal(tx_id)->h.begin())),
         "hashed_nonce does not match the local node's nonce");
 
       BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce);
@@ -825,23 +831,24 @@ namespace ccf
       return kv::TxHistory::Result::OK;
     }
 
-    Nonce get_node_nonce_(ccf::TxID tx_id)
+    std::optional<Nonce> get_node_nonce_(ccf::TxID tx_id)
     {
       auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
-        throw ccf::ccf_logic_error(fmt::format(
-          "Attempting to access unknown nonce, view:{}, seqno:{}",
-          tx_id.view,
-          tx_id.seqno));
+        return std::nullopt;
       }
       return it->second.my_nonce;
     }
 
-    crypto::Sha256Hash get_node_hashed_nonce_internal(ccf::TxID tx_id)
+    std::optional<crypto::Sha256Hash> get_node_hashed_nonce_internal(ccf::TxID tx_id)
     {
-      Nonce nonce = get_node_nonce_(tx_id);
-      return hash_data(nonce);
+      std::optional<Nonce> nonce = get_node_nonce_(tx_id);
+      if (!nonce.has_value())
+      {
+        return std::nullopt;
+      }
+      return hash_data(nonce.value());
     }
 
     void try_match_unmatched_nonces(
