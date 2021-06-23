@@ -61,7 +61,7 @@ export function unwrapKey(
   }
 }
 
-export function generateSelfSignedCert(): string {
+export function generateSelfSignedCert() {
   const keys = crypto.generateKeyPairSync("rsa", {
     modulusLength: 2048,
     publicKeyEncoding: {
@@ -80,7 +80,11 @@ export function generateSelfSignedCert(): string {
     forge.md.sha256.create()
   );
   const certPem = forge.pki.certificateToPem(cert);
-  return certPem;
+  return {
+    privateKey: keys.privateKey,
+    publicKey: keys.publicKey,
+    cert: certPem,
+  };
 }
 
 export function generateCertChain(len: number): string[] {
