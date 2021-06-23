@@ -220,7 +220,7 @@ namespace enclave
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
-        throw std::exception();
+        throw std::runtime_error("Called recv_buffered from incorrect thread");
       }
       pending_read.insert(pending_read.end(), data, data + size);
       do_handshake();
