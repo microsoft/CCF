@@ -594,9 +594,18 @@ namespace ccf
       ccf::View view = new_view->view;
       ccf::NodeId from = new_view->primary_id;
 
-      if (
-        new_view->view_change_messages.size() <
-        ccf::get_message_threshold(config.size()))
+      uint32_t node_count = 0;
+      for (const auto node : config)
+      {
+        if (
+          new_view->view_change_messages.find(node.first) !=
+          new_view->view_change_messages.end())
+        {
+          ++node_count;
+        }
+      }
+
+      if (node_count < ccf::get_message_threshold(config.size()))
       {
         LOG_FAIL_FMT(
           "Not enough ViewChangeRequests from:{}, new_view view:{}, "
@@ -905,8 +914,19 @@ namespace ccf
     bool can_send_sig_ack(
       CommitCert& cert, const ccf::TxID& tx_id, kv::Configuration::Nodes& config)
     {
+
+      uint32_t node_count = 0;
+      for (const auto node : config)
+      {
+        if (cert.sigs.find(node.first) != cert.sigs.end())
+        {
+          ++node_count;
+        }
+      }
+
+
       if (
-        cert.sigs.size() >= get_message_threshold(config.size()) &&
+        node_count >= get_message_threshold(config.size()) &&
         !cert.ack_sent && cert.have_primary_signature)
       {
         if (tx_id.seqno > highest_prepared_level.seqno)
@@ -931,8 +951,17 @@ namespace ccf
 
     bool can_send_reply_and_nonce(CommitCert& cert, kv::Configuration::Nodes& config)
     {
+      uint32_t node_count = 0;
+      for (const auto node : config)
+      {
+        if (cert.sig_acks.find(node.first) != cert.sig_acks.end())
+        {
+          ++node_count;
+        }
+      }
+
       if (
-        cert.sig_acks.size() >= get_message_threshold(config.size()) &&
+        node_count >= get_message_threshold(config.size()) &&
         !cert.reply_and_nonce_sent && cert.ack_sent)
       {
         cert.reply_and_nonce_sent = true;
@@ -970,8 +999,16 @@ namespace ccf
     bool should_append_nonces_to_ledger(
       CommitCert& cert, kv::Configuration::Nodes& config, bool is_primary)
     {
+      uint32_t node_count = 0;
+      for (const auto node : config)
+      {
+        if (cert.nonce_set.find(node.first) != cert.nonce_set.end())
+        {
+          ++node_count;
+        }
+      }
       if (
-        cert.nonce_set.size() >= get_message_threshold(config.size()) &&
+        node_count >= get_message_threshold(config.size()) &&
         cert.reply_and_nonce_sent && cert.ack_sent &&
         !cert.nonces_committed_to_ledger)
       {

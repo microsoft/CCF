@@ -61,7 +61,6 @@ void ordered_execution(
 {
   ccf::View view = 0;
   ccf::SeqNo seqno = 42;
-  uint32_t node_count = 4;
   uint32_t node_count_quorum =
     2; // Takes into account that counting starts at 0
   bool am_i_primary = (my_node_id == kv::test::PrimaryNodeId);
