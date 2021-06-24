@@ -34,8 +34,6 @@ namespace ccf
 
     virtual void destroy_channel(const NodeId& peer_id) = 0;
 
-    virtual void close_all_outgoing() = 0;
-
     virtual void destroy_all_channels() = 0;
 
     template <class T>
@@ -192,10 +190,6 @@ namespace ccf
       channels->destroy_channel(peer_id);
     }
 
-    void close_all_outgoing() override
-    {
-      channels->close_all_outgoing();
-    }
 
     void destroy_all_channels() override
     {

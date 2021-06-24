@@ -406,12 +406,11 @@ namespace asynchost
     {
       if (outgoing.erase(node) < 1)
       {
-        LOG_FAIL_FMT("Cannot remove node connection {}: does not exist", node);
+        LOG_DEBUG_FMT("Cannot remove node connection {}: does not exist", node);
         return false;
       }
 
       LOG_DEBUG_FMT("Removed outgoing node connection with {}", node);
-
       return true;
     }
 

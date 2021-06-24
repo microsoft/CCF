@@ -1408,7 +1408,7 @@ namespace ccf
       consensus->periodic_end();
     }
 
-    void node_msg(const std::vector<uint8_t>& data)
+    void node_msg(std::vector<uint8_t>&& data)
     {
       // Only process messages once part of network
       if (
@@ -1416,6 +1416,7 @@ namespace ccf
         !sm.check(State::partOfPublicNetwork) &&
         !sm.check(State::readingPrivateLedger))
       {
+        LOG_FAIL_FMT("Ignoring node msg received too early - current state is {}", sm.value());
         return;
       }
 
@@ -1431,6 +1432,7 @@ namespace ccf
           n2n_channels->recv_message(from, std::move(oa));
           break;
         }
+
         case consensus_msg:
         {
           consensus->recv_message(from, std::move(oa));

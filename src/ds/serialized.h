@@ -11,7 +11,7 @@
 namespace serialized
 {
   template <class T>
-  T peek(const uint8_t*& data, size_t& size)
+  T peek(const uint8_t* data, size_t size)
   {
     if (size < sizeof(T))
       throw std::logic_error(

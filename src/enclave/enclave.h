@@ -275,7 +275,7 @@ namespace enclave
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, ccf::node_inbound, [this](const uint8_t* data, size_t size) {
-            const auto [body] =
+            auto [body] =
               ringbuffer::read_message<ccf::node_inbound>(data, size);
 
             auto p = body.data();

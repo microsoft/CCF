@@ -90,12 +90,8 @@ namespace ccf
     crypto::VerifierPtr peer_cv;
     crypto::Pem peer_cert;
 
-    // Notifies the host to create a new outgoing connection
     ringbuffer::WriterPtr to_host;
     NodeId peer_id;
-    std::string peer_hostname;
-    std::string peer_service;
-    bool outgoing;
 
     // Used for key exchange
     tls::KeyExchangeContext kex_ctx;
@@ -229,13 +225,10 @@ namespace ccf
       node_cert(node_cert_),
       to_host(writer_factory.create_writer_to_outside()),
       peer_id(peer_id_),
-      peer_hostname(peer_hostname_),
-      peer_service(peer_service_),
-      outgoing(true),
       message_limit(message_limit_)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        ccf::add_node, to_host, peer_id.value(), peer_hostname, peer_service);
+        ccf::add_node, to_host, peer_id.value(), peer_hostname_, peer_service_);
       auto e = crypto::create_entropy();
       hkdf_salt = e->random(salt_len);
     }
@@ -254,7 +247,6 @@ namespace ccf
       node_cert(node_cert_),
       to_host(writer_factory.create_writer_to_outside()),
       peer_id(peer_id_),
-      outgoing(false),
       message_limit(message_limit_)
     {
       auto e = crypto::create_entropy();
@@ -264,11 +256,7 @@ namespace ccf
     ~Channel()
     {
       LOG_INFO_FMT("Channel with {} is now destroyed.", peer_id);
-
-      if (outgoing)
-      {
-        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id.value());
-      }
+      RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id.value());
     }
 
     void set_status(ChannelStatus status_)
@@ -279,34 +267,6 @@ namespace ccf
     ChannelStatus get_status()
     {
       return status;
-    }
-
-    bool is_outgoing() const
-    {
-      return outgoing;
-    }
-
-    void set_outgoing(
-      const std::string& peer_hostname_, const std::string& peer_service_)
-    {
-      peer_hostname = peer_hostname_;
-      peer_service = peer_service_;
-
-      if (!outgoing)
-      {
-        RINGBUFFER_WRITE_MESSAGE(
-          ccf::add_node, to_host, peer_id.value(), peer_hostname, peer_service);
-      }
-      outgoing = true;
-    }
-
-    void reset_outgoing()
-    {
-      if (outgoing)
-      {
-        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id.value());
-      }
-      outgoing = false;
     }
 
     std::vector<uint8_t> sign_key_share(
@@ -865,7 +825,6 @@ namespace ccf
     {
       LOG_INFO_FMT("Resetting channel with {}", peer_id);
 
-      reset_outgoing();
       status = INACTIVE;
       kex_ctx.reset();
       peer_cert = {};
@@ -932,14 +891,6 @@ namespace ccf
           message_limit);
         channels.emplace_hint(search, peer_id, std::move(channel));
       }
-      else if (search->second && !search->second->is_outgoing())
-      {
-        // Channel with peer already exists but is incoming. Create host
-        // outgoing connection.
-        LOG_DEBUG_FMT("Setting existing channel to {} as outgoing", peer_id);
-        search->second->set_outgoing(hostname, service);
-        return;
-      }
       else if (!search->second)
       {
         LOG_INFO_FMT(
@@ -979,18 +930,6 @@ namespace ccf
     {
       std::lock_guard<std::mutex> guard(lock);
       channels.clear();
-    }
-
-    void close_all_outgoing()
-    {
-      std::lock_guard<std::mutex> guard(lock);
-      for (auto& c : channels)
-      {
-        if (c.second && c.second->is_outgoing())
-        {
-          c.second->reset_outgoing();
-        }
-      }
     }
 
     std::shared_ptr<Channel> get(const NodeId& peer_id)

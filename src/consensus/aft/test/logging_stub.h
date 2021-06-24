@@ -92,8 +92,6 @@ namespace aft
 
     void destroy_all_channels() override {}
 
-    void close_all_outgoing() override {}
-
     bool send_authenticated(
       const ccf::NodeId& to,
       ccf::NodeMsgType msg_type,
