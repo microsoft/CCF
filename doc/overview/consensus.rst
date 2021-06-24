@@ -160,13 +160,15 @@ This sample illustrates the addition of a single node to a one-node network with
         Note right of Node 0: Active configs := [Cfg 0]
         Node 0-->>-Members: Success
 
+        Node 1->>+Node 0: Poll join
+        Node 0-->>-Node 1: Learner
 
         Node 0->>Node 1: Replicate Tx ID 3.42
         Note over Node 1: State in KV := LEARNER
         Node 1->>Node 0: Acknowledge Tx ID 3.42
 
         Node 0->>Node 1: Notify commit 3.42
-        
+
         Node 1->>+Node 0: Up-to-date RPC for Node 1
         Note over Node 0: Node 1 in KV := UP_TO_DATE_LEARNER
         Note over Node 0: All nodes in Cfg 1 in KV := TRUSTED
@@ -206,6 +208,12 @@ The following example illustrates one possible execution of an addition of two n
         Note right of Node 0: Active configs := [Cfg 0]
         Node 0-->>-Members: Success
 
+        Node 1->>+Node 0: Poll join
+        Node 0-->>-Node 1: Learner
+
+        Node 2->>+Node 0: Poll join
+        Node 0-->>-Node 2: Learner
+
         Node 0->>Node 1: Replicate Tx ID 3.42
         Note over Node 1: State in KV := LEARNER
         Node 1->>Node 0: Acknowledge Tx ID 3.42
@@ -243,6 +251,42 @@ The following example illustrates one possible execution of an addition of two n
         Note right of Node 0: Active configs := [Cfg 1]
 
 Joining a small number of nodes to a large network will lead to almost-instant promotion of the joining node if both the existing and the new configuration have a sufficient number of nodes for quorums. Learners also help to improve the liveness of the system, because they do not necessarily have to receive the entire ledger from the leader immediately. Further, the two transactions on the ledger make it clear that the configuration change was not instant and it allows for other mechanisms to gate the switch to a new configuration on the committment to a number of other transactions on the ledger, for instance those required for the successful establishment of a Byzantine network identity.
+
+
+The following diagram illustrates retirement of the leader:
+
+.. mermaid::
+
+  sequenceDiagram
+      participant Members
+      participant Node 0
+      participant Node 1
+
+      Note over Node 0: State in KV: TRUSTED
+      Note over Node 0: Leader
+      Note over Node 1: State in KV: TRUSTED
+
+      Note right of Node 0: Cfg 0: [Node 0, Node 1]
+      Note right of Node 0: Active configs: [Cfg 0]
+
+      Members->>+Node 0: Vote for Node 0 to become RETIRED
+
+      Note right of Node 0: Tx ID := 3.42
+      Note right of Node 0: Cfg 1 := [Node 1]
+      Note right of Node 0: Active configs := [Cfg 0]
+      Node 0-->>-Members: Success
+
+      Note over Node 0: State in KV := RETIRED
+
+      Node 0->>Node 1: Replicate Tx ID 3.42
+      Node 1->>Node 0: Acknowledge Tx ID 3.42
+      Note right of Node 0: Active configs := [Cfg 0, Cfg 1]
+      Note right of Node 0: Tx ID 3.42 commits (meets quorum in Cfg 0 and 1)
+      Note right of Node 0: Active configs := [Cfg 1]
+
+      Node 0->>Node 1: Notify commit 3.42
+      Note right of Node 1: Active configs := [Cfg 1]
+      Note over Node 1: Leader
 
 
 Replica State Machine
