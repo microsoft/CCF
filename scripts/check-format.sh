@@ -33,11 +33,9 @@ unformatted_files=""
 badly_named_files=""
 for file in $(git ls-files "$@" | grep -e '\.h$' -e '\.hpp$' -e '\.cpp$' -e '\.c$'); do
   # Workaround for https://bugs.llvm.org/show_bug.cgi?id=39216
-  d=$(cat "$file" | clang-format-8 -style=file --assume-filename "${file%.*}".cpp | diff "$file" -)
-  if [ "$d" != "" ]; then
+  if clang-format-10 -n -style=file "$file"; then
     if $fix ; then
-      cat "$file" | clang-format-8 -style=file --assume-filename "${file%.*}".cpp > "$file".tmp
-      mv "$file".tmp "$file"
+      clang-format-10 -style=file -i "$file"
     fi
     if [ "$unformatted_files" != "" ]; then
       unformatted_files+=$'\n'
