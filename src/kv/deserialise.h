@@ -450,15 +450,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      auto primary_id = consensus->primary();
-      if (!primary_id.has_value())
-      {
-        LOG_FAIL_FMT("Cannot apply view as primary is not known");
-        return ApplyResult::FAIL;
-      }
-
-      if (!progress_tracker->apply_new_view(
-            primary_id.value(), consensus->node_count(), term))
+      if (!progress_tracker->apply_new_view(consensus->node_count(), term))
       {
         LOG_FAIL_FMT("apply_new_view Failed");
         LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);

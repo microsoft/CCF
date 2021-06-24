@@ -127,13 +127,7 @@ namespace ccf
     {
       kv::ReadOnlyTx tx(&store);
       auto new_views_tv = tx.ro(new_views);
-      auto new_view = new_views_tv->get(0);
-      if (!new_view.has_value())
-      {
-        LOG_FAIL_FMT("No new_view found in new_view map");
-        throw ccf_logic_error("No new_view found in new_view map");
-      }
-      return new_view;
+      return new_views_tv->get(0);
     }
 
     void write_nonces(aft::RevealedNonces& nonces) override
