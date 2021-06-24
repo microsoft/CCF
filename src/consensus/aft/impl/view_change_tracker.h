@@ -110,18 +110,19 @@ namespace aft
       return ResultAddView::OK;
     }
 
-    ccf::SeqNo write_view_change_confirmation_append_entry(ccf::View view)
+    ccf::SeqNo write_view_change_confirmation_append_entry(
+      ccf::View view, const ccf::NodeId& from)
     {
       ccf::ViewChangeConfirmation nv =
-        create_view_change_confirmation_msg(view, true);
+        create_view_change_confirmation_msg(view, from, true);
       return store->write_view_change_confirmation(nv);
     }
 
     std::vector<uint8_t> get_serialized_view_change_confirmation(
-      ccf::View view, bool force_create_new = false)
+      ccf::View view, const ccf::NodeId& from, bool force_create_new = false)
     {
       ccf::ViewChangeConfirmation nv =
-        create_view_change_confirmation_msg(view, force_create_new);
+        create_view_change_confirmation_msg(view, from, force_create_new);
       nlohmann::json j;
       to_json(j, nv);
       std::string s = j.dump();
@@ -222,7 +223,7 @@ namespace aft
     ccf::ViewChangeConfirmation last_nvc;
 
     ccf::ViewChangeConfirmation create_view_change_confirmation_msg(
-      ccf::View view, bool force_create_new = false)
+      ccf::View view, const ccf::NodeId& from, bool force_create_new = false)
     {
       if (view == last_nvc.view && !force_create_new)
       {
@@ -239,7 +240,7 @@ namespace aft
       }
 
       auto& vc = it->second;
-      ccf::ViewChangeConfirmation nv(vc.view);
+      ccf::ViewChangeConfirmation nv(vc.view, from);
 
       for (auto it : vc.received_view_changes)
       {
