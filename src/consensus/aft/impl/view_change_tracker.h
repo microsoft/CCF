@@ -97,16 +97,8 @@ namespace aft
       }
       it->second.received_view_changes.emplace(from, v);
 
-      uint32_t node_count = 0;
-      for (const auto node : config)
-      {
-        if (
-          it->second.received_view_changes.find(node.first) !=
-          it->second.received_view_changes.end())
-        {
-          ++node_count;
-        }
-      }
+      uint32_t node_count =
+        get_message_intersection_count(it->second.received_view_changes, config);
 
       if (
         node_count == ccf::get_message_threshold(config.size()) &&
@@ -171,19 +163,12 @@ namespace aft
         return false;
       }
 
-      uint32_t node_count = 0;
-      for (const auto node : config)
-      {
-        if (
-          vc.view_change_messages.find(node.first) !=
-          vc.view_change_messages.end())
-        {
-          ++node_count;
-        }
-      }
+      uint32_t node_count =
+        get_message_intersection_count(vc.view_change_messages, config);
 
       if (
-        vc.view_change_messages.size() < ccf::get_message_threshold(config.size()))
+        vc.view_change_messages.size() <
+        ccf::get_message_threshold(config.size()))
       {
         LOG_INFO_FMT(
           "Add unknown evidence - not enough evidence, need:{}, have:{}, "

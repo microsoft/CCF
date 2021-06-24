@@ -134,7 +134,8 @@ namespace ccf
       version++;
     }
 
-    kv::TxHistory::Result verify_and_sign(PrimarySignature&, kv::Term*, kv::Configuration::Nodes&) override
+    kv::TxHistory::Result verify_and_sign(
+      PrimarySignature&, kv::Term*, kv::Configuration::Nodes&) override
     {
       return kv::TxHistory::Result::OK;
     }
@@ -649,7 +650,9 @@ namespace ccf
     }
 
     kv::TxHistory::Result verify_and_sign(
-      PrimarySignature& sig, kv::Term* term, kv::Configuration::Nodes& config) override
+      PrimarySignature& sig,
+      kv::Term* term,
+      kv::Configuration::Nodes& config) override
     {
       if (!verify(term, &sig))
       {

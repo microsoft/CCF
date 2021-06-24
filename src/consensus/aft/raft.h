@@ -2197,8 +2197,11 @@ namespace aft
             }
           }
           progress_tracker->add_nonce_reveal(
-            tx_id, nonce.value(), state->my_node_id, 
-            configurations.back().nodes, is_primary());
+            tx_id,
+            nonce.value(),
+            state->my_node_id,
+            configurations.back().nodes,
+            is_primary());
           break;
         }
         default:
@@ -2229,7 +2232,11 @@ namespace aft
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
-        {r.term, r.idx}, r.nonce, from, configurations.back().nodes, is_primary());
+        {r.term, r.idx},
+        r.nonce,
+        from,
+        configurations.back().nodes,
+        is_primary());
 
       update_commit();
     }

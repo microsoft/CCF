@@ -301,4 +301,20 @@ namespace ccf
 
     return 2 * f + 1;
   }
+
+  template <typename T>
+  static uint32_t get_message_intersection_count(
+    T& messages, kv::Configuration::Nodes& config)
+  {
+    uint32_t node_count = 0;
+    for (const auto node : config)
+    {
+      if (messages.find(node.first) != messages.end())
+      {
+        ++node_count;
+      }
+    }
+
+    return node_count;
+  }
 }
