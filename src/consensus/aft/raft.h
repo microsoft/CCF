@@ -543,11 +543,6 @@ namespace aft
       return details;
     }
 
-    uint32_t node_count() const
-    {
-      return get_latest_configuration_unsafe().size();
-    }
-
     template <typename T>
     bool replicate(
       const std::vector<
@@ -897,7 +892,7 @@ namespace aft
           if (
             aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
               view_change_tracker->add_request_view_change(
-                *vc, id(), new_view, node_count()) &&
+                *vc, id(), new_view, configurations.back().nodes) &&
             get_primary(new_view) == id())
           {
             // We need to reobtain the lock when writing to the ledger so we
@@ -985,7 +980,7 @@ namespace aft
       if (
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
           view_change_tracker->add_request_view_change(
-            v, from, r.view, node_count()) &&
+            v, from, r.view, configurations.back().nodes) &&
         get_primary(r.view) == id())
       {
         append_new_view(r.view);
@@ -1022,7 +1017,7 @@ namespace aft
         return;
       }
       if (!view_change_tracker->add_unknown_primary_evidence(
-            {data, size}, r.view, from, node_count()))
+            {data, size}, r.view, from, configurations.back().nodes))
       {
         LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
         return;

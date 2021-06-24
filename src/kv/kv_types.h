@@ -413,7 +413,6 @@ namespace kv
 
     virtual void enable_all_domains() {}
 
-    virtual uint32_t node_count() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };

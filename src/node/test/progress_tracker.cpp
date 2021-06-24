@@ -679,7 +679,11 @@ TEST_CASE("view-change-tracker statemachine tests")
   ccf::ViewChangeRequest v;
   ccf::View view = 3;
   ccf::SeqNo seqno = 1;
-  uint32_t node_count = 4;
+  kv::Configuration::Nodes nodes;
+  for (auto const& node_id : node_ids)
+  {
+    nodes.insert({node_id, kv::Configuration::NodeInfo()});
+  }
 
   INFO("Can trigger view change");
   {
@@ -687,7 +691,7 @@ TEST_CASE("view-change-tracker statemachine tests")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, view, node_count);
+      auto r = vct.add_request_view_change(v, node_id, view, nodes);
       if (i == 2)
       {
         REQUIRE(
@@ -712,7 +716,7 @@ TEST_CASE("view-change-tracker statemachine tests")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, i, node_count);
+      auto r = vct.add_request_view_change(v, node_id, i, nodes);
       REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
       i++;
     }
@@ -813,7 +817,11 @@ TEST_CASE("Sending evidence out of band")
   ccf::ViewChangeRequest v;
   ccf::View view = 3;
   ccf::SeqNo seqno = 1;
-  constexpr uint32_t node_count = 4;
+  kv::Configuration::Nodes nodes;
+  for (auto const& node_id : node_ids)
+  {
+    nodes.insert({node_id, kv::Configuration::NodeInfo()});
+  }
 
   INFO("Can trigger view change");
   {
@@ -821,7 +829,7 @@ TEST_CASE("Sending evidence out of band")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, view, node_count);
+      auto r = vct.add_request_view_change(v, node_id, view, nodes);
       if (i == 2)
       {
         REQUIRE(
@@ -851,7 +859,7 @@ TEST_CASE("Sending evidence out of band")
           .RETURN(true);
         ccf::NodeId from;
         REQUIRE(vct_2.add_unknown_primary_evidence(
-          {data.data(), data.size()}, view, from, node_count));
+          {data.data(), data.size()}, view, from, nodes));
         REQUIRE(vct_2.check_evidence(view));
       }
       else
@@ -862,7 +870,7 @@ TEST_CASE("Sending evidence out of band")
           .RETURN(true);
         ccf::NodeId from;
         REQUIRE(!vct_2.add_unknown_primary_evidence(
-          {data.data(), data.size()}, view, from, node_count));
+          {data.data(), data.size()}, view, from, nodes));
         REQUIRE(!vct_2.check_evidence(view));
       }
       REQUIRE(!vct_2.check_evidence(view + 1));
