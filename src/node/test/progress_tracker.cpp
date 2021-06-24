@@ -820,7 +820,8 @@ TEST_CASE("Sending evidence out of band")
         REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
       }
 
-      auto data = vct.get_serialized_view_change_confirmation(view, true);
+      auto data =
+        vct.get_serialized_view_change_confirmation(view, node_id, true);
       std::shared_ptr<ccf::ProgressTrackerStore> store =
         std::make_unique<StoreMock>();
 
