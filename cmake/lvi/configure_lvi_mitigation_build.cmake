@@ -23,7 +23,7 @@ macro(detect_compiler BINDIR CC)
       # Build enclave applications. Try to search newer versions of
       # clang/clang++. Be consistent to the logic implemented by
       # samples/config.mk.
-      foreach(VERSION 9 8 7)
+      foreach(VERSION 10 9 8 7)
         set(CLANG_VERSION "")
         if(EXISTS "${BINDIR}/${${COMPILER}}-${VERSION}")
           set(CLANG_VERSION ${VERSION})
