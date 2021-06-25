@@ -20,7 +20,7 @@ endif()
 
 # CPack variables for Debian packages
 set(CPACK_DEBIAN_PACKAGE_DEPENDS
-    "open-enclave (>=0.16.9), libuv1 (>= 1.18.0), libc++1-8, libc++abi1-8"
+    "open-enclave (>=0.16.9), libuv1 (>= 1.18.0), libc++1-10, libc++abi1-10"
 )
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
