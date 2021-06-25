@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "../channel.h"
-
 #include "crypto/verifier.h"
 #include "ds/hex.h"
 #include "node/entities.h"
@@ -520,8 +519,8 @@ TEST_CASE("Host connections")
   auto network_cert = network_kp->self_sign("CN=Network");
   auto channel_kp = crypto::make_key_pair(default_curve);
   auto channel_cert = channel_kp->self_sign("CN=Node");
-  auto channel_manager =
-    ChannelManager(wf1, network_cert, channel_kp, channel_cert, self);
+  auto channel_manager = NodeToNodeChannelManager(wf1);
+  channel_manager.initialize(self, network_cert, channel_kp, channel_cert);
 
   INFO("New channel creates host connection");
   {
