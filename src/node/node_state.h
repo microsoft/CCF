@@ -325,7 +325,7 @@ namespace ccf
       const consensus::Configuration& consensus_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_,
+      std::shared_ptr<enclave::AbstractRPCResponder> rpc_sessions_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -335,10 +335,21 @@ namespace ccf
       consensus_config = consensus_config_;
       n2n_channels = n2n_channels_;
       rpc_map = rpc_map_;
-      cmd_forwarder = cmd_forwarder_;
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
+
+      cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
+        rpc_sessions_, n2n_channels, rpc_map, consensus_config.consensus_type);
+    
       sm.advance(State::initialized);
+
+      for (auto& [actor, fe] : rpc_map->frontends())
+      {
+        fe->set_sig_intervals(
+          sig_tx_interval,
+          sig_ms_interval);
+        fe->set_cmd_forwarder(cmd_forwarder);
+      }
     }
 
     //
@@ -1406,6 +1417,23 @@ namespace ccf
       }
 
       consensus->periodic_end();
+    }
+
+    void recv_node_inbound(std::vector<uint8_t>&& body)
+    {
+      auto p = body.data();
+      auto psize = body.size();
+
+      if (
+        serialized::peek<ccf::NodeMsgType>(p, psize) ==
+        ccf::NodeMsgType::forwarded_msg)
+      {
+        cmd_forwarder->recv_message(p, psize);
+      }
+      else
+      {
+        node_msg(std::move(body));
+      }
     }
 
     void node_msg(std::vector<uint8_t>&& data)

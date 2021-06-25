@@ -43,7 +43,6 @@ extern "C"
     size_t enclave_version_size,
     size_t* enclave_version_len,
     StartType start_type,
-    ConsensusType consensus_type,
     size_t num_worker_threads,
     void* time_location)
   {
@@ -146,7 +145,6 @@ extern "C"
     auto enclave = new enclave::Enclave(
       ec,
       cc.signature_intervals,
-      consensus_type,
       cc.consensus_config,
       cc.curve_id);
 

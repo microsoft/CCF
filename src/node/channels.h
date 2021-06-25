@@ -65,7 +65,8 @@ namespace ccf
     static constexpr size_t default_message_limit = 2048;
 #else
     // 2**24.5 as per RFC8446 Section 5.5
-    static constexpr size_t default_message_limit = 23726566;
+    // TODO: Temp debugging step, cause many reconnections
+    static constexpr size_t default_message_limit = 100;
 #endif
 
   private:
@@ -99,12 +100,12 @@ namespace ccf
     static constexpr size_t salt_len = 32;
     static constexpr size_t shared_key_size = 32;
     std::vector<uint8_t> hkdf_salt;
-    bool key_exchange_in_progress = false;
     size_t message_limit = default_message_limit;
+
+    size_t initiation_attempt_nonce = 0;
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> recv_key;
-    std::unique_ptr<crypto::KeyAesGcm> next_recv_key;
     std::unique_ptr<crypto::KeyAesGcm> send_key;
 
     // Incremented for each tagged/encrypted message
@@ -160,16 +161,9 @@ namespace ccf
         (const uint64_t)recv_nonce.nonce);
 
       // Note: We must assume that some messages are dropped, i.e. we may not
-      // see every nonce/sequence number, but they must be increasing, except
-      // during key rollover, when it is reset to 1 for the new key.
+      // see every nonce/sequence number, but they must be increasing.
 
-      if ((recv_nonce.nonce == 1 || !recv_key) && next_recv_key)
-      {
-        LOG_TRACE_FMT("Changing to next channel receive key");
-        recv_key.swap(next_recv_key);
-        next_recv_key.reset();
-      }
-      else if (recv_nonce.nonce <= *local_nonce)
+      if (recv_nonce.nonce <= *local_nonce)
       {
         // If the nonce received has already been processed, return
         // See https://github.com/microsoft/CCF/issues/2492 for more details on
@@ -194,12 +188,13 @@ namespace ccf
       }
 
       size_t num_messages = send_nonce + recv_nonce.nonce;
-      if (num_messages >= message_limit && !key_exchange_in_progress)
+      if (num_messages >= message_limit)
       {
         LOG_TRACE_FMT(
           "Reached message limit ({}+{}), triggering new key exchange",
           send_nonce,
           (uint64_t)recv_nonce.nonce);
+        reset();
         initiate();
       }
 
@@ -494,20 +489,52 @@ namespace ccf
     bool consume_initiator_key_share(
       const uint8_t* data, size_t size, bool priority = false)
     {
-      LOG_TRACE_FMT("status == {}", status);
-
-      if (status == INITIATED || status == ESTABLISHED)
+      const auto initiation_attempt = serialized::read<size_t>(data, size);
+      if (initiation_attempt < initiation_attempt_nonce)
       {
-        // Both nodes tried to initiate the channel, the one with priority wins.
-        if (!priority)
-          return true;
-      }
-      else if (status == WAITING_FOR_FINAL)
-      {
+        LOG_INFO_FMT(
+          "Ignoring key exchange from old attempt {} (I'm in {})",
+          initiation_attempt,
+          initiation_attempt_nonce);
         return false;
       }
+      else if (initiation_attempt > initiation_attempt_nonce)
+      {
+        LOG_INFO_FMT(
+          "Received key exchange in new attempt {}, updating to use it (from "
+          "{})",
+          initiation_attempt,
+          initiation_attempt_nonce);
+        reset();
+        initiation_attempt_nonce = initiation_attempt;
+      }
+      else
+      {
+        LOG_INFO_FMT(
+          "Agree we're in key exchange attempt {}", initiation_attempt);
 
-      key_exchange_in_progress = true;
+        if (status == INITIATED)
+        {
+          if (!priority)
+          {
+            // Both nodes tried to initiate the channel, the one with priority
+            // wins.
+            LOG_INFO_FMT(
+              "Ignoring initiation attempt {} - lower priority",
+              initiation_attempt);
+            return true;
+          }
+          else
+          {
+            LOG_INFO_FMT(
+              "Relinquishing to higher priority initiation attempt in {}",
+              initiation_attempt);
+            reset();
+          }
+        }
+      }
+
+      LOG_TRACE_FMT("status == {}", status);
 
       size_t peer_version = serialized::read<size_t>(data, size);
       CBuffer ks = extract_buffer(data, size);
@@ -626,7 +653,7 @@ namespace ccf
         shared_secret,
         hkdf_salt,
         info);
-      next_recv_key = crypto::make_key_aes_gcm(key_bytes);
+      recv_key = crypto::make_key_aes_gcm(key_bytes);
 
       info = {label_to.data(), label_to.data() + label_to.size()};
       key_bytes = crypto::hkdf(
@@ -645,7 +672,6 @@ namespace ccf
         local_recv_nonce[i].tid_seqno = 0;
       }
       status = ESTABLISHED;
-      key_exchange_in_progress = false;
       LOG_INFO_FMT("Node channel with {} is now established.", peer_id);
 
       auto node_cv = make_verifier(node_cert);
@@ -666,45 +692,76 @@ namespace ccf
 
     void initiate()
     {
-      if (status == WAITING_FOR_FINAL)
-        return;
-
       LOG_INFO_FMT("Initiating node channel with {}.", peer_id);
 
-      key_exchange_in_progress = true;
+      initiation_attempt_nonce++;
 
-      if (status != ESTABLISHED)
-      {
-        status = INITIATED;
-      }
-      else
-      {
-        // Restart with new key exchange
-        kex_ctx.reset();
-        peer_cert = {};
-        peer_cv.reset();
+      // Begin with new key exchange
+      kex_ctx.reset();
+      peer_cert = {};
+      peer_cv.reset();
 
-        auto e = crypto::create_entropy();
-        hkdf_salt = e->random(salt_len);
-      }
+      auto e = crypto::create_entropy();
+      hkdf_salt = e->random(salt_len);
 
+      send_key_exchange_init();
+
+      status = INITIATED;
+    }
+
+    // TODO: Move these functions somewhere sensible
+    void send_key_exchange_init()
+    {
       to_host->write(
         node_outbound,
         peer_id.value(),
         NodeMsgType::channel_msg,
         self.value(),
         ChannelMsg::key_exchange_init,
+        initiation_attempt_nonce,
         get_signed_key_share(true));
 
-      auto sn = make_verifier(node_cert)->serial_number();
-      LOG_TRACE_FMT("key_exchange_init -> {} node serial: {}", peer_id, sn);
+      LOG_TRACE_FMT(
+        "key_exchange_init -> {} node serial: {}",
+        peer_id,
+        make_verifier(node_cert)->serial_number());
+    }
+
+    void advance_connection_attempt()
+    {
+      switch (status)
+      {
+        case (INACTIVE):
+        {
+          initiate();
+          break;
+        }
+
+        case (INITIATED):
+        {
+          send_key_exchange_init();
+          break;
+        }
+
+        case (WAITING_FOR_FINAL):
+        {
+          // send_key_exchange_response();
+          break;
+        }
+
+        case (ESTABLISHED):
+        {
+          // send_key_exchange_final();??
+          break;
+        }
+      }
     }
 
     bool send(NodeMsgType type, CBuffer aad, CBuffer plain = nullb)
     {
       if (status != ESTABLISHED)
       {
-        initiate();
+        advance_connection_attempt();
         outgoing_msg = OutgoingMsg(type, aad, plain);
         return false;
       }
@@ -716,11 +773,6 @@ namespace ccf
       gcm_hdr.set_iv_seq(nonce.get_val());
 
       assert(send_key);
-
-      // During key rollover, we keep recv_key to decrypt messages from the peer
-      // until it has rolled over too (recognized when we received a message
-      // with the nonce/seqno reset to 1). But, we can immediately start to send
-      // messages with the new send_key.
 
       std::vector<uint8_t> cipher(plain.n);
       send_key->encrypt(
@@ -830,7 +882,6 @@ namespace ccf
       peer_cert = {};
       peer_cv.reset();
       recv_key.reset();
-      next_recv_key.reset();
       send_key.reset();
       outgoing_msg.reset();
 
