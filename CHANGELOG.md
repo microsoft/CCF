@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- `ccf.crypto.verifySignature()` previously required DER-encoded ECDSA signatures and now requires IEEE P1363 encoded signatures, aligning with the behavior of the Web Crypto API (#2735).
+
 ## [2.0.0-dev1]
 
 ### Added
