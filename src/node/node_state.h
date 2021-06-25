@@ -323,7 +323,6 @@ namespace ccf
     //
     void initialize(
       const consensus::Configuration& consensus_config_,
-      std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<enclave::AbstractRPCResponder> rpc_sessions_,
       size_t sig_tx_interval_,
@@ -333,10 +332,11 @@ namespace ccf
       sm.expect(State::uninitialized);
 
       consensus_config = consensus_config_;
-      n2n_channels = n2n_channels_;
       rpc_map = rpc_map_;
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
+
+      n2n_channels = std::make_shared<ccf::NodeToNodeImpl>(writer_factory);
 
       cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map, consensus_config.consensus_type);

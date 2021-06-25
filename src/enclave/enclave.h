@@ -31,7 +31,6 @@ namespace enclave
     oversized::WriterFactory writer_factory;
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
-    std::shared_ptr<ccf::NodeToNode> n2n_channels;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
@@ -79,7 +78,6 @@ namespace enclave
       writer_factory(basic_writer_factory, ec.writer_config),
       network(consensus_config.consensus_type),
       share_manager(network),
-      n2n_channels(std::make_shared<ccf::NodeToNodeImpl>(writer_factory)),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map))
     {
@@ -128,7 +126,6 @@ namespace enclave
 
       node->initialize(
         consensus_config,
-        n2n_channels,
         rpc_map,
         rpcsessions,
         signature_intervals.sig_tx_interval,
