@@ -3,14 +3,14 @@ debs:
   - apt-transport-https
   - ninja-build
   - libuv1-dev
-  - libc++-10-dev
-  - libc++abi-10-dev
+  - libc++-8-dev
+  - libc++abi-8-dev
   - python3.8-dev
   - python3.8-venv
-  - llvm-10
-  - clang-10
-  - clang-format-10
-  - clang-tools-10
+  - llvm-8
+  - clang-8
+  - clang-format-8
+  - clang-tools-8
   - expect
   - git
   - ccache
