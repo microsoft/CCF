@@ -27,11 +27,11 @@ schedules:
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci:oe0.17.0-rc1
+      image: ccfciteam/ccf-ci:oe0.17.0-rc1-clang10
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
     - container: sgx
-      image: ccfciteam/ccf-ci:oe0.17.0-rc1
+      image: ccfciteam/ccf-ci:oe0.17.0-rc1-clang10
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /lib/modules:/lib/modules:ro
 
 variables:
