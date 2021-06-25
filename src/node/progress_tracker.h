@@ -580,13 +580,13 @@ namespace ccf
                                    ApplyViewChangeMessageResult::FAIL;
     }
 
-    bool apply_new_view(
-      const NodeId& from, uint32_t node_count, ccf::View& view_)
+    bool apply_new_view(uint32_t node_count, ccf::View& view_)
     {
       std::unique_lock<std::mutex> guard(lock);
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
       ccf::View view = new_view->view;
+      ccf::NodeId from = new_view->primary_id;
 
       if (
         new_view->view_change_messages.size() <
@@ -680,6 +680,19 @@ namespace ccf
     {
       std::unique_lock<std::mutex> guard(lock);
       is_public_only = public_only;
+    }
+
+    std::tuple<ccf::NodeId, ccf::View> get_primary_at_last_view_change()
+    {
+      std::unique_lock<std::mutex> guard(lock);
+      auto new_view = store->get_new_view();
+      if (!new_view.has_value())
+      {
+        return std::make_tuple<ccf::NodeId, ccf::View>(
+          ccf::NodeId(fmt::format("{:#064}", 0)), 0);
+      }
+      return std::make_tuple<ccf::NodeId, ccf::View>(
+        NodeId(new_view->primary_id), View(new_view->view));
     }
 
   private:
