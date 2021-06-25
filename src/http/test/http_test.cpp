@@ -55,9 +55,10 @@ DOCTEST_TEST_CASE("Complete request")
 
 DOCTEST_TEST_CASE("Complete response")
 {
-  for (const auto status : {HTTP_STATUS_OK,
-                            HTTP_STATUS_BAD_REQUEST,
-                            HTTP_STATUS_INTERNAL_SERVER_ERROR})
+  for (const auto status :
+       {HTTP_STATUS_OK,
+        HTTP_STATUS_BAD_REQUEST,
+        HTTP_STATUS_INTERNAL_SERVER_ERROR})
   {
     const std::vector<uint8_t> r = {0, 1, 2, 3};
 
@@ -249,10 +250,11 @@ DOCTEST_TEST_CASE("Pessimal transport")
   logger::config::level() = logger::INFO;
 
   const http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
-  const http::HeaderMap h2 = {{"foo", "barbar"},
-                              {"content-type", "application/json"},
-                              {"x-custom-header", "custom user data"},
-                              {"x-MixedCASE", "DontCARE"}};
+  const http::HeaderMap h2 = {
+    {"foo", "barbar"},
+    {"content-type", "application/json"},
+    {"x-custom-header", "custom user data"},
+    {"x-MixedCASE", "DontCARE"}};
 
   http::SimpleRequestProcessor sp;
   http::RequestParser p(sp);

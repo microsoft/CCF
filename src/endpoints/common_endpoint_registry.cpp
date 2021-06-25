@@ -203,12 +203,13 @@ namespace ccf
       {
         for (const auto& [verb, metric] : verb_metrics)
         {
-          out.metrics.push_back({path,
-                                 verb,
-                                 metric.calls,
-                                 metric.errors,
-                                 metric.failures,
-                                 metric.retries});
+          out.metrics.push_back(
+            {path,
+             verb,
+             metric.calls,
+             metric.errors,
+             metric.failures,
+             metric.retries});
         }
       }
       return make_success(out);

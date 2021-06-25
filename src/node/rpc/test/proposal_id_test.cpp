@@ -118,8 +118,8 @@ public:
     if (forced)
     {
       forced = false;
-      return {{term, forced_version},
-              crypto::Sha256Hash(std::to_string(version))};
+      return {
+        {term, forced_version}, crypto::Sha256Hash(std::to_string(version))};
     }
     else
     {

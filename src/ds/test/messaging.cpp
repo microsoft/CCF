@@ -438,11 +438,12 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
       const std::vector<uint8_t> out;
     };
 
-    for (const auto& pc : {PingCounts{{5}, {5}},
-                           {{3, 4, 5}, {2}},
-                           {{2}, {3, 4, 5}},
-                           {{3, 4, 2, 8}, {100, 10}},
-                           {{100, 10}, {3, 4, 2, 8}}})
+    for (const auto& pc :
+         {PingCounts{{5}, {5}},
+          {{3, 4, 5}, {2}},
+          {{2}, {3, 4, 5}},
+          {{3, 4, 2, 8}, {100, 10}},
+          {{100, 10}, {3, 4, 2, 8}}})
     {
       const auto& pings_in = pc.in;
       const auto& pings_out = pc.out;

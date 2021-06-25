@@ -130,11 +130,12 @@ TEST_CASE("Reconstruction" * doctest::test_suite("oversized"))
     return complete_prior < complete_messages;
   };
 
-  constexpr size_t fragment_sizes[] = {payload_size,
-                                       payload_size / 2,
-                                       payload_size / 3,
-                                       payload_size / 5,
-                                       payload_size / 7};
+  constexpr size_t fragment_sizes[] = {
+    payload_size,
+    payload_size / 2,
+    payload_size / 3,
+    payload_size / 5,
+    payload_size / 7};
   constexpr auto fragment_size_count =
     sizeof(fragment_sizes) / sizeof(fragment_sizes[0]);
 

@@ -598,9 +598,10 @@ int main(int argc, char** argv)
 
   std::vector<uint8_t> from_enclave_buffer(buffer_size);
   ringbuffer::Offsets from_enclave_offsets;
-  ringbuffer::BufferDef from_enclave_def{from_enclave_buffer.data(),
-                                         from_enclave_buffer.size(),
-                                         &from_enclave_offsets};
+  ringbuffer::BufferDef from_enclave_def{
+    from_enclave_buffer.data(),
+    from_enclave_buffer.size(),
+    &from_enclave_offsets};
 
   ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
   messaging::BufferProcessor bp("Host");
@@ -611,8 +612,8 @@ int main(int argc, char** argv)
   ringbuffer::NonBlockingWriterFactory non_blocking_factory(base_factory);
 
   // Factory for creating writers which will handle writing of large messages
-  oversized::WriterConfig writer_config{(size_t)(1 << max_fragment_size),
-                                        (size_t)(1 << max_msg_size)};
+  oversized::WriterConfig writer_config{
+    (size_t)(1 << max_fragment_size), (size_t)(1 << max_msg_size)};
   oversized::WriterFactory writer_factory(non_blocking_factory, writer_config);
 
   // reconstruct oversized messages sent to the host
@@ -708,17 +709,19 @@ int main(int argc, char** argv)
 #endif
 
     CCFConfig ccf_config;
-    ccf_config.consensus_config = {raft_timeout,
-                                   raft_election_timeout,
-                                   bft_view_change_timeout,
-                                   bft_status_interval};
+    ccf_config.consensus_config = {
+      raft_timeout,
+      raft_election_timeout,
+      bft_view_change_timeout,
+      bft_status_interval};
     ccf_config.signature_intervals = {sig_tx_interval, sig_ms_interval};
-    ccf_config.node_info_network = {rpc_address.hostname,
-                                    public_rpc_address.hostname,
-                                    node_address.hostname,
-                                    node_address.port,
-                                    rpc_address.port,
-                                    public_rpc_address.port};
+    ccf_config.node_info_network = {
+      rpc_address.hostname,
+      public_rpc_address.hostname,
+      node_address.hostname,
+      node_address.port,
+      rpc_address.port,
+      public_rpc_address.port};
     ccf_config.domain = domain;
     ccf_config.snapshot_tx_interval = snapshot_tx_interval;
     ccf_config.max_open_sessions_soft = max_open_sessions;

@@ -354,8 +354,9 @@ namespace kv
 
     std::tuple<SerialisedKey, Version> deserialise_read()
     {
-      return {current_reader->template read_next<SerialisedKey>(),
-              current_reader->template read_next<Version>()};
+      return {
+        current_reader->template read_next<SerialisedKey>(),
+        current_reader->template read_next<Version>()};
     }
 
     uint64_t deserialise_write_header()
@@ -365,8 +366,9 @@ namespace kv
 
     std::tuple<SerialisedKey, SerialisedValue> deserialise_write()
     {
-      return {current_reader->template read_next<SerialisedKey>(),
-              current_reader->template read_next<SerialisedValue>()};
+      return {
+        current_reader->template read_next<SerialisedKey>(),
+        current_reader->template read_next<SerialisedValue>()};
     }
 
     std::vector<uint8_t> deserialise_raw()

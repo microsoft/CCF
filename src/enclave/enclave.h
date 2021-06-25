@@ -71,12 +71,14 @@ namespace enclave
       const consensus::Configuration& consensus_config,
       const CurveID& curve_id) :
       circuit(
-        ringbuffer::BufferDef{ec.to_enclave_buffer_start,
-                              ec.to_enclave_buffer_size,
-                              ec.to_enclave_buffer_offsets},
-        ringbuffer::BufferDef{ec.from_enclave_buffer_start,
-                              ec.from_enclave_buffer_size,
-                              ec.from_enclave_buffer_offsets}),
+        ringbuffer::BufferDef{
+          ec.to_enclave_buffer_start,
+          ec.to_enclave_buffer_size,
+          ec.to_enclave_buffer_offsets},
+        ringbuffer::BufferDef{
+          ec.from_enclave_buffer_start,
+          ec.from_enclave_buffer_size,
+          ec.from_enclave_buffer_offsets}),
       basic_writer_factory(circuit),
       writer_factory(basic_writer_factory, ec.writer_config),
       network(consensus_type_),

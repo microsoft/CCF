@@ -33,11 +33,12 @@ private:
     NumberTransactions
   };
 
-  const char* OPERATION_C_STR[5]{"SmallBank_transact_savings",
-                                 "SmallBank_amalgamate",
-                                 "SmallBank_write_check",
-                                 "SmallBank_deposit_checking",
-                                 "SmallBank_balance"};
+  const char* OPERATION_C_STR[5]{
+    "SmallBank_transact_savings",
+    "SmallBank_amalgamate",
+    "SmallBank_write_check",
+    "SmallBank_deposit_checking",
+    "SmallBank_balance"};
 
   void print_accounts(const string& header = {})
   {

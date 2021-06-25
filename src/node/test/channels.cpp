@@ -662,20 +662,24 @@ struct CurveChoices
 
 TEST_CASE("Full NodeToNode test")
 {
-  constexpr auto all_256 = CurveChoices{crypto::CurveID::SECP256R1,
-                                        crypto::CurveID::SECP256R1,
-                                        crypto::CurveID::SECP256R1};
-  constexpr auto all_384 = CurveChoices{crypto::CurveID::SECP384R1,
-                                        crypto::CurveID::SECP384R1,
-                                        crypto::CurveID::SECP384R1};
+  constexpr auto all_256 = CurveChoices{
+    crypto::CurveID::SECP256R1,
+    crypto::CurveID::SECP256R1,
+    crypto::CurveID::SECP256R1};
+  constexpr auto all_384 = CurveChoices{
+    crypto::CurveID::SECP384R1,
+    crypto::CurveID::SECP384R1,
+    crypto::CurveID::SECP384R1};
   // One node on a different curve
-  constexpr auto mixed_0 = CurveChoices{crypto::CurveID::SECP256R1,
-                                        crypto::CurveID::SECP256R1,
-                                        crypto::CurveID::SECP384R1};
+  constexpr auto mixed_0 = CurveChoices{
+    crypto::CurveID::SECP256R1,
+    crypto::CurveID::SECP256R1,
+    crypto::CurveID::SECP384R1};
   // Both nodes on a different curve
-  constexpr auto mixed_1 = CurveChoices{crypto::CurveID::SECP384R1,
-                                        crypto::CurveID::SECP256R1,
-                                        crypto::CurveID::SECP256R1};
+  constexpr auto mixed_1 = CurveChoices{
+    crypto::CurveID::SECP384R1,
+    crypto::CurveID::SECP256R1,
+    crypto::CurveID::SECP256R1};
 
   size_t i = 0;
   for (const auto& curves : {all_256, all_384, mixed_0, mixed_1})

@@ -412,13 +412,14 @@ namespace ccf
           }
         }
 
-        return jsgov::ProposalInfoSummary{proposal_id,
-                                          pi_->proposer_id,
-                                          pi_.value().state,
-                                          pi_.value().ballots.size(),
-                                          final_votes,
-                                          vote_failures,
-                                          failure};
+        return jsgov::ProposalInfoSummary{
+          proposal_id,
+          pi_->proposer_id,
+          pi_.value().state,
+          pi_.value().ballots.size(),
+          final_votes,
+          vote_failures,
+          failure};
       }
     }
 
@@ -517,8 +518,8 @@ namespace ccf
 
       const AuthnPolicies member_sig_only = {member_signature_auth_policy};
 
-      const AuthnPolicies member_cert_or_sig = {member_cert_auth_policy,
-                                                member_signature_auth_policy};
+      const AuthnPolicies member_cert_or_sig = {
+        member_cert_auth_policy, member_signature_auth_policy};
 
       //! A member acknowledges state
       auto ack = [this](auto& ctx, nlohmann::json&& params) {

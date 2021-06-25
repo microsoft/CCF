@@ -156,8 +156,8 @@ namespace loggingapp
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
-      const ccf::AuthnPolicies auth_policies = {ccf::jwt_auth_policy,
-                                                ccf::user_cert_auth_policy};
+      const ccf::AuthnPolicies auth_policies = {
+        ccf::jwt_auth_policy, ccf::user_cert_auth_policy};
 
       // SNIPPET_START: record
       auto record = [this](auto& ctx, nlohmann::json&& params) {

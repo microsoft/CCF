@@ -192,8 +192,8 @@ namespace messaging
       auto j = nlohmann::json::object();
       for (const auto& it : mc)
       {
-        j[get_message_name(it.first)] = {{"count", it.second.messages},
-                                         {"bytes", it.second.bytes}};
+        j[get_message_name(it.first)] = {
+          {"count", it.second.messages}, {"bytes", it.second.bytes}};
       }
       return j;
     }
@@ -246,7 +246,7 @@ namespace messaging
         // Read one at a time so we don't process any after being told to stop
         auto read = r.read(
           1,
-          [& d = dispatcher](
+          [&d = dispatcher](
             ringbuffer::Message m, const uint8_t* data, size_t size) {
             d.dispatch(m, data, size);
           });

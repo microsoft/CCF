@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/rsa_key_pair.h"
-
 #include "mbedtls_wrappers.h"
 #include "rsa_public_key.h"
 

@@ -1188,13 +1188,14 @@ namespace aft
         end_idx,
         state->commit_idx);
 
-      AppendEntries ae = {{raft_append_entries},
-                          {end_idx, prev_idx},
-                          state->current_view,
-                          prev_term,
-                          state->commit_idx,
-                          term_of_idx,
-                          contains_new_view};
+      AppendEntries ae = {
+        {raft_append_entries},
+        {end_idx, prev_idx},
+        state->current_view,
+        prev_term,
+        state->commit_idx,
+        term_of_idx,
+        contains_new_view};
 
       auto& node = nodes.at(to);
 
@@ -1994,10 +1995,11 @@ namespace aft
         state->requested_evidence_from = to;
       }
 
-      AppendEntriesResponse response = {{raft_append_entries_response},
-                                        state->current_view,
-                                        state->last_idx,
-                                        answer};
+      AppendEntriesResponse response = {
+        {raft_append_entries_response},
+        state->current_view,
+        state->last_idx,
+        answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -2015,12 +2017,13 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       CCF_ASSERT(progress_tracker != nullptr, "progress_tracker is not set");
 
-      SignedAppendEntriesResponse r = {{raft_append_entries_signed_response},
-                                       state->current_view,
-                                       state->last_idx,
-                                       {},
-                                       static_cast<uint32_t>(sig.sig.size()),
-                                       {}};
+      SignedAppendEntriesResponse r = {
+        {raft_append_entries_signed_response},
+        state->current_view,
+        state->last_idx,
+        {},
+        static_cast<uint32_t>(sig.sig.size()),
+        {}};
 
       progress_tracker->get_node_hashed_nonce(
         {state->current_view, state->last_idx}, r.hashed_nonce);
@@ -2276,8 +2279,8 @@ namespace aft
         // We need to provide evidence to the replica that we can send it append
         // entries. This should only happened if there is some kind of network
         // partition.
-        ViewChangeEvidenceMsg vw = {{bft_view_change_evidence},
-                                    state->current_view};
+        ViewChangeEvidenceMsg vw = {
+          {bft_view_change_evidence}, state->current_view};
 
         std::vector<uint8_t> data =
           view_change_tracker->get_serialized_view_change_confirmation(
@@ -2321,10 +2324,11 @@ namespace aft
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
-      RequestVote rv = {{raft_request_vote},
-                        state->current_view,
-                        last_committable_idx,
-                        get_term_internal(last_committable_idx)};
+      RequestVote rv = {
+        {raft_request_vote},
+        state->current_view,
+        last_committable_idx,
+        get_term_internal(last_committable_idx)};
 
       channels->send_authenticated(to, ccf::NodeMsgType::consensus_msg, rv);
     }

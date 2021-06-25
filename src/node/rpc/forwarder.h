@@ -85,8 +85,8 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-      ForwardedHeader msg = {ForwardedMsg::forwarded_cmd,
-                             rpc_ctx->frame_format()};
+      ForwardedHeader msg = {
+        ForwardedMsg::forwarded_cmd, rpc_ctx->frame_format()};
 
       if (consensus_type == ConsensusType::BFT && !nodes.empty())
       {

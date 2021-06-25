@@ -41,8 +41,8 @@ namespace std
     {
       // For cryptographically secure hashing, use SipHash directly with a
       // secret key. For std::hash, we use this fixed key
-      static constexpr siphash::SipKey k{0x7720796f726c694b,
-                                         0x2165726568207361};
+      static constexpr siphash::SipKey k{
+        0x7720796f726c694b, 0x2165726568207361};
       return siphash::siphash<2, 4>(v, k);
     }
   };
@@ -87,8 +87,8 @@ namespace std
   {
     size_t operator()(const llvm_vecsmall::SmallVector<T, N>& v) const
     {
-      static constexpr siphash::SipKey k{0x7720796f726c694b,
-                                         0x2165726568207361};
+      static constexpr siphash::SipKey k{
+        0x7720796f726c694b, 0x2165726568207361};
       return siphash::siphash<2, 4>(v.data(), v.size(), k);
     }
   };

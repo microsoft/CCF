@@ -65,13 +65,14 @@ namespace ds
       const std::string& description,
       const std::string& document_version)
     {
-      return nlohmann::json{{"openapi", "3.0.0"},
-                            {"info",
-                             {{"title", title},
-                              {"description", description},
-                              {"version", document_version}}},
-                            {"servers", nlohmann::json::array()},
-                            {"paths", nlohmann::json::object()}};
+      return nlohmann::json{
+        {"openapi", "3.0.0"},
+        {"info",
+         {{"title", title},
+          {"description", description},
+          {"version", document_version}}},
+        {"servers", nlohmann::json::array()},
+        {"paths", nlohmann::json::object()}};
     }
 
     static inline nlohmann::json& server(

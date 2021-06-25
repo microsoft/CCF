@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/verifier.h"
-
 #include "crypto/openssl/openssl_wrappers.h"
+#include "crypto/verifier.h"
 
 #include <openssl/x509.h>
 

@@ -496,10 +496,11 @@ namespace timing
 
         if (rounds > 1)
         {
-          res.per_round.push_back({round_begin->rpc_id,
-                                   (round_end - 1)->rpc_id,
-                                   measure(round_local_commit),
-                                   measure(round_global_commit)});
+          res.per_round.push_back(
+            {round_begin->rpc_id,
+             (round_end - 1)->rpc_id,
+             measure(round_local_commit),
+             measure(round_global_commit)});
         }
 
         if (!allow_pending)

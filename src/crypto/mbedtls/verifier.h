@@ -3,7 +3,6 @@
 #pragma once
 
 #include "crypto/verifier.h"
-
 #include "mbedtls_wrappers.h"
 
 namespace crypto

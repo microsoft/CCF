@@ -658,8 +658,8 @@ namespace ccf
       std::string label_to = self.value() + peer_id.value();
       std::string label_from = peer_id.value() + self.value();
 
-      std::vector<uint8_t> info = {label_from.data(),
-                                   label_from.data() + label_from.size()};
+      std::vector<uint8_t> info = {
+        label_from.data(), label_from.data() + label_from.size()};
       auto key_bytes = crypto::hkdf(
         crypto::MDType::SHA256,
         shared_key_size,

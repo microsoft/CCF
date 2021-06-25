@@ -117,8 +117,8 @@ namespace ccfapp
         set_no_content_status(ctx);
       };
 
-      const ccf::AuthnPolicies user_sig_or_cert = {user_signature_auth_policy,
-                                                   user_cert_auth_policy};
+      const ccf::AuthnPolicies user_sig_or_cert = {
+        user_signature_auth_policy, user_cert_auth_policy};
 
       std::vector<ccf::RESTVerb> verbs = {HTTP_POST, ws::Verb::WEBSOCKET};
       for (auto verb : verbs)

@@ -496,7 +496,7 @@ namespace ccf
         GetQuotes::Out result;
 
         auto nodes = args.tx.ro(network.nodes);
-        nodes->foreach([& quotes = result.quotes](
+        nodes->foreach([&quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
           if (node_info.status == ccf::NodeStatus::TRUSTED)
           {
@@ -610,13 +610,14 @@ namespace ccf
           {
             is_primary = consensus->primary() == nid;
           }
-          out.nodes.push_back({nid,
-                               ni.status,
-                               ni.pubhost,
-                               ni.pubport,
-                               ni.rpchost,
-                               ni.rpcport,
-                               is_primary});
+          out.nodes.push_back(
+            {nid,
+             ni.status,
+             ni.pubhost,
+             ni.pubport,
+             ni.rpchost,
+             ni.rpcport,
+             is_primary});
           return true;
         });
 
@@ -672,13 +673,14 @@ namespace ccf
           }
         }
         auto ni = info.value();
-        return make_success(GetNode::Out{node_id,
-                                         ni.status,
-                                         ni.pubhost,
-                                         ni.pubport,
-                                         ni.rpchost,
-                                         ni.rpcport,
-                                         is_primary});
+        return make_success(GetNode::Out{
+          node_id,
+          ni.status,
+          ni.pubhost,
+          ni.pubport,
+          ni.rpchost,
+          ni.rpcport,
+          is_primary});
       };
       make_read_only_endpoint(
         "network/nodes/{node_id}",

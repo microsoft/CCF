@@ -47,8 +47,8 @@ void corrupt(T& buf)
   buf[buf.size() - 2]++;
 }
 
-static constexpr CurveID supported_curves[] = {CurveID::SECP384R1,
-                                               CurveID::SECP256R1};
+static constexpr CurveID supported_curves[] = {
+  CurveID::SECP384R1, CurveID::SECP256R1};
 
 static constexpr char const* labels[] = {"secp384r1", "secp256r1"};
 
