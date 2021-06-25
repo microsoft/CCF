@@ -297,7 +297,8 @@
         "enum": [
           "Pending",
           "Trusted",
-          "Retired"
+          "Retired",
+          "Learner"
         ],
         "type": "string"
       },
@@ -465,7 +466,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "1.3.0"
+    "version": "1.3.1"
   },
   "openapi": "3.0.0",
   "paths": {
