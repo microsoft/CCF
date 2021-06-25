@@ -5,5 +5,5 @@ set -ex
 
 mkdir -p build_against_install
 cd build_against_install
-CC=$(which clang-8) CXX=$(which clang++-8) cmake -GNinja ../samples/apps/logging/
+CC=$(which clang-10) CXX=$(which clang++-10) cmake -GNinja ../samples/apps/logging/
 ninja

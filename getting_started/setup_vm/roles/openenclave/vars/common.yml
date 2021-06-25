@@ -15,8 +15,8 @@ oe_deb: "https://github.com/openenclave/openenclave/releases/download/v{{ oe_ver
 
 # LVI mitigations
 oe_lvi_scripts_dir: "{{ oe_prefix }}/bin/scripts/lvi-mitigation"
-oe_lvi_clang_version: "clang-8"
-oe_lvi_clangpp_version: "clang++-8"
+oe_lvi_clang_version: "clang-10"
+oe_lvi_clangpp_version: "clang++-10"
 oe_lvi_bin_dir: /opt/oe_lvi
 oe_lvi_toolset_name: "as.ld.objdump.gold.r3.tar.gz"
 oe_lvi_intel_bin_url: "https://download.01.org/intel-sgx/sgx-linux/2.13/{{ oe_lvi_toolset_name }}"
