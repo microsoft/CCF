@@ -1,6 +1,5 @@
 breathe
-sphinx<4,>=3
-sphinx_rtd_theme
+sphinx
 bottle
 sphinx-autobuild
 sphinxcontrib-mermaid
@@ -8,6 +7,4 @@ sphinx-multiversion
 sphinx-copybutton
 sphinxcontrib.openapi
 sphinx-panels
-sphinx-js
 furo
-sphinx_fontawesome
