@@ -2,18 +2,20 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <vector>
+#include "crypto/openssl/openssl_wrappers.h"
+
 #include <openssl/bn.h>
 #include <openssl/ecdsa.h>
-
-#include "crypto/openssl/openssl_wrappers.h"
+#include <vector>
 
 namespace crypto
 {
-  /** Converts an ECDSA signature in IEEE P1363 encoding to RFC 3279 DER encoding.
+  /** Converts an ECDSA signature in IEEE P1363 encoding to RFC 3279 DER
+   * encoding.
    * @param signature The signature in IEEE P1363 encoding
    */
-  static std::vector<uint8_t> ecdsa_sig_p1363_to_der(const std::vector<uint8_t>& signature)
+  static std::vector<uint8_t> ecdsa_sig_p1363_to_der(
+    const std::vector<uint8_t>& signature)
   {
     auto signature_size = signature.size();
     auto half_size = signature_size / 2;
