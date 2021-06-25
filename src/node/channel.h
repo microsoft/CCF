@@ -919,9 +919,15 @@ namespace ccf
       const NodeId& peer_id,
       const std::string& hostname,
       const std::string& service,
-      size_t message_limit = Channel::default_message_limit)
+      std::optional<size_t> message_limit = std::nullopt)
     {
       std::lock_guard<std::mutex> guard(lock);
+
+      if (!message_limit.has_value())
+      {
+        message_limit = Channel::default_message_limit;
+      }
+
       auto search = channels.find(peer_id);
       if (search == channels.end())
       {
@@ -939,7 +945,7 @@ namespace ccf
           peer_id,
           hostname,
           service,
-          message_limit);
+          *message_limit);
         channels.emplace_hint(search, peer_id, std::move(channel));
       }
       else if (!search->second)
@@ -958,7 +964,7 @@ namespace ccf
           peer_id,
           hostname,
           service,
-          message_limit);
+          *message_limit);
       }
     }
 

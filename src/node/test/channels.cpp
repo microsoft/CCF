@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../channels.h"
+#include "../channel.h"
 
 #include "crypto/verifier.h"
 #include "ds/hex.h"
 #include "node/entities.h"
-#include "node/node_to_node.h"
+#include "node/node_to_node_channel_manager.h"
 #include "node/node_types.h"
 
 #include <algorithm>
@@ -701,7 +701,7 @@ TEST_CASE("Full NodeToNode test")
     msg.fill(0x42);
 
     INFO("Set up channels");
-    NodeToNodeImpl n2n1(wf1), n2n2(wf2);
+    NodeToNodeChannelManager n2n1(wf1), n2n2(wf2);
 
     n2n1.initialize(ni1, network_cert, channel1_kp, channel1_cert);
     n2n1.create_channel(ni2, "", "", message_limit);

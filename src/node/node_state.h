@@ -21,7 +21,7 @@
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
 #include "node/rpc/serdes.h"
-#include "node_to_node.h"
+#include "node/node_to_node_channel_manager.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
@@ -336,7 +336,7 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
-      n2n_channels = std::make_shared<ccf::NodeToNodeImpl>(writer_factory);
+      n2n_channels = std::make_shared<ccf::NodeToNodeChannelManager>(writer_factory);
 
       cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map, consensus_config.consensus_type);
