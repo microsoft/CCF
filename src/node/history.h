@@ -331,6 +331,8 @@ namespace ccf
             txid.version));
         }
 
+        // The nonce is generated in progress_racker->record_primary so it must
+        // exist.
         hashed_nonce = progress_tracker->get_node_hashed_nonce(txid).value();
       }
       else

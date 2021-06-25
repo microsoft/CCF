@@ -933,7 +933,8 @@ namespace ccf
     bool can_send_reply_and_nonce(
       CommitCert& cert, kv::Configuration::Nodes& config)
     {
-      uint32_t node_count = get_message_intersection_count(cert.sig_acks, config);
+      uint32_t node_count =
+        get_message_intersection_count(cert.sig_acks, config);
 
       if (
         node_count >= get_message_threshold(config.size()) &&
@@ -974,7 +975,8 @@ namespace ccf
     bool should_append_nonces_to_ledger(
       CommitCert& cert, kv::Configuration::Nodes& config, bool is_primary)
     {
-      uint32_t node_count = get_message_intersection_count(cert.nonce_set, config);
+      uint32_t node_count =
+        get_message_intersection_count(cert.nonce_set, config);
 
       if (
         node_count >= get_message_threshold(config.size()) &&

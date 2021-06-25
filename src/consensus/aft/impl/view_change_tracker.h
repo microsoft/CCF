@@ -97,8 +97,8 @@ namespace aft
       }
       it->second.received_view_changes.emplace(from, v);
 
-      uint32_t node_count =
-        get_message_intersection_count(it->second.received_view_changes, config);
+      uint32_t node_count = get_message_intersection_count(
+        it->second.received_view_changes, config);
 
       if (
         node_count == ccf::get_message_threshold(config.size()) &&
