@@ -8,6 +8,7 @@
 #include "ds/nonstd.h"
 #include "frontend.h"
 #include "js/wrap.h"
+#include "node/config_id.h"
 #include "node/genesis_gen.h"
 #include "node/gov.h"
 #include "node/jwt.h"
@@ -829,7 +830,8 @@ namespace ccf
            in.node_cert,
            {in.quote_info},
            in.public_encryption_key,
-           NodeStatus::TRUSTED});
+           NodeStatus::TRUSTED,
+           get_fresh_config_id(network, ctx.tx)});
 
 #ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);

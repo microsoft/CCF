@@ -18,6 +18,7 @@
 #include "hooks.h"
 #include "js/wrap.h"
 #include "network_state.h"
+#include "node/config_id.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
 #include "node/rpc/serdes.h"
@@ -541,7 +542,9 @@ namespace ccf
           }
 
           // Set network secrets, node id and become part of network.
-          if (resp.node_status == NodeStatus::TRUSTED)
+          if (
+            resp.node_status == NodeStatus::TRUSTED ||
+            resp.node_status == NodeStatus::LEARNER)
           {
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
@@ -992,7 +995,8 @@ namespace ccf
          node_cert,
          quote_info,
          node_encrypt_kp->public_key_pem().raw(),
-         NodeStatus::PENDING});
+         NodeStatus::PENDING,
+         get_fresh_config_id(network, tx)});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 

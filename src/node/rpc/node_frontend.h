@@ -9,6 +9,7 @@
 #include "ccf/version.h"
 #include "crypto/hash.h"
 #include "frontend.h"
+#include "node/config_id.h"
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
@@ -169,7 +170,9 @@ namespace ccf
 #endif
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
-      if (node_status == NodeStatus::TRUSTED)
+      if (
+        node_status == NodeStatus::TRUSTED ||
+        node_status == NodeStatus::LEARNER)
       {
         ledger_secret_seqno =
           this->network.ledger_secrets->get_latest(tx).first;
@@ -182,6 +185,7 @@ namespace ccf
          in.quote_info,
          in.public_encryption_key,
          node_status,
+         get_fresh_config_id(network, tx),
          ledger_secret_seqno});
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
@@ -350,7 +354,9 @@ namespace ccf
           // trusted. Otherwise, only return its status
           auto node_status = nodes->get(existing_node_info->first)->status;
           rep.node_status = node_status;
-          if (node_status == NodeStatus::TRUSTED)
+          if (
+            node_status == NodeStatus::TRUSTED ||
+            node_status == NodeStatus::LEARNER)
           {
             rep.network_info = {
               context.get_node_state().is_part_of_public_network(),
@@ -498,7 +504,9 @@ namespace ccf
         auto nodes = args.tx.ro(network.nodes);
         nodes->foreach([& quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
-          if (node_info.status == ccf::NodeStatus::TRUSTED)
+          if (
+            node_info.status == ccf::NodeStatus::TRUSTED ||
+            node_info.status == ccf::NodeStatus::LEARNER)
           {
             Quote q;
             q.node_id = node_id;

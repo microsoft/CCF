@@ -18,13 +18,15 @@ namespace ccf
   {
     PENDING = 0,
     TRUSTED = 1,
-    RETIRED = 2
+    RETIRED = 2,
+    LEARNER = 3
   };
   DECLARE_JSON_ENUM(
     NodeStatus,
     {{NodeStatus::PENDING, "Pending"},
      {NodeStatus::TRUSTED, "Trusted"},
-     {NodeStatus::RETIRED, "Retired"}});
+     {NodeStatus::RETIRED, "Retired"},
+     {NodeStatus::LEARNER, "Learner"}});
 }
 
 namespace ccf
@@ -39,6 +41,8 @@ namespace ccf
     crypto::Pem encryption_pub_key;
     /// Node status
     NodeStatus status = NodeStatus::PENDING;
+    /// The configuration in which a node was added.
+    uint64_t configuration_id;
 
     /** Set to the seqno of the latest ledger secret at the time the node is
         trusted */
@@ -79,6 +83,10 @@ struct formatter<ccf::NodeStatus>
       case (ccf::NodeStatus::RETIRED):
       {
         return format_to(ctx.out(), "RETIRED");
+      }
+      case (ccf::NodeStatus::LEARNER):
+      {
+        return format_to(ctx.out(), "LEARNER");
       }
     }
   }
