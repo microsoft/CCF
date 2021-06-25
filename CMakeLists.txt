@@ -66,8 +66,8 @@ option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
 option(ZAP_TEST
        "ZAP fuzz test using https://www.zaproxy.org/docs/docker/api-scan/" OFF
 )
-option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
-option(BUILD_TPCC "Build TPPC sample app and clients" ON)
+option(BUILD_SMALLBANK "Build SmallBank sample app and clients" OFF)
+option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
