@@ -12,9 +12,7 @@ if((NOT CMAKE_C_COMPILER)
    AND "$ENV{CXX}" STREQUAL ""
 )
   find_program(FOUND_CMAKE_C_COMPILER NAMES clang-8)
-  find_program(
-    FOUND_CMAKE_CXX_COMPILER NAMES clang++-8
-  )
+  find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-8)
   if(NOT (FOUND_CMAKE_C_COMPILER AND FOUND_CMAKE_CXX_COMPILER))
     message(
       WARNING
