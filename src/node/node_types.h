@@ -68,21 +68,21 @@ namespace ccf
   /// Node-to-node related ringbuffer messages
   enum : ringbuffer::Message
   {
-    ///@{
     /// Change the network nodes. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(add_node),
-    DEFINE_RINGBUFFER_MSG_TYPE(remove_node),
-    ///@}
+    DEFINE_RINGBUFFER_MSG_TYPE(associate_node_address),
 
     /// Receive data from another node. Host -> Enclave
     DEFINE_RINGBUFFER_MSG_TYPE(node_inbound),
 
     /// Send data to another node. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(node_outbound),
+
+    /// Close connection to another node. Enclave -> Host
+    DEFINE_RINGBUFFER_MSG_TYPE(close_node_outbound)
   };
 }
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ccf::add_node, ccf::NodeId::Value, std::string, std::string);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::remove_node, ccf::NodeId::Value);
+  ccf::associate_node_address, ccf::NodeId::Value, std::string, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::node_inbound, std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::close_node_outbound);

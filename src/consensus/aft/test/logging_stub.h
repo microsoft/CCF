@@ -81,13 +81,6 @@ namespace aft
 
     ChannelStubProxy() {}
 
-    void create_channel(
-      const ccf::NodeId& peer_id,
-      const std::string& peer_hostname,
-      const std::string& peer_service,
-      std::optional<size_t> message_limit = std::nullopt) override
-    {}
-
     bool send_authenticated(
       const ccf::NodeId& to,
       ccf::NodeMsgType msg_type,

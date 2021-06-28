@@ -11,6 +11,7 @@ namespace ccf
   {
   private:
     ringbuffer::AbstractWriterFactory& writer_factory;
+    ringbuffer::WriterPtr to_host;
 
     std::unordered_map<NodeId, std::shared_ptr<Channel>> channels;
     std::mutex lock; //< Protects access to channels map
@@ -25,10 +26,13 @@ namespace ccf
     std::unique_ptr<ThisNode> this_node; //< Not available at construction, only
                                          // after calling initialize()
 
+    size_t message_limit = Channel::default_message_limit;
+
   public:
     NodeToNodeChannelManager(
       ringbuffer::AbstractWriterFactory& writer_factory_) :
-      writer_factory(writer_factory_)
+      writer_factory(writer_factory_),
+      to_host(writer_factory_.create_writer_to_outside())
     {}
 
     // TODO: Feels like this should be private
@@ -41,7 +45,7 @@ namespace ccf
         return search->second;
       }
 
-      // Creating temporary channel that is not outgoing (at least for now)
+      // Create channel
       channels.try_emplace(
         peer_id,
         std::make_shared<Channel>(
@@ -50,7 +54,8 @@ namespace ccf
           this_node->node_kp,
           this_node->node_cert,
           this_node->node_id,
-          peer_id));
+          peer_id,
+          message_limit));
       return channels.at(peer_id);
     }
 
@@ -79,67 +84,22 @@ namespace ccf
         new ThisNode{self_id, network_cert, node_kp, node_cert});
     }
 
-    // TODO: Abolish this
-    void create_channel(
-      const NodeId& peer_id,
-      const std::string& hostname,
-      const std::string& service,
-      std::optional<size_t> message_limit = std::nullopt) override
+    void set_message_limit(size_t message_limit_)
     {
-      CCF_ASSERT_FMT(
-        this_node != nullptr,
-        "Calling create_channel before channel manager is initialized");
+      message_limit = message_limit_;
+    }
 
-      if (peer_id == this_node->node_id)
-      {
-        return;
-      }
-
-      if (!message_limit.has_value())
-      {
-        message_limit = Channel::default_message_limit;
-      }
-
-      std::lock_guard<std::mutex> guard(lock);
-
-      auto search = channels.find(peer_id);
-      if (search == channels.end())
-      {
-        LOG_DEBUG_FMT(
-          "Creating new outbound channel to {} ({}:{})",
-          peer_id,
-          hostname,
-          service);
-        auto channel = std::make_shared<Channel>(
-          writer_factory,
-          this_node->network_cert,
-          this_node->node_kp,
-          this_node->node_cert,
-          this_node->node_id,
-          peer_id,
-          hostname,
-          service,
-          *message_limit);
-        channels.emplace_hint(search, peer_id, std::move(channel));
-      }
-      else if (!search->second)
-      {
-        LOG_INFO_FMT(
-          "Re-creating new outbound channel to {} ({}:{})",
-          peer_id,
-          hostname,
-          service);
-        search->second = std::make_shared<Channel>(
-          writer_factory,
-          this_node->network_cert,
-          this_node->node_kp,
-          this_node->node_cert,
-          this_node->node_id,
-          peer_id,
-          hostname,
-          service,
-          *message_limit);
-      }
+    virtual void associate_node_address(
+      const NodeId& peer_id,
+      const std::string& peer_hostname,
+      const std::string& peer_service) override
+    {
+      RINGBUFFER_WRITE_MESSAGE(
+        ccf::associate_node_address,
+        to_host,
+        peer_id.value(),
+        peer_hostname,
+        peer_service);
     }
 
     bool send_authenticated(

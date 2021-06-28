@@ -211,30 +211,6 @@ namespace ccf
       const crypto::Pem& node_cert_,
       const NodeId& self_,
       const NodeId& peer_id_,
-      const std::string& peer_hostname_,
-      const std::string& peer_service_,
-      size_t message_limit_ = default_message_limit) :
-      self(self_),
-      network_cert(network_cert_),
-      node_kp(node_kp_),
-      node_cert(node_cert_),
-      to_host(writer_factory.create_writer_to_outside()),
-      peer_id(peer_id_),
-      message_limit(message_limit_)
-    {
-      RINGBUFFER_WRITE_MESSAGE(
-        ccf::add_node, to_host, peer_id.value(), peer_hostname_, peer_service_);
-      auto e = crypto::create_entropy();
-      hkdf_salt = e->random(salt_len);
-    }
-
-    Channel(
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      const crypto::Pem& network_cert_,
-      crypto::KeyPairPtr node_kp_,
-      const crypto::Pem& node_cert_,
-      const NodeId& self_,
-      const NodeId& peer_id_,
       size_t message_limit_ = default_message_limit) :
       self(self_),
       network_cert(network_cert_),
@@ -251,7 +227,7 @@ namespace ccf
     ~Channel()
     {
       LOG_INFO_FMT("Channel with {} is now destroyed.", peer_id);
-      RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id.value());
+      // TODO: Send a close message now?
     }
 
     void set_status(ChannelStatus status_)

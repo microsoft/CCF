@@ -246,16 +246,11 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ccf::add_node, [this](const uint8_t* data, size_t size) {
+        disp, ccf::associate_node_address, [this](const uint8_t* data, size_t size) {
           auto [id, hostname, service] =
-            ringbuffer::read_message<ccf::add_node>(data, size);
+            ringbuffer::read_message<ccf::associate_node_address>(data, size);
+          // TODO: Just add association, don't try to open a session now?
           add_node(id, hostname, service);
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ccf::remove_node, [this](const uint8_t* data, size_t size) {
-          auto [id] = ringbuffer::read_message<ccf::remove_node>(data, size);
-          remove_node(id);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

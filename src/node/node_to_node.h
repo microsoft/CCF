@@ -31,11 +31,10 @@ namespace ccf
       crypto::KeyPairPtr node_kp,
       const crypto::Pem& node_cert) = 0;
 
-    virtual void create_channel(
+    virtual void associate_node_address(
       const NodeId& peer_id,
       const std::string& peer_hostname,
-      const std::string& peer_service,
-      std::optional<size_t> message_limit = std::nullopt) = 0;
+      const std::string& peer_service) = 0;
 
     template <class T>
     bool send_authenticated(const NodeId& to, NodeMsgType type, const T& data)

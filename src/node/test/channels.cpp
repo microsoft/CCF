@@ -46,6 +46,7 @@ template <typename T>
 struct NodeOutboundMsg
 {
   NodeId from;
+  NodeId to;
   NodeMsgType type;
   T authenticated_hdr;
   std::vector<uint8_t> payload;
@@ -81,25 +82,14 @@ auto read_outbound_msgs(ringbuffer::Circuit& circuit)
       {
         case node_outbound:
         {
-          serialized::read<NodeId::Value>(
-            data, size); // Ignore destination node id
+          NodeId to = serialized::read<NodeId::Value>(data, size);
           auto msg_type = serialized::read<NodeMsgType>(data, size);
           NodeId from = serialized::read<NodeId::Value>(data, size);
           T aad;
           if (size > sizeof(T))
             aad = serialized::read<T>(data, size);
           auto payload = serialized::read(data, size, size);
-          msgs.push_back(NodeOutboundMsg<T>{from, msg_type, aad, payload});
-          break;
-        }
-        case add_node:
-        {
-          LOG_DEBUG_FMT("Add node msg!");
-          break;
-        }
-        case remove_node:
-        {
-          LOG_DEBUG_FMT("Remove node msg!");
+          msgs.push_back(NodeOutboundMsg<T>{from, to, msg_type, aad, payload});
           break;
         }
         default:
@@ -116,24 +106,17 @@ auto read_outbound_msgs(ringbuffer::Circuit& circuit)
 auto read_node_msgs(ringbuffer::Circuit& circuit)
 {
   std::vector<std::tuple<NodeId, std::string, std::string>> add_node_msgs;
-  std::vector<NodeId> remove_node_msgs;
 
   circuit.read_from_inside().read(
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case add_node:
+        case ccf::associate_node_address:
         {
           auto [id, hostname, service] =
-            ringbuffer::read_message<ccf::add_node>(data, size);
+            ringbuffer::read_message<ccf::associate_node_address>(data, size);
           add_node_msgs.push_back(std::make_tuple(id, hostname, service));
 
-          break;
-        }
-        case remove_node:
-        {
-          auto [id] = ringbuffer::read_message<ccf::remove_node>(data, size);
-          remove_node_msgs.push_back(id);
           break;
         }
         default:
@@ -144,7 +127,7 @@ auto read_node_msgs(ringbuffer::Circuit& circuit)
       }
     });
 
-  return std::make_pair(add_node_msgs, remove_node_msgs);
+  return add_node_msgs;
 }
 
 NodeOutboundMsg<MsgType> get_first(
@@ -431,6 +414,7 @@ TEST_CASE("Replay and out-of-order")
     REQUIRE(outbound_msgs.size() == 1);
     first_msg = outbound_msgs[0];
     REQUIRE(first_msg.from == self);
+    REQUIRE(first_msg.to == peer);
     auto msg_copy = first_msg;
     first_msg_copy = first_msg;
     const auto* data_ = first_msg.payload.data();
@@ -522,24 +506,25 @@ TEST_CASE("Host connections")
   auto channel_manager = NodeToNodeChannelManager(wf1);
   channel_manager.initialize(self, network_cert, channel_kp, channel_cert);
 
-  INFO("New channel creates host connection");
+  INFO("New node association is sent as ringbuffer message");
   {
-    channel_manager.create_channel(peer, "hostname", "port");
-    auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
+    channel_manager.associate_node_address(peer, "hostname", "port");
+    auto add_node_msgs = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 1);
-    REQUIRE(remove_node_msgs.size() == 0);
     REQUIRE(std::get<0>(add_node_msgs[0]) == peer);
     REQUIRE(std::get<1>(add_node_msgs[0]) == "hostname");
     REQUIRE(std::get<2>(add_node_msgs[0]) == "port");
   }
 
-  INFO("Retrieving unknown channel does not create host connection");
+  INFO("Trying to use unknown channel does not create host connection");
   {
     NodeId unknown_peer_id = std::string("unknown_peer");
-    channel_manager.get_channel(unknown_peer_id);
-    auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
+    MsgType msg;
+    msg.fill(0x42);
+    channel_manager.send_authenticated(
+      unknown_peer_id, NodeMsgType::consensus_msg, msg.data(), msg.size());
+    auto add_node_msgs = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 0);
-    REQUIRE(remove_node_msgs.size() == 0);
   }
 }
 
@@ -695,9 +680,9 @@ TEST_CASE("Full NodeToNode test")
     NodeToNodeChannelManager n2n1(wf1), n2n2(wf2);
 
     n2n1.initialize(ni1, network_cert, channel1_kp, channel1_cert);
-    n2n1.create_channel(ni2, "", "", message_limit);
+    n2n1.set_message_limit(message_limit);
     n2n2.initialize(ni2, network_cert, channel2_kp, channel2_cert);
-    n2n2.create_channel(ni1, "", "", message_limit);
+    n2n1.set_message_limit(message_limit);
 
     srand(0); // keep it deterministic
 

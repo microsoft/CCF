@@ -2517,10 +2517,6 @@ namespace aft
       {
         for (auto it = nodes.begin(); it != nodes.end(); ++it)
         {
-          channels->create_channel(
-            it->first,
-            it->second.node_info.hostname,
-            it->second.node_info.port);
           send_request_vote(it->first);
         }
       }
@@ -2904,15 +2900,9 @@ namespace aft
           auto index = state->last_idx + 1;
           nodes.try_emplace(node_info.first, node_info.second, index, 0);
 
-          if (
-            replica_state == kv::ReplicaState::Leader ||
-            consensus_type == ConsensusType::BFT)
-          {
-            channels->create_channel(
-              node_info.first,
-              node_info.second.hostname,
-              node_info.second.port);
-          }
+          channels->associate_node_address(node_info.first,
+            node_info.second.hostname,
+            node_info.second.port);
 
           if (replica_state == kv::ReplicaState::Leader)
           {
