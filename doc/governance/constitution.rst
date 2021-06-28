@@ -1,0 +1,18 @@
+Constitution
+============
+
+The constitution for a CCF service is implemented as a set of JS scripts. These scripts can be submitted at network startup as ``--constitution`` args to ``cchost``, or updated by a governance proposal. They will be concatenated into a single entry in the ``public:ccf.gov.constitution`` table, and should export 3 named functions:
+
+    - ``validate``: This takes the raw body of a proposal and checks that this proposal is correctly formed. For instance it may parse the body as JSON, extract the list of proposed actions, and confirm that each action is known and has parameters matching the expected schema. This should not interact with the KV, and should operate purely on the given proposal.
+    - ``resolve``: This takes a proposal and the votes (the results of ballot scripts) which have been submitted against it, and determines whether the proposal should be accepted or rejected. In the simple case this might simply accept proposals after a majority of members have voted in favour. It could also examine member data to give each member a different role or weight, or have different thresholds for each action. This has read-only access to the KV.
+    - ``apply``: This takes a proposal which has been accepted by ``resolve``, and should make the proposed changes to the service's state. For instance if the proposal added a new user this should extract their cert and data from the proposal and write them to the appropriate KV tables. This has full read-write access to the KV.
+
+Sample constitutions are available in the `src/runtime_config directory <https://github.com/microsoft/CCF/tree/main/src/runtime_config>`_, for instance the default implementation of ``apply`` which parses a JSON object from the proposal body, and then delegates the application of each action within the proposal to a named entry from ``actions.js``:
+
+.. literalinclude:: ../../src/runtime_config/default/apply.js
+    :language: js
+
+There are also more involved examples such as ``veto/resolve.js``. This accepts proposals when a majority of members vote in favour, but also allows any single member to veto the proposal, marking it ``Rejected`` after a single vote against:
+
+.. literalinclude:: ../../src/runtime_config/veto/resolve.js
+    :language: js
