@@ -305,15 +305,17 @@ namespace ccf
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
-      const std::vector<uint8_t>& expected_node_public_key_der) override
+      const std::vector<uint8_t>& expected_node_public_key_der,
+      CodeDigest& code_digest) override
     {
 #ifdef GET_QUOTE
       return enclave_attestation_provider.verify_quote_against_store(
-        tx, quote_info, expected_node_public_key_der);
+        tx, quote_info, expected_node_public_key_der, code_digest);
 #else
       (void)tx;
       (void)quote_info;
       (void)expected_node_public_key_der;
+      (void)code_digest;
       return QuoteVerificationResult::Verified;
 #endif
     }
@@ -986,13 +988,20 @@ namespace ccf
         self = NodeId(fmt::format("{:#064}", id.value()));
       }
 
+      CodeDigest code_digest;
+#ifdef GET_QUOTE
+      code_digest = enclave_attestation_provider.get_code_id(quote_info);
+#endif
+
       g.add_node(
         self,
         {node_info_network,
          node_cert,
          quote_info,
          node_encrypt_kp->public_key_pem().raw(),
-         NodeStatus::PENDING});
+         NodeStatus::PENDING,
+         std::nullopt,
+         ds::to_hex(code_digest.data)});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 

@@ -282,18 +282,18 @@ namespace ccf
     static QuoteVerificationResult verify_quote_against_store(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
-      const std::vector<uint8_t>& expected_node_public_key_der)
+      const std::vector<uint8_t>& expected_node_public_key_der,
+      CodeDigest& code_digest)
     {
-      CodeDigest unique_id;
       crypto::Sha256Hash quoted_hash;
 
-      auto rc = verify_quote(quote_info, unique_id, quoted_hash);
+      auto rc = verify_quote(quote_info, code_digest, quoted_hash);
       if (rc != QuoteVerificationResult::Verified)
       {
         return rc;
       }
 
-      rc = verify_enclave_measurement_against_store(tx, unique_id);
+      rc = verify_enclave_measurement_against_store(tx, code_digest);
       if (rc != QuoteVerificationResult::Verified)
       {
         return rc;
