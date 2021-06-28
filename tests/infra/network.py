@@ -17,6 +17,7 @@ import random
 from dataclasses import dataclass
 from math import ceil
 import http
+import pprint
 
 from loguru import logger as LOG
 
@@ -486,7 +487,8 @@ class Network:
                 infra.node.State.PART_OF_PUBLIC_NETWORK.value,
                 timeout=args.ledger_recovery_timeout,
             )
-        self.wait_for_all_nodes_to_commit(primary=primary)
+        # Catch-up in recovery can take a long time, so extend this timeout
+        self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
     def recover(self, args):
@@ -876,6 +878,10 @@ class Network:
                 break
             time.sleep(0.1)
         expected = [commits[0]] * len(commits)
+        if expected != commits:
+            for node in self.get_joined_nodes():
+                r = c.get("/node/consensus")
+                pprint.pprint(r.body.json())
         assert expected == commits, f"Multiple commit values: {commits}"
 
     def wait_for_new_primary(self, old_primary, nodes=None, timeout_multiplier=2):

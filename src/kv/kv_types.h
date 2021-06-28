@@ -87,10 +87,11 @@ namespace kv
       {}
     };
 
-    using Nodes = std::unordered_map<NodeId, NodeInfo>;
+    using Nodes = std::map<NodeId, NodeInfo>;
 
     ccf::SeqNo idx;
     Nodes nodes;
+    uint32_t bft_offset;
   };
 
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
