@@ -678,124 +678,126 @@ static std::vector<NodeOutboundMsg<MsgType>> get_all_msgs(
   return res;
 }
 
-// struct CurveChoices
-// {
-//   crypto::CurveID network;
-//   crypto::CurveID node_1;
-//   crypto::CurveID node_2;
-// };
+struct CurveChoices
+{
+  crypto::CurveID network;
+  crypto::CurveID node_1;
+  crypto::CurveID node_2;
+};
 
-// TEST_CASE("Full NodeToNode test")
-// {
-//   constexpr auto all_256 = CurveChoices{crypto::CurveID::SECP256R1,
-//                                         crypto::CurveID::SECP256R1,
-//                                         crypto::CurveID::SECP256R1};
-//   constexpr auto all_384 = CurveChoices{crypto::CurveID::SECP384R1,
-//                                         crypto::CurveID::SECP384R1,
-//                                         crypto::CurveID::SECP384R1};
-//   // One node on a different curve
-//   constexpr auto mixed_0 = CurveChoices{crypto::CurveID::SECP256R1,
-//                                         crypto::CurveID::SECP256R1,
-//                                         crypto::CurveID::SECP384R1};
-//   // Both nodes on a different curve
-//   constexpr auto mixed_1 = CurveChoices{crypto::CurveID::SECP384R1,
-//                                         crypto::CurveID::SECP256R1,
-//                                         crypto::CurveID::SECP256R1};
+TEST_CASE("Full NodeToNode test")
+{
+  constexpr auto all_256 = CurveChoices{crypto::CurveID::SECP256R1,
+                                        crypto::CurveID::SECP256R1,
+                                        crypto::CurveID::SECP256R1};
+  constexpr auto all_384 = CurveChoices{crypto::CurveID::SECP384R1,
+                                        crypto::CurveID::SECP384R1,
+                                        crypto::CurveID::SECP384R1};
+  // One node on a different curve
+  constexpr auto mixed_0 = CurveChoices{crypto::CurveID::SECP256R1,
+                                        crypto::CurveID::SECP256R1,
+                                        crypto::CurveID::SECP384R1};
+  // Both nodes on a different curve
+  constexpr auto mixed_1 = CurveChoices{crypto::CurveID::SECP384R1,
+                                        crypto::CurveID::SECP256R1,
+                                        crypto::CurveID::SECP256R1};
 
-//   size_t i = 0;
-//   for (const auto& curves : {all_256, all_384, mixed_0, mixed_1})
-//   {
-//     LOG_DEBUG_FMT("Iteration: {}", i++);
+  size_t i = 0;
+  for (const auto& curves : {all_256, all_384, mixed_0, mixed_1})
+  {
+    LOG_DEBUG_FMT("Iteration: {}", i++);
 
-//     auto network_kp = crypto::make_key_pair(curves.network);
-//     auto network_cert = network_kp->self_sign("CN=Network");
+    auto network_kp = crypto::make_key_pair(curves.network);
+    auto network_cert = network_kp->self_sign("CN=Network");
 
-//     auto ni1 = std::string("N1");
-//     auto channel1_kp = crypto::make_key_pair(curves.node_1);
-//     auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-//     auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr,
-//     {});
+    auto ni1 = std::string("N1");
+    auto channel1_kp = crypto::make_key_pair(curves.node_1);
+    auto channel1_csr = channel1_kp->create_csr("CN=Node1");
+    auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr,
+    {});
 
-//     auto ni2 = std::string("N2");
-//     auto channel2_kp = crypto::make_key_pair(curves.node_2);
-//     auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-//     auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr,
-//     {});
+    auto ni2 = std::string("N2");
+    auto channel2_kp = crypto::make_key_pair(curves.node_2);
+    auto channel2_csr = channel2_kp->create_csr("CN=Node2");
+    auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr,
+    {});
 
-//     size_t message_limit = 32;
+    size_t message_limit = 32;
 
-//     MsgType msg;
-//     msg.fill(0x42);
+    MsgType msg;
+    msg.fill(0x42);
 
-//     INFO("Set up channels");
-//     NodeToNodeChannelManager n2n1(wf1), n2n2(wf2);
+    INFO("Set up channels");
+    NodeToNodeChannelManager n2n1(wf1), n2n2(wf2);
 
-//     n2n1.initialize(ni1, network_cert, channel1_kp, channel1_cert);
-//     n2n1.set_message_limit(message_limit);
-//     n2n2.initialize(ni2, network_cert, channel2_kp, channel2_cert);
-//     n2n1.set_message_limit(message_limit);
+    n2n1.initialize(ni1, network_cert, channel1_kp, channel1_cert);
+    n2n1.set_message_limit(message_limit);
+    n2n2.initialize(ni2, network_cert, channel2_kp, channel2_cert);
+    n2n1.set_message_limit(message_limit);
 
-//     srand(0); // keep it deterministic
+    srand(0); // keep it deterministic
 
-//     INFO("Send/receive a number of messages");
-//     {
-//       size_t desired_rollovers = 5;
-//       size_t actual_rollovers = 0;
+    INFO("Send/receive a number of messages");
+    {
+      size_t desired_rollovers = 5;
+      size_t actual_rollovers = 0;
 
-//       for (size_t i = 0; i < message_limit * desired_rollovers; i++)
-//       {
-//         if (rand() % 2 == 0)
-//         {
-//           n2n1.send_authenticated(
-//             ni2, NodeMsgType::consensus_msg, msg.data(), msg.size());
-//         }
-//         else
-//         {
-//           n2n2.send_authenticated(
-//             ni1, NodeMsgType::consensus_msg, msg.data(), msg.size());
-//         }
+      for (size_t i = 0; i < message_limit * desired_rollovers; i++)
+      {
+        if (rand() % 2 == 0)
+        {
+          n2n1.send_authenticated(
+            ni2, NodeMsgType::consensus_msg, msg.data(), msg.size());
+        }
+        else
+        {
+          n2n2.send_authenticated(
+            ni1, NodeMsgType::consensus_msg, msg.data(), msg.size());
+        }
 
-//         auto msgs = get_all_msgs({&eio1, &eio2});
-//         do
-//         {
-//           for (auto msg : msgs)
-//           {
-//             auto& n2n = (msg.from == ni2) ? n2n1 : n2n2;
+        auto msgs = get_all_msgs({&eio1, &eio2});
+        do
+        {
+          for (auto msg : msgs)
+          {
+            auto& n2n = (msg.from == ni2) ? n2n1 : n2n2;
 
-//             switch (msg.type)
-//             {
-//               case NodeMsgType::channel_msg:
-//               {
-//                 n2n.recv_message(msg.from, msg.data());
+            switch (msg.type)
+            {
+              case NodeMsgType::channel_msg:
+              {
+                n2n.recv_message(msg.from, msg.data());
 
-//                 auto d = msg.data();
-//                 const uint8_t* data = d.data();
-//                 size_t sz = d.size();
-//                 auto type = serialized::read<ChannelMsg>(data, sz);
-//                 if (type == key_exchange_final)
-//                   actual_rollovers++;
-//                 break;
-//               }
-//               case NodeMsgType::consensus_msg:
-//               {
-//                 auto hdr = msg.authenticated_hdr;
-//                 const auto* data = msg.payload.data();
-//                 auto size = msg.payload.size();
+                auto d = msg.data();
+                const uint8_t* data = d.data();
+                size_t sz = d.size();
+                auto type = serialized::read<ChannelMsg>(data, sz);
+                if (type == key_exchange_final)
+                  actual_rollovers++;
+                break;
+              }
+              case NodeMsgType::consensus_msg:
+              {
+                auto hdr = msg.authenticated_hdr;
+                const auto* data = msg.payload.data();
+                auto size = msg.payload.size();
 
-//                 REQUIRE(n2n.recv_authenticated(
-//                   msg.from, {hdr.data(), hdr.size()}, data, size));
-//                 break;
-//               }
-//               default:
-//                 REQUIRE(false);
-//             }
-//           }
+                REQUIRE(n2n.recv_authenticated(
+                  msg.from, {hdr.data(), hdr.size()}, data, size));
+                break;
+              }
+              default:
+                REQUIRE(false);
+            }
+          }
 
-//           msgs = get_all_msgs({&eio1, &eio2});
-//         } while (msgs.size() > 0);
-//       }
+          msgs = get_all_msgs({&eio1, &eio2});
+        } while (msgs.size() > 0);
+      }
 
-//       REQUIRE(actual_rollovers >= desired_rollovers);
-//     }
-//   }
-// }
+      REQUIRE(actual_rollovers >= desired_rollovers);
+    }
+  }
+}
+
+// TODO: Restore interrupted key exchange test
