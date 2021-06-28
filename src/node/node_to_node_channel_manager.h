@@ -102,6 +102,11 @@ namespace ccf
         peer_service);
     }
 
+    ChannelStatus get_status(const NodeId& peer_id)
+    {
+      return get_channel(peer_id)->get_status();
+    }
+
     bool send_authenticated(
       const NodeId& to,
       NodeMsgType type,
@@ -177,7 +182,7 @@ namespace ccf
       return plain.value();
     }
 
-    void recv_message(const NodeId& from, OArray&& msg) override
+    bool recv_message(const NodeId& from, OArray&& msg) override
     {
       CCF_ASSERT_FMT(
         this_node != nullptr,
@@ -197,7 +202,7 @@ namespace ccf
             // In the case of concurrent key_exchange_init's from both nodes,
             // the one with the lower ID wins.
             LOG_DEBUG_FMT("key_exchange_init from {}", from);
-            get_channel(from)->consume_initiator_key_share(
+            return get_channel(from)->consume_initiator_key_share(
               data, size, this_node->node_id < from);
             break;
           }
@@ -205,7 +210,7 @@ namespace ccf
           case key_exchange_response:
           {
             LOG_DEBUG_FMT("key_exchange_response from {}", from);
-            get_channel(from)->consume_responder_key_share(data, size);
+            return get_channel(from)->consume_responder_key_share(data, size);
             break;
           }
 
@@ -217,7 +222,9 @@ namespace ccf
             {
               // TODO: Should handle that internally, not by us here?
               n2n_channel->reset();
+              return false;
             }
+            return true;
             break;
           }
 
@@ -230,7 +237,7 @@ namespace ccf
       catch (const std::exception& e)
       {
         LOG_FAIL_EXC(e.what());
-        return;
+        return false;
       }
     }
   };
