@@ -248,7 +248,7 @@ namespace aft
         use_two_tx_reconfig = true;
       }
 
-      if (use_two_tx_reconfig)
+      if (use_two_tx_reconfig && !public_only_)
       {
         replica_state = kv::ReplicaState::Learner;
       }
