@@ -532,16 +532,14 @@ namespace ccf
             // nodes therefore cache their code digest on startup, and this code
             // attempts to fetch that value when possible and only call the
             // unreliable get_code_id otherwise.
-            auto nodes = args.tx.ro(network.nodes);
-            auto node_info = nodes->get(context.get_node_state().get_node_id());
-            if (node_info.has_value() && node_info->code_digest.has_value())
+            if (node_info.code_digest.has_value())
             {
-              q.mrenclave = node_info->code_digest.value();
+              q.mrenclave = node_info.code_digest.value();
             }
             else
             {
               auto code_id =
-                EnclaveAttestationProvider::get_code_id(node_quote_info);
+                EnclaveAttestationProvider::get_code_id(node_info.quote_info);
               q.mrenclave = ds::to_hex(code_id.data);
             }
 #endif
