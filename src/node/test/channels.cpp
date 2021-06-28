@@ -536,18 +536,10 @@ TEST_CASE("Host connections")
   INFO("Retrieving unknown channel does not create host connection");
   {
     NodeId unknown_peer_id = std::string("unknown_peer");
-    channel_manager.get(unknown_peer_id);
+    channel_manager.get_channel(unknown_peer_id);
     auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
     REQUIRE(add_node_msgs.size() == 0);
     REQUIRE(remove_node_msgs.size() == 0);
-  }
-
-  INFO("Destroying channel closes host connection");
-  {
-    channel_manager.destroy_channel(peer);
-    auto [add_node_msgs, remove_node_msgs] = read_node_msgs(eio1);
-    REQUIRE(add_node_msgs.size() == 0);
-    REQUIRE(remove_node_msgs.size() == 1);
   }
 }
 

@@ -88,10 +88,6 @@ namespace aft
       std::optional<size_t> message_limit = std::nullopt) override
     {}
 
-    void destroy_channel(const ccf::NodeId& peer_id) override {}
-
-    void destroy_all_channels() override {}
-
     bool send_authenticated(
       const ccf::NodeId& to,
       ccf::NodeMsgType msg_type,

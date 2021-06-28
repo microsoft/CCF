@@ -25,41 +25,6 @@ namespace ccf
     std::unique_ptr<ThisNode> this_node; //< Not available at construction, only
                                          // after calling initialize()
 
-    void process_key_exchange_init(
-      const NodeId& from, const uint8_t* data, size_t size)
-    {
-      LOG_DEBUG_FMT("key_exchange_init from {}", from);
-
-      // In the case of concurrent key_exchange_init's from both nodes, the one
-      // with the lower ID wins.
-
-      auto n2n_channel = get(from);
-      if (n2n_channel)
-        n2n_channel->consume_initiator_key_share(
-          data, size, this_node->node_id < from);
-    }
-
-    void process_key_exchange_response(
-      const NodeId& from, const uint8_t* data, size_t size)
-    {
-      LOG_DEBUG_FMT("key_exchange_response from {}", from);
-      auto n2n_channel = get(from);
-      if (n2n_channel)
-        n2n_channel->consume_responder_key_share(data, size);
-    }
-
-    void process_key_exchange_final(
-      const NodeId& from, const uint8_t* data, size_t size)
-    {
-      LOG_DEBUG_FMT("key_exchange_final from {}", from);
-      auto n2n_channel = get(from);
-      if (
-        n2n_channel && !n2n_channel->check_peer_key_share_signature(data, size))
-      {
-        n2n_channel->reset();
-      }
-    }
-
   public:
     NodeToNodeChannelManager(
       ringbuffer::AbstractWriterFactory& writer_factory_) :
@@ -67,7 +32,7 @@ namespace ccf
     {}
 
     // TODO: Feels like this should be private
-    std::shared_ptr<Channel> get(const NodeId& peer_id)
+    std::shared_ptr<Channel> get_channel(const NodeId& peer_id)
     {
       std::lock_guard<std::mutex> guard(lock);
       auto search = channels.find(peer_id);
@@ -114,6 +79,7 @@ namespace ccf
         new ThisNode{self_id, network_cert, node_kp, node_cert});
     }
 
+    // TODO: Abolish this
     void create_channel(
       const NodeId& peer_id,
       const std::string& hostname,
@@ -176,40 +142,6 @@ namespace ccf
       }
     }
 
-    void destroy_channel(const NodeId& peer_id) override
-    {
-      CCF_ASSERT_FMT(
-        this_node != nullptr,
-        "Calling destroy_channel before channel manager is initialized");
-
-      if (peer_id == this_node->node_id)
-      {
-        return;
-      }
-
-      std::lock_guard<std::mutex> guard(lock);
-      auto search = channels.find(peer_id);
-      if (search == channels.end())
-      {
-        LOG_FAIL_FMT(
-          "Cannot destroy node channel with {}: channel does not exist",
-          peer_id);
-        return;
-      }
-
-      search->second = nullptr;
-    }
-
-    void destroy_all_channels() override
-    {
-      CCF_ASSERT_FMT(
-        this_node != nullptr,
-        "Calling destroy_all_channels before channel manager is initialized");
-
-      std::lock_guard<std::mutex> guard(lock);
-      channels.clear();
-    }
-
     bool send_authenticated(
       const NodeId& to,
       NodeMsgType type,
@@ -220,14 +152,13 @@ namespace ccf
         this_node != nullptr,
         "Calling send_authenticated before channel manager is initialized");
 
-      auto n2n_channel = get(to);
-      return n2n_channel->send(type, {data, size});
+      return get_channel(to)->send(type, {data, size});
     }
 
     bool send_encrypted(
       const NodeId& to,
       NodeMsgType type,
-      CBuffer cb,
+      CBuffer header,
       const std::vector<uint8_t>& data) override
     {
       CCF_ASSERT_FMT(
@@ -235,13 +166,12 @@ namespace ccf
         "Calling send_encrypted (to {}) before channel manager is initialized",
         to);
 
-      auto n2n_channel = get(to);
-      return n2n_channel ? n2n_channel->send(type, cb, data) : true;
+      return get_channel(to)->send(type, header, data);
     }
 
     bool recv_authenticated(
       const NodeId& from,
-      CBuffer cb,
+      CBuffer header,
       const uint8_t*& data,
       size_t& size) override
     {
@@ -251,10 +181,7 @@ namespace ccf
         "initialized",
         from);
 
-      auto n2n_channel = get(from);
-      // Receiving after a channel has been destroyed is ok.
-      return n2n_channel ? n2n_channel->recv_authenticated(cb, data, size) :
-                           true;
+      return get_channel(from)->recv_authenticated(header, data, size);
     }
 
     bool recv_authenticated_with_load(
@@ -263,18 +190,17 @@ namespace ccf
       CCF_ASSERT_FMT(
         this_node != nullptr,
         "Calling recv_authenticated_with_load (from {}) before channel manager "
-        "is "
-        "initialized",
+        "is initialized",
         from);
 
-      auto n2n_channel = get(from);
-      return n2n_channel ?
-        n2n_channel->recv_authenticated_with_load(data, size) :
-        true;
+      return get_channel(from)->recv_authenticated_with_load(data, size);
     }
 
     std::vector<uint8_t> recv_encrypted(
-      const NodeId& from, CBuffer cb, const uint8_t* data, size_t size) override
+      const NodeId& from,
+      CBuffer header,
+      const uint8_t* data,
+      size_t size) override
     {
       CCF_ASSERT_FMT(
         this_node != nullptr,
@@ -282,12 +208,7 @@ namespace ccf
         "initialized",
         from);
 
-      auto n2n_channel = get(from);
-
-      if (!n2n_channel)
-        return {};
-
-      auto plain = n2n_channel->recv_encrypted(cb, data, size);
+      auto plain = get_channel(from)->recv_encrypted(header, data, size);
       if (!plain.has_value())
       {
         throw DroppedMessageException(from);
@@ -296,7 +217,7 @@ namespace ccf
       return plain.value();
     }
 
-    void recv_message(const NodeId& from, OArray&& oa) override
+    void recv_message(const NodeId& from, OArray&& msg) override
     {
       CCF_ASSERT_FMT(
         this_node != nullptr,
@@ -306,26 +227,37 @@ namespace ccf
 
       try
       {
-        const uint8_t* data = oa.data();
-        size_t size = oa.size();
+        const uint8_t* data = msg.data();
+        size_t size = msg.size();
         auto chmsg = serialized::read<ChannelMsg>(data, size);
         switch (chmsg)
         {
           case key_exchange_init:
           {
-            process_key_exchange_init(from, data, size);
+            // In the case of concurrent key_exchange_init's from both nodes,
+            // the one with the lower ID wins.
+            LOG_DEBUG_FMT("key_exchange_init from {}", from);
+            get_channel(from)->consume_initiator_key_share(
+              data, size, this_node->node_id < from);
             break;
           }
 
           case key_exchange_response:
           {
-            process_key_exchange_response(from, data, size);
+            LOG_DEBUG_FMT("key_exchange_response from {}", from);
+            get_channel(from)->consume_responder_key_share(data, size);
             break;
           }
 
           case key_exchange_final:
           {
-            process_key_exchange_final(from, data, size);
+            LOG_DEBUG_FMT("key_exchange_final from {}", from);
+            auto n2n_channel = get_channel(from);
+            if (!n2n_channel->check_peer_key_share_signature(data, size))
+            {
+              // TODO: Should handle that internally, not by us here?
+              n2n_channel->reset();
+            }
             break;
           }
 

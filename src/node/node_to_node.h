@@ -25,15 +25,17 @@ namespace ccf
       DroppedMessageException(const NodeId& from) : from(from) {}
     };
 
+    virtual void initialize(
+      const NodeId& self_id,
+      const crypto::Pem& network_cert,
+      crypto::KeyPairPtr node_kp,
+      const crypto::Pem& node_cert) = 0;
+
     virtual void create_channel(
       const NodeId& peer_id,
       const std::string& peer_hostname,
       const std::string& peer_service,
       std::optional<size_t> message_limit = std::nullopt) = 0;
-
-    virtual void destroy_channel(const NodeId& peer_id) = 0;
-
-    virtual void destroy_all_channels() = 0;
 
     template <class T>
     bool send_authenticated(const NodeId& to, NodeMsgType type, const T& data)
@@ -88,20 +90,14 @@ namespace ccf
       const NodeId& from, const uint8_t*& data, size_t& size) = 0;
 
     virtual bool recv_authenticated(
-      const NodeId& from, CBuffer cb, const uint8_t*& data, size_t& size) = 0;
+      const NodeId& from, CBuffer header, const uint8_t*& data, size_t& size) = 0;
 
-    virtual void recv_message(const NodeId& from, OArray&& oa) = 0;
-
-    virtual void initialize(
-      const NodeId& self_id,
-      const crypto::Pem& network_cert,
-      crypto::KeyPairPtr node_kp,
-      const crypto::Pem& node_cert) = 0;
+    virtual void recv_message(const NodeId& from, OArray&& msg) = 0;
 
     virtual bool send_encrypted(
       const NodeId& to,
       NodeMsgType type,
-      CBuffer cb,
+      CBuffer header,
       const std::vector<uint8_t>& data) = 0;
 
     template <class T>
@@ -125,6 +121,6 @@ namespace ccf
     }
 
     virtual std::vector<uint8_t> recv_encrypted(
-      const NodeId& from, CBuffer cb, const uint8_t* data, size_t size) = 0;
+      const NodeId& from, CBuffer header, const uint8_t* data, size_t size) = 0;
   };
 }
