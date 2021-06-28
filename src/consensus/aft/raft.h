@@ -892,7 +892,7 @@ namespace aft
           if (
             aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
               view_change_tracker->add_request_view_change(
-                *vc, id(), new_view, configurations.back().nodes) &&
+                *vc, id(), new_view, get_last_configuration_nodes()) &&
             get_primary(new_view) == id())
           {
             // We need to reobtain the lock when writing to the ledger so we
@@ -980,7 +980,7 @@ namespace aft
       if (
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
           view_change_tracker->add_request_view_change(
-            v, from, r.view, configurations.back().nodes) &&
+            v, from, r.view, get_last_configuration_nodes()) &&
         get_primary(r.view) == id())
       {
         append_new_view(r.view);
@@ -1017,7 +1017,7 @@ namespace aft
         return;
       }
       if (!view_change_tracker->add_unknown_primary_evidence(
-            {data, size}, r.view, from, configurations.back().nodes))
+            {data, size}, r.view, from, get_last_configuration_nodes()))
       {
         LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
         return;
@@ -2045,6 +2045,10 @@ namespace aft
         {state->current_view, state->last_idx}, hashed_nonce);
       if (!hashed_nonce.has_value())
       {
+        LOG_TRACE_FMT(
+          "Nonce for view:{}, seqno:{} does not exist",
+          state->current_view,
+          state->last_idx);
         return;
       }
       r.hashed_nonce = hashed_nonce.value();
@@ -2057,7 +2061,7 @@ namespace aft
         r.signature_size,
         r.sig,
         r.hashed_nonce,
-        configurations.back().nodes,
+        get_last_configuration_nodes(),
         is_primary());
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
@@ -2094,7 +2098,7 @@ namespace aft
         r.signature_size,
         r.sig,
         r.hashed_nonce,
-        configurations.back().nodes,
+        get_last_configuration_nodes(),
         is_primary());
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
@@ -2126,7 +2130,7 @@ namespace aft
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
           auto result = progress_tracker->add_signature_ack(
-            tx_id, state->my_node_id, &configurations.back().nodes);
+            tx_id, state->my_node_id, get_last_configuration_nodes());
           try_send_reply_and_nonce(tx_id, result);
           break;
         }
@@ -2160,7 +2164,7 @@ namespace aft
         r.idx);
 
       auto result = progress_tracker->add_signature_ack(
-        {r.term, r.idx}, from, &configurations.back().nodes);
+        {r.term, r.idx}, from, get_last_configuration_nodes());
       try_send_reply_and_nonce({r.term, r.idx}, result);
     }
 
@@ -2200,7 +2204,7 @@ namespace aft
             tx_id,
             nonce.value(),
             state->my_node_id,
-            configurations.back().nodes,
+            get_last_configuration_nodes(),
             is_primary());
           break;
         }
@@ -2235,7 +2239,7 @@ namespace aft
         {r.term, r.idx},
         r.nonce,
         from,
-        configurations.back().nodes,
+        get_last_configuration_nodes(),
         is_primary());
 
       update_commit();
@@ -2834,6 +2838,15 @@ namespace aft
       {
         return state->cft_watermark_idx;
       }
+    }
+
+    const Configuration::Nodes& get_last_configuration_nodes()
+    {
+      if (configurations.empty())
+      {
+        throw std::logic_error("Configurations is empty");
+      }
+      return configurations.back().nodes;
     }
 
     void rollback(Index idx)

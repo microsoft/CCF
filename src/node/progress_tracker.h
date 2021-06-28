@@ -37,7 +37,7 @@ namespace ccf
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce hashed_nonce,
-      kv::Configuration::Nodes& config,
+      const kv::Configuration::Nodes& config,
       bool is_primary)
     {
       std::unique_lock<std::mutex> guard(lock);
@@ -52,7 +52,7 @@ namespace ccf
       crypto::Sha256Hash& root,
       std::vector<uint8_t>& sig,
       Nonce hashed_nonce,
-      kv::Configuration::Nodes* config = nullptr)
+      const kv::Configuration::Nodes& config = {})
     {
       std::unique_lock<std::mutex> guard(lock);
       auto n = entropy->random(hashed_nonce.h.size());
@@ -144,9 +144,7 @@ namespace ccf
         throw ccf::ccf_logic_error("We have proof someone is being dishonest");
       }
 
-      if (
-        config != nullptr && config->size() > 0 &&
-        can_send_sig_ack(cert, tx_id, *config))
+      if (!config.empty() && can_send_sig_ack(cert, tx_id, config))
       {
         return !is_public_only ? kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK :
                                  kv::TxHistory::Result::OK;
@@ -183,7 +181,7 @@ namespace ccf
     }
 
     kv::TxHistory::Result receive_backup_signatures(
-      ccf::TxID& tx_id, kv::Configuration::Nodes& config, bool is_primary)
+      ccf::TxID& tx_id, const kv::Configuration::Nodes& config, bool is_primary)
     {
       std::unique_lock<std::mutex> guard(lock);
       std::optional<ccf::BackupSignatures> sigs =
@@ -329,7 +327,7 @@ namespace ccf
     kv::TxHistory::Result add_signature_ack(
       ccf::TxID tx_id,
       const NodeId& node_id,
-      kv::Configuration::Nodes* config = nullptr)
+      const kv::Configuration::Nodes& config = {})
     {
       std::unique_lock<std::mutex> guard(lock);
       auto it = certificates.find(tx_id);
@@ -352,7 +350,7 @@ namespace ccf
       auto& cert = it->second;
       cert.sig_acks.insert(node_id);
 
-      if (can_send_reply_and_nonce(cert, *config))
+      if (can_send_reply_and_nonce(cert, config))
       {
         return !is_public_only ? kv::TxHistory::Result::SEND_REPLY_AND_NONCE :
                                  kv::TxHistory::Result::OK;
@@ -364,7 +362,7 @@ namespace ccf
       ccf::TxID tx_id,
       Nonce nonce,
       const NodeId& node_id,
-      kv::Configuration::Nodes& config,
+      const kv::Configuration::Nodes& config,
       bool is_primary)
     {
       std::unique_lock<std::mutex> guard(lock);
@@ -446,6 +444,7 @@ namespace ccf
       try_update_watermark(cert, tx_id.seqno, is_primary);
     }
 
+    // Returns a null optional value if there is no nonce exists for the TxID
     std::optional<crypto::Sha256Hash> get_node_hashed_nonce(ccf::TxID tx_id)
     {
       std::unique_lock<std::mutex> guard(lock);
@@ -583,7 +582,8 @@ namespace ccf
                                    ApplyViewChangeMessageResult::FAIL;
     }
 
-    bool apply_new_view(kv::Configuration::Nodes& config, ccf::View& view_)
+    bool apply_new_view(
+      const kv::Configuration::Nodes& config, ccf::View& view_)
     {
       std::unique_lock<std::mutex> guard(lock);
       auto new_view = store->get_new_view();
@@ -591,10 +591,10 @@ namespace ccf
       ccf::View view = new_view->view;
       ccf::NodeId from = new_view->primary_id;
 
-      uint32_t node_count =
-        get_message_intersection_count(new_view->view_change_messages, config);
+      uint32_t endorsements =
+        count_endorsements_in_config(new_view->view_change_messages, config);
 
-      if (node_count < ccf::get_message_threshold(config.size()))
+      if (endorsements < ccf::get_endorsement_threshold(config.size()))
       {
         LOG_FAIL_FMT(
           "Not enough ViewChangeRequests from:{}, new_view view:{}, "
@@ -708,19 +708,8 @@ namespace ccf
     ccf::SeqNo highest_commit_level = 0;
     ccf::TxID highest_prepared_level = {0, 0};
 
-    struct CommitCertCmp
-    {
-      bool operator()(const ccf::TxID& lhs, const ccf::TxID& rhs) const
-      {
-        if (lhs.view == rhs.view)
-        {
-          return lhs.seqno < rhs.seqno;
-        }
-        return lhs.view < rhs.view;
-      }
-    };
-
-    std::map<ccf::TxID, CommitCert, CommitCertCmp> certificates;
+    std::unordered_map<ccf::TxID, CommitCert, ccf::TxID::TxIDHasher>
+      certificates;
     bool is_public_only;
     mutable std::mutex lock;
 
@@ -730,7 +719,7 @@ namespace ccf
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce hashed_nonce,
-      kv::Configuration::Nodes& config,
+      const kv::Configuration::Nodes& config,
       bool is_primary)
     {
       LOG_TRACE_FMT(
@@ -791,10 +780,7 @@ namespace ccf
       CCF_ASSERT(
         node_id != id ||
           (get_node_hashed_nonce_internal(tx_id).has_value() &&
-           std::equal(
-             hashed_nonce.h.begin(),
-             hashed_nonce.h.end(),
-             get_node_hashed_nonce_internal(tx_id)->h.begin())),
+           hashed_nonce == get_node_hashed_nonce_internal(tx_id)),
         "hashed_nonce does not match the local node's nonce");
 
       BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce);
@@ -902,13 +888,13 @@ namespace ccf
     bool can_send_sig_ack(
       CommitCert& cert,
       const ccf::TxID& tx_id,
-      kv::Configuration::Nodes& config)
+      const kv::Configuration::Nodes& config)
     {
-      uint32_t node_count = get_message_intersection_count(cert.sigs, config);
+      uint32_t endorsements = count_endorsements_in_config(cert.sigs, config);
 
       if (
-        node_count >= get_message_threshold(config.size()) && !cert.ack_sent &&
-        cert.have_primary_signature)
+        endorsements >= get_endorsement_threshold(config.size()) &&
+        !cert.ack_sent && cert.have_primary_signature)
       {
         if (tx_id.seqno > highest_prepared_level.seqno)
         {
@@ -931,13 +917,13 @@ namespace ccf
     }
 
     bool can_send_reply_and_nonce(
-      CommitCert& cert, kv::Configuration::Nodes& config)
+      CommitCert& cert, const kv::Configuration::Nodes& config)
     {
-      uint32_t node_count =
-        get_message_intersection_count(cert.sig_acks, config);
+      uint32_t endorsements =
+        count_endorsements_in_config(cert.sig_acks, config);
 
       if (
-        node_count >= get_message_threshold(config.size()) &&
+        endorsements >= get_endorsement_threshold(config.size()) &&
         !cert.reply_and_nonce_sent && cert.ack_sent)
       {
         cert.reply_and_nonce_sent = true;
@@ -973,13 +959,13 @@ namespace ccf
     }
 
     bool should_append_nonces_to_ledger(
-      CommitCert& cert, kv::Configuration::Nodes& config, bool is_primary)
+      CommitCert& cert, const kv::Configuration::Nodes& config, bool is_primary)
     {
-      uint32_t node_count =
-        get_message_intersection_count(cert.nonce_set, config);
+      uint32_t endorsements =
+        count_endorsements_in_config(cert.nonce_set, config);
 
       if (
-        node_count >= get_message_threshold(config.size()) &&
+        endorsements >= get_endorsement_threshold(config.size()) &&
         cert.reply_and_nonce_sent && cert.ack_sent &&
         !cert.nonces_committed_to_ledger)
       {

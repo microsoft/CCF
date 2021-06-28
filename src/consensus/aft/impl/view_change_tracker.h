@@ -86,7 +86,7 @@ namespace aft
       ccf::ViewChangeRequest& v,
       const ccf::NodeId& from,
       ccf::View view,
-      kv::Configuration::Nodes& config)
+      const kv::Configuration::Nodes& config)
     {
       auto it = view_changes.find(view);
       if (it == view_changes.end())
@@ -97,11 +97,11 @@ namespace aft
       }
       it->second.received_view_changes.emplace(from, v);
 
-      uint32_t node_count = get_message_intersection_count(
-        it->second.received_view_changes, config);
+      uint32_t endorsements =
+        count_endorsements_in_config(it->second.received_view_changes, config);
 
       if (
-        node_count == ccf::get_message_threshold(config.size()) &&
+        endorsements == ccf::get_endorsement_threshold(config.size()) &&
         it->second.new_view_sent == false)
       {
         it->second.new_view_sent = true;
@@ -135,7 +135,7 @@ namespace aft
       CBuffer data,
       ccf::View view,
       const ccf::NodeId& from,
-      kv::Configuration::Nodes& config)
+      const kv::Configuration::Nodes& config)
     {
       nlohmann::json j = nlohmann::json::parse(data.p);
       auto vc = j.get<ccf::ViewChangeConfirmation>();
@@ -163,18 +163,18 @@ namespace aft
         return false;
       }
 
-      uint32_t node_count =
-        get_message_intersection_count(vc.view_change_messages, config);
+      uint32_t endorsements =
+        count_endorsements_in_config(vc.view_change_messages, config);
 
       if (
         vc.view_change_messages.size() <
-        ccf::get_message_threshold(config.size()))
+        ccf::get_endorsement_threshold(config.size()))
       {
         LOG_INFO_FMT(
           "Add unknown evidence - not enough evidence, need:{}, have:{}, "
           "from:{}",
-          node_count,
-          ccf::get_message_threshold(config.size()),
+          endorsements,
+          ccf::get_endorsement_threshold(config.size()),
           from);
         return false;
       }

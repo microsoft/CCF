@@ -82,6 +82,23 @@ namespace ccf
 
       return tx_id;
     }
+
+    bool operator==(const TxID& other) const
+    {
+      return view == other.view && seqno == other.seqno;
+    }
+
+    struct TxIDHasher
+    {
+      std::size_t operator()(const ccf::TxID& t) const
+      {
+        size_t n = 0x444e414c544f4353;
+        std::hash<uint64_t> h{};
+        ds::hashutils::hash_combine(n, t.view, h);
+        ds::hashutils::hash_combine(n, t.seqno, h);
+        return n;
+      }
+    };
   };
 
   // ADL-found functions used during JSON conversion and OpenAPI/JSON schema

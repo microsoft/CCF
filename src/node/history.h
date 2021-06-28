@@ -672,7 +672,7 @@ namespace ccf
         sig.root,
         sig.sig,
         sig.hashed_nonce,
-        &config);
+        config);
 
       sig.node = id;
       sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());

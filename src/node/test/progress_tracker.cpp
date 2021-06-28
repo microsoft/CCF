@@ -87,7 +87,7 @@ void ordered_execution(
       root,
       primary_sig,
       hashed_nonce,
-      &nodes);
+      nodes);
     REQUIRE(result == kv::TxHistory::Result::OK);
     primary_sig = {1};
     result = pt->record_primary_signature({view, seqno}, primary_sig);
@@ -127,7 +127,7 @@ void ordered_execution(
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto result = pt->add_signature_ack({view, seqno}, node_id, &nodes);
+      auto result = pt->add_signature_ack({view, seqno}, node_id, nodes);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
          (result == kv::TxHistory::Result::SEND_REPLY_AND_NONCE &&
@@ -454,7 +454,7 @@ TEST_CASE("View Changes")
       root,
       primary_sig,
       hashed_nonce,
-      &nodes);
+      nodes);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     size_t i = 1;
@@ -506,7 +506,7 @@ TEST_CASE("View Changes")
       root,
       primary_sig,
       hashed_nonce,
-      &nodes);
+      nodes);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     size_t i = 1;
@@ -559,7 +559,7 @@ TEST_CASE("View Changes")
       root,
       primary_sig,
       hashed_nonce,
-      &nodes);
+      nodes);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     size_t i = 1;
