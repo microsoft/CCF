@@ -976,10 +976,7 @@ namespace aft
       }
       else if (consensus_type != ConsensusType::BFT)
       {
-        if (
-          replica_state != kv::ReplicaState::Retired &&
-          replica_state != kv::ReplicaState::Learner &&
-          timeout_elapsed >= election_timeout)
+        if (takes_part_in_election() && timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -2670,6 +2667,17 @@ namespace aft
       }
     }
 
+    bool takes_part_in_replication()
+    {
+      return replica_state != kv::ReplicaState::Retired;
+    }
+
+    bool takes_part_in_election()
+    {
+      return replica_state != kv::ReplicaState::Retired &&
+        replica_state != kv::ReplicaState::Learner;
+    }
+
     // Called when a replica becomes aware of the existence of a new term
     // If retired already, state remains unchanged, but the replica otherwise
     // becomes a follower in the new term.
@@ -2696,9 +2704,7 @@ namespace aft
 
       is_new_follower = true;
 
-      if (
-        replica_state != kv::ReplicaState::Retired &&
-        replica_state != kv::ReplicaState::Learner)
+      if (takes_part_in_election())
       {
         replica_state = kv::ReplicaState::Follower;
         LOG_INFO_FMT(

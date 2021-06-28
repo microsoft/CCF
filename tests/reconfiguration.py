@@ -381,7 +381,7 @@ def run(args):
 
         test_version(network, args)
 
-        if args.consensus == "cft":
+        if args.consensus != "bft":
             test_join_straddling_primary_replacement(network, args)
             test_node_replacement(network, args)
             test_add_node_from_backup(network, args)
@@ -405,10 +405,8 @@ def run(args):
 
             test_node_filter(network, args)
             test_retiring_nodes_emit_at_most_one_signature(network, args)
-        elif args.consensus == "bft":
-            test_learner_catches_up(network, args)
         else:
-            raise Exception("Unknown consensus protocol")
+            test_learner_catches_up(network, args)
 
 
 def run_join_old_snapshot(args):
