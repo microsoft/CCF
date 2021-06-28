@@ -953,7 +953,7 @@ namespace ccf
             }
           }
           CCF_ASSERT(
-            !certificates.empty(), "Should never deleted all certificates");
+            !certificates.empty(), "Should never delete all certificates");
         }
       }
     }

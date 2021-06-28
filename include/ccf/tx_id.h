@@ -92,11 +92,8 @@ namespace ccf
     {
       std::size_t operator()(const ccf::TxID& t) const
       {
-        size_t n = 0x444e414c544f4353;
-        std::hash<uint64_t> h{};
-        ds::hashutils::hash_combine(n, t.view, h);
-        ds::hashutils::hash_combine(n, t.seqno, h);
-        return n;
+        return ds::hashutils::hash_container<std::vector<uint64_t>>(
+          {t.view, t.seqno});
       }
     };
   };
