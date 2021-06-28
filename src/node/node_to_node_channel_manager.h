@@ -38,7 +38,13 @@ namespace ccf
     // TODO: Feels like this should be private
     std::shared_ptr<Channel> get_channel(const NodeId& peer_id)
     {
+      CCF_ASSERT_FMT(
+        this_node == nullptr || this_node->node_id != peer_id,
+        "Requested channel with self {}",
+        peer_id);
+
       std::lock_guard<std::mutex> guard(lock);
+
       auto search = channels.find(peer_id);
       if (search != channels.end())
       {
@@ -102,7 +108,7 @@ namespace ccf
         peer_service);
     }
 
-    void close_channel(const NodeId& peer_id) override 
+    void close_channel(const NodeId& peer_id) override
     {
       get_channel(peer_id)->reset();
     }
