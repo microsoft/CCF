@@ -102,6 +102,11 @@ namespace ccf
         peer_service);
     }
 
+    void close_channel(const NodeId& peer_id) override 
+    {
+      get_channel(peer_id)->reset();
+    }
+
     ChannelStatus get_status(const NodeId& peer_id)
     {
       return get_channel(peer_id)->get_status();

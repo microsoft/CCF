@@ -36,6 +36,8 @@ namespace ccf
       const std::string& peer_hostname,
       const std::string& peer_service) = 0;
 
+    virtual void close_channel(const NodeId& peer_id) = 0;
+
     template <class T>
     bool send_authenticated(const NodeId& to, NodeMsgType type, const T& data)
     {

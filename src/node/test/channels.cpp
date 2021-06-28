@@ -256,7 +256,8 @@ TEST_CASE("Client/Server key exchange")
     auto payload = queued_msg.payload;
     const auto* data = payload.data();
     auto size = payload.size();
-    channels2.recv_authenticated(nid1, {hdr.begin(), hdr.size()}, data, size);
+    REQUIRE(channels2.recv_authenticated(
+      nid1, {hdr.begin(), hdr.size()}, data, size));
   }
 
   INFO("Protect integrity of message (peer1 -> peer2)");
@@ -359,145 +360,178 @@ TEST_CASE("Client/Server key exchange")
   }
 }
 
-// TEST_CASE("Replay and out-of-order")
-// {
-//   auto network_kp = crypto::make_key_pair(default_curve);
-//   auto network_cert = network_kp->self_sign("CN=Network");
+TEST_CASE("Replay and out-of-order")
+{
+  auto network_kp = crypto::make_key_pair(default_curve);
+  auto network_cert = network_kp->self_sign("CN=Network");
 
-//   auto channel1_kp = crypto::make_key_pair(default_curve);
-//   auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-//   auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+  auto channel1_kp = crypto::make_key_pair(default_curve);
+  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
+  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
 
-//   auto channel2_kp = crypto::make_key_pair(default_curve);
-//   auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-//   auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+  auto channel2_kp = crypto::make_key_pair(default_curve);
+  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
+  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
 
-//   auto channel1 =
-//     Channel(wf1, network_cert, channel1_kp, channel1_cert, nid1, peer);
-//   auto channel2 =
-//     Channel(wf2, network_cert, channel2_kp, channel2_cert, peer, nid1);
+  auto channels1 = NodeToNodeChannelManager(wf1);
+  channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
+  auto channels2 = NodeToNodeChannelManager(wf2);
+  channels2.initialize(nid2, network_cert, channel2_kp, channel2_cert);
 
-//   MsgType msg;
-//   msg.fill(0x42);
+  MsgType msg;
+  msg.fill(0x42);
 
-//   INFO("Establish channels");
-//   {
-//     channel1.initiate();
+  INFO("Establish channels");
+  {
+    channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-//     auto msgs = read_outbound_msgs<MsgType>(eio1);
-//     REQUIRE(msgs.size() == 1);
-//     REQUIRE(msgs[0].type == channel_msg);
-//     auto channel1_signed_key_share = msgs[0].unauthenticated_data();
+    auto msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs[0].type == channel_msg);
+    auto channel1_signed_key_share = msgs[0].data();
 
-//     REQUIRE(channel2.consume_initiator_key_share(channel1_signed_key_share));
+    REQUIRE(channels2.recv_message(nid1, std::move(channel1_signed_key_share)));
 
-//     msgs = read_outbound_msgs<MsgType>(eio2);
-//     REQUIRE(msgs.size() == 1);
-//     REQUIRE(msgs[0].type == channel_msg);
-//     auto channel2_signed_key_share = msgs[0].unauthenticated_data();
-//     REQUIRE(channel1.consume_responder_key_share(channel2_signed_key_share));
+    msgs = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs[0].type == channel_msg);
+    auto channel2_signed_key_share = msgs[0].data();
+    REQUIRE(channels1.recv_message(nid2, std::move(channel2_signed_key_share)));
 
-//     msgs = read_outbound_msgs<MsgType>(eio1);
-//     REQUIRE(msgs.size() == 1);
-//     REQUIRE(msgs[0].type == channel_msg);
-//     auto initiator_signature = msgs[0].unauthenticated_data();
+    msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(msgs.size() == 2);
+    REQUIRE(msgs[0].type == channel_msg);
+    auto initiator_signature = msgs[0].data();
 
-//     REQUIRE(channel2.check_peer_key_share_signature(initiator_signature));
-//     REQUIRE(channel1.get_status() == ESTABLISHED);
-//     REQUIRE(channel2.get_status() == ESTABLISHED);
-//   }
+    REQUIRE(channels2.recv_message(nid1, std::move(initiator_signature)));
+    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
+    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
 
-//   NodeOutboundMsg<MsgType> first_msg, first_msg_copy;
+    REQUIRE(msgs[1].type == consensus_msg);
 
-//   INFO("Replay same message");
-//   {
-//     REQUIRE(
-//       channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
-//     auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
-//     REQUIRE(outbound_msgs.size() == 1);
-//     first_msg = outbound_msgs[0];
-//     REQUIRE(first_msg.from == nid1);
-//     REQUIRE(first_msg.to == nid2);
-//     auto msg_copy = first_msg;
-//     first_msg_copy = first_msg;
-//     const auto* data_ = first_msg.payload.data();
-//     auto size_ = first_msg.payload.size();
-//     REQUIRE(first_msg.type == NodeMsgType::consensus_msg);
+    const auto* payload_data = msgs[1].payload.data();
+    auto payload_size = msgs[1].payload.size();
+    REQUIRE(channels2.recv_authenticated(
+      nid1,
+      {msgs[1].authenticated_hdr.data(), msgs[1].authenticated_hdr.size()},
+      payload_data,
+      payload_size));
+  }
 
-//     REQUIRE(channel2.recv_authenticated(
-//       {first_msg.authenticated_hdr.begin(),
-//       first_msg.authenticated_hdr.size()}, data_, size_));
+  NodeOutboundMsg<MsgType> first_msg, first_msg_copy;
 
-//     // Replay
-//     data_ = msg_copy.payload.data();
-//     size_ = msg_copy.payload.size();
-//     REQUIRE_FALSE(channel2.recv_authenticated(
-//       {msg_copy.authenticated_hdr.begin(),
-//       msg_copy.authenticated_hdr.size()}, data_, size_));
-//   }
+  INFO("Replay same message");
+  {
+    REQUIRE(channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound_msgs.size() == 1);
+    first_msg = outbound_msgs[0];
+    REQUIRE(first_msg.from == nid1);
+    REQUIRE(first_msg.to == nid2);
+    auto msg_copy = first_msg;
+    first_msg_copy = first_msg;
+    const auto* data_ = first_msg.payload.data();
+    auto size_ = first_msg.payload.size();
+    REQUIRE(first_msg.type == NodeMsgType::consensus_msg);
 
-//   INFO("Issue more messages and replay old one");
-//   {
-//     REQUIRE(
-//       channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
-//     REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 1);
+    REQUIRE(channels2.recv_authenticated(
+      nid1,
+      {first_msg.authenticated_hdr.begin(), first_msg.authenticated_hdr.size()},
+      data_,
+      size_));
 
-//     REQUIRE(
-//       channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
-//     REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 1);
+    // Replay
+    data_ = msg_copy.payload.data();
+    size_ = msg_copy.payload.size();
+    REQUIRE_FALSE(channels2.recv_authenticated(
+      nid1,
+      {msg_copy.authenticated_hdr.begin(), msg_copy.authenticated_hdr.size()},
+      data_,
+      size_));
+  }
 
-//     REQUIRE(
-//       channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
-//     auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
-//     REQUIRE(outbound_msgs.size() == 1);
-//     auto msg_ = outbound_msgs[0];
-//     const auto* data_ = msg_.payload.data();
-//     auto size_ = msg_.payload.size();
-//     REQUIRE(msg_.type == NodeMsgType::consensus_msg);
+  INFO("Issue more messages and replay old one");
+  {
+    REQUIRE(channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
+    REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 1);
 
-//     REQUIRE(channel2.recv_authenticated(
-//       {msg_.authenticated_hdr.begin(), msg_.authenticated_hdr.size()},
-//       data_,
-//       size_));
+    REQUIRE(channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
+    REQUIRE(read_outbound_msgs<MsgType>(eio1).size() == 1);
 
-//     const auto* first_msg_data_ = first_msg_copy.payload.data();
-//     auto first_msg_size_ = first_msg_copy.payload.size();
-//     REQUIRE_FALSE(channel2.recv_authenticated(
-//       {first_msg_copy.authenticated_hdr.begin(),
-//        first_msg_copy.authenticated_hdr.size()},
-//       first_msg_data_,
-//       first_msg_size_));
-//   }
+    REQUIRE(channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
+    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound_msgs.size() == 1);
+    auto msg_ = outbound_msgs[0];
+    const auto* data_ = msg_.payload.data();
+    auto size_ = msg_.payload.size();
+    REQUIRE(msg_.type == NodeMsgType::consensus_msg);
 
-//   INFO("Trigger new key exchange");
-//   {
-//     auto n = read_outbound_msgs<MsgType>(eio1).size() +
-//       read_outbound_msgs<MsgType>(eio2).size();
-//     REQUIRE(n == 0);
+    REQUIRE(channels2.recv_authenticated(
+      nid1,
+      {msg_.authenticated_hdr.begin(), msg_.authenticated_hdr.size()},
+      data_,
+      size_));
 
-//     channel1.initiate();
-//     REQUIRE(channel1.get_status() == ESTABLISHED);
-//     REQUIRE(channel2.get_status() == ESTABLISHED);
+    const auto* first_msg_data_ = first_msg_copy.payload.data();
+    auto first_msg_size_ = first_msg_copy.payload.size();
+    REQUIRE_FALSE(channels2.recv_authenticated(
+      nid1,
+      {first_msg_copy.authenticated_hdr.begin(),
+       first_msg_copy.authenticated_hdr.size()},
+      first_msg_data_,
+      first_msg_size_));
+  }
 
-//     auto fst = get_first(eio1, NodeMsgType::channel_msg);
-//     REQUIRE(
-//       channel2.consume_initiator_key_share(fst.unauthenticated_data(),
-//       true));
-//     REQUIRE(channel2.get_status() == ESTABLISHED);
-//     fst = get_first(eio2, NodeMsgType::channel_msg);
-//     REQUIRE(channel1.consume_responder_key_share(fst.unauthenticated_data()));
-//     auto msgs = read_outbound_msgs<MsgType>(eio1);
-//     REQUIRE(msgs.size() == 1);
-//     REQUIRE(
-//       channel2.check_peer_key_share_signature(msgs[0].unauthenticated_data()));
-//     REQUIRE(channel1.get_status() == ESTABLISHED);
-//     REQUIRE(channel2.get_status() == ESTABLISHED);
+  INFO("Trigger new key exchange");
+  {
+    auto n = read_outbound_msgs<MsgType>(eio1).size() +
+      read_outbound_msgs<MsgType>(eio2).size();
+    REQUIRE(n == 0);
 
-//     REQUIRE(
-//       channel1.send(NodeMsgType::consensus_msg, {msg.begin(), msg.size()}));
-//     fst = get_first(eio1, NodeMsgType::consensus_msg);
-//   }
-// }
+    channels1.close_channel(nid2);
+    REQUIRE(channels1.get_status(nid2) == INACTIVE);
+    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+
+    channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
+    REQUIRE(channels1.get_status(nid2) == INITIATED);
+    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+
+    REQUIRE(channels2.recv_message(
+      nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
+    REQUIRE(channels1.get_status(nid2) == INITIATED);
+    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+
+    REQUIRE(channels1.recv_message(
+      nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
+    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
+    REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+
+    auto messages_1to2 = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(messages_1to2.size() == 2);
+    REQUIRE(messages_1to2[0].type == NodeMsgType::channel_msg);
+    REQUIRE(channels2.recv_message(
+      nid1, messages_1to2[0].data()));
+    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
+    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+
+    REQUIRE(messages_1to2[1].type == NodeMsgType::consensus_msg);
+    auto final_msg = messages_1to2[1];
+    const auto* payload_data = final_msg.payload.data();
+    auto payload_size = final_msg.payload.size();
+
+    REQUIRE(channels2.recv_authenticated(
+      nid1,
+      {final_msg.authenticated_hdr.data(), final_msg.authenticated_hdr.size()},
+      payload_data,
+      payload_size));
+  }
+}
 
 // TEST_CASE("Host connections")
 // {
