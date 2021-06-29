@@ -199,6 +199,90 @@ namespace ccf
       return ret;
     }
 
+    void send_key_exchange_init()
+    {
+      to_host->write(
+        node_outbound,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        ChannelMsg::key_exchange_init,
+        initiation_attempt_nonce, // TODO: Integrity protect
+        get_signed_key_share(true));
+
+      LOG_TRACE_FMT(
+        "key_exchange_init -> {} node serial: {}",
+        peer_id,
+        make_verifier(node_cert)->serial_number());
+    }
+
+    void send_key_exchange_response()
+    {
+      auto oks = kex_ctx.get_own_key_share();
+      auto serialised_signed_share =
+        sign_key_share(oks, false, &kex_ctx.get_peer_key_share());
+
+      to_host->write(
+        node_outbound,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        ChannelMsg::key_exchange_response,
+        initiation_attempt_nonce, // TODO: Integrity protect
+        serialised_signed_share);
+
+      LOG_TRACE_FMT(
+        "key_exchange_response -> {}: oks={} serialised_signed_share={}",
+        peer_id,
+        ds::to_hex(oks),
+        ds::to_hex(serialised_signed_share));
+    }
+
+    // Called whenever we try to send or receive and the channel is not
+    // ESTABLISHED, to trigger new initiation attempts or resends of previous
+    // protocol message
+    void advance_connection_attempt()
+    {
+      // TODO: Resending here is potentially very expensive. Work out if we need
+      // resends or could avoid it, and see if we can find a better heuristic
+      // for resending than "every time we get unexpected junk and we're not yet
+      // ESTABLISHED"
+      switch (status.value())
+      {
+        case (INACTIVE):
+        {
+          // We have no key and believe no key exchange is in process - start a
+          // new iteration of the key exchange protocol
+          initiate();
+          break;
+        }
+
+        case (INITIATED):
+        {
+          // We initiated with them but are still waiting for a response -
+          // resend the same init message in case they missed it
+          send_key_exchange_init();
+          break;
+        }
+
+        case (WAITING_FOR_FINAL):
+        {
+          // We received an init, and responded, but are still waiting for a
+          // final - resend the same response in case they missed it
+          send_key_exchange_response();
+          break;
+        }
+
+        case (ESTABLISHED):
+        {
+          throw std::logic_error(
+            "advance_connection_attempt() should never be called on an "
+            "ESTABLISHED connection");
+          break;
+        }
+      }
+    }
+
   public:
     static constexpr size_t protocol_version = 1;
 
@@ -677,87 +761,6 @@ namespace ccf
       status.advance(INITIATED);
     }
 
-    // TODO: Move these functions somewhere sensible
-    void send_key_exchange_init()
-    {
-      to_host->write(
-        node_outbound,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        ChannelMsg::key_exchange_init,
-        initiation_attempt_nonce, // TODO: Integrity protect
-        get_signed_key_share(true));
-
-      LOG_TRACE_FMT(
-        "key_exchange_init -> {} node serial: {}",
-        peer_id,
-        make_verifier(node_cert)->serial_number());
-    }
-
-    void send_key_exchange_response()
-    {
-      auto oks = kex_ctx.get_own_key_share();
-      auto serialised_signed_share =
-        sign_key_share(oks, false, &kex_ctx.get_peer_key_share());
-
-      to_host->write(
-        node_outbound,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        ChannelMsg::key_exchange_response,
-        initiation_attempt_nonce, // TODO: Integrity protect
-        serialised_signed_share);
-
-      LOG_TRACE_FMT(
-        "key_exchange_response -> {}: oks={} serialised_signed_share={}",
-        peer_id,
-        ds::to_hex(oks),
-        ds::to_hex(serialised_signed_share));
-    }
-
-    // Called whenever we try to send or receive and the channel is not
-    // ESTABLISHED, to trigger new initiation attempts or resends of previous
-    // protocol message
-    void advance_connection_attempt()
-    {
-      switch (status.value())
-      {
-        case (INACTIVE):
-        {
-          // We have no key and believe no key exchange is in process - start a
-          // new iteration of the key exchange protocol
-          initiate();
-          break;
-        }
-
-        case (INITIATED):
-        {
-          // We initiated with them but are still waiting for a response -
-          // resend the same init message in case they missed it
-          send_key_exchange_init();
-          break;
-        }
-
-        case (WAITING_FOR_FINAL):
-        {
-          // We received an init, and responded, but are still waiting for a
-          // final - resend the same response in case they missed it
-          send_key_exchange_response();
-          break;
-        }
-
-        case (ESTABLISHED):
-        {
-          throw std::logic_error(
-            "advance_connection_attempt() should never be called on an "
-            "ESTABLISHED connection");
-          break;
-        }
-      }
-    }
-
     bool send(NodeMsgType type, CBuffer aad, CBuffer plain = nullb)
     {
       if (!status.check(ESTABLISHED))
@@ -822,7 +825,7 @@ namespace ccf
     bool recv_authenticated_with_load(const uint8_t*& data, size_t& size)
     {
       // Receive authenticated message, modifying data to point to the start of
-      // the non-authenticated plaintex payload. data contains payload first,
+      // the non-authenticated plaintext payload. data contains payload first,
       // then GCM header
 
       if (!status.check(ESTABLISHED))
