@@ -219,6 +219,7 @@ def test_node_filter(network, args):
 @reqs.description("Get node CCF version")
 def test_version(network, args):
     if args.ccf_version is None:
+        LOG.warning("Skipping network version check as no expected version is specified")
         return
 
     nodes = network.get_joined_nodes()
