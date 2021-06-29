@@ -481,5 +481,5 @@ if __name__ == "__main__":
 
     run(args)
 
-    if args.consensus == "cft":
+    if args.consensus != "bft":
         run_join_old_snapshot(args)
