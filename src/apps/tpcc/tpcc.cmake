@@ -5,7 +5,13 @@
 add_client_exe(
   tpcc_client SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/tpcc_client.cpp
 )
-target_link_libraries(tpcc_client PRIVATE http_parser.host ccfcrypto.host c++fs)
+if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  target_link_libraries(tpcc_client PRIVATE http_parser.host ccfcrypto.host)
+else()
+  target_link_libraries(
+    tpcc_client PRIVATE http_parser.host ccfcrypto.host c++fs
+  )
+endif()
 
 # tpcc application
 add_ccf_app(

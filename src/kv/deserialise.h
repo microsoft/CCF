@@ -263,6 +263,7 @@ namespace kv
     SignatureBFTExec(
       ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
+      std::shared_ptr<Consensus> consensus_,
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
@@ -272,7 +273,7 @@ namespace kv
         store_,
         history_,
         nullptr,
-        nullptr,
+        consensus_,
         data_,
         public_only_,
         v_,
@@ -287,8 +288,9 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
+      auto config = consensus->get_latest_configuration_unsafe();
       bool result = true;
-      auto r = history->verify_and_sign(sig, &term);
+      auto r = history->verify_and_sign(sig, &term, config);
       if (
         r != kv::TxHistory::Result::OK &&
         r != kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
@@ -343,9 +345,9 @@ namespace kv
 
       ccf::TxID tx_id;
       auto success = ApplyResult::PASS;
-
+      auto config = consensus->get_latest_configuration_unsafe();
       auto r = progress_tracker->receive_backup_signatures(
-        tx_id, consensus->node_count(), consensus->is_primary());
+        tx_id, config, consensus->is_primary());
       if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
       {
         success = ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK;
@@ -450,15 +452,8 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      auto primary_id = consensus->primary();
-      if (!primary_id.has_value())
-      {
-        LOG_FAIL_FMT("Cannot apply view as primary is not known");
-        return ApplyResult::FAIL;
-      }
-
-      if (!progress_tracker->apply_new_view(
-            primary_id.value(), consensus->node_count(), term))
+      auto config = consensus->get_latest_configuration_unsafe();
+      if (!progress_tracker->apply_new_view(config, term))
       {
         LOG_FAIL_FMT("apply_new_view Failed");
         LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);

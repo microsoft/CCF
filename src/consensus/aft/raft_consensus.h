@@ -157,11 +157,6 @@ namespace aft
       aft->enable_all_domains();
     }
 
-    uint32_t node_count() override
-    {
-      return aft->node_count();
-    }
-
     void emit_signature() override {}
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override

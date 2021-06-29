@@ -486,7 +486,8 @@ class Network:
                 infra.node.State.PART_OF_PUBLIC_NETWORK.value,
                 timeout=args.ledger_recovery_timeout,
             )
-        self.wait_for_all_nodes_to_commit(primary=primary)
+        # Catch-up in recovery can take a long time, so extend this timeout
+        self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
     def recover(self, args):

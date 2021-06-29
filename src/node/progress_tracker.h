@@ -37,18 +37,12 @@ namespace ccf
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce hashed_nonce,
-      uint32_t node_count,
+      const kv::Configuration::Nodes& config,
       bool is_primary)
     {
       std::unique_lock<std::mutex> guard(lock);
       return add_signature_internal(
-        tx_id,
-        node_id,
-        signature_size,
-        sig,
-        hashed_nonce,
-        node_count,
-        is_primary);
+        tx_id, node_id, signature_size, sig, hashed_nonce, config, is_primary);
     }
 
     kv::TxHistory::Result record_primary(
@@ -58,7 +52,7 @@ namespace ccf
       crypto::Sha256Hash& root,
       std::vector<uint8_t>& sig,
       Nonce hashed_nonce,
-      uint32_t node_count = 0)
+      const kv::Configuration::Nodes& config = {})
     {
       std::unique_lock<std::mutex> guard(lock);
       auto n = entropy->random(hashed_nonce.h.size());
@@ -77,7 +71,7 @@ namespace ccf
         root,
         sig);
 
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end() || am_i_primary)
       {
         // If a primary is behind and becomes a backup (without becoming aware
@@ -98,8 +92,7 @@ namespace ccf
         cert.sigs.insert(
           std::pair<NodeId, BftNodeSignature>(node_id, bft_node_sig));
 
-        certificates.insert(
-          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, cert));
+        certificates.insert(std::pair<ccf::TxID, CommitCert>(tx_id, cert));
 
         LOG_TRACE_FMT(
           "Adding new root for view:{}, seqno:{}", tx_id.view, tx_id.seqno);
@@ -151,7 +144,7 @@ namespace ccf
         throw ccf::ccf_logic_error("We have proof someone is being dishonest");
       }
 
-      if (node_count > 0 && can_send_sig_ack(cert, tx_id, node_count))
+      if (!config.empty() && can_send_sig_ack(cert, tx_id, config))
       {
         return !is_public_only ? kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK :
                                  kv::TxHistory::Result::OK;
@@ -163,7 +156,7 @@ namespace ccf
       ccf::TxID tx_id, std::vector<uint8_t>& sig)
     {
       std::unique_lock<std::mutex> guard(lock);
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
@@ -188,7 +181,7 @@ namespace ccf
     }
 
     kv::TxHistory::Result receive_backup_signatures(
-      ccf::TxID& tx_id, uint32_t node_count, bool is_primary)
+      ccf::TxID& tx_id, const kv::Configuration::Nodes& config, bool is_primary)
     {
       std::unique_lock<std::mutex> guard(lock);
       std::optional<ccf::BackupSignatures> sigs =
@@ -196,7 +189,7 @@ namespace ccf
       CCF_ASSERT(sigs.has_value(), "sigs does not have a value");
       auto sigs_value = sigs.value();
 
-      auto it = certificates.find(sigs_value.seqno);
+      auto it = certificates.find({sigs_value.view, sigs_value.seqno});
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
@@ -237,7 +230,7 @@ namespace ccf
             backup_sig.sig.size(),
             sig,
             backup_sig.hashed_nonce,
-            node_count,
+            config,
             is_primary);
           if (r == kv::TxHistory::Result::FAIL)
           {
@@ -281,7 +274,7 @@ namespace ccf
       CCF_ASSERT(nonces.has_value(), "nonces does not have a value");
       aft::RevealedNonces& nonces_value = nonces.value();
 
-      auto it = certificates.find(nonces_value.tx_id.seqno);
+      auto it = certificates.find(nonces_value.tx_id);
       if (it == certificates.end())
       {
         LOG_FAIL_FMT(
@@ -332,17 +325,19 @@ namespace ccf
     }
 
     kv::TxHistory::Result add_signature_ack(
-      ccf::TxID tx_id, const NodeId& node_id, uint32_t node_count = 0)
+      ccf::TxID tx_id,
+      const NodeId& node_id,
+      const kv::Configuration::Nodes& config = {})
     {
       std::unique_lock<std::mutex> guard(lock);
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
         auto r = certificates.insert(
-          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, CommitCert()));
+          std::pair<ccf::TxID, CommitCert>(tx_id, CommitCert()));
         it = r.first;
       }
 
@@ -355,7 +350,7 @@ namespace ccf
       auto& cert = it->second;
       cert.sig_acks.insert(node_id);
 
-      if (can_send_reply_and_nonce(cert, node_count))
+      if (can_send_reply_and_nonce(cert, config))
       {
         return !is_public_only ? kv::TxHistory::Result::SEND_REPLY_AND_NONCE :
                                  kv::TxHistory::Result::OK;
@@ -367,19 +362,19 @@ namespace ccf
       ccf::TxID tx_id,
       Nonce nonce,
       const NodeId& node_id,
-      uint32_t node_count,
+      const kv::Configuration::Nodes& config,
       bool is_primary)
     {
       std::unique_lock<std::mutex> guard(lock);
       bool did_add = false;
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
         // We currently do not know what the root is, so lets save this
         // signature and and we will verify the root when we get it from the
         // primary
         auto r = certificates.insert(
-          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, CommitCert()));
+          std::pair<ccf::TxID, CommitCert>(tx_id, CommitCert()));
         it = r.first;
         did_add = true;
       }
@@ -428,7 +423,7 @@ namespace ccf
       sig.nonce = nonce;
       cert.nonce_set.insert(node_id);
 
-      if (should_append_nonces_to_ledger(cert, node_count, is_primary))
+      if (should_append_nonces_to_ledger(cert, config, is_primary))
       {
         aft::RevealedNonces revealed_nonces(tx_id);
 
@@ -449,16 +444,23 @@ namespace ccf
       try_update_watermark(cert, tx_id.seqno, is_primary);
     }
 
-    crypto::Sha256Hash get_node_hashed_nonce(ccf::TxID tx_id)
+    // Returns a null optional value if there is no nonce exists for the TxID
+    std::optional<crypto::Sha256Hash> get_node_hashed_nonce(ccf::TxID tx_id)
     {
       std::unique_lock<std::mutex> guard(lock);
       return get_node_hashed_nonce_internal(tx_id);
     }
 
-    void get_node_hashed_nonce(ccf::TxID tx_id, crypto::Sha256Hash& hash)
+    void get_node_hashed_nonce(
+      ccf::TxID tx_id, std::optional<crypto::Sha256Hash>& hash)
     {
-      Nonce nonce = get_node_nonce(tx_id);
-      hash_data(nonce, hash);
+      std::optional<Nonce> nonce = get_node_nonce(tx_id);
+      if (nonce.has_value())
+      {
+        crypto::Sha256Hash h;
+        hash_data(nonce.value(), h);
+        hash = h;
+      }
     }
 
     void set_node_id(const NodeId& id_)
@@ -487,7 +489,7 @@ namespace ccf
     get_view_change_message(ccf::View view)
     {
       std::unique_lock<std::mutex> guard(lock);
-      auto it = certificates.find(highest_prepared_level.seqno);
+      auto it = certificates.find(highest_prepared_level);
       if (it == certificates.end())
       {
         throw ccf::ccf_logic_error(fmt::format(
@@ -581,16 +583,18 @@ namespace ccf
     }
 
     bool apply_new_view(
-      const NodeId& from, uint32_t node_count, ccf::View& view_)
+      const kv::Configuration::Nodes& config, ccf::View& view_)
     {
       std::unique_lock<std::mutex> guard(lock);
       auto new_view = store->get_new_view();
       CCF_ASSERT(new_view.has_value(), "new view does not have a value");
       ccf::View view = new_view->view;
+      ccf::NodeId from = new_view->primary_id;
 
-      if (
-        new_view->view_change_messages.size() <
-        ccf::get_message_threshold(node_count))
+      uint32_t endorsements =
+        count_endorsements_in_config(new_view->view_change_messages, config);
+
+      if (endorsements < ccf::get_endorsement_threshold(config.size()))
       {
         LOG_FAIL_FMT(
           "Not enough ViewChangeRequests from:{}, new_view view:{}, "
@@ -637,7 +641,7 @@ namespace ccf
       return true;
     }
 
-    Nonce get_node_nonce(ccf::TxID tx_id)
+    std::optional<Nonce> get_node_nonce(ccf::TxID tx_id)
     {
       std::unique_lock<std::mutex> guard(lock);
       return get_node_nonce_(tx_id);
@@ -649,13 +653,16 @@ namespace ccf
       ccf::SeqNo last_good_seqno = 0;
       for (auto it = certificates.begin(); it != certificates.end();)
       {
-        if (it->first > rollback_seqno)
+        if (it->first.seqno > rollback_seqno)
         {
           it = certificates.erase(it);
         }
         else
         {
-          last_good_seqno = it->first;
+          if (last_good_seqno < it->first.seqno)
+          {
+            last_good_seqno = it->first.seqno;
+          }
           ++it;
         }
       }
@@ -682,13 +689,27 @@ namespace ccf
       is_public_only = public_only;
     }
 
+    std::tuple<ccf::NodeId, ccf::View> get_primary_at_last_view_change()
+    {
+      std::unique_lock<std::mutex> guard(lock);
+      auto new_view = store->get_new_view();
+      if (!new_view.has_value())
+      {
+        return std::make_tuple<ccf::NodeId, ccf::View>(
+          ccf::NodeId(fmt::format("{:#064}", 0)), 0);
+      }
+      return std::make_tuple<ccf::NodeId, ccf::View>(
+        NodeId(new_view->primary_id), View(new_view->view));
+    }
+
   private:
     NodeId id;
     std::shared_ptr<crypto::Entropy> entropy;
     ccf::SeqNo highest_commit_level = 0;
     ccf::TxID highest_prepared_level = {0, 0};
 
-    std::map<ccf::SeqNo, CommitCert> certificates;
+    std::unordered_map<ccf::TxID, CommitCert, ccf::TxID::TxIDHasher>
+      certificates;
     bool is_public_only;
     mutable std::mutex lock;
 
@@ -698,7 +719,7 @@ namespace ccf
       uint32_t signature_size,
       std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& sig,
       Nonce hashed_nonce,
-      uint32_t node_count,
+      const kv::Configuration::Nodes& config,
       bool is_primary)
     {
       LOG_TRACE_FMT(
@@ -706,14 +727,14 @@ namespace ccf
         node_id,
         tx_id.seqno,
         hashed_nonce);
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
         // At this point the appropriate Merkle root is not known. The signature
         // will be recorded and verified when the primary sends the apporiate
         // Merkle root.
         auto r = certificates.insert(
-          std::pair<ccf::SeqNo, CommitCert>(tx_id.seqno, CommitCert()));
+          std::pair<ccf::TxID, CommitCert>(tx_id, CommitCert()));
         it = r.first;
       }
       else
@@ -758,10 +779,8 @@ namespace ccf
 
       CCF_ASSERT(
         node_id != id ||
-          std::equal(
-            hashed_nonce.h.begin(),
-            hashed_nonce.h.end(),
-            get_node_hashed_nonce_internal(tx_id).h.begin()),
+          (get_node_hashed_nonce_internal(tx_id).has_value() &&
+           hashed_nonce == get_node_hashed_nonce_internal(tx_id)),
         "hashed_nonce does not match the local node's nonce");
 
       BftNodeSignature bft_node_sig(std::move(sig_vec), node_id, hashed_nonce);
@@ -770,7 +789,7 @@ namespace ccf
       cert.sigs.insert(
         std::pair<NodeId, BftNodeSignature>(node_id, std::move(bft_node_sig)));
 
-      if (can_send_sig_ack(cert, tx_id, node_count))
+      if (can_send_sig_ack(cert, tx_id, config))
       {
         if (is_primary)
         {
@@ -795,23 +814,25 @@ namespace ccf
       return kv::TxHistory::Result::OK;
     }
 
-    Nonce get_node_nonce_(ccf::TxID tx_id)
+    std::optional<Nonce> get_node_nonce_(ccf::TxID tx_id)
     {
-      auto it = certificates.find(tx_id.seqno);
+      auto it = certificates.find(tx_id);
       if (it == certificates.end())
       {
-        throw ccf::ccf_logic_error(fmt::format(
-          "Attempting to access unknown nonce, view:{}, seqno:{}",
-          tx_id.view,
-          tx_id.seqno));
+        return std::nullopt;
       }
       return it->second.my_nonce;
     }
 
-    crypto::Sha256Hash get_node_hashed_nonce_internal(ccf::TxID tx_id)
+    std::optional<crypto::Sha256Hash> get_node_hashed_nonce_internal(
+      ccf::TxID tx_id)
     {
-      Nonce nonce = get_node_nonce_(tx_id);
-      return hash_data(nonce);
+      std::optional<Nonce> nonce = get_node_nonce_(tx_id);
+      if (!nonce.has_value())
+      {
+        return std::nullopt;
+      }
+      return hash_data(nonce.value());
     }
 
     void try_match_unmatched_nonces(
@@ -865,10 +886,14 @@ namespace ccf
     }
 
     bool can_send_sig_ack(
-      CommitCert& cert, const ccf::TxID& tx_id, uint32_t node_count)
+      CommitCert& cert,
+      const ccf::TxID& tx_id,
+      const kv::Configuration::Nodes& config)
     {
+      uint32_t endorsements = count_endorsements_in_config(cert.sigs, config);
+
       if (
-        cert.sigs.size() >= get_message_threshold(node_count) &&
+        endorsements >= get_endorsement_threshold(config.size()) &&
         !cert.ack_sent && cert.have_primary_signature)
       {
         if (tx_id.seqno > highest_prepared_level.seqno)
@@ -891,10 +916,14 @@ namespace ccf
       return false;
     }
 
-    bool can_send_reply_and_nonce(CommitCert& cert, uint32_t node_count)
+    bool can_send_reply_and_nonce(
+      CommitCert& cert, const kv::Configuration::Nodes& config)
     {
+      uint32_t endorsements =
+        count_endorsements_in_config(cert.sig_acks, config);
+
       if (
-        cert.sig_acks.size() >= get_message_threshold(node_count) &&
+        endorsements >= get_endorsement_threshold(config.size()) &&
         !cert.reply_and_nonce_sent && cert.ack_sent)
       {
         cert.reply_and_nonce_sent = true;
@@ -912,27 +941,31 @@ namespace ccf
         if (should_clear_old_entries)
         {
           LOG_DEBUG_FMT("Removing all entries upto:{}", seqno);
-          for (auto it = certificates.begin();;)
+          for (auto it = certificates.begin(); it != certificates.end();)
           {
-            CCF_ASSERT(
-              it != certificates.end(),
-              "Should never deleted all certificates");
-
-            if (it->first == seqno)
+            if (it->first.seqno >= seqno)
             {
-              break;
+              ++it;
             }
-            it = certificates.erase(it);
+            else
+            {
+              it = certificates.erase(it);
+            }
           }
+          CCF_ASSERT(
+            !certificates.empty(), "Should never delete all certificates");
         }
       }
     }
 
     bool should_append_nonces_to_ledger(
-      CommitCert& cert, uint32_t node_count, bool is_primary)
+      CommitCert& cert, const kv::Configuration::Nodes& config, bool is_primary)
     {
+      uint32_t endorsements =
+        count_endorsements_in_config(cert.nonce_set, config);
+
       if (
-        cert.nonce_set.size() >= get_message_threshold(node_count) &&
+        endorsements >= get_endorsement_threshold(config.size()) &&
         cert.reply_and_nonce_sent && cert.ack_sent &&
         !cert.nonces_committed_to_ledger)
       {
