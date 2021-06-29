@@ -29,6 +29,7 @@
 #include "share_manager.h"
 #include "snapshotter.h"
 #include "tls/client.h"
+#include "ds/state_machine.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -70,40 +71,6 @@ namespace ccf
     crypto::Pem network_cert;
   };
 
-  template <typename T>
-  class StateMachine
-  {
-    std::atomic<T> s;
-
-  public:
-    StateMachine(T s) : s(s) {}
-    void expect(T s) const
-    {
-      auto state = this->s.load();
-      if (s != state)
-      {
-        throw std::logic_error(
-          fmt::format("State is {}, but expected {}", state, s));
-      }
-    }
-
-    bool check(T s) const
-    {
-      return s == this->s.load();
-    }
-
-    T value() const
-    {
-      return this->s.load();
-    }
-
-    void advance(T s)
-    {
-      LOG_DEBUG_FMT("Advancing to state {} (from {})", s, this->s.load());
-      this->s.store(s);
-    }
-  };
-
   void reset_data(std::vector<uint8_t>& data)
   {
     data.clear();
@@ -116,7 +83,7 @@ namespace ccf
     //
     // this node's core state
     //
-    StateMachine<State> sm;
+    ds::StateMachine<State> sm;
     std::mutex lock;
 
     CurveID curve_id;
@@ -286,7 +253,7 @@ namespace ccf
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
       CurveID curve_id_) :
-      sm(State::uninitialized),
+      sm("NodeState", State::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(crypto::make_key_pair(curve_id_)),
       node_encrypt_kp(crypto::make_rsa_key_pair()),

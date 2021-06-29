@@ -81,6 +81,14 @@ namespace aft
 
     ChannelStubProxy() {}
 
+    void associate_node_address(
+      const ccf::NodeId& peer_id,
+      const std::string& peer_hostname,
+      const std::string& peer_service) override
+    {}
+
+    void close_channel(const ccf::NodeId& peer_id) override {}
+
     bool send_authenticated(
       const ccf::NodeId& to,
       ccf::NodeMsgType msg_type,
@@ -127,7 +135,10 @@ namespace aft
       return true;
     }
 
-    void recv_message(const ccf::NodeId& from, OArray&& oa) override {}
+    bool recv_message(const ccf::NodeId& from, OArray&& oa) override
+    {
+      return true;
+    }
 
     void initialize(
       const ccf::NodeId& self_id,

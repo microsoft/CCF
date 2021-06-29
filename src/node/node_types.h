@@ -85,4 +85,5 @@ namespace ccf
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   ccf::associate_node_address, ccf::NodeId::Value, std::string, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::node_inbound, std::vector<uint8_t>);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::close_node_outbound);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  ccf::close_node_outbound, ccf::NodeId::Value);

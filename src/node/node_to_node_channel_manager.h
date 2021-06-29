@@ -110,7 +110,7 @@ namespace ccf
 
     void close_channel(const NodeId& peer_id) override
     {
-      get_channel(peer_id)->reset();
+      get_channel(peer_id)->close_channel();
     }
 
     ChannelStatus get_status(const NodeId& peer_id)
@@ -241,6 +241,11 @@ namespace ccf
 
           default:
           {
+            throw std::runtime_error(fmt::format(
+              "Received message with initial bytes {} from {} - not recognised "
+              "as a key exchange message",
+              chmsg,
+              from));
           }
           break;
         }

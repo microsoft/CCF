@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstring>
 #include <queue>
+#include <random>
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -941,5 +942,201 @@ TEST_CASE("Interrupted key exchange")
         msg2.payload.size());
       REQUIRE(decrypted2 == msg);
     }
+  }
+}
+
+TEST_CASE("Robust key exchange")
+{
+  auto network_kp = crypto::make_key_pair(default_curve);
+  auto network_cert = network_kp->self_sign("CN=Network");
+
+  auto channel1_kp = crypto::make_key_pair(default_curve);
+  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
+  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+
+  auto channel2_kp = crypto::make_key_pair(default_curve);
+  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
+  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+
+  const NodeId nid3 = std::string("nid3");
+
+  auto channels1 = NodeToNodeChannelManager(wf1);
+  channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
+  auto channels2 = NodeToNodeChannelManager(wf2);
+  channels2.initialize(nid2, network_cert, channel2_kp, channel2_cert);
+
+  MsgType aad;
+  aad.fill(0x10);
+
+  std::vector<uint8_t> payload;
+  payload.push_back(0x1);
+  payload.push_back(0x0);
+  payload.push_back(0x10);
+  payload.push_back(0x42);
+
+  std::vector<std::tuple<std::string, size_t, std::vector<uint8_t>>>
+    old_messages;
+  {
+    INFO("Build a collection of old messages that could confuse the protocol");
+
+    channels1.send_encrypted(
+      nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    channels1.send_encrypted(
+      nid3, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    channels1.send_encrypted(
+      nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+
+    auto outbound = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound.size() == 3);
+    for (size_t i = 0; i < outbound.size(); ++i)
+    {
+      const auto& msg = outbound[i];
+      old_messages.push_back(std::make_tuple("too-early junk", i, msg.data()));
+    }
+
+    channels1.close_channel(nid2);
+    channels1.close_channel(nid3);
+    channels1.send_encrypted(
+      nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    channels1.send_encrypted(
+      nid3, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    channels1.send_encrypted(
+      nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+
+    outbound = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound.size() >= 1);
+    auto kex_init = outbound[0];
+    REQUIRE(kex_init.type == NodeMsgType::channel_msg);
+    for (size_t i = 0; i < outbound.size(); ++i)
+    {
+      const auto& msg = outbound[i];
+      old_messages.push_back(std::make_tuple("initiation junk", i, msg.data()));
+    }
+
+    channels2.send_encrypted(
+      nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    channels2.send_encrypted(
+      nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    channels2.send_encrypted(
+      nid3, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+
+    outbound = read_outbound_msgs<MsgType>(eio2);
+    for (size_t i = 0; i < outbound.size(); ++i)
+    {
+      const auto& msg = outbound[i];
+      old_messages.push_back(
+        std::make_tuple("counter-initiation junk", i, msg.data()));
+    }
+
+    REQUIRE(channels2.recv_message(nid1, kex_init.data()));
+    CHECK_FALSE(channels2.recv_message(
+      nid1, kex_init.data())); // TODO: This should be an error!
+
+    outbound = read_outbound_msgs<MsgType>(eio2);
+    REQUIRE(outbound.size() >= 1);
+    auto kex_response = outbound[0];
+    REQUIRE(kex_response.type == NodeMsgType::channel_msg);
+    for (size_t i = 0; i < outbound.size(); ++i)
+    {
+      const auto& msg = outbound[i];
+      old_messages.push_back(std::make_tuple("response junk", i, msg.data()));
+    }
+
+    REQUIRE(channels1.recv_message(nid2, kex_response.data()));
+    CHECK_FALSE(channels1.recv_message(
+      nid2, kex_response.data())); // TODO: This should be an error!
+
+    outbound = read_outbound_msgs<MsgType>(eio1);
+    REQUIRE(outbound.size() >= 1);
+    auto kex_final = outbound[0];
+    REQUIRE(kex_final.type == NodeMsgType::channel_msg);
+    for (size_t i = 0; i < outbound.size(); ++i)
+    {
+      const auto& msg = outbound[i];
+      old_messages.push_back(std::make_tuple("final junk", i, msg.data()));
+    }
+
+    REQUIRE(channels2.recv_message(nid1, kex_final.data()));
+    CHECK_FALSE(channels2.recv_message(
+      nid1, kex_final.data())); // TODO: This should be an error!
+
+    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
+    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+
+    REQUIRE(channels1.send_encrypted(
+      nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
+    channels1.send_encrypted(
+      nid3, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    REQUIRE(channels2.send_encrypted(
+      nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
+    channels2.send_encrypted(
+      nid3, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+
+    outbound = read_outbound_msgs<MsgType>(eio1);
+    for (size_t i = 0; i < outbound.size(); ++i)
+    {
+      const auto& msg = outbound[i];
+      old_messages.push_back(std::make_tuple("tailing junk A", i, msg.data()));
+    }
+
+    outbound = read_outbound_msgs<MsgType>(eio2);
+    for (size_t i = 0; i < outbound.size(); ++i)
+    {
+      const auto& msg = outbound[i];
+      old_messages.push_back(std::make_tuple("tailing junk B", i, msg.data()));
+    }
+  }
+
+  channels1.close_channel(nid2);
+  channels2.close_channel(nid1);
+
+  {
+    INFO("Mix key exchange with old messages");
+
+    std::random_device rd;
+    std::mt19937 g(rd());
+
+    auto receive_junk = [&]() {
+      std::shuffle(old_messages.begin(), old_messages.end(), g);
+
+      for (const auto& [label, i, msg] : old_messages)
+      {
+        std::cout << label << ": " << i << std::endl;
+        auto msg_1 = msg;
+        CHECK_FALSE(channels1.recv_message(nid2, std::move(msg_1)));
+        auto msg_2 = msg;
+        CHECK_FALSE(channels2.recv_message(nid1, std::move(msg_2)));
+      }
+    };
+
+    receive_junk();
+
+    channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, payload.data(), payload.size());
+    auto kex_init = get_first(eio1, NodeMsgType::channel_msg);
+
+    receive_junk();
+
+    REQUIRE(channels2.recv_message(nid1, kex_init.data()));
+    auto kex_response = get_first(eio2, NodeMsgType::channel_msg);
+
+    receive_junk();
+
+    REQUIRE(channels1.recv_message(nid2, kex_response.data()));
+    auto kex_final = get_first(eio1, NodeMsgType::channel_msg);
+
+    receive_junk();
+
+    REQUIRE(channels2.recv_message(nid1, kex_final.data()));
+
+    REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
+    REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+
+    receive_junk();
+
+    REQUIRE(channels1.send_encrypted(
+      nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
+    REQUIRE(channels2.send_encrypted(
+      nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload));
   }
 }

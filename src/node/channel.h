@@ -849,6 +849,12 @@ namespace ccf
       return plain;
     }
 
+    void close_channel()
+    {
+      reset();
+      ++initiation_attempt_nonce;
+    }
+
     void reset()
     {
       LOG_INFO_FMT("Resetting channel with {}", peer_id);
