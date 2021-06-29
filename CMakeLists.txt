@@ -880,25 +880,6 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME ls_ws
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS cft
-    CLIENT_BIN ./scenario_perf_client
-    ADDITIONAL_ARGS
-      --package
-      liblogging
-      --scenario-file
-      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-      --max-writes-ahead
-      1000
-      --repetitions
-      10000
-      --use-websockets
-      --msg-ser-fmt
-      msgpack
-  )
-
-  add_perf_test(
     NAME ls_jwt
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS cft

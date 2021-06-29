@@ -73,22 +73,6 @@ if(BUILD_TESTS)
   endforeach()
 
   add_perf_test(
-    NAME sb_ws
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
-    CLIENT_BIN ./small_bank_client
-    VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --transactions
-      ${SMALL_BANK_ITERATIONS}
-      --max-writes-ahead
-      250
-      --metrics-file
-      small_bank_cft_metrics.json
-      --use-websockets
-  )
-
-  add_perf_test(
     NAME sb_sig
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client

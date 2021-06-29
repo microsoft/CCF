@@ -23,7 +23,6 @@ from ccf.tx_id import TxID
 import requests
 from loguru import logger as LOG  # type: ignore
 from requests_http_signature import HTTPSignatureAuth  # type: ignore
-import websocket  # type: ignore
 
 import ccf.commit
 from ccf.log_capture import flush_info
@@ -465,85 +464,14 @@ class RequestClient:
         return Response.from_requests_response(response)
 
 
-class WSClient:
-    """
-    CCF WebSocket client implementation.
-
-    Note: Client signatures over WebSocket are not supported by CCF.
-    """
-
-    def __init__(
-        self,
-        host: str,
-        port: int,
-        ca: str,
-        session_auth: Optional[Identity] = None,
-        signing_auth: Optional[Identity] = None,
-    ):
-        assert signing_auth is None, "WSClient does not support signing requests"
-
-        self.host = host
-        self.port = port
-        self.ca = ca
-        self.session_auth = session_auth
-        self.ws = None
-        self.ca_curve = get_curve(self.ca)
-
-    def request(
-        self,
-        request: Request,
-        timeout: int = DEFAULT_REQUEST_TIMEOUT_SEC,
-    ):
-
-        if self.ws is None:
-            LOG.info("Creating WSS connection")
-            try:
-                sslopt = {"ca_certs": self.ca}
-                if self.session_auth:
-                    sslopt["certfile"] = self.session_auth.cert
-                    sslopt["keyfile"] = self.session_auth.key
-                self.ws = websocket.create_connection(
-                    f"wss://{self.host}:{self.port}",
-                    sslopt=sslopt,
-                    timeout=timeout,
-                )
-            except Exception as exc:
-                raise CCFConnectionException from exc
-
-        assert self.ws is not None
-
-        if isinstance(request.body, str):
-            payload = request.body.encode()
-        elif isinstance(request.body, bytes):
-            payload = request.body
-        else:
-            payload = json.dumps(request.body).encode()
-        path = (request.path).encode()
-        header = struct.pack("<h", len(path)) + path
-        # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
-        frame = websocket.ABNF(
-            1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, header + payload
-        )
-        self.ws.send_frame(frame)
-        out = self.ws.recv_frame().data
-        (status_code,) = struct.unpack("<h", out[:2])
-        seqno = unpack_seqno_or_view(out[2:10])
-        view = unpack_seqno_or_view(out[10:18])
-        payload = out[18:]
-        body = RawResponseBody(payload)
-        return Response(status_code, body, seqno, view, headers={})
-
-
 class CCFClient:
     """
     Client used to connect securely and issue requests to a given CCF node.
 
-    This is a wrapper around either Python Requests, curl or a websockets client over TLS with added:
+    This is a wrapper around either Python Requests over TLS or curl with added:
 
     - Retry logic when connecting to nodes that are joining the network
     - Support for HTTP signatures (https://tools.ietf.org/html/draft-cavage-http-signatures-12).
-
-    Note: Experimental support for WebSocket is also available by setting the ``ws`` parameter to ``True``.
 
     :param str host: RPC IP address or domain name of node to connect to.
     :param int port: RPC port number of node to connect to.
@@ -552,12 +480,11 @@ class CCFClient:
     :param Identity signing_auth: Path to private key and certificate to be used to sign requests for the session (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
     :param str description: Message to print on each request emitted with this client.
-    :param bool ws: Use WebSocket client (experimental).
 
     A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
 
-    client_impl: Union[CurlClient, WSClient, RequestClient]
+    client_impl: Union[CurlClient, RequestClient]
 
     def __init__(
         self,
@@ -567,8 +494,7 @@ class CCFClient:
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
-        description: Optional[str] = None,
-        ws: bool = False,
+        description: Optional[str] = None
     ):
         self.connection_timeout = connection_timeout
         self.name = f"[{host}:{port}]"
@@ -579,8 +505,6 @@ class CCFClient:
 
         if os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(host, port, ca, session_auth, signing_auth)
-        elif os.getenv("WEBSOCKETS_CLIENT") or ws:
-            self.client_impl = WSClient(host, port, ca, session_auth, signing_auth)
         else:
             self.client_impl = RequestClient(host, port, ca, session_auth, signing_auth)
 
