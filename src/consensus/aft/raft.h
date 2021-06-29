@@ -196,7 +196,8 @@ namespace aft
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
-      bool public_only_ = false) :
+      bool public_only_ = false,
+      bool join_as_learner_ = false) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
@@ -249,7 +250,7 @@ namespace aft
         use_two_tx_reconfig = true;
       }
 
-      if (use_two_tx_reconfig && !public_only)
+      if (use_two_tx_reconfig && join_as_learner_)
       {
         replica_state = kv::ReplicaState::Learner;
       }
@@ -545,17 +546,6 @@ namespace aft
             assert(learners.find(id) == learners.end());
             learners[id] = idx;
           }
-        }
-        else if (
-          replica_state == kv::ReplicaState::Learner &&
-          conf.find(state->my_node_id) != conf.end() &&
-          state->current_view == 0 && state->last_idx == 0 && idx == 0)
-        {
-          // At the very start of a fresh network, there is no leader to commit
-          // promotions. There's also nothing to catch up to, so we become a
-          // follower immediately. We could also pass a flag to Aft<>::Aft() to
-          // indicate that we're still starting up.
-          replica_state = kv::ReplicaState::Follower;
         }
       }
       else if (!learners.empty())

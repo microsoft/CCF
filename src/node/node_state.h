@@ -386,7 +386,7 @@ namespace ccf
 
           setup_snapshotter();
           setup_encryptor();
-          setup_consensus();
+          setup_consensus(ServiceStatus::OPENING);
           setup_progress_tracker();
           setup_history();
 
@@ -572,7 +572,8 @@ namespace ccf
 
             setup_snapshotter();
             setup_encryptor();
-            setup_consensus(resp.network_info.public_only);
+            setup_consensus(
+              resp.network_info.service_status, resp.network_info.public_only);
             setup_progress_tracker();
             setup_history();
             auto_refresh_jwt_keys();
@@ -1031,7 +1032,7 @@ namespace ccf
         progress_tracker->set_node_id(self);
       }
 
-      setup_consensus(true);
+      setup_consensus(ServiceStatus::OPENING, true);
       setup_progress_tracker();
       auto_refresh_jwt_keys();
 
@@ -1922,7 +1923,7 @@ namespace ccf
       cmd_forwarder->initialize(self);
     }
 
-    void setup_raft(bool public_only = false)
+    void setup_raft(ServiceStatus service_status, bool public_only = false)
     {
       setup_n2n_channels();
       setup_cmd_forwarder();
@@ -1933,6 +1934,7 @@ namespace ccf
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
+      bool join_as_learner = service_status == ServiceStatus::OPEN;
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
@@ -1950,7 +1952,8 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
         sig_tx_interval,
-        public_only);
+        public_only,
+        join_as_learner);
 
       consensus = std::make_shared<RaftConsensusType>(
         std::move(raft), network.consensus_type);
@@ -1992,9 +1995,9 @@ namespace ccf
       network.tables->set_encryptor(encryptor);
     }
 
-    void setup_consensus(bool public_only = false)
+    void setup_consensus(ServiceStatus service_status, bool public_only = false)
     {
-      setup_raft(public_only);
+      setup_raft(service_status, public_only);
     }
 
     void setup_progress_tracker()

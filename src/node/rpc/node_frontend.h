@@ -123,7 +123,8 @@ namespace ccf
       kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
       const JoinNetworkNodeToNode::In& in,
-      NodeStatus node_status)
+      NodeStatus node_status,
+      ServiceStatus service_status)
     {
       auto nodes = tx.rw(network.nodes);
 
@@ -201,7 +202,8 @@ namespace ccf
           context.get_node_state().get_last_recovered_signed_idx(),
           this->network.consensus_type,
           this->network.ledger_secrets->get(tx),
-          *this->network.identity.get()};
+          *this->network.identity.get(),
+          service_status};
       }
       return make_success(rep);
     }
@@ -298,7 +300,8 @@ namespace ccf
               this->network.consensus_type,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->second),
-              *this->network.identity.get()};
+              *this->network.identity.get(),
+              active_service->status};
             return make_success(rep);
           }
 
@@ -335,7 +338,8 @@ namespace ccf
             args.tx,
             args.rpc_ctx->session->caller_cert,
             in,
-            joining_node_status);
+            joining_node_status,
+            active_service->status);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -364,7 +368,8 @@ namespace ccf
               this->network.consensus_type,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->second),
-              *this->network.identity.get()};
+              *this->network.identity.get(),
+              active_service->status};
             return make_success(rep);
           }
           else if (node_status == NodeStatus::PENDING)
@@ -416,7 +421,8 @@ namespace ccf
             args.tx,
             args.rpc_ctx->session->caller_cert,
             in,
-            NodeStatus::PENDING);
+            NodeStatus::PENDING,
+            active_service->status);
         }
       };
       make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)
