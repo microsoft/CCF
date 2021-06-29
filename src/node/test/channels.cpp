@@ -17,7 +17,7 @@
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
-constexpr auto buffer_size = 1024 * 16;
+constexpr auto buffer_size = 1024 * 8;
 
 auto in_buffer_1 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
 auto out_buffer_1 = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -76,29 +76,38 @@ auto read_outbound_msgs(ringbuffer::Circuit& circuit)
 {
   std::vector<NodeOutboundMsg<T>> msgs;
 
-  circuit.read_from_inside().read(
-    -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
-      switch (m)
-      {
-        case node_outbound:
+  // A call to ringbuffer::Reader::read() may return 0 when there are still
+  // messages to read, when it reaches the end of the buffer. The next call to
+  // read() will correctly start at the beginning of the buffer and read these
+  // messages. So to make sure we always get the messages we expect in this
+  // test, read twice.
+  for (size_t i = 0; i < 2; ++i)
+  {
+    circuit.read_from_inside().read(
+      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
+        switch (m)
         {
-          NodeId to = serialized::read<NodeId::Value>(data, size);
-          auto msg_type = serialized::read<NodeMsgType>(data, size);
-          NodeId from = serialized::read<NodeId::Value>(data, size);
-          T aad;
-          if (size > sizeof(T))
-            aad = serialized::read<T>(data, size);
-          auto payload = serialized::read(data, size, size);
-          msgs.push_back(NodeOutboundMsg<T>{from, to, msg_type, aad, payload});
-          break;
+          case node_outbound:
+          {
+            NodeId to = serialized::read<NodeId::Value>(data, size);
+            auto msg_type = serialized::read<NodeMsgType>(data, size);
+            NodeId from = serialized::read<NodeId::Value>(data, size);
+            T aad;
+            if (size > sizeof(T))
+              aad = serialized::read<T>(data, size);
+            auto payload = serialized::read(data, size, size);
+            msgs.push_back(
+              NodeOutboundMsg<T>{from, to, msg_type, aad, payload});
+            break;
+          }
+          default:
+          {
+            LOG_INFO_FMT("Outbound message is not expected: {}", m);
+            REQUIRE(false);
+          }
         }
-        default:
-        {
-          LOG_INFO_FMT("Outbound message is not expected: {}", m);
-          REQUIRE(false);
-        }
-      }
-    });
+      });
+  }
 
   return msgs;
 }
@@ -321,40 +330,28 @@ TEST_CASE("Client/Server key exchange")
     REQUIRE(channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {msg.begin(), msg.size()}, plain_text));
 
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(outbound_msgs.size() == 1);
-    auto msg_ = outbound_msgs[0];
-    const auto* data_ = msg_.payload.data();
-    auto size_ = msg_.payload.size();
-    REQUIRE(msg_.type == NodeMsgType::consensus_msg);
-
+    auto msg_ = get_first(eio1, NodeMsgType::consensus_msg);
     auto decrypted = channels2.recv_encrypted(
       nid1,
-      {msg_.authenticated_hdr.begin(), msg_.authenticated_hdr.size()},
-      data_,
-      size_);
+      {msg_.authenticated_hdr.data(), msg_.authenticated_hdr.size()},
+      msg_.payload.data(),
+      msg_.payload.size());
 
     REQUIRE(decrypted == plain_text);
   }
 
   INFO("Encrypt message (peer2 -> peer1)");
   {
-    std::vector<uint8_t> plain_text(128, 0x1);
+    std::vector<uint8_t> plain_text(128, 0x2);
     REQUIRE(channels2.send_encrypted(
       nid1, NodeMsgType::consensus_msg, {msg.begin(), msg.size()}, plain_text));
 
-    auto outbound_msgs = read_outbound_msgs<MsgType>(eio2);
-    REQUIRE(outbound_msgs.size() == 1);
-    auto msg_ = outbound_msgs[0];
-    const auto* data_ = msg_.payload.data();
-    auto size_ = msg_.payload.size();
-    REQUIRE(msg_.type == NodeMsgType::consensus_msg);
-
+    auto msg_ = get_first(eio2, NodeMsgType::consensus_msg);
     auto decrypted = channels1.recv_encrypted(
       nid2,
-      {msg_.authenticated_hdr.begin(), msg_.authenticated_hdr.size()},
-      data_,
-      size_);
+      {msg_.authenticated_hdr.data(), msg_.authenticated_hdr.size()},
+      msg_.payload.data(),
+      msg_.payload.size());
 
     REQUIRE(decrypted == plain_text);
   }
@@ -554,7 +551,9 @@ TEST_CASE("Host connections")
     REQUIRE(std::get<2>(add_node_msgs[0]) == "port");
   }
 
-  INFO("Trying to talk to node will initiate key exchange, regardless of IP association");
+  INFO(
+    "Trying to talk to node will initiate key exchange, regardless of IP "
+    "association");
   {
     NodeId unknown_peer_id = std::string("unknown_peer");
     MsgType msg;
@@ -632,7 +631,8 @@ TEST_CASE("Concurrent key exchange init")
     {
       channels1.send_authenticated(
         nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
-      get_first(eio1, NodeMsgType::channel_msg); // Discard message to simulate it being dropped
+      get_first(eio1, NodeMsgType::channel_msg); // Discard message to simulate
+                                                 // it being dropped
       channels1.close_channel(nid2);
     }
 
@@ -713,14 +713,12 @@ TEST_CASE("Full NodeToNode test")
     auto ni1 = std::string("N1");
     auto channel1_kp = crypto::make_key_pair(curves.node_1);
     auto channel1_csr = channel1_kp->create_csr("CN=Node1");
-    auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr,
-    {});
+    auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
 
     auto ni2 = std::string("N2");
     auto channel2_kp = crypto::make_key_pair(curves.node_2);
     auto channel2_csr = channel2_kp->create_csr("CN=Node2");
-    auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr,
-    {});
+    auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
 
     size_t message_limit = 32;
 
@@ -800,4 +798,148 @@ TEST_CASE("Full NodeToNode test")
   }
 }
 
-// TODO: Restore interrupted key exchange test
+TEST_CASE("Interrupted key exchange")
+{
+  auto network_kp = crypto::make_key_pair(default_curve);
+  auto network_cert = network_kp->self_sign("CN=Network");
+
+  auto channel1_kp = crypto::make_key_pair(default_curve);
+  auto channel1_csr = channel1_kp->create_csr("CN=Node1");
+  auto channel1_cert = network_kp->sign_csr(network_cert, channel1_csr, {});
+
+  auto channel2_kp = crypto::make_key_pair(default_curve);
+  auto channel2_csr = channel2_kp->create_csr("CN=Node2");
+  auto channel2_cert = network_kp->sign_csr(network_cert, channel2_csr, {});
+
+  auto channels1 = NodeToNodeChannelManager(wf1);
+  channels1.initialize(nid1, network_cert, channel1_kp, channel1_cert);
+  auto channels2 = NodeToNodeChannelManager(wf2);
+  channels2.initialize(nid2, network_cert, channel2_kp, channel2_cert);
+
+  std::vector<uint8_t> msg;
+  msg.push_back(0x1);
+  msg.push_back(0x0);
+  msg.push_back(0x10);
+  msg.push_back(0x42);
+
+  enum class DropStage
+  {
+    InitiationMessage,
+    ResponseMessage,
+    FinalMessage,
+    NoDrops,
+  };
+
+  DropStage drop_stage;
+  for (const auto drop_stage : {
+         DropStage::NoDrops,
+         DropStage::FinalMessage,
+         DropStage::ResponseMessage,
+         DropStage::InitiationMessage,
+       })
+  {
+    INFO("Drop stage is ", (size_t)drop_stage);
+
+    auto n = read_outbound_msgs<MsgType>(eio1).size() +
+      read_outbound_msgs<MsgType>(eio2).size();
+    REQUIRE(n == 0);
+
+    channels1.close_channel(nid2);
+    channels2.close_channel(nid1);
+    REQUIRE(channels1.get_status(nid2) == INACTIVE);
+    REQUIRE(channels2.get_status(nid1) == INACTIVE);
+
+    channels1.send_authenticated(
+      nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
+
+    REQUIRE(channels1.get_status(nid2) == INITIATED);
+    REQUIRE(channels2.get_status(nid1) == INACTIVE);
+
+    auto initiator_key_share_msg = get_first(eio1, NodeMsgType::channel_msg);
+    if (drop_stage > DropStage::InitiationMessage)
+    {
+      REQUIRE(channels2.recv_message(nid1, initiator_key_share_msg.data()));
+
+      REQUIRE(channels1.get_status(nid2) == INITIATED);
+      REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+
+      auto responder_key_share_msg = get_first(eio2, NodeMsgType::channel_msg);
+      if (drop_stage > DropStage::ResponseMessage)
+      {
+        REQUIRE(channels1.recv_message(nid2, responder_key_share_msg.data()));
+
+        REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
+        REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
+
+        auto initiator_key_exchange_final_msg =
+          get_first(eio1, NodeMsgType::channel_msg);
+        if (drop_stage > DropStage::FinalMessage)
+        {
+          REQUIRE(channels2.recv_message(
+            nid1, initiator_key_exchange_final_msg.data()));
+
+          REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
+          REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+        }
+      }
+    }
+
+    INFO("Later attempts to connect should succeed");
+    {
+      SUBCASE("")
+      {
+        INFO("Node 1 attempts to connect");
+        channels1.close_channel(nid2);
+        channels1.send_authenticated(
+          nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
+
+        REQUIRE(channels2.recv_message(
+          nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
+        REQUIRE(channels1.recv_message(
+          nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
+        REQUIRE(channels2.recv_message(
+          nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
+      }
+      else
+      {
+        INFO("Node 2 attempts to connect");
+        channels2.close_channel(nid1);
+        channels2.send_authenticated(
+          nid1, NodeMsgType::consensus_msg, msg.data(), msg.size());
+
+        REQUIRE(channels1.recv_message(
+          nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
+        REQUIRE(channels2.recv_message(
+          nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
+        REQUIRE(channels1.recv_message(
+          nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
+      }
+
+      REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
+      REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
+
+      MsgType aad;
+      aad.fill(0x10);
+
+      REQUIRE(channels1.send_encrypted(
+        nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, msg));
+      auto msg1 = get_first(eio1, NodeMsgType::consensus_msg);
+      auto decrypted1 = channels2.recv_encrypted(
+        nid1,
+        {msg1.authenticated_hdr.data(), msg1.authenticated_hdr.size()},
+        msg1.payload.data(),
+        msg1.payload.size());
+      REQUIRE(decrypted1 == msg);
+
+      REQUIRE(channels2.send_encrypted(
+        nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, msg));
+      auto msg2 = get_first(eio2, NodeMsgType::consensus_msg);
+      auto decrypted2 = channels1.recv_encrypted(
+        nid2,
+        {msg2.authenticated_hdr.data(), msg2.authenticated_hdr.size()},
+        msg2.payload.data(),
+        msg2.payload.size());
+      REQUIRE(decrypted2 == msg);
+    }
+  }
+}
