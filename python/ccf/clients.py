@@ -494,7 +494,7 @@ class CCFClient:
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
         connection_timeout: int = DEFAULT_CONNECTION_TIMEOUT_SEC,
-        description: Optional[str] = None
+        description: Optional[str] = None,
     ):
         self.connection_timeout = connection_timeout
         self.name = f"[{host}:{port}]"

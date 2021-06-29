@@ -8,7 +8,6 @@
 #include "http_parser.h"
 #include "http_rpc_context.h"
 
-
 namespace http
 {
   class HTTPEndpoint : public enclave::TLSEndpoint
@@ -48,48 +47,46 @@ namespace http
 
       LOG_TRACE_FMT("recv called with {} bytes", size_);
 
-        constexpr auto read_block_size = 4096;
-        std::vector<uint8_t> buf(read_block_size);
-        auto data = buf.data();
-        auto n_read = read(data, buf.size(), false);
+      constexpr auto read_block_size = 4096;
+      std::vector<uint8_t> buf(read_block_size);
+      auto data = buf.data();
+      auto n_read = read(data, buf.size(), false);
 
-        while (true)
+      while (true)
+      {
+        if (n_read == 0)
         {
-          if (n_read == 0)
-          {
-            return;
-          }
-
-          LOG_TRACE_FMT("Going to parse {} bytes", n_read);
-
-          try
-          {
-            p.execute(data, n_read);
-
-            // Used all provided bytes - check if more are available
-            n_read = read(buf.data(), buf.size(), false);
-          }
-          catch (const std::exception& e)
-          {
-            LOG_FAIL_FMT("Error parsing HTTP request");
-            LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
-
-            auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
-            response.set_header(
-              http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::TEXT);
-            auto body = fmt::format(
-              "Unable to parse data as a HTTP request. Error details are "
-              "below.\n\n{}",
-              e.what());
-            response.set_body((const uint8_t*)body.data(), body.size());
-            send_raw(response.build_response());
-
-            close();
-            break;
-          }
+          return;
         }
-      
+
+        LOG_TRACE_FMT("Going to parse {} bytes", n_read);
+
+        try
+        {
+          p.execute(data, n_read);
+
+          // Used all provided bytes - check if more are available
+          n_read = read(buf.data(), buf.size(), false);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Error parsing HTTP request");
+          LOG_DEBUG_FMT("Error parsing HTTP request: {}", e.what());
+
+          auto response = http::Response(HTTP_STATUS_BAD_REQUEST);
+          response.set_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          auto body = fmt::format(
+            "Unable to parse data as a HTTP request. Error details are "
+            "below.\n\n{}",
+            e.what());
+          response.set_body((const uint8_t*)body.data(), body.size());
+          send_raw(response.build_response());
+
+          close();
+          break;
+        }
+      }
     }
   };
 
@@ -110,11 +107,7 @@ namespace http
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(
-        request_parser,
-        session_id,
-        writer_factory,
-        std::move(ctx)),
+      HTTPEndpoint(request_parser, session_id, writer_factory, std::move(ctx)),
       request_parser(*this),
       rpc_map(rpc_map),
       session_id(session_id)
@@ -148,20 +141,20 @@ namespace http
         std::shared_ptr<enclave::RpcContext> rpc_ctx = nullptr;
         try
         {
-            rpc_ctx = std::make_shared<HttpRpcContext>(
-              request_index++,
-              session_ctx,
-              verb,
-              url,
-              std::move(headers),
-              std::move(body));
+          rpc_ctx = std::make_shared<HttpRpcContext>(
+            request_index++,
+            session_ctx,
+            verb,
+            url,
+            std::move(headers),
+            std::move(body));
         }
         catch (std::exception& e)
         {
-            send_raw(http::error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              e.what()));
+          send_raw(http::error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            e.what()));
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
@@ -207,11 +200,10 @@ namespace http
       }
       catch (const std::exception& e)
       {
-
-          send_raw(http::error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format("Exception: {}", e.what())));
+        send_raw(http::error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          fmt::format("Exception: {}", e.what())));
 
         // On any exception, close the connection.
         LOG_FAIL_FMT("Closing connection");
@@ -234,11 +226,7 @@ namespace http
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(
-        response_parser,
-        session_id,
-        writer_factory,
-        std::move(ctx)),
+      HTTPEndpoint(response_parser, session_id, writer_factory, std::move(ctx)),
       ClientEndpoint(session_id, writer_factory),
       response_parser(*this)
     {}

@@ -289,8 +289,7 @@ namespace client
     std::chrono::high_resolution_clock::time_point last_write_time;
     std::chrono::nanoseconds write_delay_ns = std::chrono::nanoseconds::zero();
 
-    std::shared_ptr<RpcTlsClient> create_connection(
-      bool force_unsigned = false)
+    std::shared_ptr<RpcTlsClient> create_connection(bool force_unsigned = false)
     {
       // Create a cert if this is our first rpc_connection
       const bool is_first_time = tls_cert == nullptr;

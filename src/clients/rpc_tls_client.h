@@ -79,8 +79,8 @@ protected:
     llhttp_method verb,
     const char* auth_token = nullptr)
   {
-      return gen_http_request_internal(
-        method, params, content_type, verb, auth_token);
+    return gen_http_request_internal(
+      method, params, content_type, verb, auth_token);
   }
 
   Response call_raw(const std::vector<uint8_t>& raw)
@@ -223,10 +223,8 @@ public:
 
     while (!last_response.has_value())
     {
-
-        const auto next = read_all();
-        parser.execute(next.data(), next.size());
-
+      const auto next = read_all();
+      parser.execute(next.data(), next.size());
     }
 
     return std::move(last_response.value());

@@ -417,7 +417,6 @@ namespace ccfapp
       const ccf::AuthnPolicies user_sig_or_cert = {user_signature_auth_policy,
                                                    user_cert_auth_policy};
 
-
       make_endpoint("SmallBank_create", HTTP_POST, create, user_sig_or_cert)
         .install();
       make_endpoint(

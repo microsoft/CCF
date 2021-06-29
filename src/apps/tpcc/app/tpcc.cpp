@@ -120,14 +120,17 @@ namespace ccfapp
       const ccf::AuthnPolicies user_sig_or_cert = {user_signature_auth_policy,
                                                    user_cert_auth_policy};
 
-      make_endpoint("tpcc_create", HTTP_POST, create, user_sig_or_cert).install();
+      make_endpoint("tpcc_create", HTTP_POST, create, user_sig_or_cert)
+        .install();
       make_endpoint("stock_level", HTTP_POST, do_stock_level, user_sig_or_cert)
         .install();
-      make_endpoint("order_status", HTTP_POST, do_order_status, user_sig_or_cert)
+      make_endpoint(
+        "order_status", HTTP_POST, do_order_status, user_sig_or_cert)
         .install();
       make_endpoint("delivery", HTTP_POST, do_delivery, user_sig_or_cert)
         .install();
-      make_endpoint("payment", HTTP_POST, do_payment, user_sig_or_cert).install();
+      make_endpoint("payment", HTTP_POST, do_payment, user_sig_or_cert)
+        .install();
       make_endpoint("new_order", HTTP_POST, do_new_order, user_sig_or_cert)
         .install();
 
