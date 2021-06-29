@@ -1424,7 +1424,7 @@ namespace ccf
       {
         case channel_msg:
         {
-          n2n_channels->recv_message(from, std::move(oa));
+          n2n_channels->recv_channel_message(from, std::move(oa));
           break;
         }
 

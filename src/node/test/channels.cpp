@@ -210,7 +210,8 @@ TEST_CASE("Client/Server key exchange")
 
   INFO("Load peer key share and check signature");
   {
-    REQUIRE(channels2.recv_message(nid1, std::move(channel1_signed_key_share)));
+    REQUIRE(channels2.recv_channel_message(
+      nid1, std::move(channel1_signed_key_share)));
     REQUIRE(channels1.get_status(nid2) == INITIATED);
     REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
   }
@@ -229,7 +230,8 @@ TEST_CASE("Client/Server key exchange")
 
   INFO("Load responder key share and check signature");
   {
-    REQUIRE(channels1.recv_message(nid2, std::move(channel2_signed_key_share)));
+    REQUIRE(channels1.recv_channel_message(
+      nid2, std::move(channel2_signed_key_share)));
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
     REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
   }
@@ -254,7 +256,8 @@ TEST_CASE("Client/Server key exchange")
 
   INFO("Cross-check responder signature and establish channels");
   {
-    REQUIRE(channels2.recv_message(nid1, std::move(initiator_signature)));
+    REQUIRE(
+      channels2.recv_channel_message(nid1, std::move(initiator_signature)));
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
     REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
   }
@@ -389,20 +392,23 @@ TEST_CASE("Replay and out-of-order")
     REQUIRE(msgs[0].type == channel_msg);
     auto channel1_signed_key_share = msgs[0].data();
 
-    REQUIRE(channels2.recv_message(nid1, std::move(channel1_signed_key_share)));
+    REQUIRE(channels2.recv_channel_message(
+      nid1, std::move(channel1_signed_key_share)));
 
     msgs = read_outbound_msgs<MsgType>(eio2);
     REQUIRE(msgs.size() == 1);
     REQUIRE(msgs[0].type == channel_msg);
     auto channel2_signed_key_share = msgs[0].data();
-    REQUIRE(channels1.recv_message(nid2, std::move(channel2_signed_key_share)));
+    REQUIRE(channels1.recv_channel_message(
+      nid2, std::move(channel2_signed_key_share)));
 
     msgs = read_outbound_msgs<MsgType>(eio1);
     REQUIRE(msgs.size() == 2);
     REQUIRE(msgs[0].type == channel_msg);
     auto initiator_signature = msgs[0].data();
 
-    REQUIRE(channels2.recv_message(nid1, std::move(initiator_signature)));
+    REQUIRE(
+      channels2.recv_channel_message(nid1, std::move(initiator_signature)));
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
     REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
 
@@ -500,12 +506,12 @@ TEST_CASE("Replay and out-of-order")
     REQUIRE(channels1.get_status(nid2) == INITIATED);
     REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
 
-    REQUIRE(channels2.recv_message(
+    REQUIRE(channels2.recv_channel_message(
       nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
     REQUIRE(channels1.get_status(nid2) == INITIATED);
     REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
 
-    REQUIRE(channels1.recv_message(
+    REQUIRE(channels1.recv_channel_message(
       nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
     REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
@@ -513,7 +519,7 @@ TEST_CASE("Replay and out-of-order")
     auto messages_1to2 = read_outbound_msgs<MsgType>(eio1);
     REQUIRE(messages_1to2.size() == 2);
     REQUIRE(messages_1to2[0].type == NodeMsgType::channel_msg);
-    REQUIRE(channels2.recv_message(nid1, messages_1to2[0].data()));
+    REQUIRE(channels2.recv_channel_message(nid1, messages_1to2[0].data()));
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
     REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
 
@@ -601,19 +607,19 @@ TEST_CASE("Concurrent key exchange init")
     auto fst1 = get_first(eio1, NodeMsgType::channel_msg);
     auto fst2 = get_first(eio2, NodeMsgType::channel_msg);
 
-    REQUIRE(channels1.recv_message(nid2, fst2.data()));
-    REQUIRE(channels2.recv_message(nid1, fst1.data()));
+    REQUIRE(channels1.recv_channel_message(nid2, fst2.data()));
+    REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
 
     REQUIRE(channels1.get_status(nid2) == WAITING_FOR_FINAL);
     REQUIRE(channels2.get_status(nid1) == INITIATED);
 
     fst1 = get_first(eio1, NodeMsgType::channel_msg);
 
-    REQUIRE(channels2.recv_message(nid1, fst1.data()));
+    REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
 
     fst2 = get_first(eio2, NodeMsgType::channel_msg);
 
-    REQUIRE(channels1.recv_message(nid2, fst2.data()));
+    REQUIRE(channels1.recv_channel_message(nid2, fst2.data()));
 
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
     REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
@@ -648,19 +654,19 @@ TEST_CASE("Concurrent key exchange init")
     auto fst1 = get_first(eio1, NodeMsgType::channel_msg);
     auto fst2 = get_first(eio2, NodeMsgType::channel_msg);
 
-    REQUIRE_FALSE(channels1.recv_message(nid2, fst2.data()));
-    REQUIRE(channels2.recv_message(nid1, fst1.data()));
+    REQUIRE_FALSE(channels1.recv_channel_message(nid2, fst2.data()));
+    REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
 
     REQUIRE(channels1.get_status(nid2) == INITIATED);
     REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
 
     fst2 = get_first(eio2, NodeMsgType::channel_msg);
 
-    REQUIRE(channels1.recv_message(nid2, fst2.data()));
+    REQUIRE(channels1.recv_channel_message(nid2, fst2.data()));
 
     fst1 = get_first(eio1, NodeMsgType::channel_msg);
 
-    REQUIRE(channels2.recv_message(nid1, fst1.data()));
+    REQUIRE(channels2.recv_channel_message(nid1, fst1.data()));
 
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
     REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
@@ -765,7 +771,7 @@ TEST_CASE("Full NodeToNode test")
             {
               case NodeMsgType::channel_msg:
               {
-                n2n.recv_message(msg.from, msg.data());
+                n2n.recv_channel_message(msg.from, msg.data());
 
                 auto d = msg.data();
                 const uint8_t* data = d.data();
@@ -859,7 +865,8 @@ TEST_CASE("Interrupted key exchange")
     auto initiator_key_share_msg = get_first(eio1, NodeMsgType::channel_msg);
     if (drop_stage > DropStage::InitiationMessage)
     {
-      REQUIRE(channels2.recv_message(nid1, initiator_key_share_msg.data()));
+      REQUIRE(
+        channels2.recv_channel_message(nid1, initiator_key_share_msg.data()));
 
       REQUIRE(channels1.get_status(nid2) == INITIATED);
       REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
@@ -867,7 +874,8 @@ TEST_CASE("Interrupted key exchange")
       auto responder_key_share_msg = get_first(eio2, NodeMsgType::channel_msg);
       if (drop_stage > DropStage::ResponseMessage)
       {
-        REQUIRE(channels1.recv_message(nid2, responder_key_share_msg.data()));
+        REQUIRE(
+          channels1.recv_channel_message(nid2, responder_key_share_msg.data()));
 
         REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
         REQUIRE(channels2.get_status(nid1) == WAITING_FOR_FINAL);
@@ -876,7 +884,7 @@ TEST_CASE("Interrupted key exchange")
           get_first(eio1, NodeMsgType::channel_msg);
         if (drop_stage > DropStage::FinalMessage)
         {
-          REQUIRE(channels2.recv_message(
+          REQUIRE(channels2.recv_channel_message(
             nid1, initiator_key_exchange_final_msg.data()));
 
           REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
@@ -894,11 +902,11 @@ TEST_CASE("Interrupted key exchange")
         channels1.send_authenticated(
           nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-        REQUIRE(channels2.recv_message(
+        REQUIRE(channels2.recv_channel_message(
           nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
-        REQUIRE(channels1.recv_message(
+        REQUIRE(channels1.recv_channel_message(
           nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
-        REQUIRE(channels2.recv_message(
+        REQUIRE(channels2.recv_channel_message(
           nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
       }
       else
@@ -908,11 +916,11 @@ TEST_CASE("Interrupted key exchange")
         channels2.send_authenticated(
           nid1, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
-        REQUIRE(channels1.recv_message(
+        REQUIRE(channels1.recv_channel_message(
           nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
-        REQUIRE(channels2.recv_message(
+        REQUIRE(channels2.recv_channel_message(
           nid1, get_first(eio1, NodeMsgType::channel_msg).data()));
-        REQUIRE(channels1.recv_message(
+        REQUIRE(channels1.recv_channel_message(
           nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
       }
 
@@ -1028,8 +1036,8 @@ TEST_CASE("Robust key exchange")
         std::make_tuple("counter-initiation junk", i, msg.data()));
     }
 
-    REQUIRE(channels2.recv_message(nid1, kex_init.data()));
-    CHECK_FALSE(channels2.recv_message(
+    REQUIRE(channels2.recv_channel_message(nid1, kex_init.data()));
+    CHECK_FALSE(channels2.recv_channel_message(
       nid1, kex_init.data())); // TODO: This should be an error!
 
     outbound = read_outbound_msgs<MsgType>(eio2);
@@ -1042,8 +1050,8 @@ TEST_CASE("Robust key exchange")
       old_messages.push_back(std::make_tuple("response junk", i, msg.data()));
     }
 
-    REQUIRE(channels1.recv_message(nid2, kex_response.data()));
-    CHECK_FALSE(channels1.recv_message(
+    REQUIRE(channels1.recv_channel_message(nid2, kex_response.data()));
+    CHECK_FALSE(channels1.recv_channel_message(
       nid2, kex_response.data())); // TODO: This should be an error!
 
     outbound = read_outbound_msgs<MsgType>(eio1);
@@ -1056,8 +1064,8 @@ TEST_CASE("Robust key exchange")
       old_messages.push_back(std::make_tuple("final junk", i, msg.data()));
     }
 
-    REQUIRE(channels2.recv_message(nid1, kex_final.data()));
-    CHECK_FALSE(channels2.recv_message(
+    REQUIRE(channels2.recv_channel_message(nid1, kex_final.data()));
+    CHECK_FALSE(channels2.recv_channel_message(
       nid1, kex_final.data())); // TODO: This should be an error!
 
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
@@ -1104,9 +1112,9 @@ TEST_CASE("Robust key exchange")
         // Uncomment this line to aid debugging if any of these fail
         // std::cout << label << ": " << i << std::endl;
         auto msg_1 = msg;
-        CHECK_FALSE(channels1.recv_message(nid2, std::move(msg_1)));
+        CHECK_FALSE(channels1.recv_channel_message(nid2, std::move(msg_1)));
         auto msg_2 = msg;
-        CHECK_FALSE(channels2.recv_message(nid1, std::move(msg_2)));
+        CHECK_FALSE(channels2.recv_channel_message(nid1, std::move(msg_2)));
       }
     };
 
@@ -1118,17 +1126,17 @@ TEST_CASE("Robust key exchange")
 
     receive_junk();
 
-    REQUIRE(channels2.recv_message(nid1, kex_init.data()));
+    REQUIRE(channels2.recv_channel_message(nid1, kex_init.data()));
     auto kex_response = get_first(eio2, NodeMsgType::channel_msg);
 
     receive_junk();
 
-    REQUIRE(channels1.recv_message(nid2, kex_response.data()));
+    REQUIRE(channels1.recv_channel_message(nid2, kex_response.data()));
     auto kex_final = get_first(eio1, NodeMsgType::channel_msg);
 
     receive_junk();
 
-    REQUIRE(channels2.recv_message(nid1, kex_final.data()));
+    REQUIRE(channels2.recv_channel_message(nid1, kex_final.data()));
 
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
     REQUIRE(channels2.get_status(nid1) == ESTABLISHED);

@@ -91,9 +91,12 @@ namespace ccf
       const NodeId& from, const uint8_t*& data, size_t& size) = 0;
 
     virtual bool recv_authenticated(
-      const NodeId& from, CBuffer header, const uint8_t*& data, size_t& size) = 0;
+      const NodeId& from,
+      CBuffer header,
+      const uint8_t*& data,
+      size_t& size) = 0;
 
-    virtual bool recv_message(const NodeId& from, OArray&& msg) = 0;
+    virtual bool recv_channel_message(const NodeId& from, OArray&& msg) = 0;
 
     virtual bool send_encrypted(
       const NodeId& to,

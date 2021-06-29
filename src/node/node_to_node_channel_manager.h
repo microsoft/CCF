@@ -28,14 +28,6 @@ namespace ccf
 
     size_t message_limit = Channel::default_message_limit;
 
-  public:
-    NodeToNodeChannelManager(
-      ringbuffer::AbstractWriterFactory& writer_factory_) :
-      writer_factory(writer_factory_),
-      to_host(writer_factory_.create_writer_to_outside())
-    {}
-
-    // TODO: Feels like this should be private
     std::shared_ptr<Channel> get_channel(const NodeId& peer_id)
     {
       CCF_ASSERT_FMT(
@@ -64,6 +56,13 @@ namespace ccf
           message_limit));
       return channels.at(peer_id);
     }
+
+  public:
+    NodeToNodeChannelManager(
+      ringbuffer::AbstractWriterFactory& writer_factory_) :
+      writer_factory(writer_factory_),
+      to_host(writer_factory_.create_writer_to_outside())
+    {}
 
     void initialize(
       const NodeId& self_id,
@@ -193,7 +192,7 @@ namespace ccf
       return plain.value();
     }
 
-    bool recv_message(const NodeId& from, OArray&& msg) override
+    bool recv_channel_message(const NodeId& from, OArray&& msg) override
     {
       CCF_ASSERT_FMT(
         this_node != nullptr,
@@ -201,49 +200,7 @@ namespace ccf
         "initialized",
         from);
 
-      try
-      {
-        const uint8_t* data = msg.data();
-        size_t size = msg.size();
-        auto chmsg = serialized::read<ChannelMsg>(data, size);
-        switch (chmsg)
-        {
-          case key_exchange_init:
-          {
-            // In the case of concurrent key_exchange_init's from both nodes,
-            // the one with the lower ID wins.
-            LOG_DEBUG_FMT("key_exchange_init from {}", from);
-            return get_channel(from)->recv_key_exchange_init(
-              data, size, this_node->node_id < from);
-          }
-
-          case key_exchange_response:
-          {
-            LOG_DEBUG_FMT("key_exchange_response from {}", from);
-            return get_channel(from)->recv_key_exchange_response(data, size);
-          }
-
-          case key_exchange_final:
-          {
-            LOG_DEBUG_FMT("key_exchange_final from {}", from);
-            return get_channel(from)->recv_key_exchange_final(data, size);
-          }
-
-          default:
-          {
-            throw std::runtime_error(fmt::format(
-              "Received message with initial bytes {} from {} - not recognised "
-              "as a key exchange message",
-              chmsg,
-              from));
-          }
-        }
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_EXC(e.what());
-        return false;
-      }
+      return get_channel(from)->recv_key_exchange_message(std::move(msg));
     }
   };
 }

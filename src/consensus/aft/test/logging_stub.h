@@ -135,7 +135,7 @@ namespace aft
       return true;
     }
 
-    bool recv_message(const ccf::NodeId& from, OArray&& oa) override
+    bool recv_channel_message(const ccf::NodeId& from, OArray&& oa) override
     {
       return true;
     }
