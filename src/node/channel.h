@@ -453,25 +453,7 @@ namespace ccf
 
       // We are the responder and we return a signature over both public key
       // shares back to the initiator
-
-      auto oks = kex_ctx.get_own_key_share();
-      std::vector<uint8_t> pks = {ks.p, ks.p + ks.n};
-      auto serialised_signed_share = sign_key_share(oks, false, &pks);
-
-      to_host->write(
-        node_outbound,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        ChannelMsg::key_exchange_response,
-        initiation_attempt_nonce, // TODO: Integrity protect
-        serialised_signed_share);
-
-      LOG_TRACE_FMT(
-        "key_exchange_response -> {}: oks={} serialised_signed_share={}",
-        peer_id,
-        ds::to_hex(oks),
-        ds::to_hex(serialised_signed_share));
+      send_key_exchange_response();
 
       return true;
     }
@@ -713,7 +695,27 @@ namespace ccf
         make_verifier(node_cert)->serial_number());
     }
 
-    void send_key_exchange_response() {}
+    void send_key_exchange_response()
+    {
+      auto oks = kex_ctx.get_own_key_share();
+      auto serialised_signed_share =
+        sign_key_share(oks, false, &kex_ctx.get_peer_key_share());
+
+      to_host->write(
+        node_outbound,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        ChannelMsg::key_exchange_response,
+        initiation_attempt_nonce, // TODO: Integrity protect
+        serialised_signed_share);
+
+      LOG_TRACE_FMT(
+        "key_exchange_response -> {}: oks={} serialised_signed_share={}",
+        peer_id,
+        ds::to_hex(oks),
+        ds::to_hex(serialised_signed_share));
+    }
 
     // Called whenever we try to send or receive and the channel is not
     // ESTABLISHED, to trigger new initiation attempts or resends of previous
@@ -742,8 +744,7 @@ namespace ccf
         {
           // We received an init, and responded, but are still waiting for a
           // final - resend the same response in case they missed it
-          // send_key_exchange_response();
-          LOG_FATAL_FMT("Can't resend response!"); // TODO
+          send_key_exchange_response();
           break;
         }
 
