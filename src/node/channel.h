@@ -625,27 +625,28 @@ namespace ccf
     void establish()
     {
       auto shared_secret = kex_ctx.compute_shared_secret();
-      std::string label_to = self.value() + peer_id.value();
-      std::string label_from = peer_id.value() + self.value();
 
-      std::vector<uint8_t> info = {label_from.data(),
-                                   label_from.data() + label_from.size()};
-      auto key_bytes = crypto::hkdf(
-        crypto::MDType::SHA256,
-        shared_key_size,
-        shared_secret,
-        hkdf_salt,
-        info);
-      recv_key = crypto::make_key_aes_gcm(key_bytes);
+      {
+        const std::string label_from = peer_id.value() + self.value();
+        const auto key_bytes = crypto::hkdf(
+          crypto::MDType::SHA256,
+          shared_key_size,
+          shared_secret,
+          hkdf_salt,
+          {label_from.begin(), label_from.end()});
+        recv_key = crypto::make_key_aes_gcm(key_bytes);
+      }
 
-      info = {label_to.data(), label_to.data() + label_to.size()};
-      key_bytes = crypto::hkdf(
-        crypto::MDType::SHA256,
-        shared_key_size,
-        shared_secret,
-        hkdf_salt,
-        info);
-      send_key = crypto::make_key_aes_gcm(key_bytes);
+      {
+        const std::string label_to = self.value() + peer_id.value();
+        const auto key_bytes = crypto::hkdf(
+          crypto::MDType::SHA256,
+          shared_key_size,
+          shared_secret,
+          hkdf_salt,
+          {label_to.begin(), label_to.end()});
+        send_key = crypto::make_key_aes_gcm(key_bytes);
+      }
 
       kex_ctx.free_ctx();
       send_nonce = 1;
@@ -712,31 +713,45 @@ namespace ccf
         make_verifier(node_cert)->serial_number());
     }
 
+    void send_key_exchange_response() {}
+
+    // Called whenever we try to send or receive and the channel is not
+    // ESTABLISHED, to trigger new initiation attempts or resends of previous
+    // protocol message
     void advance_connection_attempt()
     {
       switch (status.value())
       {
         case (INACTIVE):
         {
+          // We have no key and believe no key exchange is in process - start a
+          // new iteration of the key exchange protocol
           initiate();
           break;
         }
 
         case (INITIATED):
         {
+          // We initiated with them but are still waiting for a response -
+          // resend the same init message in case they missed it
           send_key_exchange_init();
           break;
         }
 
         case (WAITING_FOR_FINAL):
         {
+          // We received an init, and responded, but are still waiting for a
+          // final - resend the same response in case they missed it
           // send_key_exchange_response();
+          LOG_FATAL_FMT("Can't resend response!"); // TODO
           break;
         }
 
         case (ESTABLISHED):
         {
-          // send_key_exchange_final();??
+          throw std::logic_error(
+            "advance_connection_attempt() should never be called on an "
+            "ESTABLISHED connection");
           break;
         }
       }
@@ -789,6 +804,7 @@ namespace ccf
           "established, status={}",
           peer_id,
           status.value());
+        advance_connection_attempt();
         return false;
       }
 
@@ -815,6 +831,7 @@ namespace ccf
           "message: not established, status={}",
           peer_id,
           status.value());
+        advance_connection_attempt();
         return false;
       }
 
@@ -845,6 +862,7 @@ namespace ccf
           "established, status={}",
           peer_id,
           status.value());
+        advance_connection_attempt();
         return std::nullopt;
       }
 
