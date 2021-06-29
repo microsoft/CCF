@@ -37,7 +37,7 @@ CCF Documentation
     :fa:`user` :doc:`use_apps/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Interact with a CCF application, using HTTP or WebSockets over TLS.
+    Interact with a CCF application, using HTTP over TLS.
 
     ---
 
