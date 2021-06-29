@@ -9,10 +9,10 @@
 #include "ccf/version.h"
 #include "crypto/hash.h"
 #include "frontend.h"
-#include "node/config_id.h"
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
+#include "node/reconfig_id.h"
 #include "node_interface.h"
 
 namespace ccf
@@ -185,7 +185,7 @@ namespace ccf
          in.quote_info,
          in.public_encryption_key,
          node_status,
-         get_fresh_config_id(network, tx),
+         get_next_reconfiguration_id(network, tx),
          ledger_secret_seqno});
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);

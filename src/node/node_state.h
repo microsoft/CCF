@@ -18,9 +18,9 @@
 #include "hooks.h"
 #include "js/wrap.h"
 #include "network_state.h"
-#include "node/config_id.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
+#include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "rpc/frontend.h"
@@ -996,7 +996,7 @@ namespace ccf
          quote_info,
          node_encrypt_kp->public_key_pem().raw(),
          NodeStatus::PENDING,
-         get_fresh_config_id(network, tx)});
+         get_next_reconfiguration_id(network, tx)});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 

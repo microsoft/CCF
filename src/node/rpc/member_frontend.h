@@ -8,13 +8,13 @@
 #include "ds/nonstd.h"
 #include "frontend.h"
 #include "js/wrap.h"
-#include "node/config_id.h"
 #include "node/genesis_gen.h"
 #include "node/gov.h"
 #include "node/jwt.h"
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
+#include "node/reconfig_id.h"
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
@@ -831,7 +831,7 @@ namespace ccf
            {in.quote_info},
            in.public_encryption_key,
            NodeStatus::TRUSTED,
-           get_fresh_config_id(network, ctx.tx)});
+           get_next_reconfiguration_id(network, ctx.tx)});
 
 #ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);
