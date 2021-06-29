@@ -69,10 +69,8 @@ namespace asynchost
             break;
           }
 
-          auto p = data;
-          auto psize = size;
-          auto msg_type = serialized::read<ccf::NodeMsgType>(p, psize);
-          ccf::NodeId from = serialized::read<ccf::NodeId::Value>(p, psize);
+          auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
+          ccf::NodeId from = serialized::read<ccf::NodeId::Value>(data, size);
 
           associate(from);
 
@@ -85,11 +83,13 @@ namespace asynchost
           RINGBUFFER_WRITE_MESSAGE(
             ccf::node_inbound,
             parent.to_enclave,
-            serializer::ByteRange{data, msg_size});
+            msg_type,
+            from.value(),
+            serializer::ByteRange{data, size});
 
-          data += msg_size;
+          data += size;
+          size -= size;
           used += msg_size;
-          size -= msg_size;
           msg_size = (uint32_t)-1;
         }
 
@@ -246,7 +246,9 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ccf::associate_node_address, [this](const uint8_t* data, size_t size) {
+        disp,
+        ccf::associate_node_address,
+        [this](const uint8_t* data, size_t size) {
           auto [id, hostname, service] =
             ringbuffer::read_message<ccf::associate_node_address>(data, size);
           // TODO: Just add association, don't try to open a session now?

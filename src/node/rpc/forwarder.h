@@ -233,13 +233,10 @@ namespace ccf
       return m;
     }
 
-    void recv_message(const uint8_t* data, size_t size)
+    void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
       try
       {
-        serialized::skip(data, size, sizeof(NodeMsgType));
-
-        NodeId from = serialized::read<NodeId::Value>(data, size);
         auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
 
         switch (forwarded_msg)

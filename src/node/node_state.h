@@ -1386,58 +1386,46 @@ namespace ccf
       consensus->periodic_end();
     }
 
-    void recv_node_inbound(std::vector<uint8_t>&& body)
+    void recv_node_inbound(ccf::NodeMsgType msg_type, const ccf::NodeId& from, std::vector<uint8_t>&& payload)
     {
-      auto p = body.data();
-      auto psize = body.size();
-
       if (
-        serialized::peek<ccf::NodeMsgType>(p, psize) ==
-        ccf::NodeMsgType::forwarded_msg)
+        msg_type == ccf::NodeMsgType::forwarded_msg)
       {
-        cmd_forwarder->recv_message(p, psize);
+        cmd_forwarder->recv_message(from, payload.data(), payload.size());
       }
       else
       {
-        node_msg(std::move(body));
-      }
-    }
-
-    void node_msg(std::vector<uint8_t>&& data)
-    {
-      // Only process messages once part of network
-      if (
-        !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork) &&
-        !sm.check(State::readingPrivateLedger))
-      {
-        LOG_FAIL_FMT("Ignoring node msg received too early - current state is {}", sm.value());
-        return;
-      }
-
-      OArray oa(std::move(data));
-      NodeMsgType msg_type =
-        serialized::overlay<NodeMsgType>(oa.data(), oa.size());
-      NodeId from = serialized::read<NodeId::Value>(oa.data(), oa.size());
-
-      switch (msg_type)
-      {
-        case channel_msg:
+        // Only process messages once part of network
+        if (
+          !sm.check(State::partOfNetwork) &&
+          !sm.check(State::partOfPublicNetwork) &&
+          !sm.check(State::readingPrivateLedger))
         {
-          n2n_channels->recv_channel_message(from, std::move(oa));
-          break;
-        }
-
-        case consensus_msg:
-        {
-          consensus->recv_message(from, std::move(oa));
-          break;
-        }
-
-        default:
-        {
-          LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
+          LOG_FAIL_FMT("Ignoring node msg received too early - current state is {}", sm.value());
           return;
+        }
+
+        OArray oa(std::move(payload));
+
+        switch (msg_type)
+        {
+          case channel_msg:
+          {
+            n2n_channels->recv_channel_message(from, std::move(oa));
+            break;
+          }
+
+          case consensus_msg:
+          {
+            consensus->recv_message(from, std::move(oa));
+            break;
+          }
+
+          default:
+          {
+            LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
+            return;
+          }
         }
       }
     }

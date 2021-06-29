@@ -19,6 +19,10 @@
 #include <map>
 #include <mbedtls/ecdh.h>
 
+// -Wpedantic flags token pasting of __VA_ARGS__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+
 #define CHANNEL_RECV_TRACE(s, ...) \
   LOG_TRACE_FMT("<- {} ({}): " s, peer_id, status.value(), ##__VA_ARGS__)
 #define CHANNEL_SEND_TRACE(s, ...) \
@@ -280,6 +284,9 @@ namespace ccf
         case (ESTABLISHED):
         {
           // TODO: How do we resend FINAL, if it looks like they missed it?
+          // TODO: Consider an ESTABLISHED_TENTATIVE state, where we've sent
+          // FINAL but still have the state to resend it? Can resend if they
+          // respond again, and otherwise we encrypt with our current key?
           throw std::logic_error(
             "advance_connection_attempt() should never be called on an "
             "ESTABLISHED connection");
@@ -951,6 +958,8 @@ namespace ccf
     }
   };
 }
+
+#pragma clang diagnostic pop
 
 namespace fmt
 {

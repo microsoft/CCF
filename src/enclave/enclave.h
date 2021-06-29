@@ -260,10 +260,10 @@ namespace enclave
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, ccf::node_inbound, [this](const uint8_t* data, size_t size) {
-            auto [body] =
+            auto [msg_type, from_id, payload] =
               ringbuffer::read_message<ccf::node_inbound>(data, size);
 
-            node->recv_node_inbound(std::move(body));
+            node->recv_node_inbound(msg_type, from_id, std::move(payload));
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
