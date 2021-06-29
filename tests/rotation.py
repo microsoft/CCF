@@ -77,6 +77,7 @@ if __name__ == "__main__":
             type=int,
             default=3,
         )
+
     args = infra.e2e_args.cli_args(add=add)
     args.package = "liblogging"
     args.nodes = infra.e2e_args.max_nodes(args, f=0)

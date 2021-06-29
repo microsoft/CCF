@@ -47,7 +47,7 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
       suffix: "Instrumented"
       artifact_name: "NoSGX_Instrumented"
-      ctest_filter: " -R rotation_test_bft --repeat-until-fail 10 "
+      ctest_filter: '-LE "benchmark|perf|partitions"'
       ctest_timeout: "300"
       timeoutInMinutes: 120
 
@@ -58,7 +58,7 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON"
       suffix: "Release"
       artifact_name: "SGX_Release"
-      ctest_filter: " -R rotation_test_bft --repeat-until-fail 10 "
+      ctest_filter: '-LE "benchmark|perf|rotation|partitions"'
 
   - template: common.yml
     parameters:
@@ -68,4 +68,4 @@ jobs:
       cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.fuzz.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}"
       suffix: "Fuzz"
       artifact_name: "NoSGX_Fuzz"
-      ctest_filter: " -R rotation_test_bft --repeat-until-fail 10 "
+      ctest_filter: "${{ parameters.test.fuzz.ctest_args }}"
