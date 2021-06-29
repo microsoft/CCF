@@ -10,6 +10,7 @@
 #include "ds/hex.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
+#include "ds/state_machine.h"
 #include "entities.h"
 #include "node_types.h"
 #include "tls/key_exchange.h"
@@ -96,7 +97,7 @@ namespace ccf
 
     // Used for key exchange
     tls::KeyExchangeContext kex_ctx;
-    ChannelStatus status = INACTIVE;
+    ds::StateMachine<ChannelStatus> status;
     static constexpr size_t salt_len = 32;
     static constexpr size_t shared_key_size = 32;
     std::vector<uint8_t> hkdf_salt;
@@ -131,10 +132,7 @@ namespace ccf
       CBuffer cipher = nullb,
       Buffer plain = {})
     {
-      if (status != ESTABLISHED)
-      {
-        throw std::logic_error("Channel is not established for verifying");
-      }
+      status.expect(ESTABLISHED);
 
       RecvNonce recv_nonce(header.get_iv_int());
       auto tid = recv_nonce.tid;
@@ -218,6 +216,7 @@ namespace ccf
       node_cert(node_cert_),
       to_host(writer_factory.create_writer_to_outside()),
       peer_id(peer_id_),
+      status(fmt::format("Channel to {}", peer_id_), INACTIVE),
       message_limit(message_limit_)
     {
       auto e = crypto::create_entropy();
@@ -230,14 +229,9 @@ namespace ccf
       // TODO: Send a close message now?
     }
 
-    void set_status(ChannelStatus status_)
-    {
-      status = status_;
-    }
-
     ChannelStatus get_status()
     {
-      return status;
+      return status.value();
     }
 
     std::vector<uint8_t> sign_key_share(
@@ -370,12 +364,7 @@ namespace ccf
 
     bool consume_responder_key_share(const uint8_t* data, size_t size)
     {
-      LOG_TRACE_FMT("status == {}", status);
-
-      if (status != INITIATED && status != ESTABLISHED)
-      {
-        return false;
-      }
+      status.expect(INITIATED);
 
       size_t peer_version = serialized::read<size_t>(data, size);
       CBuffer ks = extract_buffer(data, size);
@@ -489,7 +478,7 @@ namespace ccf
         LOG_INFO_FMT(
           "Agree we're in key exchange attempt {}", initiation_attempt);
 
-        if (status == INITIATED)
+        if (status.check(INITIATED))
         {
           if (!priority)
           {
@@ -510,7 +499,7 @@ namespace ccf
         }
       }
 
-      LOG_TRACE_FMT("status == {}", status);
+      LOG_TRACE_FMT("status == {}", status.value());
 
       size_t peer_version = serialized::read<size_t>(data, size);
       CBuffer ks = extract_buffer(data, size);
@@ -554,16 +543,10 @@ namespace ccf
         return false;
       }
 
-      if (status == ESTABLISHED)
-      {
-        // key_ctx does not hold a key share; we need a new one.
-        kex_ctx.reset();
-      }
-
       kex_ctx.load_peer_key_share(ks);
 
-      if (status != ESTABLISHED)
-        status = WAITING_FOR_FINAL;
+      status.expect(INACTIVE);
+      status.advance(WAITING_FOR_FINAL);
 
       // We are the responder and we return a signature over both public key
       // shares back to the initiator
@@ -596,12 +579,7 @@ namespace ccf
 
     bool check_peer_key_share_signature(const uint8_t* data, size_t size)
     {
-      LOG_TRACE_FMT("status == {}", status);
-
-      if (status != WAITING_FOR_FINAL && status != ESTABLISHED)
-      {
-        return false;
-      }
+      status.expect(WAITING_FOR_FINAL);
 
       auto oks = kex_ctx.get_own_key_share();
 
@@ -647,7 +625,8 @@ namespace ccf
         local_recv_nonce[i].main_thread_seqno = 0;
         local_recv_nonce[i].tid_seqno = 0;
       }
-      status = ESTABLISHED;
+
+      status.advance(ESTABLISHED);
       LOG_INFO_FMT("Node channel with {} is now established.", peer_id);
 
       auto node_cv = make_verifier(node_cert);
@@ -682,7 +661,8 @@ namespace ccf
 
       send_key_exchange_init();
 
-      status = INITIATED;
+      status.expect(INACTIVE);
+      status.advance(INITIATED);
     }
 
     // TODO: Move these functions somewhere sensible
@@ -705,7 +685,7 @@ namespace ccf
 
     void advance_connection_attempt()
     {
-      switch (status)
+      switch (status.value())
       {
         case (INACTIVE):
         {
@@ -735,7 +715,7 @@ namespace ccf
 
     bool send(NodeMsgType type, CBuffer aad, CBuffer plain = nullb)
     {
-      if (status != ESTABLISHED)
+      if (!status.check(ESTABLISHED))
       {
         advance_connection_attempt();
         outgoing_msg = OutgoingMsg(type, aad, plain);
@@ -773,13 +753,13 @@ namespace ccf
     {
       // Receive authenticated message, modifying data to point to the start of
       // the non-authenticated plaintext payload
-      if (status != ESTABLISHED)
+      if (!status.check(ESTABLISHED))
       {
         LOG_INFO_FMT(
           "Node channel with {} cannot receive authenticated message: not "
           "established, status={}",
           peer_id,
-          status);
+          status.value());
         return false;
       }
 
@@ -799,13 +779,13 @@ namespace ccf
       // the non-authenticated plaintex payload. data contains payload first,
       // then GCM header
 
-      if (status != ESTABLISHED)
+      if (!status.check(ESTABLISHED))
       {
         LOG_INFO_FMT(
           "node channel with {} cannot receive authenticated with payload "
           "message: not established, status={}",
           peer_id,
-          status);
+          status.value());
         return false;
       }
 
@@ -829,12 +809,12 @@ namespace ccf
       CBuffer aad, const uint8_t* data, size_t size)
     {
       // Receive encrypted message, returning the decrypted payload
-      if (status != ESTABLISHED)
+      if (!status.check(ESTABLISHED))
       {
         LOG_INFO_FMT(
           "Node channel with {} cannot receive encrypted message: not "
-          "established",
-          peer_id);
+          "established, status={}",
+          peer_id, status.value());
         return std::nullopt;
       }
 
@@ -859,7 +839,7 @@ namespace ccf
     {
       LOG_INFO_FMT("Resetting channel with {}", peer_id);
 
-      status = INACTIVE;
+      status.advance(INACTIVE);
       kex_ctx.reset();
       peer_cert = {};
       peer_cv.reset();
@@ -869,6 +849,49 @@ namespace ccf
 
       auto e = crypto::create_entropy();
       hkdf_salt = e->random(salt_len);
+    }
+  };
+}
+
+namespace fmt
+{
+  template <>
+  struct formatter<ccf::ChannelStatus>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ccf::ChannelStatus& cs, FormatContext& ctx)
+    {
+      char const* s = "Unknown";
+      switch (cs)
+      {
+        case (ccf::INACTIVE):
+        {
+          s = "INACTIVE";
+          break;
+        }
+        case (ccf::INITIATED):
+        {
+          s = "INITIATED";
+          break;
+        }
+        case (ccf::WAITING_FOR_FINAL):
+        {
+          s = "WAITING_FOR_FINAL";
+          break;
+        }
+        case (ccf::ESTABLISHED):
+        {
+          s = "ESTABLISHED";
+          break;
+        }
+      }
+      return format_to(ctx.out(), s);
     }
   };
 }

@@ -12,8 +12,8 @@ namespace ds
   template <typename T>
   class StateMachine
   {
-    std::atomic<T> s;
     const std::string label;
+    std::atomic<T> s;
 
   public:
     StateMachine(std::string&& l, T s) : label(std::move(l)), s(s) {}
