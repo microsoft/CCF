@@ -400,7 +400,7 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         # Large apps take a long time to process - wait longer than normal for commit
-        return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=10)
+        return self.vote_using_majority(remote_node, proposal, careful_vote, timeout=30)
 
     def remove_js_app(self, remote_node):
         proposal_body, careful_vote = ccf.proposal_generator.remove_js_app()
