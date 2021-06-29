@@ -301,7 +301,9 @@ namespace kv
 
     virtual ~TxHistory() {}
     virtual Result verify_and_sign(
-      ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
+      ccf::PrimarySignature& signature,
+      Term* term,
+      kv::Configuration::Nodes& nodes) = 0;
     virtual bool verify(
       Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
     virtual void try_emit_signature() = 0;
@@ -413,7 +415,6 @@ namespace kv
 
     virtual void enable_all_domains() {}
 
-    virtual uint32_t node_count() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
