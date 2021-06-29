@@ -1386,12 +1386,12 @@ namespace ccf
       consensus->periodic_end();
     }
 
-    void recv_node_inbound(ccf::NodeMsgType msg_type, const ccf::NodeId& from, std::vector<uint8_t>&& payload)
+    void recv_node_inbound(ccf::NodeMsgType msg_type, const ccf::NodeId& from, const uint8_t* payload_data, size_t payload_size)
     {
       if (
         msg_type == ccf::NodeMsgType::forwarded_msg)
       {
-        cmd_forwarder->recv_message(from, payload.data(), payload.size());
+        cmd_forwarder->recv_message(from, payload_data, payload_size);
       }
       else
       {
@@ -1405,19 +1405,17 @@ namespace ccf
           return;
         }
 
-        OArray oa(std::move(payload));
-
         switch (msg_type)
         {
           case channel_msg:
           {
-            n2n_channels->recv_channel_message(from, std::move(oa));
+            n2n_channels->recv_channel_message(from, payload_data, payload_size);
             break;
           }
 
           case consensus_msg:
           {
-            consensus->recv_message(from, std::move(oa));
+            consensus->recv_message(from, payload_data, payload_size);
             break;
           }
 

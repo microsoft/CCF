@@ -263,7 +263,7 @@ namespace enclave
             auto [msg_type, from_id, payload] =
               ringbuffer::read_message<ccf::node_inbound>(data, size);
 
-            node->recv_node_inbound(msg_type, from_id, std::move(payload));
+            node->recv_node_inbound(msg_type, from_id, payload.data, payload.size);
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(

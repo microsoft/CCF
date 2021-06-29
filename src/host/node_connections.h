@@ -258,20 +258,23 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, ccf::node_outbound, [this](const uint8_t* data, size_t size) {
           ccf::NodeId to = serialized::read<ccf::NodeId::Value>(data, size);
-          auto node = find(to, true);
 
+          auto node = find(to, true);
           if (!node)
           {
             return;
           }
 
+          // Rather than reading and reserialising, use the msg_type and from_id
+          // that are already serialised on the ringbuffer
           auto data_to_send = data;
           auto size_to_send = size;
 
           // If the message is a consensus append entries message, affix the
           // corresponding ledger entries
           auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
-          ccf::NodeId from = serialized::read<ccf::NodeId::Value>(data, size);
+          serialized::read<ccf::NodeId::Value>(data, size); // Ignore from_id
+
           if (
             msg_type == ccf::NodeMsgType::consensus_msg &&
             (serialized::read<aft::RaftMsgType>(data, size) ==

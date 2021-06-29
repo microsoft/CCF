@@ -192,7 +192,8 @@ namespace ccf
       return plain.value();
     }
 
-    bool recv_channel_message(const NodeId& from, OArray&& msg) override
+    bool recv_channel_message(
+      const NodeId& from, const uint8_t* data, size_t size) override
     {
       CCF_ASSERT_FMT(
         this_node != nullptr,
@@ -200,7 +201,14 @@ namespace ccf
         "initialized",
         from);
 
-      return get_channel(from)->recv_key_exchange_message(std::move(msg));
+      return get_channel(from)->recv_key_exchange_message(data, size);
+    }
+
+    // NB: Only used by tests!
+    bool recv_channel_message(
+      const NodeId& from, std::vector<uint8_t>&& body)
+    {
+      return recv_channel_message(from, body.data(), body.size());
     }
   };
 }

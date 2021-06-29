@@ -914,12 +914,10 @@ namespace ccf
       hkdf_salt = e->random(salt_len);
     }
 
-    bool recv_key_exchange_message(OArray&& msg)
+    bool recv_key_exchange_message(const uint8_t* data, size_t size)
     {
       try
       {
-        const uint8_t* data = msg.data();
-        size_t size = msg.size();
         auto chmsg = serialized::read<ChannelMsg>(data, size);
         switch (chmsg)
         {

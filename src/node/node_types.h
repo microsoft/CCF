@@ -92,12 +92,12 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   ccf::node_inbound,
   ccf::NodeMsgType,
   ccf::NodeId::Value,
-  std::vector<uint8_t>);
+  serializer::ByteRange);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   ccf::node_outbound,
   ccf::NodeId::Value,
   ccf::NodeMsgType,
   ccf::NodeId::Value,
-  std::vector<uint8_t>);
+  serializer::ByteRange);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   ccf::close_node_outbound, ccf::NodeId::Value); // TODO: implement this
