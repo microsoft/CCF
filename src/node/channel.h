@@ -19,6 +19,11 @@
 #include <map>
 #include <mbedtls/ecdh.h>
 
+#define CHANNEL_RECV_TRACE(s, ...) \
+  LOG_TRACE_FMT("<- {} ({}): " s, peer_id, status.value(), ##__VA_ARGS__)
+#define CHANNEL_SEND_TRACE(s, ...) \
+  LOG_TRACE_FMT("-> {} ({}): " s, peer_id, status.value(), ##__VA_ARGS__)
+
 namespace ccf
 {
   using SendNonce = uint64_t;
@@ -153,10 +158,11 @@ namespace ccf
         local_nonce = &local_recv_nonce[tid].tid_seqno;
       }
 
-      LOG_TRACE_FMT(
-        "<- {}: node msg with nonce={}",
-        peer_id,
-        (const uint64_t)recv_nonce.nonce);
+      CHANNEL_RECV_TRACE(
+        "<- verify_or_decrypt({} bytes, {} bytes) (nonce={})",
+        aad.n,
+        cipher.n,
+        (size_t)recv_nonce.nonce);
 
       // Note: We must assume that some messages are dropped, i.e. we may not
       // see every nonce/sequence number, but they must be increasing.
@@ -188,7 +194,7 @@ namespace ccf
       size_t num_messages = send_nonce + recv_nonce.nonce;
       if (num_messages >= message_limit)
       {
-        LOG_TRACE_FMT(
+        CHANNEL_RECV_TRACE(
           "Reached message limit ({}+{}), triggering new key exchange",
           send_nonce,
           (uint64_t)recv_nonce.nonce);
@@ -210,9 +216,8 @@ namespace ccf
         initiation_attempt_nonce, // TODO: Integrity protect
         get_signed_key_share(true));
 
-      LOG_TRACE_FMT(
-        "key_exchange_init -> {} node serial: {}",
-        peer_id,
+      CHANNEL_SEND_TRACE(
+        "send_key_exchange_init: node serial: {}",
         make_verifier(node_cert)->serial_number());
     }
 
@@ -231,9 +236,8 @@ namespace ccf
         initiation_attempt_nonce, // TODO: Integrity protect
         serialised_signed_share);
 
-      LOG_TRACE_FMT(
-        "key_exchange_response -> {}: oks={} serialised_signed_share={}",
-        peer_id,
+      CHANNEL_SEND_TRACE(
+        "send_key_exchange_response: oks={}, serialised_signed_share={}",
         ds::to_hex(oks),
         ds::to_hex(serialised_signed_share));
     }
@@ -275,6 +279,7 @@ namespace ccf
 
         case (ESTABLISHED):
         {
+          // TODO: How do we resend FINAL, if it looks like they missed it?
           throw std::logic_error(
             "advance_connection_attempt() should never be called on an "
             "ESTABLISHED connection");
@@ -287,46 +292,44 @@ namespace ccf
       const uint8_t* data, size_t size, bool priority = false)
     {
       const auto initiation_attempt = serialized::read<size_t>(data, size);
+      CHANNEL_RECV_TRACE(
+        "recv_key_exchange_init({} bytes, {}) ({} vs {})",
+        size,
+        priority,
+        initiation_attempt,
+        initiation_attempt_nonce);
+
       if (initiation_attempt < initiation_attempt_nonce)
       {
-        LOG_INFO_FMT(
-          "Ignoring old key exchange initiation attempt ({} < {})",
-          initiation_attempt,
-          initiation_attempt_nonce);
+        // Ignoring older attempt
         return false;
       }
       else if (initiation_attempt > initiation_attempt_nonce)
       {
-        LOG_INFO_FMT(
-          "Accepting newer key exchange attempt ({} > {})",
-          initiation_attempt,
-          initiation_attempt_nonce);
+        // Accepting newer attempt - updating to its nonce
         reset();
         initiation_attempt_nonce = initiation_attempt;
       }
       else
       {
-        LOG_INFO_FMT(
-          "Agree we're in key exchange attempt {}", initiation_attempt);
-
+        // Received in the same attempt as we're currently in
         if (status.check(INITIATED))
         {
+          // Both nodes tried to initiate the channel, the one with priority
+          // wins.
           if (!priority)
           {
-            // Both nodes tried to initiate the channel, the one with priority
-            // wins.
-            LOG_INFO_FMT(
-              "Ignoring initiation attempt {} - lower priority",
-              initiation_attempt);
             return true;
           }
           else
           {
-            LOG_INFO_FMT(
-              "Accepting higher priority initiation attempt in {}",
-              initiation_attempt);
             reset();
           }
+        }
+        else if (!status.check(INACTIVE))
+        {
+          // Replaying an earlier message from the current attempt - ignore
+          return false;
         }
       }
 
@@ -338,9 +341,8 @@ namespace ccf
       CBuffer pc = extract_buffer(data, size);
       CBuffer salt = extract_buffer(data, size);
 
-      LOG_TRACE_FMT(
-        "From initiator {}: version={} ks={} sig={} pc={} salt={}",
-        peer_id,
+      CHANNEL_RECV_TRACE(
+        "recv_key_exchange_init: version={} ks={} sig={} pc={} salt={}",
         peer_version,
         ds::to_hex(ks),
         ds::to_hex(sig),
@@ -388,36 +390,33 @@ namespace ccf
     bool recv_key_exchange_response(const uint8_t* data, size_t size)
     {
       const auto initiation_attempt = serialized::read<size_t>(data, size);
+      CHANNEL_RECV_TRACE(
+        "recv_key_exchange_response({} bytes) ({} vs {})",
+        size,
+        initiation_attempt,
+        initiation_attempt_nonce);
+
       if (initiation_attempt < initiation_attempt_nonce)
       {
-        LOG_INFO_FMT(
-          "Ignoring old key exchange response ({} < {})",
-          initiation_attempt,
-          initiation_attempt_nonce);
+        // Ignoring older attempt
         return false;
       }
       else if (initiation_attempt > initiation_attempt_nonce)
       {
-        LOG_FAIL_FMT(
-          "Received key exchange response from newer attempt than my "
-          "initiation ({} > {})! Looks malicious, ignoring",
-          initiation_attempt,
-          initiation_attempt_nonce);
+        // Received a _response_ from a newer attempt, meaning this node doesn't
+        // think it sent any comparable _init_. Looks malicious! Ignore it
         return false;
       }
 
       status.expect(INITIATED);
-      LOG_TRACE_FMT(
-        "Processing key exchange response in attempt {}", initiation_attempt);
 
       size_t peer_version = serialized::read<size_t>(data, size);
       CBuffer ks = extract_buffer(data, size);
       CBuffer sig = extract_buffer(data, size);
       CBuffer pc = extract_buffer(data, size);
 
-      LOG_TRACE_FMT(
-        "From responder {}: version={} ks={} sig={} pc={}",
-        peer_id,
+      CHANNEL_RECV_TRACE(
+        "recv_key_exchange_response: version={} ks={} sig={} pc={}",
         peer_version,
         ds::to_hex(ks),
         ds::to_hex(sig),
@@ -481,9 +480,8 @@ namespace ccf
         initiation_attempt_nonce, // TODO: Integrity protect
         serialised_signature);
 
-      LOG_TRACE_FMT(
-        "key_exchange_final -> {}: ks={} serialised_signed_key_share={}",
-        peer_id,
+      CHANNEL_SEND_TRACE(
+        "key_exchange_final: ks={}, serialised_signed_key_share={}",
         ds::to_hex(ks),
         ds::to_hex(serialised_signature));
 
@@ -495,21 +493,21 @@ namespace ccf
     bool recv_key_exchange_final(const uint8_t* data, size_t size)
     {
       const auto initiation_attempt = serialized::read<size_t>(data, size);
+      CHANNEL_RECV_TRACE(
+        "recv_key_exchange_final({} bytes) ({} vs {})",
+        size,
+        initiation_attempt,
+        initiation_attempt_nonce);
+
       if (initiation_attempt < initiation_attempt_nonce)
       {
-        LOG_INFO_FMT(
-          "Ignoring old key exchange final ({} < {})",
-          initiation_attempt,
-          initiation_attempt_nonce);
+        // Ignoring older attempt
         return false;
       }
       else if (initiation_attempt > initiation_attempt_nonce)
       {
-        LOG_FAIL_FMT(
-          "Received key exchange final from newer attempt than my initiation "
-          "({} > {})! Looks malicious, ignoring",
-          initiation_attempt,
-          initiation_attempt_nonce);
+        // Same as in `recv_key_exchange_response` - received a message claiming
+        // to respond to something we never sent. Ignore it
         return false;
       }
 
@@ -757,10 +755,10 @@ namespace ccf
       auto e = crypto::create_entropy();
       hkdf_salt = e->random(salt_len);
 
-      send_key_exchange_init();
-
       status.expect(INACTIVE);
       status.advance(INITIATED);
+
+      send_key_exchange_init();
     }
 
     bool send(NodeMsgType type, CBuffer aad, CBuffer plain = nullb)
@@ -793,8 +791,12 @@ namespace ccf
         gcm_hdr,
         cipher);
 
-      LOG_TRACE_FMT(
-        "-> {}: node msg with nonce={}", peer_id, (uint64_t)nonce.nonce);
+      CHANNEL_SEND_TRACE(
+        "send({}, {} bytes, {} bytes) (nonce={})",
+        (size_t)type,
+        aad.n,
+        plain.n,
+        (size_t)nonce.nonce);
 
       return true;
     }
@@ -918,20 +920,16 @@ namespace ccf
           {
             // In the case of concurrent key_exchange_init's from both nodes,
             // the one with the lower ID wins.
-            LOG_DEBUG_FMT("key_exchange_init from {}", peer_id);
-            return recv_key_exchange_init(
-              data, size, self < peer_id);
+            return recv_key_exchange_init(data, size, self < peer_id);
           }
 
           case key_exchange_response:
           {
-            LOG_DEBUG_FMT("key_exchange_response from {}", peer_id);
             return recv_key_exchange_response(data, size);
           }
 
           case key_exchange_final:
           {
-            LOG_DEBUG_FMT("key_exchange_final from {}", peer_id);
             return recv_key_exchange_final(data, size);
           }
 
@@ -996,3 +994,5 @@ namespace fmt
     }
   };
 }
+
+#undef CHANNEL_TRACE_FMT
