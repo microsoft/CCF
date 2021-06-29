@@ -2627,6 +2627,8 @@ namespace aft
       restart_election_timeout();
 
       state->current_view = term;
+      LOG_INFO_FMT(
+        "Became aware of new view. Setting view to {}", state->current_view);
       voted_for.reset();
       votes_for_me.clear();
 
