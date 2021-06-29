@@ -213,30 +213,20 @@ namespace ccf
             // In the case of concurrent key_exchange_init's from both nodes,
             // the one with the lower ID wins.
             LOG_DEBUG_FMT("key_exchange_init from {}", from);
-            return get_channel(from)->consume_initiator_key_share(
+            return get_channel(from)->recv_key_exchange_init(
               data, size, this_node->node_id < from);
-            break;
           }
 
           case key_exchange_response:
           {
             LOG_DEBUG_FMT("key_exchange_response from {}", from);
-            return get_channel(from)->consume_responder_key_share(data, size);
-            break;
+            return get_channel(from)->recv_key_exchange_response(data, size);
           }
 
           case key_exchange_final:
           {
             LOG_DEBUG_FMT("key_exchange_final from {}", from);
-            auto n2n_channel = get_channel(from);
-            if (!n2n_channel->check_peer_key_share_signature(data, size))
-            {
-              // TODO: Should handle that internally, not by us here?
-              n2n_channel->reset();
-              return false;
-            }
-            return true;
-            break;
+            return get_channel(from)->recv_key_exchange_final(data, size);
           }
 
           default:
@@ -247,7 +237,6 @@ namespace ccf
               chmsg,
               from));
           }
-          break;
         }
       }
       catch (const std::exception& e)

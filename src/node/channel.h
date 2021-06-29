@@ -225,7 +225,6 @@ namespace ccf
 
     ~Channel()
     {
-      LOG_INFO_FMT("Channel with {} is now destroyed.", peer_id);
       // TODO: Send a close message now?
     }
 
@@ -350,21 +349,157 @@ namespace ccf
     //
     // initiate()
     // > key_exchange_init message
-    // consume_initiator_key_share() [by responder]
+    // recv_key_exchange_init() [by responder]
     // < key_exchange_response message
-    // consume_responder_key_share() [by initiator]
+    // recv_key_exchange_response() [by initiator]
     // > key_exchange_final message
-    // check_peer_key_share_signature() [by responder]
+    // recv_key_exchange_final() [by responder]
     // both reach status == ESTABLISHED
 
-    bool consume_responder_key_share(const std::vector<uint8_t>& data)
+    bool recv_key_exchange_init(
+      const uint8_t* data, size_t size, bool priority = false)
     {
-      return consume_responder_key_share(data.data(), data.size());
+      const auto initiation_attempt = serialized::read<size_t>(data, size);
+      if (initiation_attempt < initiation_attempt_nonce)
+      {
+        LOG_INFO_FMT(
+          "Ignoring old key exchange initiation attempt ({} < {})",
+          initiation_attempt,
+          initiation_attempt_nonce);
+        return false;
+      }
+      else if (initiation_attempt > initiation_attempt_nonce)
+      {
+        LOG_INFO_FMT(
+          "Accepting newer key exchange attempt ({} > {})",
+          initiation_attempt,
+          initiation_attempt_nonce);
+        reset();
+        initiation_attempt_nonce = initiation_attempt;
+      }
+      else
+      {
+        LOG_INFO_FMT(
+          "Agree we're in key exchange attempt {}", initiation_attempt);
+
+        if (status.check(INITIATED))
+        {
+          if (!priority)
+          {
+            // Both nodes tried to initiate the channel, the one with priority
+            // wins.
+            LOG_INFO_FMT(
+              "Ignoring initiation attempt {} - lower priority",
+              initiation_attempt);
+            return true;
+          }
+          else
+          {
+            LOG_INFO_FMT(
+              "Accepting higher priority initiation attempt in {}",
+              initiation_attempt);
+            reset();
+          }
+        }
+      }
+
+      status.expect(INACTIVE);
+
+      size_t peer_version = serialized::read<size_t>(data, size);
+      CBuffer ks = extract_buffer(data, size);
+      CBuffer sig = extract_buffer(data, size);
+      CBuffer pc = extract_buffer(data, size);
+      CBuffer salt = extract_buffer(data, size);
+
+      LOG_TRACE_FMT(
+        "From initiator {}: version={} ks={} sig={} pc={} salt={}",
+        peer_id,
+        peer_version,
+        ds::to_hex(ks),
+        ds::to_hex(sig),
+        ds::to_hex(pc),
+        ds::to_hex(salt));
+
+      if (size != 0)
+      {
+        LOG_FAIL_FMT("{} exccess bytes remaining", size);
+        return false;
+      }
+
+      hkdf_salt = {salt.p, salt.p + salt.n};
+
+      if (peer_version != protocol_version)
+      {
+        LOG_FAIL_FMT(
+          "Protocol version mismatch (node={}, peer={})",
+          protocol_version,
+          peer_version);
+        return false;
+      }
+
+      if (ks.n == 0 || sig.n == 0)
+      {
+        return false;
+      }
+
+      if (!verify_peer_certificate(pc) || !verify_peer_signature(ks, sig))
+      {
+        return false;
+      }
+
+      kex_ctx.load_peer_key_share(ks);
+
+      status.advance(WAITING_FOR_FINAL);
+
+      // We are the responder and we return a signature over both public key
+      // shares back to the initiator
+
+      auto oks = kex_ctx.get_own_key_share();
+      std::vector<uint8_t> pks = {ks.p, ks.p + ks.n};
+      auto serialised_signed_share = sign_key_share(oks, false, &pks);
+
+      to_host->write(
+        node_outbound,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        ChannelMsg::key_exchange_response,
+        initiation_attempt_nonce, // TODO: Integrity protect
+        serialised_signed_share);
+
+      LOG_TRACE_FMT(
+        "key_exchange_response -> {}: oks={} serialised_signed_share={}",
+        peer_id,
+        ds::to_hex(oks),
+        ds::to_hex(serialised_signed_share));
+
+      return true;
     }
 
-    bool consume_responder_key_share(const uint8_t* data, size_t size)
+    bool recv_key_exchange_response(const uint8_t* data, size_t size)
     {
+      const auto initiation_attempt = serialized::read<size_t>(data, size);
+      if (initiation_attempt < initiation_attempt_nonce)
+      {
+        LOG_INFO_FMT(
+          "Ignoring old key exchange response ({} < {})",
+          initiation_attempt,
+          initiation_attempt_nonce);
+        return false;
+      }
+      else if (initiation_attempt > initiation_attempt_nonce)
+      {
+        LOG_FAIL_FMT(
+          "Received key exchange response from newer attempt than my "
+          "initiation ({} > {})! Looks malicious, ignoring",
+          initiation_attempt,
+          initiation_attempt_nonce);
+        return false;
+      }
+
       status.expect(INITIATED);
+      LOG_TRACE_FMT(
+        "Processing key exchange response in attempt {}", initiation_attempt);
 
       size_t peer_version = serialized::read<size_t>(data, size);
       CBuffer ks = extract_buffer(data, size);
@@ -411,6 +546,8 @@ namespace ccf
 
       if (!verify_peer_signature(t, sig))
       {
+        // TODO: Should we close the channel here and retry? Are they malicious
+        // or confused, and how does that change our decision?
         return false;
       }
 
@@ -432,6 +569,7 @@ namespace ccf
         NodeMsgType::channel_msg,
         self.value(),
         ChannelMsg::key_exchange_final,
+        initiation_attempt_nonce, // TODO: Integrity protect
         serialised_signature);
 
       LOG_TRACE_FMT(
@@ -445,140 +583,27 @@ namespace ccf
       return true;
     }
 
-    bool consume_initiator_key_share(
-      const std::vector<uint8_t>& data, bool priority = false)
-    {
-      return consume_initiator_key_share(data.data(), data.size(), priority);
-    }
-
-    bool consume_initiator_key_share(
-      const uint8_t* data, size_t size, bool priority = false)
+    bool recv_key_exchange_final(const uint8_t* data, size_t size)
     {
       const auto initiation_attempt = serialized::read<size_t>(data, size);
       if (initiation_attempt < initiation_attempt_nonce)
       {
         LOG_INFO_FMT(
-          "Ignoring key exchange from old attempt {} (I'm in {})",
+          "Ignoring old key exchange final ({} < {})",
           initiation_attempt,
           initiation_attempt_nonce);
         return false;
       }
       else if (initiation_attempt > initiation_attempt_nonce)
       {
-        LOG_INFO_FMT(
-          "Received key exchange in new attempt {}, updating to use it (from "
-          "{})",
+        LOG_FAIL_FMT(
+          "Received key exchange final from newer attempt than my initiation "
+          "({} > {})! Looks malicious, ignoring",
           initiation_attempt,
           initiation_attempt_nonce);
-        reset();
-        initiation_attempt_nonce = initiation_attempt;
-      }
-      else
-      {
-        LOG_INFO_FMT(
-          "Agree we're in key exchange attempt {}", initiation_attempt);
-
-        if (status.check(INITIATED))
-        {
-          if (!priority)
-          {
-            // Both nodes tried to initiate the channel, the one with priority
-            // wins.
-            LOG_INFO_FMT(
-              "Ignoring initiation attempt {} - lower priority",
-              initiation_attempt);
-            return true;
-          }
-          else
-          {
-            LOG_INFO_FMT(
-              "Relinquishing to higher priority initiation attempt in {}",
-              initiation_attempt);
-            reset();
-          }
-        }
-      }
-
-      LOG_TRACE_FMT("status == {}", status.value());
-
-      size_t peer_version = serialized::read<size_t>(data, size);
-      CBuffer ks = extract_buffer(data, size);
-      CBuffer sig = extract_buffer(data, size);
-      CBuffer pc = extract_buffer(data, size);
-      CBuffer salt = extract_buffer(data, size);
-
-      LOG_TRACE_FMT(
-        "From initiator {}: version={} ks={} sig={} pc={} salt={}",
-        peer_id,
-        peer_version,
-        ds::to_hex(ks),
-        ds::to_hex(sig),
-        ds::to_hex(pc),
-        ds::to_hex(salt));
-
-      if (size != 0)
-      {
-        LOG_FAIL_FMT("{} exccess bytes remaining", size);
         return false;
       }
 
-      hkdf_salt = {salt.p, salt.p + salt.n};
-
-      if (peer_version != protocol_version)
-      {
-        LOG_FAIL_FMT(
-          "Protocol version mismatch (node={}, peer={})",
-          protocol_version,
-          peer_version);
-        return false;
-      }
-
-      if (ks.n == 0 || sig.n == 0)
-      {
-        return false;
-      }
-
-      if (!verify_peer_certificate(pc) || !verify_peer_signature(ks, sig))
-      {
-        return false;
-      }
-
-      kex_ctx.load_peer_key_share(ks);
-
-      status.expect(INACTIVE);
-      status.advance(WAITING_FOR_FINAL);
-
-      // We are the responder and we return a signature over both public key
-      // shares back to the initiator
-
-      auto oks = kex_ctx.get_own_key_share();
-      std::vector<uint8_t> pks = {ks.p, ks.p + ks.n};
-      auto serialised_signed_share = sign_key_share(oks, false, &pks);
-
-      to_host->write(
-        node_outbound,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        ChannelMsg::key_exchange_response,
-        serialised_signed_share);
-
-      LOG_TRACE_FMT(
-        "key_exchange_response -> {}: oks={} serialised_signed_share={}",
-        peer_id,
-        ds::to_hex(oks),
-        ds::to_hex(serialised_signed_share));
-
-      return true;
-    }
-
-    bool check_peer_key_share_signature(const std::vector<uint8_t>& data)
-    {
-      return check_peer_key_share_signature(data.data(), data.size());
-    }
-
-    bool check_peer_key_share_signature(const uint8_t* data, size_t size)
-    {
       status.expect(WAITING_FOR_FINAL);
 
       auto oks = kex_ctx.get_own_key_share();
@@ -586,7 +611,11 @@ namespace ccf
       CBuffer sig = extract_buffer(data, size);
 
       if (!verify_peer_signature(oks, sig))
+      {
+        // TODO: Should we close the channel here and retry? Are they malicious
+        // or confused, and how does that change our decision?
         return false;
+      }
 
       establish();
 
@@ -674,7 +703,7 @@ namespace ccf
         NodeMsgType::channel_msg,
         self.value(),
         ChannelMsg::key_exchange_init,
-        initiation_attempt_nonce,
+        initiation_attempt_nonce, // TODO: Integrity protect
         get_signed_key_share(true));
 
       LOG_TRACE_FMT(
@@ -814,7 +843,8 @@ namespace ccf
         LOG_INFO_FMT(
           "Node channel with {} cannot receive encrypted message: not "
           "established, status={}",
-          peer_id, status.value());
+          peer_id,
+          status.value());
         return std::nullopt;
       }
 
