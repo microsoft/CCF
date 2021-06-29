@@ -5,7 +5,6 @@
 #include "ccf/tx_id.h"
 #include "http/http_builder.h"
 #include "http/http_consts.h"
-#include "http/ws_consts.h"
 #include "node/client_signatures.h"
 #include "node/entities.h"
 #include "node/rpc/error.h"
@@ -16,16 +15,14 @@
 
 namespace ccf
 {
-  static_assert(
-    static_cast<int>(ws::Verb::WEBSOCKET) <
-    static_cast<int>(llhttp_method::HTTP_DELETE));
   /*!
-    Extension of llhttp_method including a special "WEBSOCKET" method,
+    Extension of llhttp_method
     to allow make_*_endpoint() to be a single uniform interface to define
-    handlers for either use cases.
+    handlers for more than HTTP just verbs. Formerly used to allow WebSockets
+    handlers, now removed. Kept for potential future extensions.
 
     This may be removed if instead of exposing a single RpcContext, callbacks
-    are instead given a specialised WsRpcContext, and make_endpoint becomes
+    are instead given a specialised *RpcContext, and make_endpoint becomes
     templated on Verb and specialised on the respective enum types.
   */
   class RESTVerb
@@ -36,7 +33,6 @@ namespace ccf
   public:
     RESTVerb() : verb(std::numeric_limits<int>::min()) {}
     RESTVerb(const llhttp_method& hm) : verb(hm) {}
-    RESTVerb(const ws::Verb& wv) : verb(wv) {}
     RESTVerb(const std::string& s)
     {
 #define HTTP_METHOD_GEN(NUM, NAME, STRING) \
@@ -52,24 +48,12 @@ namespace ccf
 
     std::optional<llhttp_method> get_http_method() const
     {
-      if (verb == ws::WEBSOCKET)
-      {
-        return std::nullopt;
-      }
-
       return static_cast<llhttp_method>(verb);
     }
 
     const char* c_str() const
     {
-      if (verb == ws::WEBSOCKET)
-      {
-        return "WEBSOCKET";
-      }
-      else
-      {
-        return llhttp_method_name(static_cast<llhttp_method>(verb));
-      }
+      return llhttp_method_name(static_cast<llhttp_method>(verb));
     }
 
     bool operator<(const RESTVerb& o) const
@@ -108,14 +92,7 @@ namespace ccf
     std::string s = j.get<std::string>();
     nonstd::to_upper(s);
 
-    if (s == "WEBSOCKET")
-    {
-      verb = RESTVerb(ws::Verb::WEBSOCKET);
-    }
-    else
-    {
-      verb = RESTVerb(http::http_method_from_str(s.c_str()));
-    }
+    verb = RESTVerb(http::http_method_from_str(s.c_str()));
   }
 }
 

@@ -9,7 +9,6 @@
 #include "ds/json_schema.h"
 #include "ds/openapi.h"
 #include "http/http_consts.h"
-#include "http/ws_consts.h"
 #include "node/certs.h"
 #include "node/rpc/serialization.h"
 
