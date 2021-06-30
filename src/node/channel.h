@@ -838,14 +838,14 @@ namespace ccf
       send_key->encrypt(
         gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
 
-      to_host->write(
-        node_outbound,
-        peer_id.value(),
-        type,
-        self.value(),
-        serializer::ByteRange{aad.p, aad.n},
-        gcm_hdr,
-        cipher);
+      // TODO: Remove these unnecessary copies
+      std::vector<uint8_t> payload(aad.p, aad.p + aad.n);
+
+      const auto gcm_hdr_serialised = gcm_hdr.serialise();
+      payload.insert(
+        payload.end(), gcm_hdr_serialised.begin(), gcm_hdr_serialised.end());
+
+      payload.insert(payload.end(), cipher.begin(), cipher.end());
 
       CHANNEL_SEND_TRACE(
         "send({}, {} bytes, {} bytes) (nonce={})",
@@ -853,6 +853,14 @@ namespace ccf
         aad.n,
         plain.n,
         (size_t)nonce.nonce);
+
+      RINGBUFFER_WRITE_MESSAGE(
+        node_outbound,
+        to_host,
+        peer_id.value(),
+        type,
+        self.value(),
+        payload);
 
       return true;
     }
