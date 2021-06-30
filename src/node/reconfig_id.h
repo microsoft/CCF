@@ -4,6 +4,8 @@
 
 #include "network_state.h"
 
+#include <algorithm>
+
 namespace ccf
 {
   inline size_t get_next_reconfiguration_id(
@@ -13,7 +15,10 @@ namespace ccf
 
     size_t max_id = 0;
     nodes->foreach([&max_id](const auto& node_id, const auto& node_info) {
-      max_id = std::max(max_id, node_info.reconfiguration_id);
+      if (node_info.reconfiguration_id.has_value())
+      {
+        max_id = std::max(max_id, node_info.reconfiguration_id.value());
+      }
       return true;
     });
 

@@ -132,10 +132,12 @@ namespace kv
     std::vector<Configuration> configs = {};
     std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
     ReplicaState state;
+    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners;
   };
 
-  DECLARE_JSON_TYPE(ConsensusDetails);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
   DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks, state);
+  DECLARE_JSON_OPTIONAL_FIELDS(ConsensusDetails, learners);
 
   class ConfigurableConsensus
   {

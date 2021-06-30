@@ -105,6 +105,7 @@ namespace ccf
             last_recovered_signed_idx == other.last_recovered_signed_idx &&
             consensus_type == other.consensus_type &&
             ledger_secrets == other.ledger_secrets &&
+            service_status == other.service_status &&
             identity == other.identity;
         }
 

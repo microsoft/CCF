@@ -483,7 +483,7 @@ namespace aft
     void add_configuration(
       Index idx,
       const Configuration::Nodes& conf,
-      const std::unordered_set<ccf::NodeId>& learners_ = {})
+      const std::unordered_set<ccf::NodeId>& new_learners = {})
     {
       std::unordered_set<ccf::NodeId> conf_ids;
       for (const auto& [id, _] : conf)
@@ -537,18 +537,21 @@ namespace aft
       configurations.push_back({idx, std::move(conf), offset});
       if (use_two_tx_reconfig)
       {
-        if (!learners.empty())
+        if (!new_learners.empty())
         {
           LOG_DEBUG_FMT(
-            "Configurations: learners {{{}}}", fmt::join(learners_, ", "));
-          for (auto& id : learners_)
+            "Configurations: new learners: {{{}}}",
+            fmt::join(new_learners, ", "));
+          for (auto& id : new_learners)
           {
-            assert(learners.find(id) == learners.end());
-            learners[id] = idx;
+            if (learners.find(id) == learners.end())
+            {
+              learners[id] = idx;
+            }
           }
         }
       }
-      else if (!learners.empty())
+      else if (!new_learners.empty())
       {
         throw std::runtime_error(
           "learner requires two-transaction reconfiguration");
@@ -585,6 +588,10 @@ namespace aft
       for (auto& [k, v] : nodes)
       {
         details.acks[k] = v.match_idx;
+      }
+      if (use_two_tx_reconfig)
+      {
+        details.learners = learners;
       }
       return details;
     }
@@ -2779,11 +2786,6 @@ namespace aft
           }
           else
           {
-            for (auto& [id, _] : nodes)
-            {
-              LOG_DEBUG_FMT("IN NODES: {}", id);
-            }
-            LOG_DEBUG_FMT("LOOKUP {}", node.first);
             match.push_back(nodes.at(node.first).match_idx);
           }
         }

@@ -8,7 +8,7 @@ import suite.test_requirements as reqs
 import tempfile
 from shutil import copy
 import os
-from infra.checker import check_can_progress
+from infra.checker import check_can_progress, check_does_not_progress
 import ccf.ledger
 import json
 
@@ -367,6 +367,47 @@ def test_learner_catches_up(network, args):
         tx = s.body.json()["transaction_id"]
         assert tx != "0.0" and tx != "2.0"
     network.wait_for_node_commit_sync()
+    primary, _ = network.find_primary()
+    with primary.client() as c:
+        s = c.get("/node/consensus")
+        print(s.body.json())
+        assert new_node.node_id in s.body.json()["details"]["learners"]
+    return network
+
+
+@reqs.description("Add a learner, suspend nodes, check that there is no progress")
+def test_learner_does_not_take_part(network, args):
+    primary, backups = network.find_nodes()
+    nodes = network.get_joined_nodes()
+    f = infra.e2e_args.max_f(args, len(nodes)) + 1
+    f_backups = backups[:f]
+
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, from_snapshot=False)
+    network.trust_node(new_node, args, ccf.ledger.NodeStatus.LEARNER)
+    with new_node.client() as c:
+        s = c.get("/node/state")
+        assert s.body.json()["node_id"] == new_node.node_id
+        assert (
+            s.body.json()["startup_seqno"] == 0
+        ), "Node started without snapshot but reports startup seqno != 0"
+
+        # No promotion yet, check that the node is still a learner
+        s = c.get("/node/network/nodes/self")
+        assert s.body.json()["status"] == "Learner"
+
+        s = c.get("/node/commit")
+        tx = s.body.json()["transaction_id"]
+        assert tx != "0.0" and tx != "2.0"
+    network.wait_for_node_commit_sync()
+
+    for b in f_backups:
+        b.suspend()
+    check_does_not_progress(primary)
+    primary_after, _ = network.find_primary()
+    for b in f_backups:
+        b.resume()
+    assert primary.node_id == primary_after.node_id
     return network
 
 
@@ -410,6 +451,7 @@ def run(args):
             test_retiring_nodes_emit_at_most_one_signature(network, args)
         else:
             test_learner_catches_up(network, args)
+            test_learner_does_not_take_part(network, args)
 
 
 def run_join_old_snapshot(args):
