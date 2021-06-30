@@ -2442,7 +2442,7 @@ TEST_CASE("Tx commit version")
 
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     REQUIRE(tx.get_read_version() == kv_store.current_version());
-    REQUIRE(tx.get_term() == store_read_term);
+    REQUIRE(tx.get_tx_id() == kv_store.current_txid());
   }
 
   {
@@ -2456,8 +2456,6 @@ TEST_CASE("Tx commit version")
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     REQUIRE(tx.get_read_version() == kv_store.current_version());
-    REQUIRE(
-      tx.get_tx_id() == kv_store.current_txid()); // TODO: get_term() should
-                                                  // return (store_term - 1)
+    REQUIRE(tx.get_tx_id() == kv_store.current_txid());
   }
 }
