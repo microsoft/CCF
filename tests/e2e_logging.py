@@ -1136,42 +1136,6 @@ def test_memory(network, args):
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("log/private")
-@reqs.at_least_n_nodes(2)
-def test_ws(network, args):
-    primary, other = network.find_primary_and_any_backup()
-
-    msg = "Hello world"
-    LOG.info("Write on primary")
-    with primary.client("user0", ws=True) as c:
-        for i in [1, 50, 500]:
-            r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.body.json() == True, r
-
-    # Before we start sending transactions to the secondary,
-    # we want to wait for its app frontend to be open, which is
-    # when it's aware that the network is open. Before that,
-    # we will get 404s.
-    end_time = time.time() + 10
-    with other.client("user0") as nc:
-        while time.time() < end_time:
-            r = nc.post("/app/log/private", {"id": 42, "msg": msg * i})
-            if r.status_code == http.HTTPStatus.OK.value:
-                break
-            else:
-                time.sleep(0.1)
-        assert r.status_code == http.HTTPStatus.OK.value, r
-
-    LOG.info("Write on secondary through forwarding")
-    with other.client("user0", ws=True) as c:
-        for i in [1, 50, 500]:
-            r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.body.json() == True, r
-
-    return network
-
-
-@reqs.description("Running transactions against logging app")
 @reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
 def test_receipts(network, args):
@@ -1275,7 +1239,6 @@ def run(args):
             network = test_rekey(network, args)
             network = test_liveness(network, args)
         if args.package == "liblogging":
-            network = test_ws(network, args)
             network = test_receipts(network, args)
         network = test_historical_receipts(network, args)
 
