@@ -33,7 +33,13 @@ namespace kv
     Version version = 0;
     Version last_new_map = kv::NoVersion;
     Version compacted = 0;
-    Term term = 0;
+
+    // Term at which write transactions should be committed
+    Term write_term = 0;
+
+    // TODO: description
+    Term read_term = 0;
+
     Version last_replicated = 0;
     Version last_committable = 0;
     Version rollback_count = 0;
@@ -52,7 +58,7 @@ namespace kv
 
       version = 0;
       compacted = 0;
-      term = 0;
+      write_term = 0;
 
       last_replicated = 0;
       last_committable = 0;
@@ -560,7 +566,10 @@ namespace kv
       }
     }
 
-    void rollback(Version v, std::optional<Term> t = std::nullopt) override
+    void rollback(
+      Version v,
+      Term read_term_,
+      std::optional<Term> write_term_ = std::nullopt) override
     {
       // This is called to roll the store back to the state it was in
       // at the specified version.
@@ -579,16 +588,20 @@ namespace kv
 
         // The term should always be updated on rollback() when passed
         // regardless of whether version needs to be updated or not
-        if (t.has_value())
+        if (write_term_.has_value())
         {
-          term = t.value();
+          write_term = write_term_.value();
         }
-        // History must be informed of the term change, even if no
+
+        read_term = read_term_;
+
+        // History must be informed of the write_term change, even if no
         // actual rollback is required
         auto h = get_history();
         if (h)
         {
-          h->rollback(v, term);
+          h->rollback(v, write_term); // TODO: Should we pass the write_term of
+                                      // the read_term here??
         }
 
         if (v >= version)
@@ -644,12 +657,19 @@ namespace kv
     void set_term(Term t) override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
-      term = t;
+      write_term = t;
       auto h = get_history();
       if (h)
       {
-        h->set_term(term);
+        h->set_term(write_term);
       }
+    }
+
+    void set_read_term(Term t) override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      read_term = t;
+      // TODO: Do anything to history??
     }
 
     bool fill_maps(
@@ -684,7 +704,7 @@ namespace kv
 
       // Throw away any local commits that have not propagated via the
       // consensus.
-      rollback(v - 1);
+      rollback(v - 1, read_term); // TODO: Which read term to pass here??
 
       if (strict_versions && !ignore_strict_versions)
       {
@@ -925,7 +945,7 @@ namespace kv
     {
       // Must lock in case the version is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
-      return {term, version};
+      return {write_term, version};
     }
 
     Version compacted_version() override
@@ -959,12 +979,12 @@ namespace kv
 
       {
         std::lock_guard<std::mutex> vguard(version_lock);
-        if (txid.term != term && consensus->is_primary())
+        if (txid.term != write_term && consensus->is_primary())
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
           LOG_DEBUG_FMT(
-            "Want to commit for term {} but term is {}", txid.term, term);
+            "Want to commit for term {} but term is {}", txid.term, write_term);
 
           return CommitResult::FAIL_NO_REPLICATE;
         }
@@ -1027,7 +1047,7 @@ namespace kv
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + batch.size();
 
-        replication_view = term;
+        replication_view = write_term;
 
         if (consensus->type() == ConsensusType::BFT && consensus->is_backup())
         {
@@ -1093,7 +1113,7 @@ namespace kv
       if (version < 0)
         version = 0;
 
-      return {term, version};
+      return {write_term, version};
     }
 
     size_t commit_gap() override

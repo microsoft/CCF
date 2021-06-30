@@ -37,7 +37,7 @@ namespace aft
   public:
     virtual ~Store() {}
     virtual void compact(Index v) = 0;
-    virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
+    virtual void rollback(Index v, Term read_term_, Term write_term_) = 0;
     virtual void set_term(Term t) = 0;
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
       const std::vector<uint8_t> data,
@@ -64,12 +64,12 @@ namespace aft
       }
     }
 
-    void rollback(Index v, std::optional<Term> t = std::nullopt) override
+    void rollback(Index v, Term read_term, Term write_term) override
     {
       auto p = x.lock();
       if (p)
       {
-        p->rollback(v, t);
+        p->rollback(v, read_term, write_term);
       }
     }
 

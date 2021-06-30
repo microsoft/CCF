@@ -1373,7 +1373,7 @@ TEST_CASE("Rollback and compact")
     handle->put(k, v1);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-    kv_store.rollback(0);
+    kv_store.rollback(0, 0); // TODO: Fix!
     auto handle2 = tx2.rw(map);
     auto v = handle2->get(k);
     REQUIRE(!v.has_value());
@@ -2389,5 +2389,75 @@ TEST_CASE("Store clear")
     auto tx_id = kv_store.current_txid();
     REQUIRE(tx_id.term == 0);
     REQUIRE(tx_id.version == 0);
+  }
+}
+
+TEST_CASE("Tx commit version")
+{
+  kv::Store kv_store;
+
+  auto map_name = "public:map";
+  MapTypes::StringNum map(map_name);
+  kv::Term store_write_term = 2;
+  kv::Term store_read_term = store_write_term;
+
+  {
+    INFO("Commit write txs in first term");
+    kv_store.set_term(store_write_term);
+    kv_store.set_read_term(store_read_term);
+
+    for (size_t i = 0; i < 10; i++)
+    {
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+      handle->put(fmt::format("key: {}", i), i);
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+  }
+
+  {
+    INFO("Simple read-only tx");
+    // The ReadOnlyTx returned by store.create_read_only_tx() has no commit()
+    // member. Here, we want to specifically test generic txs that are created
+    // by the CCF frontend, but do not write to the key-value store.
+    auto tx = kv_store.create_tx();
+    auto handle = tx.ro(map);
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.get_read_version() == kv_store.current_version()); // TODO:
+    REQUIRE(tx.get_term() == store_read_term);
+  }
+
+  {
+    INFO("Rollback while read-only tx is in progress");
+
+    auto tx = kv_store.create_tx();
+
+    // Opacity tx_id is acquired here so tx's term is correct
+    auto handle = tx.ro(map);
+
+    // Rollback at the current version, in the next term
+    kv_store.rollback(
+      kv_store.current_version(), store_read_term, ++store_write_term);
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.get_read_version() == kv_store.current_version());
+    REQUIRE(tx.get_term() == store_read_term);
+  }
+
+  {
+    INFO("Read-only tx after rollback");
+
+    kv_store.rollback(
+      kv_store.current_version(), store_read_term, ++store_write_term);
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.ro(map);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    REQUIRE(tx.get_read_version() == kv_store.current_version());
+    REQUIRE(
+      tx.get_term() ==
+      store_read_term); // TODO: get_term() should return (store_term - 1)
   }
 }

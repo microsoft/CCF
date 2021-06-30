@@ -71,7 +71,9 @@ namespace kv
       }
 
       KvStoreSerialiser replicated_serialiser(
-        e, {view, version}, max_conflict_version);
+        e,
+        {commit_view, version},
+        max_conflict_version); // TODO: Use new get_tx_id()
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -206,7 +208,7 @@ namespace kv
           }
 
           return store->commit(
-            {view, version},
+            {commit_view, version},
             std::make_unique<MovePendingTx>(std::move(data), std::move(hooks)),
             false);
         }
@@ -257,7 +259,7 @@ namespace kv
       if (!success)
         throw std::logic_error("Transaction aborted");
 
-      return view;
+      return commit_view;
     }
 
     /** Version for the transaction set
@@ -281,7 +283,7 @@ namespace kv
 
     Version get_term()
     {
-      return view;
+      return commit_view;
     }
 
     void set_change_list(OrderedChanges&& change_list_, Term term_) override
@@ -289,12 +291,12 @@ namespace kv
       // if all_changes is not empty then any coinciding keys will not be
       // overwritten
       all_changes.merge(change_list_);
-      view = term_;
+      commit_view = term_;
     }
 
     void set_view(ccf::View view_)
     {
-      view = view_;
+      commit_view = view_;
     }
 
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
@@ -312,7 +314,7 @@ namespace kv
       if (!read_version.has_value())
       {
         read_version = v;
-        view = t;
+        commit_view = t;
       }
       else
       {

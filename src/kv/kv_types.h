@@ -628,8 +628,12 @@ namespace kv
       ConsensusType consensus_type,
       bool public_only = false) = 0;
     virtual void compact(Version v) = 0;
-    virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
+    virtual void rollback(
+      Version v,
+      kv::Term read_term_,
+      std::optional<Term> write_term_ = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
+    virtual void set_read_term(Term t) = 0;
     virtual CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
