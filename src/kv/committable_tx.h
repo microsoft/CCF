@@ -73,7 +73,7 @@ namespace kv
       KvStoreSerialiser replicated_serialiser(
         e,
         {commit_view, version},
-        max_conflict_version); // TODO: Use new get_tx_id()
+        max_conflict_version); // TODO: Use new get_txid()
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -277,6 +277,7 @@ namespace kv
       return version;
     }
 
+    // TODO: We can probably get rid of this??
     Version get_read_version()
     {
       return read_version.value_or(NoVersion);
@@ -287,12 +288,13 @@ namespace kv
       return max_conflict_version;
     }
 
+    // TODO: Rename
     Version get_term()
     {
       return commit_view;
     }
 
-    TxID get_tx_id()
+    TxID get_txid()
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
