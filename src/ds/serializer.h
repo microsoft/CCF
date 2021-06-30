@@ -87,17 +87,19 @@ namespace serializer
         // from the type so that a Serializer<int> will accept an argument of
         // type const int&.
         // Additionally, this will accept ByteRange arguments for parameters
-        // declared as std::vector<uint8_t> - when serializing we can copy bytes
-        // from either in the same way, but there is a distinction in the
-        // deserialized type of whether we are copying (to a byte vector) or
-        // referring to an existing byte range.
-        // It may be possible to generalise this further and replace with
+        // declared as std::vector<uint8_t> and vice versa - when serializing we
+        // can copy bytes from either in the same way, but there is a
+        // distinction in the deserialized type of whether we are copying (to a
+        // byte vector) or referring to an existing byte range. It may be
+        // possible to generalise this further and replace with
         // std::is_constructible, but these restrictions are sufficient for the
         // current uses.
         static constexpr bool value =
           std::is_same_v<CanonTarget, CanonArgument> ||
           (std::is_same_v<CanonTarget, std::vector<uint8_t>> &&
-           std::is_same_v<CanonArgument, ByteRange>);
+           std::is_same_v<CanonArgument, ByteRange>) ||
+          (std::is_same_v<CanonTarget, ByteRange> &&
+           std::is_same_v<CanonArgument, std::vector<uint8_t>>);
       };
 
       // Only reached when Ts is empty

@@ -211,39 +211,69 @@ namespace ccf
 
     void send_key_exchange_init()
     {
-      to_host->write(
-        node_outbound,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        ChannelMsg::key_exchange_init,
-        initiation_attempt_nonce, // TODO: Integrity protect
-        get_signed_key_share(true));
+      std::vector<uint8_t> payload(
+        sizeof(ChannelMsg::key_exchange_init) +
+        sizeof(initiation_attempt_nonce));
+
+      auto data = payload.data();
+      auto size = payload.size();
+
+      serialized::write(data, size, ChannelMsg::key_exchange_init);
+      // TODO: Integrity protect
+      serialized::write(data, size, initiation_attempt_nonce);
+
+      // TODO: Remove this extra copy?
+      const auto ks = get_signed_key_share(true);
+      payload.insert(payload.end(), ks.begin(), ks.end());
 
       CHANNEL_SEND_TRACE(
         "send_key_exchange_init: node serial: {}",
         make_verifier(node_cert)->serial_number());
+
+      RINGBUFFER_WRITE_MESSAGE(
+        node_outbound,
+        to_host,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        payload);
     }
 
     void send_key_exchange_response()
     {
+      std::vector<uint8_t> payload(
+        sizeof(ChannelMsg::key_exchange_response) +
+        sizeof(initiation_attempt_nonce));
+
+      auto data = payload.data();
+      auto size = payload.size();
+
+      serialized::write(data, size, ChannelMsg::key_exchange_response);
+      // TODO: Integrity protect
+      serialized::write(data, size, initiation_attempt_nonce);
+
       auto oks = kex_ctx.get_own_key_share();
       auto serialised_signed_share =
         sign_key_share(oks, false, &kex_ctx.get_peer_key_share());
 
-      to_host->write(
-        node_outbound,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        ChannelMsg::key_exchange_response,
-        initiation_attempt_nonce, // TODO: Integrity protect
-        serialised_signed_share);
+      // TODO: Remove this extra copy?
+      payload.insert(
+        payload.end(),
+        serialised_signed_share.begin(),
+        serialised_signed_share.end());
 
       CHANNEL_SEND_TRACE(
         "send_key_exchange_response: oks={}, serialised_signed_share={}",
         ds::to_hex(oks),
         ds::to_hex(serialised_signed_share));
+
+      RINGBUFFER_WRITE_MESSAGE(
+        node_outbound,
+        to_host,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        payload);
     }
 
     // Called whenever we try to send or receive and the channel is not
@@ -468,6 +498,20 @@ namespace ccf
 
       kex_ctx.load_peer_key_share(ks);
 
+      std::vector<uint8_t> payload(
+        sizeof(ChannelMsg::key_exchange_final) +
+        sizeof(initiation_attempt_nonce));
+
+      {
+        auto payload_data = payload.data();
+        auto payload_size = payload.size();
+
+        serialized::write(
+          payload_data, payload_size, ChannelMsg::key_exchange_final);
+        // TODO: Integrity protect
+        serialized::write(payload_data, payload_size, initiation_attempt_nonce);
+      }
+
       // Sign the peer's key share
       auto signature = node_kp->sign(ks);
 
@@ -478,19 +522,24 @@ namespace ccf
       serialized::write(data_, space, signature.size());
       serialized::write(data_, space, signature.data(), signature.size());
 
-      to_host->write(
-        node_outbound,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        ChannelMsg::key_exchange_final,
-        initiation_attempt_nonce, // TODO: Integrity protect
-        serialised_signature);
+      // TODO: Remove this extra copy?
+      payload.insert(
+        payload.end(),
+        serialised_signature.begin(),
+        serialised_signature.end());
 
       CHANNEL_SEND_TRACE(
         "key_exchange_final: ks={}, serialised_signed_key_share={}",
         ds::to_hex(ks),
         ds::to_hex(serialised_signature));
+
+      RINGBUFFER_WRITE_MESSAGE(
+        node_outbound,
+        to_host,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        payload);
 
       establish();
 
