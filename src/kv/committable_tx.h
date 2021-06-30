@@ -169,7 +169,7 @@ namespace kv
           // that for any set of transactions there may be several valid
           // serializations that do not violate the linearizability guarantees
           // of the total order. This check validates that this tx does not read
-          // a key at a higher version than it's version (i.e. does not break
+          // a key at a higher version than its version (i.e. does not break
           // linearizability). After ensuring linearizability is maintained
           // max_conflict_version is set to the same value as the one specified
           // so that when it is inserted into the Merkle tree the same root will
@@ -193,6 +193,12 @@ namespace kv
               replicated_max_conflict_version);
             return CommitResult::FAIL_CONFLICT;
           }
+        }
+
+        if (version == NoVersion)
+        {
+          // Read-only transaction
+          return CommitResult::SUCCESS;
         }
 
         // From here, we have received a unique commit version and made
