@@ -188,7 +188,8 @@ def sign(algorithm: dict, key_pem: str, data: bytes) -> bytes:
             raise ValueError("Unsupported signing algorithm")
     elif isinstance(key, ec.EllipticCurvePrivateKey):
         if algorithm["name"] == "ECDSA":
-            return key.sign(data, ec.ECDSA(hash_alg), hash_alg)
+            # pylint: disable=no-value-for-parameter
+            return key.sign(data, ec.ECDSA(hash_alg))
         else:
             raise ValueError("Unsupported signing algorithm")
     else:
