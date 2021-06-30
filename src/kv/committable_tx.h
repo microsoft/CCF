@@ -61,15 +61,12 @@ namespace kv
         return {};
       }
 
-      // Retrieve encryptor.
-      auto map = all_changes.begin()->second.map;
-      auto e = map->get_store()->get_encryptor();
-
       if (max_conflict_version == NoVersion)
       {
         max_conflict_version = version - 1;
       }
 
+      auto e = store->get_encryptor();
       KvStoreSerialiser replicated_serialiser(
         e,
         {commit_view, version},

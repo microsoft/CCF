@@ -2395,6 +2395,8 @@ TEST_CASE("Store clear")
 TEST_CASE("Tx reported TxID after commit")
 {
   kv::Store kv_store;
+  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  kv_store.set_consensus(consensus);
 
   const auto map_name = "public:map";
   MapTypes::StringString map(map_name);
@@ -2493,6 +2495,7 @@ TEST_CASE("Tx reported TxID after commit")
     auto handle = tx.ro(map);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
+    // The correct TxID is reported
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.term == store_read_term);
     REQUIRE(tx_id.version == store_last_seqno);
@@ -2507,10 +2510,22 @@ TEST_CASE("Tx reported TxID after commit")
       auto handle = tx.rw(map);
       handle->put("key", "value");
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-      auto store_last_seqno = kv_store.current_version();
+      store_last_seqno = kv_store.current_version();
 
       auto tx_id = tx.get_txid();
       REQUIRE(tx_id.term == store_write_term);
+      REQUIRE(tx_id.version == store_last_seqno);
+    }
+
+    {
+      auto tx = kv_store.create_tx();
+      auto handle = tx.rw(map);
+
+      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+      // The correct TxID is reported
+      auto tx_id = tx.get_txid();
+      REQUIRE(tx_id.term == store_read_term);
       REQUIRE(tx_id.version == store_last_seqno);
       REQUIRE(tx_id == kv_store.current_txid());
     }

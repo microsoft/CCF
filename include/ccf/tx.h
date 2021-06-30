@@ -130,10 +130,12 @@ namespace kv
       if (!read_version.has_value())
       {
         // Grab opacity version that all Maps should be queried at.
+        // TODO: This should all be atomic!
+        // TODO: Use a single TxID rather than read_view and read_version!
         auto txid = store->current_txid();
-        read_view = store->get_read_term(); // TODO: This should all be atomic!
-        commit_view = txid.term;
+        read_view = txid.term;
         read_version = txid.version;
+        commit_view = store->current_commit_term();
         LOG_FAIL_FMT("Tx read version: {}", read_version.value());
       }
 

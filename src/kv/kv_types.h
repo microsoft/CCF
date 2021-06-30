@@ -617,6 +617,7 @@ namespace kv
 
     virtual Version current_version() = 0;
     virtual TxID current_txid() = 0;
+    virtual Term current_commit_term() = 0;
 
     virtual Version compacted_version() = 0;
 
@@ -641,7 +642,6 @@ namespace kv
       std::optional<Term> write_term_ = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual void set_read_term(Term t) = 0;
-    virtual kv::Term get_read_term() = 0;
     virtual CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,

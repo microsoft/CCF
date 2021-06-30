@@ -35,7 +35,7 @@ namespace kv
     Version compacted = 0;
 
     // Term at which write transactions should be committed
-    Term write_term = 0;
+    Term commit_term = 0;
 
     // TODO: description
     Term read_term = 0;
@@ -58,7 +58,7 @@ namespace kv
 
       version = 0;
       compacted = 0;
-      write_term = 0;
+      commit_term = 0;
 
       last_replicated = 0;
       last_committable = 0;
@@ -569,7 +569,7 @@ namespace kv
     void rollback(
       Version v,
       Term read_term_,
-      std::optional<Term> write_term_ = std::nullopt) override
+      std::optional<Term> commit_term_ = std::nullopt) override
     {
       // This is called to roll the store back to the state it was in
       // at the specified version.
@@ -588,20 +588,20 @@ namespace kv
 
         // The term should always be updated on rollback() when passed
         // regardless of whether version needs to be updated or not
-        if (write_term_.has_value())
+        if (commit_term_.has_value())
         {
-          write_term = write_term_.value();
+          commit_term = commit_term_.value();
         }
 
         read_term = read_term_;
 
-        // History must be informed of the write_term change, even if no
+        // History must be informed of the commit_term change, even if no
         // actual rollback is required
         auto h = get_history();
         if (h)
         {
-          h->rollback(v, write_term); // TODO: Should we pass the write_term of
-                                      // the read_term here??
+          h->rollback(v, commit_term); // TODO: Should we pass the commit_term
+                                       // of the read_term here??
         }
 
         if (v >= version)
@@ -657,11 +657,11 @@ namespace kv
     void set_term(Term t) override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
-      write_term = t;
+      commit_term = t;
       auto h = get_history();
       if (h)
       {
-        h->set_term(write_term);
+        h->set_term(commit_term);
       }
     }
 
@@ -935,19 +935,18 @@ namespace kv
       return version;
     }
 
-    // TODO: This is wrong! The write_term could be ahead of the version's term
-    // (e.g. just after rollback)
-    TxID current_txid() override
+    Term current_commit_term() override
     {
-      // Must lock in case the version or term is being incremented.
+      // Must lock in case the commit term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
-      return {read_term, version};
+      return commit_term;
     }
 
-    Term get_read_term() override
+    TxID current_txid() override
     {
+      // Must lock in case the version or read term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
-      return read_term;
+      return {read_term, version};
     }
 
     Version compacted_version() override
@@ -981,12 +980,14 @@ namespace kv
 
       {
         std::lock_guard<std::mutex> vguard(version_lock);
-        if (txid.term != write_term && consensus->is_primary())
+        if (txid.term != commit_term && consensus->is_primary())
         {
           // This can happen when a transaction started before a view change,
           // but tries to commit after the view change is complete.
           LOG_DEBUG_FMT(
-            "Want to commit for term {} but term is {}", txid.term, write_term);
+            "Want to commit for term {} but term is {}",
+            txid.term,
+            commit_term);
 
           return CommitResult::FAIL_NO_REPLICATE;
         }
@@ -1049,7 +1050,7 @@ namespace kv
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + batch.size();
 
-        replication_view = write_term;
+        replication_view = commit_term;
 
         if (consensus->type() == ConsensusType::BFT && consensus->is_backup())
         {
@@ -1115,7 +1116,7 @@ namespace kv
       if (version < 0)
         version = 0;
 
-      return {write_term, version};
+      return {commit_term, version};
     }
 
     size_t commit_gap() override
