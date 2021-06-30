@@ -89,13 +89,6 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
 
     ---
 
-    :fa:`external-link-alt` :doc:`upgrading_app`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Application upgrade in CCF.
-
-    ---
-
     :fa:`terminal` :doc:`api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -114,6 +107,5 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     demo
     auth/index
     kv/index
-    upgrading_app
     api
     crypto
