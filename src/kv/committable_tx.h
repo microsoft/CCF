@@ -286,6 +286,33 @@ namespace kv
       return commit_view;
     }
 
+    TxID get_tx_id()
+    {
+      if (!committed)
+        throw std::logic_error("Transaction not yet committed");
+
+      if (!read_version.has_value())
+      {
+        // TODO: Is this right? This could be removed if the
+        // read version was acquired on Tx's creation!
+        throw std::logic_error("Transaction has no read version");
+      }
+
+      // TODO: We determine if a committed tx is read-only if it has no version
+      if (version == NoVersion)
+      {
+        // Read-only transaction
+        LOG_FAIL_FMT("Read only: {}.{}", read_view, read_version.value());
+        return {read_view, read_version.value()};
+      }
+      else
+      {
+        // Write transaction
+        LOG_FAIL_FMT("Write: {}.{}", commit_view, version);
+        return {commit_view, version};
+      }
+    }
+
     void set_change_list(OrderedChanges&& change_list_, Term term_) override
     {
       // if all_changes is not empty then any coinciding keys will not be

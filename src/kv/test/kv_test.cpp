@@ -2457,7 +2457,7 @@ TEST_CASE("Tx commit version")
 
     REQUIRE(tx.get_read_version() == kv_store.current_version());
     REQUIRE(
-      tx.get_term() ==
-      store_read_term); // TODO: get_term() should return (store_term - 1)
+      tx.get_tx_id() == kv_store.current_txid()); // TODO: get_term() should
+                                                  // return (store_term - 1)
   }
 }

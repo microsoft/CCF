@@ -68,6 +68,8 @@ namespace kv
     // and it is NoVersion", and we get that by wrapping this in a
     // std::optional with nullopt representing "not yet fetched".
     std::optional<Version> read_version = std::nullopt;
+
+    ccf::View read_view = ccf::VIEW_UNKNOWN;
     ccf::View commit_view = ccf::VIEW_UNKNOWN;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
@@ -129,8 +131,10 @@ namespace kv
       {
         // Grab opacity version that all Maps should be queried at.
         auto txid = store->current_txid();
+        read_view = store->get_read_term(); // TODO: This should all be atomic!
         commit_view = txid.term;
         read_version = txid.version;
+        LOG_FAIL_FMT("Tx read version: {}", read_version.value());
       }
 
       auto abstract_map = store->get_map(read_version.value(), map_name);

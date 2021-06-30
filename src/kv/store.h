@@ -928,24 +928,26 @@ namespace kv
       return true;
     }
 
-    bool operator!=(const Store& that) const
-    {
-      // Only used for debugging, not thread safe.
-      return !(*this == that);
-    }
-
     Version current_version() override
     {
-      // Must lock in case the version or term is being incremented.
+      // Must lock in case the version is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
       return version;
     }
 
+    // TODO: This is wrong! The write_term could be ahead of the version's term
+    // (e.g. just after rollback)
     TxID current_txid() override
     {
-      // Must lock in case the version is being incremented.
+      // Must lock in case the version or term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
-      return {write_term, version};
+      return {read_term, version};
+    }
+
+    Term get_read_term() override
+    {
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return read_term;
     }
 
     Version compacted_version() override

@@ -52,6 +52,7 @@ namespace kv
   using Term = uint64_t;
   using NodeId = ccf::NodeId;
 
+  // TODO: Can this be removed and use tx_id.h instead?
   struct TxID
   {
     Term term = 0;
@@ -67,6 +68,12 @@ namespace kv
     operator ccf::TxID() const
     {
       return {term, version};
+    }
+
+    bool operator==(const TxID& other)
+    {
+      LOG_FAIL_FMT("{}.{} vs. {}.{}", term, version, other.term, other.version);
+      return term == other.term && version == other.version;
     }
   };
   DECLARE_JSON_TYPE(TxID);
@@ -634,6 +641,7 @@ namespace kv
       std::optional<Term> write_term_ = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual void set_read_term(Term t) = 0;
+    virtual kv::Term get_read_term() = 0;
     virtual CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
