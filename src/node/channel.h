@@ -123,7 +123,8 @@ namespace ccf
 
     // Used to buffer at most one message sent on the channel before it is
     // established
-    std::optional<OutgoingMsg> outgoing_msg;
+    // std::optional<OutgoingMsg> outgoing_msg;
+    std::vector<OutgoingMsg> outgoing_msgs; // TODO: Temp test
 
     // Used to prevent replayed messages.
     // Set to the latest successfully received nonce.
@@ -163,10 +164,18 @@ namespace ccf
       }
 
       CHANNEL_RECV_TRACE(
-        "<- verify_or_decrypt({} bytes, {} bytes) (nonce={})",
+        "verify_or_decrypt({} bytes, {} bytes) (nonce={})",
         aad.n,
         cipher.n,
         (size_t)recv_nonce.nonce);
+
+      CHANNEL_RECV_TRACE("  aad = {:02x}", fmt::join(aad.p, aad.p + aad.n, ""));
+      CHANNEL_RECV_TRACE(
+        "  cipher ({} bytes) = {:02x}",
+        cipher.n,
+        fmt::join(cipher.p, cipher.p + cipher.n, ""));
+      CHANNEL_RECV_TRACE("  hdr.iv = {:02x}", fmt::join(header.iv, ""));
+      CHANNEL_RECV_TRACE("  hdr.tag = {:02x}", fmt::join(header.tag, ""));
 
       // Note: We must assume that some messages are dropped, i.e. we may not
       // see every nonce/sequence number, but they must be increasing.
@@ -199,9 +208,10 @@ namespace ccf
       if (num_messages >= message_limit)
       {
         CHANNEL_RECV_TRACE(
-          "Reached message limit ({}+{}), triggering new key exchange",
+          "Reached message limit ({}+{} >= {}), triggering new key exchange",
           send_nonce,
-          (uint64_t)recv_nonce.nonce);
+          (uint64_t)recv_nonce.nonce,
+          message_limit);
         reset();
         initiate();
       }
@@ -787,13 +797,16 @@ namespace ccf
         node_cv->serial_number(),
         peer_cv->serial_number());
 
-      if (outgoing_msg.has_value())
+      if (!outgoing_msgs.empty())
       {
-        send(
-          outgoing_msg->type,
-          outgoing_msg->raw_plain,
-          outgoing_msg->raw_cipher);
-        outgoing_msg.reset();
+        for (const auto& outgoing_msg : outgoing_msgs)
+        {
+          send(
+            outgoing_msg.type,
+            outgoing_msg.raw_plain,
+            outgoing_msg.raw_cipher);
+        }
+        outgoing_msgs.clear();
       }
     }
 
@@ -822,7 +835,7 @@ namespace ccf
       if (!status.check(ESTABLISHED))
       {
         advance_connection_attempt();
-        outgoing_msg = OutgoingMsg(type, aad, plain);
+        outgoing_msgs.push_back(OutgoingMsg(type, aad, plain));
         return false;
       }
 
@@ -854,13 +867,17 @@ namespace ccf
         plain.n,
         (size_t)nonce.nonce);
 
+      CHANNEL_SEND_TRACE("  hdr.iv = {:02x}", fmt::join(gcm_hdr.iv, ""));
+      CHANNEL_SEND_TRACE("  hdr.tag = {:02x}", fmt::join(gcm_hdr.tag, ""));
+      CHANNEL_SEND_TRACE(
+        "  cipher ({} bytes) = {:02x}", cipher.size(), fmt::join(cipher, ""));
+      CHANNEL_SEND_TRACE(
+        "  payload ({} bytes) = {:02x}",
+        payload.size(),
+        fmt::join(payload, ""));
+
       RINGBUFFER_WRITE_MESSAGE(
-        node_outbound,
-        to_host,
-        peer_id.value(),
-        type,
-        self.value(),
-        payload);
+        node_outbound, to_host, peer_id.value(), type, self.value(), payload);
 
       return true;
     }
@@ -880,7 +897,11 @@ namespace ccf
         return false;
       }
 
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      GcmHdr hdr;
+      hdr.deserialise(data, size);
+
+      CHANNEL_RECV_TRACE(" AAA");
+
       if (!verify_or_decrypt(hdr, aad))
       {
         LOG_FAIL_FMT("Failed to verify node message from {}", peer_id);
@@ -907,12 +928,10 @@ namespace ccf
         return false;
       }
 
-      const uint8_t* data_ = data;
-      size_t size_ = size;
+      GcmHdr hdr;
+      hdr.deserialise(data, size);
 
-      serialized::skip(data_, size_, (size_ - sizeof(GcmHdr)));
-      const auto& hdr = serialized::overlay<GcmHdr>(data_, size_);
-      size -= sizeof(GcmHdr);
+      CHANNEL_RECV_TRACE(" BBB");
 
       if (!verify_or_decrypt(hdr, {data, size}))
       {
@@ -924,7 +943,7 @@ namespace ccf
     }
 
     std::optional<std::vector<uint8_t>> recv_encrypted(
-      CBuffer aad, const uint8_t* data, size_t size)
+      CBuffer aad, const uint8_t*& data, size_t& size)
     {
       // Receive encrypted message, returning the decrypted payload
       if (!status.check(ESTABLISHED))
@@ -938,7 +957,13 @@ namespace ccf
         return std::nullopt;
       }
 
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      LOG_TRACE_FMT("Size before reading GcmHdr = {}", size);
+      GcmHdr hdr;
+      hdr.deserialise(data, size);
+      LOG_TRACE_FMT("Size after reading GcmHdr = {}", size);
+
+      CHANNEL_RECV_TRACE(" CCC");
+
       std::vector<uint8_t> plain(size);
       if (!verify_or_decrypt(hdr, aad, {data, size}, plain))
       {
@@ -952,6 +977,7 @@ namespace ccf
     void close_channel()
     {
       reset();
+      outgoing_msgs.clear();
       ++initiation_attempt_nonce;
     }
 
@@ -965,7 +991,6 @@ namespace ccf
       peer_cv.reset();
       recv_key.reset();
       send_key.reset();
-      outgoing_msg.reset();
 
       auto e = crypto::create_entropy();
       hkdf_salt = e->random(salt_len);

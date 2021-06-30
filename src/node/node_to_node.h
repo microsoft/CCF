@@ -117,7 +117,7 @@ namespace ccf
 
     template <class T>
     std::pair<T, std::vector<uint8_t>> recv_encrypted(
-      const NodeId& from, const uint8_t* data, size_t size)
+      const NodeId& from, const uint8_t*& data, size_t& size)
     {
       auto t = serialized::read<T>(data, size);
 

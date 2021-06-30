@@ -91,20 +91,30 @@ namespace ccf
         {
           auto primary_id = consensus->primary();
 
-          if (
-            primary_id.has_value() &&
-            cmd_forwarder->forward_command(
-              ctx,
-              primary_id.value(),
-              endpoint->properties.execute_outside_consensus ==
-                  endpoints::ExecuteOutsideConsensus::Never ?
-                consensus->active_nodes() :
-                std::set<NodeId>(),
-              ctx->session->caller_cert))
+          if (primary_id.has_value())
           {
-            // Indicate that the RPC has been forwarded to primary
-            LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
-            return std::nullopt;
+            if (cmd_forwarder->forward_command(
+                  ctx,
+                  primary_id.value(),
+                  endpoint->properties.execute_outside_consensus ==
+                      endpoints::ExecuteOutsideConsensus::Never ?
+                    consensus->active_nodes() :
+                    std::set<NodeId>(),
+                  ctx->session->caller_cert))
+            {
+              // Indicate that the RPC has been forwarded to primary
+              LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id.value());
+              return std::nullopt;
+            }
+            else
+            {
+              ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "RPC could not be forwarded to primary.");
+              update_metrics(ctx, endpoint);
+              return ctx->serialise_response();
+            }
           }
         }
         ctx->set_error(

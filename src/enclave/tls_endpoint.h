@@ -302,6 +302,9 @@ namespace enclave
 
         if (r > 0)
         {
+          LOG_TRACE_FMT(
+            "Wrote some data to TLS: {}",
+            std::string(pending_write.begin(), pending_write.begin() + r));
           pending_write.erase(pending_write.begin(), pending_write.begin() + r);
         }
         else if (r == 0)

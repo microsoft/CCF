@@ -96,14 +96,19 @@ namespace crypto
       return serial_hdr;
     }
 
-    void deserialise(const std::vector<uint8_t>& serial_hdr)
+    void deserialise(const std::vector<uint8_t>& ser)
     {
-      auto data_ = serial_hdr.data();
-      auto size = serial_hdr.size();
+      auto data = ser.data();
+      auto size = ser.size();
 
+      deserialise(data, size);
+    }
+    
+    void deserialise(const uint8_t*& data, size_t& size)
+    {
       memcpy(
-        tag, serialized::read(data_, size, GCM_SIZE_TAG).data(), GCM_SIZE_TAG);
-      memcpy(iv, serialized::read(data_, size, SIZE_IV).data(), SIZE_IV);
+        tag, serialized::read(data, size, GCM_SIZE_TAG).data(), GCM_SIZE_TAG);
+      memcpy(iv, serialized::read(data, size, SIZE_IV).data(), SIZE_IV);
     }
   };
 

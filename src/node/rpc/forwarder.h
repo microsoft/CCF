@@ -128,6 +128,9 @@ namespace ccf
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
       try
       {
+        LOG_TRACE_FMT("Receiving forwarded command of {} bytes", size);
+        LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
+      
         r = n2n_channels->template recv_encrypted<ForwardedHeader>(
           from, data, size);
       }
@@ -195,6 +198,9 @@ namespace ccf
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
       try
       {
+        LOG_TRACE_FMT("Receiving response of {} bytes", size);
+        LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
+
         r = n2n_channels->template recv_encrypted<ForwardedHeader>(
           from, data, size);
       }
@@ -238,6 +244,11 @@ namespace ccf
       try
       {
         auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
+        LOG_TRACE_FMT(
+          "recv_message({}, {} bytes) (type={})",
+          from,
+          size,
+          (size_t)forwarded_msg);
 
         switch (forwarded_msg)
         {
