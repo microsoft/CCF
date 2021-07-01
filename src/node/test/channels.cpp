@@ -895,10 +895,13 @@ TEST_CASE("Interrupted key exchange")
 
     INFO("Later attempts to connect should succeed");
     {
+      // Discard any pending messages
+      channels1.close_channel(nid2);
+      channels2.close_channel(nid1);
+
       SUBCASE("")
       {
         INFO("Node 1 attempts to connect");
-        channels1.close_channel(nid2);
         channels1.send_authenticated(
           nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
@@ -912,7 +915,6 @@ TEST_CASE("Interrupted key exchange")
       else
       {
         INFO("Node 2 attempts to connect");
-        channels2.close_channel(nid1);
         channels2.send_authenticated(
           nid1, NodeMsgType::consensus_msg, msg.data(), msg.size());
 
@@ -923,7 +925,6 @@ TEST_CASE("Interrupted key exchange")
         REQUIRE(channels1.recv_channel_message(
           nid2, get_first(eio2, NodeMsgType::channel_msg).data()));
       }
-
       REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
       REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
 

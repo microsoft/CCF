@@ -130,7 +130,7 @@ namespace ccf
       {
         LOG_TRACE_FMT("Receiving forwarded command of {} bytes", size);
         LOG_TRACE_FMT(" => {:02x}", fmt::join(data, data + size, ""));
-      
+
         r = n2n_channels->template recv_encrypted<ForwardedHeader>(
           from, data, size);
       }
@@ -296,17 +296,12 @@ namespace ccf
                 return;
               }
 
-              if (!send_forwarded_response(
-                    ctx->session->client_session_id,
-                    from,
-                    fwd_handler->process_forwarded(ctx)))
-              {
-                LOG_FAIL_FMT("Could not send forwarded response to {}", from);
-              }
-              else
-              {
-                LOG_DEBUG_FMT("Sending forwarded response to {}", from);
-              }
+              // Ignore return value - false only means it is pending
+              send_forwarded_response(
+                ctx->session->client_session_id,
+                from,
+                fwd_handler->process_forwarded(ctx));
+              LOG_DEBUG_FMT("Sending forwarded response to {}", from);
             }
             break;
           }
