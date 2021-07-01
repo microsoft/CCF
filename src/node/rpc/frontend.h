@@ -495,7 +495,7 @@ namespace ccf
         {
           const auto& [txid, root] =
             history->get_replicated_state_txid_and_root();
-          tx.set_read_version_and_term(txid.version, txid.term);
+          tx.set_read_txid(txid);
           tx.set_root_at_read_version(root);
         }
       }

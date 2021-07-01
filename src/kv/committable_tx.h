@@ -294,16 +294,19 @@ namespace kv
     std::optional<TxID> get_txid()
     {
       if (!committed)
+      {
         throw std::logic_error("Transaction not yet committed");
+      }
 
       if (!read_txid.has_value())
       {
-        // TODO: Is this right? This check could be removed if the
-        // read version was acquired on Tx's creation!
+        // TODO: This check could be removed if the read TxID was acquired on
+        // Tx's creation
         return std::nullopt;
       }
 
-      // TODO: We determine if a committed tx is read-only if it has no version
+      // A committed tx is read-only (i.e. no write to any map) if it was not
+      // assigned a version when it was committed
       if (version == NoVersion)
       {
         // Read-only transaction
@@ -342,16 +345,15 @@ namespace kv
     }
 
     // TODO: Fix this!!
-    void set_read_version_and_term(Version v, Term t)
+    void set_read_txid(TxID tx_id)
     {
       if (!read_txid.has_value())
       {
-        // read_version = v;
-        commit_view = t;
+        read_txid = tx_id;
       }
       else
       {
-        throw std::logic_error("Read version already set");
+        throw std::logic_error("Read TxID already set");
       }
     }
 
