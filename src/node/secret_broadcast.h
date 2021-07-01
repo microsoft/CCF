@@ -26,7 +26,7 @@ namespace ccf
 
       LedgerSecretsForNodes secrets_for_nodes;
 
-      for (auto [nid, ni] : g.get_trusted_nodes(self))
+      for (auto [nid, ni] : g.get_trusted_and_learner_nodes(self))
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 
@@ -54,7 +54,7 @@ namespace ccf
 
       LedgerSecretsForNodes secrets_for_nodes;
 
-      for (auto [nid, ni] : g.get_trusted_nodes())
+      for (auto [nid, ni] : g.get_trusted_and_learner_nodes())
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 

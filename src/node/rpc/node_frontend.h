@@ -195,7 +195,9 @@ namespace ccf
       rep.node_status = node_status;
       rep.node_id = joining_node_id;
 
-      if (node_status == NodeStatus::TRUSTED)
+      if (
+        node_status == NodeStatus::TRUSTED ||
+        node_status == NodeStatus::LEARNER)
       {
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           context.get_node_state().is_part_of_public_network(),
