@@ -341,11 +341,12 @@ namespace kv
       return req_id;
     }
 
+    // TODO: Fix this!!
     void set_read_version_and_term(Version v, Term t)
     {
-      if (!read_version.has_value())
+      if (!read_txid.has_value())
       {
-        read_version = v;
+        // read_version = v;
         commit_view = t;
       }
       else
@@ -372,7 +373,9 @@ namespace kv
   public:
     ReservedTx(AbstractStore* _store, Version reserved) : CommittableTx(_store)
     {
-      read_version = reserved - 1;
+      // TODO: Not sure here??
+      // read_version = reserved - 1;
+      // read_txid = ;
       version = reserved;
     }
 

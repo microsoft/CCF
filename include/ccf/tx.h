@@ -60,20 +60,9 @@ namespace kv
     using PossibleHandles = std::list<std::unique_ptr<AbstractHandle>>;
     std::map<std::string, PossibleHandles> all_handles;
 
-    // In most places we use NoVersion to indicate an invalid version. In this
-    // case, NoVersion is a valid value - it is the version that the first
-    // transaction in the service will read from, before anything has been
-    // applied to the KV. So we need an additional special value to distinguish
-    // "haven't yet fetched a read_version" from "have fetched a read_version,
-    // and it is NoVersion", and we get that by wrapping this in a
-    // std::optional with nullopt representing "not yet fetched".
-
+    // Note: read_txid version is set to NoVersion for the first transaction in
+    // the service, before anything has been applied to the KV.
     std::optional<TxID> read_txid = std::nullopt;
-
-    // TODO: Remove read_version and read_view
-    std::optional<Version> read_version = std::nullopt;
-    ccf::View read_view = ccf::VIEW_UNKNOWN;
-
     ccf::View commit_view = ccf::VIEW_UNKNOWN;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
@@ -118,10 +107,12 @@ namespace kv
     {
       if (change_set == nullptr)
       {
+        CCF_ASSERT_FMT(
+          read_txid.has_value(), "read_txid should have already been set ");
         throw CompactedVersionConflict(fmt::format(
           "Unable to retrieve state over map {} at {}",
           map_name,
-          read_version.value())); // TODO: What if read_version is nullopt?
+          read_txid->version));
       }
 
       auto typed_handle = get_or_insert_handle<THandle>(*change_set, map_name);
@@ -134,14 +125,8 @@ namespace kv
       if (!read_txid.has_value())
       {
         // Grab opacity version that all Maps should be queried at.
-        // TODO: This should all be atomic!
-        // TODO: Use a single TxID rather than read_view and read_version!
-        read_txid = store->current_txid();
-
-        read_view = read_txid->term;
-        read_version = read_txid->version;
-        commit_view = store->current_commit_term();
-        LOG_FAIL_FMT("Tx read version: {}", read_version.value());
+        std::tie(read_txid, commit_view) =
+          store->current_txid_and_commit_term();
       }
 
       auto abstract_map = store->get_map(read_txid->version, map_name);

@@ -141,10 +141,17 @@ namespace kv
         version = 0;
       }
 
-      // Further transactions
+      // Further transactions should read in the commit term
+      // TODO: What about if the commit fails?
       read_term = commit_term;
 
       return version;
+    }
+
+    TxID current_txid_internal()
+    {
+      // version_lock should be first acquired
+      return {read_term, version};
     }
 
   public:
@@ -950,7 +957,14 @@ namespace kv
     {
       // Must lock in case the version or read term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
-      return {read_term, version};
+      return current_txid_internal();
+    }
+
+    std::pair<TxID, Term> current_txid_and_commit_term() override
+    {
+      // Must lock in case the version or commit term is being incremented.
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return {current_txid_internal(), commit_term};
     }
 
     Version compacted_version() override
