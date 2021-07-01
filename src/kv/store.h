@@ -59,6 +59,7 @@ namespace kv
       version = 0;
       compacted = 0;
       commit_term = 0;
+      read_term = 0;
 
       last_replicated = 0;
       last_committable = 0;
