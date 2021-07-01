@@ -39,7 +39,7 @@ class Checker:
             wait_for_commit(self.client, rpc_result.seqno, rpc_result.view)
 
 
-def check_can_progress(node, timeout=6):
+def check_can_progress(node, timeout=10):
     with node.client() as c:
         r = c.get("/node/commit")
         original_tx = TxID.from_str(r.body.json()["transaction_id"])
