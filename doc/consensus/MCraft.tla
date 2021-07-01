@@ -7,10 +7,10 @@ Server_mc == {NodeOne, NodeTwo, NodeThree}
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
 \* evaluate all relevant states. If set to only 2, the candidate_quorum
 \* constraint below is too restrictive.
-TermLimit == 2
+TermLimit == 3
 
 \* Limit number of requests (new entires) that can be made
-RequestLimit == 2
+RequestLimit == 1
 
 \* Limit on number of request votes that can be sent to each other node
 RequestVoteLimit_mc == 1
