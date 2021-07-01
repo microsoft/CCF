@@ -274,7 +274,7 @@ namespace kv
       return version;
     }
 
-    // TODO: We can probably get rid of this??
+    // TODO: Remove this!
     Version get_read_version()
     {
       return read_txid.has_value() ? read_txid->version : NoVersion;
@@ -285,22 +285,22 @@ namespace kv
       return max_conflict_version;
     }
 
-    // TODO: Rename
+    // TODO: Rename or remove??
     Version get_term()
     {
       return commit_view;
     }
 
-    TxID get_txid()
+    std::optional<TxID> get_txid()
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
 
       if (!read_txid.has_value())
       {
-        // TODO: Is this right? This could be removed if the
+        // TODO: Is this right? This check could be removed if the
         // read version was acquired on Tx's creation!
-        throw std::logic_error("Transaction has no read version");
+        return std::nullopt;
       }
 
       // TODO: We determine if a committed tx is read-only if it has no version
@@ -314,7 +314,7 @@ namespace kv
       {
         // Write transaction
         LOG_FAIL_FMT("Write: {}.{}", commit_view, version);
-        return {commit_view, version};
+        return TxID(commit_view, version);
       }
     }
 

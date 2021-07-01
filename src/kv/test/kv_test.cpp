@@ -2424,6 +2424,22 @@ TEST_CASE("Tx reported TxID after commit")
   }
 
   {
+    INFO("Empty committed tx");
+
+    auto tx = kv_store.create_tx();
+
+    // No map handle acquired
+
+    // Tx is not yet committed
+    REQUIRE_THROWS_AS(tx.get_txid(), std::logic_error);
+
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    // Committed transaction was not assigned a TxID because it was empty
+    REQUIRE_FALSE(tx.get_txid().has_value());
+  }
+
+  {
     INFO("Simple read-only tx");
 
     // The ReadOnlyTx returned by store.create_read_only_tx() has no commit()
@@ -2439,9 +2455,10 @@ TEST_CASE("Tx reported TxID after commit")
 
     // Reported TxID includes store read term and last seqno
     auto tx_id = tx.get_txid();
-    REQUIRE(tx_id.term == store_read_term);
-    REQUIRE(tx_id.version == store_last_seqno);
-    REQUIRE(tx_id == kv_store.current_txid());
+    REQUIRE(tx_id.has_value());
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno);
+    REQUIRE(tx_id.value() == kv_store.current_txid());
   }
 
   {
@@ -2461,9 +2478,10 @@ TEST_CASE("Tx reported TxID after commit")
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
-    REQUIRE(tx_id.term == store_read_term);
-    REQUIRE(tx_id.version == store_last_seqno);
-    REQUIRE(tx_id == kv_store.current_txid());
+    REQUIRE(tx_id.has_value());
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno);
+    REQUIRE(tx_id.value() == kv_store.current_txid());
   }
 
   {
@@ -2479,9 +2497,10 @@ TEST_CASE("Tx reported TxID after commit")
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
-    REQUIRE(tx_id.term == store_read_term);
-    REQUIRE(tx_id.version == store_last_seqno);
-    REQUIRE(tx_id == kv_store.current_txid());
+    REQUIRE(tx_id.has_value());
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno);
+    REQUIRE(tx_id.value() == kv_store.current_txid());
   }
 
   {
@@ -2497,9 +2516,10 @@ TEST_CASE("Tx reported TxID after commit")
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
-    REQUIRE(tx_id.term == store_read_term);
-    REQUIRE(tx_id.version == store_last_seqno);
-    REQUIRE(tx_id == kv_store.current_txid());
+    REQUIRE(tx_id.has_value());
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno);
+    REQUIRE(tx_id.value() == kv_store.current_txid());
   }
 
   {
@@ -2521,8 +2541,9 @@ TEST_CASE("Tx reported TxID after commit")
         kv_store.current_txid() == kv::TxID(store_read_term, store_last_seqno));
 
       auto tx_id = tx.get_txid();
-      REQUIRE(tx_id.term == store_read_term);
-      REQUIRE(tx_id.version == store_last_seqno);
+      REQUIRE(tx_id.has_value());
+      REQUIRE(tx_id->term == store_read_term);
+      REQUIRE(tx_id->version == store_last_seqno);
     }
 
     {
@@ -2533,9 +2554,10 @@ TEST_CASE("Tx reported TxID after commit")
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
       auto tx_id = tx.get_txid();
-      REQUIRE(tx_id.term == store_read_term);
-      REQUIRE(tx_id.version == store_last_seqno);
-      REQUIRE(tx_id == kv_store.current_txid());
+      REQUIRE(tx_id.has_value());
+      REQUIRE(tx_id->term == store_read_term);
+      REQUIRE(tx_id->version == store_last_seqno);
+      REQUIRE(tx_id.value() == kv_store.current_txid());
     }
   }
 
@@ -2550,8 +2572,9 @@ TEST_CASE("Tx reported TxID after commit")
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
-    REQUIRE(tx_id.term == store_read_term);
-    REQUIRE(tx_id.version == store_last_seqno);
-    REQUIRE(tx_id == kv_store.current_txid());
+    REQUIRE(tx_id.has_value());
+    REQUIRE(tx_id->term == store_read_term);
+    REQUIRE(tx_id->version == store_last_seqno);
+    REQUIRE(tx_id.value() == kv_store.current_txid());
   }
 }
