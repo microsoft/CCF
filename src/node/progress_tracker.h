@@ -297,6 +297,7 @@ namespace ccf
             revealed_nonce.node_id,
             nonces_value.tx_id.view,
             nonces_value.tx_id.seqno);
+          throw std::logic_error("foobar");
           return kv::TxHistory::Result::FAIL;
         }
 
@@ -310,6 +311,7 @@ namespace ccf
             nonces_value.tx_id.view,
             nonces_value.tx_id.seqno,
             revealed_nonce.node_id);
+
           return kv::TxHistory::Result::FAIL;
         }
         if (cert.nonce_set.find(revealed_nonce.node_id) == cert.nonce_set.end())
@@ -363,7 +365,8 @@ namespace ccf
       Nonce nonce,
       const NodeId& node_id,
       const kv::Configuration::Nodes& config,
-      bool is_primary)
+      bool is_primary,
+      bool can_advance_commit)
     {
       std::unique_lock<std::mutex> guard(lock);
       bool did_add = false;
@@ -435,7 +438,10 @@ namespace ccf
         store->write_nonces(revealed_nonces);
       }
 
-      try_update_watermark(cert, tx_id.seqno, is_primary);
+      if (can_advance_commit)
+      {
+        try_update_watermark(cert, tx_id.seqno, is_primary);
+      }
     }
 
     // Returns a null optional value if there is no nonce exists for the TxID
@@ -643,7 +649,12 @@ namespace ccf
 
     void rollback(ccf::SeqNo rollback_seqno, ccf::View view)
     {
+      /*
       std::unique_lock<std::mutex> guard(lock);
+      if (certificates.empty())
+      {
+        highest_prepared_level = {0, 0};
+      }
       ccf::SeqNo last_good_seqno = 0;
       for (auto it = certificates.begin(); it != certificates.end();)
       {
@@ -663,12 +674,13 @@ namespace ccf
 
       if (certificates.empty())
       {
-        highest_prepared_level = {0, 0};
+        throw std::logic_error("cannot remove all certs");
       }
       else if (highest_prepared_level.seqno > last_good_seqno)
       {
         highest_prepared_level = {view, last_good_seqno};
       }
+      */
     }
 
     ccf::SeqNo get_rollback_seqno() const
@@ -929,7 +941,9 @@ namespace ccf
     void try_update_watermark(
       CommitCert& cert, ccf::SeqNo seqno, bool should_clear_old_entries)
     {
-      if (cert.nonces_committed_to_ledger && seqno > highest_commit_level)
+      if (
+        cert.nonces_committed_to_ledger && seqno > highest_commit_level &&
+        cert.have_primary_signature)
       {
         highest_commit_level = seqno;
         if (should_clear_old_entries)

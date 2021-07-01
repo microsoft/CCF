@@ -54,6 +54,10 @@ public:
     write_view_change_confirmation,
     ccf::SeqNo(ccf::ViewChangeConfirmation& new_view),
     override);
+  MAKE_MOCK1(
+    sign_view_change_confirmation,
+    void(ccf::ViewChangeConfirmation& new_view),
+    override);
 };
 
 void ordered_execution(
@@ -148,12 +152,13 @@ void ordered_execution(
           pt->get_node_nonce({view, seqno}).value(),
           node_id,
           nodes,
-          am_i_primary);
+          am_i_primary,
+          true);
       }
       else
       {
         pt->add_nonce_reveal(
-          {view, seqno}, nonce, node_id, nodes, am_i_primary);
+          {view, seqno}, nonce, node_id, nodes, am_i_primary, true);
       }
 
       if (i < 2)

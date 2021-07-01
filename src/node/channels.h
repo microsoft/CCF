@@ -122,8 +122,8 @@ namespace ccf
     // Set to the latest successfully received nonce.
     struct ChannelSeqno
     {
-      SendNonce main_thread_seqno;
-      SendNonce tid_seqno;
+      SendNonce main_thread_seqno = 0;
+      SendNonce tid_seqno = 0;
     };
     std::array<ChannelSeqno, threading::ThreadMessaging::max_num_threads>
       local_recv_nonce = {{}};
@@ -535,6 +535,12 @@ namespace ccf
       const uint8_t* data, size_t size, bool priority = false)
     {
       LOG_TRACE_FMT("status == {}", status);
+
+      for (size_t i = 0; i < local_recv_nonce.size(); i++)
+      {
+        local_recv_nonce[i].main_thread_seqno = 0;
+        local_recv_nonce[i].tid_seqno = 0;
+      }
 
       if (status == INITIATED || status == ESTABLISHED)
       {

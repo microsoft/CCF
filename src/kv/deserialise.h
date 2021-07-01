@@ -407,8 +407,10 @@ namespace kv
       if (r != kv::TxHistory::Result::OK)
       {
         LOG_FAIL_FMT("receive_nonces Failed");
+        /*
         throw std::logic_error(
           "Failed to verify nonces, view-changes not implemented");
+        */
         return ApplyResult::FAIL;
       }
 

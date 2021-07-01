@@ -992,6 +992,7 @@ namespace aft
       const uint8_t* data,
       size_t size)
     {
+      LOG_DEBUG_FMT("Received evidence for view:{}, from {}", r.view, from);
       auto node = nodes.find(from);
       if (node == nodes.end())
       {
@@ -1071,6 +1072,7 @@ namespace aft
             {data, size}, r.view, from, get_last_configuration_nodes()))
       {
         LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
+        throw std::logic_error("foobar");
         return;
       }
 
@@ -1361,7 +1363,7 @@ namespace aft
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
         }
-        /*else if (!view_change_tracker->check_evidence(r.term))
+        else if (!view_change_tracker->check_evidence(r.term))
         {
           if (r.contains_new_view)
           {
@@ -1380,7 +1382,6 @@ namespace aft
             return;
           }
         }
-        */
       }
 
       // First, check append entries term against our own term, becoming
@@ -1436,9 +1437,21 @@ namespace aft
             r.prev_idx,
             prev_term,
             r.prev_term);
+          auto progress_tracker = store->get_progress_tracker();
+          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+          rollback(std::max(r.prev_idx, rollback_level));
+          if (rollback_level < r.prev_idx)
+          {
+            send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+            return;
+          }
         }
-        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
-        return;
+
+        if (prev_term == 0)
+        {
+          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          return;
+        }
       }
 
       // Then check if those append entries extend past our retirement
@@ -2260,7 +2273,8 @@ namespace aft
             nonce.value(),
             state->my_node_id,
             get_last_configuration_nodes(),
-            is_primary());
+            is_primary(),
+            tx_id.seqno < state->last_idx);
           break;
         }
         default:
@@ -2295,7 +2309,8 @@ namespace aft
         r.nonce,
         from,
         get_last_configuration_nodes(),
-        is_primary());
+        is_primary(),
+        r.idx < state->last_idx);
 
       update_commit();
     }
@@ -2383,6 +2398,7 @@ namespace aft
           reinterpret_cast<uint8_t*>(&vw),
           reinterpret_cast<uint8_t*>(&vw) + sizeof(ViewChangeEvidenceMsg));
 
+        LOG_DEBUG_FMT("Sending evidence to {}", from);
         channels->send_authenticated(
           from, ccf::NodeMsgType::consensus_msg, data);
       }
@@ -3087,7 +3103,8 @@ namespace aft
       if (consensus_type == ConsensusType::BFT)
       {
         auto progress_tracker = store->get_progress_tracker();
-        progress_tracker->rollback(idx, state->current_view);
+        progress_tracker->rollback(
+          progress_tracker->get_rollback_seqno(), state->current_view);
       }
     }
 
