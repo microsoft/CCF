@@ -322,24 +322,31 @@ namespace ccf
           {
             case kv::CommitResult::SUCCESS:
             {
+              // TODO: What about commands??
               auto tx_id = tx.get_txid();
               if (!tx_id.has_value())
               {
                 // TODO: This should never happen!
                 LOG_FAIL_FMT("TxID has no value!!");
               }
+              else
+              {
+                LOG_FAIL_FMT("Setting tx_id");
+                ctx->set_tx_id(tx_id.value());
 
-              ctx->set_tx_id(tx_id.value());
+                // auto cv = tx.commit_version();
+                // if (cv == 0)
+                // cv = tx.get_read_version();
+              }
 
-              // auto cv = tx.commit_version();
-              // if (cv == 0)
-              // cv = tx.get_read_version();
               if (
                 consensus != nullptr && consensus->can_replicate() &&
                 history != nullptr)
               {
                 history->try_emit_signature();
               }
+
+              LOG_FAIL_FMT("Serialising response");
 
               update_metrics(ctx, endpoint);
               return ctx->serialise_response();
@@ -498,6 +505,7 @@ namespace ccf
           const auto& [txid, root] =
             history->get_replicated_state_txid_and_root();
           tx.set_read_txid(txid);
+          tx.set_view(consensus->get_view()); // TODO: This is dodgy!
           tx.set_root_at_read_version(root);
         }
       }

@@ -70,7 +70,7 @@ namespace kv
       KvStoreSerialiser replicated_serialiser(
         e,
         {commit_view, version},
-        max_conflict_version); // TODO: Use new get_txid()
+        max_conflict_version); // TODO: Use new get_txid()?
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -209,6 +209,8 @@ namespace kv
           {
             return CommitResult::SUCCESS;
           }
+
+          LOG_FAIL_FMT("Calling store commit in view {}", commit_view);
 
           return store->commit(
             {commit_view, version},
@@ -351,6 +353,7 @@ namespace kv
         throw std::logic_error("Read TxID already set");
       }
 
+      LOG_FAIL_FMT("Setting txid as {}.{}", tx_id.term, tx_id.version);
       read_txid = tx_id;
     }
 
@@ -375,6 +378,7 @@ namespace kv
       // TODO: Not sure here?? It's probably OK as the read_txid will be
       // acquired when the Tx gets a handle on the signatures map?
       // read_version = reserved - 1;
+      read_txid = TxID(0, reserved - 1);
       version = reserved;
     }
 
