@@ -1040,8 +1040,7 @@ TEST_CASE("Robust key exchange")
     }
 
     REQUIRE(channels2.recv_channel_message(nid1, kex_init.data()));
-    CHECK_FALSE(channels2.recv_channel_message(
-      nid1, kex_init.data())); // TODO: This should be an error!
+    REQUIRE_FALSE(channels2.recv_channel_message(nid1, kex_init.data()));
 
     outbound = read_outbound_msgs<MsgType>(eio2);
     REQUIRE(outbound.size() >= 1);
@@ -1054,8 +1053,7 @@ TEST_CASE("Robust key exchange")
     }
 
     REQUIRE(channels1.recv_channel_message(nid2, kex_response.data()));
-    CHECK_FALSE(channels1.recv_channel_message(
-      nid2, kex_response.data())); // TODO: This should be an error!
+    REQUIRE_FALSE(channels1.recv_channel_message(nid2, kex_response.data()));
 
     outbound = read_outbound_msgs<MsgType>(eio1);
     REQUIRE(outbound.size() >= 1);
@@ -1068,8 +1066,7 @@ TEST_CASE("Robust key exchange")
     }
 
     REQUIRE(channels2.recv_channel_message(nid1, kex_final.data()));
-    CHECK_FALSE(channels2.recv_channel_message(
-      nid1, kex_final.data())); // TODO: This should be an error!
+    REQUIRE_FALSE(channels2.recv_channel_message(nid1, kex_final.data()));
 
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
     REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
