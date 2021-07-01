@@ -606,13 +606,13 @@ namespace kv
 
         read_term = read_term_;
 
-        // History must be informed of the commit_term change, even if no
+        // History must be informed of the read_term change, even if no
         // actual rollback is required
         auto h = get_history();
         if (h)
         {
-          h->rollback(v, commit_term); // TODO: Should we pass the commit_term
-                                       // of the read_term here??
+          // TODO: Confirm that this is the read_term here!
+          h->rollback(v, read_term);
         }
 
         if (v >= version)
@@ -665,22 +665,18 @@ namespace kv
       }
     }
 
+    // TODO: Is this correct?
+    // Used at the end of public recovery
     void set_term(Term t) override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
       commit_term = t;
+      read_term = t;
       auto h = get_history();
       if (h)
       {
-        h->set_term(commit_term);
+        h->set_term(read_term);
       }
-    }
-
-    void set_read_term(Term t) override
-    {
-      std::lock_guard<std::mutex> vguard(version_lock);
-      read_term = t;
-      // TODO: Do anything to history??
     }
 
     bool fill_maps(

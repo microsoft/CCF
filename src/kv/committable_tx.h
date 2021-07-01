@@ -344,17 +344,14 @@ namespace kv
       return req_id;
     }
 
-    // TODO: Fix this!!
     void set_read_txid(TxID tx_id)
     {
-      if (!read_txid.has_value())
-      {
-        read_txid = tx_id;
-      }
-      else
+      if (read_txid.has_value())
       {
         throw std::logic_error("Read TxID already set");
       }
+
+      read_txid = tx_id;
     }
 
     void set_root_at_read_version(const crypto::Sha256Hash& r)
@@ -375,9 +372,9 @@ namespace kv
   public:
     ReservedTx(AbstractStore* _store, Version reserved) : CommittableTx(_store)
     {
-      // TODO: Not sure here??
+      // TODO: Not sure here?? It's probably OK as the read_txid will be
+      // acquired when the Tx gets a handle on the signatures map?
       // read_version = reserved - 1;
-      // read_txid = ;
       version = reserved;
     }
 

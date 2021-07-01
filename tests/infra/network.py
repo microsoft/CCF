@@ -267,7 +267,7 @@ class Network:
             try:
                 node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
             except TimeoutError:
-                LOG.error(f"New node {node.node_id} failed to join the network")
+                LOG.error(f"New node {node.local_node_id} failed to join the network")
                 raise
 
     def _start_all_nodes(
@@ -332,7 +332,7 @@ class Network:
                         snapshot_dir=snapshot_dir,
                     )
             except Exception:
-                LOG.exception("Failed to start node {}".format(node.node_id))
+                LOG.exception("Failed to start node {}".format(node.local_node_id))
                 raise
 
         self.election_duration = (

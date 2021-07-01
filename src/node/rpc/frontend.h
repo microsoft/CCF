@@ -322,23 +322,23 @@ namespace ccf
           {
             case kv::CommitResult::SUCCESS:
             {
-              auto cv = tx.commit_version();
-              if (cv == 0)
-                cv = tx.get_read_version();
-              if (consensus != nullptr)
+              auto tx_id = tx.get_txid();
+              if (!tx_id.has_value())
               {
-                if (cv != kv::NoVersion)
-                {
-                  ccf::TxID tx_id;
-                  tx_id.view = tx.commit_term();
-                  tx_id.seqno = cv;
-                  ctx->set_tx_id(tx_id);
-                }
+                // TODO: This should never happen!
+                LOG_FAIL_FMT("TxID has no value!!");
+              }
 
-                if (history != nullptr && consensus->can_replicate())
-                {
-                  history->try_emit_signature();
-                }
+              ctx->set_tx_id(tx_id.value());
+
+              // auto cv = tx.commit_version();
+              // if (cv == 0)
+              // cv = tx.get_read_version();
+              if (
+                consensus != nullptr && consensus->can_replicate() &&
+                history != nullptr)
+              {
+                history->try_emit_signature();
               }
 
               update_metrics(ctx, endpoint);
@@ -493,6 +493,8 @@ namespace ccf
         update_history();
         if (history)
         {
+          // TODO: Can this make us read backwards if the previous write TxID
+          // hasn't yet been replicated to the history?
           const auto& [txid, root] =
             history->get_replicated_state_txid_and_root();
           tx.set_read_txid(txid);

@@ -2407,7 +2407,6 @@ TEST_CASE("Tx reported TxID after commit")
   {
     INFO("Initialise store");
     kv_store.set_term(store_write_term);
-    kv_store.set_read_term(store_read_term);
 
     for (store_last_seqno = kv_store.current_version(); store_last_seqno < 10;
          store_last_seqno++)

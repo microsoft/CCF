@@ -808,7 +808,7 @@ namespace ccf
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
-        store->rollback(ledger_idx - 1);
+        store->rollback(ledger_idx - 1, 2); // TODO: Which term to use here?
         recover_public_ledger_end_unsafe();
         return;
       }
@@ -953,7 +953,8 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      network.tables->rollback(last_recovered_signed_idx);
+      network.tables->rollback(
+        last_recovered_signed_idx, 2); // TODO: Which term to use here?
       ledger_truncate(last_recovered_signed_idx);
       snapshotter->rollback(last_recovered_signed_idx);
 
@@ -1080,7 +1081,8 @@ namespace ccf
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
-        recovery_store->rollback(ledger_idx - 1);
+        recovery_store->rollback(
+          ledger_idx - 1, 2); // TODO: Which term to use here?
         recover_private_ledger_end_unsafe();
         return;
       }
