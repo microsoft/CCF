@@ -141,6 +141,9 @@ namespace kv
         version = 0;
       }
 
+      // Further transactions
+      read_term = commit_term;
+
       return version;
     }
 
@@ -899,6 +902,7 @@ namespace kv
       }
     }
 
+    // TODO: Delete this?
     bool operator==(const Store& that) const
     {
       // Only used for debugging, not thread safe.

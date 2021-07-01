@@ -277,7 +277,7 @@ namespace kv
     // TODO: We can probably get rid of this??
     Version get_read_version()
     {
-      return read_version.value_or(NoVersion);
+      return read_txid.has_value() ? read_txid->version : NoVersion;
     }
 
     Version get_max_conflict_version()
@@ -296,7 +296,7 @@ namespace kv
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
 
-      if (!read_version.has_value())
+      if (!read_txid.has_value())
       {
         // TODO: Is this right? This could be removed if the
         // read version was acquired on Tx's creation!
@@ -307,8 +307,8 @@ namespace kv
       if (version == NoVersion)
       {
         // Read-only transaction
-        LOG_FAIL_FMT("Read only: {}.{}", read_view, read_version.value());
-        return {read_view, read_version.value()};
+        LOG_FAIL_FMT("Read only: {}.{}", read_txid->term, read_txid->version);
+        return read_txid.value();
       }
       else
       {

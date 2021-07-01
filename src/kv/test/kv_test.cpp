@@ -2432,7 +2432,8 @@ TEST_CASE("Tx reported TxID after commit")
     auto tx = kv_store.create_tx();
     auto handle = tx.ro(map); // Remember: opacity tx_id is acquired here
 
-    // No need to read a key, acquiring a map handle is sufficient
+    // No need to read a key, acquiring a map handle is sufficient to acquire a
+    // valid TxID
 
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
@@ -2495,7 +2496,6 @@ TEST_CASE("Tx reported TxID after commit")
     auto handle = tx.ro(map);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-    // The correct TxID is reported
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.term == store_read_term);
     REQUIRE(tx_id.version == store_last_seqno);
@@ -2506,28 +2506,52 @@ TEST_CASE("Tx reported TxID after commit")
     INFO("Making progress");
 
     {
+      // Write tx
       auto tx = kv_store.create_tx();
       auto handle = tx.rw(map);
       handle->put("key", "value");
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
       store_last_seqno = kv_store.current_version();
 
+      // Since a write transaction was committed, the store's read_term should
+      // now be level with the write_term
+
+      store_read_term = kv_store.current_commit_term();
+      REQUIRE(
+        kv_store.current_txid() == kv::TxID(store_read_term, store_last_seqno));
+
       auto tx_id = tx.get_txid();
-      REQUIRE(tx_id.term == store_write_term);
+      REQUIRE(tx_id.term == store_read_term);
       REQUIRE(tx_id.version == store_last_seqno);
     }
 
     {
+      // Read-only tx should now report the new term
       auto tx = kv_store.create_tx();
-      auto handle = tx.rw(map);
+      auto handle = tx.ro(map);
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-      // The correct TxID is reported
       auto tx_id = tx.get_txid();
       REQUIRE(tx_id.term == store_read_term);
       REQUIRE(tx_id.version == store_last_seqno);
       REQUIRE(tx_id == kv_store.current_txid());
     }
+  }
+
+  {
+    INFO("Further rollbacks");
+
+    kv_store.rollback(
+      kv_store.current_version(), store_read_term, ++store_write_term);
+
+    auto tx = kv_store.create_tx();
+    auto handle = tx.ro(map);
+    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+
+    auto tx_id = tx.get_txid();
+    REQUIRE(tx_id.term == store_read_term);
+    REQUIRE(tx_id.version == store_last_seqno);
+    REQUIRE(tx_id == kv_store.current_txid());
   }
 }

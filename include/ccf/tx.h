@@ -67,9 +67,13 @@ namespace kv
     // "haven't yet fetched a read_version" from "have fetched a read_version,
     // and it is NoVersion", and we get that by wrapping this in a
     // std::optional with nullopt representing "not yet fetched".
-    std::optional<Version> read_version = std::nullopt;
 
+    std::optional<TxID> read_txid = std::nullopt;
+
+    // TODO: Remove read_version and read_view
+    std::optional<Version> read_version = std::nullopt;
     ccf::View read_view = ccf::VIEW_UNKNOWN;
+
     ccf::View commit_view = ccf::VIEW_UNKNOWN;
 
     std::map<std::string, std::shared_ptr<AbstractMap>> created_maps;
@@ -117,7 +121,7 @@ namespace kv
         throw CompactedVersionConflict(fmt::format(
           "Unable to retrieve state over map {} at {}",
           map_name,
-          read_version.value()));
+          read_version.value())); // TODO: What if read_version is nullopt?
       }
 
       auto typed_handle = get_or_insert_handle<THandle>(*change_set, map_name);
@@ -127,19 +131,20 @@ namespace kv
 
     auto get_map_and_change_set_by_name(const std::string& map_name)
     {
-      if (!read_version.has_value())
+      if (!read_txid.has_value())
       {
         // Grab opacity version that all Maps should be queried at.
         // TODO: This should all be atomic!
         // TODO: Use a single TxID rather than read_view and read_version!
-        auto txid = store->current_txid();
-        read_view = txid.term;
-        read_version = txid.version;
+        read_txid = store->current_txid();
+
+        read_view = read_txid->term;
+        read_version = read_txid->version;
         commit_view = store->current_commit_term();
         LOG_FAIL_FMT("Tx read version: {}", read_version.value());
       }
 
-      auto abstract_map = store->get_map(read_version.value(), map_name);
+      auto abstract_map = store->get_map(read_txid->version, map_name);
       if (abstract_map == nullptr)
       {
         // Store doesn't know this map yet - create it dynamically
@@ -174,7 +179,7 @@ namespace kv
       }
 
       return std::make_pair(
-        abstract_map, untyped_map->create_change_set(read_version.value()));
+        abstract_map, untyped_map->create_change_set(read_txid->version));
     }
 
     template <class THandle>
