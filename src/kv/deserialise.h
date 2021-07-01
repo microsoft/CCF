@@ -169,6 +169,10 @@ namespace kv
     {
       return public_only;
     }
+    bool large_rollback() override
+    {
+      return false;
+    }
   };
 
   class BFTExecutionWrapper : public AbstractExecutionWrapper
@@ -296,18 +300,27 @@ namespace kv
         r != kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
       {
         result = false;
+        should_large_rollback = true;
       }
 
       if (!result)
       {
         LOG_FAIL_FMT("Failed to deserialise");
         LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
+        /*
         throw std::logic_error(
           "Failed to verify signature, view-changes not implemented");
+        */
         return ApplyResult::FAIL;
       }
       history->append(data);
       return ApplyResult::PASS_SIGNATURE;
+    }
+
+    bool should_large_rollback =false;
+    bool large_rollback() override
+    {
+      return should_large_rollback;
     }
   };
 
@@ -358,6 +371,7 @@ namespace kv
       }
       else
       {
+        should_large_rollback = true;
         LOG_FAIL_FMT("receive_backup_signatures Failed");
         LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
         return ApplyResult::FAIL;
@@ -368,6 +382,12 @@ namespace kv
 
       history->append(data);
       return success;
+    }
+
+    bool should_large_rollback =false;
+    bool large_rollback() override
+    {
+      return should_large_rollback;
     }
   };
 
@@ -407,6 +427,7 @@ namespace kv
       if (r != kv::TxHistory::Result::OK)
       {
         LOG_FAIL_FMT("receive_nonces Failed");
+        should_large_rollback = true;
         /*
         throw std::logic_error(
           "Failed to verify nonces, view-changes not implemented");
@@ -416,6 +437,12 @@ namespace kv
 
       history->append(data);
       return ApplyResult::PASS_NONCES;
+    }
+
+    bool should_large_rollback =false;
+    bool large_rollback() override
+    {
+      return should_large_rollback;
     }
   };
 
@@ -455,6 +482,7 @@ namespace kv
       auto config = consensus->get_latest_configuration_unsafe();
       if (!progress_tracker->apply_new_view(config, term))
       {
+        should_large_rollback = true;
         LOG_FAIL_FMT("apply_new_view Failed");
         LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);
         return ApplyResult::FAIL;
@@ -462,6 +490,12 @@ namespace kv
 
       history->append(data);
       return ApplyResult::PASS_NEW_VIEW;
+    }
+
+    bool should_large_rollback =false;
+    bool large_rollback() override
+    {
+      return should_large_rollback;
     }
   };
 
@@ -522,6 +556,11 @@ namespace kv
     bool support_async_execution() override
     {
       return true;
+    }
+
+    bool large_rollback() override
+    {
+      return false;
     }
   };
 
@@ -593,6 +632,11 @@ namespace kv
     }
 
     bool support_async_execution() override
+    {
+      return false;
+    }
+
+    bool large_rollback() override
     {
       return false;
     }

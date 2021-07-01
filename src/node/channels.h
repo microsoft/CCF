@@ -175,6 +175,7 @@ namespace ccf
       }
       else if (recv_nonce.nonce <= *local_nonce)
       {
+        /*
         // If the nonce received has already been processed, return
         // See https://github.com/microsoft/CCF/issues/2492 for more details on
         // how this can happen around election time
@@ -186,6 +187,7 @@ namespace ccf
           *local_nonce,
           recv_nonce.tid);
         return false;
+        */
       }
 
       auto ret =
@@ -535,12 +537,6 @@ namespace ccf
       const uint8_t* data, size_t size, bool priority = false)
     {
       LOG_TRACE_FMT("status == {}", status);
-
-      for (size_t i = 0; i < local_recv_nonce.size(); i++)
-      {
-        local_recv_nonce[i].main_thread_seqno = 0;
-        local_recv_nonce[i].tid_seqno = 0;
-      }
 
       if (status == INITIATED || status == ESTABLISHED)
       {

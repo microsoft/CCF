@@ -297,8 +297,8 @@ namespace ccf
             revealed_nonce.node_id,
             nonces_value.tx_id.view,
             nonces_value.tx_id.seqno);
-          throw std::logic_error("foobar");
-          return kv::TxHistory::Result::FAIL;
+          //return kv::TxHistory::Result::FAIL;
+          continue;
         }
 
         BftNodeSignature& commit_cert = it->second;
@@ -322,7 +322,7 @@ namespace ccf
       }
 
       cert.nonces_committed_to_ledger = true;
-      try_update_watermark(cert, nonces_value.tx_id.seqno, true);
+      try_update_watermark(cert, nonces_value.tx_id, true);
       return kv::TxHistory::Result::OK;
     }
 
@@ -440,7 +440,7 @@ namespace ccf
 
       if (can_advance_commit)
       {
-        try_update_watermark(cert, tx_id.seqno, is_primary);
+        try_update_watermark(cert, tx_id, is_primary);
       }
     }
 
@@ -939,19 +939,20 @@ namespace ccf
     }
 
     void try_update_watermark(
-      CommitCert& cert, ccf::SeqNo seqno, bool should_clear_old_entries)
+      CommitCert& cert, const ccf::TxID& tx_id, bool should_clear_old_entries)
     {
       if (
-        cert.nonces_committed_to_ledger && seqno > highest_commit_level &&
+        cert.nonces_committed_to_ledger && tx_id.seqno > highest_commit_level &&
         cert.have_primary_signature)
       {
-        highest_commit_level = seqno;
+        highest_commit_level = tx_id.seqno;
+        LOG_INFO_FMT("Advancing global commit to {}.{}", tx_id.view, tx_id.seqno);
         if (should_clear_old_entries)
         {
-          LOG_DEBUG_FMT("Removing all entries upto:{}", seqno);
+          LOG_DEBUG_FMT("Removing all entries upto:{}", tx_id.seqno);
           for (auto it = certificates.begin(); it != certificates.end();)
           {
-            if (it->first.seqno >= seqno)
+            if (it->first.seqno >= tx_id.seqno)
             {
               ++it;
             }

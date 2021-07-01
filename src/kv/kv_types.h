@@ -591,6 +591,7 @@ namespace kv
     virtual kv::Version get_max_conflict_version() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
+    virtual bool large_rollback() = 0;
   };
 
   class AbstractStore

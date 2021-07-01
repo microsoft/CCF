@@ -292,6 +292,11 @@ namespace aft
       {
         return false;
       }
+
+      bool large_rollback() override
+      {
+        return false;
+      }
     };
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(

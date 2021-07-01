@@ -1072,7 +1072,6 @@ namespace aft
             {data, size}, r.view, from, get_last_configuration_nodes()))
       {
         LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
-        throw std::logic_error("foobar");
         return;
       }
 
@@ -1429,16 +1428,17 @@ namespace aft
         }
         else
         {
+          auto progress_tracker = store->get_progress_tracker();
+          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log at {} has the wrong "
-            "previous term (ours: {}, theirs: {})",
+            "previous term (ours: {}, theirs: {}), rollback_level:{}",
             state->my_node_id,
             from,
             r.prev_idx,
             prev_term,
-            r.prev_term);
-          auto progress_tracker = store->get_progress_tracker();
-          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+            r.prev_term,
+            rollback_level);
           rollback(std::max(r.prev_idx, rollback_level));
           if (rollback_level < r.prev_idx)
           {
@@ -1813,8 +1813,19 @@ namespace aft
         // primary resends the append entries we will succeed as the map is
         // already there. This will only occur on BFT startup so not a perf
         // problem but still need to be resolved.
-        state->last_idx = i - 1;
-        ledger->truncate(state->last_idx);
+        if (!ds->large_rollback())
+        {
+          state->last_idx = i - 1;
+          ledger->truncate(state->last_idx);
+        }
+        else
+        {
+
+          auto progress_tracker = store->get_progress_tracker();
+          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+          LOG_INFO_FMT("Large rollback to {}", rollback_level);
+          rollback(rollback_level);
+        }
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return false;
       }
@@ -2274,7 +2285,7 @@ namespace aft
             state->my_node_id,
             get_last_configuration_nodes(),
             is_primary(),
-            tx_id.seqno < state->last_idx);
+            tx_id.seqno <= state->last_idx);
           break;
         }
         default:
@@ -2310,7 +2321,7 @@ namespace aft
         from,
         get_last_configuration_nodes(),
         is_primary(),
-        r.idx < state->last_idx);
+        r.idx <= state->last_idx);
 
       update_commit();
     }
