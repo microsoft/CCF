@@ -360,8 +360,6 @@ namespace kv
       {
         LOG_FAIL_FMT("receive_backup_signatures Failed");
         LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
-        throw std::logic_error(
-          "Failed to verify signature, view-changes not implemented");
         return ApplyResult::FAIL;
       }
 

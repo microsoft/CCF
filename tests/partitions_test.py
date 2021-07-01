@@ -10,6 +10,9 @@ from ccf.tx_id import TxID
 import time
 from infra.checker import check_can_progress
 import pprint
+from ccf.clients import CCFConnectionException
+
+from loguru import logger as LOG
 
 
 @reqs.description("Invalid partitions are not allowed")
@@ -108,6 +111,24 @@ def test_isolate_primary_from_one_backup(network, args):
 def test_isolate_and_reconnect_primary(network, args):
     primary, backups = network.find_nodes()
     with network.partitioner.partition(backups):
+
+
+        primary, backup = network.find_primary_and_any_backup()
+        if args.consensus == "bft":
+            try:
+                for _ in range(3):
+                    with backup.client("user0") as c:
+                        _ = c.post(
+                            "/app/log/private",
+                            {
+                                "id": -1,
+                                "msg": "This is submitted to force a view change",
+                            },
+                        )
+                    time.sleep(5)
+                    backup = network.find_any_backup()
+            except CCFConnectionException:
+                LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
         new_primary, _ = network.wait_for_new_primary(
             primary, nodes=backups, timeout_multiplier=6
         )
@@ -143,9 +164,11 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
-        test_isolate_primary_from_one_backup(network, args)
+        if args.consensus == "cft":
+            test_invalid_partitions(network, args)
+            test_partition_majority(network, args)
+            test_isolate_primary_from_one_backup(network, args)
+
         for _ in range(5):
             test_isolate_and_reconnect_primary(network, args)
 

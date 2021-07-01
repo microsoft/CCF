@@ -436,14 +436,17 @@ namespace aft
     std::pair<Term, Index> get_commit_term_and_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      return {get_term_internal(state->commit_idx), state->commit_idx};
+      //return {get_term_internal(state->commit_idx), state->commit_idx};
+      auto progress_tracker = store->get_progress_tracker();
+      auto idx = progress_tracker->get_rollback_seqno();
+      return {get_term_internal(idx), idx};
     }
 
     std::optional<kv::Consensus::SignableTxIndices>
     get_signable_commit_term_and_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      if (state->commit_idx >= election_index)
+      //if (state->commit_idx >= election_index)
       {
         kv::Consensus::SignableTxIndices r;
         r.term = get_term_internal(state->commit_idx);
@@ -451,10 +454,12 @@ namespace aft
         r.previous_version = last_committable_index();
         return r;
       }
+      /*
       else
       {
         return std::nullopt;
       }
+      */
     }
 
     Term get_term(Index idx)
@@ -1001,7 +1006,7 @@ namespace aft
       ccf::ViewChangeRequest v =
         ccf::ViewChangeRequest::deserialize(data, size);
       LOG_INFO_FMT(
-        "Received view change from:{}, view:{}", from.trim(), r.view);
+        "Received view change from:{}, view:{}", from, r.view);
 
       auto progress_tracker = store->get_progress_tracker();
       auto result =
@@ -1138,6 +1143,7 @@ namespace aft
 
     void append_new_view(ccf::View view)
     {
+      LOG_INFO_FMT("Writing view change {} to ledger as a new primay", view);
       state->current_view = view;
       become_leader();
       state->new_view_idx =
@@ -1246,8 +1252,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Send append entries from {} to {}: {} to {} ({})",
-        state->my_node_id.trim(),
-        to.trim(),
+        state->my_node_id,
+        to,
         start_idx,
         end_idx,
         state->commit_idx);
@@ -1355,7 +1361,7 @@ namespace aft
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
         }
-        else if (!view_change_tracker->check_evidence(r.term))
+        /*else if (!view_change_tracker->check_evidence(r.term))
         {
           if (r.contains_new_view)
           {
@@ -1374,6 +1380,7 @@ namespace aft
             return;
           }
         }
+        */
       }
 
       // First, check append entries term against our own term, becoming
@@ -1498,7 +1505,9 @@ namespace aft
             "rolling back from {} to {}",
             state->last_idx,
             r.prev_idx);
-          rollback(r.prev_idx);
+          auto progress_tracker = store->get_progress_tracker();
+          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+          rollback(std::max(r.prev_idx, rollback_level));
         }
         else
         {
@@ -2619,7 +2628,15 @@ namespace aft
         return;
       }
 
-      election_index = last_committable_index();
+      if (consensus_type == ConsensusType::BFT)
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        election_index = progress_tracker->get_rollback_seqno();
+      }
+      else
+      {
+        election_index = last_committable_index();
+      }
       LOG_DEBUG_FMT(
         "Election index is {} in term {}", election_index, state->current_view);
       // Discard any un-committable updates we may hold,
@@ -2841,7 +2858,12 @@ namespace aft
         }
 
         if (can_commit)
-          commit(highest_committable);
+        {
+          //commit(highest_committable);
+          auto progress_tracker = store->get_progress_tracker();
+          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+          commit(rollback_level);
+        }
       }
     }
 
@@ -2996,13 +3018,14 @@ namespace aft
 
     void rollback(Index idx)
     {
-      if (idx < state->commit_idx)
+      if (idx < state->bft_watermark_idx)
       {
         LOG_FAIL_FMT(
-          "Asked to rollback to {} but committed to {} - ignoring rollback "
+          "Asked to rollback to {} but committed to {}, watermark {} - ignoring rollback "
           "request",
           idx,
-          state->commit_idx);
+          state->commit_idx,
+          state->bft_watermark_idx);
         return;
       }
 

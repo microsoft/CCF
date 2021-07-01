@@ -304,6 +304,8 @@ namespace ccf
 
     kv::PendingTxInfo call() override
     {
+      LOG_DEBUG_FMT("Emitting signature at {}.{}", txid.term, txid.version);
+
       auto sig = store.create_reserved_tx(txid.version);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
@@ -658,6 +660,8 @@ namespace ccf
     {
       if (!verify(term, &sig))
       {
+        LOG_INFO_FMT(
+          "Signature verification for {}.{} failed", sig.view, sig.seqno);
         return kv::TxHistory::Result::FAIL;
       }
 
@@ -677,6 +681,11 @@ namespace ccf
       sig.node = id;
       sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
 
+      if (result == kv::TxHistory::Result::FAIL)
+      {
+        LOG_INFO_FMT(
+          "Signature verification for {}.{} failed", sig.view, sig.seqno);
+      }
       return result;
     }
 
