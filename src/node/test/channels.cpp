@@ -573,6 +573,18 @@ TEST_CASE("Host connections")
   }
 }
 
+static std::vector<NodeOutboundMsg<MsgType>> get_all_msgs(
+  std::set<ringbuffer::Circuit*> eios)
+{
+  std::vector<NodeOutboundMsg<MsgType>> res;
+  for (auto& eio : eios)
+  {
+    auto msgs = read_outbound_msgs<MsgType>(*eio);
+    res.insert(res.end(), msgs.begin(), msgs.end());
+  }
+  return res;
+}
+
 TEST_CASE("Concurrent key exchange init")
 {
   auto network_kp = crypto::make_key_pair(default_curve);
@@ -638,8 +650,8 @@ TEST_CASE("Concurrent key exchange init")
     {
       channels1.send_authenticated(
         nid2, NodeMsgType::consensus_msg, msg.data(), msg.size());
-      get_first(eio1, NodeMsgType::channel_msg); // Discard message to simulate
-                                                 // it being dropped
+      // Discard messages to simulate dropped connection
+      read_outbound_msgs<MsgType>(eio1);
       channels1.close_channel(nid2);
     }
 
@@ -671,18 +683,8 @@ TEST_CASE("Concurrent key exchange init")
     REQUIRE(channels1.get_status(nid2) == ESTABLISHED);
     REQUIRE(channels2.get_status(nid1) == ESTABLISHED);
   }
-}
 
-static std::vector<NodeOutboundMsg<MsgType>> get_all_msgs(
-  std::set<ringbuffer::Circuit*> eios)
-{
-  std::vector<NodeOutboundMsg<MsgType>> res;
-  for (auto& eio : eios)
-  {
-    auto msgs = read_outbound_msgs<MsgType>(*eio);
-    res.insert(res.end(), msgs.begin(), msgs.end());
-  }
-  return res;
+  get_all_msgs({&eio1, &eio2});
 }
 
 struct CurveChoices
