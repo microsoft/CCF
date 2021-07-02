@@ -12,7 +12,7 @@ namespace ccf
 {
   struct CodeDigest
   {
-    std::array<uint8_t, crypto::Sha256Hash::SIZE> data;
+    std::array<uint8_t, crypto::Sha256Hash::SIZE> data = {};
 
     CodeDigest() = default;
     CodeDigest(const CodeDigest& other) : data(other.data) {}

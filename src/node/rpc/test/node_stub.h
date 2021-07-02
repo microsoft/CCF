@@ -90,7 +90,8 @@ namespace ccf
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
-      const std::vector<uint8_t>& expected_node_public_key_der) override
+      const std::vector<uint8_t>& expected_node_public_key_der,
+      CodeDigest& code_digest) override
     {
       return QuoteVerificationResult::Verified;
     }
