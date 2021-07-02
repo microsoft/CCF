@@ -197,11 +197,11 @@ namespace aft
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
       bool public_only_ = false,
-      bool join_as_learner_ = false) :
+      kv::ReplicaState initial_state_ = kv::ReplicaState::Follower) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
-      replica_state(kv::ReplicaState::Follower),
+      replica_state(initial_state_),
       timeout_elapsed(0),
 
       state(state_),
@@ -248,11 +248,6 @@ namespace aft
         // commit is always 1.
         state->view_history.update(1, starting_view_change);
         use_two_tx_reconfig = true;
-      }
-
-      if (use_two_tx_reconfig && join_as_learner_)
-      {
-        replica_state = kv::ReplicaState::Learner;
       }
     }
 

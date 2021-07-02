@@ -1934,7 +1934,13 @@ namespace ccf
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
-      bool join_as_learner = service_status == ServiceStatus::OPEN;
+
+      kv::ReplicaState initial_state =
+        (network.consensus_type == ConsensusType::BFT &&
+         service_status == ServiceStatus::OPEN) ?
+        kv::ReplicaState::Learner :
+        kv::ReplicaState::Follower;
+
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
@@ -1953,7 +1959,7 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
         sig_tx_interval,
         public_only,
-        join_as_learner);
+        initial_state);
 
       consensus = std::make_shared<RaftConsensusType>(
         std::move(raft), network.consensus_type);
