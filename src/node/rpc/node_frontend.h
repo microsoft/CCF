@@ -134,9 +134,12 @@ namespace ccf
           "{:#08}", get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
       }
 
+      CodeDigest code_digest;
+
 #ifdef GET_QUOTE
       QuoteVerificationResult verify_result =
-        this->context.get_node_state().verify_quote(tx, in.quote_info, pk_der);
+        this->context.get_node_state().verify_quote(
+          tx, in.quote_info, pk_der, code_digest);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -160,7 +163,8 @@ namespace ccf
          in.quote_info,
          in.public_encryption_key,
          node_status,
-         ledger_secret_seqno});
+         ledger_secret_seqno,
+         ds::to_hex(code_digest.data)});
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
@@ -379,9 +383,34 @@ namespace ccf
           q.format = node_quote_info.format;
 
 #ifdef GET_QUOTE
-          auto code_id =
-            EnclaveAttestationProvider::get_code_id(node_quote_info);
-          q.mrenclave = ds::to_hex(code_id.data);
+          // get_code_id attempts to re-validate the quote to extract mrenclave
+          // and the Open Enclave is insufficiently flexible to allow quotes
+          // with expired collateral to be parsed at all. Recent nodes therefore
+          // cache their code digest on startup, and this code attempts to fetch
+          // that value when possible and only call the unreliable get_code_id
+          // otherwise.
+          auto nodes = args.tx.ro(network.nodes);
+          auto node_info = nodes->get(context.get_node_state().get_node_id());
+          if (node_info.has_value() && node_info->code_digest.has_value())
+          {
+            q.mrenclave = node_info->code_digest.value();
+          }
+          else
+          {
+            auto code_id =
+              EnclaveAttestationProvider::get_code_id(node_quote_info);
+            if (code_id.has_value())
+            {
+              q.mrenclave = ds::to_hex(code_id.value().data);
+            }
+            else
+            {
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InvalidQuote,
+                "Failed to extract code id from node quote.");
+            }
+          }
 #endif
 
           return make_success(q);
@@ -425,9 +454,25 @@ namespace ccf
             q.format = QuoteFormat::oe_sgx_v1;
 
 #ifdef GET_QUOTE
-            auto code_id =
-              EnclaveAttestationProvider::get_code_id(node_info.quote_info);
-            q.mrenclave = ds::to_hex(code_id.data);
+            // get_code_id attempts to re-validate the quote to extract
+            // mrenclave and the Open Enclave is insufficiently flexible to
+            // allow quotes with expired collateral to be parsed at all. Recent
+            // nodes therefore cache their code digest on startup, and this code
+            // attempts to fetch that value when possible and only call the
+            // unreliable get_code_id otherwise.
+            if (node_info.code_digest.has_value())
+            {
+              q.mrenclave = node_info.code_digest.value();
+            }
+            else
+            {
+              auto code_id =
+                EnclaveAttestationProvider::get_code_id(node_info.quote_info);
+              if (code_id.has_value())
+              {
+                q.mrenclave = ds::to_hex(code_id.value().data);
+              }
+            }
 #endif
             quotes.emplace_back(q);
           }
