@@ -297,8 +297,7 @@ namespace ccf
             revealed_nonce.node_id,
             nonces_value.tx_id.view,
             nonces_value.tx_id.seqno);
-          //return kv::TxHistory::Result::FAIL;
-          continue;
+          return kv::TxHistory::Result::FAIL;
         }
 
         BftNodeSignature& commit_cert = it->second;
@@ -311,7 +310,6 @@ namespace ccf
             nonces_value.tx_id.view,
             nonces_value.tx_id.seqno,
             revealed_nonce.node_id);
-
           return kv::TxHistory::Result::FAIL;
         }
         if (cert.nonce_set.find(revealed_nonce.node_id) == cert.nonce_set.end())
@@ -354,6 +352,10 @@ namespace ccf
 
       if (can_send_reply_and_nonce(cert, config))
       {
+        LOG_TRACE_FMT(
+          "sending revealed nonce, view:{}, seqno:{}",
+          tx_id.view,
+          tx_id.seqno);
         return !is_public_only ? kv::TxHistory::Result::SEND_REPLY_AND_NONCE :
                                  kv::TxHistory::Result::OK;
       }
@@ -393,14 +395,15 @@ namespace ccf
       BftNodeSignature& sig = it_node_sig->second;
       LOG_TRACE_FMT(
         "add_nonce_reveal view:{}, seqno:{}, node_id:{}, sig.hashed_nonce:{}, "
-        " received.nonce:{}, hash(received.nonce):{} did_add:{}",
+        " received.nonce:{}, hash(received.nonce):{} did_add:{} can_advance_commit:{}",
         tx_id.view,
         tx_id.seqno,
         node_id,
         sig.hashed_nonce,
         nonce,
         hash_data(nonce),
-        did_add);
+        did_add,
+        can_advance_commit);
 
       if (!match_nonces(hash_data(nonce), sig.hashed_nonce))
       {
@@ -917,6 +920,7 @@ namespace ccf
         }
 
         cert.ack_sent = true;
+        cert.sig_acks.insert(id);
         return true;
       }
       return false;
@@ -933,6 +937,7 @@ namespace ccf
         !cert.reply_and_nonce_sent && cert.ack_sent)
       {
         cert.reply_and_nonce_sent = true;
+        cert.nonce_set.insert(id);
         return true;
       }
       return false;
@@ -941,8 +946,15 @@ namespace ccf
     void try_update_watermark(
       CommitCert& cert, const ccf::TxID& tx_id, bool should_clear_old_entries)
     {
+      LOG_DEBUG_FMT(
+        "try_update_watermark nonces_committed_to_ledger:{}, seqno:{}, "
+        "highest_commit_level:{}, have_primary_sig:{}",
+        cert.nonces_committed_to_ledger,
+        tx_id.seqno,
+        highest_commit_level,
+        cert.have_primary_signature);
       if (
-        cert.nonces_committed_to_ledger && tx_id.seqno > highest_commit_level &&
+        /*cert.nonces_committed_to_ledger &&*/ tx_id.seqno > highest_commit_level &&
         cert.have_primary_signature)
       {
         highest_commit_level = tx_id.seqno;

@@ -113,7 +113,7 @@ def test_isolate_and_reconnect_primary(network, args):
     with network.partitioner.partition(backups):
 
 
-        primary, backup = network.find_primary_and_any_backup()
+        _, backup = network.find_primary_and_any_backup()
         if args.consensus == "bft":
             try:
                 for _ in range(3):

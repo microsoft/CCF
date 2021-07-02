@@ -931,7 +931,10 @@ namespace aft
           vc->serialize(data, size);
           CCF_ASSERT_FMT(size == 0, "Did not write everything");
 
-          LOG_INFO_FMT("Sending view change msg view:{}", vcm.view);
+          LOG_INFO_FMT(
+            "Sending view change msg view:{}, primary_at_view:{}",
+            vcm.view,
+            get_primary(vcm.view));
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
             auto to = it->first;
