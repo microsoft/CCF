@@ -779,12 +779,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME quotes_caching
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/quotes_caching.py
-    CONSENSUS cft
-  )
-
-  add_e2e_test(
     NAME tutorial_cft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_tutorial.py
     CONSENSUS cft

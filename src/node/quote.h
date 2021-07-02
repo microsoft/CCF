@@ -212,7 +212,6 @@ namespace ccf
   public:
     static std::optional<CodeDigest> get_code_id(const QuoteInfo& quote_info)
     {
-      LOG_INFO_FMT("GETTING CODE ID");
       CodeDigest unique_id = {};
       crypto::Sha256Hash h;
       auto rc = verify_quote(quote_info, unique_id, h);
