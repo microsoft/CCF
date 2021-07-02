@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Nodes code digests are now extracted and cached at network join time in `public:ccf.gov.nodes.info`, and the `/node/quotes` and `/node/quotes/self` endpoints will use this cached value whenever possible (#2651).
+- Added `get_quotes_for_all_trusted_nodes_v1` API. This returns the ID and quote for all nodes which are currently trusted and participating in the service, for live audit (#2511).
 
 ## [1.0.4]
 
