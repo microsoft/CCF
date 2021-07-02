@@ -378,7 +378,7 @@ namespace kv
       // TODO: Not sure here?? It's probably OK as the read_txid will be
       // acquired when the Tx gets a handle on the signatures map?
       // read_version = reserved - 1;
-      read_txid = TxID(0, reserved - 1);
+      read_txid = TxID(0, reserved - 1); // TODO: Which term should we use here?
       version = reserved;
     }
 

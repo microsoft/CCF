@@ -192,7 +192,6 @@ namespace ccf
       return crypto::Sha256Hash(std::to_string(version));
     }
 
-    // TODO: Which term should this report??
     std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
       override
     {

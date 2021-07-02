@@ -577,6 +577,7 @@ namespace kv
       }
     }
 
+    // TODO: (v, read_term_) should be a TxID
     void rollback(
       Version v,
       Term read_term_,
@@ -995,6 +996,9 @@ namespace kv
 
       {
         std::lock_guard<std::mutex> vguard(version_lock);
+        // TODO: Should this be moved before in the commit process? Otherwise a
+        // Tx could be assigned a version but not be replicated, causing a gap
+        // in the ledger? (the KV in isolation still works!)
         if (txid.term != commit_term && consensus->is_primary())
         {
           // This can happen when a transaction started before a view change,
