@@ -2862,11 +2862,7 @@ namespace aft
       }
 
       snapshotter->rollback(idx);
-      store->rollback(
-        idx,
-        get_term_internal(idx),
-        state->current_view); // TODO: Is this correct? Should this be the
-                              // term_as_of(idx)?
+      store->rollback({get_term_internal(idx), idx}, state->current_view);
       LOG_DEBUG_FMT("Setting term in store to: {}", state->current_view);
       ledger->truncate(idx);
       state->last_idx = idx;

@@ -150,10 +150,10 @@ namespace ccf
       term = t;
     }
 
-    void rollback(kv::Version v, kv::Term t) override
+    void rollback(const kv::TxID& tx_id) override
     {
-      version = v;
-      term = t;
+      version = tx_id.version;
+      term = tx_id.term;
     }
 
     void compact(kv::Version) override {}
@@ -738,12 +738,12 @@ namespace ccf
       term = t;
     }
 
-    void rollback(kv::Version v, kv::Term t) override
+    void rollback(const kv::TxID& tx_id) override
     {
       std::lock_guard<std::mutex> guard(state_lock);
-      LOG_TRACE_FMT("Rollback to {}.{}", term, v);
-      term = t;
-      replicated_state_tree.retract(v);
+      LOG_TRACE_FMT("Rollback to {}.{}", tx_id.term, tx_id.version);
+      term = tx_id.term;
+      replicated_state_tree.retract(tx_id.version);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
 

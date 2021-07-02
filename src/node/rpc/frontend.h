@@ -502,6 +502,10 @@ namespace ccf
         {
           // TODO: Can this make us read backwards if the previous write TxID
           // hasn't yet been replicated to the history?
+          // Yes! If a first tx1 creates a proposal but in the meantime another
+          // parallel tx2 writes to the store, delaying the history->append(tx1)
+          // Then tx3 (on the same thread as tx1) would read the same root as
+          // tx1
           const auto& [txid, root] =
             history->get_replicated_state_txid_and_root();
           tx.set_read_txid(txid);

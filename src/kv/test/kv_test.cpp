@@ -1373,7 +1373,7 @@ TEST_CASE("Rollback and compact")
     handle->put(k, v1);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-    kv_store.rollback(0, 0); // TODO: Fix!
+    kv_store.rollback({0, 0}); // TODO: Fix!
     auto handle2 = tx2.rw(map);
     auto v = handle2->get(k);
     REQUIRE(!v.has_value());
@@ -2468,8 +2468,7 @@ TEST_CASE("Tx reported TxID after commit")
     auto handle = tx.ro(map);
 
     // Rollback at the current TxID, in the next term
-    kv_store.rollback(
-      kv_store.current_version(), store_read_term, ++store_commit_term);
+    kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
 
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
@@ -2485,8 +2484,7 @@ TEST_CASE("Tx reported TxID after commit")
   {
     // Tricky! Rollback before opacity TxID is acquired
 
-    kv_store.rollback(
-      kv_store.current_version(), store_read_term, ++store_commit_term);
+    kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
 
     auto tx = kv_store.create_tx();
     auto handle = tx.ro(map);
@@ -2502,10 +2500,8 @@ TEST_CASE("Tx reported TxID after commit")
 
   INFO("More rollbacks");
   {
-    kv_store.rollback(
-      kv_store.current_version(), store_read_term, ++store_commit_term);
-    kv_store.rollback(
-      kv_store.current_version(), store_read_term, ++store_commit_term);
+    kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
+    kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
 
     auto tx = kv_store.create_tx();
     auto handle = tx.ro(map);
@@ -2550,7 +2546,7 @@ TEST_CASE("Tx reported TxID after commit")
     }
 
     {
-      kv_store.rollback(store_last_seqno, store_read_term, ++store_commit_term);
+      kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
 
       auto tx = kv_store.create_tx();
       auto handle = tx.ro(map);
@@ -2567,7 +2563,8 @@ TEST_CASE("Tx reported TxID after commit")
   INFO("Rollback to last entry in previous committed term");
   {
     // Rollback to initial term
-    kv_store.rollback(store_last_seqno - 1, initial_term, ++store_commit_term);
+    kv_store.rollback(
+      {initial_term, store_last_seqno - 1}, ++store_commit_term);
     store_read_term = initial_term;
 
     auto tx = kv_store.create_tx();

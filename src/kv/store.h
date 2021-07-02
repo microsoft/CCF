@@ -577,10 +577,8 @@ namespace kv
       }
     }
 
-    // TODO: (v, read_term_) should be a TxID
     void rollback(
-      Version v,
-      Term read_term_,
+      const TxID& tx_id,
       std::optional<Term> commit_term_ = std::nullopt) override
     {
       // This is called to roll the store back to the state it was in
@@ -590,11 +588,11 @@ namespace kv
 
       {
         std::lock_guard<std::mutex> vguard(version_lock);
-        if (v < compacted)
+        if (tx_id.version < compacted)
         {
           throw std::logic_error(fmt::format(
             "Attempting rollback to {}, earlier than commit version {}",
-            v,
+            tx_id.version,
             compacted));
         }
 
@@ -605,31 +603,31 @@ namespace kv
           commit_term = commit_term_.value();
         }
 
-        read_term = read_term_;
+        read_term = tx_id.term;
 
         // History must be informed of the read_term change, even if no
         // actual rollback is required
         auto h = get_history();
         if (h)
         {
-          // TODO: Confirm that this is the read_term here!
-          h->rollback(v, read_term);
+          // TODO: Confirm that we pass in the right term here!
+          h->rollback(tx_id);
         }
 
-        if (v >= version)
+        if (tx_id.version >= version)
         {
           return;
         }
 
-        version = v;
-        last_replicated = v;
-        last_committable = v;
+        version = tx_id.version;
+        last_replicated = tx_id.version;
+        last_committable = tx_id.version;
         rollback_count++;
         pending_txs.clear();
         auto e = get_encryptor();
         if (e)
         {
-          e->rollback(v);
+          e->rollback(tx_id.version);
         }
       }
 
@@ -645,8 +643,8 @@ namespace kv
         auto& [map_creation_version, map] = it->second;
         // Rollback this map whether we're forgetting about it or not. Anyone
         // else still holding it should see it has rolled back
-        map->rollback(v);
-        if (map_creation_version > v)
+        map->rollback(tx_id.version);
+        if (map_creation_version > tx_id.version)
         {
           // Map was created more recently; its creation is being forgotten.
           // Erase our knowledge of it
@@ -712,7 +710,7 @@ namespace kv
 
       // Throw away any local commits that have not propagated via the
       // consensus.
-      rollback(v - 1, read_term); // TODO: Which read term to pass here??
+      rollback({read_term, v - 1}); // TODO: Which read term to pass here??
 
       if (strict_versions && !ignore_strict_versions)
       {
