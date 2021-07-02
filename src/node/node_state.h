@@ -359,7 +359,15 @@ namespace ccf
 #ifdef GET_QUOTE
       quote_info = enclave_attestation_provider.generate_quote(
         node_sign_kp->public_key_der());
-      node_code_id = enclave_attestation_provider.get_code_id(quote_info);
+      auto code_id = enclave_attestation_provider.get_code_id(quote_info);
+      if (code_id.has_value())
+      {
+        node_code_id = code_id.value();
+      }
+      else
+      {
+        throw std::logic_error("Failed to extract code id from quote");
+      }
 #endif
 
       switch (start_type)
@@ -990,7 +998,15 @@ namespace ccf
 
       CodeDigest code_digest;
 #ifdef GET_QUOTE
-      code_digest = enclave_attestation_provider.get_code_id(quote_info);
+      auto code_id = enclave_attestation_provider.get_code_id(quote_info);
+      if (code_id.has_value())
+      {
+        code_digest = code_id.value();
+      }
+      else
+      {
+        throw std::logic_error("Failed to extract code id from quote");
+      }
 #endif
 
       g.add_node(

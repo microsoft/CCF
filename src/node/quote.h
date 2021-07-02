@@ -210,7 +210,7 @@ namespace ccf
     }
 
   public:
-    static CodeDigest get_code_id(const QuoteInfo& quote_info)
+    static std::optional<CodeDigest> get_code_id(const QuoteInfo& quote_info)
     {
       LOG_INFO_FMT("GETTING CODE ID");
       CodeDigest unique_id = {};
@@ -218,7 +218,8 @@ namespace ccf
       auto rc = verify_quote(quote_info, unique_id, h);
       if (rc != QuoteVerificationResult::Verified)
       {
-        throw std::logic_error(fmt::format("Failed to verify quote: {}", rc));
+        LOG_FAIL_FMT("Failed to verify quote: {}", rc);
+        return std::nullopt;
       }
 
       return unique_id;

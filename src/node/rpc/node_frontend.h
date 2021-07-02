@@ -481,7 +481,17 @@ namespace ccf
           {
             auto code_id =
               EnclaveAttestationProvider::get_code_id(node_quote_info);
-            q.mrenclave = ds::to_hex(code_id.data);
+            if (code_id.has_value())
+            {
+              q.mrenclave = ds::to_hex(code_id.value().data);
+            }
+            else
+            {
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InvalidQuote,
+                "Failed to extract code id from node quote.");
+            }
           }
 #endif
 
@@ -540,7 +550,10 @@ namespace ccf
             {
               auto code_id =
                 EnclaveAttestationProvider::get_code_id(node_info.quote_info);
-              q.mrenclave = ds::to_hex(code_id.data);
+              if (code_id.has_value())
+              {
+                q.mrenclave = ds::to_hex(code_id.value().data);
+              }
             }
 #endif
             quotes.emplace_back(q);
