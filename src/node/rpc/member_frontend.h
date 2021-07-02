@@ -829,7 +829,9 @@ namespace ccf
            in.node_cert,
            {in.quote_info},
            in.public_encryption_key,
-           NodeStatus::TRUSTED});
+           NodeStatus::TRUSTED,
+           std::nullopt,
+           ds::to_hex(in.code_digest.data)});
 
 #ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);
