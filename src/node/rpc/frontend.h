@@ -323,20 +323,17 @@ namespace ccf
             case kv::CommitResult::SUCCESS:
             {
               // TODO: What about commands??
+              // As discussed, commands are simply for app developers to hide
+              // the underlying Tx object. It is unknown to them whether a TxID
+              // will be reported in the response header (it depends on the
+              // whether a map handle will acquired by the framework, e.g. for
+              // authn or endpoint lookup). As such, we should always report the
+              // TxID so that it's consistent for clients, by making the Tx's
+              // tx_id acquired on Tx's construction.
               auto tx_id = tx.get_txid();
-              if (!tx_id.has_value())
+              if (tx_id.has_value())
               {
-                // TODO: This should never happen!
-                LOG_FAIL_FMT("TxID has no value!!");
-              }
-              else
-              {
-                LOG_FAIL_FMT("Setting tx_id");
                 ctx->set_tx_id(tx_id.value());
-
-                // auto cv = tx.commit_version();
-                // if (cv == 0)
-                // cv = tx.get_read_version();
               }
 
               if (

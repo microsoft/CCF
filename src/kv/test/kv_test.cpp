@@ -2007,7 +2007,7 @@ TEST_CASE("Conflict resolution")
 
   // A third transaction just wants to read the value
   auto tx3 = kv_store.create_tx();
-  auto handle3 = tx3.rw(map);
+  auto handle3 = tx3.ro(map);
   REQUIRE(handle3->has("foo"));
 
   // First transaction is rerun on new object, producing different result
@@ -2025,7 +2025,7 @@ TEST_CASE("Conflict resolution")
   REQUIRE(res3 == kv::CommitResult::SUCCESS);
 
   REQUIRE(tx1.commit_version() > tx2.commit_version());
-  REQUIRE(tx2.get_read_version() >= tx2.get_read_version());
+  REQUIRE(tx3.get_txid()->version >= tx2.get_txid()->version);
 
   // Re-running a _committed_ transaction is exceptionally bad
   REQUIRE_THROWS(tx1.commit());

@@ -276,12 +276,6 @@ namespace kv
       return version;
     }
 
-    // TODO: Remove this!
-    Version get_read_version()
-    {
-      return read_txid.has_value() ? read_txid->version : NoVersion;
-    }
-
     Version get_max_conflict_version()
     {
       return max_conflict_version;
@@ -302,8 +296,9 @@ namespace kv
 
       if (!read_txid.has_value())
       {
-        // TODO: This check could be removed if the read TxID was acquired on
-        // Tx's creation
+        // This check could be removed if the read TxID was acquired on
+        // Tx's creation, and read_txid would no longer need to be an
+        // std::optional
         return std::nullopt;
       }
 
