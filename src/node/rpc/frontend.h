@@ -343,8 +343,6 @@ namespace ccf
                 history->try_emit_signature();
               }
 
-              LOG_FAIL_FMT("Serialising response");
-
               update_metrics(ctx, endpoint);
               return ctx->serialise_response();
             }
@@ -506,7 +504,7 @@ namespace ccf
           const auto& [txid, root] =
             history->get_replicated_state_txid_and_root();
           tx.set_read_txid(txid);
-          tx.set_view(consensus->get_view()); // TODO: This is dodgy!
+          tx.set_view(consensus->get_view()); // TODO: Is this right?
           tx.set_root_at_read_version(root);
         }
       }

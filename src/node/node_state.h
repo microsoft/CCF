@@ -953,7 +953,8 @@ namespace ccf
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
       const auto last_recovered_term = view_history.size();
-      network.tables->rollback({2, last_recovered_term});
+      network.tables->rollback(
+        {last_recovered_term, last_recovered_signed_idx});
       ledger_truncate(last_recovered_signed_idx);
       snapshotter->rollback(last_recovered_signed_idx);
 
@@ -963,7 +964,7 @@ namespace ccf
         last_recovered_signed_idx);
 
       // KV term must be set before the first Tx is committed
-      auto new_term = last_recovered_view + 2;
+      auto new_term = last_recovered_term + 2;
       LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
       network.tables->set_commit_term(new_term);
 

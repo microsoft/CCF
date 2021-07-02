@@ -68,9 +68,7 @@ namespace kv
 
       auto e = store->get_encryptor();
       KvStoreSerialiser replicated_serialiser(
-        e,
-        {commit_view, version},
-        max_conflict_version); // TODO: Use new get_txid()?
+        e, {commit_view, version}, max_conflict_version);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -210,8 +208,6 @@ namespace kv
             return CommitResult::SUCCESS;
           }
 
-          LOG_FAIL_FMT("Calling store commit in view {}", commit_view);
-
           return store->commit(
             {commit_view, version},
             std::make_unique<MovePendingTx>(std::move(data), std::move(hooks)),
@@ -281,12 +277,6 @@ namespace kv
       return max_conflict_version;
     }
 
-    // TODO: Rename or remove??
-    Version get_term()
-    {
-      return commit_view;
-    }
-
     std::optional<TxID> get_txid()
     {
       if (!committed)
@@ -307,13 +297,11 @@ namespace kv
       if (version == NoVersion)
       {
         // Read-only transaction
-        LOG_FAIL_FMT("Read only: {}.{}", read_txid->term, read_txid->version);
         return read_txid.value();
       }
       else
       {
         // Write transaction
-        LOG_FAIL_FMT("Write: {}.{}", commit_view, version);
         return TxID(commit_view, version);
       }
     }
@@ -347,8 +335,6 @@ namespace kv
       {
         throw std::logic_error("Read TxID already set");
       }
-
-      LOG_FAIL_FMT("Setting txid as {}.{}", tx_id.term, tx_id.version);
       read_txid = tx_id;
     }
 

@@ -612,7 +612,6 @@ namespace kv
         auto h = get_history();
         if (h)
         {
-          // TODO: Confirm that we pass in the right term here!
           h->rollback(tx_id);
         }
 
@@ -667,7 +666,7 @@ namespace kv
     }
 
     // Note: This should only be called once, when the store is first
-    // initialised. The commit_term is later updated via rollback.
+    // initialised. commit_term is later updated via rollback.
     void set_commit_term(Term t) override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
@@ -995,9 +994,6 @@ namespace kv
 
       {
         std::lock_guard<std::mutex> vguard(version_lock);
-        // TODO: Should this be moved before in the commit process? Otherwise a
-        // Tx could be assigned a version but not be replicated, causing a gap
-        // in the ledger? (the KV in isolation still works!)
         if (txid.term != commit_term && consensus->is_primary())
         {
           // This can happen when a transaction started before a view change,
