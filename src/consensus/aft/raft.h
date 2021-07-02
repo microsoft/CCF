@@ -2579,14 +2579,14 @@ namespace aft
       // Discard any un-committable updates we may hold,
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
-      if (state->commit_idx)
+      if (state->commit_idx > 0)
       {
         rollback(election_index);
       }
       else
       {
         // but we still want the KV to know which term we're in
-        store->set_term(state->current_view);
+        store->set_commit_term(state->current_view);
       }
 
       replica_state = kv::ReplicaState::Leader;

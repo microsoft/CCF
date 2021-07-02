@@ -808,7 +808,6 @@ namespace ccf
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
-        store->rollback({2, ledger_idx - 1}); // TODO: Which term to use here?
         recover_public_ledger_end_unsafe();
         return;
       }
@@ -953,8 +952,8 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      network.tables->rollback(
-        {2, last_recovered_signed_idx}); // TODO: Which term to use here?
+      const auto last_recovered_term = view_history.size();
+      network.tables->rollback({2, last_recovered_term});
       ledger_truncate(last_recovered_signed_idx);
       snapshotter->rollback(last_recovered_signed_idx);
 
@@ -964,9 +963,9 @@ namespace ccf
         last_recovered_signed_idx);
 
       // KV term must be set before the first Tx is committed
-      auto new_term = view_history.size() + 2;
+      auto new_term = last_recovered_view + 2;
       LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
-      network.tables->set_term(new_term);
+      network.tables->set_commit_term(new_term);
 
       auto tx = network.tables->create_tx();
       GenesisGenerator g(network, tx);
@@ -1081,8 +1080,9 @@ namespace ccf
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
-        recovery_store->rollback(
-          {2, ledger_idx - 1}); // TODO: Which term to use here?
+        // Note: rollback TxID term does not matter here as recovery store is
+        // about to be discarded
+        recovery_store->rollback({0, ledger_idx - 1});
         recover_private_ledger_end_unsafe();
         return;
       }

@@ -639,7 +639,7 @@ namespace kv
     virtual void compact(Version v) = 0;
     virtual void rollback(
       const TxID& tx_id, std::optional<Term> write_term_ = std::nullopt) = 0;
-    virtual void set_term(Term t) = 0;
+    virtual void set_commit_term(Term t) = 0;
     virtual CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,

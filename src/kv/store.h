@@ -34,10 +34,13 @@ namespace kv
     Version last_new_map = kv::NoVersion;
     Version compacted = 0;
 
-    // Term at which write transactions should be committed
+    // Term at which write future transactions should be committed
     Term commit_term = 0;
 
-    // TODO: description
+    // Term at which the last entry was committed at. Further transactions
+    // should read in that term. Note that it is assumed that the history of
+    // terms of past transactions is kept track of by and specified by the
+    // caller on rollback
     Term read_term = 0;
 
     Version last_replicated = 0;
@@ -143,7 +146,6 @@ namespace kv
       }
 
       // Further transactions should read in the commit term
-      // TODO: What about if the commit fails?
       read_term = commit_term;
 
       return version;
@@ -664,17 +666,16 @@ namespace kv
       }
     }
 
-    // TODO: Is this correct?
-    // Used at the end of public recovery
-    void set_term(Term t) override
+    // Note: This should only be called once, when the store is first
+    // initialised. The commit_term is later updated via rollback.
+    void set_commit_term(Term t) override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
       commit_term = t;
-      read_term = t;
       auto h = get_history();
       if (h)
       {
-        h->set_term(read_term);
+        h->set_term(commit_term);
       }
     }
 
