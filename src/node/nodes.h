@@ -47,12 +47,15 @@ namespace ccf
     /** Set to the seqno of the latest ledger secret at the time the node is
         trusted */
     std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
+
+    /** Code identity for the node **/
+    std::optional<std::string> code_digest;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfo, cert, quote_info, encryption_pub_key, status);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    NodeInfo, ledger_secret_seqno, reconfiguration_id);
+    NodeInfo, ledger_secret_seqno, reconfiguration_id, code_digest);
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;
 }

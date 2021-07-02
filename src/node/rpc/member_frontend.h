@@ -831,7 +831,9 @@ namespace ccf
            {in.quote_info},
            in.public_encryption_key,
            NodeStatus::TRUSTED,
-           get_next_reconfiguration_id(network, ctx.tx)});
+           get_next_reconfiguration_id(network, ctx.tx),
+           std::nullopt,
+           ds::to_hex(in.code_digest.data)});
 
 #ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);
