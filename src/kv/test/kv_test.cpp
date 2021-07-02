@@ -2392,7 +2392,7 @@ TEST_CASE("Store clear")
   }
 }
 
-TEST_CASE("Tx reported TxID after commit")
+TEST_CASE("Reported TxID after commit")
 {
   kv::Store kv_store;
   auto consensus = std::make_shared<kv::test::StubConsensus>();

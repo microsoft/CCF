@@ -145,8 +145,9 @@ namespace kv
         version = 0;
       }
 
-      // Further transactions should read in the commit term
-      read_term = commit_term;
+      // TODO: This is only called on the primary!
+      // // Further transactions should read in the commit term
+      // read_term = commit_term;
 
       return version;
     }
@@ -1005,6 +1006,9 @@ namespace kv
 
           return CommitResult::FAIL_NO_REPLICATE;
         }
+
+        // TODO: Is this the right place for this?
+        read_term = commit_term;
 
         if (globally_committable && txid.version > last_committable)
         {
