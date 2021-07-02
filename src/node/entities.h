@@ -73,6 +73,10 @@ namespace ccf
 
     // JS applications, not service specific but writable by governance only
     static constexpr auto MODULES = "public:ccf.gov.modules";
+    static constexpr auto MODULES_QUICKJS_BYTECODE =
+      "public:ccf.gov.modules_quickjs_bytecode";
+    static constexpr auto MODULES_QUICKJS_VERSION =
+      "public:ccf.gov.modules_quickjs_version";
     static constexpr auto ENDPOINTS = "public:ccf.gov.endpoints";
 
     // TLS
@@ -120,7 +124,6 @@ namespace enclave
 {
   enum FrameFormat : uint8_t
   {
-    http = 0,
-    ws
+    http = 0
   };
 }

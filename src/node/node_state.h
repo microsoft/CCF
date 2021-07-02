@@ -972,6 +972,20 @@ namespace ccf
       g.create_service(network.identity->cert);
       g.retire_active_nodes();
 
+      if (network.consensus_type == ConsensusType::BFT)
+      {
+        // BFT consensus requires a stable order of node IDs so that the
+        // primary node in a given view can be computed deterministically by
+        // all nodes in the network
+        // See https://github.com/microsoft/CCF/issues/1852
+
+        // Pad node id string to avoid memory alignment issues on
+        // node-to-node messages
+        auto values = tx.ro(network.values);
+        auto id = values->get(0);
+        self = NodeId(fmt::format("{:#064}", id.value()));
+      }
+
       g.add_node(
         self,
         {node_info_network,
@@ -1014,6 +1028,7 @@ namespace ccf
       }
 
       setup_consensus(true);
+      setup_progress_tracker();
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT(
@@ -1120,7 +1135,7 @@ namespace ccf
       snapshotter->set_snapshot_generation(true);
 
       // Open the service
-      if (consensus->is_primary())
+      if (consensus->can_replicate())
       {
         setup_one_off_secret_hook();
         auto tx = network.tables->create_tx();
@@ -1440,6 +1455,15 @@ namespace ccf
          sm.check(State::partOfPublicNetwork) ||
          sm.check(State::readingPrivateLedger)) &&
         consensus->is_primary());
+    }
+
+    bool can_replicate() override
+    {
+      return (
+        (sm.check(State::partOfNetwork) ||
+         sm.check(State::partOfPublicNetwork) ||
+         sm.check(State::readingPrivateLedger)) &&
+        consensus->can_replicate());
     }
 
     bool is_part_of_network() const override

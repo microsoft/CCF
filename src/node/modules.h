@@ -13,4 +13,7 @@ namespace ccf
 {
   using Module = std::string;
   using Modules = kv::RawCopySerialisedMap<std::string, Module>;
+  using ModulesQuickJsBytecode =
+    kv::RawCopySerialisedMap<std::string, std::vector<uint8_t>>;
+  using ModulesQuickJsVersion = kv::RawCopySerialisedValue<std::string>;
 }

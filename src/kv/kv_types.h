@@ -87,10 +87,11 @@ namespace kv
       {}
     };
 
-    using Nodes = std::unordered_map<NodeId, NodeInfo>;
+    using Nodes = std::map<NodeId, NodeInfo>;
 
     ccf::SeqNo idx;
     Nodes nodes;
+    uint32_t bft_offset;
   };
 
   inline void to_json(nlohmann::json& j, const Configuration::NodeInfo& ni)
@@ -237,7 +238,8 @@ namespace kv
     PASS_NEW_VIEW = 6,
     PASS_SNAPSHOT_EVIDENCE = 7,
     PASS_ENCRYPTED_PAST_LEDGER_SECRET = 8,
-    FAIL = 9
+    PASS_APPLY = 9,
+    FAIL = 10
   };
 
   enum ReplicateType
@@ -299,7 +301,9 @@ namespace kv
 
     virtual ~TxHistory() {}
     virtual Result verify_and_sign(
-      ccf::PrimarySignature& signature, Term* term = nullptr) = 0;
+      ccf::PrimarySignature& signature,
+      Term* term,
+      kv::Configuration::Nodes& nodes) = 0;
     virtual bool verify(
       Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
     virtual void try_emit_signature() = 0;
@@ -348,6 +352,11 @@ namespace kv
     }
 
     virtual bool is_primary()
+    {
+      return state == Primary;
+    }
+
+    virtual bool can_replicate()
     {
       return state == Primary;
     }
@@ -406,7 +415,6 @@ namespace kv
 
     virtual void enable_all_domains() {}
 
-    virtual uint32_t node_count() = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
@@ -576,6 +584,7 @@ namespace kv
     virtual aft::Request& get_request() = 0;
     virtual kv::Version get_max_conflict_version() = 0;
     virtual bool support_async_execution() = 0;
+    virtual bool is_public_only() = 0;
   };
 
   class AbstractStore

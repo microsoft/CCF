@@ -66,8 +66,8 @@ option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
 option(ZAP_TEST
        "ZAP fuzz test using https://www.zaproxy.org/docs/docker/api-scan/" OFF
 )
-option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
-option(BUILD_TPCC "Build TPPC sample app and clients" ON)
+option(BUILD_SMALLBANK "Build SmallBank sample app and clients" OFF)
+option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
@@ -509,13 +509,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME recovery_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --recovery 3
-  )
-
-  add_e2e_test(
     NAME recovery_test_curve_256
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS cft
@@ -818,6 +811,18 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${LTS_TEST_ARGS}
   )
 
+  if(LONG_TESTS)
+    set(ROTATION_TEST_ARGS --rotation-retirements 10)
+  endif()
+
+  add_e2e_test(
+    NAME rotation_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
+    CONSENSUS cft
+    LABEL rotation
+    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
+  )
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME cpp_e2e_logging_${CONSENSUS}
@@ -828,6 +833,12 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME election_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      CONSENSUS ${CONSENSUS}
+    )
+
+    add_e2e_test(
+      NAME recovery_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
       CONSENSUS ${CONSENSUS}
     )
 
@@ -848,18 +859,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS -p liblogging --duration 45m
     )
 
-    if(LONG_TESTS)
-      set(ROTATION_TEST_ARGS --rotation-retirements 10)
-    endif()
-
-    add_e2e_test(
-      NAME rotation_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-      CONSENSUS ${CONSENSUS}
-      LABEL rotation
-      ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-    )
-
   endforeach()
 
   add_perf_test(
@@ -876,25 +875,6 @@ if(BUILD_TESTS)
       1000
       --repetitions
       10000
-      --msg-ser-fmt
-      msgpack
-  )
-
-  add_perf_test(
-    NAME ls_ws
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS cft
-    CLIENT_BIN ./scenario_perf_client
-    ADDITIONAL_ARGS
-      --package
-      liblogging
-      --scenario-file
-      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-      --max-writes-ahead
-      1000
-      --repetitions
-      10000
-      --use-websockets
       --msg-ser-fmt
       msgpack
   )

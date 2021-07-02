@@ -4,7 +4,7 @@ Running a CCF Service
 .. note:: Before creating a new network:
 
     - The :ref:`identity of the initial members of the consortium must be created <governance/adding_member:Generating Member Keys and Certificates>`.
-    - The :ref:`constitution should have been agreed by the initial members <overview/constitution:Constitution>`.
+    - The :ref:`constitution should have been agreed by the initial members <overview/governance:Governance>`.
 
 Starting the First Node
 -----------------------

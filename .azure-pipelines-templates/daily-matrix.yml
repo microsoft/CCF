@@ -17,7 +17,7 @@ parameters:
     SGX:
       cmake_args: "-DCOMPILE_TARGETS=sgx"
     debug:
-      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DBUILD_SMALLBANK=OFF -DBUILD_TPCC=OFF -DLVI_MITIGATIONS=OFF"
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DLVI_MITIGATIONS=OFF"
     fuzz:
       cmake_args: "-DBUILD_UNIT_TESTS=OFF -DZAP_TEST=ON"
 

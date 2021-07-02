@@ -780,17 +780,6 @@ namespace kv
           return nullptr;
         }
 
-        // BFT Transactions should only write to 1 table
-        if (changes.size() != 1)
-        {
-          LOG_FAIL_FMT("Failed to deserialise");
-          LOG_DEBUG_FMT(
-            "Unexpected contents in bft transaction {}, size:{}",
-            v,
-            changes.size());
-          return nullptr;
-        }
-
         std::unique_ptr<BFTExecutionWrapper> exec;
 
         if (changes.find(ccf::Tables::SIGNATURES) != changes.end())
@@ -798,6 +787,7 @@ namespace kv
           exec = std::make_unique<SignatureBFTExec>(
             this,
             get_history(),
+            get_consensus(),
             std::move(data),
             public_only,
             v,
@@ -842,6 +832,24 @@ namespace kv
             std::move(changes),
             std::move(new_maps));
         }
+        else if (
+          changes.find(ccf::Tables::SHARES) != changes.end() || public_only)
+        {
+          // The currently logic for creating shares uses entropy. This needs to
+          // be fixed to use this in a proper BFT way.
+          // https://github.com/microsoft/CCF/issues/2679
+          exec = std::make_unique<TxBFTApply>(
+            this,
+            get_history(),
+            std::move(data),
+            public_only,
+            std::make_unique<CommittableTx>(this),
+            v,
+            max_conflict_version,
+            view,
+            std::move(changes),
+            std::move(new_maps));
+        }
         else if (changes.find(ccf::Tables::AFT_REQUESTS) != changes.end())
         {
           exec = std::make_unique<TxBFTExec>(
@@ -860,8 +868,10 @@ namespace kv
         {
           // we have deserialised an entry that didn't belong to the bft
           // requests nor the signatures table
-          LOG_FAIL_FMT(
-            "Request contains unexpected table - {}", changes.begin()->first);
+          for (const auto& it : changes)
+          {
+            LOG_FAIL_FMT("Request contains unexpected table - {}", it.first);
+          }
           CCF_ASSERT_FMT_FAIL(
             "Request contains unexpected table - {}", changes.begin()->first);
         }

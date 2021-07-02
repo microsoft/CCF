@@ -23,6 +23,7 @@ namespace ccf
 
   public:
     EntityId() = default;
+    EntityId(const EntityId& id_) = default;
     EntityId(const Value& id_) : id(id_) {}
     EntityId(Value&& id_) : id(std::move(id_)) {}
 

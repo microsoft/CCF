@@ -144,6 +144,11 @@ namespace aft
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
 
+    // Index at which this node observes its retirement
+    std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
+    // Earliest index at which this node's retirement can be committed
+    std::optional<ccf::SeqNo> retirement_committable_idx = std::nullopt;
+
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
     Index entries_batch_size = 1;
@@ -222,6 +227,17 @@ namespace aft
         view_change_tracker->set_current_view_change(starting_view_change);
       }
 
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        progress_tracker->set_is_public_only(public_only);
+      }
+
+      if (request_tracker != nullptr && !public_only)
+      {
+        request_tracker->start_tracking_requests();
+      }
+
       if (consensus_type == ConsensusType::BFT)
       {
         // Initialize view history for bft. We start on view 2 and the first
@@ -279,6 +295,17 @@ namespace aft
       return replica_state == kv::ReplicaState::Leader;
     }
 
+    bool can_replicate()
+    {
+      std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
+      if (!(consensus_type == ConsensusType::BFT && is_follower()))
+      {
+        guard.lock();
+      }
+      return replica_state == kv::ReplicaState::Leader &&
+        !retirement_committable_idx.has_value();
+    }
+
     bool is_follower()
     {
       return replica_state == kv::ReplicaState::Follower;
@@ -290,12 +317,8 @@ namespace aft
         consensus_type == ConsensusType::BFT,
         "Computing primary id from view is only supported with BFT consensus");
 
-      // This will not work once we have reconfiguration support
-      // https://github.com/microsoft/CCF/issues/1852
-      auto active_nodes_ = active_nodes();
-      auto it = active_nodes_.begin();
-      std::advance(it, (view - starting_view_change) % active_nodes_.size());
-      return *it;
+      const auto& config = configurations.back();
+      return get_primary_at_config(view, config.bft_offset, config.nodes);
     }
 
     Index last_committable_index() const
@@ -310,6 +333,15 @@ namespace aft
       // be deserialised
       std::lock_guard<std::mutex> guard(state->lock);
       public_only = false;
+      auto progress_tracker = store->get_progress_tracker();
+      if (progress_tracker != nullptr)
+      {
+        progress_tracker->set_is_public_only(public_only);
+      }
+      if (request_tracker != nullptr)
+      {
+        request_tracker->start_tracking_requests();
+      }
     }
 
     void force_become_leader()
@@ -366,7 +398,7 @@ namespace aft
       ledger->init(index);
       snapshotter->set_last_snapshot_idx(index);
 
-      become_follower(term);
+      become_aware_of_new_term(term);
     }
 
     Index get_last_idx()
@@ -440,8 +472,41 @@ namespace aft
       {
         guard.lock();
       }
-      // This should only be called when the spin lock is held.
-      configurations.push_back({idx, std::move(conf)});
+
+      // Detect when we are retired by observing a configuration
+      // from which we are absent following a configuration in which
+      // we were included. Note that this relies on retirement being
+      // a final state, and node identities never being re-used.
+      if (
+        !configurations.empty() &&
+        configurations.back().nodes.find(state->my_node_id) !=
+          configurations.back().nodes.end() &&
+        conf.find(state->my_node_id) == conf.end())
+      {
+        CCF_ASSERT_FMT(
+          !retirement_idx.has_value(),
+          "retirement_idx already set to {}",
+          retirement_idx.value());
+        retirement_idx = idx;
+        LOG_INFO_FMT("Node retiring at {}", idx);
+      }
+
+      uint32_t offset = 0;
+      if (consensus_type == ConsensusType::BFT && !configurations.empty())
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        auto target = progress_tracker->get_primary_at_last_view_change();
+        for (; offset < configurations.back().nodes.size(); ++offset)
+        {
+          if (
+            get_primary_at_config(std::get<1>(target), offset, conf) ==
+            std::get<0>(target))
+          {
+            break;
+          }
+        }
+      }
+      configurations.push_back({idx, std::move(conf), offset});
       backup_nodes.clear();
       create_and_remove_node_state();
     }
@@ -476,11 +541,6 @@ namespace aft
         details.acks[k] = v.match_idx;
       }
       return details;
-    }
-
-    uint32_t node_count() const
-    {
-      return get_latest_configuration_unsafe().size();
     }
 
     template <typename T>
@@ -532,6 +592,16 @@ namespace aft
         if (index != state->last_idx + 1)
           return false;
 
+        if (retirement_committable_idx.has_value())
+        {
+          CCF_ASSERT_FMT(
+            index > retirement_committable_idx.value(),
+            "Index {} unexpectedly lower than retirement_committable_idx {}",
+            index,
+            retirement_committable_idx.value());
+          return false;
+        }
+
         LOG_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
           state->my_node_id.trim(),
@@ -547,6 +617,16 @@ namespace aft
         bool force_ledger_chunk = false;
         if (globally_committable)
         {
+          if (retirement_idx.has_value())
+          {
+            CCF_ASSERT_FMT(
+              index >= retirement_idx.value(),
+              "Index {} unexpectedly lower than retirement_idx {}",
+              index,
+              retirement_idx.value());
+            retirement_committable_idx = index;
+            LOG_INFO_FMT("Node retirement committable at {}", index);
+          }
           committable_indices.push_back(index);
 
           // Only if globally committable, a snapshot requires a new ledger
@@ -812,7 +892,7 @@ namespace aft
           if (
             aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
               view_change_tracker->add_request_view_change(
-                *vc, id(), new_view, node_count()) &&
+                *vc, id(), new_view, get_last_configuration_nodes()) &&
             get_primary(new_view) == id())
           {
             // We need to reobtain the lock when writing to the ledger so we
@@ -900,7 +980,7 @@ namespace aft
       if (
         aft::ViewChangeTracker::ResultAddView::APPEND_NEW_VIEW_MESSAGE ==
           view_change_tracker->add_request_view_change(
-            v, from, r.view, node_count()) &&
+            v, from, r.view, get_last_configuration_nodes()) &&
         get_primary(r.view) == id())
       {
         append_new_view(r.view);
@@ -937,14 +1017,13 @@ namespace aft
         return;
       }
       if (!view_change_tracker->add_unknown_primary_evidence(
-            {data, size}, r.view, from, node_count()))
+            {data, size}, r.view, from, get_last_configuration_nodes()))
       {
         LOG_FAIL_FMT("Failed to verify view_change_evidence from {}", from);
         return;
       }
 
-      // Become a follower in the new term.
-      become_follower(r.view);
+      become_aware_of_new_term(r.view);
     }
 
     void recv_skip_view(const ccf::NodeId& from, SkipViewMsg r)
@@ -999,13 +1078,25 @@ namespace aft
       entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
     }
 
+    ccf::NodeId get_primary_at_config(
+      ccf::View view, uint32_t offset, const Configuration::Nodes& conf)
+    {
+      CCF_ASSERT_FMT(
+        consensus_type == ConsensusType::BFT,
+        "Computing primary id from view is only supported with BFT consensus");
+
+      auto it = conf.begin();
+      std::advance(it, (view - starting_view_change + offset) % conf.size());
+      return it->first;
+    }
+
     void append_new_view(ccf::View view)
     {
       state->current_view = view;
       become_leader();
       state->new_view_idx =
-        view_change_tracker->write_view_change_confirmation_append_entry(view);
-
+        view_change_tracker->write_view_change_confirmation_append_entry(
+          view, id());
       view_change_tracker->clear(get_primary(view) == id(), view);
       request_tracker->clear();
     }
@@ -1098,10 +1189,7 @@ namespace aft
 
       if (replica_state == kv::ReplicaState::Retired && start_idx >= end_idx)
       {
-        // When the local node is retired and the remote node has
-        // acked all entries that the local node wanted to replicate,
-        // the channel is no longer useful and can be closed.
-        channels->destroy_channel(to);
+        // Continue to replicate, but do not send heartbeats if we are retired
         return;
       }
 
@@ -1196,7 +1284,14 @@ namespace aft
       bool confirm_evidence = false;
       if (consensus_type == ConsensusType::BFT)
       {
-        if (active_nodes().size() == 0)
+        if (!state->initial_recovery_primary.has_value())
+        {
+          state->initial_recovery_primary = std::make_tuple(from, r.term);
+        }
+        if (
+          active_nodes().size() == 0 ||
+          (std::get<0>(state->initial_recovery_primary.value()) == from &&
+           std::get<1>(state->initial_recovery_primary.value()) == r.term))
         {
           // The replica is just starting up, we want to check that this replica
           // is part of the network we joined but that is dependent on Byzantine
@@ -1241,13 +1336,11 @@ namespace aft
         state->current_view == r.term &&
         replica_state == kv::ReplicaState::Candidate)
       {
-        // Become a follower in this term.
-        become_follower(r.term);
+        become_aware_of_new_term(r.term);
       }
       else if (state->current_view < r.term)
       {
-        // Become a follower in the new term.
-        become_follower(r.term);
+        become_aware_of_new_term(r.term);
       }
       else if (state->current_view > r.term)
       {
@@ -1295,6 +1388,15 @@ namespace aft
         return;
       }
 
+      // Then check if those append entries extend past our retirement
+      if (
+        retirement_committable_idx.has_value() &&
+        r.idx > retirement_committable_idx)
+      {
+        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+        return;
+      }
+
       // If the terms match up, it is sufficient to convince us that the sender
       // is leader in our term
       restart_election_timeout();
@@ -1307,14 +1409,19 @@ namespace aft
 
       // Third, check index consistency, making sure entries are not in the past
       // or in the future
-      if (r.prev_idx < state->commit_idx)
+      if (
+        (consensus_type == ConsensusType::CFT &&
+         r.prev_idx < state->commit_idx) ||
+        r.prev_idx < state->bft_watermark_idx)
       {
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
+          "Recv append entries to {} from {} but prev_idx ({}), bft_watermark "
+          "({}) < commit_idx "
           "({})",
           state->my_node_id,
           from,
           r.prev_idx,
+          state->bft_watermark_idx,
           state->commit_idx);
         return;
       }
@@ -1563,6 +1670,16 @@ namespace aft
           {
             LOG_DEBUG_FMT("Deserialising signature at {}", i);
             auto prev_lci = last_committable_index();
+            if (retirement_idx.has_value())
+            {
+              CCF_ASSERT_FMT(
+                i >= retirement_idx.value(),
+                "Index {} unexpectedly lower than retirement_idx {}",
+                i,
+                retirement_idx.value());
+              retirement_committable_idx = i;
+              LOG_INFO_FMT("Node retirement committable at {}", i);
+            }
             committable_indices.push_back(i);
 
             if (ds->get_term())
@@ -1777,7 +1894,15 @@ namespace aft
           }
           break;
         }
-
+        case kv::ApplyResult::PASS_APPLY:
+        {
+          if (!ds->is_public_only())
+          {
+            executor->mark_request_executed(ds->get_request(), request_tracker);
+          }
+          break;
+        }
+        case kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
         case kv::ApplyResult::PASS_SNAPSHOT_EVIDENCE:
         {
           break;
@@ -1915,8 +2040,18 @@ namespace aft
                                        static_cast<uint32_t>(sig.sig.size()),
                                        {}};
 
+      std::optional<crypto::Sha256Hash> hashed_nonce;
       progress_tracker->get_node_hashed_nonce(
-        {state->current_view, state->last_idx}, r.hashed_nonce);
+        {state->current_view, state->last_idx}, hashed_nonce);
+      if (!hashed_nonce.has_value())
+      {
+        LOG_TRACE_FMT(
+          "Nonce for view:{}, seqno:{} does not exist",
+          state->current_view,
+          state->last_idx);
+        return;
+      }
+      r.hashed_nonce = hashed_nonce.value();
 
       std::copy(sig.sig.begin(), sig.sig.end(), r.sig.data());
 
@@ -1926,7 +2061,7 @@ namespace aft
         r.signature_size,
         r.sig,
         r.hashed_nonce,
-        node_count(),
+        get_last_configuration_nodes(),
         is_primary());
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
@@ -1963,7 +2098,7 @@ namespace aft
         r.signature_size,
         r.sig,
         r.hashed_nonce,
-        node_count(),
+        get_last_configuration_nodes(),
         is_primary());
       try_send_sig_ack({r.term, r.last_log_idx}, result);
     }
@@ -1995,7 +2130,7 @@ namespace aft
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
           auto result = progress_tracker->add_signature_ack(
-            tx_id, state->my_node_id, node_count());
+            tx_id, state->my_node_id, get_last_configuration_nodes());
           try_send_reply_and_nonce(tx_id, result);
           break;
         }
@@ -2029,7 +2164,7 @@ namespace aft
         r.idx);
 
       auto result = progress_tracker->add_signature_ack(
-        {r.term, r.idx}, from, node_count());
+        {r.term, r.idx}, from, get_last_configuration_nodes());
       try_send_reply_and_nonce({r.term, r.idx}, result);
     }
 
@@ -2044,13 +2179,17 @@ namespace aft
         }
         case kv::TxHistory::Result::SEND_REPLY_AND_NONCE:
         {
-          Nonce nonce;
+          std::optional<Nonce> nonce;
           auto progress_tracker = store->get_progress_tracker();
           CCF_ASSERT(
             progress_tracker != nullptr, "progress_tracker is not set");
           nonce = progress_tracker->get_node_nonce(tx_id);
+          if (!nonce.has_value())
+          {
+            break;
+          }
           NonceRevealMsg r = {
-            {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce};
+            {bft_nonce_reveal}, tx_id.view, tx_id.seqno, nonce.value()};
 
           for (auto it = nodes.begin(); it != nodes.end(); ++it)
           {
@@ -2062,7 +2201,11 @@ namespace aft
             }
           }
           progress_tracker->add_nonce_reveal(
-            tx_id, nonce, state->my_node_id, node_count(), is_primary());
+            tx_id,
+            nonce.value(),
+            state->my_node_id,
+            get_last_configuration_nodes(),
+            is_primary());
           break;
         }
         default:
@@ -2093,7 +2236,11 @@ namespace aft
         r.term,
         r.idx);
       progress_tracker->add_nonce_reveal(
-        {r.term, r.idx}, r.nonce, from, node_count(), is_primary());
+        {r.term, r.idx},
+        r.nonce,
+        from,
+        get_last_configuration_nodes(),
+        is_primary());
 
       update_commit();
     }
@@ -2121,7 +2268,7 @@ namespace aft
       }
       else if (state->current_view < r.term)
       {
-        // We are behind, convert to a follower.
+        // We are behind, update our state.
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: more recent term ({} "
           "> {})",
@@ -2129,7 +2276,7 @@ namespace aft
           from,
           r.term,
           state->current_view);
-        become_follower(r.term);
+        become_aware_of_new_term(r.term);
         return;
       }
       else if (state->current_view != r.term)
@@ -2174,7 +2321,7 @@ namespace aft
 
         std::vector<uint8_t> data =
           view_change_tracker->get_serialized_view_change_confirmation(
-            state->current_view);
+            state->current_view, id());
 
         data.insert(
           data.begin(),
@@ -2251,14 +2398,13 @@ namespace aft
       }
       else if (state->current_view < r.term)
       {
-        // Become a follower in the new term.
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: their term is later ({} < {})",
           state->my_node_id,
           from,
           state->current_view,
           r.term);
-        become_follower(r.term);
+        become_aware_of_new_term(r.term);
       }
 
       if ((voted_for.has_value()) && (voted_for.value() != from))
@@ -2347,7 +2493,6 @@ namespace aft
 
       if (state->current_view < r.term)
       {
-        // Become a follower in the new term.
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: their term is more recent "
           "({} < {})",
@@ -2355,7 +2500,7 @@ namespace aft
           from,
           state->current_view,
           r.term);
-        become_follower(r.term);
+        become_aware_of_new_term(r.term);
         return;
       }
       else if (state->current_view != r.term)
@@ -2396,11 +2541,6 @@ namespace aft
 
     void become_candidate()
     {
-      if (replica_state == kv::ReplicaState::Retired)
-      {
-        return;
-      }
-
       replica_state = kv::ReplicaState::Candidate;
       leader_id.reset();
       voted_for = state->my_node_id;
@@ -2478,14 +2618,11 @@ namespace aft
       }
     }
 
-    void become_follower(Term term)
+    // Called when a replica becomes aware of the existence of a new term
+    // If retired already, state remains unchanged, but the replica otherwise
+    // becomes a follower in the new term.
+    void become_aware_of_new_term(Term term)
     {
-      if (replica_state == kv::ReplicaState::Retired)
-      {
-        return;
-      }
-
-      replica_state = kv::ReplicaState::Follower;
       leader_id.reset();
       restart_election_timeout();
 
@@ -2507,12 +2644,11 @@ namespace aft
 
       is_new_follower = true;
 
-      LOG_INFO_FMT(
-        "Becoming follower {}: {}", state->my_node_id, state->current_view);
-
-      if (consensus_type != ConsensusType::BFT)
+      if (replica_state != kv::ReplicaState::Retired)
       {
-        channels->close_all_outgoing();
+        replica_state = kv::ReplicaState::Follower;
+        LOG_INFO_FMT(
+          "Becoming follower {}: {}", state->my_node_id, state->current_view);
       }
     }
 
@@ -2645,6 +2781,12 @@ namespace aft
         return;
 
       state->commit_idx = idx;
+      if (
+        retirement_committable_idx.has_value() &&
+        idx >= retirement_committable_idx.value())
+      {
+        become_retired();
+      }
 
       LOG_DEBUG_FMT("Compacting...");
       // Snapshots are not yet supported with BFT
@@ -2698,6 +2840,15 @@ namespace aft
       }
     }
 
+    const Configuration::Nodes& get_last_configuration_nodes()
+    {
+      if (configurations.empty())
+      {
+        throw std::logic_error("Configurations is empty");
+      }
+      return configurations.back().nodes;
+    }
+
     void rollback(Index idx)
     {
       if (idx < state->commit_idx)
@@ -2720,6 +2871,18 @@ namespace aft
       while (!committable_indices.empty() && (committable_indices.back() > idx))
       {
         committable_indices.pop_back();
+      }
+
+      if (retirement_idx.has_value() && retirement_idx.value() > idx)
+      {
+        retirement_idx = std::nullopt;
+      }
+
+      if (
+        retirement_committable_idx.has_value() &&
+        retirement_committable_idx.value() > idx)
+      {
+        retirement_committable_idx = std::nullopt;
       }
 
       // Rollback configurations.
@@ -2771,24 +2934,15 @@ namespace aft
 
       for (auto node_id : to_remove)
       {
-        if (
-          replica_state == kv::ReplicaState::Leader ||
-          consensus_type == ConsensusType::BFT)
-        {
-          channels->destroy_channel(node_id);
-        }
         nodes.erase(node_id);
         LOG_INFO_FMT("Removed raft node {}", node_id);
       }
 
       // Add all active nodes that are not already present in the node state.
-      bool self_is_active = false;
-
       for (auto node_info : active_nodes)
       {
         if (node_info.first == state->my_node_id)
         {
-          self_is_active = true;
           continue;
         }
 
@@ -2815,15 +2969,6 @@ namespace aft
           }
 
           LOG_INFO_FMT("Added raft node {}", node_info.first);
-        }
-      }
-
-      if (!self_is_active)
-      {
-        LOG_INFO_FMT("Removed raft self {}", state->my_node_id);
-        if (replica_state == kv::ReplicaState::Leader)
-        {
-          become_retired();
         }
       }
     }

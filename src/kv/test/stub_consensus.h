@@ -162,11 +162,6 @@ namespace kv::test
       return ConsensusDetails{{}, {}, ReplicaState::Candidate};
     }
 
-    uint32_t node_count() override
-    {
-      return 0;
-    }
-
     void emit_signature() override
     {
       return;
@@ -194,6 +189,11 @@ namespace kv::test
     {
       return false;
     }
+
+    bool can_replicate() override
+    {
+      return false;
+    }
   };
 
   class PrimaryStubConsensus : public StubConsensus
@@ -204,6 +204,11 @@ namespace kv::test
     {}
 
     bool is_primary() override
+    {
+      return true;
+    }
+
+    bool can_replicate() override
     {
       return true;
     }

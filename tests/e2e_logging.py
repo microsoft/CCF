@@ -9,6 +9,7 @@ import infra.checker
 import infra.jwt_issuer
 import inspect
 import http
+from http.client import HTTPResponse
 import ssl
 import socket
 import os
@@ -57,19 +58,34 @@ def test(network, args, verify=True):
 def test_illegal(network, args, verify=True):
     primary, _ = network.find_primary()
 
-    # Send malformed HTTP traffic and check the connection is closed
-    cafile = os.path.join(network.common_dir, "networkcert.pem")
-    context = ssl.create_default_context(cafile=cafile)
-    context.load_cert_chain(
-        certfile=os.path.join(network.common_dir, "user0_cert.pem"),
-        keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
-    )
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn = context.wrap_socket(sock, server_side=False, server_hostname=primary.host)
-    conn.connect((primary.host, primary.pubport))
-    conn.sendall(b"NOTAVERB ")
-    rv = conn.recv(1024)
-    assert rv == b"", rv
+    def send_bad_raw_content(content):
+        # Send malformed HTTP traffic and check the connection is closed
+        cafile = os.path.join(network.common_dir, "networkcert.pem")
+        context = ssl.create_default_context(cafile=cafile)
+        context.load_cert_chain(
+            certfile=os.path.join(network.common_dir, "user0_cert.pem"),
+            keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
+        )
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        conn = context.wrap_socket(
+            sock, server_side=False, server_hostname=primary.host
+        )
+        conn.connect((primary.host, primary.pubport))
+        LOG.info(f"Sending: {content}")
+        conn.sendall(content)
+        response = HTTPResponse(conn)
+        response.begin()
+        assert response.status == http.HTTPStatus.BAD_REQUEST, response.status
+        response_body = response.read()
+        LOG.warning(response_body)
+        assert content in response_body, response
+
+    send_bad_raw_content(b"\x01")
+    send_bad_raw_content(b"\x01\x02\x03\x04")
+    send_bad_raw_content(b"NOTAVERB ")
+    send_bad_raw_content(b"POST / HTTP/42.42")
+    send_bad_raw_content(json.dumps({"hello": "world"}).encode())
+
     # Valid transactions are still accepted
     network.txs.issue(
         network=network,
@@ -570,10 +586,6 @@ def test_metrics(network, args):
 @reqs.description("Read historical state")
 @reqs.supports_methods("log/private", "log/private/historical")
 def test_historical_query(network, args):
-    if args.consensus == "bft":
-        LOG.warning("Skipping historical queries in BFT")
-        return network
-
     network.txs.issue(network, number_txs=2)
     network.txs.issue(network, number_txs=2, repeat=True)
     network.txs.verify()
@@ -584,10 +596,6 @@ def test_historical_query(network, args):
 @reqs.description("Read historical receipts")
 @reqs.supports_methods("log/private", "log/private/historical_receipt")
 def test_historical_receipts(network, args):
-    if args.consensus == "bft":
-        LOG.warning("Skipping historical queries in BFT")
-        return network
-
     primary, backups = network.find_nodes()
     cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
     with open(cert_path) as c:
@@ -623,10 +631,6 @@ def test_historical_receipts(network, args):
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("log/private", "log/private/historical/range")
 def test_historical_query_range(network, args):
-    if args.consensus == "bft":
-        LOG.warning("Skipping historical queries in BFT")
-        return network
-
     if args.package != "liblogging":
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
@@ -1132,42 +1136,6 @@ def test_memory(network, args):
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("log/private")
-@reqs.at_least_n_nodes(2)
-def test_ws(network, args):
-    primary, other = network.find_primary_and_any_backup()
-
-    msg = "Hello world"
-    LOG.info("Write on primary")
-    with primary.client("user0", ws=True) as c:
-        for i in [1, 50, 500]:
-            r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.body.json() == True, r
-
-    # Before we start sending transactions to the secondary,
-    # we want to wait for its app frontend to be open, which is
-    # when it's aware that the network is open. Before that,
-    # we will get 404s.
-    end_time = time.time() + 10
-    with other.client("user0") as nc:
-        while time.time() < end_time:
-            r = nc.post("/app/log/private", {"id": 42, "msg": msg * i})
-            if r.status_code == http.HTTPStatus.OK.value:
-                break
-            else:
-                time.sleep(0.1)
-        assert r.status_code == http.HTTPStatus.OK.value, r
-
-    LOG.info("Write on secondary through forwarding")
-    with other.client("user0", ws=True) as c:
-        for i in [1, 50, 500]:
-            r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.body.json() == True, r
-
-    return network
-
-
-@reqs.description("Running transactions against logging app")
 @reqs.supports_methods("receipt", "log/private")
 @reqs.at_least_n_nodes(2)
 def test_receipts(network, args):
@@ -1271,7 +1239,6 @@ def run(args):
             network = test_rekey(network, args)
             network = test_liveness(network, args)
         if args.package == "liblogging":
-            network = test_ws(network, args)
             network = test_receipts(network, args)
         network = test_historical_receipts(network, args)
 

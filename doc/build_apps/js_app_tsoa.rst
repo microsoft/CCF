@@ -87,11 +87,11 @@ Dependencies
 The sample uses several runtime and development packages (see ``package.json``).
 One of them is the :typedoc:package:`ccf-app` package.
 This package is referenced locally using ``file:``.
-You should replace this with a reference to a published version (adjust the version number accordingly):
+You should replace this with a reference to a recently published version (adjust the version number accordingly), to match the version of CCF you are running:
 
 .. code-block:: js
 
-    "@microsoft/ccf-app": "~0.19.4",
+    "@microsoft/ccf-app": "~1.0.0",
 
 Now you can continue with installing all dependencies:
 

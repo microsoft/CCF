@@ -164,6 +164,11 @@ namespace kv
     {
       return false;
     }
+
+    bool is_public_only() override
+    {
+      return public_only;
+    }
   };
 
   class BFTExecutionWrapper : public AbstractExecutionWrapper
@@ -245,6 +250,11 @@ namespace kv
     {
       return false;
     }
+
+    virtual bool is_public_only() override
+    {
+      return public_only;
+    }
   };
 
   class SignatureBFTExec : public BFTExecutionWrapper
@@ -253,6 +263,7 @@ namespace kv
     SignatureBFTExec(
       ExecutionWrapperStore* store_,
       std::shared_ptr<TxHistory> history_,
+      std::shared_ptr<Consensus> consensus_,
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
@@ -262,7 +273,7 @@ namespace kv
         store_,
         history_,
         nullptr,
-        nullptr,
+        consensus_,
         data_,
         public_only_,
         v_,
@@ -277,8 +288,9 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
+      auto config = consensus->get_latest_configuration_unsafe();
       bool result = true;
-      auto r = history->verify_and_sign(sig, &term);
+      auto r = history->verify_and_sign(sig, &term, config);
       if (
         r != kv::TxHistory::Result::OK &&
         r != kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
@@ -333,9 +345,9 @@ namespace kv
 
       ccf::TxID tx_id;
       auto success = ApplyResult::PASS;
-
+      auto config = consensus->get_latest_configuration_unsafe();
       auto r = progress_tracker->receive_backup_signatures(
-        tx_id, consensus->node_count(), consensus->is_primary());
+        tx_id, config, consensus->is_primary());
       if (r == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK)
       {
         success = ApplyResult::PASS_BACKUP_SIGNATURE_SEND_ACK;
@@ -440,15 +452,8 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      auto primary_id = consensus->primary();
-      if (!primary_id.has_value())
-      {
-        LOG_FAIL_FMT("Cannot apply view as primary is not known");
-        return ApplyResult::FAIL;
-      }
-
-      if (!progress_tracker->apply_new_view(
-            primary_id.value(), consensus->node_count(), term))
+      auto config = consensus->get_latest_configuration_unsafe();
+      if (!progress_tracker->apply_new_view(config, term))
       {
         LOG_FAIL_FMT("apply_new_view Failed");
         LOG_DEBUG_FMT("NewView in transaction {} failed to verify", v);
@@ -517,6 +522,79 @@ namespace kv
     bool support_async_execution() override
     {
       return true;
+    }
+  };
+
+  class TxBFTApply : public BFTExecutionWrapper
+  {
+  private:
+    uint64_t max_conflict_version;
+    std::unique_ptr<CommittableTx> tx;
+
+  public:
+    TxBFTApply(
+      ExecutionWrapperStore* store_,
+      std::shared_ptr<TxHistory> history_,
+      const std::vector<uint8_t>& data_,
+      bool public_only_,
+      std::unique_ptr<CommittableTx> tx_,
+      kv::Version v_,
+      kv::Version max_conflict_version_,
+      ccf::View view_,
+      OrderedChanges&& changes_,
+      MapCollection&& new_maps_) :
+      BFTExecutionWrapper(
+        store_,
+        history_,
+        nullptr,
+        nullptr,
+        data_,
+        public_only_,
+        v_,
+        std::move(changes_),
+        std::move(new_maps_)),
+      max_conflict_version(max_conflict_version_)
+    {
+      max_conflict_version = max_conflict_version_;
+      tx = std::move(tx_);
+      term = view_;
+    }
+
+    ApplyResult apply() override
+    {
+      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      {
+        return ApplyResult::FAIL;
+      }
+
+      if (history)
+      {
+        history->append(data);
+      }
+
+      if (!public_only)
+      {
+        tx->set_change_list(std::move(changes), term);
+
+        auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
+        auto req_v = aft_requests->get(0);
+        CCF_ASSERT(
+          req_v.has_value(),
+          "Deserialised append entry, but requests map is empty");
+        req = req_v.value();
+      }
+
+      return ApplyResult::PASS_APPLY;
+    }
+
+    kv::Version get_max_conflict_version() override
+    {
+      return max_conflict_version;
+    }
+
+    bool support_async_execution() override
+    {
+      return false;
     }
   };
 }

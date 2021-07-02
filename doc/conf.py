@@ -19,6 +19,7 @@ import sys
 import subprocess
 import pathlib
 
+
 from docutils import nodes
 
 sys.path.insert(0, os.path.abspath("../python"))
@@ -88,7 +89,7 @@ language = None
 exclude_patterns = []
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "solarizeddark"
+pygments_style = "colorful"
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -96,7 +97,7 @@ pygments_style = "solarizeddark"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "pydata_sphinx_theme"
+html_theme = "furo"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -118,11 +119,14 @@ html_static_path = ["_static"]
 # 'searchbox.html']``.
 #
 html_sidebars = {
-    "**": ["sidebar-nav-bs.html", "search-field.html"]
 }
 
 html_css_files = [
     "css/custom.css",
+]
+
+html_js_files = [
+    "https://kit.fontawesome.com/c75a35380d.js"
 ]
 
 
@@ -208,11 +212,6 @@ smv_outputdir_format = "{ref.name}"
 html_logo = "_static/ccf.svg"
 html_favicon = "_static/favicon.ico"
 
-html_theme_options = {
-    "github_url": "https://github.com/Microsoft/CCF",
-    "use_edit_page_button": True,
-}
-
 html_context = {
     "github_user": "Microsoft",
     "github_repo": "CCF",
@@ -231,18 +230,8 @@ spelling_lang = "en_UK"
 tokenizer_lang = "en_UK"
 spelling_word_list_filename = ["spelling_wordlist.txt"]
 
-# sphinx_js options (CCF 0.19.1 - 0.19.3)
-# From 0.19.4 onwards, typedoc is used to generate HTML.
-# Note that sphinx_js is enabled dynamically in setup().
-js_language = "typescript"
-js_source_path = "../src/js"
-jsdoc_config_path = "../src/js/tsconfig.json"
-
 # sphinxcontrib-mermaid options
-# NB: The docs say the <script> tag will no longer be needed
-# from 0.7, but this is not yet released
-mermaid_init_js = """<script>
-mermaid.initialize({startOnLoad:true});
+mermaid_init_js = """mermaid.initialize({startOnLoad:true});
 
 // Remove height from all mermaid diagrams
 window.addEventListener(
@@ -256,8 +245,7 @@ window.addEventListener(
     }
   },
   false
-);
-</script>"""
+);"""
 
 def typedoc_role(name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]):
     """
@@ -331,7 +319,6 @@ def config_inited(app, config):
     srcdir = pathlib.Path(app.srcdir)
     outdir = pathlib.Path(app.outdir)
 
-    # typedoc (CCF 0.19.4 onwards)
     js_pkg_dir = srcdir / ".." / "js" / "ccf-app"
     js_docs_dir = outdir / "js" / "ccf-app"
     if js_pkg_dir.exists():
@@ -358,15 +345,3 @@ def setup(app):
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
     if not os.environ.get("SKIP_DOXYGEN"):
         subprocess.run(["doxygen"], cwd=srcdir / "..", check=True)
-
-    # sphinx_js (CCF 0.19.1 - 0.19.3)
-    global js_source_path
-    global jsdoc_config_path
-    js_source_path = str(srcdir / js_source_path)
-    jsdoc_config_path = str(srcdir / jsdoc_config_path)
-    if os.path.exists(jsdoc_config_path):
-        subprocess.run(["npm", "install", "--no-package-lock", "--no-audit", "--no-fund",
-                        "typescript@4.0.7", "typedoc@0.19.2"],
-                       cwd=srcdir / "..", check=True)
-        os.environ['PATH'] += os.pathsep + str(srcdir / ".." / "node_modules" / ".bin")
-        app.setup_extension("sphinx_js")

@@ -31,6 +31,7 @@ import {
   DigestAlgorithm,
   EvidenceClaims,
   OpenEnclave,
+  SigningAlgorithm,
 } from "./global.js";
 
 // JavaScript's Map uses reference equality for non-primitive types,
@@ -82,6 +83,41 @@ class CCFPolyfill implements CCF {
   rpc = {
     setApplyWrites(force: boolean) {
       throw new Error("Not implemented");
+    },
+  };
+
+  crypto = {
+    verifySignature(
+      algorithm: SigningAlgorithm,
+      key: string,
+      signature: ArrayBuffer,
+      data: ArrayBuffer
+    ): boolean {
+      let padding = undefined;
+      const pubKey = crypto.createPublicKey(key);
+      if (pubKey.asymmetricKeyType == "rsa") {
+        if (algorithm.name === "RSASSA-PKCS1-v1_5") {
+          padding = crypto.constants.RSA_PKCS1_PADDING;
+        } else {
+          throw new Error("incompatible signing algorithm for given key type");
+        }
+      } else if (pubKey.asymmetricKeyType == "ec") {
+        if (algorithm.name !== "ECDSA") {
+          throw new Error("incompatible signing algorithm for given key type");
+        }
+      } else {
+        throw new Error("unrecognized signing algorithm");
+      }
+      const hashAlg = algorithm.hash.replace("-", "").toLowerCase();
+      const verifier = crypto.createVerify(hashAlg);
+      verifier.update(new Uint8Array(data));
+      return verifier.verify(
+        {
+          key: pubKey,
+          padding: padding,
+        },
+        new Uint8Array(signature)
+      );
     },
   };
 

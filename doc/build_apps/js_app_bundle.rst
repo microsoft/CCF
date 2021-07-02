@@ -152,3 +152,15 @@ An app bundle can be wrapped into a governance proposal with the Python client f
 
 Once :ref:`submitted and accepted <governance/proposals:Submitting a New Proposal>`, a ``set_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
 Any existing application endpoints and JavaScript modules are removed.
+
+By default, the source code is pre-compiled into bytecode and both the source code and the bytecode are stored in the Key Value store. To disable precompilation and remove any existing cached bytecode, add ``--disable-bytecode-cache`` to the above command. See :ref:`Resource Usage <operations/resource_usage:Memory>` for a discussion on latency vs. memory usage.
+
+If CCF is updated and introduces a newer JavaScript engine version, then any pre-compiled bytecode is not used anymore and must be re-compiled by either re-deploying the JavaScript application or issuing a proposal for re-compilation:
+
+.. code-block:: bash
+
+    $ python -m ccf.proposal_generator refresh_js_app_bytecode_cache
+    SUCCESS | Writing proposal to ./refresh_js_app_bytecode_cache_proposal.json
+    SUCCESS | Wrote vote to ./refresh_js_app_bytecode_cache_vote_for.json
+
+.. note:: The operator RPC ``/node/js_metrics`` returns the size of the bytecode and whether it is used. If it is not used, then either no bytecode is stored or it needs to be re-compiled due to a CCF update.

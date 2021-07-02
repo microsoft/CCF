@@ -1,5 +1,5 @@
 workspace: "/tmp/"
 debs:
-  - libc++abi1
-  - libc++1
+  - libc++abi1-8
+  - libc++1-8
   - libuv1

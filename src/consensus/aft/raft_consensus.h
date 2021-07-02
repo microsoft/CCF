@@ -33,6 +33,11 @@ namespace aft
       return aft->is_primary();
     }
 
+    bool can_replicate() override
+    {
+      return aft->can_replicate();
+    }
+
     bool is_backup() override
     {
       return aft->is_follower();
@@ -150,11 +155,6 @@ namespace aft
     void enable_all_domains() override
     {
       aft->enable_all_domains();
-    }
-
-    uint32_t node_count() override
-    {
-      return aft->node_count();
     }
 
     void emit_signature() override {}

@@ -11,7 +11,7 @@ CCF Documentation
       :align: left
       :target: concepts.html
 
-    Get started with CCF and its core concepts through a sample app.
+    Get started with the Confidential Consortium Framework and its core concepts.
 
     ---
 
@@ -24,24 +24,20 @@ CCF Documentation
       :alt: TypeScript
       :align: left
 
-    .. image:: img/empty.svg
-      :height: 10
-      :align: left
-
     .. image:: img/cpp.svg
       :width: 32
       :target: build_apps/example.html
       :alt: C++
       :align: left
 
-    Write application logic against the CCF Key-Value store.
+    Write application logic against the CCF Key-Value store in C++, JavaScript or TypeScript.
 
     ---
 
     :fa:`user` :doc:`use_apps/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    Interact with a CCF application, using HTTP or WebSockets over TLS.
+    Interact with a CCF application, using HTTP over TLS.
 
     ---
 
@@ -98,3 +94,4 @@ CCF Documentation
     contribute/index.rst
     glossary
     research
+    GitHub Repository <https://github.com/microsoft/CCF>

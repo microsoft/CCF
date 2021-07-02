@@ -79,6 +79,25 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
     return priv_pem, pub_pem
 
 
+def generate_ec_keypair(curve_name: str) -> Tuple[str, str]:
+    if curve_name == "secp256r1":
+        curve = ec.SECP256R1()
+    else:
+        raise ValueError("unsupported curve")
+    priv = ec.generate_private_key(
+        curve=curve,
+        backend=default_backend(),
+    )
+    pub = priv.public_key()
+    priv_pem = priv.private_bytes(
+        Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()
+    ).decode("ascii")
+    pub_pem = pub.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode(
+        "ascii"
+    )
+    return priv_pem, pub_pem
+
+
 def generate_cert(
     priv_key_pem: str, cn=None, issuer_priv_key_pem=None, issuer_cn=None, ca=False
 ) -> str:
@@ -154,6 +173,27 @@ def unwrap_key_rsa_oaep_aes_pad(
     w_target_key = data[w_aes_sz:]
     t_aes_key = unwrap_key_rsa_oaep(w_aes_key, oaep_key_priv_pem, label)
     return unwrap_key_aes_pad(w_target_key, t_aes_key)
+
+
+def sign(algorithm: dict, key_pem: str, data: bytes) -> bytes:
+    key = load_pem_private_key(key_pem.encode("ascii"), None, default_backend())
+    if algorithm["hash"] == "SHA-256":
+        hash_alg = hashes.SHA256()
+    else:
+        raise ValueError("Unsupported hash algorithm")
+    if isinstance(key, rsa.RSAPrivateKey):
+        if algorithm["name"] == "RSASSA-PKCS1-v1_5":
+            return key.sign(data, padding.PKCS1v15(), hash_alg)
+        else:
+            raise ValueError("Unsupported signing algorithm")
+    elif isinstance(key, ec.EllipticCurvePrivateKey):
+        if algorithm["name"] == "ECDSA":
+            # pylint: disable=no-value-for-parameter
+            return key.sign(data, ec.ECDSA(hash_alg))
+        else:
+            raise ValueError("Unsupported signing algorithm")
+    else:
+        raise ValueError("Unsupported key type")
 
 
 def pub_key_pem_to_der(pem: str) -> bytes:

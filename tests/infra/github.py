@@ -59,6 +59,21 @@ def get_version_from_tag_name(tag_name):
     return Version(tag_name[len(TAG_RELEASE_PREFIX) :])
 
 
+def get_release_branch_from_branch_name(branch_name):
+    # E.g. returns "release/1.x" for "release/1.0.4" or "release/1.x_test"
+    assert is_release_branch(branch_name), branch_name
+    return branch_name.split(".")[0] + ".x"
+
+
+def get_major_version_from_branch_name(branch_name):
+    # Returns major version number from branch name, or None if the branch isn't a release branch
+    return (
+        get_major_version_from_release_branch_name(branch_name)
+        if is_release_branch(branch_name)
+        else None
+    )
+
+
 class Repository:
     """
     Helper class to verify CCF operations compatibility described at
@@ -103,6 +118,12 @@ class Repository:
             raise ValueError(f"No release branch after {release_branch_name}")
         return release_branches[after_index]
 
+    def get_tags_with_releases(self):
+        # Only consider tags that have releases as perhaps a release is in progress
+        # (i.e. tag exists but hasn't got a release just yet)
+        all_released_tags = [r.tag_name for r in self.repo.get_releases()]
+        return [t for t in self.repo.get_tags() if t.name in all_released_tags]
+
     def get_release_for_tag(self, tag):
         releases = [r for r in self.repo.get_releases() if r.tag_name == tag.name]
         if not releases:
@@ -122,7 +143,11 @@ class Repository:
             TAG_RELEASE_PREFIX, release_branch_name.replace(".x", "([.\\d+]+)")
         )
         return sorted(
-            [tag for tag in self.repo.get_tags() if re.match(release_re, tag.name)],
+            [
+                tag
+                for tag in self.get_tags_with_releases()
+                if re.match(release_re, tag.name)
+            ],
             key=cmp_to_key(
                 lambda t1, t2: get_version_from_tag_name(t1.name)
                 < get_version_from_tag_name(t2.name)
@@ -182,7 +207,9 @@ class Repository:
         """
         if is_release_branch(branch):
             LOG.debug(f"{branch} is release branch")
-            tags = self.get_tags_for_release_branch(branch)
+            tags = self.get_tags_for_release_branch(
+                get_release_branch_from_branch_name(branch)
+            )
             if tags:
                 return tags[0]
             else:
@@ -206,7 +233,9 @@ class Repository:
         if is_release_branch(branch):
             LOG.debug(f"{branch} is release branch")
             try:
-                next_release_branch = self.get_next_release_branch(branch)
+                next_release_branch = self.get_next_release_branch(
+                    get_release_branch_from_branch_name(branch)
+                )
                 LOG.debug(f"{next_release_branch} is next release branch")
                 return self.get_tags_for_release_branch(next_release_branch)[-1]
             except ValueError as e:  # No release branch after target branch

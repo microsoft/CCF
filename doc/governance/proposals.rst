@@ -1,9 +1,6 @@
 Proposing and Voting for a Proposal
 ===================================
 
-.. note::
-    See :doc:`/governance/js_gov` for pointers on converting from Lua to JS.
-
 Summary
 -------
 

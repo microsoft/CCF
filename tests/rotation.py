@@ -15,12 +15,11 @@ def run(args):
         network.start_and_join(args)
 
         # Replace primary repeatedly and check the network still operates
-        if args.consensus != "bft":
-            LOG.info(f"Retiring primary {args.rotation_retirements} times")
-            for i in range(args.rotation_retirements):
-                LOG.warning(f"Retirement {i}")
-                reconfiguration.test_add_node(network, args)
-                reconfiguration.test_retire_primary(network, args)
+        LOG.info(f"Retiring primary {args.rotation_retirements} times")
+        for i in range(args.rotation_retirements):
+            LOG.warning(f"Retirement {i}")
+            reconfiguration.test_add_node(network, args)
+            reconfiguration.test_retire_primary(network, args)
 
 
 if __name__ == "__main__":
@@ -28,7 +27,7 @@ if __name__ == "__main__":
     def add(parser):
         parser.add_argument(
             "--rotation-retirements",
-            help="Number of times to retired the primary",
+            help="Number of times to retire the primary",
             type=int,
             default=3,
         )
