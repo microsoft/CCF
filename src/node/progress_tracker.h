@@ -483,8 +483,9 @@ namespace ccf
       hash = crypto::Sha256Hash({data.h.data(), data.h.size()});
     }
 
-    ccf::SeqNo get_highest_committed_nonce()
+    ccf::SeqNo get_highest_committed_level()
     {
+      std::unique_lock<std::mutex> guard(lock);
       return highest_commit_level;
     }
 
@@ -648,48 +649,6 @@ namespace ccf
     {
       std::unique_lock<std::mutex> guard(lock);
       return get_node_nonce_(tx_id);
-    }
-
-    void rollback(ccf::SeqNo rollback_seqno, ccf::View view)
-    {
-      /*
-      std::unique_lock<std::mutex> guard(lock);
-      if (certificates.empty())
-      {
-        highest_prepared_level = {0, 0};
-      }
-      ccf::SeqNo last_good_seqno = 0;
-      for (auto it = certificates.begin(); it != certificates.end();)
-      {
-        if (it->first.seqno > rollback_seqno)
-        {
-          it = certificates.erase(it);
-        }
-        else
-        {
-          if (last_good_seqno < it->first.seqno)
-          {
-            last_good_seqno = it->first.seqno;
-          }
-          ++it;
-        }
-      }
-
-      if (certificates.empty())
-      {
-        throw std::logic_error("cannot remove all certs");
-      }
-      else if (highest_prepared_level.seqno > last_good_seqno)
-      {
-        highest_prepared_level = {view, last_good_seqno};
-      }
-      */
-    }
-
-    ccf::SeqNo get_rollback_seqno() const
-    {
-      std::unique_lock<std::mutex> guard(lock);
-      return highest_commit_level;
     }
 
     void set_is_public_only(bool public_only)
@@ -920,7 +879,6 @@ namespace ccf
         }
 
         cert.ack_sent = true;
-        cert.sig_acks.insert(id);
         return true;
       }
       return false;
@@ -937,7 +895,6 @@ namespace ccf
         !cert.reply_and_nonce_sent && cert.ack_sent)
       {
         cert.reply_and_nonce_sent = true;
-        cert.nonce_set.insert(id);
         return true;
       }
       return false;
@@ -947,18 +904,16 @@ namespace ccf
       CommitCert& cert, const ccf::TxID& tx_id, bool should_clear_old_entries)
     {
       LOG_DEBUG_FMT(
-        "try_update_watermark nonces_committed_to_ledger:{}, seqno:{}, "
-        "highest_commit_level:{}, have_primary_sig:{}",
-        cert.nonces_committed_to_ledger,
+        "try_update_watermark seqno:{}, highest_commit_level:{}, "
+        "have_primary_sig:{}",
         tx_id.seqno,
         highest_commit_level,
         cert.have_primary_signature);
-      if (
-        /*cert.nonces_committed_to_ledger &&*/ tx_id.seqno > highest_commit_level &&
-        cert.have_primary_signature)
+      if (tx_id.seqno > highest_commit_level && cert.have_primary_signature)
       {
         highest_commit_level = tx_id.seqno;
-        LOG_INFO_FMT("Advancing global commit to {}.{}", tx_id.view, tx_id.seqno);
+        LOG_DEBUG_FMT(
+          "Advancing global commit to {}.{}", tx_id.view, tx_id.seqno);
         if (should_clear_old_entries)
         {
           LOG_DEBUG_FMT("Removing all entries upto:{}", tx_id.seqno);

@@ -424,7 +424,7 @@ def run(args):
     args.jwt_key_refresh_interval_s = 1
 
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         network = test_jwt_without_key_policy(network, args)
@@ -441,7 +441,7 @@ def run(args):
 
     args.jwt_key_refresh_interval_s = 100000
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         network = test_jwt_key_initial_refresh(network, args)

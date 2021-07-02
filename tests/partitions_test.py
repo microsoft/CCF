@@ -113,22 +113,22 @@ def test_isolate_and_reconnect_primary(network, args):
     with network.partitioner.partition(backups):
 
 
-        _, backup = network.find_primary_and_any_backup()
-        if args.consensus == "bft":
-            try:
-                for _ in range(3):
-                    with backup.client("user0") as c:
-                        _ = c.post(
-                            "/app/log/private",
-                            {
-                                "id": -1,
-                                "msg": "This is submitted to force a view change",
-                            },
-                        )
-                    time.sleep(5)
-                    backup = network.find_any_backup()
-            except CCFConnectionException:
-                LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
+        #_, backup = network.find_primary_and_any_backup()
+        #if args.consensus == "bft":
+        #    try:
+        #        for _ in range(3):
+        #            with backup.client("user0") as c:
+        #                _ = c.post(
+        #                    "/app/log/private",
+        #                    {
+        #                        "id": -1,
+        #                        "msg": "This is submitted to force a view change",
+        #                    },
+        #                )
+        #            time.sleep(5)
+        #            backup = network.find_any_backup()
+        #    except CCFConnectionException:
+        #        LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
         new_primary, _ = network.wait_for_new_primary(
             primary, nodes=backups, timeout_multiplier=6
         )
@@ -155,6 +155,7 @@ def run(args):
 
     with infra.network.network(
         args.nodes,
+        args.consensus,
         args.binary_dir,
         args.debug_nodes,
         args.perf_nodes,

@@ -161,11 +161,11 @@ void ordered_execution(
 
       if (i < 1)
       {
-        REQUIRE(pt->get_highest_committed_nonce() == 0);
+        REQUIRE(pt->get_highest_committed_level() == 0);
       }
       else
       {
-        REQUIRE(pt->get_highest_committed_nonce() == seqno);
+        REQUIRE(pt->get_highest_committed_level() == seqno);
       }
       i++;
     }
@@ -787,29 +787,6 @@ TEST_CASE("test progress_tracker apply_view_change")
     auto result =
       pt->apply_view_change_message(v, kv::test::FirstBackupNodeId, 1, 42);
     REQUIRE(result == ccf::ProgressTracker::ApplyViewChangeMessageResult::FAIL);
-  }
-}
-
-TEST_CASE("Can rollback out of date progress tracker entires")
-{
-  using trompeloeil::_;
-
-  INFO("Cannot rollback too many progress tracker entries");
-  {
-    ccf::View view = 0;
-    auto store = std::make_unique<StoreMock>();
-    StoreMock& store_mock = *store.get();
-    auto pt = std::make_unique<ccf::ProgressTracker>(
-      std::move(store), kv::test::FirstBackupNodeId);
-    auto& ref_pt = *pt.get();
-
-    REQUIRE_CALL(store_mock, verify_signature(_, _, _, _))
-      .RETURN(true)
-      .TIMES(AT_LEAST(2));
-
-    ordered_execution(kv::test::FirstBackupNodeId, pt);
-
-    ref_pt.rollback(ref_pt.get_rollback_seqno(), view);
   }
 }
 

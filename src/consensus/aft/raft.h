@@ -436,17 +436,25 @@ namespace aft
     std::pair<Term, Index> get_commit_term_and_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      //return {get_term_internal(state->commit_idx), state->commit_idx};
-      auto progress_tracker = store->get_progress_tracker();
-      auto idx = progress_tracker->get_rollback_seqno();
-      return {get_term_internal(idx), idx};
+      if (consensus_type == ConsensusType::CFT)
+      {
+        return {get_term_internal(state->commit_idx), state->commit_idx};
+      }
+      else
+      {
+        auto progress_tracker = store->get_progress_tracker();
+        auto idx = progress_tracker->get_highest_committed_level();
+        return {get_term_internal(idx), idx};
+      }
     }
 
     std::optional<kv::Consensus::SignableTxIndices>
     get_signable_commit_term_and_idx()
     {
       std::lock_guard<std::mutex> guard(state->lock);
-      //if (state->commit_idx >= election_index)
+      if (
+        consensus_type == ConsensusType::BFT ||
+        state->commit_idx >= election_index)
       {
         kv::Consensus::SignableTxIndices r;
         r.term = get_term_internal(state->commit_idx);
@@ -454,12 +462,10 @@ namespace aft
         r.previous_version = last_committable_index();
         return r;
       }
-      /*
       else
       {
         return std::nullopt;
       }
-      */
     }
 
     Term get_term(Index idx)
@@ -1256,8 +1262,8 @@ namespace aft
 
       LOG_DEBUG_FMT(
         "Send append entries from {} to {}: {} to {} ({})",
-        state->my_node_id,
-        to,
+        state->my_node_id.trim(),
+        to.trim(),
         start_idx,
         end_idx,
         state->commit_idx);
@@ -1432,7 +1438,7 @@ namespace aft
         else
         {
           auto progress_tracker = store->get_progress_tracker();
-          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+          ccf::SeqNo rollback_level = progress_tracker->get_highest_committed_level();
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log at {} has the wrong "
             "previous term (ours: {}, theirs: {}), rollback_level:{}",
@@ -1522,7 +1528,7 @@ namespace aft
             state->last_idx,
             r.prev_idx);
           auto progress_tracker = store->get_progress_tracker();
-          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+          ccf::SeqNo rollback_level = progress_tracker->get_highest_committed_level();
           rollback(std::max(r.prev_idx, rollback_level));
         }
         else
@@ -1823,10 +1829,9 @@ namespace aft
         }
         else
         {
-
           auto progress_tracker = store->get_progress_tracker();
-          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
-          LOG_INFO_FMT("Large rollback to {}", rollback_level);
+          ccf::SeqNo rollback_level = progress_tracker->get_highest_committed_level();
+          LOG_DEBUG_FMT("Rolling back to {}", rollback_level);
           rollback(rollback_level);
         }
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
@@ -2661,7 +2666,7 @@ namespace aft
       if (consensus_type == ConsensusType::BFT)
       {
         auto progress_tracker = store->get_progress_tracker();
-        election_index = progress_tracker->get_rollback_seqno();
+        election_index = progress_tracker->get_highest_committed_level();
       }
       else
       {
@@ -2738,7 +2743,7 @@ namespace aft
       if (consensus_type == ConsensusType::BFT)
       {
         auto progress_tracker = store->get_progress_tracker();
-        ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+        ccf::SeqNo rollback_level = progress_tracker->get_highest_committed_level();
         rollback(rollback_level);
         view_change_tracker->set_current_view_change(state->current_view);
       }
@@ -2809,7 +2814,7 @@ namespace aft
       auto progress_tracker = store->get_progress_tracker();
       if (progress_tracker != nullptr)
       {
-        new_commit_bft_idx = progress_tracker->get_highest_committed_nonce();
+        new_commit_bft_idx = progress_tracker->get_highest_committed_level();
       }
 
       // Obtain CFT watermarks
@@ -2889,10 +2894,15 @@ namespace aft
 
         if (can_commit)
         {
-          //commit(highest_committable);
-          auto progress_tracker = store->get_progress_tracker();
-          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
-          commit(rollback_level);
+          if (consensus_type == ConsensusType::CFT)
+          {
+            commit(highest_committable);
+          }
+          else
+          {
+            auto progress_tracker = store->get_progress_tracker();
+            commit( progress_tracker->get_highest_committed_level());
+          }
         }
       }
     }
@@ -3048,11 +3058,14 @@ namespace aft
 
     void rollback(Index idx)
     {
-      if (idx < state->bft_watermark_idx)
+      if (
+        (consensus_type == ConsensusType::CFT && idx < state->commit_idx) ||
+        (consensus_type == ConsensusType::BFT &&
+         idx < state->bft_watermark_idx))
       {
         LOG_FAIL_FMT(
-          "Asked to rollback to {} but committed to {}, watermark {} - ignoring rollback "
-          "request",
+          "Asked to rollback to {} but committed to commit_idx {}, "
+          "bft_watermark_idx {} - ignoring rollback request",
           idx,
           state->commit_idx,
           state->bft_watermark_idx);
@@ -3112,13 +3125,6 @@ namespace aft
       if (changed)
       {
         create_and_remove_node_state();
-      }
-
-      if (consensus_type == ConsensusType::BFT)
-      {
-        auto progress_tracker = store->get_progress_tracker();
-        progress_tracker->rollback(
-          progress_tracker->get_rollback_seqno(), state->current_view);
       }
     }
 

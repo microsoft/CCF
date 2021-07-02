@@ -83,7 +83,7 @@ def run(args):
         return True
 
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes
+        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()

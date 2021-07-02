@@ -25,6 +25,7 @@ def run(args, additional_attack_args):
 
     with infra.network.network(
         args.nodes,
+        args.consensus,
         args.binary_dir,
         args.debug_nodes,
         args.perf_nodes,

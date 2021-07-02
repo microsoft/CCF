@@ -67,6 +67,7 @@ def run(args):
     txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
     network = infra.network.Network(
         args.nodes,
+        args.consensus,
         args.binary_dir,
         args.debug_nodes,
         args.perf_nodes,

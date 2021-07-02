@@ -29,6 +29,7 @@ def run(args):
 
     with infra.network.network(
         hosts=hosts,
+        consensus=args.consensus,
         binary_directory=args.binary_dir,
         library_directory=args.library_dir,
         dbg_nodes=args.debug_nodes,

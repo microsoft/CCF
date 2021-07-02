@@ -415,6 +415,7 @@ def run(args):
     txs = app.LoggingTxs("user0")
     with infra.network.network(
         args.nodes,
+        args.consensus,
         args.binary_dir,
         args.debug_nodes,
         args.perf_nodes,
@@ -462,6 +463,7 @@ def run_join_old_snapshot(args):
 
         with infra.network.network(
             nodes,
+            args.consensus,
             args.binary_dir,
             args.debug_nodes,
             args.perf_nodes,

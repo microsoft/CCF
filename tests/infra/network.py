@@ -109,6 +109,7 @@ class Network:
     def __init__(
         self,
         hosts,
+        consensus,
         binary_dir=".",
         dbg_nodes=None,
         perf_nodes=None,
@@ -141,6 +142,7 @@ class Network:
         self.ignoring_shutdown_errors = False
         self.nodes = []
         self.hosts = hosts
+        self.consensus = consensus
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.library_dir = library_dir
@@ -897,6 +899,22 @@ class Network:
         logs = []
         while time.time() < end_time:
             try:
+
+                if self.consensus == "bft":
+                    _, backup = self.find_primary_and_any_backup()
+                    try:
+                        with backup.client("user0") as c:
+                            _ = c.post(
+                                "/app/log/private",
+                                {
+                                    "id": -1,
+                                    "msg": "This is submitted to force a view change",
+                                },
+                            )
+                        time.sleep(5)
+                        backup = self.find_any_backup()
+                    except CCFConnectionException:
+                        LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
                 logs = []
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id != old_primary.node_id:
@@ -907,8 +925,8 @@ class Network:
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
-            except Exception:
-                pass
+            #except Exception:
+            #    pass
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")
@@ -1041,6 +1059,7 @@ class Network:
 @contextmanager
 def network(
     hosts,
+    consensus,
     binary_directory=".",
     dbg_nodes=None,
     perf_nodes=None,
@@ -1070,6 +1089,7 @@ def network(
 
     net = Network(
         hosts=hosts,
+        consensus=consensus,
         binary_dir=binary_directory,
         library_dir=library_directory,
         dbg_nodes=dbg_nodes,

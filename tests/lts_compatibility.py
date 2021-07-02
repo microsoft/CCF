@@ -102,6 +102,7 @@ def run_code_upgrade_from(
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
         with infra.network.network(
             args.nodes,
+            args.consensus,
             binary_directory=from_binary_dir,
             library_directory=from_library_dir,
             pdb=args.pdb,

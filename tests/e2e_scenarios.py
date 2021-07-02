@@ -25,7 +25,7 @@ def run(args):
 
     # SNIPPET_START: create_network
     with infra.network.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
+        hosts, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
         # SNIPPET_END: create_network
