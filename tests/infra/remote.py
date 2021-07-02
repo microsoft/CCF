@@ -641,7 +641,9 @@ class CCFRemote(object):
             f"--enclave-type={enclave_type}",
             f"--node-address={make_address(host, node_port)}",
             f"--node-address-file={self.node_address_path}",
+            f"--rpc-address={make_address(host, rpc_port)}",
             f"--rpc-address-file={self.rpc_address_path}",
+            f"--public-rpc-address={make_address(pubhost, rpc_port)}",
             f"--ledger-dir={self.ledger_dir_name}",
             f"--snapshot-dir={self.snapshot_dir_name}",
             f"--node-cert-file={self.pem}",
@@ -650,16 +652,6 @@ class CCFRemote(object):
             f"--consensus={consensus}",
             f"--worker-threads={worker_threads}",
         ]
-
-        rpc_interface_arg = f"--rpc-interface={make_address(host, rpc_port)},{make_address(pubhost, rpc_port)}"
-        if max_open_sessions:
-            rpc_interface_arg += f",{max_open_sessions}"
-        if max_open_sessions_hard:
-            if not max_open_sessions:
-                rpc_interface_arg += ","
-            rpc_interface_arg += f",{max_open_sessions_hard}"
-
-        cmd += [rpc_interface_arg]
 
         if node_client_host:
             cmd += [f"--node-client-interface={node_client_host}"]
@@ -684,6 +676,12 @@ class CCFRemote(object):
 
         if snapshot_tx_interval:
             cmd += [f"--snapshot-tx-interval={snapshot_tx_interval}"]
+
+        if max_open_sessions:
+            cmd += [f"--max-open-sessions={max_open_sessions}"]
+
+        if max_open_sessions_hard:
+            cmd += [f"--max-open-sessions-hard={max_open_sessions_hard}"]
 
         if jwt_key_refresh_interval_s:
             cmd += [f"--jwt-key-refresh-interval-s={jwt_key_refresh_interval_s}"]
