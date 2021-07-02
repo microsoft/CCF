@@ -909,12 +909,18 @@ namespace ccf
         return false;
       }
 
+      const uint8_t* data_ = data;
+      size_t size_ = size;
+
+      serialized::skip(data_, size_, (size_ - sizeof(GcmHdr)));
       GcmHdr hdr;
-      hdr.deserialise(data, size);
+      hdr.deserialise(data_, size_);
+      size -= sizeof(GcmHdr);
 
       if (!verify_or_decrypt(hdr, {data, size}))
       {
-        LOG_FAIL_FMT("Failed to verify node message with payload from {}", peer_id);
+        LOG_FAIL_FMT(
+          "Failed to verify node message with payload from {}", peer_id);
         return false;
       }
 
