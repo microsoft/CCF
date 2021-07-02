@@ -914,7 +914,7 @@ namespace ccf
 
       if (!verify_or_decrypt(hdr, {data, size}))
       {
-        LOG_FAIL_FMT("Failed to verify node message from {}", peer_id);
+        LOG_FAIL_FMT("Failed to verify node message with payload from {}", peer_id);
         return false;
       }
 

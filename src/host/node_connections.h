@@ -46,8 +46,6 @@ namespace asynchost
         size_t size = pending.size();
         const auto size_before = size;
 
-        LOG_DEBUG_FMT("Starting with {} bytes to read", size);
-
         while (true)
         {
           if (!msg_size.has_value())
@@ -58,8 +56,6 @@ namespace asynchost
             }
 
             msg_size = serialized::read<uint32_t>(data, size);
-            LOG_DEBUG_FMT(
-              "Read a 4-byte header saying this is {} long", msg_size.value());
           }
 
           if (size < msg_size.value())
@@ -78,8 +74,6 @@ namespace asynchost
           const auto size_post_headers = size;
           const size_t payload_size =
             msg_size.value() - (size_pre_headers - size_post_headers);
-
-          LOG_DEBUG_FMT("Read more header, {} bytes remain", size);
 
           associate(from);
 
