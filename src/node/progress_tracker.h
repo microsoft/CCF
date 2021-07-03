@@ -651,6 +651,12 @@ namespace ccf
       return get_node_nonce_(tx_id);
     }
 
+    ccf::SeqNo get_rollback_seqno() const
+    {
+      std::unique_lock<std::mutex> guard(lock);
+      return highest_prepared_level.seqno;
+    }
+
     void set_is_public_only(bool public_only)
     {
       std::unique_lock<std::mutex> guard(lock);

@@ -293,7 +293,7 @@ namespace aft
         return false;
       }
 
-      bool large_rollback() override
+      bool should_rollback_to_last_committed() override
       {
         return false;
       }

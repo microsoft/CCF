@@ -899,9 +899,8 @@ class Network:
         logs = []
         while time.time() < end_time:
             try:
-
                 if self.consensus == "bft":
-                    _, backup = self.find_primary_and_any_backup()
+                    backup = self.find_any_backup()
                     try:
                         with backup.client("user0") as c:
                             _ = c.post(
@@ -925,8 +924,8 @@ class Network:
                     return (new_primary, new_term)
             except PrimaryNotFound:
                 error = PrimaryNotFound
-            #except Exception:
-            #    pass
+            except Exception:
+                pass
             time.sleep(0.1)
         flush_info(logs, None)
         raise error(f"A new primary was not elected after {timeout} seconds")

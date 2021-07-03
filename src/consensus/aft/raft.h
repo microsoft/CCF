@@ -443,7 +443,7 @@ namespace aft
       else
       {
         auto progress_tracker = store->get_progress_tracker();
-        auto idx = progress_tracker->get_highest_committed_level();
+        auto idx = progress_tracker->get_rollback_seqno();
         return {get_term_internal(idx), idx};
       }
     }
@@ -1016,7 +1016,7 @@ namespace aft
       ccf::ViewChangeRequest v =
         ccf::ViewChangeRequest::deserialize(data, size);
       LOG_INFO_FMT(
-        "Received view change from:{}, view:{}", from, r.view);
+        "Received view change from:{}, view:{}", from.trim(), r.view);
 
       auto progress_tracker = store->get_progress_tracker();
       auto result =
@@ -1438,7 +1438,7 @@ namespace aft
         else
         {
           auto progress_tracker = store->get_progress_tracker();
-          ccf::SeqNo rollback_level = progress_tracker->get_highest_committed_level();
+          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log at {} has the wrong "
             "previous term (ours: {}, theirs: {}), rollback_level:{}",
@@ -1448,7 +1448,7 @@ namespace aft
             prev_term,
             r.prev_term,
             rollback_level);
-          rollback(std::max(r.prev_idx, rollback_level));
+          rollback(rollback_level);
           if (rollback_level < r.prev_idx)
           {
             send_append_entries_response(from, AppendEntriesResponseType::FAIL);
@@ -1527,9 +1527,13 @@ namespace aft
             "rolling back from {} to {}",
             state->last_idx,
             r.prev_idx);
-          auto progress_tracker = store->get_progress_tracker();
-          ccf::SeqNo rollback_level = progress_tracker->get_highest_committed_level();
-          rollback(std::max(r.prev_idx, rollback_level));
+          auto rollback_level = r.prev_idx;
+          if (consensus_type == ConsensusType::BFT)
+          {
+            auto progress_tracker = store->get_progress_tracker();
+            rollback_level = progress_tracker->get_rollback_seqno();
+          }
+          rollback(rollback_level);
         }
         else
         {
@@ -1822,17 +1826,17 @@ namespace aft
         // primary resends the append entries we will succeed as the map is
         // already there. This will only occur on BFT startup so not a perf
         // problem but still need to be resolved.
-        if (!ds->large_rollback())
+        if (ds->should_rollback_to_last_committed())
         {
-          state->last_idx = i - 1;
-          ledger->truncate(state->last_idx);
+          auto progress_tracker = store->get_progress_tracker();
+          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
+          LOG_DEBUG_FMT("Rolling back to {}", rollback_level);
+          rollback(rollback_level);
         }
         else
         {
-          auto progress_tracker = store->get_progress_tracker();
-          ccf::SeqNo rollback_level = progress_tracker->get_highest_committed_level();
-          LOG_DEBUG_FMT("Rolling back to {}", rollback_level);
-          rollback(rollback_level);
+          state->last_idx = i - 1;
+          ledger->truncate(state->last_idx);
         }
         send_append_entries_response(from, AppendEntriesResponseType::FAIL);
         return false;
@@ -2666,7 +2670,7 @@ namespace aft
       if (consensus_type == ConsensusType::BFT)
       {
         auto progress_tracker = store->get_progress_tracker();
-        election_index = progress_tracker->get_highest_committed_level();
+        election_index = progress_tracker->get_rollback_seqno();
       }
       else
       {
@@ -2743,7 +2747,7 @@ namespace aft
       if (consensus_type == ConsensusType::BFT)
       {
         auto progress_tracker = store->get_progress_tracker();
-        ccf::SeqNo rollback_level = progress_tracker->get_highest_committed_level();
+        ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
         rollback(rollback_level);
         view_change_tracker->set_current_view_change(state->current_view);
       }
@@ -2901,7 +2905,7 @@ namespace aft
           else
           {
             auto progress_tracker = store->get_progress_tracker();
-            commit( progress_tracker->get_highest_committed_level());
+            commit(progress_tracker->get_highest_committed_level());
           }
         }
       }

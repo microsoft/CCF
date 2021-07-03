@@ -591,7 +591,21 @@ namespace kv
     virtual kv::Version get_max_conflict_version() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
-    virtual bool large_rollback() = 0;
+
+    // Setting a short rollback is a work around that should be fixed
+    // shortly. In BFT mode when we deserialize and realize we need to
+    // create a new map we remember this. If we need to create the same
+    // map multiple times (for tx in the same group of append entries) the
+    // first create successes but the second fails because the map is
+    // already there. This works around the problem by stopping just
+    // before the 2nd create (which failed at this point) and when the
+    // primary resends the append entries we will succeed as the map is
+    // already there. This will only occur on BFT startup so not a perf
+    // problem but still need to be resolved.
+    //
+    // Thus, a large rollback is one which did not result from the map creating
+    // issue.
+    virtual bool should_rollback_to_last_committed() = 0;
   };
 
   class AbstractStore
