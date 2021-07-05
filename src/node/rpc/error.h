@@ -69,6 +69,7 @@ namespace ccf
     ERROR(VoteNotFound)
     ERROR(VoteAlreadyExists)
     ERROR(NodeCannotHandleRequest)
+    ERROR(IdentityAlreadyExists)
 
     // node-to-node (/join and /create):
     ERROR(ConsensusTypeMismatch)

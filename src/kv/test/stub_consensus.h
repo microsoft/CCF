@@ -170,6 +170,12 @@ namespace kv::test
       return ConsensusDetails{{}, {}, ReplicaState::Candidate};
     }
 
+    void add_identity(
+      ccf::SeqNo seqno,
+      kv::ReconfigurationId rid,
+      const ccf::Identity& identity) override
+    {}
+
     void emit_signature() override
     {
       return;

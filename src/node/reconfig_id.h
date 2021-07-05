@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "network_state.h"
+#include "network_tables.h"
 
 #include <algorithm>
 

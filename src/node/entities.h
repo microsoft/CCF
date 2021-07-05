@@ -118,6 +118,10 @@ namespace ccf
     static constexpr auto CONSTITUTION = "public:ccf.gov.constitution";
     static constexpr auto PROPOSALS = "public:ccf.gov.proposals";
     static constexpr auto PROPOSALS_INFO = "public:ccf.gov.proposals_info";
+
+    // Byzantine network identities
+    static constexpr auto BYZANTINE_NETWORK_IDENTITIES =
+      "public:ccf.internal.byzantine_network_identities";
   };
 
 }

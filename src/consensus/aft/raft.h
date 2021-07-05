@@ -32,6 +32,7 @@
 #include "impl/state.h"
 #include "impl/view_change_tracker.h"
 #include "kv/kv_types.h"
+#include "node/byzantine_identity.h"
 #include "node/node_to_node.h"
 #include "node/node_types.h"
 #include "node/progress_tracker.h"
@@ -146,6 +147,8 @@ namespace aft
     std::unordered_map<ccf::NodeId, NodeState> nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
     bool use_two_tx_reconfig = false;
+    bool require_identity_for_reconfig = false;
+    std::shared_ptr<ccf::ByzantineIdentityTracker> byzantine_identity_tracker;
 
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
@@ -192,6 +195,8 @@ namespace aft
       std::shared_ptr<Executor> executor_,
       std::shared_ptr<aft::RequestTracker> request_tracker_,
       std::unique_ptr<aft::ViewChangeTracker> view_change_tracker_,
+      std::shared_ptr<ccf::ByzantineIdentityTracker>
+        byzantine_identity_tracker_,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
@@ -214,6 +219,9 @@ namespace aft
       election_timeout(election_timeout_),
       view_change_timeout(view_change_timeout_),
       sig_tx_interval(sig_tx_interval_),
+
+      byzantine_identity_tracker(std::move(byzantine_identity_tracker_)),
+
       public_only(public_only_),
 
       distrib(0, (int)election_timeout_.count() / 2),
@@ -248,6 +256,15 @@ namespace aft
         // commit is always 1.
         state->view_history.update(1, starting_view_change);
         use_two_tx_reconfig = true;
+        require_identity_for_reconfig = true;
+      }
+
+      if (require_identity_for_reconfig)
+      {
+        if (!byzantine_identity_tracker)
+        {
+          throw std::logic_error("missing identity tracker");
+        }
       }
     }
 
@@ -316,22 +333,22 @@ namespace aft
         !retirement_committable_idx.has_value();
     }
 
-    bool is_follower()
+    bool is_follower() const
     {
       return replica_state == kv::ReplicaState::Follower;
     }
 
-    bool is_learner()
+    bool is_learner() const
     {
       return replica_state == kv::ReplicaState::Learner;
     }
 
-    bool is_retired()
+    bool is_retired() const
     {
       return replica_state == kv::ReplicaState::Retired;
     }
 
-    bool is_retiring()
+    bool is_retiring() const
     {
       return replica_state == kv::ReplicaState::Retiring;
     }
@@ -547,6 +564,7 @@ namespace aft
         }
       }
       configurations.push_back({idx, std::move(conf), offset});
+
       if (use_two_tx_reconfig)
       {
         if (!new_learners.empty())
@@ -568,8 +586,21 @@ namespace aft
         throw std::runtime_error(
           "learner requires two-transaction reconfiguration");
       }
+
       backup_nodes.clear();
       create_and_remove_node_state();
+    }
+
+    void add_identity(
+      ccf::SeqNo seqno,
+      kv::ReconfigurationId rid,
+      const ccf::Identity& identity)
+    {
+      if (use_two_tx_reconfig && require_identity_for_reconfig)
+      {
+        assert(byzantine_identity_tracker);
+        byzantine_identity_tracker->add_identity(seqno, rid, identity);
+      }
     }
 
     void add_network_configuration(
@@ -591,6 +622,17 @@ namespace aft
         config.nodes.find(state->my_node_id) != config.nodes.end())
       {
         // Send/schedule ORCs
+      }
+
+      if (require_identity_for_reconfig)
+      {
+        assert(use_two_tx_reconfig);
+        assert(byzantine_identity_tracker);
+        byzantine_identity_tracker->add_network_configuration(config);
+        if (is_primary())
+        {
+          byzantine_identity_tracker->reshare(config);
+        }
       }
     }
 
@@ -3041,7 +3083,16 @@ namespace aft
         if (
           nodes.find(id) != nodes.end() && learners.find(id) == learners.end())
         {
+          LOG_TRACE_FMT("trusted: {}", id);
           r++;
+        }
+        else if (id == state->my_node_id && !is_learner())
+        {
+          r++;
+        }
+        else
+        {
+          LOG_TRACE_FMT("untrusted: {}", id);
         }
       }
       return r;
@@ -3123,6 +3174,21 @@ namespace aft
         if (idx < next->idx)
           break;
 
+        if (require_identity_for_reconfig)
+        {
+          assert(byzantine_identity_tracker);
+          auto rid =
+            byzantine_identity_tracker->find_reconfiguration(next->nodes);
+          if (!byzantine_identity_tracker->have_identity_for(rid, idx))
+          {
+            LOG_TRACE_FMT(
+              "Configurations: not switching to next configuration ({}), "
+              "identity not committed yet.",
+              rid);
+            break;
+          }
+        }
+
         if (!use_two_tx_reconfig)
         {
           configurations.pop_front();
@@ -3131,24 +3197,13 @@ namespace aft
         }
         else
         {
-          if (is_primary())
-          {
-            if (!enough_trusted(*next))
-            {
-              LOG_TRACE_FMT(
-                "Configurations: not enough trusted nodes for next "
-                "configuration");
-              break;
-            }
-          }
-
           if (num_trusted(*next) == next->nodes.size())
           {
             LOG_TRACE_FMT(
               "Configurations: all nodes trusted, switching to next "
               "configuration");
 
-            if (!is_retiring())
+            if (!is_retiring() && !is_retired())
             {
               if (
                 conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
@@ -3162,6 +3217,9 @@ namespace aft
           }
           else
           {
+            LOG_TRACE_FMT(
+              "Configurations: not enough trusted nodes for next "
+              "configuration");
             break;
           }
         }
@@ -3246,19 +3304,18 @@ namespace aft
         changed = true;
       }
 
-      if (use_two_tx_reconfig && changed)
+      if (use_two_tx_reconfig)
       {
-        std::unordered_set<ccf::NodeId> to_erase;
-        for (auto& [id, seqno] : learners)
+        for (auto it = learners.begin(); it != learners.end();)
         {
-          if (seqno > idx)
+          if (it->second > idx)
           {
-            to_erase.insert(id);
+            it = learners.erase(it);
           }
-        }
-        for (auto& id : to_erase)
-        {
-          learners.erase(id);
+          else
+          {
+            it++;
+          }
         }
       }
 

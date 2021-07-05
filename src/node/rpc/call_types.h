@@ -144,4 +144,12 @@ namespace ccf
       std::string message;
     };
   };
+
+  struct UpdateIdentity
+  {
+    struct In
+    {
+      kv::ReconfigurationId rid;
+    };
+  };
 }

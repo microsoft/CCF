@@ -10,9 +10,20 @@
 
 namespace ccf
 {
-  struct NetworkIdentity
+  struct Identity
   {
+    enum class IdentityType
+    {
+      NORMAL,
+      BYZANTINE
+    };
+
+    IdentityType type = IdentityType::NORMAL;
     crypto::Pem cert;
+  };
+
+  struct NetworkIdentity : public Identity
+  {
     crypto::Pem priv_key;
 
     bool operator==(const NetworkIdentity& other) const

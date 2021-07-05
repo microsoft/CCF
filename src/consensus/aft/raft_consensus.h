@@ -156,6 +156,14 @@ namespace aft
       return aft->get_details();
     }
 
+    void add_identity(
+      ccf::SeqNo seqno,
+      kv::ReconfigurationId rid,
+      const ccf::Identity& identity) override
+    {
+      return aft->add_identity(seqno, rid, identity);
+    }
+
     void periodic(std::chrono::milliseconds elapsed) override
     {
       aft->periodic(elapsed);

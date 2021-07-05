@@ -1921,6 +1921,9 @@ namespace ccf
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
+      auto byzantine_identity_tracker =
+        std::make_shared<ccf::ByzantineIdentityTracker>(
+          shared_state, rpc_map, node_sign_kp, node_cert);
 
       kv::ReplicaState initial_state =
         (network.consensus_type == ConsensusType::BFT &&
@@ -1941,6 +1944,7 @@ namespace ccf
         std::make_shared<aft::ExecutorImpl>(shared_state, rpc_map, rpcsessions),
         request_tracker,
         std::move(view_change_tracker),
+        std::move(byzantine_identity_tracker),
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
@@ -1970,6 +1974,14 @@ namespace ccf
           [](kv::Version version, const NetworkConfigurations::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<NetworkConfigurationsHook>(version, w);
+          }));
+
+      network.tables->set_map_hook(
+        network.byzantine_network_identities.get_name(),
+        network.byzantine_network_identities.wrap_map_hook(
+          [](kv::Version version, const ByzantineIdentities::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<ByzantineIdentitiesHook>(version, w);
           }));
 
       setup_basic_hooks();

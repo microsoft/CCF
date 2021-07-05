@@ -1197,6 +1197,48 @@ namespace ccf
         {std::make_shared<NodeCertAuthnPolicy>()})
         .set_openapi_hidden(true)
         .install();
+
+      auto update_identity = [this](auto& args, const nlohmann::json& params) {
+        const auto in = params.get<UpdateIdentity::In>();
+        auto ids = args.tx.rw(network.byzantine_network_identities);
+        bool exists = false;
+        ids->foreach(
+          [rid = in.rid, &exists](
+            const kv::ReconfigurationId& nid, const ByzantineIdentity& id) {
+            if (nid == rid)
+            {
+              exists = true;
+              return false;
+            }
+            return true;
+          });
+
+        if (exists)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::IdentityAlreadyExists,
+            fmt::format("identity for configuration {} exists", in.rid));
+        }
+
+        // For now, just pretend that we're done and that we have a shared
+        // identity.
+        ByzantineIdentity byid;
+        byid.cert = network.identity->cert;
+        ids->put(in.rid, byid);
+        return make_success(true);
+      };
+
+      make_endpoint(
+        "update-identity",
+        HTTP_POST,
+        json_adapter(update_identity),
+        // What type of auth do we require for nodes that aren't in the active
+        // config yet?
+        no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Always)
+        .set_openapi_hidden(true)
+        .install();
     }
   };
 

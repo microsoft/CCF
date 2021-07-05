@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "backup_signatures.h"
+#include "byzantine_identity.h"
 #include "certs.h"
 #include "client_signatures.h"
 #include "code_id.h"
@@ -103,6 +104,7 @@ namespace ccf
     BackupSignaturesMap backup_signatures_map;
     aft::RevealedNoncesMap revealed_nonces_map;
     NewViewsMap new_views_map;
+    ByzantineIdentities byzantine_network_identities;
 
     // JS Constitution
     Constitution constitution;
@@ -140,6 +142,7 @@ namespace ccf
       backup_signatures_map(Tables::BACKUP_SIGNATURES),
       revealed_nonces_map(Tables::NONCES),
       new_views_map(Tables::NEW_VIEWS),
+      byzantine_network_identities(Tables::BYZANTINE_NETWORK_IDENTITIES),
       constitution(Tables::CONSTITUTION)
     {}
   };
