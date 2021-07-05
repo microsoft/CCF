@@ -28,6 +28,9 @@
 #define CHANNEL_SEND_TRACE(s, ...) \
   LOG_TRACE_FMT("-> {} ({}): " s, peer_id, status.value(), ##__VA_ARGS__)
 
+#define CHANNEL_RECV_FAIL(s, ...) \
+  LOG_FAIL_FMT("<- {} ({}): " s, peer_id, status.value(), ##__VA_ARGS__)
+
 namespace ccf
 {
   using SendNonce = uint64_t;
@@ -109,8 +112,6 @@ namespace ccf
     static constexpr size_t shared_key_size = 32;
     std::vector<uint8_t> hkdf_salt;
     size_t message_limit = default_message_limit;
-
-    size_t initiation_attempt_nonce = 0;
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> recv_key;
@@ -210,20 +211,16 @@ namespace ccf
 
     void send_key_exchange_init()
     {
-      std::vector<uint8_t> payload(
-        sizeof(ChannelMsg::key_exchange_init) +
-        sizeof(initiation_attempt_nonce));
-
-      auto data = payload.data();
-      auto size = payload.size();
-
-      serialized::write(data, size, ChannelMsg::key_exchange_init);
-      // TODO: Integrity protect
-      serialized::write(data, size, initiation_attempt_nonce);
-
-      // TODO: Remove this extra copy?
-      const auto ks = get_signed_key_share(true);
-      payload.insert(payload.end(), ks.begin(), ks.end());
+      std::vector<uint8_t> payload;
+      {
+        append_msg_type(payload, ChannelMsg::key_exchange_init);
+        append_protocol_version(payload);
+        append_vector(payload, kex_ctx.get_own_key_share());
+        auto signature = node_kp->sign(kex_ctx.get_own_key_share());
+        append_vector(payload, signature);
+        append_buffer(payload, {node_cert.data(), node_cert.size()});
+        append_vector(payload, hkdf_salt);
+      }
 
       CHANNEL_SEND_TRACE(
         "send_key_exchange_init: node serial: {}",
@@ -240,31 +237,51 @@ namespace ccf
 
     void send_key_exchange_response()
     {
-      std::vector<uint8_t> payload(
-        sizeof(ChannelMsg::key_exchange_response) +
-        sizeof(initiation_attempt_nonce));
+      std::vector<uint8_t> signature;
+      {
+        auto to_sign = kex_ctx.get_own_key_share();
+        const auto& peer_ks = kex_ctx.get_peer_key_share();
+        to_sign.insert(to_sign.end(), peer_ks.begin(), peer_ks.end());
+        signature = node_kp->sign(to_sign);
+      }
 
-      auto data = payload.data();
-      auto size = payload.size();
-
-      serialized::write(data, size, ChannelMsg::key_exchange_response);
-      // TODO: Integrity protect
-      serialized::write(data, size, initiation_attempt_nonce);
-
-      auto oks = kex_ctx.get_own_key_share();
-      auto serialised_signed_share =
-        sign_key_share(oks, false, &kex_ctx.get_peer_key_share());
-
-      // TODO: Remove this extra copy?
-      payload.insert(
-        payload.end(),
-        serialised_signed_share.begin(),
-        serialised_signed_share.end());
+      std::vector<uint8_t> payload;
+      {
+        append_msg_type(payload, ChannelMsg::key_exchange_response);
+        append_protocol_version(payload);
+        append_vector(payload, kex_ctx.get_own_key_share());
+        append_vector(payload, signature);
+        append_buffer(payload, {node_cert.data(), node_cert.size()});
+      }
 
       CHANNEL_SEND_TRACE(
         "send_key_exchange_response: oks={}, serialised_signed_share={}",
-        ds::to_hex(oks),
-        ds::to_hex(serialised_signed_share));
+        ds::to_hex(kex_ctx.get_own_key_share()),
+        ds::to_hex(payload));
+
+      RINGBUFFER_WRITE_MESSAGE(
+        node_outbound,
+        to_host,
+        peer_id.value(),
+        NodeMsgType::channel_msg,
+        self.value(),
+        payload);
+    }
+
+    void send_key_exchange_final()
+    {
+      std::vector<uint8_t> payload;
+      {
+        append_msg_type(payload, ChannelMsg::key_exchange_final);
+        append_protocol_version(payload);
+        auto signature = node_kp->sign(kex_ctx.get_peer_key_share());
+        append_vector(payload, signature);
+      }
+
+      CHANNEL_SEND_TRACE(
+        "key_exchange_final: ks={}, serialised_signed_key_share={}",
+        ds::to_hex(kex_ctx.get_peer_key_share()),
+        ds::to_hex(payload));
 
       RINGBUFFER_WRITE_MESSAGE(
         node_outbound,
@@ -325,74 +342,13 @@ namespace ccf
     }
 
     bool recv_key_exchange_init(
-      const uint8_t* data, size_t size, bool priority = false)
+      const uint8_t* data, size_t size, bool they_have_priority = false)
     {
-      const auto initiation_attempt = serialized::read<size_t>(data, size);
       CHANNEL_RECV_TRACE(
-        "recv_key_exchange_init({} bytes, {}) ({} vs {})",
-        size,
-        priority,
-        initiation_attempt,
-        initiation_attempt_nonce);
+        "recv_key_exchange_init({} bytes, {})", size, they_have_priority);
 
-      if (initiation_attempt < initiation_attempt_nonce)
-      {
-        // Ignoring older attempt
-        return false;
-      }
-      else if (initiation_attempt > initiation_attempt_nonce)
-      {
-        // Accepting newer attempt - updating to its nonce
-        reset();
-        initiation_attempt_nonce = initiation_attempt;
-      }
-      else
-      {
-        // Received in the same attempt as we're currently in
-        if (status.check(INITIATED))
-        {
-          // Both nodes tried to initiate the channel, the one with priority
-          // wins.
-          if (!priority)
-          {
-            return true;
-          }
-          else
-          {
-            reset();
-          }
-        }
-        else if (!status.check(INACTIVE))
-        {
-          // Replaying an earlier message from the current attempt - ignore
-          return false;
-        }
-      }
-
-      status.expect(INACTIVE);
-
+      // Parse fields from incoming message
       size_t peer_version = serialized::read<size_t>(data, size);
-      CBuffer ks = extract_buffer(data, size);
-      CBuffer sig = extract_buffer(data, size);
-      CBuffer pc = extract_buffer(data, size);
-      CBuffer salt = extract_buffer(data, size);
-
-      CHANNEL_RECV_TRACE(
-        "recv_key_exchange_init: version={} ks={} sig={} pc={} salt={}",
-        peer_version,
-        ds::to_hex(ks),
-        ds::to_hex(sig),
-        ds::to_hex(pc),
-        ds::to_hex(salt));
-
-      if (size != 0)
-      {
-        LOG_FAIL_FMT("{} exccess bytes remaining", size);
-        return false;
-      }
-
-      hkdf_salt = {salt.p, salt.p + salt.n};
-
       if (peer_version != protocol_version)
       {
         LOG_FAIL_FMT(
@@ -402,15 +358,88 @@ namespace ccf
         return false;
       }
 
-      if (ks.n == 0 || sig.n == 0)
+      CBuffer ks = extract_buffer(data, size);
+      if (ks.n == 0)
+      {
+        CHANNEL_RECV_FAIL("Empty keyshare");
+        return false;
+      }
+
+      CBuffer sig = extract_buffer(data, size);
+      if (sig.n == 0)
+      {
+        CHANNEL_RECV_FAIL("Empty signature");
+        return false;
+      }
+
+      CBuffer pc = extract_buffer(data, size);
+      if (pc.n == 0)
+      {
+        CHANNEL_RECV_FAIL("Empty cert");
+        return false;
+      }
+
+      CBuffer salt = extract_buffer(data, size);
+      if (salt.n == 0)
+      {
+        CHANNEL_RECV_FAIL("Empty salt");
+        return false;
+      }
+
+      if (size != 0)
+      {
+        CHANNEL_RECV_FAIL("{} exccess bytes remaining", size);
+        return false;
+      }
+
+      // Validate cert and signature in message
+      crypto::Pem cert;
+      crypto::VerifierPtr verifier;
+      if (!verify_peer_certificate(pc, cert, verifier))
+      {
+        CHANNEL_RECV_FAIL("Peer certificate verification failed");
+        return false;
+      }
+
+      if (!verify_peer_signature(ks, sig, verifier))
       {
         return false;
       }
 
-      if (!verify_peer_certificate(pc) || !verify_peer_signature(ks, sig))
+      if (status.check(INITIATED))
       {
-        return false;
+        // Both nodes tried to initiate the channel, the one with priority
+        // wins.
+        if (!they_have_priority)
+        {
+          CHANNEL_RECV_TRACE("Ignoring lower priority key init");
+          // Resend in case they missed our init
+          send_key_exchange_init();
+          return true;
+        }
+        else
+        {
+          reset();
+        }
       }
+      else
+      {
+        // Whatever else we _were_ doing, we've received a valid init from them
+        // - reset to use it
+        reset();
+        peer_cert = cert;
+        peer_cv = verifier;
+      }
+
+      CHANNEL_RECV_TRACE(
+        "recv_key_exchange_init: version={} ks={} sig={} pc={} salt={}",
+        peer_version,
+        ds::to_hex(ks),
+        ds::to_hex(sig),
+        ds::to_hex(pc),
+        ds::to_hex(salt));
+
+      hkdf_salt = {salt.p, salt.p + salt.n};
 
       kex_ctx.load_peer_key_share(ks);
 
@@ -425,45 +454,16 @@ namespace ccf
 
     bool recv_key_exchange_response(const uint8_t* data, size_t size)
     {
-      const auto initiation_attempt = serialized::read<size_t>(data, size);
-      CHANNEL_RECV_TRACE(
-        "recv_key_exchange_response({} bytes) ({} vs {})",
-        size,
-        initiation_attempt,
-        initiation_attempt_nonce);
+      CHANNEL_RECV_TRACE("recv_key_exchange_response({} bytes)", size);
 
-      if (initiation_attempt < initiation_attempt_nonce)
+      if (status.value() != INITIATED)
       {
-        // Ignoring older attempt
-        return false;
-      }
-      else if (initiation_attempt > initiation_attempt_nonce)
-      {
-        // Received a _response_ from a newer attempt, meaning this node doesn't
-        // think it sent any comparable _init_. Looks malicious! Ignore it
+        CHANNEL_RECV_FAIL("Ignoring key exchange response - not expecting it");
         return false;
       }
 
-      status.expect(INITIATED);
-
+      // Parse fields from incoming message
       size_t peer_version = serialized::read<size_t>(data, size);
-      CBuffer ks = extract_buffer(data, size);
-      CBuffer sig = extract_buffer(data, size);
-      CBuffer pc = extract_buffer(data, size);
-
-      CHANNEL_RECV_TRACE(
-        "recv_key_exchange_response: version={} ks={} sig={} pc={}",
-        peer_version,
-        ds::to_hex(ks),
-        ds::to_hex(sig),
-        ds::to_hex(pc));
-
-      if (size != 0)
-      {
-        LOG_FAIL_FMT("{} exccess bytes remaining", size);
-        return false;
-      }
-
       if (peer_version != protocol_version)
       {
         LOG_FAIL_FMT(
@@ -473,72 +473,70 @@ namespace ccf
         return false;
       }
 
-      if (ks.n == 0 || sig.n == 0)
+      CBuffer ks = extract_buffer(data, size);
+      if (ks.n == 0)
       {
+        LOG_FAIL_FMT("Empty keyshare");
         return false;
       }
 
-      if (!verify_peer_certificate(pc))
+      CBuffer sig = extract_buffer(data, size);
+      if (sig.n == 0)
       {
+        LOG_FAIL_FMT("Empty signature");
         return false;
       }
 
-      // We are the initiator and expect a signature over both key shares
-      std::vector<uint8_t> t = {ks.p, ks.p + ks.n};
-      auto oks = kex_ctx.get_own_key_share();
-      t.insert(t.end(), oks.begin(), oks.end());
-
-      if (!verify_peer_signature(t, sig))
+      CBuffer pc = extract_buffer(data, size);
+      if (pc.n == 0)
       {
-        // TODO: Should we close the channel here and retry? Are they malicious
-        // or confused, and how does that change our decision?
+        LOG_FAIL_FMT("Empty cert");
         return false;
       }
+
+      if (size != 0)
+      {
+        LOG_FAIL_FMT("{} exccess bytes remaining", size);
+        return false;
+      }
+
+      // Validate cert and signature in message
+      crypto::Pem cert;
+      crypto::VerifierPtr verifier;
+      if (!verify_peer_certificate(pc, cert, verifier))
+      {
+        CHANNEL_RECV_FAIL("Peer certificate verification failed");
+        return false;
+      }
+
+      {
+        // We are the initiator and expect a signature over both key shares
+        std::vector<uint8_t> signed_msg = {ks.p, ks.p + ks.n};
+        const auto& oks = kex_ctx.get_own_key_share();
+        signed_msg.insert(signed_msg.end(), oks.begin(), oks.end());
+
+        if (!verify_peer_signature(signed_msg, sig, verifier))
+        {
+          // This isn't a valid signature for this key exchange attempt.
+          // TODO: Maybe it is old and we should resubmit?
+          CHANNEL_RECV_FAIL("Peer certificate verification failed");
+          return false;
+        }
+      }
+
+      peer_cert = cert;
+      peer_cv = verifier;
+
+      CHANNEL_RECV_TRACE(
+        "recv_key_exchange_response: version={} ks={} sig={} pc={}",
+        peer_version,
+        ds::to_hex(ks),
+        ds::to_hex(sig),
+        ds::to_hex(pc));
 
       kex_ctx.load_peer_key_share(ks);
 
-      std::vector<uint8_t> payload(
-        sizeof(ChannelMsg::key_exchange_final) +
-        sizeof(initiation_attempt_nonce));
-
-      {
-        auto payload_data = payload.data();
-        auto payload_size = payload.size();
-
-        serialized::write(
-          payload_data, payload_size, ChannelMsg::key_exchange_final);
-        // TODO: Integrity protect
-        serialized::write(payload_data, payload_size, initiation_attempt_nonce);
-      }
-
-      // Sign the peer's key share
-      auto signature = node_kp->sign(ks);
-
-      // Serialise signature with length-prefix
-      auto space = signature.size() + 1 * sizeof(size_t);
-      std::vector<uint8_t> serialised_signature(space);
-      auto data_ = serialised_signature.data();
-      serialized::write(data_, space, signature.size());
-      serialized::write(data_, space, signature.data(), signature.size());
-
-      // TODO: Remove this extra copy?
-      payload.insert(
-        payload.end(),
-        serialised_signature.begin(),
-        serialised_signature.end());
-
-      CHANNEL_SEND_TRACE(
-        "key_exchange_final: ks={}, serialised_signed_key_share={}",
-        ds::to_hex(ks),
-        ds::to_hex(serialised_signature));
-
-      RINGBUFFER_WRITE_MESSAGE(
-        node_outbound,
-        to_host,
-        peer_id.value(),
-        NodeMsgType::channel_msg,
-        self.value(),
-        payload);
+      send_key_exchange_final();
 
       establish();
 
@@ -547,35 +545,35 @@ namespace ccf
 
     bool recv_key_exchange_final(const uint8_t* data, size_t size)
     {
-      const auto initiation_attempt = serialized::read<size_t>(data, size);
-      CHANNEL_RECV_TRACE(
-        "recv_key_exchange_final({} bytes) ({} vs {})",
-        size,
-        initiation_attempt,
-        initiation_attempt_nonce);
+      CHANNEL_RECV_TRACE("recv_key_exchange_final({} bytes)", size);
 
-      if (initiation_attempt < initiation_attempt_nonce)
+      if (status.value() != WAITING_FOR_FINAL)
       {
-        // Ignoring older attempt
-        return false;
-      }
-      else if (initiation_attempt > initiation_attempt_nonce)
-      {
-        // Same as in `recv_key_exchange_response` - received a message claiming
-        // to respond to something we never sent. Ignore it
+        CHANNEL_RECV_FAIL("Ignoring key exchange final - not expecting it");
         return false;
       }
 
-      status.expect(WAITING_FOR_FINAL);
-
-      auto oks = kex_ctx.get_own_key_share();
+      // Parse fields from incoming message
+      size_t peer_version = serialized::read<size_t>(data, size);
+      if (peer_version != protocol_version)
+      {
+        LOG_FAIL_FMT(
+          "Protocol version mismatch (node={}, peer={})",
+          protocol_version,
+          peer_version);
+        return false;
+      }
 
       CBuffer sig = extract_buffer(data, size);
-
-      if (!verify_peer_signature(oks, sig))
+      if (sig.n == 0)
       {
-        // TODO: Should we close the channel here and retry? Are they malicious
-        // or confused, and how does that change our decision?
+        LOG_FAIL_FMT("Empty signature");
+        return false;
+      }
+
+      if (!verify_peer_signature(kex_ctx.get_own_key_share(), sig, peer_cv))
+      {
+        CHANNEL_RECV_FAIL("Peer certificate verification failed");
         return false;
       }
 
@@ -584,10 +582,42 @@ namespace ccf
       return true;
     }
 
+    void append_protocol_version(std::vector<uint8_t>& target)
+    {
+      const auto size_before = target.size();
+      auto size = sizeof(protocol_version);
+      target.resize(size_before + size);
+      auto data = target.data() + size_before;
+      serialized::write(data, size, protocol_version);
+    }
+
+    void append_msg_type(std::vector<uint8_t>& target, ChannelMsg msg_type)
+    {
+      const auto size_before = target.size();
+      auto size = sizeof(msg_type);
+      target.resize(size_before + size);
+      auto data = target.data() + size_before;
+      serialized::write(data, size, msg_type);
+    }
+
+    void append_buffer(std::vector<uint8_t>& target, CBuffer src)
+    {
+      const auto size_before = target.size();
+      auto size = src.n + sizeof(src.n);
+      target.resize(size_before + size);
+      auto data = target.data() + size_before;
+      serialized::write(data, size, src.n);
+      serialized::write(data, size, src.p, src.n);
+    }
+
+    void append_vector(
+      std::vector<uint8_t>& target, const std::vector<uint8_t>& src)
+    {
+      append_buffer(target, src);
+    }
+
   public:
-    // TODO: Need to bump this to add initiation attempt nonces! Should try
-    // to be compatible with old nodes...
-    static constexpr size_t protocol_version = 2;
+    static constexpr size_t protocol_version = 1;
 
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -620,49 +650,45 @@ namespace ccf
       return status.value();
     }
 
-    std::vector<uint8_t> sign_key_share(
-      const std::vector<uint8_t>& ks,
+    void sign_message(
+      std::vector<uint8_t>& target,
+      const std::vector<uint8_t>& message,
       bool with_salt = false,
-      const std::vector<uint8_t>* extra = nullptr)
+      const std::vector<uint8_t>& extra_to_sign = {})
     {
-      std::vector<uint8_t> t = ks;
+      std::vector<uint8_t> to_sign = message;
 
-      if (extra)
-      {
-        t.insert(t.end(), extra->begin(), extra->end());
-      }
+      // Append any extra data to be signed (not serialised, assumed known by
+      // receiver)
+      to_sign.insert(to_sign.end(), extra_to_sign.begin(), extra_to_sign.end());
 
-      auto signature = node_kp->sign(t);
+      auto signature = node_kp->sign(to_sign);
 
       // Serialise channel key share, signature, and certificate and
       // length-prefix them
-      auto space =
-        ks.size() + signature.size() + node_cert.size() + 4 * sizeof(size_t);
+      auto space = message.size() + signature.size() + node_cert.size() +
+        5 * sizeof(size_t);
       if (with_salt)
       {
         space += hkdf_salt.size() + sizeof(size_t);
       }
-      std::vector<uint8_t> serialised_signed_key_share(space);
-      auto data_ = serialised_signed_key_share.data();
-      serialized::write(data_, space, protocol_version);
-      serialized::write(data_, space, ks.size());
-      serialized::write(data_, space, ks.data(), ks.size());
-      serialized::write(data_, space, signature.size());
-      serialized::write(data_, space, signature.data(), signature.size());
-      serialized::write(data_, space, node_cert.size());
-      serialized::write(data_, space, node_cert.data(), node_cert.size());
+
+      const auto prior_size = target.size();
+      target.resize(prior_size + space);
+
+      auto data = target.data() + prior_size;
+      serialized::write(data, space, protocol_version);
+      serialized::write(data, space, message.size());
+      serialized::write(data, space, message.data(), message.size());
+      serialized::write(data, space, signature.size());
+      serialized::write(data, space, signature.data(), signature.size());
+      serialized::write(data, space, node_cert.size());
+      serialized::write(data, space, node_cert.data(), node_cert.size());
       if (with_salt)
       {
-        serialized::write(data_, space, hkdf_salt.size());
-        serialized::write(data_, space, hkdf_salt.data(), hkdf_salt.size());
+        serialized::write(data, space, hkdf_salt.size());
+        serialized::write(data, space, hkdf_salt.data(), hkdf_salt.size());
       }
-
-      return serialised_signed_key_share;
-    }
-
-    std::vector<uint8_t> get_signed_key_share(bool with_salt)
-    {
-      return sign_key_share(kex_ctx.get_own_key_share(), with_salt);
     }
 
     CBuffer extract_buffer(const uint8_t*& data, size_t& size) const
@@ -690,42 +716,41 @@ namespace ccf
       return r;
     }
 
-    bool verify_peer_certificate(CBuffer pc)
+    bool verify_peer_certificate(
+      CBuffer pc, crypto::Pem& cert, crypto::VerifierPtr& verifier)
     {
       if (pc.n != 0)
       {
-        peer_cert = crypto::Pem(pc);
-        peer_cv = crypto::make_verifier(peer_cert);
+        cert = crypto::Pem(pc);
+        verifier = crypto::make_verifier(cert);
 
-        if (!peer_cv->verify_certificate({&network_cert}))
+        if (!verifier->verify_certificate({&network_cert}))
         {
-          LOG_FAIL_FMT("Peer certificate verification failed");
-          reset();
           return false;
         }
 
         LOG_TRACE_FMT(
           "New peer certificate: {}\n{}",
-          peer_cv->serial_number(),
-          peer_cert.str());
-      }
+          verifier->serial_number(),
+          cert.str());
 
-      return true;
+        return true;
+      }
+      else
+      {
+        return false;
+      }
     }
 
-    bool verify_peer_signature(CBuffer msg, CBuffer sig)
+    bool verify_peer_signature(
+      CBuffer msg, CBuffer sig, crypto::VerifierPtr verifier)
     {
       LOG_TRACE_FMT(
         "Verifying peer signature with peer certificate serial {}",
-        peer_cv ? peer_cv->serial_number() : "no peer_cv!");
+        verifier ? verifier->serial_number() : "no peer_cv!");
 
-      if (!peer_cv || !peer_cv->verify(msg, sig))
+      if (!verifier || !verifier->verify(msg, sig))
       {
-        LOG_FAIL_FMT(
-          "Node channel peer signature verification failed for {} with "
-          "certificate serial {}",
-          peer_id,
-          peer_cv->serial_number());
         return false;
       }
 
@@ -797,8 +822,6 @@ namespace ccf
     void initiate()
     {
       LOG_INFO_FMT("Initiating node channel with {}.", peer_id);
-
-      initiation_attempt_nonce++;
 
       // Begin with new key exchange
       kex_ctx.reset();
@@ -959,7 +982,6 @@ namespace ccf
     {
       reset();
       outgoing_msg.reset();
-      ++initiation_attempt_nonce;
     }
 
     void reset()
