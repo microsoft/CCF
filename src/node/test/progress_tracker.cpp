@@ -61,7 +61,6 @@ void ordered_execution(
 {
   ccf::View view = 0;
   ccf::SeqNo seqno = 42;
-  uint32_t node_count = 4;
   uint32_t node_count_quorum =
     2; // Takes into account that counting starts at 0
   bool am_i_primary = (my_node_id == kv::test::PrimaryNodeId);
@@ -73,6 +72,11 @@ void ordered_execution(
   ccf::Nonce hashed_nonce;
   std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
   std::vector<uint8_t> primary_sig;
+  kv::Configuration::Nodes nodes;
+  for (auto const& node_id : node_ids)
+  {
+    nodes.insert({node_id, kv::Configuration::NodeInfo()});
+  }
 
   INFO("Adding signatures");
   {
@@ -83,7 +87,7 @@ void ordered_execution(
       root,
       primary_sig,
       hashed_nonce,
-      node_count);
+      nodes);
     REQUIRE(result == kv::TxHistory::Result::OK);
     primary_sig = {1};
     result = pt->record_primary_signature({view, seqno}, primary_sig);
@@ -95,7 +99,7 @@ void ordered_execution(
       if (node_id == my_node_id)
       {
         auto h = pt->get_node_hashed_nonce({view, seqno});
-        std::copy(h.h.begin(), h.h.end(), hashed_nonce.h.begin());
+        std::copy(h->h.begin(), h->h.end(), hashed_nonce.h.begin());
       }
       else
       {
@@ -108,7 +112,7 @@ void ordered_execution(
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
         hashed_nonce,
-        node_count,
+        nodes,
         am_i_primary);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
@@ -123,7 +127,7 @@ void ordered_execution(
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto result = pt->add_signature_ack({view, seqno}, node_id, node_count);
+      auto result = pt->add_signature_ack({view, seqno}, node_id, nodes);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
          (result == kv::TxHistory::Result::SEND_REPLY_AND_NONCE &&
@@ -141,15 +145,15 @@ void ordered_execution(
       {
         pt->add_nonce_reveal(
           {view, seqno},
-          pt->get_node_nonce({view, seqno}),
+          pt->get_node_nonce({view, seqno}).value(),
           node_id,
-          node_count,
+          nodes,
           am_i_primary);
       }
       else
       {
         pt->add_nonce_reveal(
-          {view, seqno}, nonce, node_id, node_count, am_i_primary);
+          {view, seqno}, nonce, node_id, nodes, am_i_primary);
       }
 
       if (i < 2)
@@ -343,7 +347,11 @@ TEST_CASE("Record primary signature")
   std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> sig;
   ccf::Nonce nonce;
   ccf::Nonce hashed_nonce;
-  uint32_t node_count = 4;
+  kv::Configuration::Nodes nodes;
+  for (auto const& node_id : node_ids)
+  {
+    nodes.insert({node_id, kv::Configuration::NodeInfo()});
+  }
   std::vector<uint8_t> primary_sig;
 
   INFO("Can record primary signature");
@@ -380,11 +388,11 @@ TEST_CASE("Record primary signature")
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
         hashed_nonce,
-        node_count,
+        nodes,
         false);
       REQUIRE(result == kv::TxHistory::Result::OK);
       result = pt.record_primary(
-        {view + 1, seqno},
+        {view, seqno},
         kv::test::PrimaryNodeId,
         false,
         root,
@@ -417,7 +425,11 @@ TEST_CASE("View Changes")
 
   ccf::View view = 0;
   ccf::SeqNo seqno = 42;
-  uint32_t node_count = 4;
+  kv::Configuration::Nodes nodes;
+  for (auto const& node_id : node_ids)
+  {
+    nodes.insert({node_id, kv::Configuration::NodeInfo()});
+  }
   uint32_t node_count_quorum =
     2; // Takes into account that counting starts at 0
   crypto::Sha256Hash root;
@@ -442,7 +454,7 @@ TEST_CASE("View Changes")
       root,
       primary_sig,
       hashed_nonce,
-      node_count);
+      nodes);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     size_t i = 1;
@@ -459,7 +471,7 @@ TEST_CASE("View Changes")
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
         hashed_nonce,
-        node_count,
+        nodes,
         false);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
@@ -494,7 +506,7 @@ TEST_CASE("View Changes")
       root,
       primary_sig,
       hashed_nonce,
-      node_count);
+      nodes);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     size_t i = 1;
@@ -511,7 +523,7 @@ TEST_CASE("View Changes")
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
         hashed_nonce,
-        node_count,
+        nodes,
         false);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
@@ -547,7 +559,7 @@ TEST_CASE("View Changes")
       root,
       primary_sig,
       hashed_nonce,
-      node_count);
+      nodes);
     REQUIRE(result == kv::TxHistory::Result::OK);
 
     size_t i = 1;
@@ -564,7 +576,7 @@ TEST_CASE("View Changes")
         MBEDTLS_ECDSA_MAX_LEN,
         sig,
         hashed_nonce,
-        node_count,
+        nodes,
         false);
       REQUIRE(
         ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
@@ -667,7 +679,11 @@ TEST_CASE("view-change-tracker statemachine tests")
   ccf::ViewChangeRequest v;
   ccf::View view = 3;
   ccf::SeqNo seqno = 1;
-  uint32_t node_count = 4;
+  kv::Configuration::Nodes nodes;
+  for (auto const& node_id : node_ids)
+  {
+    nodes.insert({node_id, kv::Configuration::NodeInfo()});
+  }
 
   INFO("Can trigger view change");
   {
@@ -675,7 +691,7 @@ TEST_CASE("view-change-tracker statemachine tests")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, view, node_count);
+      auto r = vct.add_request_view_change(v, node_id, view, nodes);
       if (i == 2)
       {
         REQUIRE(
@@ -700,7 +716,7 @@ TEST_CASE("view-change-tracker statemachine tests")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, i, node_count);
+      auto r = vct.add_request_view_change(v, node_id, i, nodes);
       REQUIRE(r == aft::ViewChangeTracker::ResultAddView::OK);
       i++;
     }
@@ -801,7 +817,11 @@ TEST_CASE("Sending evidence out of band")
   ccf::ViewChangeRequest v;
   ccf::View view = 3;
   ccf::SeqNo seqno = 1;
-  constexpr uint32_t node_count = 4;
+  kv::Configuration::Nodes nodes;
+  for (auto const& node_id : node_ids)
+  {
+    nodes.insert({node_id, kv::Configuration::NodeInfo()});
+  }
 
   INFO("Can trigger view change");
   {
@@ -809,7 +829,7 @@ TEST_CASE("Sending evidence out of band")
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      auto r = vct.add_request_view_change(v, node_id, view, node_count);
+      auto r = vct.add_request_view_change(v, node_id, view, nodes);
       if (i == 2)
       {
         REQUIRE(
@@ -839,7 +859,7 @@ TEST_CASE("Sending evidence out of band")
           .RETURN(true);
         ccf::NodeId from;
         REQUIRE(vct_2.add_unknown_primary_evidence(
-          {data.data(), data.size()}, view, from, node_count));
+          {data.data(), data.size()}, view, from, nodes));
         REQUIRE(vct_2.check_evidence(view));
       }
       else
@@ -850,7 +870,7 @@ TEST_CASE("Sending evidence out of band")
           .RETURN(true);
         ccf::NodeId from;
         REQUIRE(!vct_2.add_unknown_primary_evidence(
-          {data.data(), data.size()}, view, from, node_count));
+          {data.data(), data.size()}, view, from, nodes));
         REQUIRE(!vct_2.check_evidence(view));
       }
       REQUIRE(!vct_2.check_evidence(view + 1));

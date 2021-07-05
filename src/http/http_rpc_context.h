@@ -6,8 +6,6 @@
 #include "http_parser.h"
 #include "http_sig.h"
 #include "node/rpc/error.h"
-#include "ws_parser.h"
-#include "ws_rpc_context.h"
 
 namespace http
 {
@@ -293,7 +291,6 @@ namespace http
   };
 }
 
-// https://github.com/microsoft/CCF/issues/844
 namespace enclave
 {
   inline std::shared_ptr<RpcContext> make_rpc_context(
@@ -331,34 +328,6 @@ namespace enclave
       case enclave::FrameFormat::http:
       {
         return make_rpc_context(s, packed, raw_bft);
-      }
-      case enclave::FrameFormat::ws:
-      {
-        http::SimpleRequestProcessor processor;
-        ws::RequestParser parser(processor);
-
-        auto next_read = ws::INITIAL_READ;
-        size_t index = 0;
-        while (index < packed.size())
-        {
-          const auto next_next =
-            parser.consume(packed.data() + index, next_read);
-          index += next_read;
-          next_read = next_next;
-        }
-
-        if (processor.received.size() != 1)
-        {
-          throw std::logic_error(fmt::format(
-            "Expected packed to contain a single complete WS message. Actually "
-            "parsed {} messages",
-            processor.received.size()));
-        }
-
-        const auto& msg = processor.received.front();
-
-        return std::make_shared<ws::WsRpcContext>(
-          0, s, msg.url, msg.body, packed, raw_bft);
       }
       default:
         throw std::logic_error("Unknown Frame Format");

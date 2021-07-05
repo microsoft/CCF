@@ -16,6 +16,7 @@ namespace ccf
   {
     kv::Version version;
     std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
+    std::unordered_set<NodeId> learners;
 
   public:
     ConfigurationChangeHook(kv::Version version_, const Nodes::Write& w) :
@@ -42,6 +43,12 @@ namespace ccf
             cfg_delta.try_emplace(node_id, std::nullopt);
             break;
           }
+          case NodeStatus::LEARNER:
+          {
+            cfg_delta.try_emplace(node_id, NodeAddr{ni.nodehost, ni.nodeport});
+            learners.insert(node_id);
+            break;
+          }
           default:
           {
           }
@@ -65,7 +72,7 @@ namespace ccf
       }
       if (!cfg_delta.empty())
       {
-        consensus->add_configuration(version, configuration);
+        consensus->add_configuration(version, configuration, learners);
       }
     }
   };
