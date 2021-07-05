@@ -175,10 +175,9 @@ namespace ccf
         // If the nonce received has already been processed, return
         // See https://github.com/microsoft/CCF/issues/2492 for more details on
         // how this can happen around election time
-        LOG_TRACE_FMT(
-          "Received past nonce from:{}, received:{}, "
+        CHANNEL_RECV_TRACE(
+          "Received past nonce, received:{}, "
           "last_seen:{}, recv_nonce.tid:{}",
-          peer_id,
           reinterpret_cast<uint64_t>(recv_nonce.nonce),
           *local_nonce,
           recv_nonce.tid);
@@ -406,21 +405,13 @@ namespace ccf
         return false;
       }
 
-      if (status.check(INITIATED))
+      // Both nodes tried to initiate the channel, the one with priority
+      // wins.
+      if (status.check(INITIATED) && !they_have_priority)
       {
-        // Both nodes tried to initiate the channel, the one with priority
-        // wins.
-        if (!they_have_priority)
-        {
-          CHANNEL_RECV_TRACE("Ignoring lower priority key init");
-          // Resend in case they missed our init
-          send_key_exchange_init();
-          return true;
-        }
-        else
-        {
-          reset();
-        }
+        CHANNEL_RECV_TRACE("Ignoring lower priority key init");
+        // TODO: Resend in case they missed our init?
+        return true;
       }
       else
       {
@@ -526,13 +517,6 @@ namespace ccf
 
       peer_cert = cert;
       peer_cv = verifier;
-
-      CHANNEL_RECV_TRACE(
-        "recv_key_exchange_response: version={} ks={} sig={} pc={}",
-        peer_version,
-        ds::to_hex(ks),
-        ds::to_hex(sig),
-        ds::to_hex(pc));
 
       kex_ctx.load_peer_key_share(ks);
 
@@ -729,7 +713,7 @@ namespace ccf
           return false;
         }
 
-        LOG_TRACE_FMT(
+        CHANNEL_RECV_TRACE(
           "New peer certificate: {}\n{}",
           verifier->serial_number(),
           cert.str());
@@ -745,7 +729,7 @@ namespace ccf
     bool verify_peer_signature(
       CBuffer msg, CBuffer sig, crypto::VerifierPtr verifier)
     {
-      LOG_TRACE_FMT(
+      CHANNEL_RECV_TRACE(
         "Verifying peer signature with peer certificate serial {}",
         verifier ? verifier->serial_number() : "no peer_cv!");
 
@@ -806,7 +790,7 @@ namespace ccf
       LOG_INFO_FMT("Node channel with {} is now established.", peer_id);
 
       auto node_cv = make_verifier(node_cert);
-      LOG_TRACE_FMT(
+      CHANNEL_RECV_TRACE(
         "Node certificate serial numbers: node={} peer={}",
         node_cv->serial_number(),
         peer_cv->serial_number());
@@ -1087,4 +1071,6 @@ namespace fmt
   };
 }
 
-#undef CHANNEL_TRACE_FMT
+#undef CHANNEL_RECV_TRACE
+#undef CHANNEL_SEND_TRACE
+#undef CHANNEL_RECV_FAIL
