@@ -294,13 +294,16 @@ class Consortium:
             r = c.get(f"/node/network/nodes/{node_to_retire.node_id}")
             assert r.body.json()["status"] == NodeStatus.RETIRED.value
 
-    def trust_node(self, remote_node, node_id, timeout=3):
+    def trust_node(
+        self, remote_node, node_id, expected_status=NodeStatus.TRUSTED, timeout=3
+    ):
         if not self._check_node_exists(remote_node, node_id, NodeStatus.PENDING):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        proposal_body, careful_vote = self.make_proposal(
-            "transition_node_to_trusted", node_id
-        )
+        fn = "transition_node_to_trusted"
+        if expected_status == NodeStatus.LEARNER:
+            fn = "transition_node_to_learner"
+        proposal_body, careful_vote = self.make_proposal(fn, node_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node,
@@ -310,8 +313,10 @@ class Consortium:
             timeout=timeout,
         )
 
-        if not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
-            raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
+        if not self._check_node_exists(remote_node, node_id, expected_status):
+            raise ValueError(
+                f"Node {node_id} does not exist in state {expected_status}"
+            )
 
     def remove_member(self, remote_node, member_to_remove):
         LOG.info(f"Retiring member {member_to_remove.local_id}")

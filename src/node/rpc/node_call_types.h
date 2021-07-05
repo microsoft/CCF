@@ -7,6 +7,7 @@
 #include "node/ledger_secrets.h"
 #include "node/members.h"
 #include "node/node_info_network.h"
+#include "node/service.h"
 #include "tls/base64.h"
 
 #include <nlohmann/json.hpp>
@@ -96,6 +97,7 @@ namespace ccf
 
         LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;
+        ServiceStatus service_status;
 
         bool operator==(const NetworkInfo& other) const
         {
@@ -103,6 +105,7 @@ namespace ccf
             last_recovered_signed_idx == other.last_recovered_signed_idx &&
             consensus_type == other.consensus_type &&
             ledger_secrets == other.ledger_secrets &&
+            service_status == other.service_status &&
             identity == other.identity;
         }
 

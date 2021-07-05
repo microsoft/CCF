@@ -112,7 +112,8 @@ namespace kv
     Leader,
     Follower,
     Candidate,
-    Retired
+    Retired,
+    Learner
   };
 
   DECLARE_JSON_ENUM(
@@ -120,7 +121,8 @@ namespace kv
     {{ReplicaState::Leader, "Leader"},
      {ReplicaState::Follower, "Follower"},
      {ReplicaState::Candidate, "Candidate"},
-     {ReplicaState::Retired, "Retired"}});
+     {ReplicaState::Retired, "Retired"},
+     {ReplicaState::Learner, "Learner"}});
 
   DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes);
@@ -130,16 +132,20 @@ namespace kv
     std::vector<Configuration> configs = {};
     std::unordered_map<ccf::NodeId, ccf::SeqNo> acks = {};
     ReplicaState state;
+    std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners;
   };
 
-  DECLARE_JSON_TYPE(ConsensusDetails);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ConsensusDetails);
   DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks, state);
+  DECLARE_JSON_OPTIONAL_FIELDS(ConsensusDetails, learners);
 
   class ConfigurableConsensus
   {
   public:
     virtual void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) = 0;
+      ccf::SeqNo seqno,
+      const Configuration::Nodes& conf,
+      const std::unordered_set<NodeId>& learners = {}) = 0;
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;

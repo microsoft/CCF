@@ -771,6 +771,32 @@ const actions = new Map([
     ),
   ],
   [
+    "transition_node_to_learner",
+    new Action(
+      function (args) {
+        checkEntityId(args.node_id, "node_id");
+      },
+      function (args) {
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node === undefined) {
+          throw new Error(`No such node: ${args.node_id}`);
+        }
+        const nodeInfo = ccf.bufToJsonCompatible(node);
+        if (nodeInfo.status === "Pending") {
+          nodeInfo.status = "Learner";
+          nodeInfo.ledger_secret_seqno =
+            ccf.network.getLatestLedgerSecretSeqno();
+          ccf.kv["public:ccf.gov.nodes.info"].set(
+            ccf.strToBuf(args.node_id),
+            ccf.jsonCompatibleToBuf(nodeInfo)
+          );
+        }
+      }
+    ),
+  ],
+  [
     "remove_node_code",
     new Action(
       function (args) {

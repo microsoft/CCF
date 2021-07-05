@@ -12,6 +12,7 @@
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
+#include "node/reconfig_id.h"
 #include "node_interface.h"
 
 namespace ccf
@@ -122,7 +123,8 @@ namespace ccf
       kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
       const JoinNetworkNodeToNode::In& in,
-      NodeStatus node_status)
+      NodeStatus node_status,
+      ServiceStatus service_status)
     {
       auto nodes = tx.rw(network.nodes);
 
@@ -172,7 +174,9 @@ namespace ccf
 #endif
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
-      if (node_status == NodeStatus::TRUSTED)
+      if (
+        node_status == NodeStatus::TRUSTED ||
+        node_status == NodeStatus::LEARNER)
       {
         ledger_secret_seqno =
           this->network.ledger_secrets->get_latest(tx).first;
@@ -185,6 +189,7 @@ namespace ccf
          in.quote_info,
          in.public_encryption_key,
          node_status,
+         get_next_reconfiguration_id(network, tx),
          ledger_secret_seqno,
          ds::to_hex(code_digest.data)});
 
@@ -194,14 +199,17 @@ namespace ccf
       rep.node_status = node_status;
       rep.node_id = joining_node_id;
 
-      if (node_status == NodeStatus::TRUSTED)
+      if (
+        node_status == NodeStatus::TRUSTED ||
+        node_status == NodeStatus::LEARNER)
       {
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           context.get_node_state().is_part_of_public_network(),
           context.get_node_state().get_last_recovered_signed_idx(),
           this->network.consensus_type,
           this->network.ledger_secrets->get(tx),
-          *this->network.identity.get()};
+          *this->network.identity.get(),
+          service_status};
       }
       return make_success(rep);
     }
@@ -216,7 +224,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "1.3.0";
+      openapi_info.document_version = "1.4.0";
     }
 
     void init_handlers() override
@@ -298,7 +306,8 @@ namespace ccf
               this->network.consensus_type,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->second),
-              *this->network.identity.get()};
+              *this->network.identity.get(),
+              active_service->status};
             return make_success(rep);
           }
 
@@ -335,7 +344,8 @@ namespace ccf
             args.tx,
             args.rpc_ctx->session->caller_cert,
             in,
-            joining_node_status);
+            joining_node_status,
+            active_service->status);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -354,7 +364,9 @@ namespace ccf
           // trusted. Otherwise, only return its status
           auto node_status = nodes->get(existing_node_info->first)->status;
           rep.node_status = node_status;
-          if (node_status == NodeStatus::TRUSTED)
+          if (
+            node_status == NodeStatus::TRUSTED ||
+            node_status == NodeStatus::LEARNER)
           {
             rep.network_info = {
               context.get_node_state().is_part_of_public_network(),
@@ -362,7 +374,8 @@ namespace ccf
               this->network.consensus_type,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->second),
-              *this->network.identity.get()};
+              *this->network.identity.get(),
+              active_service->status};
             return make_success(rep);
           }
           else if (node_status == NodeStatus::PENDING)
@@ -414,7 +427,8 @@ namespace ccf
             args.tx,
             args.rpc_ctx->session->caller_cert,
             in,
-            NodeStatus::PENDING);
+            NodeStatus::PENDING,
+            active_service->status);
         }
       };
       make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)
@@ -527,7 +541,9 @@ namespace ccf
         auto nodes = args.tx.ro(network.nodes);
         nodes->foreach([& quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
-          if (node_info.status == ccf::NodeStatus::TRUSTED)
+          if (
+            node_info.status == ccf::NodeStatus::TRUSTED ||
+            node_info.status == ccf::NodeStatus::LEARNER)
           {
             Quote q;
             q.node_id = node_id;

@@ -14,6 +14,7 @@
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
+#include "node/reconfig_id.h"
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
@@ -830,6 +831,7 @@ namespace ccf
            {in.quote_info},
            in.public_encryption_key,
            NodeStatus::TRUSTED,
+           get_next_reconfiguration_id(network, ctx.tx),
            std::nullopt,
            ds::to_hex(in.code_digest.data)});
 
