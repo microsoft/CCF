@@ -113,11 +113,30 @@ def test_jwt_without_key_policy(network, args):
     return network
 
 
+def make_attested_cert(network, args):
+    keygen = os.path.join(args.binary_dir, "keygenerator.sh")
+    oeutil = os.path.join(args.oe_binary, "oeutil")
+    infra.proc.ccall(
+        keygen, "--name", "attested", "--gen-enc-key", path=network.common_dir
+    ).check_returncode()
+    privk = os.path.join(network.common_dir, "attested_enc_privk.pem")
+    pubk = os.path.join(network.common_dir, "attested_enc_pubk.pem")
+    der = os.path.join(network.common_dir, "oe_cert.der")
+    infra.proc.ccall(
+        oeutil, "generate-evidence", "-f", "cert", privk, pubk, "-o", der
+    ).check_returncode()
+    pem = os.path.join(network.common_dir, "oe_cert.pem")
+    infra.proc.ccall(
+        "openssl", "x509", "-inform", "der", "-in", der, "-out", pem
+    ).check_returncode()
+    return pem
+
+
 @reqs.description("JWT with SGX key policy")
 def test_jwt_with_sgx_key_policy(network, args):
     primary, _ = network.find_nodes()
+    oe_cert_path = make_attested_cert(network, args)
 
-    oe_cert_path = os.path.join(this_dir, "oe_cert.pem")
     with open(oe_cert_path) as f:
         oe_cert_pem = f.read()
 
@@ -126,7 +145,7 @@ def test_jwt_with_sgx_key_policy(network, args):
 
     matching_key_policy = {
         "sgx_claims": {
-            "signer_id": "ca9ad7331448980aa28890ce73e433638377f179ab4456b2fe237193193a8d0a",
+            "signer_id": "a4922704a099ee48c576cd72f28966fc2e55797a547f658b2c2f9bb426044e15",
             "attributes": "0300000000000000",
         }
     }
@@ -201,7 +220,7 @@ def test_jwt_with_sgx_key_policy(network, args):
 def test_jwt_with_sgx_key_filter(network, args):
     primary, _ = network.find_nodes()
 
-    oe_cert_path = os.path.join(this_dir, "oe_cert.pem")
+    oe_cert_path = make_attested_cert(network, args)
     with open(oe_cert_path) as f:
         oe_cert_pem = f.read()
 
@@ -408,8 +427,9 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         network = test_jwt_without_key_policy(network, args)
-        # network = test_jwt_with_sgx_key_policy(network, args)
-        # network = test_jwt_with_sgx_key_filter(network, args)
+        if args.enclave_type != "virtual":
+            network = test_jwt_with_sgx_key_policy(network, args)
+            network = test_jwt_with_sgx_key_filter(network, args)
         network = test_jwt_key_auto_refresh(network, args)
 
         # Check that auto refresh also works on backups

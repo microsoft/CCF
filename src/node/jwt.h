@@ -229,10 +229,12 @@ namespace ccf
           if (expected_claim_val_hex != actual_claim_val_hex)
           {
             LOG_FAIL_FMT(
-              "{}: JWKS kid {} has a mismatching {} SGX claim",
+              "{}: JWKS kid {} has a mismatching {} SGX claim: {} != {}",
               log_prefix,
               jwk.kid,
-              claim_name);
+              claim_name,
+              expected_claim_val_hex,
+              actual_claim_val_hex);
             return false;
           }
         }
