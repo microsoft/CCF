@@ -193,9 +193,9 @@ TEST_CASE("Client/Server key exchange")
 
   INFO("Extract key share, signature, certificate from messages");
   {
-    // Every send has been replaced with a new channel establishment message
+    // Attempting to send has produced a new channel establishment message
     auto msgs = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(msgs.size() == 2);
+    REQUIRE(msgs.size() == 1);
     REQUIRE(msgs[0].type == channel_msg);
     REQUIRE(msgs[1].type == channel_msg);
     REQUIRE(read_outbound_msgs<MsgType>(eio2).size() == 0);
@@ -990,7 +990,7 @@ TEST_CASE("Robust key exchange")
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
 
     auto outbound = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(outbound.size() == 3);
+    REQUIRE(outbound.size() == 2);
     for (size_t i = 0; i < outbound.size(); ++i)
     {
       const auto& msg = outbound[i];
@@ -1125,7 +1125,7 @@ TEST_CASE("Robust key exchange")
       nid2, NodeMsgType::consensus_msg, payload.data(), payload.size());
 
     receive_junk();
-    
+
     channels1.close_channel(nid2);
     channels2.close_channel(nid1);
 
@@ -1136,7 +1136,7 @@ TEST_CASE("Robust key exchange")
     REQUIRE(channels2.recv_channel_message(nid1, kex_init.data()));
 
     receive_junk();
-    
+
     channels1.close_channel(nid2);
     channels2.close_channel(nid1);
 
@@ -1149,7 +1149,7 @@ TEST_CASE("Robust key exchange")
     REQUIRE(channels1.recv_channel_message(nid2, kex_response.data()));
 
     receive_junk();
-    
+
     channels1.close_channel(nid2);
     channels2.close_channel(nid1);
 

@@ -291,55 +291,17 @@ namespace ccf
         payload);
     }
 
-    // TODO: Don't resend. Do re-generate send key on every initiate, so you can
-    // distinguish responses.
-    // Called whenever we try to send or receive and the
-    // channel is not ESTABLISHED, or we receive an unexpected protocol message,
-    // to trigger new initiation attempts or resends of previous protocol
-    // message
     void advance_connection_attempt()
     {
+      if (status.check(INACTIVE))
+      {
+        // We have no key and believe no key exchange is in process - start a
+        // new iteration of the key exchange protocol
+        initiate();
+      }
       // TODO: Resending here is potentially very expensive. Work out if we need
       // resends or could avoid it, and see if we can find a better heuristic
       // for resending than "every time we get unexpected junk"
-      // TODO: Resending is worse than inefficient! To succeed, I need to
-      // stop sending you inits at some point - you need to hear it, respond,
-      // and keep that key (not have it replaced by another when processing the
-      // next init) for the duration until you hear my final!
-      switch (status.value())
-      {
-        case (INACTIVE):
-        {
-          // We have no key and believe no key exchange is in process - start a
-          // new iteration of the key exchange protocol
-          initiate();
-          break;
-        }
-
-        case (INITIATED):
-        {
-          // We initiated with them but are still waiting for a response -
-          // resend the same init message in case they missed it
-          send_key_exchange_init();
-          break;
-        }
-
-        case (WAITING_FOR_FINAL):
-        {
-          // We received an init, and responded, but are still waiting for a
-          // final - resend the same response in case they missed it
-          send_key_exchange_response();
-          break;
-        }
-
-        case (ESTABLISHED):
-        {
-          // We have key shares but maybe they don't, if they missed our final -
-          // resend it
-          send_key_exchange_final();
-          break;
-        }
-      }
     }
 
     bool recv_key_exchange_init(
@@ -825,7 +787,6 @@ namespace ccf
     {
       if (!status.check(ESTABLISHED))
       {
-        // TODO: Keep?
         advance_connection_attempt();
         if (outgoing_msg.has_value())
         {
