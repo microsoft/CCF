@@ -489,7 +489,7 @@ class LocalRemote(CmdMixin):
         LOG.info("[{}] closing".format(self.hostname))
         if self.proc:
             self.proc.terminate()
-            self.proc.wait(1000000)
+            self.proc.wait(10)
             if self.stdout:
                 self.stdout.close()
             if self.stderr:

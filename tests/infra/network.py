@@ -109,7 +109,7 @@ class Network:
     def __init__(
         self,
         hosts,
-        consensus,
+        consensus="cft",
         binary_dir=".",
         dbg_nodes=None,
         perf_nodes=None,
@@ -913,7 +913,9 @@ class Network:
                         time.sleep(5)
                         backup = self.find_any_backup()
                     except CCFConnectionException:
-                        LOG.warning(f"Could not successfully connect to node {backup.node_id}.")
+                        LOG.warning(
+                            f"Could not successfully connect to node {backup.node_id}."
+                        )
                 logs = []
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id != old_primary.node_id:

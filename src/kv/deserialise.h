@@ -319,7 +319,7 @@ namespace kv
       return rollback_to_last_committed;
     }
 
-    private:
+  private:
     bool rollback_to_last_committed = false;
   };
 
@@ -388,8 +388,8 @@ namespace kv
       return rollback_to_last_committed;
     }
 
-    private:
-    bool rollback_to_last_committed =false;
+  private:
+    bool rollback_to_last_committed = false;
   };
 
   class NoncesBFTExec : public BFTExecutionWrapper
@@ -441,8 +441,8 @@ namespace kv
       return rollback_to_last_committed;
     }
 
-    private:
-    bool rollback_to_last_committed =false;
+  private:
+    bool rollback_to_last_committed = false;
   };
 
   class NewViewBFTExec : public BFTExecutionWrapper
@@ -496,8 +496,8 @@ namespace kv
       return rollback_to_last_committed;
     }
 
-private:
-    bool rollback_to_last_committed =false;
+  private:
+    bool rollback_to_last_committed = false;
   };
 
   class TxBFTExec : public BFTExecutionWrapper

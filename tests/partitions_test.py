@@ -10,9 +10,6 @@ from ccf.tx_id import TxID
 import time
 from infra.checker import check_can_progress
 import pprint
-from ccf.clients import CCFConnectionException
-
-from loguru import logger as LOG
 
 
 @reqs.description("Invalid partitions are not allowed")

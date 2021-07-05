@@ -112,7 +112,9 @@ def service_startups(args):
     args.initial_member_count = 2
     args.initial_recovery_member_count = 0
     args.initial_operator_count = 1
-    with infra.network.network(args.nodes, args.consensus, args.binary_dir, pdb=args.pdb) as network:
+    with infra.network.network(
+        args.nodes, args.consensus, args.binary_dir, pdb=args.pdb
+    ) as network:
         try:
             network.start_and_join(args)
             assert False, "Service cannot be opened with no recovery members"
@@ -131,7 +133,9 @@ def service_startups(args):
     args.initial_member_count = 3
     args.initial_recovery_member_count = 1
     args.initial_operator_count = 2
-    with infra.network.network(args.nodes, args.consensus, args.binary_dir, pdb=args.pdb) as network:
+    with infra.network.network(
+        args.nodes, args.consensus, args.binary_dir, pdb=args.pdb
+    ) as network:
         network.start_and_join(args)
 
     LOG.info(
@@ -140,7 +144,9 @@ def service_startups(args):
     args.initial_member_count = 3
     args.initial_recovery_member_count = 2
     args.initial_operator_count = 1
-    with infra.network.network(args.nodes, args.consensus, args.binary_dir, pdb=args.pdb) as network:
+    with infra.network.network(
+        args.nodes, args.consensus, args.binary_dir, pdb=args.pdb
+    ) as network:
         network.start_and_join(args)
 
 
@@ -152,7 +158,12 @@ def recovery_shares_scenario(args):
 
     # Recovery threshold is initially set to number of recovery members (2)
     with infra.network.network(
-        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes,
+        args.consensus,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
     ) as network:
         network.start_and_join(args)
 

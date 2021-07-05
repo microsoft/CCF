@@ -159,11 +159,7 @@ namespace aft
       if (!store->verify_view_change_request_confirmation(vc, from))
       {
         LOG_INFO_FMT(
-          "Add unknown evidence - bad view change confirmation, from:{}, "
-          "sig.size:{}, sig:{}",
-          from,
-          vc.signature.size(),
-          vc.signature);
+          "Add unknown evidence - bad view change confirmation, from:{}", from);
         return false;
       }
 

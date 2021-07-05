@@ -25,7 +25,12 @@ def test(network, args, from_snapshot=False):
     network.stop_all_nodes()
 
     recovered_network = infra.network.Network(
-        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+        args.nodes,
+        args.consensus,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        network,
     )
     recovered_network.start_in_recovery(
         args,
@@ -52,7 +57,12 @@ def test_share_resilience(network, args, from_snapshot=False):
     network.stop_all_nodes()
 
     recovered_network = infra.network.Network(
-        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, network
+        args.nodes,
+        args.consensus,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        network,
     )
     recovered_network.start_in_recovery(
         args,

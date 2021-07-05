@@ -42,7 +42,12 @@ def run(args):
     args.ledger_chunk_bytes = "500B"
 
     with infra.network.network(
-        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes,
+        args.consensus,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
     ) as network:
         check = infra.checker.Checker()
         network.start_and_join(args)

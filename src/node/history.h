@@ -660,7 +660,7 @@ namespace ccf
     {
       if (!verify(term, &sig))
       {
-        LOG_INFO_FMT(
+        LOG_DEBUG_FMT(
           "Signature verification for {}.{} failed", sig.view, sig.seqno);
         return kv::TxHistory::Result::FAIL;
       }
@@ -683,7 +683,7 @@ namespace ccf
 
       if (result == kv::TxHistory::Result::FAIL)
       {
-        LOG_INFO_FMT(
+        LOG_DEBUG_FMT(
           "Signature verification for {}.{} failed", sig.view, sig.seqno);
       }
       return result;

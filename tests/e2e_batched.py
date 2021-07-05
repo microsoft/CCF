@@ -60,7 +60,12 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes,
+        args.consensus,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
     ) as network:
         network.start_and_join(args)
 
@@ -92,7 +97,12 @@ def run(args):
 
 def run_to_destruction(args):
     with infra.network.network(
-        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes,
+        args.consensus,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
     ) as network:
         network.start_and_join(args)
 

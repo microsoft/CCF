@@ -21,7 +21,12 @@ def test(network, args):
 
 def run(args):
     with infra.network.network(
-        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes,
+        args.consensus,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
     ) as network:
         network.start_and_join(args)
         test(network, args)

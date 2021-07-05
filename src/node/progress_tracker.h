@@ -353,9 +353,7 @@ namespace ccf
       if (can_send_reply_and_nonce(cert, config))
       {
         LOG_TRACE_FMT(
-          "sending revealed nonce, view:{}, seqno:{}",
-          tx_id.view,
-          tx_id.seqno);
+          "sending revealed nonce, view:{}, seqno:{}", tx_id.view, tx_id.seqno);
         return !is_public_only ? kv::TxHistory::Result::SEND_REPLY_AND_NONCE :
                                  kv::TxHistory::Result::OK;
       }
@@ -395,7 +393,8 @@ namespace ccf
       BftNodeSignature& sig = it_node_sig->second;
       LOG_TRACE_FMT(
         "add_nonce_reveal view:{}, seqno:{}, node_id:{}, sig.hashed_nonce:{}, "
-        " received.nonce:{}, hash(received.nonce):{} did_add:{} can_advance_commit:{}",
+        " received.nonce:{}, hash(received.nonce):{} did_add:{} "
+        "can_advance_commit:{}",
         tx_id.view,
         tx_id.seqno,
         node_id,
@@ -441,7 +440,11 @@ namespace ccf
         store->write_nonces(revealed_nonces);
       }
 
-      if (can_advance_commit)
+      uint32_t endorsements =
+        count_endorsements_in_config(cert.nonce_set, config);
+      if (
+        can_advance_commit &&
+        endorsements >= get_endorsement_threshold(config.size()))
       {
         try_update_watermark(cert, tx_id, is_primary);
       }
@@ -909,7 +912,7 @@ namespace ccf
     void try_update_watermark(
       CommitCert& cert, const ccf::TxID& tx_id, bool should_clear_old_entries)
     {
-      LOG_DEBUG_FMT(
+      LOG_INFO_FMT(
         "try_update_watermark seqno:{}, highest_commit_level:{}, "
         "have_primary_sig:{}",
         tx_id.seqno,

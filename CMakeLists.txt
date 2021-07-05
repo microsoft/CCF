@@ -723,6 +723,17 @@ if(BUILD_TESTS)
     CONSENSUS cft
   )
 
+  add_e2e_test(
+    NAME partitions_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
+    CONSENSUS cft
+    LABEL partitions
+    # Higher snapshot interval as the test currently assumes that no
+    # transactions are emitted while partitions are up. To be removed when
+    # https://github.com/microsoft/CCF/issues/2577 is implemented
+    ADDITIONAL_ARGS --snapshot-tx-interval 10000
+  )
+
   if(NOT SAN)
     add_e2e_test(
       NAME connections_cft

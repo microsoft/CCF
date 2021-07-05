@@ -86,7 +86,12 @@ def run(get_command, args):
     LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.network.network(
-        hosts, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts,
+        args.consensus,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
     ) as network:
         network.start_and_join(args)
         primary, backups = network.find_nodes()

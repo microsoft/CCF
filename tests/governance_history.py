@@ -104,7 +104,12 @@ def run(args):
     governance_operations = set()
 
     with infra.network.network(
-        args.nodes, args.consensus, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes,
+        args.consensus,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()

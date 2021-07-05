@@ -119,9 +119,9 @@ void ordered_execution(
         nodes,
         am_i_primary);
       REQUIRE(
-        ((result == kv::TxHistory::Result::OK && i != (node_count_quorum)) ||
+        ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
          (result == kv::TxHistory::Result::SEND_SIG_RECEIPT_ACK &&
-          i == (node_count_quorum))));
+          i == node_count_quorum)));
       i++;
     }
   }
@@ -131,15 +131,11 @@ void ordered_execution(
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
-      if (node_id == my_node_id)
-      {
-        continue;
-      }
       auto result = pt->add_signature_ack({view, seqno}, node_id, nodes);
       REQUIRE(
-        ((result == kv::TxHistory::Result::OK && i != node_count_quorum-1) ||
+        ((result == kv::TxHistory::Result::OK && i != node_count_quorum) ||
          (result == kv::TxHistory::Result::SEND_REPLY_AND_NONCE &&
-          i == node_count_quorum-1)));
+          i == node_count_quorum)));
       i++;
     }
   }
@@ -151,7 +147,13 @@ void ordered_execution(
     {
       if (node_id == my_node_id)
       {
-        continue;
+        pt->add_nonce_reveal(
+          {view, seqno},
+          pt->get_node_nonce({view, seqno}).value(),
+          node_id,
+          nodes,
+          am_i_primary,
+          true);
       }
       else
       {
@@ -159,7 +161,11 @@ void ordered_execution(
           {view, seqno}, nonce, node_id, nodes, am_i_primary, true);
       }
 
-      if (i < 1)
+      if (i == 0)
+      {
+        REQUIRE(pt->get_highest_committed_level() == 0);
+      }
+      else if (i == 1)
       {
         REQUIRE(pt->get_highest_committed_level() == 0);
       }

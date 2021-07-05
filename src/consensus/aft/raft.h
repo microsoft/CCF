@@ -371,7 +371,7 @@ namespace aft
 
       std::lock_guard<std::mutex> guard(state->lock);
       state->current_view += starting_view_change;
-      become_leader();
+      become_leader(true);
     }
 
     void force_become_leader(
@@ -395,7 +395,7 @@ namespace aft
       state->view_history.initialise(terms);
       state->view_history.update(index, term);
       state->current_view += starting_view_change;
-      become_leader();
+      become_leader(true);
     }
 
     void init_as_follower(
@@ -1437,30 +1437,17 @@ namespace aft
         }
         else
         {
-          auto progress_tracker = store->get_progress_tracker();
-          ccf::SeqNo rollback_level = progress_tracker->get_rollback_seqno();
           LOG_DEBUG_FMT(
             "Recv append entries to {} from {} but our log at {} has the wrong "
-            "previous term (ours: {}, theirs: {}), rollback_level:{}",
+            "previous term (ours: {}, theirs: {})",
             state->my_node_id,
             from,
             r.prev_idx,
             prev_term,
-            r.prev_term,
-            rollback_level);
-          rollback(rollback_level);
-          if (rollback_level < r.prev_idx)
-          {
-            send_append_entries_response(from, AppendEntriesResponseType::FAIL);
-            return;
-          }
+            r.prev_term);
         }
-
-        if (prev_term == 0)
-        {
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
-          return;
-        }
+        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+        return;
       }
 
       // Then check if those append entries extend past our retirement
@@ -2660,14 +2647,14 @@ namespace aft
       }
     }
 
-    void become_leader()
+    void become_leader(bool force_become_leader = false)
     {
       if (replica_state == kv::ReplicaState::Retired)
       {
         return;
       }
 
-      if (consensus_type == ConsensusType::BFT)
+      if (consensus_type == ConsensusType::BFT && !force_become_leader)
       {
         auto progress_tracker = store->get_progress_tracker();
         election_index = progress_tracker->get_rollback_seqno();

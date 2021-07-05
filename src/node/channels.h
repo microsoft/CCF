@@ -122,8 +122,8 @@ namespace ccf
     // Set to the latest successfully received nonce.
     struct ChannelSeqno
     {
-      SendNonce main_thread_seqno = 0;
-      SendNonce tid_seqno = 0;
+      SendNonce main_thread_seqno;
+      SendNonce tid_seqno;
     };
     std::array<ChannelSeqno, threading::ThreadMessaging::max_num_threads>
       local_recv_nonce = {{}};
