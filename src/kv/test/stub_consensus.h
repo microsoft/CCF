@@ -144,7 +144,9 @@ namespace kv::test
     void recv_message(const NodeId& from, OArray&& oa) override {}
 
     void add_configuration(
-      ccf::SeqNo seqno, const Configuration::Nodes& conf) override
+      ccf::SeqNo seqno,
+      const Configuration::Nodes& conf,
+      const std::unordered_set<NodeId>& learners = {}) override
     {}
 
     Configuration::Nodes get_latest_configuration_unsafe() const override
