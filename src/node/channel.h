@@ -291,15 +291,21 @@ namespace ccf
         payload);
     }
 
-    // Called whenever we try to send or receive and the channel is not
-    // ESTABLISHED, to trigger new initiation attempts or resends of previous
-    // protocol message
+    // TODO: Don't resend. Do re-generate send key on every initiate, so you can
+    // distinguish responses.
+    // Called whenever we try to send or receive and the
+    // channel is not ESTABLISHED, or we receive an unexpected protocol message,
+    // to trigger new initiation attempts or resends of previous protocol
+    // message
     void advance_connection_attempt()
     {
       // TODO: Resending here is potentially very expensive. Work out if we need
       // resends or could avoid it, and see if we can find a better heuristic
-      // for resending than "every time we get unexpected junk and we're not yet
-      // ESTABLISHED"
+      // for resending than "every time we get unexpected junk"
+      // TODO: Resending is worse than inefficient! To succeed, I need to
+      // stop sending you inits at some point - you need to hear it, respond,
+      // and keep that key (not have it replaced by another when processing the
+      // next init) for the duration until you hear my final!
       switch (status.value())
       {
         case (INACTIVE):
@@ -328,13 +334,9 @@ namespace ccf
 
         case (ESTABLISHED):
         {
-          // TODO: How do we resend FINAL, if it looks like they missed it?
-          // TODO: Consider an ESTABLISHED_TENTATIVE state, where we've sent
-          // FINAL but still have the state to resend it? Can resend if they
-          // respond again, and otherwise we encrypt with our current key?
-          throw std::logic_error(
-            "advance_connection_attempt() should never be called on an "
-            "ESTABLISHED connection");
+          // We have key shares but maybe they don't, if they missed our final -
+          // resend it
+          send_key_exchange_final();
           break;
         }
       }
@@ -350,7 +352,7 @@ namespace ccf
       size_t peer_version = serialized::read<size_t>(data, size);
       if (peer_version != protocol_version)
       {
-        LOG_FAIL_FMT(
+        CHANNEL_RECV_FAIL(
           "Protocol version mismatch (node={}, peer={})",
           protocol_version,
           peer_version);
@@ -410,7 +412,6 @@ namespace ccf
       if (status.check(INITIATED) && !they_have_priority)
       {
         CHANNEL_RECV_TRACE("Ignoring lower priority key init");
-        // TODO: Resend in case they missed our init?
         return true;
       }
       else
@@ -457,7 +458,7 @@ namespace ccf
       size_t peer_version = serialized::read<size_t>(data, size);
       if (peer_version != protocol_version)
       {
-        LOG_FAIL_FMT(
+        CHANNEL_RECV_FAIL(
           "Protocol version mismatch (node={}, peer={})",
           protocol_version,
           peer_version);
@@ -467,27 +468,27 @@ namespace ccf
       CBuffer ks = extract_buffer(data, size);
       if (ks.n == 0)
       {
-        LOG_FAIL_FMT("Empty keyshare");
+        CHANNEL_RECV_FAIL("Empty keyshare");
         return false;
       }
 
       CBuffer sig = extract_buffer(data, size);
       if (sig.n == 0)
       {
-        LOG_FAIL_FMT("Empty signature");
+        CHANNEL_RECV_FAIL("Empty signature");
         return false;
       }
 
       CBuffer pc = extract_buffer(data, size);
       if (pc.n == 0)
       {
-        LOG_FAIL_FMT("Empty cert");
+        CHANNEL_RECV_FAIL("Empty cert");
         return false;
       }
 
       if (size != 0)
       {
-        LOG_FAIL_FMT("{} exccess bytes remaining", size);
+        CHANNEL_RECV_FAIL("{} exccess bytes remaining", size);
         return false;
       }
 
@@ -509,7 +510,6 @@ namespace ccf
         if (!verify_peer_signature(signed_msg, sig, verifier))
         {
           // This isn't a valid signature for this key exchange attempt.
-          // TODO: Maybe it is old and we should resubmit?
           CHANNEL_RECV_FAIL("Peer certificate verification failed");
           return false;
         }
@@ -541,7 +541,7 @@ namespace ccf
       size_t peer_version = serialized::read<size_t>(data, size);
       if (peer_version != protocol_version)
       {
-        LOG_FAIL_FMT(
+        CHANNEL_RECV_FAIL(
           "Protocol version mismatch (node={}, peer={})",
           protocol_version,
           peer_version);
@@ -551,7 +551,7 @@ namespace ccf
       CBuffer sig = extract_buffer(data, size);
       if (sig.n == 0)
       {
-        LOG_FAIL_FMT("Empty signature");
+        CHANNEL_RECV_FAIL("Empty signature");
         return false;
       }
 
@@ -687,7 +687,7 @@ namespace ccf
 
       if (r.n > size)
       {
-        LOG_FAIL_FMT(
+        CHANNEL_RECV_FAIL(
           "Buffer header wants {} bytes, but only {} remain", r.n, size);
         r.n = 0;
       }
@@ -755,6 +755,7 @@ namespace ccf
     void establish()
     {
       auto shared_secret = kex_ctx.compute_shared_secret();
+      kex_ctx.free_ctx();
 
       {
         const std::string label_from = peer_id.value() + self.value();
@@ -778,7 +779,6 @@ namespace ccf
         send_key = crypto::make_key_aes_gcm(key_bytes);
       }
 
-      kex_ctx.free_ctx();
       send_nonce = 1;
       for (size_t i = 0; i < local_recv_nonce.size(); i++)
       {
@@ -825,10 +825,11 @@ namespace ccf
     {
       if (!status.check(ESTABLISHED))
       {
+        // TODO: Keep?
         advance_connection_attempt();
         if (outgoing_msg.has_value())
         {
-          LOG_INFO_FMT(
+          LOG_DEBUG_FMT(
             "Dropping outgoing message of type {} - replaced by new outgoing "
             "send of type {}",
             outgoing_msg->type,
@@ -892,7 +893,7 @@ namespace ccf
 
       if (!verify_or_decrypt(hdr, aad))
       {
-        LOG_FAIL_FMT("Failed to verify node message from {}", peer_id);
+        CHANNEL_RECV_FAIL("Failed to verify node");
         return false;
       }
 
@@ -926,8 +927,7 @@ namespace ccf
 
       if (!verify_or_decrypt(hdr, {data, size}))
       {
-        LOG_FAIL_FMT(
-          "Failed to verify node message with payload from {}", peer_id);
+        CHANNEL_RECV_FAIL("Failed to verify node message with payload");
         return false;
       }
 
@@ -955,7 +955,7 @@ namespace ccf
       std::vector<uint8_t> plain(size);
       if (!verify_or_decrypt(hdr, aad, {data, size}, plain))
       {
-        LOG_FAIL_FMT("Failed to decrypt node message from {}", peer_id);
+        CHANNEL_RECV_FAIL("Failed to decrypt node message");
         return std::nullopt;
       }
 

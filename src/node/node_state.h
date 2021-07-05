@@ -1401,7 +1401,7 @@ namespace ccf
           !sm.check(State::partOfPublicNetwork) &&
           !sm.check(State::readingPrivateLedger))
         {
-          LOG_INFO_FMT("Ignoring node msg received too early - current state is {}", sm.value());
+          LOG_DEBUG_FMT("Ignoring node msg received too early - current state is {}", sm.value());
           return;
         }
 
