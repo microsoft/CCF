@@ -102,7 +102,7 @@ namespace ccf
 
     kv::PendingTxInfo call() override
     {
-      auto sig = store.create_reserved_tx(txid.version);
+      auto sig = store.create_reserved_tx(txid);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
@@ -304,7 +304,7 @@ namespace ccf
 
     kv::PendingTxInfo call() override
     {
-      auto sig = store.create_reserved_tx(txid.version);
+      auto sig = store.create_reserved_tx(txid);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(

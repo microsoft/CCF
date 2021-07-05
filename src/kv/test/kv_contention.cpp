@@ -215,6 +215,9 @@ DOCTEST_TEST_CASE(
   // Many threads attempt to produce a chain of transactions pointing at the
   // previous write to a single key, at that key.
   kv::Store kv_store;
+  constexpr auto store_commit_term = 2;
+  kv_store.set_commit_term(store_commit_term);
+
   using MapType = kv::Map<size_t, nlohmann::json>;
   MapType map("public:foo");
 
@@ -309,7 +312,7 @@ DOCTEST_TEST_CASE(
     // deserialisation
     for (size_t read_at = 1; read_at < last_write_version; ++read_at)
     {
-      auto tx = kv_store.create_reserved_tx(read_at + 1);
+      auto tx = kv_store.create_reserved_tx({store_commit_term, read_at + 1});
       auto h = tx.ro(map);
 
       auto v = h->get(k);

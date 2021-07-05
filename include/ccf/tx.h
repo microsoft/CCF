@@ -124,11 +124,11 @@ namespace kv
     {
       if (!read_txid.has_value())
       {
-        // TODO: I'd like to make these specified in the constructor of the Tx, so
-        // that 1) it's simpler to reason and test, 2) read_txid is always set
-        // (no need for optional) and 3) we can unify this with the set txid and
-        // root on proposal creation
         // Grab opacity version that all Maps should be queried at.
+        // Note: It is by design that we delay acquiring a read version to now
+        // rather than earlier, at Tx construction. This is to minimise the
+        // window during which concurrent transactions can write to the same map
+        // and cause this transaction to conflict on commit.
         std::tie(read_txid, commit_view) =
           store->current_txid_and_commit_term();
       }

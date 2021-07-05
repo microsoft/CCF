@@ -152,6 +152,7 @@ class RawResponseBody(ResponseBody):
         return json.loads(self._data)
 
 
+# TODO: Merge seqno/view into unique tx_id
 @dataclass
 class Response:
     """

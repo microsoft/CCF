@@ -1649,7 +1649,7 @@ TEST_CASE("Deserialising from other Store")
 
   MapTypes::NumString public_map("public:public");
   MapTypes::NumString private_map("private");
-  auto tx1 = store.create_reserved_tx(store.next_version());
+  auto tx1 = store.create_reserved_tx(store.next_txid());
   auto handle1 = tx1.rw(public_map);
   auto handle2 = tx1.rw(private_map);
   handle1->put(42, "aardvark");
@@ -1684,7 +1684,7 @@ TEST_CASE("Deserialise return status")
   store.set_history(history);
 
   {
-    auto tx = store.create_reserved_tx(store.next_version());
+    auto tx = store.create_reserved_tx(store.next_txid());
     auto data_handle = tx.rw(data);
     data_handle->put(42, 42);
     auto [success, data, hooks] = tx.commit_reserved();
@@ -1696,7 +1696,7 @@ TEST_CASE("Deserialise return status")
   }
 
   {
-    auto tx = store.create_reserved_tx(store.next_version());
+    auto tx = store.create_reserved_tx(store.next_txid());
     auto sig_handle = tx.rw(signatures);
     auto tree_handle = tx.rw(serialised_tree);
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
@@ -1712,7 +1712,7 @@ TEST_CASE("Deserialise return status")
 
   INFO("Signature transactions with additional contents should fail");
   {
-    auto tx = store.create_reserved_tx(store.next_version());
+    auto tx = store.create_reserved_tx(store.next_txid());
     auto sig_handle = tx.rw(signatures);
     auto data_handle = tx.rw(data);
     ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
@@ -2102,7 +2102,7 @@ TEST_CASE("Max conflict version tracks execution order")
         REQUIRE(!handle->has(info.id));
         handle->put(info.id, info.value);
         auto version_resolver = [&](bool) {
-          kv_store_backup.next_version();
+          kv_store_backup.next_txid();
           return std::make_tuple(info.primary_committed_version, kv::NoVersion);
         };
         REQUIRE(
@@ -2122,7 +2122,7 @@ TEST_CASE("Max conflict version tracks execution order")
           REQUIRE(!handle->has(info.id));
           handle->put(info.id, info.value);
           auto version_resolver = [&](bool) {
-            kv_store_backup.next_version();
+            kv_store_backup.next_txid();
             return std::make_tuple(
               info.primary_committed_version, map_creation_version);
           };
@@ -2165,7 +2165,7 @@ TEST_CASE("Max conflict version tracks execution order")
             REQUIRE(!handle->has(info.id));
             handle->put(info.id, info.value);
             auto version_resolver = [&](bool) {
-              kv_store_backup.next_version();
+              kv_store_backup.next_txid();
               return std::make_tuple(
                 info.primary_committed_version, map_creation_version);
             };
@@ -2198,7 +2198,7 @@ TEST_CASE("Max conflict version tracks execution order")
             handle->get(info.id);
             handle->put(info.id, info.value);
             auto version_resolver = [&](bool) {
-              kv_store_backup.next_version();
+              kv_store_backup.next_txid();
               return std::make_tuple(
                 info.primary_committed_version, map_creation_version);
             };
@@ -2217,7 +2217,7 @@ TEST_CASE("Max conflict version tracks execution order")
             handle->get(info.id);
             handle->put(info.id, info.value);
             auto version_resolver = [&](bool) {
-              kv_store_backup.next_version();
+              kv_store_backup.next_txid();
               return std::make_tuple(
                 info.primary_committed_version, map_creation_version);
             };
