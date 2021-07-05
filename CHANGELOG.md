@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Upgrade OpenEnclave from 0.15.0 to 0.17.0
+- Upgrade OpenEnclave from 0.15.1 to 0.17.0
 
 ## [1.0.5]
 
