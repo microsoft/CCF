@@ -490,7 +490,6 @@ namespace kv
     virtual void rollback(Version version) = 0;
 
     virtual size_t get_header_length() = 0;
-    virtual uint64_t get_term(const uint8_t* data, size_t size) = 0;
   };
 
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;

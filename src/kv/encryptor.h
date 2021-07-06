@@ -40,11 +40,6 @@ namespace kv
       return S::RAW_DATA_SIZE;
     }
 
-    uint64_t get_term(const uint8_t* data, size_t size) override
-    {
-      return S(data, size).get_term();
-    }
-
     /**
      * Encrypt data and return serialised GCM header and cipher.
      *
