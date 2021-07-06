@@ -108,6 +108,19 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 .. doxygenenum:: ccf::QuoteFormat
    :project: CCF
 
+``network_configurations``
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The currently valid and in-flight network configurations of the network.
+
+**Key** Reconfiguration ID: a unique identifier of a configuration
+
+**Value** A set of node IDs of the nodes in the respective configuration. Represented as JSON.
+
+.. doxygenstruct:: ccf::NetworkConfiguration
+   :project: CCF
+   :members:
+
 ``nodes.code_ids``
 ~~~~~~~~~~~~~~~~~~
 
