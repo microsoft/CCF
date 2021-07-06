@@ -101,16 +101,11 @@ namespace kv
 
     bool commit_deserialised(
       OrderedChanges& changes,
-      Version v, // TODO: Merge into one TxID
+      Version v,
       Term term,
       const MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks) override
     {
-      // TODO: This breaks some unit test for now!
-      // Throw away any local commits that have not propagated via the
-      // consensus.
-      // rollback({term, v - 1});
-
       auto c = apply_changes(
         changes,
         [v](bool) { return std::make_tuple(v, v - 1); },
@@ -586,9 +581,7 @@ namespace kv
       }
     }
 
-    void rollback(
-      const TxID& tx_id,
-      std::optional<Term> commit_term_ = std::nullopt) override
+    void rollback(const TxID& tx_id, Term commit_term_) override
     {
       // This is called to roll the store back to the state it was in
       // at the specified version.
@@ -607,10 +600,11 @@ namespace kv
 
         // The term should always be updated on rollback() when passed
         // regardless of whether version needs to be updated or not
-        if (commit_term_.has_value())
-        {
-          commit_term = commit_term_.value();
-        }
+        commit_term = commit_term_;
+        // if (commit_term_.has_value())
+        // {
+        //   commit_term = commit_term_.value();
+        // }
 
         read_term = tx_id.term;
 
@@ -718,8 +712,9 @@ namespace kv
       }
       std::tie(v, max_conflict_version) = v_.value();
 
-      // TODO: Delete this!
-      rollback({view, v - 1});
+      // Throw away any local commits that have not propagated via the
+      // consensus.
+      rollback({read_term, v - 1}, commit_term);
 
       if (strict_versions && !ignore_strict_versions)
       {
@@ -970,6 +965,13 @@ namespace kv
       // Must lock in case the store is being compacted.
       std::lock_guard<std::mutex> vguard(version_lock);
       return compacted;
+    }
+
+    Term commit_view() override
+    {
+      // Must lock in case the commit_view is being incremented.
+      std::lock_guard<std::mutex> vguard(version_lock);
+      return commit_term;
     }
 
     CommitResult commit(

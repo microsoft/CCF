@@ -619,6 +619,7 @@ namespace kv
     virtual std::pair<TxID, Term> current_txid_and_commit_term() = 0;
 
     virtual Version compacted_version() = 0;
+    virtual Term commit_view() = 0;
 
     virtual std::shared_ptr<AbstractMap> get_map(
       Version v, const std::string& map_name) = 0;
@@ -635,8 +636,7 @@ namespace kv
       ConsensusType consensus_type,
       bool public_only = false) = 0;
     virtual void compact(Version v) = 0;
-    virtual void rollback(
-      const TxID& tx_id, std::optional<Term> write_term_ = std::nullopt) = 0;
+    virtual void rollback(const TxID& tx_id, Term write_term_) = 0;
     virtual void set_commit_term(Term t) = 0;
     virtual CommitResult commit(
       const TxID& txid,

@@ -1373,7 +1373,7 @@ TEST_CASE("Rollback and compact")
     handle->put(k, v1);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
 
-    kv_store.rollback({0, 0}); // TODO: Fix!
+    kv_store.rollback({kv_store.commit_view(), 0}, kv_store.commit_view());
     auto handle2 = tx2.rw(map);
     auto v = handle2->get(k);
     REQUIRE(!v.has_value());

@@ -1106,9 +1106,9 @@ namespace ccf
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
-        // Note: rollback TxID term does not matter here as recovery store is
-        // about to be discarded
-        recovery_store->rollback({0, ledger_idx - 1});
+        // Note: rollback TxID term and commit_term do not matter here as
+        // recovery store is about to be discarded
+        recovery_store->rollback({0, ledger_idx - 1}, 0);
         recover_private_ledger_end_unsafe();
         return;
       }

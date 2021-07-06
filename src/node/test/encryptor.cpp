@@ -416,7 +416,7 @@ TEST_CASE("Encryptor rollback")
   commit_one(store, map);
 
   // Rollback store at seqno 1, discarding encryption key at 3
-  store.rollback({store_term, 1});
+  store.rollback({store_term, 1}, store.commit_view());
 
   commit_one(store, map);
 

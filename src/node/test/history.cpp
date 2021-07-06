@@ -170,10 +170,10 @@ TEST_CASE("Check signing works across rollback")
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
-  primary_store.rollback({store_term, 1});
+  primary_store.rollback({store_term, 1}, primary_store.commit_view());
   if (consensus->type() == ConsensusType::BFT)
   {
-    backup_store.rollback({store_term, 1});
+    backup_store.rollback({store_term, 1}, backup_store.commit_view());
   }
 
   INFO("Issue signature, and verify successfully on backup");
@@ -343,7 +343,7 @@ public:
     {
       count++;
       if (version == rollback_at)
-        store->rollback({view, rollback_to});
+        store->rollback({view, rollback_to}, store->commit_view());
     }
     return true;
   }
