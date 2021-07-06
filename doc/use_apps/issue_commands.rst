@@ -17,7 +17,7 @@ For example, to record a message at a specific id with the :doc:`C++ sample logg
     HTTP/1.1 200 OK
     content-length: 5
     content-type: application/json
-    x-ms-ccf-transaction-id: 2.32
+    x-ms-ccf-transaction-id: 2.23
 
     true
 
