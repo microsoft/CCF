@@ -120,7 +120,7 @@ namespace kv
         std::lock_guard<std::mutex> vguard(version_lock);
         version = v;
         last_replicated = version;
-        read_term = term; // TODO: Delete once rollback above works
+        read_term = term;
       }
       return true;
     }
@@ -713,7 +713,7 @@ namespace kv
       std::tie(v, max_conflict_version) = v_.value();
 
       // Throw away any local commits that have not propagated via the
-      // consensus.
+      // consensus, and update current terms.
       rollback({read_term, v - 1}, commit_term);
 
       if (strict_versions && !ignore_strict_versions)

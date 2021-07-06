@@ -24,16 +24,20 @@ namespace crypto
     constexpr static size_t RAW_DATA_SIZE = sizeof(tag) + sizeof(iv);
 
     GcmHeader() = default;
-    GcmHeader(const std::vector<uint8_t>& data)
+    GcmHeader(const uint8_t* data, size_t size)
     {
-      if (data.size() != RAW_DATA_SIZE)
+      if (size != RAW_DATA_SIZE)
       {
         throw std::logic_error("Incompatible IV size");
       }
 
-      memcpy(tag, data.data(), sizeof(tag));
-      memcpy(iv, data.data() + sizeof(tag), sizeof(iv));
+      memcpy(tag, data, sizeof(tag));
+      memcpy(iv, data + sizeof(tag), sizeof(iv));
     }
+
+    GcmHeader(const std::vector<uint8_t>& data) :
+      GcmHeader(data.data(), data.size())
+    {}
 
     void set_iv_seq(uint64_t seq)
     {
