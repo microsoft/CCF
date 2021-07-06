@@ -24,6 +24,7 @@
 
 #include "async_execution.h"
 #include "async_executor.h"
+#include "ccf/tx_id.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "impl/execution.h"
@@ -143,6 +144,8 @@ namespace aft
     // Configurations
     std::list<Configuration> configurations;
     std::unordered_map<ccf::NodeId, NodeState> nodes;
+    std::unordered_map<ccf::NodeId, ccf::SeqNo> learners;
+    bool use_two_tx_reconfig = false;
 
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
@@ -193,11 +196,12 @@ namespace aft
       std::chrono::milliseconds election_timeout_,
       std::chrono::milliseconds view_change_timeout_,
       size_t sig_tx_interval_ = 0,
-      bool public_only_ = false) :
+      bool public_only_ = false,
+      kv::ReplicaState initial_state_ = kv::ReplicaState::Follower) :
       consensus_type(consensus_type_),
       store(std::move(store_)),
 
-      replica_state(kv::ReplicaState::Follower),
+      replica_state(initial_state_),
       timeout_elapsed(0),
 
       state(state_),
@@ -243,6 +247,7 @@ namespace aft
         // Initialize view history for bft. We start on view 2 and the first
         // commit is always 1.
         state->view_history.update(1, starting_view_change);
+        use_two_tx_reconfig = true;
       }
     }
 
@@ -295,10 +300,15 @@ namespace aft
       return replica_state == kv::ReplicaState::Leader;
     }
 
+    bool is_bft_reexecution()
+    {
+      return consensus_type == ConsensusType::BFT && !is_primary();
+    }
+
     bool can_replicate()
     {
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
-      if (!(consensus_type == ConsensusType::BFT && is_follower()))
+      if (!is_bft_reexecution())
       {
         guard.lock();
       }
@@ -309,6 +319,11 @@ namespace aft
     bool is_follower()
     {
       return replica_state == kv::ReplicaState::Follower;
+    }
+
+    bool is_learner()
+    {
+      return replica_state == kv::ReplicaState::Learner;
     }
 
     ccf::NodeId get_primary(ccf::View view)
@@ -460,15 +475,23 @@ namespace aft
       return state->view_history.initialise(term_history);
     }
 
-    void add_configuration(Index idx, const Configuration::Nodes& conf)
+    void add_configuration(
+      Index idx,
+      const Configuration::Nodes& conf,
+      const std::unordered_set<ccf::NodeId>& new_learners = {})
     {
+      std::unordered_set<ccf::NodeId> conf_ids;
+      for (const auto& [id, _] : conf)
+      {
+        conf_ids.insert(id);
+      }
+      LOG_DEBUG_FMT("Configurations: add {{{}}}", fmt::join(conf_ids, ", "));
+
       std::unique_lock<std::mutex> guard(state->lock, std::defer_lock);
       // It is safe to call is_follower() by construction as the consensus
       // can only change from leader or follower while in a view-change during
       // which time transaction cannot be executed.
-      if (
-        consensus_type == ConsensusType::BFT && is_follower() &&
-        threading::ThreadMessaging::thread_count > 1)
+      if (is_bft_reexecution() && threading::ThreadMessaging::thread_count > 1)
       {
         guard.lock();
       }
@@ -507,6 +530,27 @@ namespace aft
         }
       }
       configurations.push_back({idx, std::move(conf), offset});
+      if (use_two_tx_reconfig)
+      {
+        if (!new_learners.empty())
+        {
+          LOG_DEBUG_FMT(
+            "Configurations: new learners: {{{}}}",
+            fmt::join(new_learners, ", "));
+          for (auto& id : new_learners)
+          {
+            if (learners.find(id) == learners.end())
+            {
+              learners[id] = idx;
+            }
+          }
+        }
+      }
+      else if (!new_learners.empty())
+      {
+        throw std::runtime_error(
+          "learner requires two-transaction reconfiguration");
+      }
       backup_nodes.clear();
       create_and_remove_node_state();
     }
@@ -540,6 +584,10 @@ namespace aft
       {
         details.acks[k] = v.match_idx;
       }
+      if (use_two_tx_reconfig)
+      {
+        details.learners = learners;
+      }
       return details;
     }
 
@@ -550,7 +598,7 @@ namespace aft
         entries,
       Term term)
     {
-      if (consensus_type == ConsensusType::BFT && is_follower())
+      if (is_bft_reexecution())
       {
         // Already under lock in the current BFT path
         for (auto& [_, __, ___, hooks] : entries)
@@ -849,7 +897,7 @@ namespace aft
 
         if (
           !view_change_tracker->is_view_change_in_progress(time) &&
-          is_follower() && (has_bft_timeout_occurred(time)) &&
+          (is_follower() || is_learner()) && (has_bft_timeout_occurred(time)) &&
           view_change_tracker->should_send_view_change(time))
         {
           // We have not seen a request executed within an expected period of
@@ -925,9 +973,7 @@ namespace aft
       }
       else if (consensus_type != ConsensusType::BFT)
       {
-        if (
-          replica_state != kv::ReplicaState::Retired &&
-          timeout_elapsed >= election_timeout)
+        if (can_endorse_primary() && timeout_elapsed >= election_timeout)
         {
           // Start an election.
           become_candidate();
@@ -2618,6 +2664,18 @@ namespace aft
       }
     }
 
+    bool can_advance_watermark()
+    {
+      return replica_state != kv::ReplicaState::Retired &&
+        replica_state != kv::ReplicaState::Learner;
+    }
+
+    bool can_endorse_primary()
+    {
+      return replica_state != kv::ReplicaState::Retired &&
+        replica_state != kv::ReplicaState::Learner;
+    }
+
     // Called when a replica becomes aware of the existence of a new term
     // If retired already, state remains unchanged, but the replica otherwise
     // becomes a follower in the new term.
@@ -2644,7 +2702,7 @@ namespace aft
 
       is_new_follower = true;
 
-      if (replica_state != kv::ReplicaState::Retired)
+      if (can_endorse_primary())
       {
         replica_state = kv::ReplicaState::Follower;
         LOG_INFO_FMT(
@@ -2663,11 +2721,33 @@ namespace aft
 
     void add_vote_for_me(const ccf::NodeId& from)
     {
-      // Need 50% + 1 of the total nodes, which are the other nodes plus us.
-      votes_for_me.insert(from);
+      size_t quorum = -1;
 
-      if (votes_for_me.size() >= ((nodes.size() + 1) / 2) + 1)
+      if (use_two_tx_reconfig)
+      {
+        const auto& cfg = configurations.front();
+
+        if (cfg.nodes.find(from) == cfg.nodes.end())
+        {
+          LOG_INFO_FMT("Ignoring vote from ineligible voter {}", from);
+          return;
+        }
+
+        // Need 50% + 1 of the total nodes in the current config (including us).
+        votes_for_me.insert(from);
+        quorum = get_quorum(cfg);
+      }
+      else
+      {
+        // Need 50% + 1 of the total nodes, which are the other nodes plus us.
+        votes_for_me.insert(from);
+        quorum = ((nodes.size() + 1) / 2) + 1;
+      }
+
+      if (votes_for_me.size() >= quorum)
+      {
         become_leader();
+      }
     }
 
     void update_commit()
@@ -2765,6 +2845,43 @@ namespace aft
       }
     }
 
+    size_t num_trusted(const kv::Configuration& c) const
+    {
+      size_t r = 0;
+      for (const auto& [id, _] : c.nodes)
+      {
+        if (
+          nodes.find(id) != nodes.end() && learners.find(id) == learners.end())
+        {
+          r++;
+        }
+      }
+      return r;
+    }
+
+    size_t get_quorum(const kv::Configuration& c) const
+    {
+      switch (consensus_type)
+      {
+        case CFT:
+          return (c.nodes.size() / 2) + 1;
+        case BFT:
+          return (c.nodes.size() / 3) + 1;
+        default:
+          return -1;
+      }
+    }
+
+    bool have_quorum(size_t n, const kv::Configuration& c) const
+    {
+      return n >= get_quorum(c);
+    }
+
+    bool enough_trusted(const kv::Configuration& c) const
+    {
+      return have_quorum(num_trusted(c), c);
+    }
+
     void commit(Index idx)
     {
       if (idx > state->last_idx)
@@ -2817,9 +2934,37 @@ namespace aft
         if (idx < next->idx)
           break;
 
-        configurations.pop_front();
-        backup_nodes.clear();
-        changed = true;
+        if (!use_two_tx_reconfig)
+        {
+          configurations.pop_front();
+          backup_nodes.clear();
+          changed = true;
+        }
+        else
+        {
+          if (is_primary())
+          {
+            if (!enough_trusted(*next))
+            {
+              LOG_TRACE_FMT(
+                "Configurations: not enough trusted nodes for next "
+                "configuration");
+              break;
+            }
+          }
+
+          if (num_trusted(*next) == next->nodes.size())
+          {
+            LOG_TRACE_FMT(
+              "Configurations: all nodes trusted, switching to next "
+              "configuration");
+            configurations.pop_front();
+          }
+          else
+          {
+            break;
+          }
+        }
       }
 
       if (changed)
@@ -2895,6 +3040,22 @@ namespace aft
         changed = true;
       }
 
+      if (use_two_tx_reconfig && changed)
+      {
+        std::unordered_set<ccf::NodeId> to_erase;
+        for (auto& [id, seqno] : learners)
+        {
+          if (seqno > idx)
+          {
+            to_erase.insert(id);
+          }
+        }
+        for (auto& id : to_erase)
+        {
+          learners.erase(id);
+        }
+      }
+
       if (changed)
       {
         create_and_remove_node_state();
@@ -2909,6 +3070,32 @@ namespace aft
 
     void create_and_remove_node_state()
     {
+      if (use_two_tx_reconfig && is_learner())
+      {
+        for (auto& cfg : configurations)
+        {
+          if (cfg.idx > state->commit_idx)
+            break;
+
+          if (
+            cfg.nodes.find(state->my_node_id) != cfg.nodes.end() &&
+            learners.find(state->my_node_id) != learners.end())
+          {
+            LOG_INFO_FMT("Configurations: ready for promotion");
+            // Submit promotion RPC here.
+            learners.erase(state->my_node_id);
+
+            // The transition to follower will happen when the reconfiguration
+            // transaction commits.
+            LOG_INFO_FMT(
+              "Becoming follower {}: {}",
+              state->my_node_id,
+              state->current_view);
+            replica_state = kv::ReplicaState::Follower;
+          }
+        }
+      }
+
       // Find all nodes present in any active configuration.
       Configuration::Nodes active_nodes;
 
