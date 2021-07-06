@@ -601,11 +601,6 @@ namespace kv
         // The term should always be updated on rollback() when passed
         // regardless of whether version needs to be updated or not
         commit_term = commit_term_;
-        // if (commit_term_.has_value())
-        // {
-        //   commit_term = commit_term_.value();
-        // }
-
         read_term = tx_id.term;
 
         // History must be informed of the read_term change, even if no
@@ -613,10 +608,7 @@ namespace kv
         auto h = get_history();
         if (h)
         {
-          h->rollback(
-            tx_id,
-            commit_term); // TODO: What if commit_term_ has no value?
-                          // Should it always have a value?
+          h->rollback(tx_id, commit_term);
         }
 
         if (tx_id.version >= version)
@@ -909,7 +901,6 @@ namespace kv
       }
     }
 
-    // TODO: Delete this?
     bool operator==(const Store& that) const
     {
       // Only used for debugging, not thread safe.
@@ -1119,7 +1110,6 @@ namespace kv
       return std::make_tuple(v, previous_last_new_map);
     }
 
-    // TODO: Delete?
     Version next_version() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);

@@ -52,7 +52,6 @@ namespace kv
   using Term = uint64_t;
   using NodeId = ccf::NodeId;
 
-  // TODO: Can this be removed and use tx_id.h instead?
   struct TxID
   {
     Term term = 0;
