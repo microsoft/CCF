@@ -1,13 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "node/history.h"
-
 #include "ccf/app_interface.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
+#include "node/history.h"
 #include "node/nodes.h"
 #include "node/signatures.h"
 
@@ -123,11 +122,11 @@ TEST_CASE("Check signing works across rollback")
   kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
   constexpr auto store_term = 2;
-  primary_store.set_commit_term(store_term);
+  primary_store.initialise_commit_term(store_term);
 
   kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
-  backup_store.set_commit_term(store_term);
+  backup_store.initialise_commit_term(store_term);
 
   ccf::Nodes nodes(ccf::Tables::NODES);
 

@@ -3,7 +3,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "kv/encryptor.h"
-
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
@@ -400,7 +399,7 @@ TEST_CASE("Encryptor rollback")
   StringString map("map");
   constexpr auto store_term = 2;
   kv::Store store;
-  store.set_commit_term(2);
+  store.initialise_commit_term(2);
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();

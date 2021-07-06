@@ -120,7 +120,7 @@ namespace kv
         std::lock_guard<std::mutex> vguard(version_lock);
         version = v;
         last_replicated = version;
-        read_term = term; // TODO: Delete once rollback above works
+        read_term = term;
       }
       return true;
     }
@@ -134,7 +134,7 @@ namespace kv
       return false;
     }
 
-    Version next_version_internal()
+    Version next_version_unsafe()
     {
       // Get the next global version
       ++version;
@@ -153,7 +153,7 @@ namespace kv
       return version;
     }
 
-    TxID current_txid_internal()
+    TxID current_txid_unsafe()
     {
       // version_lock should be first acquired
       return {read_term, version};
@@ -661,11 +661,16 @@ namespace kv
       }
     }
 
-    void set_commit_term(Term t) override
+    void initialise_commit_term(Term t) override
     {
       // Note: This should only be called once, when the store is first
       // initialised. commit_term is later updated via rollback.
       std::lock_guard<std::mutex> vguard(version_lock);
+      if (commit_term != 0)
+      {
+        throw std::logic_error("Commit term is already initialised");
+      }
+
       commit_term = t;
       auto h = get_history();
       if (h)
@@ -941,14 +946,14 @@ namespace kv
     {
       // Must lock in case the version or read term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
-      return current_txid_internal();
+      return current_txid_unsafe();
     }
 
     std::pair<TxID, Term> current_txid_and_commit_term() override
     {
       // Must lock in case the version or commit term is being incremented.
       std::lock_guard<std::mutex> vguard(version_lock);
-      return {current_txid_internal(), commit_term};
+      return {current_txid_unsafe(), commit_term};
     }
 
     Version compacted_version() override
@@ -1099,7 +1104,7 @@ namespace kv
     std::tuple<Version, Version> next_version(bool commit_new_map) override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
-      Version v = next_version_internal();
+      Version v = next_version_unsafe();
 
       auto previous_last_new_map = last_new_map;
       if (commit_new_map)
@@ -1113,13 +1118,13 @@ namespace kv
     Version next_version() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
-      return next_version_internal();
+      return next_version_unsafe();
     }
 
     TxID next_txid() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
-      next_version_internal();
+      next_version_unsafe();
 
       return {commit_term, version};
     }

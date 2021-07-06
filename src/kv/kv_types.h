@@ -642,7 +642,7 @@ namespace kv
       bool public_only = false) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(const TxID& tx_id, Term write_term_) = 0;
-    virtual void set_commit_term(Term t) = 0;
+    virtual void initialise_commit_term(Term t) = 0;
     virtual CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,

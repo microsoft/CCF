@@ -199,11 +199,11 @@ namespace aft
 #endif
     }
 
-    virtual void set_commit_term(Term t)
+    virtual void initialise_commit_term(Term t)
     {
 #ifdef STUB_LOG
       std::cout << "  Node" << _id << "->>KV" << _id
-                << ": set_commit_term t: " << t << std::endl;
+                << ": initialise_commit_term t: " << t << std::endl;
 #endif
     }
 

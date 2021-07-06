@@ -323,10 +323,12 @@ namespace ccf
             case kv::CommitResult::SUCCESS:
             {
               auto tx_id = tx.get_txid();
-              if (tx_id.has_value())
+              if (tx_id.has_value() && consensus != nullptr)
               {
                 // Only transactions that acquired one or more map handles have
                 // a TxID, while others (e.g. unauthenticated commands) don't.
+                // Also, only report a TxID if the consensus is set, as the
+                // consensus is required to verify that a TxID is valid.
                 ctx->set_tx_id(tx_id.value());
               }
 
