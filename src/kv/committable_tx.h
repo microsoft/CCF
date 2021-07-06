@@ -286,9 +286,7 @@ namespace kv
 
       if (!read_txid.has_value())
       {
-        // This check could be removed if the read TxID was acquired on
-        // Tx's creation, and read_txid would no longer need to be an
-        // std::optional
+        // Transaction did not get a handle on any map.
         return std::nullopt;
       }
 

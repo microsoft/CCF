@@ -152,7 +152,6 @@ class RawResponseBody(ResponseBody):
         return json.loads(self._data)
 
 
-# TODO: Merge seqno/view into unique tx_id
 @dataclass
 class Response:
     """
@@ -463,7 +462,6 @@ class RequestClient:
             raise RuntimeError("Request client failed with unexpected error") from exc
 
         return Response.from_requests_response(response)
-
 
 class CCFClient:
     """
