@@ -79,6 +79,8 @@ namespace ccf
       ccf::SeqNo seqno) = 0;
     virtual ccf::SeqNo write_view_change_confirmation(
       ViewChangeConfirmation& new_view) = 0;
+    virtual void sign_view_change_confirmation(
+      ViewChangeConfirmation& new_view) = 0;
     virtual bool verify_view_change_request_confirmation(
       ViewChangeConfirmation& new_view, const NodeId& from) = 0;
   };
@@ -229,6 +231,13 @@ namespace ccf
       auto h = hash_new_view(new_view);
       return from_cert->verify_hash(
         h.h, new_view.signature, crypto::MDType::SHA256);
+    }
+
+    void sign_view_change_confirmation(
+      ViewChangeConfirmation& new_view) override
+    {
+      crypto::Sha256Hash h = hash_new_view(new_view);
+      new_view.signature = kp.sign_hash(h.h.data(), h.h.size());
     }
 
     ccf::SeqNo write_view_change_confirmation(
