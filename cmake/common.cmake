@@ -7,6 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
+option(PROFILE_TESTS "Profile tests" OFF)
 set(PYTHON unbuffer python3)
 
 set(DISTRIBUTE_PERF_TESTS
@@ -405,12 +406,27 @@ function(add_e2e_test)
   endif()
 
   if(BUILD_END_TO_END_TESTS)
+    if(PROFILE_TESTS)
+      set(PYTHON_WRAPPER
+          py-spy
+          record
+          --format
+          speedscope
+          -o
+          ${PARSED_ARGS_NAME}.trace
+          --
+          python3
+      )
+    else()
+      set(PYTHON_WRAPPER ${PYTHON})
+    endif()
+
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
-        ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --consensus
-        ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
+        ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
+        --consensus ${PARSED_ARGS_CONSENSUS} ${PARSED_ARGS_ADDITIONAL_ARGS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 

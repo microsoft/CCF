@@ -28,6 +28,16 @@ namespace crypto
       }
     }
 
+    inline void CHECK0(int rc)
+    {
+      unsigned long ec = ERR_get_error();
+      if (rc == 0 && ec != 0)
+      {
+        throw std::runtime_error(
+          fmt::format("OpenSSL error: {}", ERR_error_string(ec, NULL)));
+      }
+    }
+
     inline void CHECKNULL(void* ptr)
     {
       if (ptr == NULL)
@@ -187,6 +197,40 @@ namespace crypto
       operator STACK_OF(X509) * ()
       {
         return p.get();
+      }
+    };
+
+    class Unique_ECDSA_SIG
+    {
+      std::unique_ptr<ECDSA_SIG, void (*)(ECDSA_SIG*)> p;
+
+    public:
+      Unique_ECDSA_SIG() : p(ECDSA_SIG_new(), ECDSA_SIG_free)
+      {
+        OpenSSL::CHECKNULL(p.get());
+      }
+      operator ECDSA_SIG*()
+      {
+        return p.get();
+      }
+    };
+
+    class Unique_BIGNUM
+    {
+      std::unique_ptr<BIGNUM, void (*)(BIGNUM*)> p;
+
+    public:
+      Unique_BIGNUM() : p(BN_new(), BN_free)
+      {
+        OpenSSL::CHECKNULL(p.get());
+      }
+      operator BIGNUM*()
+      {
+        return p.get();
+      }
+      void release()
+      {
+        p.release();
       }
     };
 
