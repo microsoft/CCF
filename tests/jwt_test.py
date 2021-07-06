@@ -144,7 +144,7 @@ def test_jwt_with_sgx_key_policy(network, args):
 
     matching_key_policy = {
         "sgx_claims": {
-            "signer_id": "0db06a8126015c16dcad0f63b5bad4eb031e00fc2d08e2c11cbde3d30071f696",
+            "signer_id": "a4922704a099ee48c576cd72f28966fc2e55797a547f658b2c2f9bb426044e15",
             "attributes": "0300000000000000",
         }
     }

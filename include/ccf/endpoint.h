@@ -215,7 +215,7 @@ namespace ccf::endpoints
             const auto http_verb = endpoint.dispatch.verb.get_http_method();
             if (!http_verb.has_value())
             {
-              // Non-HTTP (ie WebSockets) endpoints are not documented
+              // Non-HTTP endpoints are not documented
               return;
             }
 
@@ -304,7 +304,7 @@ namespace ccf::endpoints
           const auto http_verb = endpoint.dispatch.verb.get_http_method();
           if (!http_verb.has_value())
           {
-            // Non-HTTP (ie WebSockets) endpoints are not documented
+            // Non-HTTP endpoints are not documented
             return;
           }
 

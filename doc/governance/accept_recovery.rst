@@ -65,16 +65,14 @@ The recovery share retrieval, decryption and submission steps are conveniently p
     --key member0_privk --cacert network_cert
     HTTP/1.1 200 OK
     content-type: text/plain
-    x-ccf-tx-seqno: 28
-    x-ccf-tx-view: 4
+    x-ms-ccf-transaction-id: 4.28
     1/2 recovery shares successfully submitted.
 
     $ submit_recovery_share.sh https://<ccf-node-address> --member-enc-privk member1_enc_privk.pem --cert member1_cert
     --key member1_privk --cacert network_cert
     HTTP/1.1 200 OK
     content-type: text/plain
-    x-ccf-tx-seqno: 30
-    x-ccf-tx-view: 4
+    x-ms-ccf-transaction-id: 4.30
     2/2 recovery shares successfully submitted. End of recovery procedure initiated.
 
 When the recovery threshold is reached, the ``POST /gov/recovery_share`` RPC returns that the end of the recovery procedure is initiated and the private ledger is now being recovered.

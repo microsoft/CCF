@@ -293,12 +293,30 @@ namespace ccf
     }
   };
 
-  static constexpr uint32_t get_message_threshold(uint32_t node_count)
+  static constexpr uint32_t get_endorsement_threshold(uint32_t count)
   {
     uint32_t f = 0;
-    for (; 3 * f + 1 < node_count; ++f)
+    for (; 3 * f + 1 < count; ++f)
       ;
 
     return 2 * f + 1;
+  }
+
+  // Counts the number of endorsements (backup signatures, nonces,
+  // view-changes) that come from a specific configuration.
+  template <typename T>
+  static uint32_t count_endorsements_in_config(
+    T& messages, const kv::Configuration::Nodes& config)
+  {
+    uint32_t endorsements = 0;
+    for (const auto node : config)
+    {
+      if (messages.find(node.first) != messages.end())
+      {
+        ++endorsements;
+      }
+    }
+
+    return endorsements;
   }
 }

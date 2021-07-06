@@ -227,6 +227,11 @@ def transition_node_to_trusted(node_id: str, **kwargs):
 
 
 @cli_proposal
+def transition_node_to_learner(node_id: str, **kwargs):
+    return build_proposal("transition_node_to_learner", {"node_id": node_id}, **kwargs)
+
+
+@cli_proposal
 def remove_node(node_id: str, **kwargs):
     return build_proposal("remove_node", {"node_id": node_id}, **kwargs)
 

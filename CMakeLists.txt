@@ -666,13 +666,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME reconfiguration_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
-  )
-
-  add_e2e_test(
     NAME code_update_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
     CONSENSUS cft
@@ -859,6 +852,13 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS -p liblogging --duration 45m
     )
 
+    add_e2e_test(
+      NAME reconfiguration_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
+    )
+
   endforeach()
 
   add_perf_test(
@@ -875,25 +875,6 @@ if(BUILD_TESTS)
       1000
       --repetitions
       10000
-      --msg-ser-fmt
-      msgpack
-  )
-
-  add_perf_test(
-    NAME ls_ws
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-    CONSENSUS cft
-    CLIENT_BIN ./scenario_perf_client
-    ADDITIONAL_ARGS
-      --package
-      liblogging
-      --scenario-file
-      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-      --max-writes-ahead
-      1000
-      --repetitions
-      10000
-      --use-websockets
       --msg-ser-fmt
       msgpack
   )

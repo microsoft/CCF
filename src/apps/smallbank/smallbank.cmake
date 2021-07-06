@@ -14,9 +14,15 @@ add_client_exe(
   small_bank_client
   SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/small_bank_client.cpp
 )
-target_link_libraries(
-  small_bank_client PRIVATE http_parser.host ccfcrypto.host c++fs
-)
+if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
+  target_link_libraries(
+    small_bank_client PRIVATE http_parser.host ccfcrypto.host
+  )
+else()
+  target_link_libraries(
+    small_bank_client PRIVATE http_parser.host ccfcrypto.host c++fs
+  )
+endif()
 
 # SmallBank application
 add_ccf_app(smallbank SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp)
@@ -65,22 +71,6 @@ if(BUILD_TESTS)
         --metrics-file small_bank_cft_metrics.json
     )
   endforeach()
-
-  add_perf_test(
-    NAME sb_ws
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
-    CLIENT_BIN ./small_bank_client
-    VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
-    CONSENSUS cft
-    ADDITIONAL_ARGS
-      --transactions
-      ${SMALL_BANK_ITERATIONS}
-      --max-writes-ahead
-      250
-      --metrics-file
-      small_bank_cft_metrics.json
-      --use-websockets
-  )
 
   add_perf_test(
     NAME sb_sig
