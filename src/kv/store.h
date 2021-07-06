@@ -101,10 +101,16 @@ namespace kv
 
     bool commit_deserialised(
       OrderedChanges& changes,
-      Version& v,
+      Version v, // TODO: Merge into one TxID
+      Term term,
       const MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks) override
     {
+      // TODO: This breaks some unit test for now!
+      // Throw away any local commits that have not propagated via the
+      // consensus.
+      // rollback({term, v - 1});
+
       auto c = apply_changes(
         changes,
         [v](bool) { return std::make_tuple(v, v - 1); },
@@ -119,6 +125,7 @@ namespace kv
         std::lock_guard<std::mutex> vguard(version_lock);
         version = v;
         last_replicated = version;
+        read_term = term; // TODO: Delete once rollback above works
       }
       return true;
     }
@@ -145,9 +152,9 @@ namespace kv
         version = 0;
       }
 
-      // TODO: This is only called on the primary!
-      // // Further transactions should read in the commit term
-      // read_term = commit_term;
+      // TODO: Only on the primary?
+      // Further transactions should read in the commit term
+      read_term = commit_term;
 
       return version;
     }
@@ -709,9 +716,8 @@ namespace kv
       }
       std::tie(v, max_conflict_version) = v_.value();
 
-      // Throw away any local commits that have not propagated via the
-      // consensus.
-      rollback({read_term, v - 1}); // TODO: Which read term to pass here??
+      // TODO: Delete this!
+      rollback({view, v - 1});
 
       if (strict_versions && !ignore_strict_versions)
       {
@@ -943,13 +949,6 @@ namespace kv
       return version;
     }
 
-    Term current_commit_term() override
-    {
-      // Must lock in case the commit term is being incremented.
-      std::lock_guard<std::mutex> vguard(version_lock);
-      return commit_term;
-    }
-
     TxID current_txid() override
     {
       // Must lock in case the version or read term is being incremented.
@@ -1006,9 +1005,6 @@ namespace kv
 
           return CommitResult::FAIL_NO_REPLICATE;
         }
-
-        // TODO: Is this the right place for this?
-        read_term = commit_term;
 
         if (globally_committable && txid.version > last_committable)
         {
@@ -1119,6 +1115,7 @@ namespace kv
       return std::make_tuple(v, previous_last_new_map);
     }
 
+    // TODO: Delete?
     Version next_version() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
@@ -1128,11 +1125,7 @@ namespace kv
     TxID next_txid() override
     {
       std::lock_guard<std::mutex> vguard(version_lock);
-
-      // Get the next global version. If we would go negative, wrap to 0.
-      ++version;
-      if (version < 0)
-        version = 0;
+      next_version_internal();
 
       return {commit_term, version};
     }
@@ -1296,9 +1289,11 @@ namespace kv
       return CommittableTx(this);
     }
 
-    ReservedTx create_reserved_tx(Version v)
+    ReservedTx create_reserved_tx(const TxID& tx_id)
     {
-      return ReservedTx(this, v);
+      // version_lock should already been acquired in case read_term is
+      // incremented.
+      return ReservedTx(this, read_term, tx_id);
     }
   };
 }

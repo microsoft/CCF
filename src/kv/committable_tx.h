@@ -354,13 +354,13 @@ namespace kv
   class ReservedTx : public CommittableTx
   {
   public:
-    ReservedTx(AbstractStore* _store, Version reserved) : CommittableTx(_store)
+    ReservedTx(
+      AbstractStore* _store, Term read_term, const TxID& reserved_tx_id) :
+      CommittableTx(_store)
     {
-      // TODO: Not sure here?? It's probably OK as the read_txid will be
-      // acquired when the Tx gets a handle on the signatures map?
-      // read_version = reserved - 1;
-      read_txid = TxID(0, reserved - 1); // TODO: Which term should we use here?
-      version = reserved;
+      version = reserved_tx_id.version;
+      commit_view = reserved_tx_id.term;
+      read_txid = TxID(read_term, reserved_tx_id.version - 1);
     }
 
     // Used by frontend to commit reserved transactions

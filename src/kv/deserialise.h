@@ -28,7 +28,8 @@ namespace kv
 
     virtual bool commit_deserialised(
       kv::OrderedChanges& changes,
-      kv::Version& v,
+      kv::Version v,
+      kv::Term term,
       const MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks) = 0;
   };
@@ -75,7 +76,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, view, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
@@ -283,7 +284,7 @@ namespace kv
 
     ApplyResult apply() override
     {
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
@@ -338,7 +339,7 @@ namespace kv
 
     ApplyResult apply() override
     {
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
@@ -399,7 +400,7 @@ namespace kv
 
     ApplyResult apply() override
     {
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         LOG_FAIL_FMT("receive_nonces commit_deserialised Failed");
         return ApplyResult::FAIL;
@@ -447,7 +448,7 @@ namespace kv
     ApplyResult apply() override
     {
       LOG_INFO_FMT("Applying new view");
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
@@ -562,7 +563,7 @@ namespace kv
 
     ApplyResult apply() override
     {
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
