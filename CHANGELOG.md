@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Websockets endpoints are no longer supported. Usage is insufficient to justify ongoing maintenance.
 
+### Bugfix
+
+- Fixed incorrect transaction view returned in `x-ms-ccf-transaction-id` HTTP response header in a new term and during recovery (#2755).
+
 ## [2.0.0-dev1]
 
 ### Added
