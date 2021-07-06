@@ -190,10 +190,12 @@ namespace aft
 #endif
     }
 
-    virtual void rollback(Index i, std::optional<Term> t = std::nullopt)
+    virtual void rollback(
+      const kv::TxID& tx_id, std::optional<Term> t = std::nullopt)
     {
 #ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>KV" << _id << ": rollback i: " << i;
+      std::cout << "  Node" << _id << "->>KV" << _id
+                << ": rollback i: " << tx_id.version;
       if (t.has_value())
         std::cout << " term: " << t.value();
       std::cout << std::endl;

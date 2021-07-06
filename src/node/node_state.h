@@ -961,22 +961,22 @@ namespace ccf
       }
 
       // When reaching the end of the public ledger, truncate to last signed
-      // index and promote network secrets to this index
+      // index
       const auto last_recovered_term = view_history.size();
+      auto new_term = last_recovered_term + 2;
+      LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
+
+      // Note: KV term must be set before the first Tx is committed
       network.tables->rollback(
-        {last_recovered_term, last_recovered_signed_idx});
+        {last_recovered_term, last_recovered_signed_idx}, new_term);
       ledger_truncate(last_recovered_signed_idx);
       snapshotter->rollback(last_recovered_signed_idx);
 
       LOG_INFO_FMT(
         "End of public ledger recovery - Truncating ledger to last signed "
-        "seqno: {}",
+        "TxID: {}.{}",
+        last_recovered_term,
         last_recovered_signed_idx);
-
-      // KV term must be set before the first Tx is committed
-      auto new_term = last_recovered_term + 2;
-      LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
-      network.tables->set_commit_term(new_term);
 
       auto tx = network.tables->create_tx();
       GenesisGenerator g(network, tx);

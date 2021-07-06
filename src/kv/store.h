@@ -152,7 +152,6 @@ namespace kv
         version = 0;
       }
 
-      // TODO: Only on the primary?
       // Further transactions should read in the commit term
       read_term = commit_term;
 
@@ -620,7 +619,10 @@ namespace kv
         auto h = get_history();
         if (h)
         {
-          h->rollback(tx_id);
+          h->rollback(
+            tx_id,
+            commit_term); // TODO: What if commit_term_ has no value?
+                          // Should it always have a value?
         }
 
         if (tx_id.version >= version)
@@ -673,10 +675,10 @@ namespace kv
       }
     }
 
-    // Note: This should only be called once, when the store is first
-    // initialised. commit_term is later updated via rollback.
     void set_commit_term(Term t) override
     {
+      // Note: This should only be called once, when the store is first
+      // initialised. commit_term is later updated via rollback.
       std::lock_guard<std::mutex> vguard(version_lock);
       commit_term = t;
       auto h = get_history();

@@ -1,13 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "node/history.h"
-
 #include "ccf/app_interface.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
+#include "node/history.h"
 #include "node/nodes.h"
 #include "node/signatures.h"
 
@@ -122,9 +121,12 @@ TEST_CASE("Check signing works across rollback")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
+  constexpr auto store_term = 2;
+  primary_store.set_commit_term(store_term);
 
   kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
+  backup_store.set_commit_term(store_term);
 
   ccf::Nodes nodes(ccf::Tables::NODES);
 
@@ -168,10 +170,10 @@ TEST_CASE("Check signing works across rollback")
     REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
   }
 
-  primary_store.rollback(1);
+  primary_store.rollback({store_term, 1});
   if (consensus->type() == ConsensusType::BFT)
   {
-    backup_store.rollback(1);
+    backup_store.rollback({store_term, 1});
   }
 
   INFO("Issue signature, and verify successfully on backup");
@@ -267,7 +269,7 @@ public:
 
   kv::PendingTxInfo call() override
   {
-    auto txr = store.create_reserved_tx(txid.seqno);
+    auto txr = store.create_reserved_tx(txid);
     auto txrv = txr.rw(other_table);
     txrv->put(0, 1);
     return txr.commit_reserved();
@@ -341,7 +343,7 @@ public:
     {
       count++;
       if (version == rollback_at)
-        store->rollback(rollback_to);
+        store->rollback({view, rollback_to});
     }
     return true;
   }

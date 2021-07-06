@@ -112,18 +112,21 @@ public:
     forced = true;
   }
 
-  std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
-    override
+  std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
+  get_replicated_state_txid_and_root() override
   {
     if (forced)
     {
       forced = false;
-      return {{term, forced_version},
-              crypto::Sha256Hash(std::to_string(version))};
+      return {{read_term, forced_version},
+              crypto::Sha256Hash(std::to_string(version)),
+              commit_term};
     }
     else
     {
-      return {{term, version}, crypto::Sha256Hash(std::to_string(version))};
+      return {{read_term, version},
+              crypto::Sha256Hash(std::to_string(version)),
+              commit_term};
     }
   }
 };

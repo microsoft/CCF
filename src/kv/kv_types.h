@@ -72,7 +72,6 @@ namespace kv
 
     bool operator==(const TxID& other)
     {
-      LOG_FAIL_FMT("{}.{} vs. {}.{}", term, version, other.term, other.version);
       return term == other.term && version == other.version;
     }
   };
@@ -316,7 +315,7 @@ namespace kv
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
-    virtual std::pair<kv::TxID, crypto::Sha256Hash>
+    virtual std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
     get_replicated_state_txid_and_root() = 0;
     virtual std::vector<uint8_t> get_proof(Version v) = 0;
     virtual bool verify_proof(const std::vector<uint8_t>& proof) = 0;
@@ -330,7 +329,7 @@ namespace kv
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
     virtual void append(const std::vector<uint8_t>& data) = 0;
-    virtual void rollback(const kv::TxID& tx_id) = 0;
+    virtual void rollback(const kv::TxID& tx_id, kv::Term commit_term) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;

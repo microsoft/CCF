@@ -329,13 +329,14 @@ namespace kv
       return req_id;
     }
 
-    void set_read_txid(TxID tx_id)
+    void set_read_txid(const TxID& tx_id, Term commit_view_)
     {
       if (read_txid.has_value())
       {
         throw std::logic_error("Read TxID already set");
       }
       read_txid = tx_id;
+      commit_view = commit_view_;
     }
 
     void set_root_at_read_version(const crypto::Sha256Hash& r)

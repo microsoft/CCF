@@ -490,7 +490,9 @@ namespace ccf
     void set_root_on_proposals(
       const enclave::RpcContext& ctx, kv::CommittableTx& tx)
     {
-      if (ctx.get_request_path() == "/gov/proposals")
+      if (
+        ctx.get_request_path() == "/gov/proposals" &&
+        ctx.get_request_verb() == HTTP_POST)
       {
         update_history();
         if (history)
@@ -499,10 +501,9 @@ namespace ccf
           // should only ever be used for the proposal creation endpoint and
           // nothing else. Many bad things could happen otherwise (e.g. breaking
           // session consistency).
-          const auto& [txid, root] =
+          const auto& [txid, root, commit_term] =
             history->get_replicated_state_txid_and_root();
-          tx.set_read_txid(txid);
-          tx.set_view(consensus->get_view()); // TODO: Is this right?
+          tx.set_read_txid(txid, commit_term);
           tx.set_root_at_read_version(root);
         }
       }
