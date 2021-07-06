@@ -831,9 +831,13 @@ namespace ccf
            {in.quote_info},
            in.public_encryption_key,
            NodeStatus::TRUSTED,
-           get_next_reconfiguration_id(network, ctx.tx),
            std::nullopt,
            ds::to_hex(in.code_digest.data)});
+
+        kv::NetworkConfiguration nc =
+          get_latest_network_configuration(network, ctx.tx);
+        nc.nodes.insert(in.node_id);
+        add_new_network_reconfiguration(network, ctx.tx, nc);
 
 #ifdef GET_QUOTE
         g.trust_node_code_id(in.code_digest);

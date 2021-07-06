@@ -16,6 +16,7 @@
 #include "kv/store.h"
 #include "members.h"
 #include "modules.h"
+#include "network_configurations.h"
 #include "nodes.h"
 #include "proposals.h"
 #include "scripts.h"
@@ -79,6 +80,7 @@ namespace ccf
     // Node table
     //
     Nodes nodes;
+    NetworkConfigurations network_configurations;
 
     //
     // Internal CCF tables
@@ -127,6 +129,7 @@ namespace ccf
       user_certs(Tables::USER_CERTS),
       user_info(Tables::USER_INFO),
       nodes(Tables::NODES),
+      network_configurations(Tables::NETWORK_CONFIGURATIONS),
       service(Tables::SERVICE),
       values(Tables::VALUES),
       secrets(Tables::ENCRYPTED_LEDGER_SECRETS),

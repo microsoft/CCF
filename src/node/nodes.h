@@ -41,8 +41,6 @@ namespace ccf
     crypto::Pem encryption_pub_key;
     /// Node status
     NodeStatus status = NodeStatus::PENDING;
-    /// The reconfiguration in which the node was added.
-    std::optional<uint64_t> reconfiguration_id;
 
     /** Set to the seqno of the latest ledger secret at the time the node is
         trusted */
@@ -54,8 +52,7 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfo, cert, quote_info, encryption_pub_key, status);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    NodeInfo, ledger_secret_seqno, reconfiguration_id, code_digest);
+  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno, code_digest);
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;
 }
