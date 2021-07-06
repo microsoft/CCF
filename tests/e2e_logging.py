@@ -27,6 +27,7 @@ from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
 import urllib.parse
+import pprint
 
 from loguru import logger as LOG
 
@@ -551,12 +552,18 @@ def test_raw_text(network, args):
 def test_metrics(network, args):
     primary, _ = network.find_primary()
 
-    def get_metrics(r, path, method):
-        return next(
-            v
-            for v in r.body.json()["metrics"]
-            if v["path"] == path and v["method"] == method
-        )
+    def get_metrics(r, path, method, default=None):
+        try:
+            return next(
+                v
+                for v in r.body.json()["metrics"]
+                if v["path"] == path and v["method"] == method
+            )
+        except StopIteration:
+            if default is None:
+                raise
+            else:
+                return default
 
     calls = 0
     errors = 0
@@ -579,6 +586,21 @@ def test_metrics(network, args):
     with primary.client() as c:
         r = c.get("/app/api/metrics")
         assert get_metrics(r, "api/metrics", "GET")["errors"] == errors + 1
+
+    calls = 0
+    with primary.client("user0") as c:
+        r = c.get("/app/api/metrics")
+        calls = get_metrics(r, "log/public", "POST", {"calls": 0})["calls"]
+
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+    )
+
+    with primary.client("user0") as c:
+        r = c.get("/app/api/metrics")
+        pprint.pprint(r.body.json())
+        assert get_metrics(r, "log/public", "POST")["calls"] == calls + 1
 
     return network
 
@@ -1206,6 +1228,9 @@ def run(args):
         txs=txs,
     ) as network:
         network.start_and_join(args)
+
+        network = test_metrics(network, args)
+        return
 
         network = test(
             network,
