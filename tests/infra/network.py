@@ -908,7 +908,7 @@ class Network:
                                     "msg": "This is submitted to force a view change",
                                 },
                             )
-                        time.sleep(5)
+                        time.sleep(1)
                     except CCFConnectionException:
                         LOG.warning(
                             f"Could not successfully connect to node {backup.node_id}."
