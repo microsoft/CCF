@@ -497,9 +497,9 @@ namespace ccf
           // should only ever be used for the proposal creation endpoint and
           // nothing else. Many bad things could happen otherwise (e.g. breaking
           // session consistency).
-          const auto& [txid, root, commit_term] =
+          const auto& [txid, root, term_of_next_version] =
             history->get_replicated_state_txid_and_root();
-          tx.set_read_txid(txid, commit_term);
+          tx.set_read_txid(txid, term_of_next_version);
           tx.set_root_at_read_version(root);
         }
       }

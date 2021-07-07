@@ -2632,7 +2632,7 @@ namespace aft
       else
       {
         // but we still want the KV to know which term we're in
-        store->initialise_commit_term(state->current_view);
+        store->initialise_term(state->current_view);
       }
 
       replica_state = kv::ReplicaState::Leader;

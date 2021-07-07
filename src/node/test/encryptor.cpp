@@ -399,7 +399,7 @@ TEST_CASE("Encryptor rollback")
   StringString map("map");
   constexpr auto store_term = 2;
   kv::Store store;
-  store.initialise_commit_term(2);
+  store.initialise_term(2);
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();

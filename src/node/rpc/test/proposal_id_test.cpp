@@ -118,15 +118,15 @@ public:
     if (forced)
     {
       forced = false;
-      return {{read_term, forced_version},
+      return {{term_of_last_version, forced_version},
               crypto::Sha256Hash(std::to_string(version)),
-              commit_term};
+              term_of_next_version};
     }
     else
     {
-      return {{read_term, version},
+      return {{term_of_last_version, version},
               crypto::Sha256Hash(std::to_string(version)),
-              commit_term};
+              term_of_next_version};
     }
   }
 };

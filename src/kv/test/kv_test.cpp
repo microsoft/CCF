@@ -2342,7 +2342,7 @@ TEST_CASE("Mid-tx compaction")
 TEST_CASE("Store clear")
 {
   kv::Store kv_store;
-  kv_store.initialise_commit_term(42);
+  kv_store.initialise_term(42);
 
   auto map_a_name = "public:A";
   auto map_b_name = "public:B";
@@ -2407,7 +2407,7 @@ TEST_CASE("Reported TxID after commit")
 
   INFO("Initialise store");
   {
-    kv_store.initialise_commit_term(store_commit_term);
+    kv_store.initialise_term(store_commit_term);
 
     for (store_last_seqno = kv_store.current_version(); store_last_seqno < 10;
          store_last_seqno++)

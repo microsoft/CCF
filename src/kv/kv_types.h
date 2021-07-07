@@ -334,7 +334,8 @@ namespace kv
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
     virtual void append(const std::vector<uint8_t>& data) = 0;
-    virtual void rollback(const kv::TxID& tx_id, kv::Term commit_term) = 0;
+    virtual void rollback(
+      const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;
@@ -642,7 +643,7 @@ namespace kv
       bool public_only = false) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(const TxID& tx_id, Term write_term_) = 0;
-    virtual void initialise_commit_term(Term t) = 0;
+    virtual void initialise_term(Term t) = 0;
     virtual CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,

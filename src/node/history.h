@@ -121,8 +121,8 @@ namespace ccf
 
   protected:
     kv::Version version = 0;
-    kv::Term read_term = 0;
-    kv::Term commit_term = 0;
+    kv::Term term_of_last_version = 0;
+    kv::Term term_of_next_version = 0;
 
   public:
     NullTxHistory(kv::Store& store_, const NodeId& id_, crypto::KeyPair&) :
@@ -148,15 +148,15 @@ namespace ccf
 
     void set_term(kv::Term t) override
     {
-      read_term = t;
-      commit_term = t;
+      term_of_last_version = t;
+      term_of_next_version = t;
     }
 
     void rollback(const kv::TxID& tx_id, kv::Term commit_term_) override
     {
       version = tx_id.version;
-      read_term = tx_id.term;
-      commit_term = commit_term_;
+      term_of_last_version = tx_id.term;
+      term_of_next_version = commit_term_;
     }
 
     void compact(kv::Version) override {}
@@ -198,9 +198,9 @@ namespace ccf
     std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
     get_replicated_state_txid_and_root() override
     {
-      return {{read_term, version},
+      return {{term_of_last_version, version},
               crypto::Sha256Hash(std::to_string(version)),
-              commit_term};
+              term_of_next_version};
     }
 
     std::vector<uint8_t> get_proof(kv::Version) override
@@ -512,8 +512,8 @@ namespace ccf
     size_t sig_ms_interval;
 
     std::mutex state_lock;
-    kv::Term read_term = 0;
-    kv::Term commit_term;
+    kv::Term term_of_last_version = 0;
+    kv::Term term_of_next_version;
 
   public:
     HashedTxHistory(
@@ -652,10 +652,10 @@ namespace ccf
     get_replicated_state_txid_and_root() override
     {
       std::lock_guard<std::mutex> guard(state_lock);
-      return {{read_term,
+      return {{term_of_last_version,
                static_cast<kv::Version>(replicated_state_tree.end_index())},
               replicated_state_tree.get_root(),
-              commit_term};
+              term_of_next_version};
     }
 
     kv::TxHistory::Result verify_and_sign(
@@ -744,16 +744,17 @@ namespace ccf
       // This should only be called once, when the store first knows about its
       // term
       std::lock_guard<std::mutex> guard(state_lock);
-      read_term = t;
-      commit_term = t;
+      term_of_last_version = t;
+      term_of_next_version = t;
     }
 
-    void rollback(const kv::TxID& tx_id, kv::Term commit_term_) override
+    void rollback(
+      const kv::TxID& tx_id, kv::Term term_of_next_version_) override
     {
       std::lock_guard<std::mutex> guard(state_lock);
       LOG_TRACE_FMT("Rollback to {}.{}", tx_id.term, tx_id.version);
-      read_term = tx_id.term;
-      commit_term = commit_term_;
+      term_of_last_version = tx_id.term;
+      term_of_next_version = term_of_next_version_;
       replicated_state_tree.retract(tx_id.version);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }

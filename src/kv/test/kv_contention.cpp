@@ -216,7 +216,7 @@ DOCTEST_TEST_CASE(
   // previous write to a single key, at that key.
   kv::Store kv_store;
   constexpr auto store_commit_term = 2;
-  kv_store.initialise_commit_term(store_commit_term);
+  kv_store.initialise_term(store_commit_term);
 
   using MapType = kv::Map<size_t, nlohmann::json>;
   MapType map("public:foo");

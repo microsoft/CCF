@@ -37,8 +37,8 @@ namespace aft
   public:
     virtual ~Store() {}
     virtual void compact(Index v) = 0;
-    virtual void rollback(const kv::TxID& tx_id, Term commit_term) = 0;
-    virtual void initialise_commit_term(Term t) = 0;
+    virtual void rollback(const kv::TxID& tx_id, Term term_of_next_version) = 0;
+    virtual void initialise_term(Term t) = 0;
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
       const std::vector<uint8_t> data,
       ConsensusType consensus_type,
@@ -64,21 +64,21 @@ namespace aft
       }
     }
 
-    void rollback(const kv::TxID& tx_id, Term commit_term) override
+    void rollback(const kv::TxID& tx_id, Term term_of_next_version) override
     {
       auto p = x.lock();
       if (p)
       {
-        p->rollback(tx_id, commit_term);
+        p->rollback(tx_id, term_of_next_version);
       }
     }
 
-    void initialise_commit_term(Term t) override
+    void initialise_term(Term t) override
     {
       auto p = x.lock();
       if (p)
       {
-        p->initialise_commit_term(t);
+        p->initialise_term(t);
       }
     }
 

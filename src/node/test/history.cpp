@@ -122,11 +122,11 @@ TEST_CASE("Check signing works across rollback")
   kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
   constexpr auto store_term = 2;
-  primary_store.initialise_commit_term(store_term);
+  primary_store.initialise_term(store_term);
 
   kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
-  backup_store.initialise_commit_term(store_term);
+  backup_store.initialise_term(store_term);
 
   ccf::Nodes nodes(ccf::Tables::NODES);
 
