@@ -1229,9 +1229,6 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = test_metrics(network, args)
-        return
-
         network = test(
             network,
             args,
