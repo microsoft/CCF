@@ -237,6 +237,11 @@ def remove_node(node_id: str, **kwargs):
 
 
 @cli_proposal
+def remove_node_2tx(node_id: str, **kwargs):
+    return build_proposal("remove_node_2tx", {"node_id": node_id}, **kwargs)
+
+
+@cli_proposal
 def add_node_code(code_id: str, **kwargs):
     return build_proposal("add_node_code", {"code_id": code_id}, **kwargs)
 

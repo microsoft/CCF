@@ -829,4 +829,25 @@ const actions = new Map([
       }
     ),
   ],
+  [
+    "remove_node_2tx",
+    new Action(
+      function (args) {
+        checkEntityId(args.node_id, "node_id");
+      },
+      function (args) {
+        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
+          ccf.strToBuf(args.node_id)
+        );
+        if (node !== undefined) {
+          const node_obj = ccf.bufToJsonCompatible(node);
+          node_obj.status = "Retiring";
+          ccf.kv["public:ccf.gov.nodes.info"].set(
+            ccf.strToBuf(args.node_id),
+            ccf.jsonCompatibleToBuf(node_obj)
+          );
+        }
+      }
+    ),
+  ],
 ]);

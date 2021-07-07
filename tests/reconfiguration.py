@@ -289,7 +289,10 @@ def test_join_straddling_primary_replacement(network, args):
                 "name": "transition_node_to_trusted",
                 "args": {"node_id": new_node.node_id},
             },
-            {"name": "remove_node", "args": {"node_id": primary.node_id}},
+            {
+                "name": "remove_node" if args.consensus != "bft" else "remove_node_2tx",
+                "args": {"node_id": primary.node_id},
+            },
         ]
     }
 
@@ -452,6 +455,7 @@ def run(args):
         else:
             test_learner_catches_up(network, args)
             test_learner_does_not_take_part(network, args)
+            test_retire_backup(network, args)
 
 
 def run_join_old_snapshot(args):

@@ -331,6 +331,11 @@ namespace aft
       return replica_state == kv::ReplicaState::Retired;
     }
 
+    bool is_retiring()
+    {
+      return replica_state == kv::ReplicaState::Retiring;
+    }
+
     ccf::NodeId get_primary(ccf::View view)
     {
       CCF_ASSERT_FMT(
@@ -501,22 +506,25 @@ namespace aft
         guard.lock();
       }
 
-      // Detect when we are retired by observing a configuration
-      // from which we are absent following a configuration in which
-      // we were included. Note that this relies on retirement being
-      // a final state, and node identities never being re-used.
-      if (
-        !configurations.empty() &&
-        configurations.back().nodes.find(state->my_node_id) !=
-          configurations.back().nodes.end() &&
-        conf.find(state->my_node_id) == conf.end())
+      if (!use_two_tx_reconfig)
       {
-        CCF_ASSERT_FMT(
-          !retirement_idx.has_value(),
-          "retirement_idx already set to {}",
-          retirement_idx.value());
-        retirement_idx = idx;
-        LOG_INFO_FMT("Node retiring at {}", idx);
+        // Detect when we are retired by observing a configuration
+        // from which we are absent following a configuration in which
+        // we were included. Note that this relies on retirement being
+        // a final state, and node identities never being re-used.
+        if (
+          !configurations.empty() &&
+          configurations.back().nodes.find(state->my_node_id) !=
+            configurations.back().nodes.end() &&
+          conf.find(state->my_node_id) == conf.end())
+        {
+          CCF_ASSERT_FMT(
+            !retirement_idx.has_value(),
+            "retirement_idx already set to {}",
+            retirement_idx.value());
+          retirement_idx = idx;
+          LOG_INFO_FMT("Node retiring at {}", idx);
+        }
       }
 
       uint32_t offset = 0;
@@ -2730,6 +2738,24 @@ namespace aft
       }
     }
 
+    void become_retiring()
+    {
+      assert(use_two_tx_reconfig);
+
+      LOG_INFO_FMT(
+        "Becoming retiring {}: {}", state->my_node_id, state->current_view);
+
+      replica_state = kv::ReplicaState::Retiring;
+      leader_id.reset();
+
+      CCF_ASSERT_FMT(
+        !retirement_idx.has_value(),
+        "retirement_idx already set to {}",
+        retirement_idx.value());
+      retirement_idx = state->commit_idx;
+      LOG_INFO_FMT("Node retiring at {}", state->commit_idx);
+    }
+
     void become_retired()
     {
       replica_state = kv::ReplicaState::Retired;
@@ -2920,7 +2946,8 @@ namespace aft
       state->commit_idx = idx;
       if (
         retirement_committable_idx.has_value() &&
-        idx >= retirement_committable_idx.value())
+        idx >= retirement_committable_idx.value() &&
+        (!use_two_tx_reconfig || is_retiring()))
       {
         become_retired();
       }
@@ -2979,6 +3006,15 @@ namespace aft
               "Configurations: all nodes trusted, switching to next "
               "configuration");
             configurations.pop_front();
+
+            if (!is_retiring())
+            {
+              auto nc = configurations.front().nodes;
+              if (nc.find(state->my_node_id) == nc.end())
+              {
+                become_retiring();
+              }
+            }
           }
           else
           {
