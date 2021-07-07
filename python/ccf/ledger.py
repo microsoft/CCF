@@ -477,11 +477,11 @@ class Entry:
         buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
         self._public_domain_size = to_uint_64(buffer)
 
-    def get_public_domain(self) -> Optional[PublicDomain]:
+    def get_public_domain(self) -> PublicDomain:
         """
         Retrieve the public (i.e. non-encrypted) domain for that entry.
 
-        Note: If the entry is private-only, nothing is returned.
+        Note: Even if the entry is private-only, a :py:class:`ccf.ledger.PublicDomain` is returned.
 
         :return: :py:class:`ccf.ledger.PublicDomain`
         """
