@@ -299,9 +299,19 @@ namespace ccf
         // new iteration of the key exchange protocol
         initiate();
       }
-      // TODO: Resending here is potentially very expensive. Work out if we need
-      // resends or could avoid it, and see if we can find a better heuristic
-      // for resending than "every time we get unexpected junk"
+
+      if (status.check(INITIATED))
+      {
+        // If we try to initiate too early when a node starts up, they will
+        // never receive the init message (they drop it if it arrives too early
+        // in their state machine). So sometimes we need to re-initiate.
+        // Currently, this means if we try to send too fast during initial key
+        // exchange, we'll constantly generate new handshake attempts and never
+        // succeed! This should be handled by a timeout, timing out an INITIATED
+        // connection faster than a later one, but still slow enough that we
+        // give a roundtrip a chance.
+        initiate();
+      }
     }
 
     bool recv_key_exchange_init(
@@ -777,7 +787,8 @@ namespace ccf
       auto e = crypto::create_entropy();
       hkdf_salt = e->random(salt_len);
 
-      status.expect(INACTIVE);
+      // TODO: Would like this to be true for state machine, but it isn't
+      // status.expect(INACTIVE);
       status.advance(INITIATED);
 
       send_key_exchange_init();
