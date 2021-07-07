@@ -299,8 +299,7 @@ namespace ccf
         // new iteration of the key exchange protocol
         initiate();
       }
-
-      if (status.check(INITIATED))
+      else if (status.check(INITIATED))
       {
         // If we try to initiate too early when a node starts up, they will
         // never receive the init message (they drop it if it arrives too early
@@ -604,47 +603,6 @@ namespace ccf
     ChannelStatus get_status()
     {
       return status.value();
-    }
-
-    void sign_message(
-      std::vector<uint8_t>& target,
-      const std::vector<uint8_t>& message,
-      bool with_salt = false,
-      const std::vector<uint8_t>& extra_to_sign = {})
-    {
-      std::vector<uint8_t> to_sign = message;
-
-      // Append any extra data to be signed (not serialised, assumed known by
-      // receiver)
-      to_sign.insert(to_sign.end(), extra_to_sign.begin(), extra_to_sign.end());
-
-      auto signature = node_kp->sign(to_sign);
-
-      // Serialise channel key share, signature, and certificate and
-      // length-prefix them
-      auto space = message.size() + signature.size() + node_cert.size() +
-        5 * sizeof(size_t);
-      if (with_salt)
-      {
-        space += hkdf_salt.size() + sizeof(size_t);
-      }
-
-      const auto prior_size = target.size();
-      target.resize(prior_size + space);
-
-      auto data = target.data() + prior_size;
-      serialized::write(data, space, protocol_version);
-      serialized::write(data, space, message.size());
-      serialized::write(data, space, message.data(), message.size());
-      serialized::write(data, space, signature.size());
-      serialized::write(data, space, signature.data(), signature.size());
-      serialized::write(data, space, node_cert.size());
-      serialized::write(data, space, node_cert.data(), node_cert.size());
-      if (with_salt)
-      {
-        serialized::write(data, space, hkdf_salt.size());
-        serialized::write(data, space, hkdf_salt.data(), hkdf_salt.size());
-      }
     }
 
     CBuffer extract_buffer(const uint8_t*& data, size_t& size) const
