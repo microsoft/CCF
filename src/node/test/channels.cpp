@@ -739,7 +739,8 @@ TEST_CASE("Full NodeToNode test")
             {
               case NodeMsgType::channel_msg:
               {
-                n2n.recv_message(msg.from, msg.data());
+                const auto msg_body = msg.data();
+                n2n.recv_message(msg.from, msg_body.data(), msg_body.size());
 
                 auto d = msg.data();
                 const uint8_t* data = d.data();
