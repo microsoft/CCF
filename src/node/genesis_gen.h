@@ -60,7 +60,7 @@ namespace ccf
       {
         ni.status = NodeStatus::RETIRED;
         nodes->put(nid, ni);
-        nc.nodes.insert(nid);
+        nc.nodes.erase(nid);
       }
 
       return nc;

@@ -44,5 +44,6 @@ namespace ccf
       config);
     auto nconfigs = tx.rw(tables.network_configurations);
     nconfigs->put(config.rid, config);
+    nconfigs->put((kv::ReconfigurationId)-1, {config.rid, {}});
   }
 }
