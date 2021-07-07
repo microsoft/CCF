@@ -27,7 +27,6 @@ from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
 import urllib.parse
-import pprint
 
 from loguru import logger as LOG
 
@@ -599,7 +598,6 @@ def test_metrics(network, args):
 
     with primary.client("user0") as c:
         r = c.get("/app/api/metrics")
-        pprint.pprint(r.body.json())
         assert get_metrics(r, "log/public", "POST")["calls"] == calls + 1
 
     return network
