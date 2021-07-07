@@ -195,7 +195,7 @@ TEST_CASE("Client/Server key exchange")
   {
     // Attempting to send has produced a new channel establishment message
     auto msgs = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(msgs.size() == 1);
+    REQUIRE(msgs.size() == 2);
     REQUIRE(msgs[0].type == channel_msg);
     REQUIRE(msgs[1].type == channel_msg);
     REQUIRE(read_outbound_msgs<MsgType>(eio2).size() == 0);
@@ -205,7 +205,8 @@ TEST_CASE("Client/Server key exchange")
     REQUIRE(msgs[0].data() != msgs[1].data());
 #endif
 
-    channel1_signed_key_share = msgs[0].data();
+    // Use the latter attempt - it is the state channel1 is working with
+    channel1_signed_key_share = msgs[1].data();
   }
 
   INFO("Load peer key share and check signature");
@@ -990,7 +991,7 @@ TEST_CASE("Robust key exchange")
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
 
     auto outbound = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(outbound.size() == 2);
+    REQUIRE(outbound.size() >= 2);
     for (size_t i = 0; i < outbound.size(); ++i)
     {
       const auto& msg = outbound[i];
@@ -1008,7 +1009,7 @@ TEST_CASE("Robust key exchange")
 
     outbound = read_outbound_msgs<MsgType>(eio1);
     REQUIRE(outbound.size() >= 1);
-    auto kex_init = outbound[0];
+    auto kex_init = outbound.back();
     REQUIRE(kex_init.type == NodeMsgType::channel_msg);
     for (size_t i = 0; i < outbound.size(); ++i)
     {
@@ -1042,7 +1043,7 @@ TEST_CASE("Robust key exchange")
 
     outbound = read_outbound_msgs<MsgType>(eio2);
     REQUIRE(outbound.size() >= 2);
-    auto kex_response = outbound[1];
+    auto kex_response = outbound.back();
     REQUIRE(kex_response.type == NodeMsgType::channel_msg);
     for (size_t i = 0; i < outbound.size(); ++i)
     {
@@ -1054,9 +1055,10 @@ TEST_CASE("Robust key exchange")
     REQUIRE_FALSE(channels1.recv_channel_message(nid2, kex_response.data()));
 
     outbound = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(outbound.size() >= 1);
+    REQUIRE(outbound.size() == 2);
     auto kex_final = outbound[0];
     REQUIRE(kex_final.type == NodeMsgType::channel_msg);
+    REQUIRE(outbound[1].type == NodeMsgType::consensus_msg);
     for (size_t i = 0; i < outbound.size(); ++i)
     {
       const auto& msg = outbound[i];
