@@ -897,6 +897,22 @@ class Network:
         logs = []
         while time.time() < end_time:
             try:
+                backup = self.find_any_backup()
+                if backup.get_consensus() == "bft":
+                    try:
+                        with backup.client("user0") as c:
+                            _ = c.post(
+                                "/app/log/private",
+                                {
+                                    "id": -1,
+                                    "msg": "This is submitted to force a view change",
+                                },
+                            )
+                        time.sleep(1)
+                    except CCFConnectionException:
+                        LOG.warning(
+                            f"Could not successfully connect to node {backup.node_id}."
+                        )
                 logs = []
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id != old_primary.node_id:
