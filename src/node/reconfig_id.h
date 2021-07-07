@@ -11,6 +11,9 @@ namespace ccf
   inline kv::ReconfigurationId get_next_reconfiguration_id(
     ccf::NetworkTables& tables, kv::ReadOnlyTx& tx)
   {
+    // The entry at -1 contains a dummy configuration that holds the largest ID
+    // used so far.
+
     auto nconfigs = tx.ro(tables.network_configurations);
     auto e = nconfigs->get((kv::ReconfigurationId)-1);
     if (!e.has_value())
