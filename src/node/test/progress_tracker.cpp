@@ -54,6 +54,10 @@ public:
     write_view_change_confirmation,
     ccf::SeqNo(ccf::ViewChangeConfirmation& new_view),
     override);
+  MAKE_MOCK1(
+    sign_view_change_confirmation,
+    void(ccf::ViewChangeConfirmation& new_view),
+    override);
 };
 
 void ordered_execution(
@@ -825,7 +829,12 @@ TEST_CASE("Sending evidence out of band")
 
   INFO("Can trigger view change");
   {
-    aft::ViewChangeTracker vct(nullptr, std::chrono::seconds(10));
+    auto store = std::make_shared<StoreMock>();
+    StoreMock& store_mock = *store.get();
+    REQUIRE_CALL(store_mock, sign_view_change_confirmation(_))
+      .TIMES(AT_LEAST(2));
+
+    aft::ViewChangeTracker vct(store, std::chrono::seconds(10));
     size_t i = 0;
     for (auto const& node_id : node_ids)
     {
