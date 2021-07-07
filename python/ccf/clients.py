@@ -463,6 +463,7 @@ class RequestClient:
 
         return Response.from_requests_response(response)
 
+
 class CCFClient:
     """
     Client used to connect securely and issue requests to a given CCF node.

@@ -108,7 +108,7 @@ namespace kv
       if (change_set == nullptr)
       {
         CCF_ASSERT_FMT(
-          read_txid.has_value(), "read_txid should have already been set ");
+          read_txid.has_value(), "read_txid should have already been set");
         throw CompactedVersionConflict(fmt::format(
           "Unable to retrieve state over map {} at {}",
           map_name,

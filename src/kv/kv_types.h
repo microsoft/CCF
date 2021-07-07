@@ -320,7 +320,10 @@ namespace kv
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
-    virtual std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
+    virtual std::tuple<
+      kv::TxID /* TxID of last transaction seen by history */,
+      crypto::Sha256Hash /* root as of TxID */,
+      kv::Term /* term_of_next_version */>
     get_replicated_state_txid_and_root() = 0;
     virtual std::vector<uint8_t> get_proof(Version v) = 0;
     virtual bool verify_proof(const std::vector<uint8_t>& proof) = 0;
