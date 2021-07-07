@@ -62,13 +62,13 @@ namespace kv
     ApplyResult apply() override
     {
       kv::Version max_conflict_version;
-      kv::Term view;
+      kv::Term term;
       if (!store->fill_maps(
             data,
             public_only,
             v,
             max_conflict_version,
-            view,
+            term,
             changes,
             new_maps,
             true))
@@ -76,7 +76,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      if (!store->commit_deserialised(changes, v, view, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
@@ -199,6 +199,7 @@ namespace kv
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       store(store_),
@@ -208,6 +209,7 @@ namespace kv
       data(data_),
       public_only(public_only_),
       v(v_),
+      term(view_),
       changes(std::move(changes_)),
       new_maps(std::move(new_maps_))
     {}
@@ -268,6 +270,7 @@ namespace kv
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -278,12 +281,14 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_))
     {}
 
     ApplyResult apply() override
     {
+      LOG_FAIL_FMT("Commit deserialised signature in term {}", term);
       if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
@@ -323,6 +328,7 @@ namespace kv
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -333,6 +339,7 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_))
     {}
@@ -384,6 +391,7 @@ namespace kv
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -394,6 +402,7 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_))
     {}
@@ -431,6 +440,7 @@ namespace kv
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -441,6 +451,7 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_))
     {}
@@ -492,17 +503,18 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_)),
       max_conflict_version(max_conflict_version_)
     {
       max_conflict_version = max_conflict_version_;
       tx = std::move(tx_);
-      term = view_;
     }
 
     ApplyResult apply() override
     {
+      LOG_FAIL_FMT("BFT apply in term: {}", term);
       tx->set_change_list(std::move(changes), term);
 
       auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
@@ -552,13 +564,13 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_)),
       max_conflict_version(max_conflict_version_)
     {
       max_conflict_version = max_conflict_version_;
       tx = std::move(tx_);
-      term = view_;
     }
 
     ApplyResult apply() override

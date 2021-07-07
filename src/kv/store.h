@@ -818,6 +818,7 @@ namespace kv
             std::move(data),
             public_only,
             v,
+            view,
             std::move(changes),
             std::move(new_maps));
         }
@@ -831,6 +832,7 @@ namespace kv
             std::move(data),
             public_only,
             v,
+            view,
             std::move(changes),
             std::move(new_maps));
         }
@@ -843,6 +845,7 @@ namespace kv
             std::move(data),
             public_only,
             v,
+            view,
             std::move(changes),
             std::move(new_maps));
         }
@@ -856,6 +859,7 @@ namespace kv
             std::move(data),
             public_only,
             v,
+            view,
             std::move(changes),
             std::move(new_maps));
         }
