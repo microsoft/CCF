@@ -62,13 +62,13 @@ namespace kv
     ApplyResult apply() override
     {
       kv::Version max_conflict_version;
-      kv::Term term;
+      kv::Term view;
       if (!store->fill_maps(
             data,
             public_only,
             v,
             max_conflict_version,
-            term,
+            view,
             changes,
             new_maps,
             true))
@@ -76,7 +76,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, view, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
