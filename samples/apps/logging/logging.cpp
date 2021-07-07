@@ -183,7 +183,7 @@ namespace loggingapp
 
       // SNIPPET_START: install_record
       make_endpoint(
-        "log/private", HTTP_POST, ccf::json_adapter(record), auth_policies)
+        "/log/private", HTTP_POST, ccf::json_adapter(record), auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_END: install_record
@@ -221,7 +221,7 @@ namespace loggingapp
 
       // SNIPPET_START: install_get
       make_read_only_endpoint(
-        "log/private",
+        "/log/private",
         HTTP_GET,
         ccf::json_read_only_adapter(get),
         auth_policies)
@@ -252,7 +252,7 @@ namespace loggingapp
         return ccf::make_success(LoggingRemove::Out{removed});
       };
       make_endpoint(
-        "log/private", HTTP_DELETE, ccf::json_adapter(remove), auth_policies)
+        "/log/private", HTTP_DELETE, ccf::json_adapter(remove), auth_policies)
         .set_auto_schema<void, LoggingRemove::Out>()
         .add_query_parameter<size_t>("id")
         .install();
@@ -267,7 +267,7 @@ namespace loggingapp
         return ccf::make_success(true);
       };
       make_endpoint(
-        "log/private/all", HTTP_DELETE, ccf::json_adapter(clear), auth_policies)
+        "/log/private/all", HTTP_DELETE, ccf::json_adapter(clear), auth_policies)
         .set_auto_schema<void, bool>()
         .install();
 
@@ -276,7 +276,7 @@ namespace loggingapp
         return ccf::make_success(records_handle->size());
       };
       make_endpoint(
-        "log/private/count", HTTP_GET, ccf::json_adapter(count), auth_policies)
+        "/log/private/count", HTTP_GET, ccf::json_adapter(count), auth_policies)
         .set_auto_schema<void, size_t>()
         .install();
 
@@ -299,7 +299,7 @@ namespace loggingapp
       };
       // SNIPPET_END: record_public
       make_endpoint(
-        "log/public",
+        "/log/public",
         HTTP_POST,
         ccf::json_adapter(record_public),
         auth_policies)
@@ -336,7 +336,7 @@ namespace loggingapp
       };
       // SNIPPET_END: get_public
       make_read_only_endpoint(
-        "log/public",
+        "/log/public",
         HTTP_GET,
         ccf::json_read_only_adapter(get_public),
         auth_policies)
@@ -365,7 +365,7 @@ namespace loggingapp
         return ccf::make_success(LoggingRemove::Out{removed});
       };
       make_endpoint(
-        "log/public",
+        "/log/public",
         HTTP_DELETE,
         ccf::json_adapter(remove_public),
         auth_policies)
@@ -380,7 +380,7 @@ namespace loggingapp
         return ccf::make_success(true);
       };
       make_endpoint(
-        "log/public/all",
+        "/log/public/all",
         HTTP_DELETE,
         ccf::json_adapter(clear_public),
         auth_policies)
@@ -393,7 +393,7 @@ namespace loggingapp
         return ccf::make_success(public_records_handle->size());
       };
       make_endpoint(
-        "log/public/count",
+        "/log/public/count",
         HTTP_GET,
         ccf::json_adapter(count_public),
         auth_policies)
@@ -440,7 +440,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_body(nlohmann::json(true).dump());
       };
       make_endpoint(
-        "log/private/prefix_cert",
+        "/log/private/prefix_cert",
         HTTP_POST,
         log_record_prefix_cert,
         auth_policies)
@@ -465,7 +465,7 @@ namespace loggingapp
         return ccf::make_success(true);
       };
       make_endpoint(
-        "log/private/anonymous",
+        "/log/private/anonymous",
         HTTP_POST,
         ccf::json_adapter(log_record_anonymous),
         ccf::no_auth_required)
@@ -618,7 +618,7 @@ namespace loggingapp
         }
       };
       make_endpoint(
-        "multi_auth",
+        "/multi_auth",
         HTTP_GET,
         multi_auth,
         {ccf::user_cert_auth_policy,
@@ -644,7 +644,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_body(response.dump(2));
       };
       auto custom_policy = std::make_shared<CustomAuthPolicy>();
-      make_endpoint("custom_auth", HTTP_GET, custom_auth, {custom_policy})
+      make_endpoint("/custom_auth", HTTP_GET, custom_auth, {custom_policy})
         .set_auto_schema<void, nlohmann::json>()
         // To test that custom auth works on both the receiving node and a
         // forwardee, we always forward it
@@ -691,7 +691,7 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
       make_endpoint(
-        "log/private/raw_text/{id}", HTTP_POST, log_record_text, auth_policies)
+        "/log/private/raw_text/{id}", HTTP_POST, log_record_text, auth_policies)
         .install();
       // SNIPPET_END: log_record_text
 
@@ -740,7 +740,7 @@ namespace loggingapp
             consensus, view, seqno, error_reason);
         };
       make_endpoint(
-        "log/private/historical",
+        "/log/private/historical",
         HTTP_GET,
         ccf::historical::adapter(
           get_historical, context.get_historical_state(), is_tx_committed),
@@ -793,7 +793,7 @@ namespace loggingapp
           }
         };
       make_endpoint(
-        "log/private/historical_receipt",
+        "/log/private/historical_receipt",
         HTTP_GET,
         ccf::historical::adapter(
           get_historical_with_receipt,
@@ -809,7 +809,7 @@ namespace loggingapp
       // SNIPPET_END: get_historical_with_receipt
 
       static constexpr auto get_historical_range_path =
-        "log/private/historical/range";
+        "/log/private/historical/range";
       auto get_historical_range = [&,
                                    this](ccf::endpoints::EndpointContext& ctx) {
         // Parse arguments from query
@@ -1033,7 +1033,7 @@ namespace loggingapp
           // NB: This path tells the caller to continue to ask until the end of
           // the range, even if the next response is paginated
           response.next_link = fmt::format(
-            "/app/{}?from_seqno={}&to_seqno={}&id={}",
+            "/app{}?from_seqno={}&to_seqno={}&id={}",
             get_historical_range_path,
             next_page_start,
             to_seqno,
@@ -1118,7 +1118,7 @@ namespace loggingapp
         return ccf::make_success(true);
       };
       make_endpoint(
-        "log/private/admin_only",
+        "/log/private/admin_only",
         HTTP_POST,
         ccf::json_adapter(record_admin_only),
         auth_policies)
@@ -1134,7 +1134,7 @@ namespace loggingapp
       };
 
       make_endpoint(
-        "log/request_query", HTTP_GET, get_request_query, ccf::no_auth_required)
+        "/log/request_query", HTTP_GET, get_request_query, ccf::no_auth_required)
         .set_auto_schema<void, std::string>()
         .install();
 
@@ -1147,7 +1147,7 @@ namespace loggingapp
       };
 
       make_endpoint(
-        "log/signed_request_query",
+        "/log/signed_request_query",
         HTTP_GET,
         get_signed_request_query,
         {ccf::user_signature_auth_policy})
