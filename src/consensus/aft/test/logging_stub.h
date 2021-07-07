@@ -140,7 +140,9 @@ namespace aft
       return true;
     }
 
-    void recv_message(const ccf::NodeId& from, OArray&& oa) override {}
+    void recv_message(
+      const ccf::NodeId& from, const uint8_t* data, size_t size) override
+    {}
 
     void initialize(
       const ccf::NodeId& self_id,
