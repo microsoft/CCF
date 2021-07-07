@@ -443,7 +443,7 @@ class Entry:
     _file: Optional[BinaryIO] = None
     _header: TransactionHeader
     _public_domain_size: int = 0
-    _public_domain: PublicDomain
+    _public_domain: Optional[PublicDomain] = None
     _file_size: int = 0
     gcm_header: Optional[GcmHeader] = None
 
@@ -485,7 +485,7 @@ class Entry:
 
         :return: :py:class:`ccf.ledger.PublicDomain`
         """
-        if self._public_domain == None:
+        if self._public_domain is None:
             buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
             self._public_domain = PublicDomain(buffer)
         return self._public_domain
