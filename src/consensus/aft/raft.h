@@ -3005,16 +3005,18 @@ namespace aft
             LOG_TRACE_FMT(
               "Configurations: all nodes trusted, switching to next "
               "configuration");
-            configurations.pop_front();
 
             if (!is_retiring())
             {
-              auto nc = configurations.front().nodes;
-              if (nc.find(state->my_node_id) == nc.end())
+              if (
+                conf->nodes.find(state->my_node_id) != conf->nodes.end() &&
+                next->nodes.find(state->my_node_id) == next->nodes.end())
               {
                 become_retiring();
               }
             }
+
+            configurations.pop_front();
           }
           else
           {
