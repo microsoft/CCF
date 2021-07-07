@@ -288,7 +288,6 @@ namespace kv
 
     ApplyResult apply() override
     {
-      LOG_FAIL_FMT("Commit deserialised signature in term {}", term);
       if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
@@ -514,7 +513,6 @@ namespace kv
 
     ApplyResult apply() override
     {
-      LOG_FAIL_FMT("BFT apply in term: {}", term);
       tx->set_change_list(std::move(changes), term);
 
       auto aft_requests = tx->rw<aft::RequestsMap>(ccf::Tables::AFT_REQUESTS);
