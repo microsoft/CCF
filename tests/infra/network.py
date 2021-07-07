@@ -487,7 +487,8 @@ class Network:
                 infra.node.State.PART_OF_PUBLIC_NETWORK.value,
                 timeout=args.ledger_recovery_timeout,
             )
-        self.wait_for_all_nodes_to_commit(primary=primary)
+        # Catch-up in recovery can take a long time, so extend this timeout
+        self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
     def recover(self, args):
@@ -635,13 +636,14 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-    def trust_node(self, node, args):
+    def trust_node(self, node, args, expected_status=NodeStatus.TRUSTED):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
+                    expected_status,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node

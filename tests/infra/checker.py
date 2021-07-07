@@ -55,3 +55,20 @@ def check_can_progress(node, timeout=3):
             time.sleep(0.1)
         details = c.get("/node/consensus").body.json()
         assert False, f"Stuck at {r}: {pprint.pformat(details)}"
+
+
+def check_does_not_progress(node, timeout=3):
+    with node.client() as c:
+        r = c.get("/node/commit")
+        original_tx = TxID.from_str(r.body.json()["transaction_id"])
+        with node.client("user0") as uc:
+            uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            current_tx = TxID.from_str(
+                c.get("/node/commit").body.json()["transaction_id"]
+            )
+            if current_tx.seqno > original_tx.seqno:
+                assert False, "Commit advanced when it shouldn't have"
+            time.sleep(0.1)
+        return True

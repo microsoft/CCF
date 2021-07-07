@@ -23,6 +23,7 @@ namespace ccf
 
   public:
     EntityId() = default;
+    EntityId(const EntityId& id_) = default;
     EntityId(const Value& id_) : id(id_) {}
     EntityId(Value&& id_) : id(std::move(id_)) {}
 
@@ -183,6 +184,27 @@ namespace std
     size_t operator()(const ccf::EntityId<FmtExtender>& entity_id) const
     {
       return std::hash<std::string>{}(entity_id.value());
+    }
+  };
+}
+
+namespace fmt
+{
+  template <typename FmtExtender>
+  struct formatter<ccf::EntityId<FmtExtender>>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const ccf::EntityId<FmtExtender>& v, FormatContext& ctx)
+    {
+      std::stringstream ss;
+      ss << v;
+      return format_to(ctx.out(), ss.str());
     }
   };
 }

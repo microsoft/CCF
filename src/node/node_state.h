@@ -20,6 +20,7 @@
 #include "network_state.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/progress_tracker.h"
+#include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
 #include "node/node_to_node_channel_manager.h"
 #include "rpc/frontend.h"
@@ -272,15 +273,17 @@ namespace ccf
     QuoteVerificationResult verify_quote(
       kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
-      const std::vector<uint8_t>& expected_node_public_key_der) override
+      const std::vector<uint8_t>& expected_node_public_key_der,
+      CodeDigest& code_digest) override
     {
 #ifdef GET_QUOTE
       return enclave_attestation_provider.verify_quote_against_store(
-        tx, quote_info, expected_node_public_key_der);
+        tx, quote_info, expected_node_public_key_der, code_digest);
 #else
       (void)tx;
       (void)quote_info;
       (void)expected_node_public_key_der;
+      (void)code_digest;
       return QuoteVerificationResult::Verified;
 #endif
     }
@@ -335,7 +338,15 @@ namespace ccf
 #ifdef GET_QUOTE
       quote_info = enclave_attestation_provider.generate_quote(
         node_sign_kp->public_key_der());
-      node_code_id = enclave_attestation_provider.get_code_id(quote_info);
+      auto code_id = enclave_attestation_provider.get_code_id(quote_info);
+      if (code_id.has_value())
+      {
+        node_code_id = code_id.value();
+      }
+      else
+      {
+        throw std::logic_error("Failed to extract code id from quote");
+      }
 #endif
 
       switch (start_type)
@@ -363,7 +374,7 @@ namespace ccf
 
           setup_snapshotter();
           setup_encryptor();
-          setup_consensus();
+          setup_consensus(ServiceStatus::OPENING);
           setup_progress_tracker();
           setup_history();
 
@@ -519,7 +530,9 @@ namespace ccf
           }
 
           // Set network secrets, node id and become part of network.
-          if (resp.node_status == NodeStatus::TRUSTED)
+          if (
+            resp.node_status == NodeStatus::TRUSTED ||
+            resp.node_status == NodeStatus::LEARNER)
           {
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
@@ -547,7 +560,8 @@ namespace ccf
 
             setup_snapshotter();
             setup_encryptor();
-            setup_consensus(resp.network_info.public_only);
+            setup_consensus(
+              resp.network_info.service_status, resp.network_info.public_only);
             setup_progress_tracker();
             setup_history();
             auto_refresh_jwt_keys();
@@ -964,13 +978,29 @@ namespace ccf
         self = NodeId(fmt::format("{:#064}", id.value()));
       }
 
+      CodeDigest code_digest;
+#ifdef GET_QUOTE
+      auto code_id = enclave_attestation_provider.get_code_id(quote_info);
+      if (code_id.has_value())
+      {
+        code_digest = code_id.value();
+      }
+      else
+      {
+        throw std::logic_error("Failed to extract code id from quote");
+      }
+#endif
+
       g.add_node(
         self,
         {node_info_network,
          node_cert,
          quote_info,
          node_encrypt_kp->public_key_pem().raw(),
-         NodeStatus::PENDING});
+         NodeStatus::PENDING,
+         get_next_reconfiguration_id(network, tx),
+         std::nullopt,
+         ds::to_hex(code_digest.data)});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -1005,7 +1035,7 @@ namespace ccf
         progress_tracker->set_node_id(self);
       }
 
-      setup_consensus(true);
+      setup_consensus(ServiceStatus::OPENING, true);
       setup_progress_tracker();
       auto_refresh_jwt_keys();
 
@@ -1901,7 +1931,7 @@ namespace ccf
       cmd_forwarder->initialize(self);
     }
 
-    void setup_raft(bool public_only = false)
+    void setup_raft(ServiceStatus service_status, bool public_only = false)
     {
       setup_n2n_channels();
       setup_cmd_forwarder();
@@ -1912,6 +1942,13 @@ namespace ccf
         tracker_store,
         std::chrono::milliseconds(consensus_config.raft_election_timeout));
       auto shared_state = std::make_shared<aft::State>(self);
+
+      kv::ReplicaState initial_state =
+        (network.consensus_type == ConsensusType::BFT &&
+         service_status == ServiceStatus::OPEN) ?
+        kv::ReplicaState::Learner :
+        kv::ReplicaState::Follower;
+
       auto raft = std::make_unique<RaftType>(
         network.consensus_type,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
@@ -1929,7 +1966,8 @@ namespace ccf
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
         std::chrono::milliseconds(consensus_config.bft_view_change_timeout),
         sig_tx_interval,
-        public_only);
+        public_only,
+        initial_state);
 
       consensus = std::make_shared<RaftConsensusType>(
         std::move(raft), network.consensus_type);
@@ -1971,9 +2009,9 @@ namespace ccf
       network.tables->set_encryptor(encryptor);
     }
 
-    void setup_consensus(bool public_only = false)
+    void setup_consensus(ServiceStatus service_status, bool public_only = false)
     {
-      setup_raft(public_only);
+      setup_raft(service_status, public_only);
     }
 
     void setup_progress_tracker()

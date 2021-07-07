@@ -9,3 +9,4 @@ PyJWT
 docutils
 python-iptables
 PyGithub
+py-spy

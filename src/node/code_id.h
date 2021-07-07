@@ -12,10 +12,10 @@ namespace ccf
 {
   struct CodeDigest
   {
-    std::array<uint8_t, crypto::Sha256Hash::SIZE> data;
+    std::array<uint8_t, crypto::Sha256Hash::SIZE> data = {};
 
     CodeDigest() = default;
-    CodeDigest(const CodeDigest& other) : data(other.data) {}
+    CodeDigest(const CodeDigest&) = default;
   };
 
   inline void to_json(nlohmann::json& j, const CodeDigest& code_digest)
