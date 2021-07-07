@@ -115,7 +115,7 @@ The currently valid and in-flight network configurations of the network.
 
 **Key** Reconfiguration ID: a unique identifier of a configuration
 
-**Value** A set of node IDs of the nodes in the respective configuration. Represented as JSON.
+**Value** A set of node IDs of the nodes in the respective configuration, represented as a JSON array.
 
 .. doxygenstruct:: ccf::NetworkConfiguration
    :project: CCF
