@@ -72,7 +72,9 @@ namespace ccf::endpoints
   EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_endpoint(
     const EndpointDefinitionPtr& e)
   {
-    return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
+    auto method = e->dispatch.uri_path;
+    method = method.substr(method.find_first_not_of('/'));
+    return metrics[method][e->dispatch.verb.c_str()];
   }
 
   Endpoint EndpointRegistry::make_endpoint(
