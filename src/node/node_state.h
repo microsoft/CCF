@@ -1449,21 +1449,23 @@ namespace ccf
         return;
       }
 
-      OArray oa(std::move(data));
+      const uint8_t* payload_data = data.data();
+      size_t payload_size = data.size();
+
       NodeMsgType msg_type =
-        serialized::overlay<NodeMsgType>(oa.data(), oa.size());
-      NodeId from = serialized::read<NodeId::Value>(oa.data(), oa.size());
+        serialized::overlay<NodeMsgType>(payload_data, payload_size);
+      NodeId from = serialized::read<NodeId::Value>(payload_data, payload_size);
 
       switch (msg_type)
       {
         case channel_msg:
         {
-          n2n_channels->recv_message(from, std::move(oa));
+          n2n_channels->recv_message(from, payload_data, payload_size);
           break;
         }
         case consensus_msg:
         {
-          consensus->recv_message(from, std::move(oa));
+          consensus->recv_message(from, payload_data, payload_size);
           break;
         }
 
