@@ -281,6 +281,11 @@ namespace ccf
 
       auto node = tx.rw(tables.nodes);
       node->put(id, node_info);
+
+      kv::NetworkConfiguration nc =
+        get_latest_network_configuration(tables, tx);
+      nc.nodes.insert(id);
+      add_new_network_reconfiguration(tables, tx, nc);
     }
 
     auto get_trusted_and_learner_nodes(
