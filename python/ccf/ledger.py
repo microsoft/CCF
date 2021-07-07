@@ -481,7 +481,7 @@ class Entry:
         """
         Retrieve the public (i.e. non-encrypted) domain for that entry.
 
-        Note: Even if the entry is private-only, a :py:class:`ccf.ledger.PublicDomain` object is returned.
+        Note: Even if the entry is private-only, an empty :py:class:`ccf.ledger.PublicDomain` object is returned.
 
         :return: :py:class:`ccf.ledger.PublicDomain`
         """
