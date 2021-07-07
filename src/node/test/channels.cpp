@@ -1109,7 +1109,7 @@ TEST_CASE("Robust key exchange")
       for (const auto& [label, i, msg] : old_messages)
       {
         // Uncomment this line to aid debugging if any of these fail
-        std::cout << label << ": " << i << std::endl;
+        // std::cout << label << ": " << i << std::endl;
         auto msg_1 = msg;
         channels1.recv_channel_message(nid2, std::move(msg_1));
         auto msg_2 = msg;
