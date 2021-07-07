@@ -53,28 +53,23 @@ namespace aft
       const ccf::NodeId& from_,
       AppendEntries&& hdr_,
       const uint8_t* data_,
-      size_t size_,
-      OArray&& oarray_) :
+      size_t size_) :
       store(store_),
       from(from_),
       hdr(std::move(hdr_)),
-      data(data_),
-      size(size_),
-      oarray(std::move(oarray_))
+      body(data_, data_ + size_)
     {}
 
     void execute() override
     {
-      store.recv_append_entries(from, hdr, data, size);
+      store.recv_append_entries(from, hdr, body.data(), body.size());
     }
 
   private:
     AbstractConsensusCallback& store;
     ccf::NodeId from;
     AppendEntries hdr;
-    const uint8_t* data;
-    size_t size;
-    OArray oarray;
+    std::vector<uint8_t> body;
   };
 
   class AppendEntryResponseCallback : public AbstractMsgCallback
@@ -223,28 +218,23 @@ namespace aft
       const ccf::NodeId& from_,
       RequestViewChangeMsg&& hdr_,
       const uint8_t* data_,
-      size_t size_,
-      OArray&& oarray_) :
+      size_t size_) :
       store(store_),
       from(from_),
       hdr(std::move(hdr_)),
-      data(data_),
-      size(size_),
-      oarray(std::move(oarray_))
+      body(data_, data_ + size_)
     {}
 
     void execute() override
     {
-      store.recv_view_change(from, hdr, data, size);
+      store.recv_view_change(from, hdr, body.data(), body.size());
     }
 
   private:
     AbstractConsensusCallback& store;
     ccf::NodeId from;
     RequestViewChangeMsg hdr;
-    const uint8_t* data;
-    size_t size;
-    OArray oarray;
+    std::vector<uint8_t> body;
   };
 
   class SkipViewCallback : public AbstractMsgCallback
@@ -278,27 +268,22 @@ namespace aft
       const ccf::NodeId& from_,
       ViewChangeEvidenceMsg&& hdr_,
       const uint8_t* data_,
-      size_t size_,
-      OArray&& oarray_) :
+      size_t size_) :
       store(store_),
       from(from_),
       hdr(std::move(hdr_)),
-      data(data_),
-      size(size_),
-      oarray(std::move(oarray_))
+      body(data_, data_ + size_)
     {}
 
     void execute() override
     {
-      store.recv_view_change_evidence(from, hdr, data, size);
+      store.recv_view_change_evidence(from, hdr, body.data(), body.size());
     }
 
   private:
     AbstractConsensusCallback& store;
     ccf::NodeId from;
     ViewChangeEvidenceMsg hdr;
-    const uint8_t* data;
-    size_t size;
-    OArray oarray;
+    std::vector<uint8_t> body;
   };
 }
