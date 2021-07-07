@@ -443,7 +443,7 @@ class Entry:
     _file: Optional[BinaryIO] = None
     _header: TransactionHeader
     _public_domain_size: int = 0
-    _public_domain: Optional[PublicDomain] = None
+    _public_domain: PublicDomain
     _file_size: int = 0
     gcm_header: Optional[GcmHeader] = None
 
