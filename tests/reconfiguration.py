@@ -290,7 +290,7 @@ def test_join_straddling_primary_replacement(network, args):
                 "args": {"node_id": new_node.node_id},
             },
             {
-                "name": "remove_node" if args.consensus != "bft" else "remove_node_2tx",
+                "name": "remove_node",
                 "args": {"node_id": primary.node_id},
             },
         ]

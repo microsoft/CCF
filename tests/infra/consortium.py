@@ -285,7 +285,7 @@ class Consortium:
     def retire_node(self, remote_node, node_to_retire):
         LOG.info(f"Retiring node {node_to_retire.local_node_id}")
         proposal_body, careful_vote = self.make_proposal(
-            "remove_node" if self.consensus != "bft" else "remove_node_2tx",
+            "remove_node",
             node_to_retire.node_id,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
@@ -307,10 +307,9 @@ class Consortium:
         if not self._check_node_exists(remote_node, node_id, NodeStatus.PENDING):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        fn = "transition_node_to_trusted"
-        if expected_status == NodeStatus.LEARNER:
-            fn = "transition_node_to_learner"
-        proposal_body, careful_vote = self.make_proposal(fn, node_id)
+        proposal_body, careful_vote = self.make_proposal(
+            "transition_node_to_trusted", node_id
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node,

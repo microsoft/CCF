@@ -751,6 +751,13 @@ const actions = new Map([
         checkEntityId(args.node_id, "node_id");
       },
       function (args) {
+        const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+          getSingletonKvKey()
+        );
+        if (rawConfig === undefined) {
+          throw new Error("Service configuration could not be found");
+        }
+        const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
           ccf.strToBuf(args.node_id)
         );
@@ -759,33 +766,10 @@ const actions = new Map([
         }
         const nodeInfo = ccf.bufToJsonCompatible(node);
         if (nodeInfo.status === "Pending") {
-          nodeInfo.status = "Trusted";
-          nodeInfo.ledger_secret_seqno =
-            ccf.network.getLatestLedgerSecretSeqno();
-          ccf.kv["public:ccf.gov.nodes.info"].set(
-            ccf.strToBuf(args.node_id),
-            ccf.jsonCompatibleToBuf(nodeInfo)
-          );
-        }
-      }
-    ),
-  ],
-  [
-    "transition_node_to_learner",
-    new Action(
-      function (args) {
-        checkEntityId(args.node_id, "node_id");
-      },
-      function (args) {
-        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
-          ccf.strToBuf(args.node_id)
-        );
-        if (node === undefined) {
-          throw new Error(`No such node: ${args.node_id}`);
-        }
-        const nodeInfo = ccf.bufToJsonCompatible(node);
-        if (nodeInfo.status === "Pending") {
-          nodeInfo.status = "Learner";
+          nodeInfo.status =
+            serviceConfig.reconfiguration_type == "OneTransaction"
+              ? "Trusted"
+              : "Learner";
           nodeInfo.ledger_secret_seqno =
             ccf.network.getLatestLedgerSecretSeqno();
           ccf.kv["public:ccf.gov.nodes.info"].set(
@@ -815,33 +799,22 @@ const actions = new Map([
         checkEntityId(args.node_id, "node_id");
       },
       function (args) {
-        const node = ccf.kv["public:ccf.gov.nodes.info"].get(
-          ccf.strToBuf(args.node_id)
+        const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+          getSingletonKvKey()
         );
-        if (node !== undefined) {
-          const node_obj = ccf.bufToJsonCompatible(node);
-          node_obj.status = "Retired";
-          ccf.kv["public:ccf.gov.nodes.info"].set(
-            ccf.strToBuf(args.node_id),
-            ccf.jsonCompatibleToBuf(node_obj)
-          );
+        if (rawConfig === undefined) {
+          throw new Error("Service configuration could not be found");
         }
-      }
-    ),
-  ],
-  [
-    "remove_node_2tx",
-    new Action(
-      function (args) {
-        checkEntityId(args.node_id, "node_id");
-      },
-      function (args) {
+        const serviceConfig = ccf.bufToJsonCompatible(rawConfig);
         const node = ccf.kv["public:ccf.gov.nodes.info"].get(
           ccf.strToBuf(args.node_id)
         );
         if (node !== undefined) {
           const node_obj = ccf.bufToJsonCompatible(node);
-          node_obj.status = "Retiring";
+          node_obj.status =
+            serviceConfig.reconfiguration_type == "OneTransaction"
+              ? "Retired"
+              : "Retiring";
           ccf.kv["public:ccf.gov.nodes.info"].set(
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(node_obj)
