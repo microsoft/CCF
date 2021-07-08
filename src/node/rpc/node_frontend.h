@@ -189,9 +189,13 @@ namespace ccf
          in.quote_info,
          in.public_encryption_key,
          node_status,
-         get_next_reconfiguration_id(network, tx),
          ledger_secret_seqno,
          ds::to_hex(code_digest.data)});
+
+      kv::NetworkConfiguration nc =
+        get_latest_network_configuration(network, tx);
+      nc.nodes.insert(joining_node_id);
+      add_new_network_reconfiguration(network, tx, nc);
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
