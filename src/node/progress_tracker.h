@@ -406,6 +406,8 @@ namespace ccf
 
       if (!match_nonces(hash_data(nonce), sig.hashed_nonce))
       {
+        // NOTE: We need to handle this case but for now having this make a
+        // test fail will be very handy
         LOG_FAIL_FMT(
           "Nonces do not match add_nonce_reveal view:{}, seqno:{}, node_id:{}, "
           "sig.hashed_nonce:{}, "
@@ -417,7 +419,11 @@ namespace ccf
           nonce,
           hash_data(nonce),
           did_add);
-        return;
+        throw ccf::ccf_logic_error(fmt::format(
+          "nonces do not match verification from {} FAILED, view:{}, seqno:{}",
+          node_id,
+          tx_id.view,
+          tx_id.seqno));
       }
       sig.nonce = nonce;
       cert.nonce_set.insert(node_id);
