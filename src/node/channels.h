@@ -309,19 +309,16 @@ namespace ccf
       outgoing = false;
     }
 
-    std::vector<uint8_t> sign_key_share(
+    void sign_key_share(
+      std::vector<uint8_t>& target,
       const std::vector<uint8_t>& ks,
       bool with_salt = false,
-      const std::vector<uint8_t>* extra = nullptr)
+      const CBuffer extra = {})
     {
-      std::vector<uint8_t> t = ks;
+      auto to_sign = ks;
+      to_sign.insert(to_sign.end(), extra.p, extra.p + extra.n);
 
-      if (extra)
-      {
-        t.insert(t.end(), extra->begin(), extra->end());
-      }
-
-      auto signature = node_kp->sign(t);
+      auto signature = node_kp->sign(to_sign);
 
       // Serialise channel key share, signature, and certificate and
       // length-prefix them
@@ -331,8 +328,9 @@ namespace ccf
       {
         space += hkdf_salt.size() + sizeof(size_t);
       }
-      std::vector<uint8_t> serialised_signed_key_share(space);
-      auto data_ = serialised_signed_key_share.data();
+      const auto size_before = target.size();
+      target.resize(size_before + space);
+      auto data_ = target.data() + size_before;
       serialized::write(data_, space, protocol_version);
       serialized::write(data_, space, ks.size());
       serialized::write(data_, space, ks.data(), ks.size());
@@ -345,13 +343,6 @@ namespace ccf
         serialized::write(data_, space, hkdf_salt.size());
         serialized::write(data_, space, hkdf_salt.data(), hkdf_salt.size());
       }
-
-      return serialised_signed_key_share;
-    }
-
-    std::vector<uint8_t> get_signed_key_share(bool with_salt)
-    {
-      return sign_key_share(kex_ctx.get_own_key_share(), with_salt);
     }
 
     CBuffer extract_buffer(const uint8_t*& data, size_t& size) const
@@ -499,20 +490,21 @@ namespace ccf
       // Sign the peer's key share
       auto signature = node_kp->sign(ks);
 
-      // Serialise signature with length-prefix
-      auto space = signature.size() + 1 * sizeof(size_t);
-      std::vector<uint8_t> serialised_signature(space);
-      auto data_ = serialised_signature.data();
+      // Serialise signature with ChannelMsg- and length- prefixes
+      auto space = signature.size() + 2 * sizeof(size_t);
+      std::vector<uint8_t> payload(space);
+      auto data_ = payload.data();
+      serialized::write(data_, space, ChannelMsg::key_exchange_final);
       serialized::write(data_, space, signature.size());
       serialized::write(data_, space, signature.data(), signature.size());
 
-      to_host->write(
+      RINGBUFFER_WRITE_MESSAGE(
         node_outbound,
+        to_host,
         peer_id.value(),
         NodeMsgType::channel_msg,
         self.value(),
-        ChannelMsg::key_exchange_final,
-        serialised_signature);
+        payload);
 
       LOG_TRACE_FMT(
         "key_exchange_final -> {}: ks={} serialised_signed_key_share={}",
@@ -550,7 +542,7 @@ namespace ccf
       key_exchange_in_progress = true;
 
       size_t peer_version = serialized::read<size_t>(data, size);
-      CBuffer ks = extract_buffer(data, size);
+      CBuffer peer_ks = extract_buffer(data, size);
       CBuffer sig = extract_buffer(data, size);
       CBuffer pc = extract_buffer(data, size);
       CBuffer salt = extract_buffer(data, size);
@@ -581,12 +573,12 @@ namespace ccf
         return false;
       }
 
-      if (ks.n == 0 || sig.n == 0)
+      if (peer_ks.n == 0 || sig.n == 0)
       {
         return false;
       }
 
-      if (!verify_peer_certificate(pc) || !verify_peer_signature(ks, sig))
+      if (!verify_peer_certificate(pc) || !verify_peer_signature(peer_ks, sig))
       {
         return false;
       }
@@ -597,7 +589,7 @@ namespace ccf
         kex_ctx.reset();
       }
 
-      kex_ctx.load_peer_key_share(ks);
+      kex_ctx.load_peer_key_share(peer_ks);
 
       if (status != ESTABLISHED)
         status = WAITING_FOR_FINAL;
@@ -605,22 +597,25 @@ namespace ccf
       // We are the responder and we return a signature over both public key
       // shares back to the initiator
 
-      auto oks = kex_ctx.get_own_key_share();
-      std::vector<uint8_t> pks = {ks.p, ks.p + ks.n};
-      auto serialised_signed_share = sign_key_share(oks, false, &pks);
+      auto space = 1 * sizeof(size_t);
+      std::vector<uint8_t> payload(space);
+      auto data_ = payload.data();
+      serialized::write(data_, space, ChannelMsg::key_exchange_response);
 
-      to_host->write(
+      sign_key_share(payload, kex_ctx.get_own_key_share(), false, peer_ks);
+
+      RINGBUFFER_WRITE_MESSAGE(
         node_outbound,
+        to_host,
         peer_id.value(),
         NodeMsgType::channel_msg,
         self.value(),
-        ChannelMsg::key_exchange_response,
-        serialised_signed_share);
+        payload);
 
       LOG_TRACE_FMT(
         "key_exchange_response -> {}: oks={} serialised_signed_share={}",
         peer_id,
-        ds::to_hex(oks),
+        ds::to_hex(kex_ctx.get_own_key_share()),
         ds::to_hex(serialised_signed_share));
 
       return true;
@@ -728,13 +723,20 @@ namespace ccf
         hkdf_salt = e->random(salt_len);
       }
 
-      to_host->write(
+      auto space = 1 * sizeof(size_t);
+      std::vector<uint8_t> payload(space);
+      auto data_ = payload.data();
+      serialized::write(data_, space, ChannelMsg::key_exchange_init);
+
+      sign_key_share(payload, kex_ctx.get_own_key_share(), true);
+
+      RINGBUFFER_WRITE_MESSAGE(
         node_outbound,
+        to_host,
         peer_id.value(),
         NodeMsgType::channel_msg,
         self.value(),
-        ChannelMsg::key_exchange_init,
-        get_signed_key_share(true));
+        payload);
 
       auto sn = make_verifier(node_cert)->serial_number();
       LOG_TRACE_FMT("key_exchange_init -> {} node serial: {}", peer_id, sn);
