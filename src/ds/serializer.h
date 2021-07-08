@@ -300,7 +300,9 @@ namespace serializer
     /// Generic case
     template <
       typename T,
-      std::enable_if_t<std::is_integral<T>::value, bool> = true>
+      std::enable_if_t<
+        std::is_integral<T>::value || std::is_enum<T>::value,
+        bool> = true>
     static T deserialize_value(
       const uint8_t*& data, size_t& size, const Tag<T>&)
     {

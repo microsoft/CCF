@@ -23,7 +23,7 @@ namespace asynchost
     public:
       NodeConnections& parent;
       std::optional<ccf::NodeId> node;
-      uint32_t msg_size = (uint32_t)-1;
+      std::optional<size_t> msg_size = std::nullopt;
       std::vector<uint8_t> pending;
 
       ConnectionBehaviour(
@@ -44,11 +44,11 @@ namespace asynchost
 
         const uint8_t* data = pending.data();
         size_t size = pending.size();
-        size_t used = 0;
+        const auto size_before = size;
 
         while (true)
         {
-          if (msg_size == (uint32_t)-1)
+          if (!msg_size.has_value())
           {
             if (size < sizeof(uint32_t))
             {
@@ -56,23 +56,24 @@ namespace asynchost
             }
 
             msg_size = serialized::read<uint32_t>(data, size);
-            used += sizeof(uint32_t);
           }
 
-          if (size < msg_size)
+          if (size < msg_size.value())
           {
             LOG_DEBUG_FMT(
               "from node {} have {}/{} bytes",
               node.value_or(UnassociatedNode).trim(),
               size,
-              msg_size);
+              msg_size.value());
             break;
           }
 
-          auto p = data;
-          auto psize = size;
-          auto msg_type = serialized::read<ccf::NodeMsgType>(p, psize);
-          ccf::NodeId from = serialized::read<ccf::NodeId::Value>(p, psize);
+          const auto size_pre_headers = size;
+          auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
+          ccf::NodeId from = serialized::read<ccf::NodeId::Value>(data, size);
+          const auto size_post_headers = size;
+          const size_t payload_size =
+            msg_size.value() - (size_pre_headers - size_post_headers);
 
           associate(from);
 
@@ -85,14 +86,17 @@ namespace asynchost
           RINGBUFFER_WRITE_MESSAGE(
             ccf::node_inbound,
             parent.to_enclave,
-            serializer::ByteRange{data, msg_size});
+            msg_type,
+            from.value(),
+            serializer::ByteRange{data, payload_size});
 
-          data += msg_size;
-          used += msg_size;
-          size -= msg_size;
-          msg_size = (uint32_t)-1;
+          data += payload_size;
+          size -= payload_size;
+          msg_size.reset();
         }
 
+        const auto size_after = size;
+        const auto used = size_before - size_after;
         if (used > 0)
         {
           pending.erase(pending.begin(), pending.begin() + used);

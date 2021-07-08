@@ -275,21 +275,21 @@ namespace enclave
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, ccf::node_inbound, [this](const uint8_t* data, size_t size) {
-            const auto [body] =
+            auto data_ = data;
+            auto size_ = size;
+
+            auto [msg_type, from_id, payload] =
               ringbuffer::read_message<ccf::node_inbound>(data, size);
 
-            auto p = body.data();
-            auto psize = body.size();
-
             if (
-              serialized::peek<ccf::NodeMsgType>(p, psize) ==
+              msg_type ==
               ccf::NodeMsgType::forwarded_msg)
             {
-              cmd_forwarder->recv_message(p, psize);
+              cmd_forwarder->recv_message(data_, size_);
             }
             else
             {
-              node->node_msg(std::move(body));
+              node->node_msg({data_, data_ + size_});
             }
           });
 

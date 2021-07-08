@@ -764,18 +764,20 @@ namespace ccf
       // with the nonce/seqno reset to 1). But, we can immediately start to send
       // messages with the new send_key.
 
+      // TODO: Remove these unnecessary copies
+      std::vector<uint8_t> payload(aad.p, aad.p + aad.n);
+
+      const auto gcm_hdr_serialised = gcm_hdr.serialise();
+      payload.insert(
+        payload.end(), gcm_hdr_serialised.begin(), gcm_hdr_serialised.end());
+
       std::vector<uint8_t> cipher(plain.n);
       send_key->encrypt(
         gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
+      payload.insert(payload.end(), cipher.begin(), cipher.end());
 
-      to_host->write(
-        node_outbound,
-        peer_id.value(),
-        type,
-        self.value(),
-        serializer::ByteRange{aad.p, aad.n},
-        gcm_hdr,
-        cipher);
+      RINGBUFFER_WRITE_MESSAGE(
+        node_outbound, to_host, peer_id.value(), type, self.value(), payload);
 
       LOG_TRACE_FMT(
         "-> {}: node msg with nonce={}", peer_id, (uint64_t)nonce.nonce);
