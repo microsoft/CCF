@@ -49,6 +49,11 @@ namespace ccf
             learners.insert(node_id);
             break;
           }
+          case NodeStatus::RETIRING:
+          {
+            /* Nothing */
+            break;
+          }
           default:
           {
           }
