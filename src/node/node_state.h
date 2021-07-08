@@ -952,7 +952,7 @@ namespace ccf
       auto tx = network.tables->create_tx();
       GenesisGenerator g(network, tx);
       g.create_service(network.identity->cert);
-      g.retire_active_nodes();
+      auto network_config = g.retire_active_nodes();
 
       if (network.consensus_type == ConsensusType::BFT)
       {
@@ -988,9 +988,11 @@ namespace ccf
          quote_info,
          node_encrypt_kp->public_key_pem().raw(),
          NodeStatus::PENDING,
-         get_next_reconfiguration_id(network, tx),
          std::nullopt,
          ds::to_hex(code_digest.data)});
+
+      network_config.nodes.insert(self);
+      add_new_network_reconfiguration(network, tx, network_config);
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -1972,6 +1974,14 @@ namespace ccf
           [](kv::Version version, const Nodes::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<ConfigurationChangeHook>(version, w);
+          }));
+
+      network.tables->set_map_hook(
+        network.network_configurations.get_name(),
+        network.network_configurations.wrap_map_hook(
+          [](kv::Version version, const NetworkConfigurations::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<NetworkConfigurationsHook>(version, w);
           }));
 
       setup_basic_hooks();

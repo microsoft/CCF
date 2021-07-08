@@ -144,6 +144,22 @@ namespace kv
   DECLARE_JSON_REQUIRED_FIELDS(ConsensusDetails, configs, acks, state);
   DECLARE_JSON_OPTIONAL_FIELDS(ConsensusDetails, learners);
 
+  using ReconfigurationId = uint64_t;
+
+  struct NetworkConfiguration
+  {
+    ReconfigurationId rid;
+    std::unordered_set<NodeId> nodes;
+
+    bool operator<(const NetworkConfiguration& other) const
+    {
+      return rid < other.rid;
+    }
+  };
+
+  DECLARE_JSON_TYPE(kv::NetworkConfiguration);
+  DECLARE_JSON_REQUIRED_FIELDS(kv::NetworkConfiguration, rid, nodes);
+
   class ConfigurableConsensus
   {
   public:
@@ -154,6 +170,8 @@ namespace kv
     virtual Configuration::Nodes get_latest_configuration() = 0;
     virtual Configuration::Nodes get_latest_configuration_unsafe() const = 0;
     virtual ConsensusDetails get_details() = 0;
+    virtual void add_network_configuration(
+      ccf::SeqNo seqno, const NetworkConfiguration& config) = 0;
   };
 
   class ConsensusHook
@@ -665,3 +683,23 @@ namespace kv
     virtual size_t commit_gap() = 0;
   };
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<kv::NetworkConfiguration>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const kv::NetworkConfiguration& config, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    return format_to(
+      ctx.out(), "{}:{{{}}}", config.rid, fmt::join(config.nodes, " "));
+  }
+};
+FMT_END_NAMESPACE

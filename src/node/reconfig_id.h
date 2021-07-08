@@ -8,20 +8,44 @@
 
 namespace ccf
 {
-  inline size_t get_next_reconfiguration_id(
-    ccf::NetworkState& network, kv::ReadOnlyTx& tx)
+  kv::ReconfigurationId CONFIG_COUNT_KEY = -1;
+
+  inline kv::ReconfigurationId get_next_reconfiguration_id(
+    ccf::NetworkTables& tables, kv::ReadOnlyTx& tx)
   {
-    auto nodes = tx.ro(network.nodes);
+    auto nconfigs = tx.ro(tables.network_configurations);
+    auto e = nconfigs->get(CONFIG_COUNT_KEY);
+    if (!e.has_value())
+    {
+      return 0;
+    }
+    else
+    {
+      return e.value().rid + 1;
+    }
+  }
 
-    size_t max_id = 0;
-    nodes->foreach([&max_id](const auto& node_id, const auto& node_info) {
-      if (node_info.reconfiguration_id.has_value())
-      {
-        max_id = std::max(max_id, node_info.reconfiguration_id.value());
-      }
-      return true;
-    });
+  inline kv::NetworkConfiguration get_latest_network_configuration(
+    ccf::NetworkTables& tables, kv::Tx& tx)
+  {
+    auto nconfigs = tx.ro(tables.network_configurations);
+    auto e = nconfigs->get(CONFIG_COUNT_KEY);
+    if (e.has_value())
+    {
+      return nconfigs->get(e.value().rid).value();
+    }
+    return {};
+  }
 
-    return max_id + 1;
+  inline void add_new_network_reconfiguration(
+    ccf::NetworkTables& tables, kv::Tx& tx, kv::NetworkConfiguration& config)
+  {
+    config.rid = get_next_reconfiguration_id(tables, tx);
+    LOG_DEBUG_FMT(
+      "Configurations: adding new entry to network_configurations table: {}",
+      config);
+    auto nconfigs = tx.rw(tables.network_configurations);
+    nconfigs->put(config.rid, config);
+    nconfigs->put(CONFIG_COUNT_KEY, {config.rid, {}});
   }
 }
