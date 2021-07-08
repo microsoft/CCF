@@ -67,7 +67,6 @@ namespace enclave
     Enclave(
       const EnclaveConfig& ec,
       const CCFConfig::SignatureIntervals& signature_intervals,
-      const ConsensusType& consensus_type_,
       const consensus::Configuration& consensus_config,
       const CurveID& curve_id) :
       circuit(
@@ -79,7 +78,7 @@ namespace enclave
                               ec.from_enclave_buffer_offsets}),
       basic_writer_factory(circuit),
       writer_factory(basic_writer_factory, ec.writer_config),
-      network(consensus_type_),
+      network(consensus_config.consensus_type),
       share_manager(network),
       n2n_channels(std::make_shared<ccf::NodeToNodeImpl>(writer_factory)),
       rpc_map(std::make_shared<RPCMap>()),

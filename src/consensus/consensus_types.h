@@ -10,6 +10,7 @@ namespace consensus
 {
   struct Configuration
   {
+    ConsensusType consensus_type;
     size_t raft_request_timeout;
     size_t raft_election_timeout;
     size_t bft_view_change_timeout;
@@ -18,6 +19,7 @@ namespace consensus
   DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(
     Configuration,
+    consensus_type,
     raft_request_timeout,
     raft_election_timeout,
     bft_view_change_timeout,
