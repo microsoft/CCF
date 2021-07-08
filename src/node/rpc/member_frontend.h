@@ -844,7 +844,8 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      make_endpoint("/create", HTTP_POST, json_adapter(create), no_auth_required)
+      make_endpoint(
+        "/create", HTTP_POST, json_adapter(create), no_auth_required)
         .set_openapi_hidden(true)
         .install();
 

@@ -949,7 +949,8 @@ namespace ccf
         args.rpc_ctx->set_response_body(nlohmann::json(nm).dump());
       };
 
-      make_command_endpoint("/metrics", HTTP_GET, node_metrics, no_auth_required)
+      make_command_endpoint(
+        "/metrics", HTTP_GET, node_metrics, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)

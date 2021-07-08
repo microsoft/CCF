@@ -267,7 +267,10 @@ namespace loggingapp
         return ccf::make_success(true);
       };
       make_endpoint(
-        "/log/private/all", HTTP_DELETE, ccf::json_adapter(clear), auth_policies)
+        "/log/private/all",
+        HTTP_DELETE,
+        ccf::json_adapter(clear),
+        auth_policies)
         .set_auto_schema<void, bool>()
         .install();
 
@@ -1134,7 +1137,10 @@ namespace loggingapp
       };
 
       make_endpoint(
-        "/log/request_query", HTTP_GET, get_request_query, ccf::no_auth_required)
+        "/log/request_query",
+        HTTP_GET,
+        get_request_query,
+        ccf::no_auth_required)
         .set_auto_schema<void, std::string>()
         .install();
 
