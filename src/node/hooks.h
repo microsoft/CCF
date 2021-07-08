@@ -76,4 +76,33 @@ namespace ccf
       }
     }
   };
+
+  class NetworkConfigurationsHook : public kv::ConsensusHook
+  {
+    kv::Version version;
+    std::set<kv::NetworkConfiguration> configs;
+
+  public:
+    NetworkConfigurationsHook(
+      kv::Version version_, const NetworkConfigurations::Write& w) :
+      version(version_)
+    {
+      for (const auto& [rid, opt_nc] : w)
+      {
+        if (opt_nc.has_value())
+        {
+          configs.insert(opt_nc.value());
+        }
+      }
+    }
+
+    void call(kv::ConfigurableConsensus* consensus) override
+    {
+      for (auto nc : configs)
+      {
+        consensus->add_network_configuration(version, nc);
+      }
+    }
+  };
+
 }
