@@ -10,6 +10,7 @@
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/logger.h"
+#include "ds/state_machine.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "entities.h"

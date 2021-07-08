@@ -551,12 +551,18 @@ def test_raw_text(network, args):
 def test_metrics(network, args):
     primary, _ = network.find_primary()
 
-    def get_metrics(r, path, method):
-        return next(
-            v
-            for v in r.body.json()["metrics"]
-            if v["path"] == path and v["method"] == method
-        )
+    def get_metrics(r, path, method, default=None):
+        try:
+            return next(
+                v
+                for v in r.body.json()["metrics"]
+                if v["path"] == path and v["method"] == method
+            )
+        except StopIteration:
+            if default is None:
+                raise
+            else:
+                return default
 
     calls = 0
     errors = 0
@@ -579,6 +585,20 @@ def test_metrics(network, args):
     with primary.client() as c:
         r = c.get("/app/api/metrics")
         assert get_metrics(r, "api/metrics", "GET")["errors"] == errors + 1
+
+    calls = 0
+    with primary.client("user0") as c:
+        r = c.get("/app/api/metrics")
+        calls = get_metrics(r, "log/public", "POST", {"calls": 0})["calls"]
+
+    network.txs.issue(
+        network=network,
+        number_txs=1,
+    )
+
+    with primary.client("user0") as c:
+        r = c.get("/app/api/metrics")
+        assert get_metrics(r, "log/public", "POST")["calls"] == calls + 1
 
     return network
 
