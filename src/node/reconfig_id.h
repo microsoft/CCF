@@ -8,14 +8,13 @@
 
 namespace ccf
 {
+  kv::ReconfigurationId CONFIG_COUNT_KEY = -1;
+
   inline kv::ReconfigurationId get_next_reconfiguration_id(
     ccf::NetworkTables& tables, kv::ReadOnlyTx& tx)
   {
-    // The entry at -1 contains a dummy configuration that holds the largest ID
-    // used so far.
-
     auto nconfigs = tx.ro(tables.network_configurations);
-    auto e = nconfigs->get((kv::ReconfigurationId)-1);
+    auto e = nconfigs->get(CONFIG_COUNT_KEY);
     if (!e.has_value())
     {
       return 0;
@@ -30,7 +29,7 @@ namespace ccf
     ccf::NetworkTables& tables, kv::Tx& tx)
   {
     auto nconfigs = tx.ro(tables.network_configurations);
-    auto e = nconfigs->get((kv::ReconfigurationId)-1);
+    auto e = nconfigs->get(CONFIG_COUNT_KEY);
     if (e.has_value())
     {
       return nconfigs->get(e.value().rid).value();
@@ -47,6 +46,6 @@ namespace ccf
       config);
     auto nconfigs = tx.rw(tables.network_configurations);
     nconfigs->put(config.rid, config);
-    nconfigs->put((kv::ReconfigurationId)-1, {config.rid, {}});
+    nconfigs->put(CONFIG_COUNT_KEY, {config.rid, {}});
   }
 }

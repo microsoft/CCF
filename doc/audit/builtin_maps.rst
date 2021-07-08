@@ -111,7 +111,7 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 ``network_configurations``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The currently valid and in-flight network configurations of the network.
+The currently valid and in-flight network configurations of the network. The entry at -1 contains a dummy configuration that holds the largest ID used so far.
 
 **Key** Reconfiguration ID: a unique identifier of a configuration
 
