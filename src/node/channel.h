@@ -272,7 +272,7 @@ namespace ccf
       std::vector<uint8_t> payload;
       {
         append_msg_type(payload, ChannelMsg::key_exchange_final);
-        append_protocol_version(payload);
+        // append_protocol_version(payload); // Not sent by current protocol!
         auto signature = node_kp->sign(kex_ctx.get_peer_key_share());
         append_vector(payload, signature);
       }
@@ -509,15 +509,15 @@ namespace ccf
       }
 
       // Parse fields from incoming message
-      size_t peer_version = serialized::read<size_t>(data, size);
-      if (peer_version != protocol_version)
-      {
-        CHANNEL_RECV_FAIL(
-          "Protocol version mismatch (node={}, peer={})",
-          protocol_version,
-          peer_version);
-        return false;
-      }
+      // size_t peer_version = serialized::read<size_t>(data, size);
+      // if (peer_version != protocol_version)
+      // {
+      //   CHANNEL_RECV_FAIL(
+      //     "Protocol version mismatch (node={}, peer={})",
+      //     protocol_version,
+      //     peer_version);
+      //   return false;
+      // }
 
       CBuffer sig = extract_buffer(data, size);
       if (sig.n == 0)
