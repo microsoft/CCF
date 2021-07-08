@@ -68,6 +68,11 @@ namespace kv
     {
       return {term, version};
     }
+
+    bool operator==(const TxID& other)
+    {
+      return term == other.term && version == other.version;
+    }
   };
   DECLARE_JSON_TYPE(TxID);
   DECLARE_JSON_REQUIRED_FIELDS(TxID, term, version)
@@ -315,7 +320,10 @@ namespace kv
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
-    virtual std::pair<kv::TxID, crypto::Sha256Hash>
+    virtual std::tuple<
+      kv::TxID /* TxID of last transaction seen by history */,
+      crypto::Sha256Hash /* root as of TxID */,
+      kv::Term /* term_of_next_version */>
     get_replicated_state_txid_and_root() = 0;
     virtual std::vector<uint8_t> get_proof(Version v) = 0;
     virtual bool verify_proof(const std::vector<uint8_t>& proof) = 0;
@@ -329,7 +337,8 @@ namespace kv
       const std::vector<uint8_t>& request,
       uint8_t frame_format) = 0;
     virtual void append(const std::vector<uint8_t>& data) = 0;
-    virtual void rollback(Version v, kv::Term) = 0;
+    virtual void rollback(
+      const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t from, size_t to) = 0;
@@ -617,8 +626,10 @@ namespace kv
 
     virtual Version current_version() = 0;
     virtual TxID current_txid() = 0;
+    virtual std::pair<TxID, Term> current_txid_and_commit_term() = 0;
 
     virtual Version compacted_version() = 0;
+    virtual Term commit_view() = 0;
 
     virtual std::shared_ptr<AbstractMap> get_map(
       Version v, const std::string& map_name) = 0;
@@ -635,8 +646,8 @@ namespace kv
       ConsensusType consensus_type,
       bool public_only = false) = 0;
     virtual void compact(Version v) = 0;
-    virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
-    virtual void set_term(Term t) = 0;
+    virtual void rollback(const TxID& tx_id, Term write_term_) = 0;
+    virtual void initialise_term(Term t) = 0;
     virtual CommitResult commit(
       const TxID& txid,
       std::unique_ptr<PendingTx> pending_tx,
