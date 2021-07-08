@@ -251,8 +251,12 @@ namespace serializer
       return std::tuple_cat(std::make_tuple(cs), std::make_tuple(bfs));
     }
 
-    /// Generic case - use raw byte representation
-    template <typename T>
+    /// Generic case, for integral types - use raw byte representation
+    template <
+      typename T,
+      std::enable_if_t<
+        std::is_integral<T>::value || std::is_enum<T>::value,
+        bool> = true>
     static auto serialize_value(const T& t)
     {
       auto rs = std::make_shared<RawSection<T>>(t);
@@ -294,7 +298,9 @@ namespace serializer
     }
 
     /// Generic case
-    template <typename T>
+    template <
+      typename T,
+      std::enable_if_t<std::is_integral<T>::value, bool> = true>
     static T deserialize_value(
       const uint8_t*& data, size_t& size, const Tag<T>&)
     {
