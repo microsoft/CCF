@@ -712,14 +712,7 @@ namespace aft
 
     void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size)
     {
-      recv_message(from, OArray({data, data + size}));
-    }
-
-    void recv_message(const ccf::NodeId& from, OArray&& d)
-    {
       std::unique_ptr<AbstractMsgCallback> aee;
-      const uint8_t* data = d.data();
-      size_t size = d.size();
       RaftMsgType type = serialized::peek<RaftMsgType>(data, size);
 
       try
@@ -732,7 +725,7 @@ namespace aft
               channels->template recv_authenticated<AppendEntries>(
                 from, data, size);
             aee = std::make_unique<AppendEntryCallback>(
-              *this, from, std::move(r), data, size, std::move(d));
+              *this, from, std::move(r), data, size);
             break;
           }
           case raft_append_entries_response:
@@ -800,7 +793,7 @@ namespace aft
                 ->template recv_authenticated_with_load<RequestViewChangeMsg>(
                   from, data, size);
             aee = std::make_unique<ViewChangeCallback>(
-              *this, from, std::move(r), data, size, std::move(d));
+              *this, from, std::move(r), data, size);
             break;
           }
 
@@ -821,7 +814,7 @@ namespace aft
                   from, data, size);
 
             aee = std::make_unique<ViewChangeEvidenceCallback>(
-              *this, from, std::move(r), data, size, std::move(d));
+              *this, from, std::move(r), data, size);
             break;
           }
 

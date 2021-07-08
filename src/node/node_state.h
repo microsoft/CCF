@@ -10,6 +10,7 @@
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/logger.h"
+#include "ds/state_machine.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "entities.h"
@@ -71,40 +72,6 @@ namespace ccf
     crypto::Pem network_cert;
   };
 
-  template <typename T>
-  class StateMachine
-  {
-    std::atomic<T> s;
-
-  public:
-    StateMachine(T s) : s(s) {}
-    void expect(T s) const
-    {
-      auto state = this->s.load();
-      if (s != state)
-      {
-        throw std::logic_error(
-          fmt::format("State is {}, but expected {}", state, s));
-      }
-    }
-
-    bool check(T s) const
-    {
-      return s == this->s.load();
-    }
-
-    T value() const
-    {
-      return this->s.load();
-    }
-
-    void advance(T s)
-    {
-      LOG_DEBUG_FMT("Advancing to state {} (from {})", s, this->s.load());
-      this->s.store(s);
-    }
-  };
-
   void reset_data(std::vector<uint8_t>& data)
   {
     data.clear();
@@ -117,7 +84,7 @@ namespace ccf
     //
     // this node's core state
     //
-    StateMachine<State> sm;
+    ds::StateMachine<State> sm;
     std::mutex lock;
 
     CurveID curve_id;
@@ -287,7 +254,7 @@ namespace ccf
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
       CurveID curve_id_) :
-      sm(State::uninitialized),
+      sm("NodeState", State::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(crypto::make_key_pair(curve_id_)),
       node_encrypt_kp(crypto::make_rsa_key_pair()),
@@ -1452,21 +1419,23 @@ namespace ccf
         return;
       }
 
-      OArray oa(std::move(data));
+      const uint8_t* payload_data = data.data();
+      size_t payload_size = data.size();
+
       NodeMsgType msg_type =
-        serialized::overlay<NodeMsgType>(oa.data(), oa.size());
-      NodeId from = serialized::read<NodeId::Value>(oa.data(), oa.size());
+        serialized::overlay<NodeMsgType>(payload_data, payload_size);
+      NodeId from = serialized::read<NodeId::Value>(payload_data, payload_size);
 
       switch (msg_type)
       {
         case channel_msg:
         {
-          n2n_channels->recv_message(from, std::move(oa));
+          n2n_channels->recv_message(from, payload_data, payload_size);
           break;
         }
         case consensus_msg:
         {
-          consensus->recv_message(from, std::move(oa));
+          consensus->recv_message(from, payload_data, payload_size);
           break;
         }
 
