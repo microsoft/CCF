@@ -320,7 +320,7 @@ namespace ccf
       }
 
       cert.nonces_committed_to_ledger = true;
-      try_update_watermark(cert, nonces_value.tx_id.seqno, true);
+      try_update_watermark(cert, nonces_value.tx_id, true);
       return kv::TxHistory::Result::OK;
     }
 
@@ -352,6 +352,8 @@ namespace ccf
 
       if (can_send_reply_and_nonce(cert, config))
       {
+        LOG_TRACE_FMT(
+          "sending revealed nonce, view:{}, seqno:{}", tx_id.view, tx_id.seqno);
         return !is_public_only ? kv::TxHistory::Result::SEND_REPLY_AND_NONCE :
                                  kv::TxHistory::Result::OK;
       }
@@ -363,7 +365,8 @@ namespace ccf
       Nonce nonce,
       const NodeId& node_id,
       const kv::Configuration::Nodes& config,
-      bool is_primary)
+      bool is_primary,
+      bool can_advance_commit)
     {
       std::unique_lock<std::mutex> guard(lock);
       bool did_add = false;
@@ -390,19 +393,19 @@ namespace ccf
       BftNodeSignature& sig = it_node_sig->second;
       LOG_TRACE_FMT(
         "add_nonce_reveal view:{}, seqno:{}, node_id:{}, sig.hashed_nonce:{}, "
-        " received.nonce:{}, hash(received.nonce):{} did_add:{}",
+        " received.nonce:{}, hash(received.nonce):{} did_add:{} "
+        "can_advance_commit:{}",
         tx_id.view,
         tx_id.seqno,
         node_id,
         sig.hashed_nonce,
         nonce,
         hash_data(nonce),
-        did_add);
+        did_add,
+        can_advance_commit);
 
       if (!match_nonces(hash_data(nonce), sig.hashed_nonce))
       {
-        // NOTE: We need to handle this case but for now having this make a
-        // test fail will be very handy
         LOG_FAIL_FMT(
           "Nonces do not match add_nonce_reveal view:{}, seqno:{}, node_id:{}, "
           "sig.hashed_nonce:{}, "
@@ -414,11 +417,7 @@ namespace ccf
           nonce,
           hash_data(nonce),
           did_add);
-        throw ccf::ccf_logic_error(fmt::format(
-          "nonces do not match verification from {} FAILED, view:{}, seqno:{}",
-          node_id,
-          tx_id.view,
-          tx_id.seqno));
+        return;
       }
       sig.nonce = nonce;
       cert.nonce_set.insert(node_id);
@@ -441,7 +440,14 @@ namespace ccf
         store->write_nonces(revealed_nonces);
       }
 
-      try_update_watermark(cert, tx_id.seqno, is_primary);
+      uint32_t endorsements =
+        count_endorsements_in_config(cert.nonce_set, config);
+      if (
+        can_advance_commit &&
+        endorsements >= get_endorsement_threshold(config.size()))
+      {
+        try_update_watermark(cert, tx_id, is_primary);
+      }
     }
 
     // Returns a null optional value if there is no nonce exists for the TxID
@@ -480,8 +486,9 @@ namespace ccf
       hash = crypto::Sha256Hash({data.h.data(), data.h.size()});
     }
 
-    ccf::SeqNo get_highest_committed_nonce()
+    ccf::SeqNo get_highest_committed_level()
     {
+      std::unique_lock<std::mutex> guard(lock);
       return highest_commit_level;
     }
 
@@ -647,40 +654,10 @@ namespace ccf
       return get_node_nonce_(tx_id);
     }
 
-    void rollback(ccf::SeqNo rollback_seqno, ccf::View view)
-    {
-      std::unique_lock<std::mutex> guard(lock);
-      ccf::SeqNo last_good_seqno = 0;
-      for (auto it = certificates.begin(); it != certificates.end();)
-      {
-        if (it->first.seqno > rollback_seqno)
-        {
-          it = certificates.erase(it);
-        }
-        else
-        {
-          if (last_good_seqno < it->first.seqno)
-          {
-            last_good_seqno = it->first.seqno;
-          }
-          ++it;
-        }
-      }
-
-      if (certificates.empty())
-      {
-        highest_prepared_level = {0, 0};
-      }
-      else if (highest_prepared_level.seqno > last_good_seqno)
-      {
-        highest_prepared_level = {view, last_good_seqno};
-      }
-    }
-
     ccf::SeqNo get_rollback_seqno() const
     {
       std::unique_lock<std::mutex> guard(lock);
-      return highest_commit_level;
+      return highest_prepared_level.seqno;
     }
 
     void set_is_public_only(bool public_only)
@@ -933,17 +910,25 @@ namespace ccf
     }
 
     void try_update_watermark(
-      CommitCert& cert, ccf::SeqNo seqno, bool should_clear_old_entries)
+      CommitCert& cert, const ccf::TxID& tx_id, bool should_clear_old_entries)
     {
-      if (cert.nonces_committed_to_ledger && seqno > highest_commit_level)
+      LOG_INFO_FMT(
+        "try_update_watermark seqno:{}, highest_commit_level:{}, "
+        "have_primary_sig:{}",
+        tx_id.seqno,
+        highest_commit_level,
+        cert.have_primary_signature);
+      if (tx_id.seqno > highest_commit_level && cert.have_primary_signature)
       {
-        highest_commit_level = seqno;
+        highest_commit_level = tx_id.seqno;
+        LOG_DEBUG_FMT(
+          "Advancing global commit to {}.{}", tx_id.view, tx_id.seqno);
         if (should_clear_old_entries)
         {
-          LOG_DEBUG_FMT("Removing all entries upto:{}", seqno);
+          LOG_DEBUG_FMT("Removing all entries upto:{}", tx_id.seqno);
           for (auto it = certificates.begin(); it != certificates.end();)
           {
-            if (it->first.seqno >= seqno)
+            if (it->first.seqno >= tx_id.seqno)
             {
               ++it;
             }
