@@ -315,9 +315,7 @@ namespace ccf
 
       for (auto& [actor, fe] : rpc_map->frontends())
       {
-        fe->set_sig_intervals(
-          sig_tx_interval,
-          sig_ms_interval);
+        fe->set_sig_intervals(sig_tx_interval, sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
       }
     }
@@ -1422,8 +1420,7 @@ namespace ccf
         serialized::overlay<NodeMsgType>(payload_data, payload_size);
       NodeId from = serialized::read<NodeId::Value>(payload_data, payload_size);
 
-      if (
-        msg_type == ccf::NodeMsgType::forwarded_msg)
+      if (msg_type == ccf::NodeMsgType::forwarded_msg)
       {
         cmd_forwarder->recv_message(from, payload_data, payload_size);
       }
@@ -1438,25 +1435,25 @@ namespace ccf
           return;
         }
 
-      switch (msg_type)
-      {
-        case channel_msg:
+        switch (msg_type)
         {
-          n2n_channels->recv_message(from, payload_data, payload_size);
-          break;
-        }
-        case consensus_msg:
-        {
-          consensus->recv_message(from, payload_data, payload_size);
-          break;
-        }
+          case channel_msg:
+          {
+            n2n_channels->recv_message(from, payload_data, payload_size);
+            break;
+          }
+          case consensus_msg:
+          {
+            consensus->recv_message(from, payload_data, payload_size);
+            break;
+          }
 
-        default:
-        {
-          LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
-          return;
+          default:
+          {
+            LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
+            return;
+          }
         }
-      }
       }
     }
 
