@@ -293,9 +293,8 @@ namespace ccf
     //
     void initialize(
       const consensus::Configuration& consensus_config_,
-      std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_,
+      std::shared_ptr<enclave::AbstractRPCResponder> rpc_sessions_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -303,12 +302,24 @@ namespace ccf
       sm.expect(State::uninitialized);
 
       consensus_config = consensus_config_;
-      n2n_channels = n2n_channels_;
       rpc_map = rpc_map_;
-      cmd_forwarder = cmd_forwarder_;
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
+
+      n2n_channels = std::make_shared<ccf::NodeToNodeImpl>(writer_factory);
+
+      cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
+        rpc_sessions_, n2n_channels, rpc_map, consensus_config.consensus_type);
+
       sm.advance(State::initialized);
+
+      for (auto& [actor, fe] : rpc_map->frontends())
+      {
+        fe->set_sig_intervals(
+          sig_tx_interval,
+          sig_ms_interval);
+        fe->set_cmd_forwarder(cmd_forwarder);
+      }
     }
 
     //
@@ -1405,23 +1416,27 @@ namespace ccf
       consensus->periodic_end();
     }
 
-    void node_msg(const std::vector<uint8_t>& data)
+    void recv_node_inbound(const uint8_t* payload_data, size_t payload_size)
     {
-      // Only process messages once part of network
-      if (
-        !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork) &&
-        !sm.check(State::readingPrivateLedger))
-      {
-        return;
-      }
-
-      const uint8_t* payload_data = data.data();
-      size_t payload_size = data.size();
-
       NodeMsgType msg_type =
         serialized::overlay<NodeMsgType>(payload_data, payload_size);
       NodeId from = serialized::read<NodeId::Value>(payload_data, payload_size);
+
+      if (
+        msg_type == ccf::NodeMsgType::forwarded_msg)
+      {
+        cmd_forwarder->recv_message(from, payload_data, payload_size);
+      }
+      else
+      {
+        // Only process messages once part of network
+        if (
+          !sm.check(State::partOfNetwork) &&
+          !sm.check(State::partOfPublicNetwork) &&
+          !sm.check(State::readingPrivateLedger))
+        {
+          return;
+        }
 
       switch (msg_type)
       {
@@ -1441,6 +1456,7 @@ namespace ccf
           LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
           return;
         }
+      }
       }
     }
 

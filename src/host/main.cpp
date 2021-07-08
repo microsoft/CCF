@@ -708,7 +708,8 @@ int main(int argc, char** argv)
 #endif
 
     CCFConfig ccf_config;
-    ccf_config.consensus_config = {raft_timeout,
+    ccf_config.consensus_config = {consensus,
+                                   raft_timeout,
                                    raft_election_timeout,
                                    bft_view_change_timeout,
                                    bft_status_interval};
@@ -846,7 +847,6 @@ int main(int argc, char** argv)
       node_cert,
       network_cert,
       start_type,
-      consensus,
       num_worker_threads,
       time_updater->behaviour.get_value());
 
