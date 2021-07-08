@@ -19,14 +19,16 @@ namespace ccf
     PENDING = 0,
     TRUSTED = 1,
     RETIRED = 2,
-    LEARNER = 3
+    LEARNER = 3,
+    RETIRING = 4
   };
   DECLARE_JSON_ENUM(
     NodeStatus,
     {{NodeStatus::PENDING, "Pending"},
      {NodeStatus::TRUSTED, "Trusted"},
      {NodeStatus::RETIRED, "Retired"},
-     {NodeStatus::LEARNER, "Learner"}});
+     {NodeStatus::LEARNER, "Learner"},
+     {NodeStatus::RETIRING, "Retiring"}});
 }
 
 namespace ccf
@@ -88,6 +90,10 @@ struct formatter<ccf::NodeStatus>
       case (ccf::NodeStatus::LEARNER):
       {
         return format_to(ctx.out(), "LEARNER");
+      }
+      case (ccf::NodeStatus::RETIRING):
+      {
+        return format_to(ctx.out(), "RETIRING");
       }
     }
   }
