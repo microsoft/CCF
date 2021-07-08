@@ -100,7 +100,11 @@ namespace ccf
           auto info_ = info;
           info_.js_module = module_prefix + info_.js_module;
           auto verb = nlohmann::json(method).get<RESTVerb>();
-          endpoints->put(ccf::endpoints::EndpointKey{url, verb}, info_);
+          endpoints->put(
+            ccf::endpoints::EndpointKey{
+              nonstd::starts_with(url, "/") ? url : fmt::format("/{}", url),
+              verb},
+            info_);
         }
       }
 
