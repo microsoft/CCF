@@ -818,6 +818,17 @@ namespace ccf
           g.add_member(info);
         }
 
+        if (
+          in.configuration.consensus == ConsensusType::BFT &&
+          in.configuration.reconfiguration_type !=
+            ReconfigurationType::TWO_TRANSACTION)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "BFT consensus requires two-transaction reconfiguration.");
+        }
+
         // Note that it is acceptable to start a network without any member
         // having a recovery share. The service will check that at least one
         // recovery member is added before the service is opened.

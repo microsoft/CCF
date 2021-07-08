@@ -118,7 +118,8 @@ namespace kv
     Follower,
     Candidate,
     Retired,
-    Learner
+    Learner,
+    Retiring
   };
 
   DECLARE_JSON_ENUM(
@@ -127,7 +128,8 @@ namespace kv
      {ReplicaState::Follower, "Follower"},
      {ReplicaState::Candidate, "Candidate"},
      {ReplicaState::Retired, "Retired"},
-     {ReplicaState::Learner, "Learner"}});
+     {ReplicaState::Learner, "Learner"},
+     {ReplicaState::Retiring, "Retiring"}});
 
   DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes);

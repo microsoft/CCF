@@ -1657,8 +1657,11 @@ namespace ccf
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
-      create_params.configuration = {config.genesis.recovery_threshold,
-                                     network.consensus_type};
+      auto reconf_type = network.consensus_type == ConsensusType::BFT ?
+        ReconfigurationType::TWO_TRANSACTION :
+        ReconfigurationType::ONE_TRANSACTION;
+      create_params.configuration = {
+        config.genesis.recovery_threshold, network.consensus_type, reconf_type};
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
