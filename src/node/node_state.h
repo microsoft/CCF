@@ -1419,15 +1419,14 @@ namespace ccf
       consensus->periodic_end();
     }
 
-    void recv_node_inbound(const uint8_t* payload_data, size_t payload_size)
+    void recv_node_inbound(const uint8_t* data, size_t size)
     {
-      NodeMsgType msg_type =
-        serialized::overlay<NodeMsgType>(payload_data, payload_size);
-      NodeId from = serialized::read<NodeId::Value>(payload_data, payload_size);
+      auto [msg_type, from, payload] =
+        ringbuffer::read_message<ccf::node_inbound>(data, size);
 
       if (msg_type == ccf::NodeMsgType::forwarded_msg)
       {
-        cmd_forwarder->recv_message(from, payload_data, payload_size);
+        cmd_forwarder->recv_message(from, data, size);
       }
       else
       {
@@ -1444,12 +1443,12 @@ namespace ccf
         {
           case channel_msg:
           {
-            n2n_channels->recv_message(from, payload_data, payload_size);
+            n2n_channels->recv_message(from, data, size);
             break;
           }
           case consensus_msg:
           {
-            consensus->recv_message(from, payload_data, payload_size);
+            consensus->recv_message(from, data, size);
             break;
           }
 
