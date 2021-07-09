@@ -751,12 +751,6 @@ namespace ccf
         return false;
       }
 
-      RecvNonce nonce(
-        send_nonce.fetch_add(1), threading::get_current_thread_id());
-
-      GcmHdr gcm_hdr;
-      gcm_hdr.set_iv_seq(nonce.get_val());
-
       assert(send_key);
 
       // During key rollover, we keep recv_key to decrypt messages from the peer
@@ -767,13 +761,19 @@ namespace ccf
       // TODO: Remove these unnecessary copies
       std::vector<uint8_t> payload(aad.p, aad.p + aad.n);
 
-      const auto gcm_hdr_serialised = gcm_hdr.serialise();
-      payload.insert(
-        payload.end(), gcm_hdr_serialised.begin(), gcm_hdr_serialised.end());
+      GcmHdr gcm_hdr;
+      RecvNonce nonce(
+        send_nonce.fetch_add(1), threading::get_current_thread_id());
+      gcm_hdr.set_iv_seq(nonce.get_val());
 
       std::vector<uint8_t> cipher(plain.n);
       send_key->encrypt(
         gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
+
+      const auto gcm_hdr_serialised = gcm_hdr.serialise();
+      payload.insert(
+        payload.end(), gcm_hdr_serialised.begin(), gcm_hdr_serialised.end());
+        
       payload.insert(payload.end(), cipher.begin(), cipher.end());
 
       RINGBUFFER_WRITE_MESSAGE(
