@@ -35,6 +35,7 @@ namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
   {
+    // TODO: Replace with node's public key in PEM format
     /// Node certificate
     crypto::Pem cert;
     /// Node enclave quote
@@ -57,6 +58,14 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno, code_digest);
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;
+
+  struct NodeEndorsedCertificate
+  {
+    crypto::Pem endorsed_certificate;
+  };
+  DECLARE_JSON_TYPE(NodeEndorsedCertificate);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeEndorsedCertificate, endorsed_certificate);
+  using NodeEndorsedCertificates = ServiceMap<NodeId, NodeEndorsedCertificate>;
 }
 
 FMT_BEGIN_NAMESPACE
