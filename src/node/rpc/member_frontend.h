@@ -824,8 +824,9 @@ namespace ccf
 
         if (
           in.configuration.consensus == ConsensusType::BFT &&
-          in.configuration.reconfiguration_type !=
-            ReconfigurationType::TWO_TRANSACTION)
+          (!in.configuration.reconfiguration_type.has_value() ||
+           in.configuration.reconfiguration_type.value() !=
+             ReconfigurationType::TWO_TRANSACTION))
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
