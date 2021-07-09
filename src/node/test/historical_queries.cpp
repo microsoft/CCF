@@ -385,13 +385,14 @@ TEST_CASE("StateCache point queries")
     INFO("Signature transactions can be requested");
     for (const auto i : {low_signature_transaction, high_signature_transaction})
     {
-      auto store_at_seqno = cache.get_store_at(default_handle, i);
-      REQUIRE(store_at_seqno == nullptr);
+      auto state_at_seqno = cache.get_state_at(default_handle, i);
+      REQUIRE(state_at_seqno == nullptr);
 
       REQUIRE(provide_ledger_entry(i));
 
-      store_at_seqno = cache.get_store_at(default_handle, i);
-      REQUIRE(store_at_seqno != nullptr);
+      state_at_seqno = cache.get_state_at(default_handle, i);
+      REQUIRE(state_at_seqno != nullptr);
+      REQUIRE(state_at_seqno->receipt != nullptr);
     }
 
     {

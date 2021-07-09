@@ -1196,6 +1196,43 @@ def test_receipts(network, args):
     return network
 
 
+@reqs.description("Validate all receipts")
+@reqs.supports_methods("receipt", "log/private")
+@reqs.at_least_n_nodes(2)
+def test_all_receipts(network, args):
+    primary, _ = network.find_primary_and_any_backup()
+    cert_path = os.path.join(primary.common_dir, f"{primary.local_node_id}.pem")
+    with open(cert_path) as c:
+        node_cert = load_pem_x509_certificate(
+            c.read().encode("ascii"), default_backend()
+        )
+
+    with primary.client("user0") as c:
+        r = c.get("/app/commit")
+        view, seqno = r.body.json()["transaction_id"].split(".")
+        for s in range(1, int(seqno) - 1):
+            start_time = time.time()
+            while time.time() < (start_time + 3.0):
+                # TODO: rev up the view as necessary on invalid tx
+                rc = c.get(f"/app/receipt?transaction_id={view}.{s}")
+                if rc.status_code == http.HTTPStatus.OK:
+                    receipt = rc.body.json()
+                    assert receipt["root"] == ccf.receipt.root(
+                        receipt["leaf"], receipt["proof"]
+                    )
+                    ccf.receipt.verify(
+                        receipt["root"], receipt["signature"], node_cert
+                    )
+                    print(f"Verified receipt for {view}.{s}")
+                    break
+                elif rc.status_code == http.HTTPStatus.ACCEPTED:
+                    time.sleep(0.5)
+                else:
+                    assert False, rc
+
+    return network
+
+
 @reqs.description("Test basic app liveness")
 @reqs.at_least_n_nodes(1)
 def test_liveness(network, args):
@@ -1226,6 +1263,9 @@ def run(args):
         txs=txs,
     ) as network:
         network.start_and_join(args)
+
+        test_all_receipts(network, args)
+        return
 
         network = test(
             network,

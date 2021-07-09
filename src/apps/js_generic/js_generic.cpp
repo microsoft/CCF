@@ -239,6 +239,7 @@ namespace ccfapp
             auto tx = state->store->create_tx();
             auto tx_id = state->transaction_id;
             auto receipt = state->receipt;
+            assert(receipt);
             do_execute_request(props, endpoint_ctx, tx, tx_id, receipt);
           },
           context.get_historical_state(),

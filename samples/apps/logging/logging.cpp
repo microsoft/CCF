@@ -784,6 +784,7 @@ namespace loggingapp
           {
             LoggingGetReceipt::Out out;
             out.msg = v.value();
+            assert(historical_state->receipt);
             historical_state->receipt->describe(out.receipt);
             ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
           }
