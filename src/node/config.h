@@ -15,8 +15,7 @@ namespace ccf
     size_t recovery_threshold = 0;
 
     ConsensusType consensus = ConsensusType::CFT;
-    std::optional<ReconfigurationType> reconfiguration_type =
-      std::nullopt;
+    std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
   DECLARE_JSON_REQUIRED_FIELDS(
