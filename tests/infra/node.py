@@ -95,6 +95,9 @@ class Node:
         if isinstance(host, str):
             host = infra.e2e_args.HostSpec.from_str(host)
 
+        if type(host) == str:
+            host = infra.e2e_args.HostSpec.from_str(host)
+
         if host.protocol == "local":
             self.remote_impl = infra.remote.LocalRemote
             if not version or version > 1:
