@@ -28,15 +28,16 @@ namespace ccf
   DECLARE_JSON_TYPE(GetVersion::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetVersion::Out, ccf_version, quickjs_version)
 
-  DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::In,
     node_info_network,
     quote_info,
     public_encryption_key,
     consensus_type,
-    startup_seqno,
-    certificate_subject_identity)
+    startup_seqno)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    JoinNetworkNodeToNode::In, certificate_subject_identity)
 
   DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)

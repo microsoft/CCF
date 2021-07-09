@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/entity_id.h"
+#include "crypto/san.h"
 #include "entities.h"
 #include "kv/map.h"
 #include "node_info_network.h"
@@ -50,12 +51,18 @@ namespace ccf
     std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
 
     /** Code identity for the node **/
-    std::optional<std::string> code_digest;
+    std::optional<std::string> code_digest = std::nullopt;
+
+    // TODO: Move elsewhere?
+    /** Node certificate subject identity */
+    std::optional<crypto::CertificateSubjectIdentity>
+      certificate_subject_identity = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfo, cert, quote_info, encryption_pub_key, status);
-  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfo, ledger_secret_seqno, code_digest);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    NodeInfo, ledger_secret_seqno, code_digest, certificate_subject_identity);
 
   using Nodes = ServiceMap<NodeId, NodeInfo>;
 
