@@ -1424,9 +1424,12 @@ namespace ccf
       auto [msg_type, from, payload] =
         ringbuffer::read_message<ccf::node_inbound>(data, size);
 
+      auto payload_data = payload.data;
+      auto payload_size = payload.size;
+
       if (msg_type == ccf::NodeMsgType::forwarded_msg)
       {
-        cmd_forwarder->recv_message(from, data, size);
+        cmd_forwarder->recv_message(from, payload_data, payload_size);
       }
       else
       {
@@ -1443,12 +1446,12 @@ namespace ccf
         {
           case channel_msg:
           {
-            n2n_channels->recv_message(from, data, size);
+            n2n_channels->recv_message(from, payload_data, payload_size);
             break;
           }
           case consensus_msg:
           {
-            consensus->recv_message(from, data, size);
+            consensus->recv_message(from, payload_data, payload_size);
             break;
           }
 
