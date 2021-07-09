@@ -417,30 +417,30 @@ namespace ccfapp
       const ccf::AuthnPolicies user_sig_or_cert = {user_signature_auth_policy,
                                                    user_cert_auth_policy};
 
-      make_endpoint("SmallBank_create", HTTP_POST, create, user_sig_or_cert)
+      make_endpoint("/SmallBank_create", HTTP_POST, create, user_sig_or_cert)
         .install();
       make_endpoint(
-        "SmallBank_create_batch", HTTP_POST, create_batch, user_sig_or_cert)
+        "/SmallBank_create_batch", HTTP_POST, create_batch, user_sig_or_cert)
         .install();
-      make_endpoint("SmallBank_balance", HTTP_POST, balance, user_sig_or_cert)
+      make_endpoint("/SmallBank_balance", HTTP_POST, balance, user_sig_or_cert)
         .install();
       make_endpoint(
-        "SmallBank_transact_savings",
+        "/SmallBank_transact_savings",
         HTTP_POST,
         transact_savings,
         user_sig_or_cert)
         .install();
       make_endpoint(
-        "SmallBank_deposit_checking",
+        "/SmallBank_deposit_checking",
         HTTP_POST,
         deposit_checking,
         user_sig_or_cert)
         .install();
       make_endpoint(
-        "SmallBank_amalgamate", HTTP_POST, amalgamate, user_sig_or_cert)
+        "/SmallBank_amalgamate", HTTP_POST, amalgamate, user_sig_or_cert)
         .install();
       make_endpoint(
-        "SmallBank_write_check", HTTP_POST, writeCheck, user_sig_or_cert)
+        "/SmallBank_write_check", HTTP_POST, writeCheck, user_sig_or_cert)
         .install();
 
       metrics_tracker.install_endpoint(*this);

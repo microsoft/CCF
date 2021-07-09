@@ -29,7 +29,7 @@ namespace metrics
     {
       reg
         .make_command_endpoint(
-          "metrics", HTTP_GET, get_endpoint_handler(), ccf::no_auth_required)
+          "/metrics", HTTP_GET, get_endpoint_handler(), ccf::no_auth_required)
         .set_auto_schema<void, metrics::Report>()
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
