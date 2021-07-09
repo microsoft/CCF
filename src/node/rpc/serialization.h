@@ -35,7 +35,8 @@ namespace ccf
     quote_info,
     public_encryption_key,
     consensus_type,
-    startup_seqno)
+    startup_seqno,
+    certificate_subject_identity)
 
   DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)

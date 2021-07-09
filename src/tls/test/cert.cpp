@@ -8,16 +8,17 @@
 int main(int argc, char** argv)
 {
   CLI::App app{"Cert creation"};
-  std::string subject_name;
+  crypto::CertificateSubjectIdentity cert_subject_identity;
   app
     .add_option(
-      "--sn", subject_name, "Subject Name in node certificate, eg. CN=CCF Node")
+      "--sn",
+      cert_subject_identity.name,
+      "Subject Name in node certificate, eg. CN=CCF Node")
     ->capture_default_str();
 
-  std::vector<crypto::SubjectAltName> subject_alternative_names;
   cli::add_subject_alternative_name_option(
     app,
-    subject_alternative_names,
+    cert_subject_identity.sans,
     "--san",
     "Subject Alternative Name in node certificate. Can be either "
     "iPAddress:xxx.xxx.xxx.xxx, or dNSName:sub.domain.tld");
@@ -25,8 +26,8 @@ int main(int argc, char** argv)
 
   auto kp = crypto::make_key_pair();
   auto icrt = kp->self_sign("CN=issuer");
-  auto csr = kp->create_csr(subject_name);
-  auto cert = kp->sign_csr(icrt, csr, subject_alternative_names);
+  auto csr = kp->create_csr(cert_subject_identity.name);
+  auto cert = kp->sign_csr(icrt, csr, cert_subject_identity.sans);
 
   std::cout << cert.str() << std::endl;
   return 0;

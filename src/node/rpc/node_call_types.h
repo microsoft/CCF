@@ -81,6 +81,8 @@ namespace ccf
       crypto::Pem public_encryption_key;
       ConsensusType consensus_type = ConsensusType::CFT;
       std::optional<kv::Version> startup_seqno = std::nullopt;
+      std::optional<crypto::CertificateSubjectIdentity>
+        certificate_subject_identity = std::nullopt;
     };
 
     struct Out

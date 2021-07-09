@@ -1582,7 +1582,7 @@ namespace ccf
     std::vector<crypto::SubjectAltName> get_subject_alternative_names()
     {
       std::vector<crypto::SubjectAltName> sans =
-        config.subject_alternative_names;
+        config.node_certificate_subject_identity.sans;
       sans.push_back(get_subject_alt_name());
       return sans;
     }
@@ -1590,13 +1590,15 @@ namespace ccf
     Pem create_self_signed_node_cert()
     {
       auto sans = get_subject_alternative_names();
-      return node_sign_kp->self_sign(config.subject_name, sans);
+      return node_sign_kp->self_sign(
+        config.node_certificate_subject_identity.name, sans);
     }
 
     Pem create_endorsed_node_cert()
     {
       auto nw = crypto::make_key_pair(network.identity->priv_key);
-      auto csr = node_sign_kp->create_csr(config.subject_name);
+      auto csr =
+        node_sign_kp->create_csr(config.node_certificate_subject_identity.name);
       auto sans = get_subject_alternative_names();
       return nw->sign_csr(network.identity->cert, csr, sans);
     }
