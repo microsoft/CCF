@@ -24,6 +24,15 @@ def test_kill_primary(network, args):
     primary.stop()
     network.wait_for_new_primary(primary)
 
+    # Verify that the TxID reported just after an election is valid
+    # Note that the first TxID read after an election may be of a signature
+    # Tx (time-based signature generation) in the new term rather than the
+    # last entry in the previous term
+    for node in network.get_joined_nodes():
+        with node.client() as c:
+            r = c.get("/node/network")
+            c.wait_for_commit(r)
+
     return network
 
 
@@ -52,7 +61,7 @@ def run(args):
 
             LOG.debug(
                 "Commit new transactions, primary:{}, current_view:{}".format(
-                    primary.node_id, current_view
+                    primary.local_node_id, current_view
                 )
             )
             with primary.client("user0") as c:

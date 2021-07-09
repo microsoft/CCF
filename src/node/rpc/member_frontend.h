@@ -14,7 +14,6 @@
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
-#include "node/reconfig_id.h"
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
@@ -819,6 +818,17 @@ namespace ccf
           g.add_member(info);
         }
 
+        if (
+          in.configuration.consensus == ConsensusType::BFT &&
+          in.configuration.reconfiguration_type !=
+            ReconfigurationType::TWO_TRANSACTION)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "BFT consensus requires two-transaction reconfiguration.");
+        }
+
         // Note that it is acceptable to start a network without any member
         // having a recovery share. The service will check that at least one
         // recovery member is added before the service is opened.
@@ -831,7 +841,6 @@ namespace ccf
            {in.quote_info},
            in.public_encryption_key,
            NodeStatus::TRUSTED,
-           get_next_reconfiguration_id(network, ctx.tx),
            std::nullopt,
            ds::to_hex(in.code_digest.data)});
 

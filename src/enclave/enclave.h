@@ -31,11 +31,9 @@ namespace enclave
     oversized::WriterFactory writer_factory;
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
-    std::shared_ptr<ccf::NodeToNode> n2n_channels;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
     std::unique_ptr<ccf::NodeState> node;
-    std::shared_ptr<ccf::Forwarder<ccf::NodeToNode>> cmd_forwarder;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::microseconds last_tick_time;
     ENGINE* rdrand_engine = nullptr;
@@ -67,7 +65,6 @@ namespace enclave
     Enclave(
       const EnclaveConfig& ec,
       const CCFConfig::SignatureIntervals& signature_intervals,
-      const ConsensusType& consensus_type_,
       const consensus::Configuration& consensus_config,
       const CurveID& curve_id) :
       circuit(
@@ -79,13 +76,10 @@ namespace enclave
                               ec.from_enclave_buffer_offsets}),
       basic_writer_factory(circuit),
       writer_factory(basic_writer_factory, ec.writer_config),
-      network(consensus_type_),
+      network(consensus_config.consensus_type),
       share_manager(network),
-      n2n_channels(std::make_shared<ccf::NodeToNodeImpl>(writer_factory)),
       rpc_map(std::make_shared<RPCMap>()),
-      rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
-      cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
-        rpcsessions, n2n_channels, rpc_map, consensus_type_))
+      rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map))
     {
       ccf::initialize_oe();
 
@@ -130,19 +124,10 @@ namespace enclave
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
 
-      for (auto& [actor, fe] : rpc_map->frontends())
-      {
-        fe->set_sig_intervals(
-          signature_intervals.sig_tx_interval,
-          signature_intervals.sig_ms_interval);
-        fe->set_cmd_forwarder(cmd_forwarder);
-      }
-
       node->initialize(
         consensus_config,
-        n2n_channels,
         rpc_map,
-        cmd_forwarder,
+        rpcsessions,
         signature_intervals.sig_tx_interval,
         signature_intervals.sig_ms_interval);
     }
@@ -275,22 +260,7 @@ namespace enclave
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, ccf::node_inbound, [this](const uint8_t* data, size_t size) {
-            auto data_ = data;
-            auto size_ = size;
-
-            auto [msg_type, from_id, payload] =
-              ringbuffer::read_message<ccf::node_inbound>(data, size);
-
-            if (
-              msg_type ==
-              ccf::NodeMsgType::forwarded_msg)
-            {
-              cmd_forwarder->recv_message(data_, size_);
-            }
-            else
-            {
-              node->node_msg({data_, data_ + size_});
-            }
+            node->recv_node_inbound(data, size);
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(

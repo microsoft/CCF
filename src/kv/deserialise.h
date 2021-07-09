@@ -28,7 +28,8 @@ namespace kv
 
     virtual bool commit_deserialised(
       kv::OrderedChanges& changes,
-      kv::Version& v,
+      kv::Version v,
+      kv::Term term,
       const MapCollection& new_maps,
       kv::ConsensusHookPtrs& hooks) = 0;
   };
@@ -75,7 +76,7 @@ namespace kv
         return ApplyResult::FAIL;
       }
 
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, view, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
@@ -198,6 +199,7 @@ namespace kv
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       store(store_),
@@ -207,6 +209,7 @@ namespace kv
       data(data_),
       public_only(public_only_),
       v(v_),
+      term(view_),
       changes(std::move(changes_)),
       new_maps(std::move(new_maps_))
     {}
@@ -267,6 +270,7 @@ namespace kv
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -277,13 +281,14 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_))
     {}
 
     ApplyResult apply() override
     {
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
@@ -322,6 +327,7 @@ namespace kv
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -332,13 +338,14 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_))
     {}
 
     ApplyResult apply() override
     {
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
@@ -383,6 +390,7 @@ namespace kv
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -393,13 +401,14 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_))
     {}
 
     ApplyResult apply() override
     {
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         LOG_FAIL_FMT("receive_nonces commit_deserialised Failed");
         return ApplyResult::FAIL;
@@ -430,6 +439,7 @@ namespace kv
       const std::vector<uint8_t>& data_,
       bool public_only_,
       kv::Version v_,
+      ccf::View view_,
       OrderedChanges&& changes_,
       MapCollection&& new_maps_) :
       BFTExecutionWrapper(
@@ -440,6 +450,7 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_))
     {}
@@ -447,7 +458,7 @@ namespace kv
     ApplyResult apply() override
     {
       LOG_INFO_FMT("Applying new view");
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
@@ -491,13 +502,13 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_)),
       max_conflict_version(max_conflict_version_)
     {
       max_conflict_version = max_conflict_version_;
       tx = std::move(tx_);
-      term = view_;
     }
 
     ApplyResult apply() override
@@ -551,18 +562,18 @@ namespace kv
         data_,
         public_only_,
         v_,
+        view_,
         std::move(changes_),
         std::move(new_maps_)),
       max_conflict_version(max_conflict_version_)
     {
       max_conflict_version = max_conflict_version_;
       tx = std::move(tx_);
-      term = view_;
     }
 
     ApplyResult apply() override
     {
-      if (!store->commit_deserialised(changes, v, new_maps, hooks))
+      if (!store->commit_deserialised(changes, v, term, new_maps, hooks))
       {
         return ApplyResult::FAIL;
       }
