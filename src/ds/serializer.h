@@ -94,12 +94,16 @@ namespace serializer
         // possible to generalise this further and replace with
         // std::is_constructible, but these restrictions are sufficient for the
         // current uses.
+        // TODO: Document non-contiguous addition
         static constexpr bool value =
           std::is_same_v<CanonTarget, CanonArgument> ||
           (std::is_same_v<CanonTarget, std::vector<uint8_t>> &&
            std::is_same_v<CanonArgument, ByteRange>) ||
           (std::is_same_v<CanonTarget, ByteRange> &&
-           std::is_same_v<CanonArgument, std::vector<uint8_t>>);
+           std::is_same_v<CanonArgument, std::vector<uint8_t>>) ||
+          (std::is_same_v<CanonTarget, ByteRange> &&
+           (std::is_array_v<CanonArgument> &&
+            std::is_same_v<std::remove_extent_t<CanonArgument>, ByteRange>));
       };
 
       // Only reached when Ts is empty
@@ -233,6 +237,21 @@ namespace serializer
     {
       auto bfs = std::make_shared<MemoryRegionSection>(br.data, br.size);
       return std::make_tuple(bfs);
+    }
+
+    // TODO: Docs
+    template <size_t N, size_t... Is>
+    static auto serialize_value(
+      const ByteRange (&ncbr)[N], std::index_sequence<Is...>)
+    {
+      return std::make_tuple(
+        std::make_shared<MemoryRegionSection>(ncbr[Is].data, ncbr[Is].size)...);
+    }
+
+    template <size_t N>
+    static auto serialize_value(const ByteRange (&ncbr)[N])
+    {
+      return serialize_value(ncbr, std::make_index_sequence<N>{});
     }
 
     /// Overload for std::vectors of bytes (no length-prefix)
