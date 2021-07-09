@@ -93,7 +93,8 @@ namespace ccf
     virtual bool recv_authenticated(
       const NodeId& from, CBuffer cb, const uint8_t*& data, size_t& size) = 0;
 
-    virtual void recv_message(const NodeId& from, OArray&& oa) = 0;
+    virtual void recv_message(
+      const NodeId& from, const uint8_t* data, size_t size) = 0;
 
     virtual void initialize(
       const NodeId& self_id,
@@ -294,12 +295,11 @@ namespace ccf
       }
     }
 
-    void recv_message(const NodeId& from, OArray&& oa) override
+    void recv_message(
+      const NodeId& from, const uint8_t* data, size_t size) override
     {
       try
       {
-        const uint8_t* data = oa.data();
-        size_t size = oa.size();
         auto chmsg = serialized::read<ChannelMsg>(data, size);
         switch (chmsg)
         {

@@ -16,6 +16,7 @@ namespace ccf
   {
     kv::Version version;
     std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
+    std::unordered_set<NodeId> learners;
 
   public:
     ConfigurationChangeHook(kv::Version version_, const Nodes::Write& w) :
@@ -44,6 +45,17 @@ namespace ccf
             cfg_delta.try_emplace(node_id, std::nullopt);
             break;
           }
+          case NodeStatus::LEARNER:
+          {
+            cfg_delta.try_emplace(node_id, NodeAddr{ni.nodehost, ni.nodeport});
+            learners.insert(node_id);
+            break;
+          }
+          case NodeStatus::RETIRING:
+          {
+            /* Nothing */
+            break;
+          }
           default:
           {
           }
@@ -67,8 +79,37 @@ namespace ccf
       }
       if (!cfg_delta.empty())
       {
-        consensus->add_configuration(version, configuration);
+        consensus->add_configuration(version, configuration, learners);
       }
     }
   };
+
+  class NetworkConfigurationsHook : public kv::ConsensusHook
+  {
+    kv::Version version;
+    std::set<kv::NetworkConfiguration> configs;
+
+  public:
+    NetworkConfigurationsHook(
+      kv::Version version_, const NetworkConfigurations::Write& w) :
+      version(version_)
+    {
+      for (const auto& [rid, opt_nc] : w)
+      {
+        if (opt_nc.has_value())
+        {
+          configs.insert(opt_nc.value());
+        }
+      }
+    }
+
+    void call(kv::ConfigurableConsensus* consensus) override
+    {
+      for (auto nc : configs)
+      {
+        consensus->add_network_configuration(version, nc);
+      }
+    }
+  };
+
 }

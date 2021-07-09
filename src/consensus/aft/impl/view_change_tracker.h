@@ -258,6 +258,7 @@ namespace aft
         nv.view_change_messages.emplace(it.first, it.second);
       }
 
+      store->sign_view_change_confirmation(nv);
       last_nvc = nv;
 
       return nv;

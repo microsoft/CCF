@@ -102,7 +102,7 @@ namespace ccf
 
     kv::PendingTxInfo call() override
     {
-      auto sig = store.create_reserved_tx(txid.version);
+      auto sig = store.create_reserved_tx(txid);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
@@ -121,7 +121,8 @@ namespace ccf
 
   protected:
     kv::Version version = 0;
-    kv::Term term = 0;
+    kv::Term term_of_last_version = 0;
+    kv::Term term_of_next_version = 0;
 
   public:
     NullTxHistory(kv::Store& store_, const NodeId& id_, crypto::KeyPair&) :
@@ -147,13 +148,15 @@ namespace ccf
 
     void set_term(kv::Term t) override
     {
-      term = t;
+      term_of_last_version = t;
+      term_of_next_version = t;
     }
 
-    void rollback(kv::Version v, kv::Term t) override
+    void rollback(const kv::TxID& tx_id, kv::Term commit_term_) override
     {
-      version = v;
-      term = t;
+      version = tx_id.version;
+      term_of_last_version = tx_id.term;
+      term_of_next_version = commit_term_;
     }
 
     void compact(kv::Version) override {}
@@ -192,10 +195,12 @@ namespace ccf
       return crypto::Sha256Hash(std::to_string(version));
     }
 
-    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
-      override
+    std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
+    get_replicated_state_txid_and_root() override
     {
-      return {{term, version}, crypto::Sha256Hash(std::to_string(version))};
+      return {{term_of_last_version, version},
+              crypto::Sha256Hash(std::to_string(version)),
+              term_of_next_version};
     }
 
     std::vector<uint8_t> get_proof(kv::Version) override
@@ -304,7 +309,7 @@ namespace ccf
 
     kv::PendingTxInfo call() override
     {
-      auto sig = store.create_reserved_tx(txid.version);
+      auto sig = store.create_reserved_tx(txid);
       auto signatures =
         sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
@@ -507,7 +512,8 @@ namespace ccf
     size_t sig_ms_interval;
 
     std::mutex state_lock;
-    kv::Term term = 0;
+    kv::Term term_of_last_version = 0;
+    kv::Term term_of_next_version;
 
   public:
     HashedTxHistory(
@@ -642,13 +648,14 @@ namespace ccf
       return replicated_state_tree.get_root();
     }
 
-    std::pair<kv::TxID, crypto::Sha256Hash> get_replicated_state_txid_and_root()
-      override
+    std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
+    get_replicated_state_txid_and_root() override
     {
       std::lock_guard<std::mutex> guard(state_lock);
-      return {
-        {term, static_cast<kv::Version>(replicated_state_tree.end_index())},
-        replicated_state_tree.get_root()};
+      return {{term_of_last_version,
+               static_cast<kv::Version>(replicated_state_tree.end_index())},
+              replicated_state_tree.get_root(),
+              term_of_next_version};
     }
 
     kv::TxHistory::Result verify_and_sign(
@@ -734,16 +741,21 @@ namespace ccf
 
     void set_term(kv::Term t) override
     {
+      // This should only be called once, when the store first knows about its
+      // term
       std::lock_guard<std::mutex> guard(state_lock);
-      term = t;
+      term_of_last_version = t;
+      term_of_next_version = t;
     }
 
-    void rollback(kv::Version v, kv::Term t) override
+    void rollback(
+      const kv::TxID& tx_id, kv::Term term_of_next_version_) override
     {
       std::lock_guard<std::mutex> guard(state_lock);
-      LOG_TRACE_FMT("Rollback to {}.{}", term, v);
-      term = t;
-      replicated_state_tree.retract(v);
+      LOG_TRACE_FMT("Rollback to {}.{}", tx_id.term, tx_id.version);
+      term_of_last_version = tx_id.term;
+      term_of_next_version = term_of_next_version_;
+      replicated_state_tree.retract(tx_id.version);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
 

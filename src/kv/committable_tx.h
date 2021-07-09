@@ -61,17 +61,14 @@ namespace kv
         return {};
       }
 
-      // Retrieve encryptor.
-      auto map = all_changes.begin()->second.map;
-      auto e = map->get_store()->get_encryptor();
-
       if (max_conflict_version == NoVersion)
       {
         max_conflict_version = version - 1;
       }
 
+      auto e = store->get_encryptor();
       KvStoreSerialiser replicated_serialiser(
-        e, {view, version}, max_conflict_version);
+        e, {commit_view, version}, max_conflict_version);
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -167,7 +164,7 @@ namespace kv
           // that for any set of transactions there may be several valid
           // serializations that do not violate the linearizability guarantees
           // of the total order. This check validates that this tx does not read
-          // a key at a higher version than it's version (i.e. does not break
+          // a key at a higher version than its version (i.e. does not break
           // linearizability). After ensuring linearizability is maintained
           // max_conflict_version is set to the same value as the one specified
           // so that when it is inserted into the Merkle tree the same root will
@@ -193,6 +190,12 @@ namespace kv
           }
         }
 
+        if (version == NoVersion)
+        {
+          // Read-only transaction
+          return CommitResult::SUCCESS;
+        }
+
         // From here, we have received a unique commit version and made
         // modifications to our local kv. If we fail in any way, we cannot
         // recover.
@@ -206,7 +209,7 @@ namespace kv
           }
 
           return store->commit(
-            {view, version},
+            {commit_view, version},
             std::make_unique<MovePendingTx>(std::move(data), std::move(hooks)),
             false);
         }
@@ -257,7 +260,7 @@ namespace kv
       if (!success)
         throw std::logic_error("Transaction aborted");
 
-      return view;
+      return commit_view;
     }
 
     /** Version for the transaction set
@@ -269,19 +272,36 @@ namespace kv
       return version;
     }
 
-    Version get_read_version()
-    {
-      return read_version.value_or(NoVersion);
-    }
-
     Version get_max_conflict_version()
     {
       return max_conflict_version;
     }
 
-    Version get_term()
+    std::optional<TxID> get_txid()
     {
-      return view;
+      if (!committed)
+      {
+        throw std::logic_error("Transaction not yet committed");
+      }
+
+      if (!read_txid.has_value())
+      {
+        // Transaction did not get a handle on any map.
+        return std::nullopt;
+      }
+
+      // A committed tx is read-only (i.e. no write to any map) if it was not
+      // assigned a version when it was committed
+      if (version == NoVersion)
+      {
+        // Read-only transaction
+        return read_txid.value();
+      }
+      else
+      {
+        // Write transaction
+        return TxID(commit_view, version);
+      }
     }
 
     void set_change_list(OrderedChanges&& change_list_, Term term_) override
@@ -289,12 +309,12 @@ namespace kv
       // if all_changes is not empty then any coinciding keys will not be
       // overwritten
       all_changes.merge(change_list_);
-      view = term_;
+      commit_view = term_;
     }
 
     void set_view(ccf::View view_)
     {
-      view = view_;
+      commit_view = view_;
     }
 
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
@@ -307,17 +327,14 @@ namespace kv
       return req_id;
     }
 
-    void set_read_version_and_term(Version v, Term t)
+    void set_read_txid(const TxID& tx_id, Term commit_view_)
     {
-      if (!read_version.has_value())
+      if (read_txid.has_value())
       {
-        read_version = v;
-        view = t;
+        throw std::logic_error("Read TxID already set");
       }
-      else
-      {
-        throw std::logic_error("Read version already set");
-      }
+      read_txid = tx_id;
+      commit_view = commit_view_;
     }
 
     void set_root_at_read_version(const crypto::Sha256Hash& r)
@@ -336,10 +353,13 @@ namespace kv
   class ReservedTx : public CommittableTx
   {
   public:
-    ReservedTx(AbstractStore* _store, Version reserved) : CommittableTx(_store)
+    ReservedTx(
+      AbstractStore* _store, Term read_term, const TxID& reserved_tx_id) :
+      CommittableTx(_store)
     {
-      read_version = reserved - 1;
-      version = reserved;
+      version = reserved_tx_id.version;
+      commit_view = reserved_tx_id.term;
+      read_txid = TxID(read_term, reserved_tx_id.version - 1);
     }
 
     // Used by frontend to commit reserved transactions

@@ -40,6 +40,8 @@ class NodeStatus(Enum):
     PENDING = "Pending"
     TRUSTED = "Trusted"
     RETIRED = "Retired"
+    LEARNER = "Learner"
+    RETIRING = "Retiring"
 
 
 def to_uint_64(buffer):
@@ -476,15 +478,15 @@ class Entry:
         buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
         self._public_domain_size = to_uint_64(buffer)
 
-    def get_public_domain(self) -> Optional[PublicDomain]:
+    def get_public_domain(self) -> PublicDomain:
         """
         Retrieve the public (i.e. non-encrypted) domain for that entry.
 
-        Note: If the entry is private-only, nothing is returned.
+        Note: Even if the entry is private-only, an empty :py:class:`ccf.ledger.PublicDomain` object is returned.
 
         :return: :py:class:`ccf.ledger.PublicDomain`
         """
-        if self._public_domain == None:
+        if self._public_domain is None:
             buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
             self._public_domain = PublicDomain(buffer)
         return self._public_domain
