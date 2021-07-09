@@ -15,12 +15,13 @@ namespace ccf
     size_t recovery_threshold = 0;
 
     ConsensusType consensus = ConsensusType::CFT;
-    ReconfigurationType reconfiguration_type =
+    std::optional<ReconfigurationType> reconfiguration_type =
       ReconfigurationType::ONE_TRANSACTION;
   };
-  DECLARE_JSON_TYPE(ServiceConfiguration)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
   DECLARE_JSON_REQUIRED_FIELDS(
-    ServiceConfiguration, recovery_threshold, consensus, reconfiguration_type)
+    ServiceConfiguration, recovery_threshold, consensus)
+  DECLARE_JSON_OPTIONAL_FIELDS(ServiceConfiguration, reconfiguration_type)
 
   // The there is always only one active configuration, so this is a single
   // Value
