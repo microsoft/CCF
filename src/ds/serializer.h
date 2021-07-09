@@ -230,6 +230,14 @@ namespace serializer
 
   class CommonSerializer : public EmptySerializer
   {
+    template <size_t N, size_t... Is>
+    static auto serialize_byte_range_with_index_sequence(
+      const ByteRange (&brs)[N], std::index_sequence<Is...>)
+    {
+      return std::make_tuple(
+        std::make_shared<MemoryRegionSection>(brs[Is].data, brs[Is].size)...);
+    }
+
     /// Overloads of serialize_value - return a tuple of PartialSerializations
     ///@{
     /// Overload for ByteRanges (no length-prefix)
@@ -239,19 +247,13 @@ namespace serializer
       return std::make_tuple(bfs);
     }
 
-    // TODO: Docs
-    template <size_t N, size_t... Is>
-    static auto serialize_value(
-      const ByteRange (&ncbr)[N], std::index_sequence<Is...>)
-    {
-      return std::make_tuple(
-        std::make_shared<MemoryRegionSection>(ncbr[Is].data, ncbr[Is].size)...);
-    }
-
+    /// Overload for C-arrays of ByteRanges (potentially non-contiguous, no
+    /// length-prefix)
     template <size_t N>
-    static auto serialize_value(const ByteRange (&ncbr)[N])
+    static auto serialize_value(const ByteRange (&brs)[N])
     {
-      return serialize_value(ncbr, std::make_index_sequence<N>{});
+      return serialize_byte_range_with_index_sequence(
+        brs, std::make_index_sequence<N>{});
     }
 
     /// Overload for std::vectors of bytes (no length-prefix)
