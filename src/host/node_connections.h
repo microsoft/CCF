@@ -80,7 +80,7 @@ namespace asynchost
           LOG_DEBUG_FMT(
             "node in: from node {}, size {}, type {}",
             node->trim(),
-            msg_size,
+            msg_size.value(),
             msg_type);
 
           RINGBUFFER_WRITE_MESSAGE(

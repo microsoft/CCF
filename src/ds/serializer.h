@@ -94,7 +94,9 @@ namespace serializer
         // possible to generalise this further and replace with
         // std::is_constructible, but these restrictions are sufficient for the
         // current uses.
-        // TODO: Document non-contiguous addition
+        // Additionally again, this will accept an array-like of ByteRanges for
+        // a single ByteRange parameter. These will be serialised in-order, and
+        // produce a single ByteRange in deserialisation.
         static constexpr bool value =
           std::is_same_v<CanonTarget, CanonArgument> ||
           (std::is_same_v<CanonTarget, std::vector<uint8_t>> &&

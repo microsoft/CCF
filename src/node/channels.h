@@ -507,10 +507,10 @@ namespace ccf
         payload);
 
       LOG_TRACE_FMT(
-        "key_exchange_final -> {}: ks={} serialised_signed_key_share={}",
+        "key_exchange_final -> {}: ks={} payload={}",
         peer_id,
         ds::to_hex(ks),
-        ds::to_hex(serialised_signature));
+        ds::to_hex(payload));
 
       establish();
 
@@ -551,7 +551,7 @@ namespace ccf
         "From initiator {}: version={} ks={} sig={} pc={} salt={}",
         peer_id,
         peer_version,
-        ds::to_hex(ks),
+        ds::to_hex(peer_ks),
         ds::to_hex(sig),
         ds::to_hex(pc),
         ds::to_hex(salt));
@@ -613,10 +613,10 @@ namespace ccf
         payload);
 
       LOG_TRACE_FMT(
-        "key_exchange_response -> {}: oks={} serialised_signed_share={}",
+        "key_exchange_response -> {}: oks={} payload={}",
         peer_id,
         ds::to_hex(kex_ctx.get_own_key_share()),
-        ds::to_hex(serialised_signed_share));
+        ds::to_hex(payload));
 
       return true;
     }
@@ -758,9 +758,6 @@ namespace ccf
       // with the nonce/seqno reset to 1). But, we can immediately start to send
       // messages with the new send_key.
 
-      // TODO: Remove these unnecessary copies
-      std::vector<uint8_t> payload(aad.p, aad.p + aad.n);
-
       GcmHdr gcm_hdr;
       RecvNonce nonce(
         send_nonce.fetch_add(1), threading::get_current_thread_id());
@@ -771,10 +768,15 @@ namespace ccf
         gcm_hdr.get_iv(), plain, aad, cipher.data(), gcm_hdr.tag);
 
       const auto gcm_hdr_serialised = gcm_hdr.serialise();
-      payload.insert(
-        payload.end(), gcm_hdr_serialised.begin(), gcm_hdr_serialised.end());
-        
-      payload.insert(payload.end(), cipher.begin(), cipher.end());
+
+      // Payload is concatenation of 3 things:
+      // 1) aad
+      // 2) gcm header
+      // 3) ciphertext
+      const serializer::ByteRange payload[] = {
+        {aad.p, aad.n},
+        {gcm_hdr_serialised.data(), gcm_hdr_serialised.size()},
+        {cipher.data(), cipher.size()}};
 
       RINGBUFFER_WRITE_MESSAGE(
         node_outbound, to_host, peer_id.value(), type, self.value(), payload);
