@@ -16,7 +16,7 @@ namespace ccf
 
     ConsensusType consensus = ConsensusType::CFT;
     std::optional<ReconfigurationType> reconfiguration_type =
-      ReconfigurationType::ONE_TRANSACTION;
+      std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ServiceConfiguration)
   DECLARE_JSON_REQUIRED_FIELDS(
