@@ -489,7 +489,7 @@ namespace ccfapp
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
       kv::Tx& tx, enclave::RpcContext& rpc_ctx) override
     {
-      const auto method = fmt::format("/{}", rpc_ctx.get_method());
+      const auto method = rpc_ctx.get_method();
       const auto verb = rpc_ctx.get_request_verb();
 
       auto endpoints =
