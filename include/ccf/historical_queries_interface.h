@@ -133,6 +133,11 @@ namespace ccf::historical
      */
     virtual StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) = 0;
 
+    virtual StatePtr get_state_at(
+      RequestHandle handle,
+      ccf::SeqNo seqno,
+      ExpiryDuration seconds_until_expiry) = 0;
+
     /** Retrieve a range of Stores containing the state written at the given
      * indices.
      *

@@ -1220,9 +1220,7 @@ def test_all_receipts(network, args):
                     assert receipt["root"] == ccf.receipt.root(
                         receipt["leaf"], receipt["proof"]
                     )
-                    ccf.receipt.verify(
-                        receipt["root"], receipt["signature"], node_cert
-                    )
+                    ccf.receipt.verify(receipt["root"], receipt["signature"], node_cert)
                     print(f"Verified receipt for {view}.{s}")
                     break
                 elif rc.status_code == http.HTTPStatus.ACCEPTED:

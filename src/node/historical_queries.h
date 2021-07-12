@@ -740,6 +740,14 @@ namespace ccf::historical
 
     StatePtr get_state_at(RequestHandle handle, ccf::SeqNo seqno) override
     {
+      return get_state_at(handle, seqno, default_expiry_duration);
+    }
+
+    StatePtr get_state_at(
+      RequestHandle handle,
+      ccf::SeqNo seqno,
+      ExpiryDuration seconds_until_expiry) override
+    {
       auto range =
         get_store_range_internal(handle, seqno, 0, default_expiry_duration);
 
