@@ -99,7 +99,11 @@ namespace ccf
           auto info_ = info;
           info_.js_module = module_prefix + info_.js_module;
           auto verb = nlohmann::json(method).get<RESTVerb>();
-          endpoints->put(ccf::endpoints::EndpointKey{url, verb}, info_);
+          endpoints->put(
+            ccf::endpoints::EndpointKey{
+              nonstd::starts_with(url, "/") ? url : fmt::format("/{}", url),
+              verb},
+            info_);
         }
       }
 
@@ -604,7 +608,7 @@ namespace ccf
         }
         return make_success();
       };
-      make_endpoint("ack", HTTP_POST, json_adapter(ack), member_sig_only)
+      make_endpoint("/ack", HTTP_POST, json_adapter(ack), member_sig_only)
         .set_auto_schema<StateDigest, void>()
         .install();
 
@@ -643,7 +647,7 @@ namespace ccf
         return make_success(j);
       };
       make_endpoint(
-        "ack/update_state_digest",
+        "/ack/update_state_digest",
         HTTP_POST,
         json_adapter(update_state_digest),
         member_cert_or_sig)
@@ -683,7 +687,7 @@ namespace ccf
           GetRecoveryShare::Out{tls::b64_from_raw(encrypted_share.value())});
       };
       make_endpoint(
-        "recovery_share",
+        "/recovery_share",
         HTTP_GET,
         json_adapter(get_encrypted_recovery_share),
         member_cert_or_sig)
@@ -787,7 +791,7 @@ namespace ccf
           g.get_recovery_threshold())});
       };
       make_endpoint(
-        "recovery_share",
+        "/recovery_share",
         HTTP_POST,
         json_adapter(submit_recovery_share),
         member_cert_or_sig)
@@ -820,8 +824,9 @@ namespace ccf
 
         if (
           in.configuration.consensus == ConsensusType::BFT &&
-          in.configuration.reconfiguration_type !=
-            ReconfigurationType::TWO_TRANSACTION)
+          (!in.configuration.reconfiguration_type.has_value() ||
+           in.configuration.reconfiguration_type.value() !=
+             ReconfigurationType::TWO_TRANSACTION))
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -853,7 +858,8 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      make_endpoint("create", HTTP_POST, json_adapter(create), no_auth_required)
+      make_endpoint(
+        "/create", HTTP_POST, json_adapter(create), no_auth_required)
         .set_openapi_hidden(true)
         .install();
 
@@ -952,7 +958,7 @@ namespace ccf
         return make_success(true);
       };
       make_endpoint(
-        "jwt_keys/refresh",
+        "/jwt_keys/refresh",
         HTTP_POST,
         json_adapter(refresh_jwt_keys),
         {std::make_shared<NodeCertAuthnPolicy>()})
@@ -973,7 +979,7 @@ namespace ccf
         return make_success(kmap);
       };
       make_endpoint(
-        "jwt_keys/all", HTTP_GET, json_adapter(get_jwt_keys), no_auth_required)
+        "/jwt_keys/all", HTTP_GET, json_adapter(get_jwt_keys), no_auth_required)
         .set_auto_schema<void, JWTKeyMap>()
         .install();
 
@@ -1156,7 +1162,7 @@ namespace ccf
         ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
       };
 
-      make_endpoint("proposals", HTTP_POST, post_proposals_js, member_sig_only)
+      make_endpoint("/proposals", HTTP_POST, post_proposals_js, member_sig_only)
         .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfoSummary>()
         .install();
 
@@ -1218,7 +1224,7 @@ namespace ccf
         };
 
       make_read_only_endpoint(
-        "proposals/{proposal_id}",
+        "/proposals/{proposal_id}",
         HTTP_GET,
         json_read_only_adapter(get_proposal_js),
         member_cert_or_sig)
@@ -1295,7 +1301,7 @@ namespace ccf
       };
 
       make_endpoint(
-        "proposals/{proposal_id}/withdraw",
+        "/proposals/{proposal_id}/withdraw",
         HTTP_POST,
         json_adapter(withdraw_js),
         member_sig_only)
@@ -1346,7 +1352,7 @@ namespace ccf
         };
 
       make_read_only_endpoint(
-        "proposals/{proposal_id}/actions",
+        "/proposals/{proposal_id}/actions",
         HTTP_GET,
         get_proposal_actions_js,
         member_cert_or_sig)
@@ -1453,7 +1459,7 @@ namespace ccf
         return make_success(rv);
       };
       make_endpoint(
-        "proposals/{proposal_id}/ballots",
+        "/proposals/{proposal_id}/ballots",
         HTTP_POST,
         json_adapter(vote_js),
         member_sig_only)
@@ -1521,7 +1527,7 @@ namespace ccf
           return make_success(jsgov::Ballot{vote_it->second});
         };
       make_read_only_endpoint(
-        "proposals/{proposal_id}/ballots/{member_id}",
+        "/proposals/{proposal_id}/ballots/{member_id}",
         HTTP_GET,
         json_read_only_adapter(get_vote_js),
         member_cert_or_sig)

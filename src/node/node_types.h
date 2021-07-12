@@ -78,6 +78,9 @@ namespace ccf
     DEFINE_RINGBUFFER_MSG_TYPE(node_inbound),
 
     /// Send data to another node. Enclave -> Host
+    /// Args are (to_id, msg_type, from_id, payload)
+    /// The host may inspect the first 3, and should write the last 3 (to
+    /// produce an equivalent node_inbound on the receiving node)
     DEFINE_RINGBUFFER_MSG_TYPE(node_outbound),
   };
 }
@@ -85,4 +88,14 @@ namespace ccf
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   ccf::add_node, ccf::NodeId::Value, std::string, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::remove_node, ccf::NodeId::Value);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(ccf::node_inbound, std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  ccf::node_inbound,
+  ccf::NodeMsgType,
+  ccf::NodeId::Value,
+  serializer::ByteRange);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  ccf::node_outbound,
+  ccf::NodeId::Value,
+  ccf::NodeMsgType,
+  ccf::NodeId::Value,
+  serializer::ByteRange);

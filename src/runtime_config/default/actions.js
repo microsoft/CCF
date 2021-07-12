@@ -767,9 +767,9 @@ const actions = new Map([
         const nodeInfo = ccf.bufToJsonCompatible(node);
         if (nodeInfo.status === "Pending") {
           nodeInfo.status =
-            serviceConfig.reconfiguration_type == "OneTransaction"
-              ? "Trusted"
-              : "Learner";
+            serviceConfig.reconfiguration_type == "TwoTransaction"
+              ? "Learner"
+              : "Trusted";
           nodeInfo.ledger_secret_seqno =
             ccf.network.getLatestLedgerSecretSeqno();
           ccf.kv["public:ccf.gov.nodes.info"].set(
@@ -812,9 +812,9 @@ const actions = new Map([
         if (node !== undefined) {
           const node_obj = ccf.bufToJsonCompatible(node);
           node_obj.status =
-            serviceConfig.reconfiguration_type == "OneTransaction"
-              ? "Retired"
-              : "Retiring";
+            serviceConfig.reconfiguration_type == "TwoTransaction"
+              ? "Retiring"
+              : "Retired";
           ccf.kv["public:ccf.gov.nodes.info"].set(
             ccf.strToBuf(args.node_id),
             ccf.jsonCompatibleToBuf(node_obj)

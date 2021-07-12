@@ -85,7 +85,7 @@ namespace ccf
       }
     };
     make_command_endpoint(
-      "commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
+      "/commit", HTTP_GET, json_command_adapter(get_commit), no_auth_required)
       .set_execute_outside_consensus(
         ccf::endpoints::ExecuteOutsideConsensus::Locally)
       .set_auto_schema<GetCommit>()
@@ -137,13 +137,13 @@ namespace ccf
       }
     };
     make_command_endpoint(
-      "tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
+      "/tx", HTTP_GET, json_command_adapter(get_tx_status), no_auth_required)
       .set_auto_schema<void, GetTxStatus::Out>()
       .add_query_parameter<ccf::TxID>(tx_id_param_key)
       .install();
 
     make_command_endpoint(
-      "local_tx",
+      "/local_tx",
       HTTP_GET,
       json_command_adapter(get_tx_status),
       no_auth_required)
@@ -167,7 +167,7 @@ namespace ccf
       return make_success(out);
     };
     make_read_only_endpoint(
-      "code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
+      "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
       .install();
 
@@ -192,7 +192,7 @@ namespace ccf
           fmt::format("Error code: {}", ccf::api_result_to_str(result)));
       }
     };
-    make_endpoint("api", HTTP_GET, json_adapter(openapi), no_auth_required)
+    make_endpoint("/api", HTTP_GET, json_adapter(openapi), no_auth_required)
       .set_auto_schema<void, GetAPI::Out>()
       .install();
 
@@ -214,7 +214,7 @@ namespace ccf
       return make_success(out);
     };
     make_command_endpoint(
-      "api/metrics",
+      "/api/metrics",
       HTTP_GET,
       json_command_adapter(endpoint_metrics_fn),
       no_auth_required)
@@ -264,7 +264,7 @@ namespace ccf
       };
 
     make_endpoint(
-      "receipt",
+      "/receipt",
       HTTP_GET,
       ccf::historical::adapter(
         get_receipt,
