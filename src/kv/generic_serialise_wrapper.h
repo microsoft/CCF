@@ -247,7 +247,10 @@ namespace kv
     {}
 
     std::optional<std::tuple<Version, Version>> init(
-      const uint8_t* data, size_t size, bool historical_hint = false)
+      const uint8_t* data,
+      size_t size,
+      kv::Term& term,
+      bool historical_hint = false)
     {
       current_reader = &public_reader;
       auto data_ = data;
@@ -312,6 +315,7 @@ namespace kv
             {gcm_hdr_data, gcm_hdr_data + crypto_util->get_header_length()},
             decrypted_buffer,
             version,
+            term,
             historical_hint))
       {
         return std::nullopt;

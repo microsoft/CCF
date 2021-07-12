@@ -21,6 +21,7 @@ namespace kv
       bool public_only,
       kv::Version& v,
       kv::Version& max_conflict_version,
+      kv::Term& view,
       kv::OrderedChanges& changes,
       kv::MapCollection& new_maps,
       bool ignore_strict_versions = false) = 0;
@@ -59,12 +60,14 @@ namespace kv
 
     ApplyResult apply() override
     {
+      kv::Term view;
       kv::Version max_conflict_version;
       if (!store->fill_maps(
             data,
             public_only,
             v,
             max_conflict_version,
+            view,
             changes,
             new_maps,
             true))

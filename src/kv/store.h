@@ -389,7 +389,8 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      auto v_ = d.init(data.data(), data.size(), is_historical);
+      kv::Term term;
+      auto v_ = d.init(data.data(), data.size(), term, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -657,6 +658,7 @@ namespace kv
       bool public_only,
       kv::Version& v,
       kv::Version& max_conflict_version,
+      kv::Term& view,
       OrderedChanges& changes,
       MapCollection& new_maps,
       bool ignore_strict_versions = false) override
@@ -673,7 +675,7 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      auto v_ = d.init(data.data(), data.size(), is_historical);
+      auto v_ = d.init(data.data(), data.size(), view, is_historical);
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -762,6 +764,7 @@ namespace kv
       else
       {
         kv::Version v;
+        kv::Term view;
         kv::Version max_conflict_version;
         OrderedChanges changes;
         MapCollection new_maps;
@@ -770,6 +773,7 @@ namespace kv
               public_only,
               v,
               max_conflict_version,
+              view,
               changes,
               new_maps,
               true))

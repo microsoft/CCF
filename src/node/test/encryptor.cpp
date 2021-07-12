@@ -3,7 +3,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
 #include "kv/encryptor.h"
-
 #include "kv/kv_types.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
@@ -38,10 +37,11 @@ bool encrypt_round_trip(
   std::vector<uint8_t> decrypted(plain.size());
 
   kv::Term term = 1;
+  kv::Term ret_term = 0;
   encryptor.encrypt(plain, aad, header, cipher, {term, version});
-  encryptor.decrypt(cipher, aad, header, decrypted, version);
+  encryptor.decrypt(cipher, aad, header, decrypted, version, ret_term);
 
-  return plain == decrypted;
+  return plain == decrypted && ret_term == term;
 }
 
 bool corrupt_serialised_tx(
@@ -210,14 +210,24 @@ TEST_CASE("Additional data")
   // Decrypting cipher at version 10
   std::vector<uint8_t> decrypted_cipher;
   REQUIRE(encryptor.decrypt(
-    cipher, additional_data, serialised_header, decrypted_cipher, version));
+    cipher,
+    additional_data,
+    serialised_header,
+    decrypted_cipher,
+    version,
+    term));
   REQUIRE(plain == decrypted_cipher);
 
   // Tampering with additional data: decryption fails
   additional_data[100] = 0xAA;
   std::vector<uint8_t> decrypted_cipher2;
   REQUIRE_FALSE(encryptor.decrypt(
-    cipher, additional_data, serialised_header, decrypted_cipher2, version));
+    cipher,
+    additional_data,
+    serialised_header,
+    decrypted_cipher2,
+    version,
+    term));
 
   // mbedtls 2.16+ does not produce plain text if decryption fails
   REQUIRE(decrypted_cipher2.empty());
