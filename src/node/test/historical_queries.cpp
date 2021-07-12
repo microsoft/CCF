@@ -290,7 +290,7 @@ TEST_CASE("StateCache point queries")
   {
     INFO("The host sees requests for these indices");
     REQUIRE(!stub_writer->writes.empty());
-    std::set<ccf::SeqNo> expected{low_seqno, high_seqno, unsigned_seqno};
+    std::set<ccf::SeqNo> expected{low_seqno, low_seqno + 1, high_seqno, high_seqno + 1, unsigned_seqno, unsigned_seqno + 1};
     std::set<ccf::SeqNo> actual;
     for (const auto& write : stub_writer->writes)
     {
@@ -301,6 +301,7 @@ TEST_CASE("StateCache point queries")
       REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
       actual.insert(seqno);
     }
+    INFO(fmt::format(""));
     REQUIRE(actual == expected);
   }
 
@@ -312,7 +313,7 @@ TEST_CASE("StateCache point queries")
   {
     INFO("Cache doesn't accept arbitrary entries");
     REQUIRE(!provide_ledger_entry(high_seqno - 1));
-    REQUIRE(!provide_ledger_entry(high_seqno + 1));
+    REQUIRE(!provide_ledger_entry(high_seqno + 2));
   }
 
   {
