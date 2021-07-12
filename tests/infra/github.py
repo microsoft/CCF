@@ -84,8 +84,8 @@ class Repository:
         self.g = Github(os.getenv(ENV_VAR_GITHUB_AUTH_TOKEN_NAME))
         self.repo = self.g.get_repo(REPOSITORY_NAME)
         self.branches = self.repo.get_branches()
-        self.releases = self.repo.releases()
-        self.tags = self.repo.tags
+        self.releases = self.repo.get_releases()
+        self.tags = self.repo.get_tags()
 
     def get_release_branches_names(self):
         # Branches are ordered based on major version, with oldest first
