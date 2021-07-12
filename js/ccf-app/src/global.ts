@@ -177,11 +177,22 @@ export interface CryptoKeyPair {
   publicKey: string;
 }
 
+/**
+ * RSASSA-PKCS1-v1_5 signature algorithm parameters.
+ */
 export interface RsaPkcsParams {
   name: "RSASSA-PKCS1-v1_5";
   hash: DigestAlgorithm;
 }
 
+/**
+ * ECDSA signature algorithm parameters.
+ *
+ * Note: ECDSA signatures are assumed to be encoded according
+ * to the Web Crypto API specification, which is the same
+ * format used in JSON Web Tokens and more generally known
+ * as IEEE P1363 encoding.
+ */
 export interface EcdsaParams {
   name: "ECDSA";
   hash: DigestAlgorithm;

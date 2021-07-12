@@ -121,9 +121,10 @@ namespace aft
       return aft->active_nodes();
     }
 
-    void recv_message(const ccf::NodeId& from, OArray&& data) override
+    void recv_message(
+      const ccf::NodeId& from, const uint8_t* data, size_t size) override
     {
-      return aft->recv_message(from, std::move(data));
+      return aft->recv_message(from, data, size);
     }
 
     void add_configuration(
@@ -132,6 +133,12 @@ namespace aft
       const std::unordered_set<ccf::NodeId>& learners = {}) override
     {
       aft->add_configuration(seqno, conf, learners);
+    }
+
+    void add_network_configuration(
+      ccf::SeqNo seqno, const kv::NetworkConfiguration& config) override
+    {
+      return aft->add_network_configuration(seqno, config);
     }
 
     Configuration::Nodes get_latest_configuration() override

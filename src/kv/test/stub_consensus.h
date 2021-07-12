@@ -141,12 +141,18 @@ namespace kv::test
       view_history.initialise(view_history_);
     }
 
-    void recv_message(const NodeId& from, OArray&& oa) override {}
+    void recv_message(
+      const NodeId& from, const uint8_t* data, size_t size) override
+    {}
 
     void add_configuration(
       ccf::SeqNo seqno,
       const Configuration::Nodes& conf,
       const std::unordered_set<NodeId>& learners = {}) override
+    {}
+
+    void add_network_configuration(
+      ccf::SeqNo seqno, const NetworkConfiguration& config) override
     {}
 
     Configuration::Nodes get_latest_configuration_unsafe() const override

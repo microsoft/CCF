@@ -347,6 +347,52 @@ TEST_CASE("roundtrip" * doctest::test_suite("serializer"))
     }
   }
 
+  SUBCASE("Non-contiguous byte range")
+  {
+    INFO("ByteRanges can be provided from non-contiguous subsections");
+    using TS = PreciseSerializer<ByteRange>;
+
+    constexpr uint8_t size_a = 10;
+    uint8_t raw_a[size_a];
+    for (uint8_t i = 0; i < size_a; ++i)
+    {
+      raw_a[i] = i;
+    }
+
+    constexpr uint8_t size_b = 3;
+    uint8_t raw_b[size_b];
+    for (uint8_t i = 0; i < size_b; ++i)
+    {
+      raw_b[i] = i;
+    }
+
+    constexpr uint8_t size_c = 42;
+    uint8_t raw_c[size_c];
+    for (uint8_t i = 0; i < size_c; ++i)
+    {
+      raw_c[i] = i;
+    }
+
+    const ByteRange ncbr[] = {
+      {raw_a, size_a}, {raw_b, size_b}, {raw_c, size_c}, {raw_b, size_b}};
+
+    w.write_with<TS>(any_message, ncbr);
+
+    auto [br] = TS::deserialize(w.payload.data(), w.payload.size());
+
+    REQUIRE(br.size == size_a + size_b + size_c + size_b);
+
+    auto data = br.data;
+    REQUIRE(memcmp(data, raw_a, size_a) == 0);
+    data += size_a;
+    REQUIRE(memcmp(data, raw_b, size_b) == 0);
+    data += size_b;
+    REQUIRE(memcmp(data, raw_c, size_c) == 0);
+    data += size_c;
+    REQUIRE(memcmp(data, raw_b, size_b) == 0);
+    data += size_b;
+  }
+
   SUBCASE("TupleSerializer")
   {
     {

@@ -72,7 +72,9 @@ namespace ccf::endpoints
   EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_endpoint(
     const EndpointDefinitionPtr& e)
   {
-    return metrics[e->dispatch.uri_path][e->dispatch.verb.c_str()];
+    auto method = e->dispatch.uri_path;
+    method = method.substr(method.find_first_not_of('/'));
+    return metrics[method][e->dispatch.verb.c_str()];
   }
 
   Endpoint EndpointRegistry::make_endpoint(
@@ -82,7 +84,14 @@ namespace ccf::endpoints
     const AuthnPolicies& ap)
   {
     Endpoint endpoint;
-    endpoint.dispatch.uri_path = method;
+    if (nonstd::starts_with(method, "/"))
+    {
+      endpoint.dispatch.uri_path = method;
+    }
+    else
+    {
+      endpoint.dispatch.uri_path = fmt::format("/{}", method);
+    }
     endpoint.dispatch.verb = verb;
     endpoint.func = f;
     endpoint.authn_policies = ap;
@@ -203,7 +212,6 @@ namespace ccf::endpoints
     kv::Tx&, enclave::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
-    method = method.substr(method.find_first_not_of('/'));
 
     auto endpoints_for_exact_method = fully_qualified_endpoints.find(method);
     if (endpoints_for_exact_method != fully_qualified_endpoints.end())
@@ -290,7 +298,6 @@ namespace ccf::endpoints
     const enclave::RpcContext& rpc_ctx)
   {
     auto method = rpc_ctx.get_method();
-    method = method.substr(method.find_first_not_of('/'));
 
     std::set<RESTVerb> verbs;
 

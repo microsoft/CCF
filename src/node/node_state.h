@@ -10,6 +10,7 @@
 #include "crypto/symmetric_key.h"
 #include "crypto/verifier.h"
 #include "ds/logger.h"
+#include "ds/state_machine.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "entities.h"
@@ -71,40 +72,6 @@ namespace ccf
     crypto::Pem network_cert;
   };
 
-  template <typename T>
-  class StateMachine
-  {
-    std::atomic<T> s;
-
-  public:
-    StateMachine(T s) : s(s) {}
-    void expect(T s) const
-    {
-      auto state = this->s.load();
-      if (s != state)
-      {
-        throw std::logic_error(
-          fmt::format("State is {}, but expected {}", state, s));
-      }
-    }
-
-    bool check(T s) const
-    {
-      return s == this->s.load();
-    }
-
-    T value() const
-    {
-      return this->s.load();
-    }
-
-    void advance(T s)
-    {
-      LOG_DEBUG_FMT("Advancing to state {} (from {})", s, this->s.load());
-      this->s.store(s);
-    }
-  };
-
   void reset_data(std::vector<uint8_t>& data)
   {
     data.clear();
@@ -117,7 +84,7 @@ namespace ccf
     //
     // this node's core state
     //
-    StateMachine<State> sm;
+    ds::StateMachine<State> sm;
     std::mutex lock;
 
     CurveID curve_id;
@@ -287,7 +254,7 @@ namespace ccf
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ShareManager& share_manager,
       CurveID curve_id_) :
-      sm(State::uninitialized),
+      sm("NodeState", State::uninitialized),
       curve_id(curve_id_),
       node_sign_kp(crypto::make_key_pair(curve_id_)),
       node_encrypt_kp(crypto::make_rsa_key_pair()),
@@ -326,9 +293,8 @@ namespace ccf
     //
     void initialize(
       const consensus::Configuration& consensus_config_,
-      std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_,
+      std::shared_ptr<enclave::AbstractRPCResponder> rpc_sessions_,
       size_t sig_tx_interval_,
       size_t sig_ms_interval_)
     {
@@ -336,12 +302,22 @@ namespace ccf
       sm.expect(State::uninitialized);
 
       consensus_config = consensus_config_;
-      n2n_channels = n2n_channels_;
       rpc_map = rpc_map_;
-      cmd_forwarder = cmd_forwarder_;
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
+
+      n2n_channels = std::make_shared<ccf::NodeToNodeImpl>(writer_factory);
+
+      cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
+        rpc_sessions_, n2n_channels, rpc_map, consensus_config.consensus_type);
+
       sm.advance(State::initialized);
+
+      for (auto& [actor, fe] : rpc_map->frontends())
+      {
+        fe->set_sig_intervals(sig_tx_interval, sig_ms_interval);
+        fe->set_cmd_forwarder(cmd_forwarder);
+      }
     }
 
     //
@@ -822,7 +798,6 @@ namespace ccf
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
-        store->rollback(ledger_idx - 1);
         recover_public_ledger_end_unsafe();
         return;
       }
@@ -966,25 +941,27 @@ namespace ccf
       }
 
       // When reaching the end of the public ledger, truncate to last signed
-      // index and promote network secrets to this index
-      network.tables->rollback(last_recovered_signed_idx);
+      // index
+      const auto last_recovered_term = view_history.size();
+      auto new_term = last_recovered_term + 2;
+      LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
+
+      // Note: KV term must be set before the first Tx is committed
+      network.tables->rollback(
+        {last_recovered_term, last_recovered_signed_idx}, new_term);
       ledger_truncate(last_recovered_signed_idx);
       snapshotter->rollback(last_recovered_signed_idx);
 
       LOG_INFO_FMT(
         "End of public ledger recovery - Truncating ledger to last signed "
-        "seqno: {}",
+        "TxID: {}.{}",
+        last_recovered_term,
         last_recovered_signed_idx);
-
-      // KV term must be set before the first Tx is committed
-      auto new_term = view_history.size() + 2;
-      LOG_INFO_FMT("Setting term on public recovery store to {}", new_term);
-      network.tables->set_term(new_term);
 
       auto tx = network.tables->create_tx();
       GenesisGenerator g(network, tx);
       g.create_service(network.identity->cert);
-      g.retire_active_nodes();
+      auto network_config = g.retire_active_nodes();
 
       if (network.consensus_type == ConsensusType::BFT)
       {
@@ -1020,9 +997,11 @@ namespace ccf
          quote_info,
          node_encrypt_kp->public_key_pem().raw(),
          NodeStatus::PENDING,
-         get_next_reconfiguration_id(network, tx),
          std::nullopt,
          ds::to_hex(code_digest.data)});
+
+      network_config.nodes.insert(self);
+      add_new_network_reconfiguration(network, tx, network_config);
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -1110,7 +1089,9 @@ namespace ccf
       if (result == kv::ApplyResult::FAIL)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
-        recovery_store->rollback(ledger_idx - 1);
+        // Note: rollback terms do not matter here as recovery store is about to
+        // be discarded
+        recovery_store->rollback({0, ledger_idx - 1}, 0);
         recover_private_ledger_end_unsafe();
         return;
       }
@@ -1438,39 +1419,47 @@ namespace ccf
       consensus->periodic_end();
     }
 
-    void node_msg(const std::vector<uint8_t>& data)
+    void recv_node_inbound(const uint8_t* data, size_t size)
     {
-      // Only process messages once part of network
-      if (
-        !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork) &&
-        !sm.check(State::readingPrivateLedger))
+      auto [msg_type, from, payload] =
+        ringbuffer::read_message<ccf::node_inbound>(data, size);
+
+      auto payload_data = payload.data;
+      auto payload_size = payload.size;
+
+      if (msg_type == ccf::NodeMsgType::forwarded_msg)
       {
-        return;
+        cmd_forwarder->recv_message(from, payload_data, payload_size);
       }
-
-      OArray oa(std::move(data));
-      NodeMsgType msg_type =
-        serialized::overlay<NodeMsgType>(oa.data(), oa.size());
-      NodeId from = serialized::read<NodeId::Value>(oa.data(), oa.size());
-
-      switch (msg_type)
+      else
       {
-        case channel_msg:
+        // Only process messages once part of network
+        if (
+          !sm.check(State::partOfNetwork) &&
+          !sm.check(State::partOfPublicNetwork) &&
+          !sm.check(State::readingPrivateLedger))
         {
-          n2n_channels->recv_message(from, std::move(oa));
-          break;
-        }
-        case consensus_msg:
-        {
-          consensus->recv_message(from, std::move(oa));
-          break;
+          return;
         }
 
-        default:
+        switch (msg_type)
         {
-          LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
-          return;
+          case channel_msg:
+          {
+            n2n_channels->recv_message(from, payload_data, payload_size);
+            break;
+          }
+          case consensus_msg:
+          {
+            consensus->recv_message(from, payload_data, payload_size);
+            break;
+          }
+
+          default:
+          {
+            LOG_FAIL_FMT("Unknown node message type: {}", msg_type);
+            return;
+          }
         }
       }
     }
@@ -1670,8 +1659,11 @@ namespace ccf
       create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest = node_code_id;
       create_params.node_info_network = config.node_info_network;
-      create_params.configuration = {config.genesis.recovery_threshold,
-                                     network.consensus_type};
+      auto reconf_type = network.consensus_type == ConsensusType::BFT ?
+        ReconfigurationType::TWO_TRANSACTION :
+        ReconfigurationType::ONE_TRANSACTION;
+      create_params.configuration = {
+        config.genesis.recovery_threshold, network.consensus_type, reconf_type};
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
@@ -2000,6 +1992,14 @@ namespace ccf
           [](kv::Version version, const Nodes::Write& w)
             -> kv::ConsensusHookPtr {
             return std::make_unique<ConfigurationChangeHook>(version, w);
+          }));
+
+      network.tables->set_map_hook(
+        network.network_configurations.get_name(),
+        network.network_configurations.wrap_map_hook(
+          [](kv::Version version, const NetworkConfigurations::Write& w)
+            -> kv::ConsensusHookPtr {
+            return std::make_unique<NetworkConfigurationsHook>(version, w);
           }));
 
       setup_basic_hooks();
