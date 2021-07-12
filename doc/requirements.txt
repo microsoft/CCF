@@ -1,5 +1,5 @@
 breathe
-sphinx
+sphinx<4.1.0 # https://github.com/sphinx-doc/sphinx/issues/9433
 bottle
 sphinx-autobuild
 sphinxcontrib-mermaid
