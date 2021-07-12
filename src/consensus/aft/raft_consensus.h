@@ -121,7 +121,8 @@ namespace aft
       return aft->active_nodes();
     }
 
-    void recv_message(const ccf::NodeId& from, const uint8_t* data, size_t size) override
+    void recv_message(
+      const ccf::NodeId& from, const uint8_t* data, size_t size) override
     {
       return aft->recv_message(from, data, size);
     }

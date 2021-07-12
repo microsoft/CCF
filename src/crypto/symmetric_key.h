@@ -103,7 +103,7 @@ namespace crypto
 
       deserialise(data, size);
     }
-    
+
     void deserialise(const uint8_t*& data, size_t& size)
     {
       memcpy(

@@ -20,10 +20,10 @@
 #include "js/wrap.h"
 #include "network_state.h"
 #include "node/jwt_key_auto_refresh.h"
+#include "node/node_to_node_channel_manager.h"
 #include "node/progress_tracker.h"
 #include "node/reconfig_id.h"
 #include "node/rpc/serdes.h"
-#include "node/node_to_node_channel_manager.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
@@ -31,7 +31,6 @@
 #include "share_manager.h"
 #include "snapshotter.h"
 #include "tls/client.h"
-#include "ds/state_machine.h"
 
 #ifdef USE_NULL_ENCRYPTOR
 #  include "kv/test/null_encryptor.h"
@@ -307,18 +306,17 @@ namespace ccf
       sig_tx_interval = sig_tx_interval_;
       sig_ms_interval = sig_ms_interval_;
 
-      n2n_channels = std::make_shared<ccf::NodeToNodeChannelManager>(writer_factory);
+      n2n_channels =
+        std::make_shared<ccf::NodeToNodeChannelManager>(writer_factory);
 
       cmd_forwarder = std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpc_sessions_, n2n_channels, rpc_map, consensus_config.consensus_type);
-    
+
       sm.advance(State::initialized);
 
       for (auto& [actor, fe] : rpc_map->frontends())
       {
-        fe->set_sig_intervals(
-          sig_tx_interval,
-          sig_ms_interval);
+        fe->set_sig_intervals(sig_tx_interval, sig_ms_interval);
         fe->set_cmd_forwarder(cmd_forwarder);
       }
     }
@@ -1442,7 +1440,9 @@ namespace ccf
           !sm.check(State::partOfPublicNetwork) &&
           !sm.check(State::readingPrivateLedger))
         {
-          LOG_DEBUG_FMT("Ignoring node msg received too early - current state is {}", sm.value());
+          LOG_DEBUG_FMT(
+            "Ignoring node msg received too early - current state is {}",
+            sm.value());
           return;
         }
 
@@ -1450,7 +1450,8 @@ namespace ccf
         {
           case channel_msg:
           {
-            n2n_channels->recv_channel_message(from, payload_data, payload_size);
+            n2n_channels->recv_channel_message(
+              from, payload_data, payload_size);
             break;
           }
 

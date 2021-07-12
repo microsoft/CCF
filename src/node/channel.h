@@ -769,7 +769,6 @@ namespace ccf
         return false;
       }
 
-
       CHANNEL_SEND_TRACE(
         "send({}, {} bytes, {} bytes) (nonce={})",
         (size_t)type,

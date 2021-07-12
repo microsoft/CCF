@@ -205,8 +205,7 @@ namespace ccf
     }
 
     // NB: Only used by tests!
-    bool recv_channel_message(
-      const NodeId& from, std::vector<uint8_t>&& body)
+    bool recv_channel_message(const NodeId& from, std::vector<uint8_t>&& body)
     {
       return recv_channel_message(from, body.data(), body.size());
     }
