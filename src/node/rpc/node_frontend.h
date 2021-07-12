@@ -12,6 +12,7 @@
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/quote.h"
+#include "node/reconfig_id.h"
 #include "node_interface.h"
 
 namespace ccf
@@ -122,7 +123,8 @@ namespace ccf
       kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
       const JoinNetworkNodeToNode::In& in,
-      NodeStatus node_status)
+      NodeStatus node_status,
+      ServiceStatus service_status)
     {
       auto nodes = tx.rw(network.nodes);
 
@@ -156,9 +158,12 @@ namespace ccf
           "{:#064}", get_next_id(tx.rw(this->network.values), NEXT_NODE_ID));
       }
 
+      CodeDigest code_digest;
+
 #ifdef GET_QUOTE
       QuoteVerificationResult verify_result =
-        this->context.get_node_state().verify_quote(tx, in.quote_info, pk_der);
+        this->context.get_node_state().verify_quote(
+          tx, in.quote_info, pk_der, code_digest);
       if (verify_result != QuoteVerificationResult::Verified)
       {
         const auto [code, message] = quote_verification_error(verify_result);
@@ -169,7 +174,9 @@ namespace ccf
 #endif
 
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
-      if (node_status == NodeStatus::TRUSTED)
+      if (
+        node_status == NodeStatus::TRUSTED ||
+        node_status == NodeStatus::LEARNER)
       {
         ledger_secret_seqno =
           this->network.ledger_secrets->get_latest(tx).first;
@@ -182,7 +189,13 @@ namespace ccf
          in.quote_info,
          in.public_encryption_key,
          node_status,
-         ledger_secret_seqno});
+         ledger_secret_seqno,
+         ds::to_hex(code_digest.data)});
+
+      kv::NetworkConfiguration nc =
+        get_latest_network_configuration(network, tx);
+      nc.nodes.insert(joining_node_id);
+      add_new_network_reconfiguration(network, tx, nc);
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
@@ -190,14 +203,17 @@ namespace ccf
       rep.node_status = node_status;
       rep.node_id = joining_node_id;
 
-      if (node_status == NodeStatus::TRUSTED)
+      if (
+        node_status == NodeStatus::TRUSTED ||
+        node_status == NodeStatus::LEARNER)
       {
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           context.get_node_state().is_part_of_public_network(),
           context.get_node_state().get_last_recovered_signed_idx(),
           this->network.consensus_type,
           this->network.ledger_secrets->get(tx),
-          *this->network.identity.get()};
+          *this->network.identity.get(),
+          service_status};
       }
       return make_success(rep);
     }
@@ -212,7 +228,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "1.3.0";
+      openapi_info.document_version = "1.4.0";
     }
 
     void init_handlers() override
@@ -294,7 +310,8 @@ namespace ccf
               this->network.consensus_type,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->second),
-              *this->network.identity.get()};
+              *this->network.identity.get(),
+              active_service->status};
             return make_success(rep);
           }
 
@@ -331,7 +348,8 @@ namespace ccf
             args.tx,
             args.rpc_ctx->session->caller_cert,
             in,
-            joining_node_status);
+            joining_node_status,
+            active_service->status);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -350,7 +368,9 @@ namespace ccf
           // trusted. Otherwise, only return its status
           auto node_status = nodes->get(existing_node_info->first)->status;
           rep.node_status = node_status;
-          if (node_status == NodeStatus::TRUSTED)
+          if (
+            node_status == NodeStatus::TRUSTED ||
+            node_status == NodeStatus::LEARNER)
           {
             rep.network_info = {
               context.get_node_state().is_part_of_public_network(),
@@ -358,7 +378,8 @@ namespace ccf
               this->network.consensus_type,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->second),
-              *this->network.identity.get()};
+              *this->network.identity.get(),
+              active_service->status};
             return make_success(rep);
           }
           else if (node_status == NodeStatus::PENDING)
@@ -410,10 +431,11 @@ namespace ccf
             args.tx,
             args.rpc_ctx->session->caller_cert,
             in,
-            NodeStatus::PENDING);
+            NodeStatus::PENDING,
+            active_service->status);
         }
       };
-      make_endpoint("join", HTTP_POST, json_adapter(accept), no_auth_required)
+      make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_openapi_hidden(true)
         .install();
@@ -443,7 +465,7 @@ namespace ccf
         return result;
       };
       make_read_only_endpoint(
-        "state", HTTP_GET, json_read_only_adapter(get_state), no_auth_required)
+        "/state", HTTP_GET, json_read_only_adapter(get_state), no_auth_required)
         .set_auto_schema<GetState>()
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
@@ -461,9 +483,34 @@ namespace ccf
           q.format = node_quote_info.format;
 
 #ifdef GET_QUOTE
-          auto code_id =
-            EnclaveAttestationProvider::get_code_id(node_quote_info);
-          q.mrenclave = ds::to_hex(code_id.data);
+          // get_code_id attempts to re-validate the quote to extract mrenclave
+          // and the Open Enclave is insufficiently flexible to allow quotes
+          // with expired collateral to be parsed at all. Recent nodes therefore
+          // cache their code digest on startup, and this code attempts to fetch
+          // that value when possible and only call the unreliable get_code_id
+          // otherwise.
+          auto nodes = args.tx.ro(network.nodes);
+          auto node_info = nodes->get(context.get_node_state().get_node_id());
+          if (node_info.has_value() && node_info->code_digest.has_value())
+          {
+            q.mrenclave = node_info->code_digest.value();
+          }
+          else
+          {
+            auto code_id =
+              EnclaveAttestationProvider::get_code_id(node_quote_info);
+            if (code_id.has_value())
+            {
+              q.mrenclave = ds::to_hex(code_id.value().data);
+            }
+            else
+            {
+              return make_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InvalidQuote,
+                "Failed to extract code id from node quote.");
+            }
+          }
 #endif
 
           return make_success(q);
@@ -484,7 +531,7 @@ namespace ccf
         }
       };
       make_read_only_endpoint(
-        "quotes/self",
+        "/quotes/self",
         HTTP_GET,
         json_read_only_adapter(get_quote),
         no_auth_required)
@@ -498,7 +545,9 @@ namespace ccf
         auto nodes = args.tx.ro(network.nodes);
         nodes->foreach([& quotes = result.quotes](
                          const auto& node_id, const auto& node_info) {
-          if (node_info.status == ccf::NodeStatus::TRUSTED)
+          if (
+            node_info.status == ccf::NodeStatus::TRUSTED ||
+            node_info.status == ccf::NodeStatus::LEARNER)
           {
             Quote q;
             q.node_id = node_id;
@@ -507,9 +556,25 @@ namespace ccf
             q.format = node_info.quote_info.format;
 
 #ifdef GET_QUOTE
-            auto code_id =
-              EnclaveAttestationProvider::get_code_id(node_info.quote_info);
-            q.mrenclave = ds::to_hex(code_id.data);
+            // get_code_id attempts to re-validate the quote to extract
+            // mrenclave and the Open Enclave is insufficiently flexible to
+            // allow quotes with expired collateral to be parsed at all. Recent
+            // nodes therefore cache their code digest on startup, and this code
+            // attempts to fetch that value when possible and only call the
+            // unreliable get_code_id otherwise.
+            if (node_info.code_digest.has_value())
+            {
+              q.mrenclave = node_info.code_digest.value();
+            }
+            else
+            {
+              auto code_id =
+                EnclaveAttestationProvider::get_code_id(node_info.quote_info);
+              if (code_id.has_value())
+              {
+                q.mrenclave = ds::to_hex(code_id.value().data);
+              }
+            }
 #endif
             quotes.emplace_back(q);
           }
@@ -519,7 +584,7 @@ namespace ccf
         return make_success(result);
       };
       make_read_only_endpoint(
-        "quotes",
+        "/quotes",
         HTTP_GET,
         json_read_only_adapter(get_quotes),
         no_auth_required)
@@ -552,7 +617,7 @@ namespace ccf
           "Service state not available.");
       };
       make_read_only_endpoint(
-        "network",
+        "/network",
         HTTP_GET,
         json_read_only_adapter(network_status),
         no_auth_required)
@@ -623,7 +688,7 @@ namespace ccf
         return make_success(out);
       };
       make_read_only_endpoint(
-        "network/nodes",
+        "/network/nodes",
         HTTP_GET,
         json_read_only_adapter(get_nodes),
         no_auth_required)
@@ -681,7 +746,7 @@ namespace ccf
                                          is_primary});
       };
       make_read_only_endpoint(
-        "network/nodes/{node_id}",
+        "/network/nodes/{node_id}",
         HTTP_GET,
         json_read_only_adapter(get_node_info),
         no_auth_required)
@@ -713,7 +778,7 @@ namespace ccf
           "Node info not available");
       };
       make_read_only_endpoint(
-        "network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
+        "/network/nodes/self", HTTP_GET, get_self_node, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -755,7 +820,7 @@ namespace ccf
           "Primary unknown");
       };
       make_read_only_endpoint(
-        "network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
+        "/network/nodes/primary", HTTP_GET, get_primary_node, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -793,7 +858,7 @@ namespace ccf
         }
       };
       make_read_only_endpoint(
-        "primary", HTTP_HEAD, is_primary, no_auth_required)
+        "/primary", HTTP_HEAD, is_primary, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -821,7 +886,7 @@ namespace ccf
       };
 
       make_command_endpoint(
-        "config", HTTP_GET, consensus_config, no_auth_required)
+        "/config", HTTP_GET, consensus_config, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -843,7 +908,7 @@ namespace ccf
       };
 
       make_command_endpoint(
-        "consensus", HTTP_GET, consensus_state, no_auth_required)
+        "/consensus", HTTP_GET, consensus_state, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -871,7 +936,7 @@ namespace ccf
         args.rpc_ctx->set_response_body("Failed to read memory usage");
       };
 
-      make_command_endpoint("memory", HTTP_GET, memory_usage, no_auth_required)
+      make_command_endpoint("/memory", HTTP_GET, memory_usage, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -888,7 +953,8 @@ namespace ccf
         args.rpc_ctx->set_response_body(nlohmann::json(nm).dump());
       };
 
-      make_command_endpoint("metrics", HTTP_GET, node_metrics, no_auth_required)
+      make_command_endpoint(
+        "/metrics", HTTP_GET, node_metrics, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_execute_outside_consensus(
           ccf::endpoints::ExecuteOutsideConsensus::Locally)
@@ -912,7 +978,7 @@ namespace ccf
       };
 
       make_read_only_endpoint(
-        "js_metrics",
+        "/js_metrics",
         HTTP_GET,
         json_read_only_adapter(js_metrics),
         no_auth_required)
@@ -929,7 +995,7 @@ namespace ccf
       };
 
       make_command_endpoint(
-        "version", HTTP_GET, json_command_adapter(version), no_auth_required)
+        "/version", HTTP_GET, json_command_adapter(version), no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_auto_schema<GetVersion>()
         .set_execute_outside_consensus(

@@ -359,7 +359,7 @@ namespace logger
       line.finalize();
       config::writer()->write(
         config::msg(),
-        config::elapsed_us(),
+        config::elapsed_us().count(),
         line.file_name,
         line.line_number,
         line.log_level,

@@ -11,6 +11,7 @@
 #include "network_tables.h"
 #include "node_info_network.h"
 #include "nodes.h"
+#include "reconfig_id.h"
 #include "values.h"
 
 #include <algorithm>
@@ -40,7 +41,7 @@ namespace ccf
       }
     }
 
-    void retire_active_nodes()
+    kv::NetworkConfiguration retire_active_nodes()
     {
       auto nodes = tx.rw(tables.nodes);
 
@@ -52,11 +53,17 @@ namespace ccf
         return true;
       });
 
+      kv::NetworkConfiguration nc =
+        get_latest_network_configuration(tables, tx);
+
       for (auto [nid, ni] : nodes_to_delete)
       {
         ni.status = NodeStatus::RETIRED;
         nodes->put(nid, ni);
+        nc.nodes.erase(nid);
       }
+
+      return nc;
     }
 
     bool is_recovery_member(const MemberId& member_id)
@@ -274,9 +281,15 @@ namespace ccf
 
       auto node = tx.rw(tables.nodes);
       node->put(id, node_info);
+
+      kv::NetworkConfiguration nc =
+        get_latest_network_configuration(tables, tx);
+      nc.nodes.insert(id);
+      add_new_network_reconfiguration(tables, tx, nc);
     }
 
-    auto get_trusted_nodes(std::optional<NodeId> self_to_exclude = std::nullopt)
+    auto get_trusted_and_learner_nodes(
+      std::optional<NodeId> self_to_exclude = std::nullopt)
     {
       // Returns the list of trusted nodes. If self_to_exclude is set,
       // self_to_exclude is not included in the list of returned nodes.
@@ -287,7 +300,8 @@ namespace ccf
       nodes->foreach([&active_nodes,
                       self_to_exclude](const NodeId& nid, const NodeInfo& ni) {
         if (
-          ni.status == ccf::NodeStatus::TRUSTED &&
+          (ni.status == ccf::NodeStatus::TRUSTED ||
+           ni.status == ccf::NodeStatus::LEARNER) &&
           (!self_to_exclude.has_value() || self_to_exclude.value() != nid))
         {
           active_nodes[nid] = ni;
@@ -382,9 +396,15 @@ namespace ccf
         throw std::logic_error(fmt::format("Node {} is retired", node_id));
       }
 
+      kv::NetworkConfiguration nc =
+        get_latest_network_configuration(tables, tx);
+
       node_info->status = NodeStatus::TRUSTED;
       node_info->ledger_secret_seqno = latest_ledger_secret_seqno;
       nodes->put(node_id, node_info.value());
+
+      nc.nodes.insert(node_id);
+      add_new_network_reconfiguration(tables, tx, nc);
 
       LOG_INFO_FMT("Node {} is now {}", node_id, node_info->status);
     }

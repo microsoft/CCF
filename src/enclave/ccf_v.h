@@ -78,7 +78,6 @@ extern "C"
     size_t,
     size_t*,
     StartType,
-    ConsensusType,
     size_t,
     void*);
 
@@ -121,7 +120,6 @@ extern "C"
     size_t enclave_version_size,
     size_t* enclave_version_len,
     StartType start_type,
-    ConsensusType consensus_type,
     size_t num_worker_thread,
     void* time_location)
   {
@@ -142,7 +140,6 @@ extern "C"
       enclave_version_size,
       enclave_version_len,
       start_type,
-      consensus_type,
       num_worker_thread,
       time_location);
     return OE_OK;

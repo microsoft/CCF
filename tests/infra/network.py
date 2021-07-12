@@ -267,7 +267,7 @@ class Network:
             try:
                 node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
             except TimeoutError:
-                LOG.error(f"New node {node.node_id} failed to join the network")
+                LOG.error(f"New node {node.local_node_id} failed to join the network")
                 raise
 
     def _start_all_nodes(
@@ -332,7 +332,7 @@ class Network:
                         snapshot_dir=snapshot_dir,
                     )
             except Exception:
-                LOG.exception("Failed to start node {}".format(node.node_id))
+                LOG.exception("Failed to start node {}".format(node.local_node_id))
                 raise
 
         self.election_duration = (
@@ -636,13 +636,14 @@ class Network:
                         raise StartupSnapshotIsOld from e
             raise
 
-    def trust_node(self, node, args):
+    def trust_node(self, node, args, expected_status=NodeStatus.TRUSTED):
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(
                     primary,
                     node.node_id,
+                    expected_status,
                     timeout=ceil(args.join_timer * 2 / 1000),
                 )
             # Here, quote verification has already been run when the node
@@ -896,6 +897,22 @@ class Network:
         logs = []
         while time.time() < end_time:
             try:
+                backup = self.find_any_backup()
+                if backup.get_consensus() == "bft":
+                    try:
+                        with backup.client("user0") as c:
+                            _ = c.post(
+                                "/app/log/private",
+                                {
+                                    "id": -1,
+                                    "msg": "This is submitted to force a view change",
+                                },
+                            )
+                        time.sleep(1)
+                    except CCFConnectionException:
+                        LOG.warning(
+                            f"Could not successfully connect to node {backup.node_id}."
+                        )
                 logs = []
                 new_primary, new_term = self.find_primary(nodes=nodes, log_capture=logs)
                 if new_primary.node_id != old_primary.node_id:

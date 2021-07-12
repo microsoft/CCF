@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "crypto/ecdsa.h"
 #include "crypto/entropy.h"
 #include "crypto/key_wrap.h"
 #include "crypto/rsa_key_pair.h"
@@ -448,6 +449,13 @@ namespace js
         return JS_EXCEPTION;
       }
 
+      std::vector<uint8_t> sig(signature, signature + signature_size);
+
+      if (algo_name == "ECDSA")
+      {
+        sig = crypto::ecdsa_sig_p1363_to_der(sig);
+      }
+
       auto is_cert = nonstd::starts_with(key, "-----BEGIN CERTIFICATE");
 
       bool valid = false;
@@ -456,13 +464,13 @@ namespace js
       {
         auto verifier = crypto::make_unique_verifier(key);
         valid =
-          verifier->verify(data, data_size, signature, signature_size, mdtype);
+          verifier->verify(data, data_size, sig.data(), sig.size(), mdtype);
       }
       else
       {
         auto public_key = crypto::make_public_key(key);
-        valid = public_key->verify(
-          data, data_size, signature, signature_size, mdtype);
+        valid =
+          public_key->verify(data, data_size, sig.data(), sig.size(), mdtype);
       }
 
       return JS_NewBool(ctx, valid);

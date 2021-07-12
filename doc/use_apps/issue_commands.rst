@@ -17,15 +17,13 @@ For example, to record a message at a specific id with the :doc:`C++ sample logg
     HTTP/1.1 200 OK
     content-length: 5
     content-type: application/json
-    x-ccf-tx-seqno: 23
-    x-ccf-tx-view: 2
+    x-ms-ccf-transaction-id: 2.23
 
     true
 
 The HTTP response some CCF commit information in the headers:
 
-- ``"x-ccf-tx-seqno"`` is the unique version at which the request was executed
-- ``"x-ccf-tx-view"`` indicates the consensus view at which the request was executed
+- ``"x-ms-ccf-transaction-id"`` indicates the consensus view, and the unique version at which the request was executed, separated by a ``"."``.
 
 The response body (the JSON value ``true``) indicates that the request was executed successfully. For many RPCs this will be a JSON object with more details about the execution result.
 

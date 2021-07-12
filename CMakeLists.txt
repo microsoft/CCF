@@ -666,13 +666,6 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME reconfiguration_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-    CONSENSUS cft
-    ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
-  )
-
-  add_e2e_test(
     NAME code_update_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
     CONSENSUS cft
@@ -859,6 +852,13 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS}
       LABEL rotation
       ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
+    )
+
+    add_e2e_test(
+      NAME reconfiguration_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS --ccf-version ${CCF_VERSION}
     )
 
   endforeach()
