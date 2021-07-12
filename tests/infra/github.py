@@ -92,7 +92,7 @@ class Repository:
         return sorted(
             [
                 branch.name
-                for branch in self.branches()
+                for branch in self.branches
                 if is_release_branch(branch.name)
             ],
             key=cmp_to_key(
