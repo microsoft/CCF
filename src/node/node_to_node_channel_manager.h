@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "channel.h"
+#include "channels.h"
 #include "node/node_to_node.h"
 
 namespace ccf
